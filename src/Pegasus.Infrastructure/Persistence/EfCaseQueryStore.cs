@@ -745,7 +745,28 @@ public sealed class EfCaseQueryStore(
             workflow.Case.CustodyRootRemoteId,
             ParseCustodyState(workflow.Case.CustodyState),
             works,
-            workflow.Case.StandaloneAuditEvidenceId);
+            workflow.Case.StandaloneAuditEvidenceId)
+        {
+            EditRequest = ResolveStandingRequest(workflow, timeProvider.GetUtcNow())
+        };
+
+    /// <summary>
+    /// The request to edit as the page sees it: only one addressed to the live holder stands
+    /// (FRD-14 §Take over); a request the holder has moved on from is nobody's.
+    /// </summary>
+    private static CaseEditRequestSnapshot? ResolveStandingRequest(CaseWorkflowEntity workflow, DateTimeOffset now)
+    {
+        var request = CaseMutationGuard.RetainedRequest(workflow);
+        return request is not null
+            && CaseEditAuthority.RequestStands(
+                request,
+                CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind),
+                workflow.EditLeaseHolder,
+                workflow.EditLeaseExpiresAtUtc,
+                now)
+                ? request
+                : null;
+    }
 
     private static async Task<CaseRecordNotes> ReadRecordNotesAsync(
         PegasusDbContext context,

@@ -476,7 +476,7 @@ public sealed class CaseDataCompletenessPersistenceTests
                     staffActor,
                     addressStore,
                     dataStore,
-                    new CaseEditLeases(workflowStore),
+                    new CaseEditLeases(workflowStore, new InProcessCaseEditSignal()),
                     workflowStore,
                     new EfCaseWorkspaceStore(factory, timeProvider));
             }

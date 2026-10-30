@@ -2267,6 +2267,594 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         Assert.Equal(0, await harness.WorkflowEventCountAsync("automation-takeover"));
     }
 
+    /// <summary>
+    /// A colleague asks the member of staff who holds the Case to hand it over (FRD-14 §Take over,
+    /// R550, 30 October 2026). The request is retained on the Case's own row against that holder;
+    /// asking is telemetry, so the lease is untouched and nothing is written as history. The
+    /// requester reads the request pending against a live holder and no lease of their own; the
+    /// holder reads the same request and their own lease.
+    /// </summary>
+    [Fact]
+    public async Task AColleaguesRequestStandsAgainstTheLiveHolderAndWritesNoHistory()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-holder-claim"), default);
+        var leaseBefore = await harness.ReadLeaseRowAsync(harness.CaseId);
+
+        var raised = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-colleague-asks"), default);
+
+        Assert.Equal(CaseEditRequestOutcome.Pending, raised.Outcome);
+        Assert.Null(raised.Lease);
+        var request = raised.Request;
+        Assert.NotNull(request);
+        Assert.Equal(ActorKind.Staff, request.RequesterKind);
+        Assert.Equal(colleague.SubjectId, request.Requester);
+        Assert.Equal(holder.SubjectId, request.Holder);
+        Assert.Equal(harness.TimeProvider.GetUtcNow(), request.RequestedAtUtc);
+        Assert.Null(request.Answer);
+
+        var row = await ReadWorkflowRowAsync(harness, harness.CaseId);
+        Assert.Equal(request.Id, row.EditRequestId);
+        Assert.Equal(nameof(ActorKind.Staff), row.EditRequesterKind);
+        Assert.Equal(colleague.SubjectId, row.EditRequester);
+        Assert.Equal(holder.SubjectId, row.EditRequestHolder);
+        Assert.Equal("request-colleague-asks", row.EditRequestOperationKey);
+        Assert.Equal(harness.TimeProvider.GetUtcNow(), row.EditRequestedAtUtc);
+        Assert.Null(row.EditRequestAnswer);
+        Assert.Equal(LeaseColumns(leaseBefore), LeaseColumns(await harness.ReadLeaseRowAsync(harness.CaseId)));
+        Assert.Equal(0, await harness.WorkflowEventCountAsync("request-colleague-asks"));
+        Assert.Equal(0, await harness.WorkflowEventTypeCountAsync(harness.CaseId, "edit_lease_taken_over"));
+
+        var seenByColleague = await harness.Store.ReadRequestAsync(harness.CaseId, colleague, default);
+        Assert.Equal(request, seenByColleague.Request);
+        Assert.True(seenByColleague.RequestIsPending);
+        Assert.True(seenByColleague.HolderIsLive);
+        Assert.Equal(ActorKind.Staff, seenByColleague.HolderKind);
+        Assert.Equal(holder.SubjectId, seenByColleague.Holder);
+        Assert.Null(seenByColleague.OwnLease);
+
+        var seenByHolder = await harness.Store.ReadRequestAsync(harness.CaseId, holder, default);
+        Assert.Equal(request.Id, seenByHolder.Request?.Id);
+        Assert.True(seenByHolder.RequestIsPending);
+        Assert.NotNull(seenByHolder.OwnLease);
+        Assert.Equal(held.Token, seenByHolder.OwnLease.Token);
+        Assert.Equal(holder.SubjectId, seenByHolder.OwnLease.Holder);
+    }
+
+    /// <summary>
+    /// Only a member of staff's live lease held by someone else is asked for (R550, 30 October
+    /// 2026). With no live lease the caller simply claims; the holder asking is handed their own
+    /// lease; and nobody asks the Automation Actor, whose lease staff take over at once (ADR-0075).
+    /// None of these writes a request.
+    /// </summary>
+    [Fact]
+    public async Task RaisingARequestAnswersFreeHeldOrAutomationHeldWhenNoColleagueIsAsked()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var automation = ActionActor.Automation($"grant:{Guid.NewGuid():N}");
+
+        var free = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-free"), default);
+        Assert.Equal(CaseEditRequestOutcome.Free, free.Outcome);
+        Assert.Null(free.Request);
+        Assert.Null(free.Lease);
+        Assert.Null((await ReadWorkflowRowAsync(harness, harness.CaseId)).EditRequestId);
+
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-own-claim"), default);
+        var own = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, holder, "request-own-ask"), default);
+        Assert.Equal(CaseEditRequestOutcome.Held, own.Outcome);
+        Assert.Null(own.Request);
+        Assert.NotNull(own.Lease);
+        Assert.Equal(held.Token, own.Lease.Token);
+        Assert.Equal(held.Generation, own.Lease.Generation);
+        Assert.Null((await ReadWorkflowRowAsync(harness, harness.CaseId)).EditRequestId);
+
+        _ = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.SecondCaseId, 0, automation, "request-automation-claim"), default);
+        var automationHeld = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.SecondCaseId, 0, colleague, "request-ask-automation"), default);
+        Assert.Equal(CaseEditRequestOutcome.AutomationHeld, automationHeld.Outcome);
+        Assert.Null(automationHeld.Request);
+        Assert.Null(automationHeld.Lease);
+        Assert.Null((await ReadWorkflowRowAsync(harness, harness.SecondCaseId)).EditRequestId);
+    }
+
+    /// <summary>
+    /// The Automation Actor may ask a member of staff for the lease, as any casework actor may
+    /// (R550, 30 October 2026). When the holder accepts, the lease is the Actor's and the history
+    /// line names it "AI", never its grant id (R553, 30 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task TheAutomationActorMayAskAndIsHandedTheLeaseAsAI()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var automation = ActionActor.Automation($"grant:{Guid.NewGuid():N}");
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-ai-holder-claim"), default);
+
+        var raised = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, automation, "request-ai-asks"), default);
+
+        Assert.Equal(CaseEditRequestOutcome.Pending, raised.Outcome);
+        var request = raised.Request;
+        Assert.NotNull(request);
+        Assert.Equal(ActorKind.Automation, request.RequesterKind);
+        Assert.Equal(automation.SubjectId, request.Requester);
+        Assert.Equal(holder.SubjectId, request.Holder);
+
+        await harness.Store.AnswerRequestAsync(
+            new AnswerCaseEditRequestRequest(
+                harness.CaseId, holder, request.Id, CaseEditRequestAnswer.Accepted, held.Token),
+            default);
+
+        var row = await harness.ReadLeaseRowAsync(harness.CaseId);
+        Assert.Equal(automation.SubjectId, row.Holder);
+        Assert.Equal(nameof(ActorKind.Automation), row.HolderKind);
+        var history = Assert.Single(await harness.WorkflowEventsAsync("request-ai-asks"));
+        Assert.Equal("edit_lease_taken_over", history.EventType);
+        Assert.Equal(holder.SubjectId, history.ActorSubjectId);
+        Assert.Equal("Edit lease handed over to AI at their request.", history.Reason);
+    }
+
+    /// <summary>
+    /// One request stands per Case (R550, 30 October 2026): while a colleague's request is still
+    /// inside its answer window another editor's is refused as already asked, and once the window
+    /// closes unanswered the next editor's request replaces it (R552).
+    /// </summary>
+    [Fact]
+    public async Task OneRequestStandsPerCaseUntilItsAnswerWindowCloses()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var first = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var second = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        _ = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-one-holder-claim"), default);
+        var firstRaised = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, first, "request-one-first"), default);
+        Assert.Equal(CaseEditRequestOutcome.Pending, firstRaised.Outcome);
+        Assert.NotNull(firstRaised.Request);
+
+        var refused = await Assert.ThrowsAsync<CaseEditRequestRefusedException>(() =>
+            harness.Store.RaiseRequestAsync(
+                new RaiseCaseEditRequestRequest(harness.CaseId, 0, second, "request-one-second"), default));
+        Assert.Equal(CaseEditRequestRefusal.AlreadyAsked, refused.Refusal);
+        Assert.Equal(firstRaised.Request.Id, (await ReadWorkflowRowAsync(harness, harness.CaseId)).EditRequestId);
+
+        harness.TimeProvider.Advance(TimeSpan.FromSeconds(46));
+        var secondRaised = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, second, "request-one-second-again"), default);
+
+        Assert.Equal(CaseEditRequestOutcome.Pending, secondRaised.Outcome);
+        Assert.NotNull(secondRaised.Request);
+        Assert.NotEqual(firstRaised.Request.Id, secondRaised.Request.Id);
+        Assert.Equal(second.SubjectId, secondRaised.Request.Requester);
+        Assert.Equal(holder.SubjectId, secondRaised.Request.Holder);
+        var row = await ReadWorkflowRowAsync(harness, harness.CaseId);
+        Assert.Equal(secondRaised.Request.Id, row.EditRequestId);
+        Assert.Equal(second.SubjectId, row.EditRequester);
+        Assert.Equal("request-one-second-again", row.EditRequestOperationKey);
+    }
+
+    /// <summary>
+    /// The requester's own request sent again under its operation key answers its current state
+    /// rather than raising a second one: the same request while the holder is being asked, and
+    /// once the holder accepts, the lease the requester was handed.
+    /// </summary>
+    [Fact]
+    public async Task ARequestSentAgainAnswersItsCurrentStateAndTheLeaseItWasHanded()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-again-holder-claim"), default);
+        var ask = new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-again-asks");
+        var raised = await harness.Store.RaiseRequestAsync(ask, default);
+        Assert.NotNull(raised.Request);
+
+        var sentAgain = await harness.Store.RaiseRequestAsync(ask, default);
+
+        Assert.Equal(CaseEditRequestOutcome.Pending, sentAgain.Outcome);
+        Assert.Equal(raised.Request.Id, sentAgain.Request?.Id);
+        Assert.Null(sentAgain.Lease);
+
+        await harness.Store.AnswerRequestAsync(
+            new AnswerCaseEditRequestRequest(
+                harness.CaseId, holder, raised.Request.Id, CaseEditRequestAnswer.Accepted, held.Token),
+            default);
+        var afterAccept = await harness.Store.RaiseRequestAsync(ask, default);
+
+        Assert.Equal(CaseEditRequestOutcome.Accepted, afterAccept.Outcome);
+        Assert.Equal(raised.Request.Id, afterAccept.Request?.Id);
+        Assert.Equal(CaseEditRequestAnswer.Accepted, afterAccept.Request?.Answer);
+        Assert.NotNull(afterAccept.Lease);
+        Assert.Equal((await harness.ReadLeaseRowAsync(harness.CaseId)).Token, afterAccept.Lease.Token);
+        Assert.Equal(colleague.SubjectId, afterAccept.Lease.Holder);
+        var resumed = await harness.Store.ResumeAsync(new(harness.CaseId, colleague), default);
+        Assert.Equal(afterAccept.Lease.Token, resumed?.Token);
+        Assert.Equal(1, await harness.WorkflowEventCountAsync("request-again-asks"));
+    }
+
+    /// <summary>
+    /// Accept hands the lease over in one transaction (R553, 30 October 2026): the requester holds
+    /// a new token at the next generation, the holder's old token is refused, and the hand-over is
+    /// one history line under the takeover event type, written by the holder and naming the
+    /// requester, at the Case's version with no version change.
+    /// </summary>
+    [Fact]
+    public async Task AColleagueAsksAndTheHolderHandsTheLeaseOverInOneTransaction()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var colleagueId = Guid.NewGuid();
+        await harness.SeedStaffAccountAsync(colleagueId, isEnabled: true, StaffRole.User);
+        var colleague = ActionActor.Staff(colleagueId, [StaffRole.User]);
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-accept-holder-claim"), default);
+        var raised = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-accept-asks"), default);
+        Assert.NotNull(raised.Request);
+
+        await harness.Store.AnswerRequestAsync(
+            new AnswerCaseEditRequestRequest(
+                harness.CaseId, holder, raised.Request.Id, CaseEditRequestAnswer.Accepted, held.Token),
+            default);
+
+        var row = await harness.ReadLeaseRowAsync(harness.CaseId);
+        Assert.Equal(colleague.SubjectId, row.Holder);
+        Assert.Equal(nameof(ActorKind.Staff), row.HolderKind);
+        Assert.NotEqual(held.Token, row.Token);
+        Assert.Equal("request-accept-asks", row.OperationKey);
+        Assert.Equal(held.Version, row.Version);
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.HeartbeatAsync(
+                new HeartbeatCaseEditLeaseRequest(harness.CaseId, holder, held.Token), default));
+        Assert.Null(await harness.Store.ResumeAsync(new(harness.CaseId, holder), default));
+        var resumed = await harness.Store.ResumeAsync(new(harness.CaseId, colleague), default);
+        Assert.NotNull(resumed);
+        Assert.Equal(row.Token, resumed.Token);
+        Assert.Equal(colleague.SubjectId, resumed.Holder);
+        Assert.Equal(held.Generation + 1, resumed.Generation);
+
+        var history = Assert.Single(await harness.WorkflowEventsAsync("request-accept-asks"));
+        Assert.Equal("edit_lease_taken_over", history.EventType);
+        Assert.Equal(nameof(ActorKind.Staff), history.ActorKind);
+        Assert.Equal(holder.SubjectId, history.ActorSubjectId);
+        Assert.Equal($"Edit lease handed over to workflow-test-{colleagueId:N} at their request.", history.Reason);
+        Assert.Equal(held.Version, history.BeforeVersion);
+        Assert.Equal(held.Version, history.AfterVersion);
+        Assert.Equal(1, await harness.WorkflowEventTypeCountAsync(harness.CaseId, "edit_lease_taken_over"));
+        Assert.Equal("accepted", (await ReadWorkflowRowAsync(harness, harness.CaseId)).EditRequestAnswer);
+    }
+
+    /// <summary>
+    /// A declined request is recorded and ends the matter (R550, 30 October 2026): the lease is
+    /// untouched, the holder carries on, nothing is written as history, and the requester's request
+    /// sent again is refused as declined.
+    /// </summary>
+    [Fact]
+    public async Task ADeclinedRequestLeavesTheLeaseAndIsRefusedWhenSentAgain()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-decline-holder-claim"), default);
+        var ask = new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-decline-asks");
+        var raised = await harness.Store.RaiseRequestAsync(ask, default);
+        Assert.NotNull(raised.Request);
+        var leaseBefore = await harness.ReadLeaseRowAsync(harness.CaseId);
+
+        await harness.Store.AnswerRequestAsync(
+            new AnswerCaseEditRequestRequest(
+                harness.CaseId, holder, raised.Request.Id, CaseEditRequestAnswer.Declined, held.Token),
+            default);
+
+        Assert.Equal("declined", (await ReadWorkflowRowAsync(harness, harness.CaseId)).EditRequestAnswer);
+        Assert.Equal(LeaseColumns(leaseBefore), LeaseColumns(await harness.ReadLeaseRowAsync(harness.CaseId)));
+        var beat = await harness.Store.HeartbeatAsync(
+            new HeartbeatCaseEditLeaseRequest(harness.CaseId, holder, held.Token), default);
+        Assert.Equal(held.Token, beat.Token);
+        Assert.Equal(0, await harness.WorkflowEventCountAsync("request-decline-asks"));
+        Assert.Equal(0, await harness.WorkflowEventTypeCountAsync(harness.CaseId, "edit_lease_taken_over"));
+        var seen = await harness.Store.ReadRequestAsync(harness.CaseId, colleague, default);
+        Assert.Equal(CaseEditRequestAnswer.Declined, seen.Request?.Answer);
+        Assert.False(seen.RequestIsPending);
+
+        var refused = await Assert.ThrowsAsync<CaseEditRequestRefusedException>(() =>
+            harness.Store.RaiseRequestAsync(ask, default));
+        Assert.Equal(CaseEditRequestRefusal.Declined, refused.Refusal);
+    }
+
+    /// <summary>
+    /// A withdrawal is the requester's alone: the holder cannot withdraw a colleague's request,
+    /// and the requester withdrawing records it with the lease untouched.
+    /// </summary>
+    [Fact]
+    public async Task OnlyTheRequesterMayWithdrawARequest()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-withdraw-holder-claim"), default);
+        var raised = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-withdraw-asks"), default);
+        Assert.NotNull(raised.Request);
+        var leaseBefore = await harness.ReadLeaseRowAsync(harness.CaseId);
+
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.AnswerRequestAsync(
+                new AnswerCaseEditRequestRequest(
+                    harness.CaseId, holder, raised.Request.Id, CaseEditRequestAnswer.Withdrawn, held.Token),
+                default));
+        Assert.Null((await ReadWorkflowRowAsync(harness, harness.CaseId)).EditRequestAnswer);
+
+        await harness.Store.AnswerRequestAsync(
+            new AnswerCaseEditRequestRequest(
+                harness.CaseId, colleague, raised.Request.Id, CaseEditRequestAnswer.Withdrawn, null),
+            default);
+
+        Assert.Equal("withdrawn", (await ReadWorkflowRowAsync(harness, harness.CaseId)).EditRequestAnswer);
+        Assert.Equal(LeaseColumns(leaseBefore), LeaseColumns(await harness.ReadLeaseRowAsync(harness.CaseId)));
+        var beat = await harness.Store.HeartbeatAsync(
+            new HeartbeatCaseEditLeaseRequest(harness.CaseId, holder, held.Token), default);
+        Assert.Equal(held.Token, beat.Token);
+        Assert.Equal(0, await harness.WorkflowEventCountAsync("request-withdraw-asks"));
+        var seen = await harness.Store.ReadRequestAsync(harness.CaseId, colleague, default);
+        Assert.Equal(CaseEditRequestAnswer.Withdrawn, seen.Request?.Answer);
+        Assert.False(seen.RequestIsPending);
+    }
+
+    /// <summary>
+    /// An answer is refused when it names a request the Case does not hold or one already
+    /// answered, and when anyone but the holder answers: the holder proves the lease with their
+    /// own token, so another member of staff is refused by the lease guard as a conflict. No
+    /// refusal changes the lease.
+    /// </summary>
+    [Fact]
+    public async Task AnAnswerToAnUnknownOrAnsweredRequestOrFromANonHolderIsRefused()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var bystander = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-refuse-holder-claim"), default);
+        var raised = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-refuse-asks"), default);
+        Assert.NotNull(raised.Request);
+        var leaseBefore = await harness.ReadLeaseRowAsync(harness.CaseId);
+
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+            harness.Store.AnswerRequestAsync(
+                new AnswerCaseEditRequestRequest(
+                    harness.CaseId, holder, Guid.NewGuid(), CaseEditRequestAnswer.Accepted, held.Token),
+                default));
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.AnswerRequestAsync(
+                new AnswerCaseEditRequestRequest(
+                    harness.CaseId, bystander, raised.Request.Id, CaseEditRequestAnswer.Accepted, new string('a', 64)),
+                default));
+        Assert.Equal(leaseBefore, await harness.ReadLeaseRowAsync(harness.CaseId));
+        Assert.Null((await ReadWorkflowRowAsync(harness, harness.CaseId)).EditRequestAnswer);
+
+        await harness.Store.AnswerRequestAsync(
+            new AnswerCaseEditRequestRequest(
+                harness.CaseId, holder, raised.Request.Id, CaseEditRequestAnswer.Declined, held.Token),
+            default);
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+            harness.Store.AnswerRequestAsync(
+                new AnswerCaseEditRequestRequest(
+                    harness.CaseId, holder, raised.Request.Id, CaseEditRequestAnswer.Accepted, held.Token),
+                default));
+
+        Assert.Equal(LeaseColumns(leaseBefore), LeaseColumns(await harness.ReadLeaseRowAsync(harness.CaseId)));
+        Assert.Equal("declined", (await ReadWorkflowRowAsync(harness, harness.CaseId)).EditRequestAnswer);
+        Assert.Equal(0, await harness.WorkflowEventCountAsync("request-refuse-asks"));
+    }
+
+    /// <summary>
+    /// A request is addressed to one holder (R550, 30 October 2026). The holder's own re-claim —
+    /// what their save does — leaves it standing; once their lease lapses and another member of
+    /// staff claims the Case, the request is over.
+    /// </summary>
+    [Fact]
+    public async Task TheRequestFollowsOnlyTheHolderItWasAddressedTo()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var bystander = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        _ = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-follow-holder-claim"), default);
+        var raised = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-follow-asks"), default);
+        Assert.NotNull(raised.Request);
+
+        _ = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-follow-take-back")
+            {
+                TakeOver = true
+            }, default);
+
+        var afterTakeBack = await harness.Store.ReadRequestAsync(harness.CaseId, colleague, default);
+        Assert.Equal(raised.Request, afterTakeBack.Request);
+        Assert.True(afterTakeBack.RequestIsPending);
+        Assert.Equal(holder.SubjectId, afterTakeBack.Holder);
+
+        harness.TimeProvider.Advance(CaseEditAuthority.LeaseDuration + TimeSpan.FromSeconds(1));
+        _ = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, bystander, "request-follow-other-claim"), default);
+
+        var afterOtherClaim = await harness.Store.ReadRequestAsync(harness.CaseId, bystander, default);
+        Assert.Null(afterOtherClaim.Request);
+        Assert.False(afterOtherClaim.RequestIsPending);
+        Assert.Null((await ReadWorkflowRowAsync(harness, harness.CaseId)).EditRequestId);
+    }
+
+    /// <summary>
+    /// The holder's own save ends and re-claims the lease and leaves the request standing; a claim
+    /// by the same holder after the lease lapsed does not, because the request was asked against
+    /// a session that has ended (R550, 30 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task TheHoldersSaveKeepsTheRequestButTheirClaimAfterALapseEndsIt()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-save-claim"), default);
+        var raised = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-save-asks"), default);
+        Assert.Equal(CaseEditRequestOutcome.Pending, raised.Outcome);
+
+        var saved = await new StartCaseWork(harness.Store).ExecuteAsync(
+            new ChangeCaseStateRequest(
+                harness.CaseId, 0, holder, "request-save-write", "Inspection work started", held.Token),
+            default);
+        var reclaimed = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, saved.Version, holder, "request-save-reclaim"), default);
+
+        var afterSave = await harness.Store.ReadRequestAsync(harness.CaseId, colleague, default);
+        Assert.Equal(raised.Request, afterSave.Request);
+        Assert.Equal(holder.SubjectId, afterSave.Holder);
+        Assert.Equal(reclaimed.Holder, afterSave.Holder);
+
+        harness.TimeProvider.Advance(CaseEditAuthority.LeaseDuration + TimeSpan.FromSeconds(1));
+        await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, saved.Version, holder, "request-save-after-lapse"), default);
+
+        Assert.Null((await harness.Store.ReadRequestAsync(harness.CaseId, colleague, default)).Request);
+    }
+
+    /// <summary>
+    /// The hand-over is history under the request's own operation key, which a Case holds once:
+    /// asking again under a key the Case's history already carries is refused as a reused key.
+    /// </summary>
+    [Fact]
+    public async Task AskingAgainUnderAKeyTheCasesHistoryAlreadyHoldsIsRefused()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-key-claim"), default);
+        var raised = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-key-asks"), default);
+        await harness.Store.AnswerRequestAsync(
+            new AnswerCaseEditRequestRequest(
+                harness.CaseId, holder, raised.Request!.Id, CaseEditRequestAnswer.Accepted, held.Token),
+            default);
+        var handed = await harness.Store.ResumeAsync(new(harness.CaseId, colleague), default);
+        await harness.Store.ReleaseAsync(
+            new ReleaseCaseEditLeaseRequest(harness.CaseId, colleague, "request-key-release", handed!.Token), default);
+        await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-key-claim-again"), default);
+
+        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
+            harness.Store.RaiseRequestAsync(
+                new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-key-asks"), default));
+        Assert.Equal(1, await harness.WorkflowEventCountAsync("request-key-asks"));
+    }
+
+    /// <summary>
+    /// Done ends the request with the lease (R550, 30 October 2026): after the holder releases,
+    /// no request is retained and the colleague asking again finds the Case free to claim.
+    /// </summary>
+    [Fact]
+    public async Task DoneEndsTheRequestAndTheColleagueFindsTheCaseFree()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-done-holder-claim"), default);
+        var raised = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-done-asks"), default);
+        Assert.Equal(CaseEditRequestOutcome.Pending, raised.Outcome);
+
+        await harness.Store.ReleaseAsync(
+            new ReleaseCaseEditLeaseRequest(harness.CaseId, holder, "request-done-release", held.Token), default);
+
+        var seen = await harness.Store.ReadRequestAsync(harness.CaseId, colleague, default);
+        Assert.Null(seen.Request);
+        Assert.False(seen.HolderIsLive);
+        var row = await ReadWorkflowRowAsync(harness, harness.CaseId);
+        Assert.Null(row.EditRequestId);
+        Assert.Null(row.EditRequester);
+        Assert.Null(row.EditRequestHolder);
+        Assert.Null(row.EditRequestOperationKey);
+        Assert.Null(row.EditRequestedAtUtc);
+        Assert.Null(row.EditRequestAnswer);
+
+        var askedAgain = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-done-asks-again"), default);
+        Assert.Equal(CaseEditRequestOutcome.Free, askedAgain.Outcome);
+        Assert.Null(askedAgain.Request);
+        Assert.Null(askedAgain.Lease);
+    }
+
+    /// <summary>
+    /// The Case page's frame carries the request only while it stands against the live holder it
+    /// was addressed to (FRD-14 §Take over): through and past its answer window while that holder
+    /// keeps the lease, and no longer once the lease has been handed to the requester.
+    /// </summary>
+    [Fact]
+    public async Task TheCaseFrameCarriesTheRequestOnlyWhileItStandsAgainstTheLiveHolder()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-frame-holder-claim"), default);
+        Assert.Null((await harness.QueryStore.GetSectionFrameAsync(harness.CaseId, default))?.EditRequest);
+        var raised = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-frame-asks"), default);
+        Assert.NotNull(raised.Request);
+
+        var whilePending = await harness.QueryStore.GetSectionFrameAsync(harness.CaseId, default);
+        Assert.NotNull(whilePending);
+        Assert.Equal(raised.Request, whilePending.EditRequest);
+
+        harness.TimeProvider.Advance(TimeSpan.FromSeconds(46));
+        var unanswered = await harness.QueryStore.GetSectionFrameAsync(harness.CaseId, default);
+        Assert.Equal(raised.Request.Id, unanswered?.EditRequest?.Id);
+
+        await harness.Store.AnswerRequestAsync(
+            new AnswerCaseEditRequestRequest(
+                harness.CaseId, holder, raised.Request.Id, CaseEditRequestAnswer.Accepted, held.Token),
+            default);
+        var afterHandOver = await harness.QueryStore.GetSectionFrameAsync(harness.CaseId, default);
+        Assert.NotNull(afterHandOver);
+        Assert.Null(afterHandOver.EditRequest);
+        Assert.Equal(colleague.SubjectId, afterHandOver.ActiveEditLease?.Holder);
+    }
+
+    /// <summary>
+    /// The lease columns alone: answering or raising a request saves the workflow row, which
+    /// rotates its concurrency token without touching the lease.
+    /// </summary>
+    private static RetainedLeaseRow LeaseColumns(RetainedLeaseRow row) => row with { ConcurrencyToken = Guid.Empty };
+
+    /// <summary>Every retained request column on the Case's row, read as stored.</summary>
+    private static async Task<CaseWorkflowEntity> ReadWorkflowRowAsync(WorkflowHarness harness, Guid caseId)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        return await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
+    }
+
     [Fact]
     public async Task LeaseReleaseAndExpiryDiscardReplayCredentialBeforeReplacement()
     {

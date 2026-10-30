@@ -280,7 +280,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
                     acceptanceStore,
                     acceptIntake,
                     new EfCaseWorkspaceStore(factory, timeProvider),
-                    new CaseEditLeases(workflowStore));
+                    new CaseEditLeases(workflowStore, new InProcessCaseEditSignal()));
             }
             catch
             {

@@ -296,7 +296,14 @@ public sealed record CaseSectionFrame(
     string? CustodyFolderRemoteId = null,
     CaseCustodyState CustodyState = CaseCustodyState.Pending,
     CaseWorkSet? Works = null,
-    Guid? StandaloneAuditEvidenceId = null);
+    Guid? StandaloneAuditEvidenceId = null)
+{
+    /// <summary>
+    /// The request to edit standing against <see cref="ActiveEditLease"/> (FRD-14 §Take over),
+    /// read with the lease; null when none stands.
+    /// </summary>
+    public CaseEditRequestSnapshot? EditRequest { get; init; }
+}
 
 /// <summary>
 /// The already-authorized page inputs a directly rendered body may reuse. A

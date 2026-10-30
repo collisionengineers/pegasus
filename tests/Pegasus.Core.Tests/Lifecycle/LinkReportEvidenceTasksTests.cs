@@ -74,6 +74,15 @@ public sealed class LinkReportEvidenceTasksTests
 
     private sealed class LinkStore(IReadOnlyList<CaseTaskRecord> tasks) : ICaseWorkflowStore
     {
+        public Task<CaseEditRequestRaised> RaiseRequestAsync(RaiseCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task AnswerRequestAsync(AnswerCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseEditRequestView> ReadRequestAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public LinkReportEvidenceRequest? Linked { get; private set; }
 
         public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
