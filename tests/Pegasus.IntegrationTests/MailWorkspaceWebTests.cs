@@ -1289,12 +1289,12 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("instructions@collisionengineers.co.uk", html, StringComparison.Ordinal);
         Assert.Contains("reports@collisionengineers.co.uk", html, StringComparison.Ordinal);
         Assert.Contains("Message 1 from instructions", html, StringComparison.Ordinal);
-        // The ledger row (v42 I): the unread dot and class, the Type as plain
-        // Correspondence, the subject with its one-line excerpt beneath, the
-        // sender, and the received date with its clock.
+        // The ledger row (v42 I): the unread dot and class, the Type as the
+        // neutral Correspondence chip (R550), the subject with its one-line
+        // excerpt beneath, the sender, and the received date with its clock.
         Assert.Equal(3, CountOccurrences(html, "inbox-ledger-row unread"));
         Assert.Equal(3, CountOccurrences(html, "class=\"unread-indicator\""));
-        Assert.Equal(3, CountOccurrences(html, $"<span class=\"inbox-type-correspondence\">{OperatorLabels.Inbox.Correspondence}</span>"));
+        Assert.Equal(3, CountOccurrences(html, $"<span class=\"status status--neutral\">{OperatorLabels.Inbox.Correspondence}</span>"));
         Assert.Equal(3, CountOccurrences(html, "<span class=\"row-excerpt\">Please inspect the vehicle at the address supplied.</span>"));
         Assert.Equal(3, CountOccurrences(html, "<span class=\"inbox-sender-addr\">"));
         Assert.Equal(3, CountOccurrences(html, "<small class=\"tabular\">"));
@@ -1434,7 +1434,8 @@ public sealed class MailWorkspaceWebTests
 
     /// <summary>
     /// The Type cell (v42 H, I): a category is its status chip with the work
-    /// type beneath a New instruction; Correspondence is plain words.
+    /// type beneath a New instruction as a plain neutral chip; Correspondence is
+    /// a neutral chip (R550).
     /// </summary>
     [Theory]
     [InlineData(MailCategory.NewInstruction, "Audit", "navy", "Audit", "/Inbox")]
@@ -1458,10 +1459,10 @@ public sealed class MailWorkspaceWebTests
         var row = MailRow(await GetHtmlAsync(client, list), messageId);
         var type = Between(row, "<div class=\"inbox-cell-type\">", "</div>");
         Assert.Contains($"<span class=\"status status--{tone}\">{OperatorLabels.MailClassification(category)}</span>", type, StringComparison.Ordinal);
-        Assert.Equal(sub is not null, type.Contains("<small class=\"inbox-cell-sub\">", StringComparison.Ordinal));
+        Assert.Equal(sub is not null, type.Contains("inbox-type-work", StringComparison.Ordinal));
         if (sub is not null)
         {
-            Assert.Contains($"<small class=\"inbox-cell-sub\">{sub}</small>", type, StringComparison.Ordinal);
+            Assert.Contains($"<span class=\"status status--neutral status--plain inbox-type-work\">{sub}</span>", type, StringComparison.Ordinal);
         }
         Assert.DoesNotContain(OperatorLabels.Inbox.Correspondence, type, StringComparison.Ordinal);
     }
