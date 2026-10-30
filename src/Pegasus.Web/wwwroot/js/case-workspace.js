@@ -552,7 +552,9 @@
         if (commitTimer === null && !commitPending && !commitInFlight) { return; }
         var form = caseForm();
         if (form && typeof navigator.sendBeacon === 'function') {
-            navigator.sendBeacon(form.getAttribute('action') || window.location.href, new FormData(form));
+            var body = new FormData(form);
+            withoutUnchangedWording(form, body);
+            navigator.sendBeacon(form.getAttribute('action') || window.location.href, body);
         }
     });
     // The ribbon's status word: what the last commit did.
@@ -1142,6 +1144,21 @@
             }
         });
     }
+    // The report's wording blocks travel with a commit only when the Engineer
+    // changed them since they were drawn or last landed (#1800, R572): rows
+    // drawn before the report stopped projecting would otherwise refuse a
+    // commit that never touched them. Returns what was sent, which a landed
+    // commit makes the panel's baseline.
+    function withoutUnchangedWording(form, body) {
+        var panel = form.getAttribute('id') === 'case-edit-form' ? record.querySelector('[data-report-wording]') : null;
+        var wording = panel ? panel.pegasusWording : null;
+        if (!wording) { return null; }
+        if (wording.changed()) { return { panel: panel, state: wording.state() }; }
+        Array.from(body.keys()).forEach(function (name) {
+            if (name.indexOf('wordingEdits[') === 0) { body.delete(name); }
+        });
+        return null;
+    }
     function requestCatchUp() {
         catchUpWanted = true;
         if (!queueBusy()) { settleQueue(); }
@@ -1339,6 +1356,9 @@
             });
             carryForward(parsed);
             markSent(command.sent);
+            if (command.wording && command.wording.panel.isConnected) {
+                command.wording.panel.pegasusWording.landed(command.wording.state);
+            }
             // Staged crops and rotations are recorded now: Files is drawn
             // afresh from the response, and holds no typed control to lose.
             var form = caseForm();
@@ -1558,10 +1578,12 @@
         var editHost = editKey ? sectionFor(editKey) : null;
         var preferred = editHost ? { key: editKey, top: editHost.getBoundingClientRect().top } : null;
         var body = new FormData(form, submitter && submitter.name ? submitter : undefined);
+        var wordingSent = withoutUnchangedWording(form, body);
         var isImport = form.hasAttribute('data-estimate-import-form');
         var command = editorLabels[form.getAttribute('id')] || isImport ? {
             editor: form.getAttribute('id'), operationKey: body.get('operationKey'),
-            expectedVersion: body.get('expectedVersion'), editLeaseToken: body.get('editLeaseToken')
+            expectedVersion: body.get('expectedVersion'), editLeaseToken: body.get('editLeaseToken'),
+            wording: wordingSent
         } : null;
         var isCommit = !!command && command.editor === 'case-edit-form'
             && record.getAttribute('data-case-editing') === 'true';
@@ -4531,6 +4553,22 @@
                 return;
             }
             var added = 0;
+
+            // What the panel posts, its hidden order and keys included, so a
+            // move or a new paragraph is a change too. A commit sends the
+            // blocks only while this differs from what was drawn or last
+            // landed (#1800); a redrawn panel binds afresh.
+            function state() {
+                return JSON.stringify(Array.prototype.map.call(panel.querySelectorAll('input, textarea, select'), function (control) {
+                    return [control.name, control.type === 'checkbox' ? control.checked : control.value];
+                }));
+            }
+            var landed = state();
+            panel.pegasusWording = {
+                state: state,
+                changed: function () { return state() !== landed; },
+                landed: function (sent) { landed = sent; }
+            };
 
             function rows() {
                 return Array.prototype.slice.call(list.querySelectorAll('[data-wording-row]'));

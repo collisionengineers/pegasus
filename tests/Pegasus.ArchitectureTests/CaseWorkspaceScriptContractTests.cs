@@ -278,6 +278,35 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.Contains("link.search = '?scope=mine';", block, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// #1800 (R572): the report's wording blocks travel with a commit only when the
+    /// Engineer changed them. Rows drawn before the report stopped projecting would
+    /// otherwise make the Save re-read a report that cannot be projected and refuse a
+    /// commit that never touched the wording. A commit and the closing tab's beacon
+    /// both drop unchanged rows, and a landed commit makes what it sent the panel's
+    /// baseline.
+    /// </summary>
+    [Fact]
+    public void TheWordingBlocksTravelWithACommitOnlyWhenTheyChanged()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var helper = FunctionBody(script, "function withoutUnchangedWording(form, body) {", "    ");
+        Assert.Contains("if (wording.changed()) { return { panel: panel, state: wording.state() }; }", helper, StringComparison.Ordinal);
+        Assert.Contains("if (name.indexOf('wordingEdits[') === 0) { body.delete(name); }", helper, StringComparison.Ordinal);
+
+        var submit = FunctionBody(script, "function submitInPlace(form, submitter) {", "    ");
+        Assert.Contains("var wordingSent = withoutUnchangedWording(form, body);", submit, StringComparison.Ordinal);
+        Assert.Contains("wording: wordingSent", submit, StringComparison.Ordinal);
+        Assert.Matches(
+            @"var body = new FormData\(form\);\r?\n\s*withoutUnchangedWording\(form, body\);\r?\n\s*navigator\.sendBeacon\(form\.getAttribute\('action'\) \|\| window\.location\.href, body\);",
+            script);
+
+        Assert.Contains("command.wording.panel.pegasusWording.landed(command.wording.state);", script, StringComparison.Ordinal);
+        Assert.Contains("changed: function () { return state() !== landed; },", script, StringComparison.Ordinal);
+    }
+
     private static string FunctionBody(string script, string signature, string indent = "        ")
     {
         var start = script.IndexOf(signature, StringComparison.Ordinal);
