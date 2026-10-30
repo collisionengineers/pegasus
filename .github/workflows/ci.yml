@@ -74,7 +74,7 @@ jobs:
           # classifier agent, and the scripts under scripts/ other than the six
           # the Architecture tests read or the shards run.
           $prose = '\.md$|^docs/(?!design/brand/logos/)|^\.agents/|^scripts/skill_scripts/|^scripts/reference_data/|^src/pegasus-classifier-agent/|^scripts/(?!(Invoke-TestShard|Update-TestShardDurations|Test-MainBranchHistory|PegasusPlatform|Test-PegasusPlatform|Invoke-LocalDevelopment)\.ps1$)[^/]+\.ps1$'
-          $infrastructure = '^infra/|^azure\.yaml$|^src/Pegasus\.Infrastructure/Persistence/Migrations/|^scripts/(Test-AzureDeploymentPlan|Test-ReleaseValidation|Test-MigrationGrants|Invoke-ProductionSmoke|Build-ReleaseArtifacts|Invoke-ProductionAdministratorBootstrap|Invoke-AzureDatabaseBootstrap|PegasusPlatform)\.ps1$|^\.github/workflows/ci\.yml$'
+          $infrastructure = '^infra/|^azure\.yaml$|^src/Pegasus\.Infrastructure/Persistence/Migrations/|^scripts/(Test-AzureDeploymentPlan|Test-ReleaseValidation|Test-MigrationGrants|Invoke-ProductionSmoke|Build-ReleaseArtifacts|Invoke-ProductionAdministratorBootstrap|Invoke-AzureDatabaseBootstrap|Invoke-Release|PegasusPlatform)\.ps1$|^\.github/workflows/ci\.yml$'
           $classifier = '^src/pegasus-classifier-agent/|^\.github/workflows/ci\.yml$'
           $code = $all -or [bool]($files | Where-Object { $_ -notmatch $prose } | Select-Object -First 1)
           $infra = $all -or [bool]($files | Where-Object { $_ -match $infrastructure } | Select-Object -First 1)
@@ -148,9 +148,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Release validation behaviour tests
-        # Runs the Worker smoke and PreProvision validation against a fake
-        # Azure CLI: what they refuse before a live read, what they accept,
-        # and which exact target they bind to.
+        # Runs the Worker smoke, the PreProvision validation and the release
+        # route against a fake Azure CLI and a fixture repository: what they
+        # refuse before a live write, the order of the containment writes, and
+        # which exact target they bind to.
         shell: pwsh
         run: ./scripts/Test-ReleaseValidation.ps1
       - name: Validate infrastructure plan locally

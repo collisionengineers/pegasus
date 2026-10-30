@@ -59,7 +59,7 @@ if ($BoxHoldingFolderId -eq $boxRootFolderId) {
 }
 
 # Secret names as declared for the deployed estate (infra/modules/platform.bicep
-# resolves them through Key Vault references; the migration recipe names them).
+# resolves them through Key Vault references; scripts/Invoke-Release.ps1 names them).
 $secretNames = [ordered]@{
     Box__ConfigJson = 'box-config-json'
     Box__ClientSecret = 'box-client-secret'

@@ -201,7 +201,7 @@ specifications live in
 ## Configuration and deployment
 
 [Configuration](engineering/configuration.md) defines settings. The existing
-release skill owns packaging/deployment; one workstation platform produces the
-authorized artifacts. A source composition flag or built adapter alone does
+release skill owns the release procedure and `scripts/Invoke-Release.ps1` its
+commands; one workstation platform produces the authorized artifacts. A source composition flag or built adapter alone does
 not establish the deployed configuration or acceptance. Retired source
 imports are described by the [workspace boundary](../workspaces/README.md).
