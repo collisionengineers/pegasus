@@ -9,14 +9,17 @@
     <link rel="stylesheet" href="~/css/inbox.css" asp-append-version="true" />
 }
 
-@* One message. The Inbox opens it in a dialog over the list; this page is the same
-   record for a new tab and for a browser with no script (R159 c). *@
+@* One message. The Inbox opens it in a dialog over the list, and every in-app link
+   opens it there (R551); this page is the same record for a new tab and for a
+   browser with no script (R159 c), under the dialog's own head. *@
 <header class="page-header">
     <div class="page-title">
         <p class="eyebrow">Inbox message</p>
         <h1 class="wrap">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)</h1>
+        <partial name="Shared/_MessageHead" model="Model" />
     </div>
     <div class="page-actions">
+        <partial name="Shared/_MessageDecision" model="Model" view-data="@(new ViewDataDictionary(ViewData) { { "MailSettingsPart", "menu" } })" />
         @* Back pins the message it leaves, so the list returns to it. *@
         <a class="btn" asp-page="/Mail/Index"
            asp-route-mailbox="@Model.MailboxFilter"
@@ -33,16 +36,6 @@
 </header>
 
 <article class="record">
-    <header class="record-head">
-        <h2 class="wrap">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)</h2>
-        <span class="record-identity">
-            <span>@Pegasus.Web.Pages.Mail.IndexModel.SenderLine(summary)</span>
-            <span>@summary.MailboxAddress</span>
-            <span><time datetime="@summary.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</time></span>
-        </span>
-        <partial name="Shared/_MessageDecision" model="Model" />
-    </header>
-    <div class="record-accent"></div>
     <partial name="Shared/_MessageRecord" model="Model" />
 </article>
 

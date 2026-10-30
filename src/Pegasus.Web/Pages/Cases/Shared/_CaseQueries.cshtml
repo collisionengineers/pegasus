@@ -112,7 +112,7 @@
                                     <span class="cluster">
                                         @if (query.IsOpen && query.Message is { } row && Model.StaffMailAvailable)
                                         {
-                                            <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@reference" asp-route-markQueryDone="true" data-query-reply="@row.RetainedMessageId">@OperatorLabels.StaffMail.Reply</a>
+                                            <a class="btn btn--small" asp-page="/Mail/Index" asp-route-open="@row.RetainedMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@reference" asp-route-markQueryDone="true" data-query-reply="@row.RetainedMessageId">@OperatorLabels.StaffMail.Reply</a>
                                         }
                                         @if (query.IsOpen)
                                         {

@@ -1,0 +1,13 @@
+@model Pegasus.Web.Pages.Mail.MessageModel
+@using Pegasus.Web.Presentation
+@{
+    var summary = Model.Detail.Summary;
+    var routeParts = new List<string> { $"From {Pegasus.Web.Pages.Mail.IndexModel.SenderLine(summary)}" };
+    routeParts.AddRange(Pegasus.Web.Pages.Mail.MessageModel.RouteParts(Model.Detail));
+}
+
+@* Under the subject (v41 I17): From, To and received, then the Case and Type.
+   The Inbox's message dialog and the /Inbox/{id} page both draw it, so the two
+   heads cannot drift (R551). *@
+<p class="mail-route">@string.Join(" · ", routeParts) · <time datetime="@summary.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</time></p>
+<partial name="Shared/_MessageDecision" model="Model" view-data="@(new ViewDataDictionary(ViewData) { { "MailSettingsPart", "bar" } })" />

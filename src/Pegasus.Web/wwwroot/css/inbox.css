@@ -121,7 +121,7 @@
 .dialog--mail .dialog-head { align-items: flex-start; gap: 16px; padding-bottom: 10px; }
 .dialog--mail .dialog-head h2 { min-width: 0; }
 .dialog--mail > .tabs { margin: 0; padding: 0 20px; }
-.dialog--mail .mail-route { margin: 0; }
+.dialog--mail .mail-route, .page-title .mail-route { margin: 0; }
 .mail-dialog-title { flex: 1; min-width: 0; display: grid; gap: 4px; }
 .mail-dialog-tools { display: flex; align-items: center; gap: 8px; margin-left: auto; align-self: flex-start; }
 .mail-dialog-nav { flex-shrink: 0; gap: 2px; padding-left: 6px; margin-left: 2px; border-left: 1px solid var(--line, #d2d8db); }

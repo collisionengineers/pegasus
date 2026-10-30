@@ -9,8 +9,6 @@
         "forward" => OperatorLabels.StaffMail.Forward,
         _ => OperatorLabels.StaffMail.Reply
     };
-    var routeParts = new List<string> { $"From {Pegasus.Web.Pages.Mail.IndexModel.SenderLine(summary)}" };
-    routeParts.AddRange(Pegasus.Web.Pages.Mail.MessageModel.RouteParts(Model.Detail));
 }
 
 @* One message in a dialog over the Inbox (v41 I2, I17): one head (the subject;
@@ -26,8 +24,7 @@
                 <h2 id="mailMessageDialog_title" class="wrap" tabindex="-1" data-dialog-initial-focus>@(composing ? $"{composeLabel} · " : string.Empty)@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)</h2>
                 @if (!composing)
                 {
-                    <p class="mail-route">@string.Join(" · ", routeParts) · <time datetime="@summary.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</time></p>
-                    <partial name="Shared/_MessageDecision" model="Model" view-data="@(new ViewDataDictionary(ViewData) { { "MailSettingsPart", "bar" } })" />
+                    <partial name="Shared/_MessageHead" model="Model" />
                 }
             </div>
             <span class="mail-dialog-tools">

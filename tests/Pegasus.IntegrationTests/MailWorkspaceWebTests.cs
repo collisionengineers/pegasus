@@ -2005,6 +2005,13 @@ public sealed class MailWorkspaceWebTests
         Assert.DoesNotContain($">{OperatorLabels.Inbox.Decided}<", html, StringComparison.Ordinal);
         // The record's Dismiss.
         Assert.Equal(1, CountOccurrences(html, "method=\"post\""));
+        // R551: the page draws the dialog's head: the context bar under the one
+        // subject, the cog once, among the page's actions; no dark record head.
+        Assert.DoesNotContain("record-head", html, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(html, "data-mail-context-bar"));
+        Assert.Equal(1, CountOccurrences(html, "data-mail-settings"));
+        Assert.Contains("data-mail-context-bar", Between(html, "class=\"page-title\"", "class=\"page-actions\""), StringComparison.Ordinal);
+        Assert.Contains("data-mail-settings", Between(html, "class=\"page-actions\"", "Back to Inbox"), StringComparison.Ordinal);
     }
 
     [Fact]
