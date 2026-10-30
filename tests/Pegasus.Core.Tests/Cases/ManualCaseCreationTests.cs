@@ -58,7 +58,7 @@ public sealed class ManualCaseCreationTests
     }
 
     /// <summary>
-    /// An Audit may be created directly (operator, 30 October 2026, R573): it
+    /// An Audit may be created directly (operator, 30 October 2026, R575): it
     /// takes the same identity-critical facts as an Inspection, and its
     /// original report is a Case requirement rather than a creation refusal.
     /// </summary>

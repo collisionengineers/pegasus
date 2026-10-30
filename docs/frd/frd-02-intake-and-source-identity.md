@@ -91,11 +91,11 @@ Inspection, an Audit, an Inspection and Audit or a Triage; an Audit created
 this way starts with **Original report missing** until a filed document is
 recorded as the original report
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity);
-operator, 30 October 2026, [R573](../rulings.md)). The creator must
+operator, 30 October 2026, [R575](../rulings.md)). The creator must
 supply the identity-critical Case facts. The principal code box offers the
 active Principals' codes as completions while it is typed; a code it does not
 offer can still be entered and is checked on create (operator, 30 October
-2026, [R575](../rulings.md)). The action is recorded in the
+2026, [R577](../rulings.md)). The action is recorded in the
 creator's name. No intake receipt and no invented source provenance are
 created. Its Received date, which is the Case's instruction date, is the
 date it was created
@@ -103,7 +103,7 @@ date it was created
 Files chosen on the form at creation are staff uploads for the new Case,
 filed through the declared-Case upload with the Type chosen for each
 ([FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)); none is the
-Case's Original source (operator, 30 October 2026, [R574](../rulings.md)).
+Case's Original source (operator, 30 October 2026, [R576](../rulings.md)).
 When the Principal inspects by images, the Case takes image-based
 assessment as its inspection mode, as an accepted intake does.
 Ordinary detail may still be missing, so the new Case starts in `Not ready`

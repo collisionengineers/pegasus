@@ -83,7 +83,7 @@ report.
 - On manual upload, a staff member must accept the proposal first.
 - Staff and the Automation Actor may also create an Audit directly, with no
   received item ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts);
-  operator, 30 October 2026, [R573](../rulings.md)). It starts with
+  operator, 30 October 2026, [R575](../rulings.md)). It starts with
   **Original report missing**; files chosen at creation may include the
   report.
 

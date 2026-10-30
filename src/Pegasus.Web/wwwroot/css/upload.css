@@ -1,7 +1,7 @@
 /* Upload: page-specific rules composed on the shared shell tokens. Linked
    from Pages/Upload.cshtml (v42 E, "Focused record sheet"), UploadGroupStatus
    and UploadStatus (v30 E, "Inspection studio"), and Cases/Create for the
-   picker in its Files panel (R574), only. */
+   picker in its Files panel (R576), only. */
 
 .up-head { margin-bottom: 20px; }
 .up-meta { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
@@ -99,7 +99,7 @@
 
 /* The picker (Shared/_UploadPicker): its drop target and the selected files
    under it, wherever it is drawn, on the Upload sheet and in Create case's
-   Files panel (R574). */
+   Files panel (R576). */
 .up-drop { border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-2); text-align: center; padding: 32px 24px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
 .up-drop.is-over { background: var(--navy-bg); border-color: var(--navy); }
 .up-drop-badge { width: 60px; height: 60px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); box-shadow: 0 2px 6px rgba(20, 30, 35, .06); display: grid; place-items: center; color: var(--navy); }

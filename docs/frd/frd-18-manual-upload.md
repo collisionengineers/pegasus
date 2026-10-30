@@ -105,7 +105,7 @@ upload rather than chosen after it:
   ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)).
 
 **Create case** is a second surface of the same declared upload (operator,
-30 October 2026, [R574](../rulings.md)): its **Files** panel is this
+30 October 2026, [R576](../rulings.md)): its **Files** panel is this
 sheet's picker, with the same Type per file and the same limits. The files
 are checked before the Case is created; once it is, they are submitted for
 it as above and the operator lands on its Files panel with the Case's

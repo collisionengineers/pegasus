@@ -308,7 +308,7 @@ public sealed partial class CaseCreateWebTests
     }
 
     /// <summary>
-    /// The direct form offers Audit (operator, 30 October 2026, R573): the
+    /// The direct form offers Audit (operator, 30 October 2026, R575): the
     /// Case takes its own a. reference and shows Original report missing
     /// until a filed document is recorded as the original report.
     /// </summary>
@@ -417,7 +417,7 @@ public sealed partial class CaseCreateWebTests
 
     /// <summary>
     /// Files chosen on the direct form go through the declared-Case upload
-    /// (FRD-18; operator, 30 October 2026, R574): one press creates the Case,
+    /// (FRD-18; operator, 30 October 2026, R576): one press creates the Case,
     /// then submits its files for it with the type chosen for each, and the
     /// operator lands on the Case's Files.
     /// </summary>

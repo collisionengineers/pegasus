@@ -9,7 +9,7 @@ namespace Pegasus.Web.Presentation;
 /// The checks a staff upload's files pass before anything is stored, and the
 /// files as the grouped submission takes them. Upload and Create case's Files
 /// panel are two surfaces of the one declared upload (FRD-18; operator,
-/// 30 October 2026, R574), so they share these checks and their sentences.
+/// 30 October 2026, R576), so they share these checks and their sentences.
 /// </summary>
 public static class UploadFormValidation
 {

@@ -281,7 +281,7 @@ public sealed class AutomationQueueIngressTests
             Assert.Contains("Inspection, Audit, InspectionAndAudit or Triage", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
 
-        // An Audit may be created directly, as staff may (R573): it takes the
+        // An Audit may be created directly, as staff may (R575): it takes the
         // Audit's own a. reference.
         using (var response = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_case_create", new
         {

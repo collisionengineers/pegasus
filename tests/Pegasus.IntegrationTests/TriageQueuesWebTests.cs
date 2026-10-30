@@ -441,7 +441,7 @@ public sealed class TriageQueuesWebTests
         Assert.Contains(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
         Assert.Contains(imageIntake.NormalizedVehicleRegistration, html, StringComparison.Ordinal);
         Assert.Contains("1 retained image", html, StringComparison.Ordinal);
-        // A Box folder is implied, so the quick detail names no custody (R572).
+        // A Box folder is implied, so the quick detail names no custody (R574).
         Assert.DoesNotContain("<dt>Box</dt>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Storing", html, StringComparison.Ordinal);
         Assert.Contains("Manual upload", html, StringComparison.Ordinal);

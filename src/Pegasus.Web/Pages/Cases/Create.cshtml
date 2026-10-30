@@ -8,7 +8,7 @@
     var draft = Model.IsManual ? null : Model.DraftFields.Draft;
 }
 
-@* The direct form's Files panel is the Upload sheet's picker (R574); the
+@* The direct form's Files panel is the Upload sheet's picker (R576); the
    form opened from a receipt has no picker, so the script finds nothing there. *@
 @section Styles {
     <link rel="stylesheet" href="~/css/upload.css" asp-append-version="true" />
@@ -144,7 +144,7 @@
         @* Files chosen here are the Upload sheet's own picker: the one Create
            case press creates the Case, then files them on it through the
            declared-Case upload, each with its chosen Type (FRD-18; operator,
-           30 October 2026, R574). Every Case type takes them, a Triage
+           30 October 2026, R576). Every Case type takes them, a Triage
            included, as its page has Add evidence too. *@
         <section class="panel" aria-labelledby="files-title">
             <div class="panel-head"><h2 id="files-title">Files</h2></div>

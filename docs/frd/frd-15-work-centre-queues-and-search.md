@@ -318,7 +318,7 @@ Each queue keeps its own row shape:
   [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md));
 - an Unassigned Images Identified row: Image reference, registration,
   received, image count and source; a Box folder is implied, so the row
-  names no custody (operator, 30 October 2026, [R572](../rulings.md));
+  names no custody (operator, 30 October 2026, [R574](../rulings.md));
 - a Triage row: `t.` Case/PO, registration, Principal and assignee;
 - an Unidentified row: the U-reference, kind, a handle the operator will
   recognise (the original filename, or the e-mail subject and sender, never
