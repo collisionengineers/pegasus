@@ -2318,7 +2318,7 @@ public sealed class CaseEditModeWebTests
             ActorKind.Staff,
             Guid.NewGuid().ToString("D"),
             workspace.Claimant.SubjectId,
-            DateTimeOffset.UtcNow,
+            IntakeWebApplicationFactory.FixedUtcNow,
             null);
         var asked = EditRequestPopup(await workspace.GetWorkspaceAsync());
         Assert.Contains("data-dialog-open-on-load=\"true\"", asked, StringComparison.Ordinal);
@@ -2382,7 +2382,7 @@ public sealed class CaseEditModeWebTests
         using var workspace = await EnterEditModeAsync(store, services =>
             Substitute<IDescribeCaseEditAuthorityHolder>(services, new StubEditAuthorityHolders("r.hughes")));
         var requestId = Guid.NewGuid();
-        var requestedAt = DateTimeOffset.UtcNow;
+        var requestedAt = IntakeWebApplicationFactory.FixedUtcNow;
         store.EditRequest = new(
             requestId,
             ActorKind.Staff,
@@ -2493,7 +2493,7 @@ public sealed class CaseEditModeWebTests
             ActorKind.Staff,
             workspace.Claimant.SubjectId,
             colleague,
-            DateTimeOffset.UtcNow,
+            IntakeWebApplicationFactory.FixedUtcNow,
             null);
         store.EditRequest = request;
 
@@ -2509,7 +2509,7 @@ public sealed class CaseEditModeWebTests
 
         store.EditRequest = request with
         {
-            RequestedAtUtc = DateTimeOffset.UtcNow - CaseEditAuthority.RequestAnswerWindow - TimeSpan.FromSeconds(1)
+            RequestedAtUtc = IntakeWebApplicationFactory.FixedUtcNow - CaseEditAuthority.RequestAnswerWindow - TimeSpan.FromSeconds(1)
         };
         var unanswered = RecordBar(await workspace.GetWorkspaceAsync());
         Assert.Contains($">{CaseWorkspaceLabels.Frame.TakeOverAnyway}<", unanswered, StringComparison.Ordinal);

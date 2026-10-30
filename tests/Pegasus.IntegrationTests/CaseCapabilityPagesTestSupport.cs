@@ -875,7 +875,7 @@ internal static partial class CaseWebTestSupport
                 _leaseHolder is not null,
                 EditRequest,
                 EditRequest is { } standing
-                    && CaseEditAuthority.IsRequestPending(standing.RequestedAtUtc, standing.Answer, DateTimeOffset.UtcNow),
+                    && CaseEditAuthority.IsRequestPending(standing.RequestedAtUtc, standing.Answer, _now),
                 null));
 
         private readonly DateTimeOffset _now = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);

@@ -52,8 +52,8 @@ public sealed partial class DetailsModel
     public bool ViewerMayAskToEdit { get; private set; }
 
     /// <summary>
-    /// The request addressed to the viewer, who holds the lease, that they have not answered:
-    /// the Accept or Deny dialog draws from it, with <see cref="EditRequester"/> naming who asks.
+    /// The request addressed to the viewer, who holds the lease, still inside its answer window,
+    /// as the long poll opens the popup for it: the Accept or Deny dialog draws from it, with <see cref="EditRequester"/> naming who asks.
     /// </summary>
     public CaseEditRequestSnapshot? EditRequestToAnswer { get; private set; }
 
@@ -87,7 +87,11 @@ public sealed partial class DetailsModel
                 activeLease.HolderKind, activeLease.Holder, activeLease.ExpiresAtUtc, actor, now)
             && ViewerEditRequest is not { Answer: null }
             && !anotherIsAsking;
-        EditRequestToAnswer = viewerHoldsLease && request is { Answer: null } ? request : null;
+        EditRequestToAnswer = viewerHoldsLease
+            && request is not null
+            && CaseEditAuthority.IsRequestPending(request.RequestedAtUtc, request.Answer, now)
+                ? request
+                : null;
         EditRequester = requester;
     }
 

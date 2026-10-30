@@ -53,16 +53,12 @@ internal sealed record EditLeaseReleaseToolResult(
 internal sealed class EditLeaseMcpTools(
     CaseEditLeases caseLeases,
     CaseEditRequestWatch requestWatch,
-    TimeProvider timeProvider,
     IEditScopeLeases editScopes,
     IGetTriage getTriage,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
     private const string RecordKindDescription = "Case or Triage: which record's lease.";
-
-    /// <summary>How far past the answer window the waiting call goes before it answers no answer.</summary>
-    private static readonly TimeSpan AnswerGrace = TimeSpan.FromSeconds(5);
 
     [McpServerTool(
         Name = "pegasus_edit_begin",
@@ -245,14 +241,14 @@ internal sealed class EditLeaseMcpTools(
             var raised = await caseLeases.RaiseRequestAsync(
                 new(caseId, expectedVersion, actor, operationKey),
                 cancellationToken);
-            if (raised.Outcome is CaseEditRequestOutcome.Held or CaseEditRequestOutcome.Accepted
-                && raised.Lease is { } held)
+            if (raised.Outcome == CaseEditRequestOutcome.Accepted && raised.Lease is { } handed)
             {
-                return held;
+                return handed;
             }
             if (raised.Outcome != CaseEditRequestOutcome.Pending || raised.Request is not { } request)
             {
-                // Free, or held by another Automation session: the plain claim takes a free lease
+                // Free, or held by another Automation session (Held, when it shares this client's
+                // subject; the Automation Actor never resumes): the plain claim takes a free lease
                 // and refuses a held one with the existing lease-conflict refusal.
                 return await caseLeases.ClaimAsync(
                     new(caseId, expectedVersion, actor, operationKey),
@@ -286,7 +282,6 @@ internal sealed class EditLeaseMcpTools(
         CaseEditRequestSnapshot request,
         CancellationToken cancellationToken)
     {
-        var deadline = request.RequestedAtUtc + CaseEditAuthority.RequestAnswerWindow + AnswerGrace;
         string? stamp = null;
         try
         {
@@ -295,7 +290,11 @@ internal sealed class EditLeaseMcpTools(
                 var view = await requestWatch.WaitAsync(
                     caseId, actor, stamp, CaseEditRequestWatch.MaximumHold, cancellationToken);
                 stamp = view.Stamp;
-                if (view.OwnLease is { } lease)
+                // Only this request's acceptance hands the call a lease; a lease another session
+                // of the same client claimed is never this call's.
+                if (view.OwnLease is { } lease
+                    && view.Request is { Answer: CaseEditRequestAnswer.Accepted } accepted
+                    && accepted.Id == request.Id)
                 {
                     return (lease, view.Version);
                 }
@@ -312,7 +311,7 @@ internal sealed class EditLeaseMcpTools(
                 {
                     throw new CaseEditRequestRefusedException(caseId, view.Version, CaseEditRequestRefusal.Declined);
                 }
-                if (!view.RequestIsPending || timeProvider.GetUtcNow() >= deadline)
+                if (!view.RequestIsPending)
                 {
                     throw new CaseEditRequestRefusedException(caseId, view.Version, CaseEditRequestRefusal.NoAnswer);
                 }

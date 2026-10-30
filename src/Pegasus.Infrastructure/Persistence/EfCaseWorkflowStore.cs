@@ -157,11 +157,13 @@ public sealed class EfCaseWorkflowStore(
         // holder's own from a one-off command elsewhere, which must never end the holder's edit
         // session. The Case page resumes the holder's lease before it ever claims. Another
         // holder's lease is taken over only as a request makes it (R552, R554): the holder's own
-        // explicit take-back rotates their lease and is never a takeover.
+        // explicit take-back rotates their lease and is never a takeover. The Automation Actor
+        // never resumes, so its sessions never take one another's lease back.
         var retainedRequest = CaseMutationGuard.RetainedRequest(workflow);
         if (liveHolder is not null
             && (!request.TakeOver
-                || !(CaseEditAuthority.IsHolder(previousHolderKind, liveHolder, request.Actor)
+                || !(CaseEditAuthority.CanResume(
+                        previousHolderKind, liveHolder, workflow.EditLeaseExpiresAtUtc, request.Actor, now)
                     || CaseEditAuthority.CanTakeOver(
                         previousHolderKind,
                         liveHolder,
@@ -188,7 +190,7 @@ public sealed class EfCaseWorkflowStore(
         // holder's own re-claim after a save, which clears the lease rather than letting it lapse,
         // leaves it standing (R550).
         var previousLeaseLapsed = workflow.EditLeaseHolder is not null && liveHolder is null;
-        if (CaseMutationGuard.RetainedRequest(workflow) is { } standingRequest
+        if (retainedRequest is { } standingRequest
             && (previousLeaseLapsed
                 || request.Actor.Kind != ActorKind.Staff
                 || !string.Equals(standingRequest.Holder, request.Actor.SubjectId, StringComparison.Ordinal)))
