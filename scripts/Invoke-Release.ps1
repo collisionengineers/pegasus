@@ -333,24 +333,23 @@ function Read-MigrationHead {
     foreach ($key in 'AZURE_SQL_SERVER_FQDN', 'AZURE_SQL_DATABASE_NAME') {
         if ([string]::IsNullOrWhiteSpace($Values[$key])) { throw "azd environment is missing $key." }
     }
+    # Same access-token pattern as Invoke-AzureDatabaseBootstrap.ps1.
+    if (-not (Get-Command Invoke-Sqlcmd -ErrorAction SilentlyContinue)) {
+        throw 'The SqlServer PowerShell module is required to read the migration head.'
+    }
     $token = (Invoke-Az -Failure 'Unable to obtain an Azure SQL access token.' -Arguments @(
         'account', 'get-access-token', '--resource', 'https://database.windows.net/', '--query', 'accessToken', '--output', 'tsv')).Trim()
     if ([string]::IsNullOrWhiteSpace($token)) { throw 'Unable to obtain an Azure SQL access token.' }
-    Add-Type -AssemblyName System.Data
-    $connection = [System.Data.SqlClient.SqlConnection]::new()
-    $connection.ConnectionString = "Server=tcp:$($Values['AZURE_SQL_SERVER_FQDN']),1433;Database=$($Values['AZURE_SQL_DATABASE_NAME']);Encrypt=True;Connect Timeout=60;"
-    $connection.AccessToken = $token
-    try {
-        $connection.Open()
-        $command = $connection.CreateCommand()
-        $command.CommandText = 'SELECT TOP 1 MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId DESC'
-        $head = $command.ExecuteScalar()
-    }
-    finally {
-        $connection.Dispose()
-    }
-    if ($null -eq $head -or [string]::IsNullOrWhiteSpace([string]$head)) { throw 'The production database reports no migration head.' }
-    return ([string]$head).Trim()
+    $row = Invoke-Sqlcmd `
+        -ServerInstance "tcp:$($Values['AZURE_SQL_SERVER_FQDN']),1433" `
+        -Database $Values['AZURE_SQL_DATABASE_NAME'] `
+        -AccessToken $token `
+        -AbortOnError `
+        -ErrorAction Stop `
+        -Query 'SELECT TOP 1 MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId DESC'
+    $head = if ($null -ne $row) { [string]$row.MigrationId } else { '' }
+    if ([string]::IsNullOrWhiteSpace($head)) { throw 'The production database reports no migration head.' }
+    return $head.Trim()
 }
 
 function Get-CandidateMigrationIdentity {
@@ -489,7 +488,7 @@ function Start-FunctionApp {
 
 function Assert-AzdEnvironment {
     # The environment names the fixed target and only its Key Vault; a stale
-    # or foreign environment is refused before any write.
+    # or foreign environment is refused before provisioning.
     param([Parameter(Mandatory)][hashtable] $Values)
     if ($Values['AZURE_SUBSCRIPTION_ID'] -ne $subscriptionId -or $Values['AZURE_TENANT_ID'] -ne $tenantId -or
         $Values['AZURE_RESOURCE_GROUP'] -ne $resourceGroup) {
@@ -512,6 +511,7 @@ function Invoke-Provision {
         [Parameter(Mandatory)][string] $Root,
         [Parameter(Mandatory)][ValidateSet('disabled', 'approved-live-worker')][string] $ExpectedLiveWorkerActivation
     )
+    Assert-AzdEnvironment -Values (Get-AzdValues -Root $Root)
     Push-Location $Root
     try {
         Invoke-Azd -Failure 'Unable to set Web activation.' -Arguments @('env', 'set', 'PEGASUS_WEB_ACTIVATION', 'approved', '-e', $releaseEnvironment) | Out-Null
@@ -622,8 +622,8 @@ function Invoke-Promotion {
     $mainSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
     $devSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
     if ($mainSha -ceq $Sha) {
-        if ($devSha -cne $Sha) { throw "origin/main is already at $Sha but origin/dev is at $devSha." }
-        Write-Host "origin/main already reads $Sha; promotion was done."
+        # A resumed run: dev may have moved on since the promotion.
+        Write-Host "origin/main already reads $Sha; promotion was done (origin/dev is at $devSha)."
         return
     }
     if ($devSha -cne $Sha) { throw "origin/dev is at $devSha, not the approved $Sha. Obtain a fresh approval for the current head." }
@@ -741,7 +741,7 @@ function Invoke-Preflight {
     return [pscustomobject]@{
         MainSha = $mainSha; DevSha = $devSha; Route = $route; PromotionOnly = ($deployable.Count -eq 0)
         ProvisionNeeded = $provisionNeeded; ServingSha = $servingSha; Head = $head; CandidateIdentity = $candidateIdentity
-        ClassifierPresent = $classifierPresent; AzdEnvironmentHash = $envHash
+        ClassifierPresent = $classifierPresent
     }
 }
 
@@ -758,21 +758,23 @@ function New-ReleaseWorktree {
     }
     $head = (& git -C $root rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0 -or $head -cne $Sha) { throw "The release worktree at $root is not at $Sha." }
-    New-Item -ItemType Directory -Force -Path (Join-Path $root '.azure') | Out-Null
-    Copy-Item -Recurse -Force -LiteralPath $environmentSource -Destination (Join-Path $root ".azure/$releaseEnvironment")
+    # The folder's contents, so a reused worktree's copy is refreshed rather
+    # than nested inside itself.
+    $environmentTarget = Join-Path $root ".azure/$releaseEnvironment"
+    New-Item -ItemType Directory -Force -Path $environmentTarget | Out-Null
+    Copy-Item -Recurse -Force -Path (Join-Path $environmentSource '*') -Destination $environmentTarget
     if (@(& git -C $root status --porcelain).Count -ne 0) { throw "The release worktree at $root is not clean." }
     return $root
 }
 
 function Invoke-Build {
-    param([Parameter(Mandatory)][string] $Sha, [Parameter(Mandatory)][string] $AzdEnvironmentHash)
+    param([Parameter(Mandatory)][string] $Sha)
     Write-Host ''
     Write-Host '=== Build (writes only the worktree) ==='
     $root = New-ReleaseWorktree -Sha $Sha
     Invoke-ReleaseScript -Root $root -Name 'Build-ReleaseArtifacts.ps1' -Failure 'Release build failed.' -Arguments @('-Version', $Version, '-SourceRevision', $Sha)
     $manifestPath = Join-Path $root "artifacts/releases/$Version/release-manifest.json"
     Invoke-ReleaseScript -Root $root -Name 'Test-AzureDeploymentPlan.ps1' -Failure 'Artifact validation failed.' -Arguments @('-Mode', 'Artifact', '-ManifestPath', $manifestPath)
-    Set-Content -LiteralPath (Join-Path (Split-Path -Parent $manifestPath) 'azd-env.sha256') -Value $AzdEnvironmentHash -Encoding ascii
     $manifestSha256 = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash
     $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json -Depth 10
     return [pscustomobject]@{
@@ -817,6 +819,18 @@ function Write-ApprovalRequest {
 function Invoke-NormalRoute {
     param([Parameter(Mandatory)][string] $Root, [Parameter(Mandatory)][object] $Manifest, [Parameter(Mandatory)][string] $WebPackagePath, [Parameter(Mandatory)][string] $WebPackageSha256)
     $classifierPresent = Test-ClassifierPresent
+    # An additive migration finishes its boundary before anything is
+    # provisioned or deployed; the running release is compatible with it.
+    $head = Read-MigrationHead -Values (Get-AzdValues -Root $Root)
+    if ($head -cne [string]$Manifest.migrationIdentity) {
+        Write-Host "Migration head $head differs from the manifest's $($Manifest.migrationIdentity): applying the additive migration first."
+        Invoke-Migration -Root $Root -Manifest $Manifest
+    }
+    else {
+        $script:record['Migration'] = "none (head $head)"
+    }
+    # The Worker is expected live and approved, as before any normal release:
+    # a census disabled on purpose is refused, not quietly re-enabled.
     if ($WarmupSettingsChange) {
         # The previous package cannot answer a new warm-up path or status, so
         # the platform would keep failing its start after provision: deploy
@@ -825,14 +839,14 @@ function Invoke-NormalRoute {
         if (-not $Provision) { throw '-WarmupSettingsChange needs -Provision: the warm-up setting is provisioned.' }
         Publish-Web -PackagePath $WebPackagePath -Restart $true
         Wait-PegasusExpectedWebSite -ExpectedSourceRevision $ApprovedReleaseSha -ExpectedVersion $Version
-        Invoke-Provision -Root $Root -ExpectedLiveWorkerActivation (Get-LiveWorkerActivation)
+        Invoke-Provision -Root $Root -ExpectedLiveWorkerActivation 'approved-live-worker'
         Wait-PegasusExpectedWebSite -ExpectedSourceRevision $ApprovedReleaseSha -ExpectedVersion $Version
     }
     else {
         if ($Provision) {
             # Provision may restart the site onto the previous package; on this
             # route that package runs against a compatible schema.
-            Invoke-Provision -Root $Root -ExpectedLiveWorkerActivation (Get-LiveWorkerActivation)
+            Invoke-Provision -Root $Root -ExpectedLiveWorkerActivation 'approved-live-worker'
         }
         else {
             $script:record['Provision'] = 'not run (no infra change, azd environment unchanged)'
@@ -915,8 +929,6 @@ function Invoke-DestructiveRoute {
         if ([string](Get-WebSite).state -cne 'Stopped') { throw 'The Web App must read back Stopped before the new package is deployed.' }
         Publish-Web -PackagePath $WebPackagePath -Restart $false
         if ([string](Get-WebSite).state -cne 'Stopped') { throw 'The Web App did not remain Stopped after the package deployment.' }
-        $values = Get-AzdValues -Root $Root
-        Assert-AzdEnvironment -Values $values
         # One provision with both activations approved (operator, 30 October
         # 2026): the new Worker bytes were staged before SQL, so enabling the
         # census here starts nothing but the approved release. A resumed run
@@ -953,6 +965,9 @@ function Complete-Release {
     $retained = Join-Path $RepositoryRoot "artifacts/releases/release-$ReleaseNumber-$($ApprovedReleaseSha.Substring(0, 8))"
     New-Item -ItemType Directory -Force -Path $retained | Out-Null
     Copy-Item -Recurse -Force -Path (Join-Path $Root "artifacts/releases/$Version/*") -Destination $retained
+    # The hash of the environment as this release left it, after its own
+    # azd env set and provision, so the next preflight compares like with like.
+    Set-Content -LiteralPath (Join-Path $retained 'azd-env.sha256') -Value (Get-AzdEnvironmentHash -Root $RepositoryRoot) -Encoding ascii
     Invoke-Git -Failure 'Unable to remove the release worktree; remove it by hand.' -Arguments @('worktree', 'remove', '--force', $Root) | Out-Null
     $script:record['Evidence'] = "artifacts/releases/release-$ReleaseNumber-$($ApprovedReleaseSha.Substring(0, 8))"
 }
@@ -980,7 +995,7 @@ switch ($PSCmdlet.ParameterSetName) {
             Write-ApprovalRequest -Preflight $preflight
             return
         }
-        $build = Invoke-Build -Sha $preflight.DevSha -AzdEnvironmentHash $preflight.AzdEnvironmentHash
+        $build = Invoke-Build -Sha $preflight.DevSha
         Write-ApprovalRequest -Preflight $preflight -Build $build
     }
     'PromoteOnly' {

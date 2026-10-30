@@ -881,6 +881,14 @@ try {
     Assert-True ($result.Output.Contains('WEBSITE_RUN_FROM_PACKAGE')) $case 'did not reach the full smoke.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns @('*--name pegasus-prod-classifier-252ow37gij*')
 
+    # An additive migration runs before anything is provisioned or deployed;
+    # the fixture bundle cannot run, so the run stops there.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments ($executeNormal + @('-Provision')) -Estate (New-Estate -NewSha $releaseSha) -MigrationHead 'old'
+    $case = 'Normal route with an additive migration'
+    Assert-True ($result.ExitCode -ne 0) $case 'should stop at the fixture bundle.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('applying the additive migration first')) $case 'did not reach the migration.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns @('az webapp deploy*', 'az functionapp deployment source config-zip*', 'azd provision*', 'azd env set*')
+
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PromoteOnly', '-ApprovedReleaseSha', $releaseSha) -Estate (New-Estate -NewSha $releaseSha)
     $case = 'Promotion already done'
     Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
@@ -895,15 +903,26 @@ try {
     & git -C $fixture.Work push --quiet origin dev
     if ($LASTEXITCODE -ne 0) { throw 'Unable to move the fixture dev branch.' }
     $movedSha = (& git -C $fixture.Work rev-parse HEAD).Trim()
+
+    # A run that already promoted resumes although dev has moved on since.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PromoteOnly', '-ApprovedReleaseSha', $releaseSha) -Estate (New-Estate -NewSha $releaseSha)
+    $case = 'Promotion done, dev moved since'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("promotion was done (origin/dev is at $movedSha)")) $case 'did not report the promotion as done.' $result.Diagnostic
+
+    # An approval that was never promoted: main is put back before it.
+    & git -C $fixture.Bare update-ref refs/heads/main $fixture.MainSha
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to reset the fixture main branch.' }
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PromoteOnly', '-ApprovedReleaseSha', $releaseSha) -Estate (New-Estate -NewSha $releaseSha)
     $case = 'Promotion of a stale SHA'
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
     Assert-True ($result.Output.Contains("origin/dev is at $movedSha")) $case 'did not name where dev is.' $result.Diagnostic
-    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $releaseSha) $case 'moved main.' $result.Diagnostic
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeNormal -Estate (New-Estate -NewSha $releaseSha) -MigrationHead $identity
     $case = 'Execute with a stale SHA'
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
     Assert-True ($result.Output.Contains("origin/dev is at $movedSha")) $case 'did not name where dev is.' $result.Diagnostic
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns $writes
 
     & git -C $fixture.Work worktree remove --force $worktree
