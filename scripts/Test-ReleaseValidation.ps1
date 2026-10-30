@@ -54,8 +54,10 @@ function ConvertTo-SingleLine {
     param([AllowEmptyString()][string] $Value)
 
     # pwsh wraps error text at the console width and prefixes continuation
-    # lines with '|'; collapse both so a sentence can be matched whole.
-    return [regex]::Replace([regex]::Replace($Value, '\s*\|\s*', ' '), '\s+', ' ')
+    # lines with '|'; collapse both so a sentence can be matched whole. On a
+    # CI runner the error view is also ANSI-coloured, so strip that first.
+    $plain = [regex]::Replace($Value, '\x1b\[[0-9;]*[A-Za-z]', '')
+    return [regex]::Replace([regex]::Replace($plain, '\s*\|\s*', ' '), '\s+', ' ')
 }
 
 function New-ExactSettings {
