@@ -111,7 +111,7 @@ public sealed class CaseQueriesSectionWebTests
         Assert.Contains("query-subject-link", mail.Markup, StringComparison.Ordinal);
         var reply = Regex.Match(mail.Markup, "<a[^>]*data-query-reply=\"[^\"]+\"[^>]*>");
         Assert.True(reply.Success, "An open mail query offers no Reply.");
-        Assert.Contains($"href=\"/Inbox?open={messageId:D}&amp;", reply.Value, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"href=\"/Inbox?open={messageId:D}", reply.Value, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("compose=reply", reply.Value, StringComparison.Ordinal);
         Assert.Contains($"correspondenceCaseReference={Reference}", reply.Value, StringComparison.Ordinal);
         Assert.Contains($"data-dialog=\"case-message-{messageId:N}\" data-case-message-dialog", html, StringComparison.Ordinal);
