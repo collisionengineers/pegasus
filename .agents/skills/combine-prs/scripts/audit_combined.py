@@ -19,6 +19,12 @@ integration tip, and each PR's pinned head, it checks:
 
 Usage:
     python audit_combined.py --target <sha> [--tip HEAD] 1016=<sha> 1018=<sha> ...
+    python audit_combined.py --target <sha> --id-pattern 'R[1-9]\\d*' 1016=<sha> ...
+
+With --id-pattern, an added line that is missing at the tip but present with
+only those ids changed (a renumbered register citation) is a REVIEW item,
+not a FAIL, and a register row written in a merge resolution under a new id
+is not "novel". Without it every line is compared as it is.
 
 FAIL items must be fixed or explained in the PR body; REVIEW items need a look.
 Exit codes: 0 = pass, 1 = at least one FAIL, 3 = REVIEW items only.
@@ -28,11 +34,31 @@ writes only unreferenced objects (garbage-collected later).
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 from collections import Counter, defaultdict
 
 GIT = ["git", "-c", "core.quotePath=false"]
+WORD = r"(?<![A-Za-z0-9_])(?:{})(?![A-Za-z0-9_])"
+
+
+class Mask:
+    """Compare lines with register ids hidden, so a renumbered citation reads as the same line."""
+
+    def __init__(self, pattern: str | None):
+        self.pattern = re.compile(WORD.format(pattern)) if pattern else None
+
+    def __bool__(self) -> bool:
+        return self.pattern is not None
+
+    def masked(self, line: str) -> str:
+        return self.pattern.sub("#", line) if self.pattern else line
+
+    def pairs(self, old: str, new: str) -> str:
+        """`R550→R559` for each id that differs between two lines of the same shape."""
+        changed = [f"{a}→{b}" for a, b in zip(self.pattern.findall(old), self.pattern.findall(new)) if a != b]
+        return ", ".join(dict.fromkeys(changed))
 
 
 def git(*args: str, ok: tuple[int, ...] = (0,)) -> str:
@@ -122,7 +148,10 @@ def main() -> int:
     parser.add_argument("--tip", default="HEAD", help="integration branch tip (default HEAD)")
     parser.add_argument("heads", nargs="+", help="LABEL=REV for each PR, e.g. 1016=3f2a9c1")
     parser.add_argument("--max-examples", type=int, default=5, help="example lines shown per finding")
+    parser.add_argument("--id-pattern", help=r"register id regex, e.g. 'R[1-9]\d*': a missing line that is present "
+                                              "with only these ids changed is REVIEW (renumbered), not FAIL")
     opts = parser.parse_args()
+    mask = Mask(opts.id_pattern)
 
     target, tip = resolve(opts.target), resolve(opts.tip)
     prs = []
@@ -215,6 +244,25 @@ def main() -> int:
             superseded = [l for l in missing
                           if any(line_counts(tree(q["head"]).get(path))[l] == 0 for q in descendants)]
             missing = [l for l in missing if l not in superseded]
+            if mask and missing:
+                # A tip line of the same shape vouches for one missing line, after the PR's lines that
+                # are present as written have taken theirs.
+                available = Counter(mask.masked(l) for l in tip_lines.elements())
+                for l in delta.added[path]:
+                    if tip_lines[l]:
+                        available[mask.masked(l)] -= tip_lines[l]
+                renumbered = []
+                for l in missing:
+                    shape = mask.masked(l)
+                    if shape != l and available[shape] > 0:
+                        available[shape] -= 1
+                        renumbered.append(l)
+                missing = [l for l in missing if l not in renumbered]
+                if renumbered:
+                    by_shape = {mask.masked(t): t for t in tip_lines}
+                    pairs = ", ".join(dict.fromkeys(mask.pairs(l, by_shape[mask.masked(l)]) for l in renumbered))
+                    reviews.append(f"#{label}: {len(renumbered)} added line(s) in `{path}` present with only ids "
+                                   f"changed ({pairs}): {sample(renumbered)}")
             if missing:
                 missing_total += len(missing)
                 fails.append(f"#{label}: {len(missing)} added line(s) missing from `{path}`: {sample(missing)}")
@@ -259,6 +307,9 @@ def main() -> int:
         if lost:
             fails.append(f"`{path}`: {len(lost)} target line(s) gone that no PR or fix removed: {sample(lost)}")
         novel = [l for l in combined.added[path] if explained_added[path][l] == 0]
+        if mask and novel:
+            shapes = Counter(mask.masked(l) for l in explained_added[path].elements())
+            novel = [l for l in novel if shapes[mask.masked(l)] == 0]
         if novel:
             reviews.append(f"`{path}`: {len(novel)} line(s) written only in a merge resolution: {sample(novel)}")
 

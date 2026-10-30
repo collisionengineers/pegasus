@@ -141,6 +141,82 @@ class AuditCombinedTests(SharedGitCase):
         self.assertIn(f"| #2 | `{short(self.c['pr2'])}` | yes | 3 | 1 | 2 | 1 | 0 |\n", out)
 
 
+class AuditRenumbered(SharedGitCase):
+    """A fix commit renumbered a register id on a PR's lines: REVIEW with --id-pattern, FAIL without."""
+
+    REGISTER = "docs/rulings.md"
+    ID_PATTERN = r"R[1-9]\d*"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.repo = repo = Repository(cls.tmp / "repo")
+        cls.c = c = {}
+        rows = lines("| Id | Q | A |", "|---|---|---|", "| R1 | q1 | a1 |", "| R2 | q2 | a2 |")
+        c["target"] = repo.commit("base", {cls.REGISTER: rows, "a.md": lines("cites R2")})
+        repo.branch("pr1", "main")
+        c["pr1"] = repo.commit("pr1", {cls.REGISTER: rows + "| R3 | q3 | a3 |\n",
+                                       "a.md": lines("cites R2", "pr1 says (R3)")})
+        repo.branch("pr2", "main")
+        c["pr2"] = repo.commit("pr2", {"a.md": lines("cites R2", "pr2 says (R3)", "pr2 says (R4)")})
+
+        def tip(name, pr, files):
+            repo.git("checkout", "-q", "-b", name, "main")
+            repo.git("merge", "-q", "--no-ff", "-m", f"merge {pr}", pr)
+            c[name] = repo.commit(f"fix: {name}", files)
+
+        tip("renumbered", "pr1", {cls.REGISTER: rows + "| R4 | q3 | a3 |\n", "a.md": lines("cites R2", "pr1 says (R4)")})
+        tip("deleted", "pr1", {"a.md": lines("cites R2")})
+        tip("reworded", "pr1", {"a.md": lines("cites R2", "pr1 said (R4)")})
+        tip("one", "pr2", {"a.md": lines("cites R2", "pr2 says (R5)")})
+
+    def run_audit(self, tip, pr, *extra):
+        return run_main(audit, ["--target", self.c["target"], "--tip", self.c[tip], *extra,
+                                f"{pr[2:]}={self.c[pr]}"], cwd=self.repo.root)
+
+    def test_without_the_pattern_a_renumbered_line_is_a_missing_line(self):
+        code, out, _ = self.run_audit("renumbered", "pr1")
+        self.assertEqual(1, code)
+        self.assertIn("- #1: 1 added line(s) missing from `a.md`: `pr1 says (R3)`\n", out)
+        self.assertIn("- #1: 1 added line(s) missing from `docs/rulings.md`: `| R3 | q3 | a3 |`\n", out)
+
+    def test_with_the_pattern_a_renumbered_line_is_a_review_item_with_exit_3_and_no_missing_count(self):
+        code, out, _ = self.run_audit("renumbered", "pr1", "--id-pattern", self.ID_PATTERN)
+        self.assertEqual(3, code)
+        self.assertIn("## Lost-work audit: REVIEW\n", out)
+        self.assertIn(f"| #1 | `{short(self.c['pr1'])}` | yes | 2 | 0 | 2 | 0 | 0 |\n", out)
+        self.assertIn("- #1: 1 added line(s) in `a.md` present with only ids changed (R3→R4): `pr1 says (R3)`\n", out)
+        self.assertIn("- #1: 1 added line(s) in `docs/rulings.md` present with only ids changed (R3→R4): "
+                      "`| R3 | q3 | a3 |`\n", out)
+        self.assertNotIn("FAIL", out)
+
+    def test_a_deleted_line_stays_a_failure(self):
+        code, out, _ = self.run_audit("deleted", "pr1", "--id-pattern", self.ID_PATTERN)
+        self.assertEqual(1, code)
+        self.assertIn("- #1: 1 added line(s) missing from `a.md`: `pr1 says (R3)`\n", out)
+
+    def test_an_id_change_with_any_other_change_stays_a_failure(self):
+        code, out, _ = self.run_audit("reworded", "pr1", "--id-pattern", self.ID_PATTERN)
+        self.assertEqual(1, code)
+        self.assertIn("- #1: 1 added line(s) missing from `a.md`: `pr1 says (R3)`\n", out)
+
+    def test_one_tip_line_vouches_for_one_missing_line(self):
+        code, out, _ = self.run_audit("one", "pr2", "--id-pattern", self.ID_PATTERN)
+        self.assertEqual(1, code)
+        self.assertIn("- #2: 1 added line(s) in `a.md` present with only ids changed (R3→R5): `pr2 says (R3)`\n", out)
+        self.assertIn("- #2: 1 added line(s) missing from `a.md`: `pr2 says (R4)`\n", out)
+
+
+class MaskedLines(unittest.TestCase):
+    def test_ids_are_hidden_on_word_boundaries_and_the_changed_pairs_named(self):
+        mask = audit.Mask(r"R[1-9]\d*")
+        self.assertEqual("see # and #, not VR42 or R0001", mask.masked("see R550 and R12, not VR42 or R0001"))
+        self.assertEqual("R550→R559", mask.pairs("R550 (R550)", "R559 (R559)"))
+        self.assertEqual("R551→R560", mask.pairs("R2, R551", "R2, R560"))
+        self.assertFalse(audit.Mask(None))
+        self.assertEqual("as is R1", audit.Mask(None).masked("as is R1"))
+
+
 class NormalLines(unittest.TestCase):
     def test_lines_compare_without_indentation_whitespace_runs_or_a_trailing_separator(self):
         rows = {
