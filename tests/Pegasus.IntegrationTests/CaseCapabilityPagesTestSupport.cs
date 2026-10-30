@@ -839,14 +839,44 @@ internal static partial class CaseWebTestSupport
         IGetCaseFilesSection,
         IValidateCaseRenderLease
     {
-        public Task<CaseEditRequestRaised> RaiseRequestAsync(RaiseCaseEditRequestRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+        /// <summary>The request to edit standing against the lease, as the page frame and the watch read it.</summary>
+        public CaseEditRequestSnapshot? EditRequest { get; set; }
 
-        public Task AnswerRequestAsync(AnswerCaseEditRequestRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+        /// <summary>What raising a request answers; a request stands unless a test says otherwise.</summary>
+        public CaseEditRequestOutcome RaiseOutcome { get; set; } = CaseEditRequestOutcome.Pending;
+
+        /// <summary>The stamp the watch reads the Case's lease and request with.</summary>
+        public string EditRequestStamp { get; set; } = "stamp-1";
+
+        public List<RaiseCaseEditRequestRequest> EditRequestsRaised { get; } = [];
+
+        public List<AnswerCaseEditRequestRequest> EditRequestAnswers { get; } = [];
+
+        public Task<CaseEditRequestRaised> RaiseRequestAsync(RaiseCaseEditRequestRequest request, CancellationToken cancellationToken)
+        {
+            ThrowNextFailure();
+            EditRequestsRaised.Add(request);
+            return Task.FromResult(new CaseEditRequestRaised(RaiseOutcome, EditRequest, null));
+        }
+
+        public Task AnswerRequestAsync(AnswerCaseEditRequestRequest request, CancellationToken cancellationToken)
+        {
+            ThrowNextFailure();
+            EditRequestAnswers.Add(request);
+            return Task.CompletedTask;
+        }
 
         public Task<CaseEditRequestView> ReadRequestAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            Task.FromResult(new CaseEditRequestView(
+                EditRequestStamp,
+                CaseVersion,
+                _leaseHolderKind,
+                _leaseHolder,
+                _leaseHolder is not null,
+                EditRequest,
+                EditRequest is { } standing
+                    && CaseEditAuthority.IsRequestPending(standing.RequestedAtUtc, standing.Answer, _now),
+                null));
 
         private readonly DateTimeOffset _now = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
         private CaseDueWork _dueWork;
@@ -1104,7 +1134,7 @@ internal static partial class CaseWebTestSupport
         private CaseSectionFrame FocusedFrame()
         {
             var workflow = CreateWorkflow();
-            return new(CreateSummary(workflow), workflow, ActiveLease(), Works: Works);
+            return new(CreateSummary(workflow), workflow, ActiveLease(), Works: Works) { EditRequest = EditRequest };
         }
 
         /// <summary>

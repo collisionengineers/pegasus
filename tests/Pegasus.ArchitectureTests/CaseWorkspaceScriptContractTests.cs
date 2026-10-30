@@ -401,4 +401,44 @@ public sealed class CaseWorkspaceScriptContractTests
             script,
             StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Requests to edit (R550–R557, 30 October 2026): the asking page claims the Case only when
+    /// the long poll says its request was accepted and the viewer now holds the lease, never
+    /// because it saw the Case free; the holder's Accept waits for a change not yet sent to land;
+    /// the asking page withdraws its request as it goes; and Escape does not close the popup.
+    /// </summary>
+    [Fact]
+    public void TheEditRequestWatchClaimsOnlyAnAcceptedHandOverAndAcceptWaitsForTheCommit()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var watch = FunctionBody(script, "function onEditWatch(answer) {", "    ");
+        var accepted = watch.IndexOf("if (state === 'accepted' && holder && holder.isViewer) {", StringComparison.Ordinal);
+        Assert.True(accepted >= 0, "The asking page acts on an accepted request the viewer now holds.");
+        var claimed = watch.IndexOf("enterHandedLease();", StringComparison.Ordinal);
+        Assert.True(claimed > accepted, "The hand-over is taken up only inside the accepted branch.");
+        Assert.DoesNotContain("requestSubmit", watch, StringComparison.Ordinal);
+        Assert.DoesNotContain("requestSubmit", FunctionBody(script, "function bindEditWatch() {", "    "), StringComparison.Ordinal);
+        // The hand-over is taken up from one place, and only the accepted branch reaches it.
+        Assert.Equal(2, Regex.Count(script, @"enterHandedLease\("));
+        var enter = FunctionBody(script, "function enterHandedLease() {", "    ");
+        Assert.Contains("record.querySelector('[data-case-edit-form]')", enter, StringComparison.Ordinal);
+        Assert.Contains("!claim.querySelector('[name=\"takeOver\"]')", enter, StringComparison.Ordinal);
+        Assert.Contains("form.requestSubmit();", enter, StringComparison.Ordinal);
+        Assert.Contains("afterCommit(function () {", enter, StringComparison.Ordinal);
+
+        Assert.Contains("afterCommit(post, settled);", script, StringComparison.Ordinal);
+        Assert.Matches(
+            new Regex(@"window\.addEventListener\('pagehide', function \(\) \{\s*var withdraw = record\.querySelector\('\[data-case-edit-withdraw\]'\);\s*if \(withdraw && typeof navigator\.sendBeacon === 'function'\) \{"),
+            script);
+        Assert.Matches(
+            new Regex(@"window\.addEventListener\('keydown', function \(event\) \{\s*var dialog = editRequestDialog\(\);\s*if \(event\.key === 'Escape' && dialog && !dialog\.hidden\) \{\s*event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*\}\s*\}, true\);"),
+            script);
+        // The watch follows every redraw as the heartbeat does.
+        Assert.Equal(
+            Regex.Count(script, @"\n\s*bindHeartbeat\(\);\r?\n\s*bindEditWatch\(\);"),
+            Regex.Count(script, @"\n\s*bindHeartbeat\(\);"));
+    }
 }

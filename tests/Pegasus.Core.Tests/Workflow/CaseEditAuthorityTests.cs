@@ -58,30 +58,31 @@ public sealed class CaseEditAuthorityTests
     }
 
     /// <summary>
-    /// A takeover is a casework action: a staff-held lease may be taken over by a colleague or the
-    /// Automation Actor (operator, 7 October 2026), and a lease the Automation Actor holds by a
-    /// member of staff only (operator, 15 and 16 October 2026). A lease retained without a kind
+    /// A record edit scope (an Image Intake record or a Triage Case) keeps the immediate takeover
+    /// (R556, 30 October 2026): a staff-held scope may be taken over by a colleague or the
+    /// Automation Actor (operator, 7 October 2026), and a scope the Automation Actor holds by a
+    /// member of staff only (operator, 15 and 16 October 2026). A scope retained without a kind
     /// belongs to nobody, and an actor without the casework right takes nothing over.
     /// </summary>
     [Fact]
-    public void StaffTakeOverAnyHeldLeaseAndTheActorOnlyAStaffOne()
+    public void ARecordScopeIsStillTakenOverAtOnceByStaffAndAStaffScopeByTheActor()
     {
         var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var automation = ActionActor.Automation("pegasus-automation");
         var systemWorker = ActionActor.SystemWorker("case-worker");
         var principal = ActionActor.Principal(Guid.NewGuid());
 
-        Assert.True(CaseEditAuthority.CanTakeOver(ActorKind.Staff, colleague));
-        Assert.True(CaseEditAuthority.CanTakeOver(ActorKind.Staff, automation));
-        Assert.True(CaseEditAuthority.CanTakeOver(ActorKind.Automation, colleague));
+        Assert.True(CaseEditAuthority.CanTakeOverRecordScope(ActorKind.Staff, colleague));
+        Assert.True(CaseEditAuthority.CanTakeOverRecordScope(ActorKind.Staff, automation));
+        Assert.True(CaseEditAuthority.CanTakeOverRecordScope(ActorKind.Automation, colleague));
 
-        Assert.False(CaseEditAuthority.CanTakeOver(ActorKind.Automation, automation));
-        Assert.False(CaseEditAuthority.CanTakeOver(null, colleague));
-        Assert.False(CaseEditAuthority.CanTakeOver(null, automation));
+        Assert.False(CaseEditAuthority.CanTakeOverRecordScope(ActorKind.Automation, automation));
+        Assert.False(CaseEditAuthority.CanTakeOverRecordScope(null, colleague));
+        Assert.False(CaseEditAuthority.CanTakeOverRecordScope(null, automation));
         foreach (ActorKind? holderKind in new ActorKind?[] { ActorKind.Staff, ActorKind.Automation, null })
         {
-            Assert.False(CaseEditAuthority.CanTakeOver(holderKind, systemWorker));
-            Assert.False(CaseEditAuthority.CanTakeOver(holderKind, principal));
+            Assert.False(CaseEditAuthority.CanTakeOverRecordScope(holderKind, systemWorker));
+            Assert.False(CaseEditAuthority.CanTakeOverRecordScope(holderKind, principal));
         }
     }
 

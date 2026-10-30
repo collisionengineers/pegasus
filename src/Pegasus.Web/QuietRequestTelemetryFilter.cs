@@ -3,6 +3,7 @@ using Microsoft.ApplicationInsights.Channel;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace Pegasus.Web;
 
@@ -11,8 +12,11 @@ namespace Pegasus.Web;
 /// daily telemetry cap is spent on staff pages: the readiness probes (one a
 /// minute; once the schema has been found current, one SQL call each), the
 /// diagnostics version endpoint, static files, the App Service Always On
-/// ping (<c>GET /</c> answered with a redirect), and the SQL calls of the
-/// keep-warm passes. A failed one (unsuccessful, or a 5xx) is always kept, so
+/// ping (<c>GET /</c> answered with a redirect), the SQL calls of the
+/// keep-warm passes, and the Case page's request-to-edit long poll
+/// (<c>WatchEditRequest</c>, held up to about 25 seconds, R551) and its
+/// once-a-minute lease beat (<c>HeartbeatLease</c>) with their SQL calls, so
+/// they count against neither the page's budget nor the cap. A failed one (unsuccessful, or a 5xx) is always kept, so
 /// a failing probe still shows. It also drops an exception row that is only a
 /// cancellation (<see cref="ClientAbort"/>) raised while its request was
 /// aborted; any other exception is kept. Everything else passes through. It
@@ -58,12 +62,33 @@ public sealed class QuietRequestTelemetryFilter(
         return false;
     }
 
+    /// <summary>
+    /// Whether the request is a Case page's request-to-edit long poll or its
+    /// lease heartbeat, named by the handler in the query string.
+    /// </summary>
+    internal static bool IsQuietHandler(PathString path, QueryString query)
+    {
+        if (!path.StartsWithSegments("/Cases") || !query.HasValue)
+        {
+            return false;
+        }
+
+        var handler = QueryHelpers.ParseQuery(query.Value)
+            .TryGetValue("handler", out var values) ? values.ToString() : string.Empty;
+        return string.Equals(handler, "WatchEditRequest", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(handler, "HeartbeatLease", StringComparison.OrdinalIgnoreCase);
+    }
+
     private bool IsQuiet(ITelemetry item) => item switch
     {
         RequestTelemetry request => !IsFailure(request.Success, request.ResponseCode)
-            && (IsQuietPath(RequestPath(request)) || IsAlwaysOnPing(request)),
+            && (IsQuietPath(RequestPath(request))
+                || IsQuietHandler(RequestPath(request), RequestQuery(request))
+                || IsAlwaysOnPing(request)),
         DependencyTelemetry dependency => !IsFailure(dependency.Success, dependency.ResultCode)
-            && (IsQuietPath(PathOf(dependency.Context.Operation.Name)) || InWarmUpPass()),
+            && (IsQuietPath(PathOf(dependency.Context.Operation.Name))
+                || InQuietHandlerRequest()
+                || InWarmUpPass()),
         ExceptionTelemetry exception => IsAbortedCancellation(exception),
         _ => false
     };
@@ -97,6 +122,14 @@ public sealed class QuietRequestTelemetryFilter(
 
         return false;
     }
+
+    /// <summary>Whether the call was made on a request that is a quiet handler.</summary>
+    private bool InQuietHandlerRequest() =>
+        httpContextAccessor?.HttpContext?.Request is { } request
+        && IsQuietHandler(request.Path, request.QueryString);
+
+    private static QueryString RequestQuery(RequestTelemetry request) =>
+        request.Url is { IsAbsoluteUri: true } url ? new QueryString(url.Query) : default;
 
     private static bool IsFailure(bool? success, string? resultCode) =>
         success == false

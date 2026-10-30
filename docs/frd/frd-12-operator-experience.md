@@ -166,6 +166,10 @@ cancellation or a failed authorisation. The dialog then shows
 `Notifications unavailable.` with no placeholder or stale rows, and the
 failure is logged.
 
+A request to edit a Case the person holds is not a bell item: it is shown on
+the Case page they are editing, and may raise a browser system notification
+while that page is hidden (R551 and R555, 30 October 2026).
+
 **What's new** is the newest published release note
 ([FRD-17](frd-17-administration-workspace.md#release-notes)), opened once
 for each person as a dialog on the next page they load after it is

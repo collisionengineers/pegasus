@@ -163,6 +163,39 @@ public sealed class TelemetryFilterTests
         Assert.Equal(2, Run(cancellation, cancelledCommand).Count);
     }
 
+    [Theory]
+    [InlineData("WatchEditRequest")]
+    [InlineData("HeartbeatLease")]
+    public void ACasePageLongPollOrHeartbeatIsDroppedUnlessItFailed(string handler)
+    {
+        var path = $"/Cases/7f3c1f5e-0d7a-4b8e-9c55-2f6d1b7a9e10?handler={handler}";
+
+        Assert.Empty(Run(Request("POST", path, "200")));
+        Assert.Single(Run(Request("POST", path, "500")));
+    }
+
+    [Fact]
+    public void ACasePageClaimIsKept()
+    {
+        var path = "/Cases/7f3c1f5e-0d7a-4b8e-9c55-2f6d1b7a9e10?handler=ClaimLease";
+
+        Assert.Single(Run(Request("POST", path, "200")));
+    }
+
+    [Fact]
+    public void ASqlCallOnACasePageLongPollIsDroppedUnlessItFailed()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/Cases/7f3c1f5e-0d7a-4b8e-9c55-2f6d1b7a9e10";
+        context.Request.QueryString = new QueryString("?handler=WatchEditRequest");
+
+        Assert.Empty(RunOn(context, Dependency(null, success: true)));
+        Assert.Single(RunOn(context, Dependency(null, success: false)));
+
+        context.Request.QueryString = new QueryString("?handler=ClaimLease");
+        Assert.Single(RunOn(context, Dependency(null, success: true)));
+    }
+
     [Fact]
     public void AQuietPathIsMatchedByWholeSegments()
     {

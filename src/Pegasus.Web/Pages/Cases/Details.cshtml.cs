@@ -68,6 +68,8 @@ public sealed partial class DetailsModel(
     IPrincipalSalvageMatrixQueries principalSalvageMatrices,
     ICaseAssetPreparationQueries caseAssetPreparationQueries,
     CaseEditLeases leases,
+    CaseEditRequestWatch editRequestWatch,
+    IHostApplicationLifetime hostLifetime,
     IInspectionAddressChoicesQueries inspectionAddressChoicesQueries,
     IContactDirectoryQueries contactDirectory,
     IImageIntakeQueries imageIntakeQueries,
@@ -2013,6 +2015,13 @@ public sealed partial class DetailsModel(
                 actor,
                 token))
             : null;
+        var requester = viewerHoldsLease && details.Frame.EditRequest is { Answer: null } asking
+            ? reads.Start(token => describeEditAuthorityHolder.ExecuteAsync(
+                asking.RequesterKind,
+                asking.Requester,
+                actor,
+                token))
+            : null;
         var caseAiJobs = reads.Start(token => aiJobs.ListOpenForSubjectAsync(id, token));
         await reads.WhenAllAsync();
 
@@ -2039,9 +2048,13 @@ public sealed partial class DetailsModel(
         AssignEngineerChoices = workspaceExtras.AssignEngineerChoices;
         if (activeLease is not null)
         {
-            ViewerHoldsEditAuthority = viewerHoldsLease;
-            ViewerMayTakeOver = CaseEditAuthority.CanTakeOver(activeLease.HolderKind, actor);
-            EditAuthorityHolder = holder is null ? CaseEditAuthorityHolder.Unnamed : await holder;
+            ApplyLeaseState(
+                activeLease,
+                details.Frame.EditRequest,
+                actor,
+                viewerHoldsLease,
+                holder is null ? CaseEditAuthorityHolder.Unnamed : await holder,
+                requester is null ? null : await requester);
         }
         var jobs = await caseAiJobs;
         AiDrafts = AiDraftPolicy.Drafts(jobs, details.Data.RequiredAiDraftTargetDays);
@@ -2090,6 +2103,32 @@ public sealed partial class DetailsModel(
         string editLeaseToken,
         CancellationToken cancellationToken) =>
         HeartbeatLeaseAsync(leases, id, editLeaseToken, cancellationToken);
+
+    /// <summary>Ask to edit: the request to the member of staff holding the lease (FRD-14, R550).</summary>
+    public Task<IActionResult> OnPostRequestEditAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string? section,
+        CancellationToken cancellationToken) =>
+        RequestEditAsync(leases, id, expectedVersion, operationKey, () => RedirectToSection(id, section), cancellationToken);
+
+    /// <summary>The holder's Accept or Deny, or the requester's withdrawal (R553).</summary>
+    public Task<IActionResult> OnPostAnswerEditRequestAsync(
+        Guid id,
+        Guid requestId,
+        string? answer,
+        string? editLeaseToken,
+        string? section,
+        CancellationToken cancellationToken) =>
+        AnswerEditRequestAsync(leases, id, requestId, answer, editLeaseToken, () => RedirectToSection(id, section), cancellationToken);
+
+    /// <summary>The long poll the editing and the waiting page hold on the Case's lease and request (R551).</summary>
+    public Task<IActionResult> OnPostWatchEditRequestAsync(
+        Guid id,
+        string? stamp,
+        CancellationToken cancellationToken) =>
+        WatchEditRequestAsync(editRequestWatch, describeEditAuthorityHolder, hostLifetime, id, stamp, cancellationToken);
 
     public Task<IActionResult> OnPostReleaseLeaseAsync(
         Guid id,

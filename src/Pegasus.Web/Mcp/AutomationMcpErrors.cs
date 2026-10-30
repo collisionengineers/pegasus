@@ -17,7 +17,8 @@ namespace Pegasus.Web.Mcp;
 /// crosses the boundary. The three edit-guard refusals name which guard
 /// refused and the current case version, so the Automation Actor can reload
 /// and reacquire rather than retry blindly; no token or other holder material
-/// crosses the boundary with them.
+/// crosses the boundary with them. A refused request to edit (R554) names
+/// why: already asked, declined or no answer.
 /// </summary>
 internal static class AutomationMcpErrors
 {
@@ -59,6 +60,21 @@ internal static class AutomationMcpErrors
                 "Refused: the case changed since it was read. The case is at version "
                 + $"{exception.ActualVersion}, not {exception.ExpectedVersion}; reload and "
                 + "reacquire rather than retrying.");
+        }
+        catch (CaseEditRequestRefusedException exception)
+        {
+            throw new McpException(exception.Refusal switch
+            {
+                CaseEditRequestRefusal.AlreadyAsked =>
+                    "Refused: another editor has already asked to edit this Case. The case is at version "
+                    + $"{exception.CaseVersion}; ask again later.",
+                CaseEditRequestRefusal.Declined =>
+                    "Refused: the member of staff editing this Case declined. The case is at version "
+                    + $"{exception.CaseVersion}; ask again later or wait for the Case to be free.",
+                _ =>
+                    "Refused: no answer to the request within 45 seconds. The case is at version "
+                    + $"{exception.CaseVersion}; the Case is still held, ask again later."
+            });
         }
         catch (Exception exception) when (
             exception is ArgumentException

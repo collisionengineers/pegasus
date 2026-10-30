@@ -2045,6 +2045,17 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         var second = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var held = await harness.Store.ClaimAsync(
             new ClaimCaseEditLeaseRequest(harness.CaseId, 0, first, "first-claim"), default);
+        // A colleague takes over only after asking and being left unanswered through the window
+        // (R552, 30 October 2026); before that the takeover is refused.
+        await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, second, "colleague-asks"), default);
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.ClaimAsync(
+                new ClaimCaseEditLeaseRequest(harness.CaseId, 0, second, "colleague-takeover-early")
+                {
+                    TakeOver = true
+                }, default));
+        harness.TimeProvider.Advance(CaseEditAuthority.RequestAnswerWindow);
 
         var taken = await harness.Store.ClaimAsync(
             new ClaimCaseEditLeaseRequest(harness.CaseId, 0, second, "colleague-takeover")
@@ -2099,12 +2110,18 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
             new(harness.CaseId, started.Version, first, "claim-after-start"),
             default);
 
+        await harness.Store.RaiseRequestAsync(
+            new(harness.CaseId, started.Version, second, "second-asks"), default);
+        harness.TimeProvider.Advance(CaseEditAuthority.RequestAnswerWindow);
         var taken = await harness.Store.ClaimAsync(
             new(harness.CaseId, started.Version, second, "takeover-at-current-version")
             {
                 TakeOver = true
             },
             default);
+        await harness.Store.RaiseRequestAsync(
+            new(harness.CaseId, started.Version, third, "third-asks"), default);
+        harness.TimeProvider.Advance(CaseEditAuthority.RequestAnswerWindow);
         var takenAgain = await harness.Store.ClaimAsync(
             new(harness.CaseId, started.Version, third, "second-takeover-at-same-version")
             {
