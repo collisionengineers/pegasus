@@ -1598,8 +1598,44 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Empty(store.SavedEstimates);
     }
 
+    /// <summary>
+    /// A new spec's first commit, answered in place, created the spec but did
+    /// not say which: the page went on posting no spec, so the catch up drew a
+    /// blank new spec over the saved one (its VAT status back on Registered)
+    /// and the next commit created another. The answer carries the spec the
+    /// commit wrote, and the commit that posts it edits that spec.
+    /// </summary>
+    [Fact]
+    public async Task ANewSpecsFirstCommitAnsweredInPlaceCarriesItsIdSoTheNextCommitEditsIt()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+        var html = await EnterEditModeAsync(client, caseId, "?section=estimate&estimate=new");
+        Assert.Contains("data-estimate-written", html, StringComparison.Ordinal);
+        var notRegistered = EstimateVatPolicy.For(RepairerVatStatus.NotRegistered);
+
+        using var first = await PostNewSpecWithStatusAsync(client, caseId, html, notRegistered, inPlace: true);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        var created = Assert.Single(store.SavedEstimates);
+        Assert.Null(created.EstimateId);
+        var createdId = store.LastCreatedEstimateId;
+        Assert.Equal(createdId.ToString("D"), InputValue(await first.Content.ReadAsStringAsync(), "estimateWritten"));
+
+        using var second = await PostNewSpecWithStatusAsync(
+            client, caseId, html, notRegistered, estimateId: createdId, inPlace: true);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal(2, store.SavedEstimates.Count);
+        Assert.Equal(createdId, store.SavedEstimates[1].EstimateId);
+        Assert.Equal(createdId, store.LastCreatedEstimateId);
+        Assert.Equal(RepairerVatStatus.NotRegistered, store.SavedEstimates[1].Details.Vat!.RepairerStatus);
+    }
+
     private static async Task<HttpResponseMessage> PostNewSpecWithStatusAsync(
-        HttpClient client, Guid caseId, string html, EstimateVatPolicy vat)
+        HttpClient client, Guid caseId, string html, EstimateVatPolicy vat,
+        Guid? estimateId = null, bool inPlace = false)
     {
         var fields = new List<KeyValuePair<string, string>>
         {
@@ -1607,6 +1643,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             new("id", caseId.ToString("D")),
             new("operationKey", NewOperationKey()),
             new("editLeaseToken", RecordingStores.HeldLeaseToken),
+            new("estimateId", estimateId?.ToString("D") ?? string.Empty),
             new("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
             new("estimateName", "Repairer"),
             new("estimateLabourRate", "52.50"),
@@ -1617,9 +1654,19 @@ public sealed partial class AssessmentEstimateImportWebTests
             new("linePartPounds", "620.20"),
         };
         fields.AddRange(HeaderFields(vat, EstimateDiscounts.None));
-        return await client.PostAsync(
-            $"/Cases/{caseId:D}?handler=Save&section=estimate",
-            new FormUrlEncodedContent(fields));
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"/Cases/{caseId:D}?handler=Save&section=estimate")
+        {
+            Content = new FormUrlEncodedContent(fields)
+        };
+        // The page script's commit is answered in place.
+        if (inPlace)
+        {
+            request.Headers.Add("X-Requested-With", "fetch");
+            request.Headers.Accept.ParseAdd("text/html");
+        }
+        return await client.SendAsync(request);
     }
 
     /// <summary>

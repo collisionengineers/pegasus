@@ -488,6 +488,17 @@ public sealed partial class DetailsModel(
 
     private string? savedEstimateLineIdentities;
 
+    /// <summary>
+    /// The spec a commit answered in place wrote, which the script carries
+    /// into the editor and the page address. A new spec's first commit creates
+    /// it, so without it the next commit posted no spec and created another,
+    /// and the catch up drew a blank new spec over the saved one. The page
+    /// itself draws it empty: the spec it shows is already the editor's.
+    /// </summary>
+    public string? WrittenEstimateId => savedEstimateId?.ToString("D");
+
+    private Guid? savedEstimateId;
+
     private IReadOnlyList<int>? postedEstimateLineRows;
 
     /// <summary>
@@ -2581,6 +2592,7 @@ public sealed partial class DetailsModel(
                 if (workspaceSave.Estimate is { } writtenEstimate)
                 {
                     savedEstimate = writtenEstimate.SpecificationId.ToString("D");
+                    savedEstimateId = writtenEstimate.SpecificationId;
                     savedEstimateLineIdentities = EstimateLineIdentitiesOf(postedEstimateLineRows, writtenEstimate);
                 }
 

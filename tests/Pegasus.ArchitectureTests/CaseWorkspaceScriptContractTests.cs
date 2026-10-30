@@ -347,6 +347,27 @@ public sealed class CaseWorkspaceScriptContractTests
     }
 
     /// <summary>
+    /// A new repair spec's first commit creates it. The editor posts the
+    /// written spec's id from then on and the address names it, so the catch
+    /// up after the commit draws the saved spec, not a blank new one, and the
+    /// next commit edits that spec rather than creating another.
+    /// </summary>
+    [Fact]
+    public void ACommitThatWroteANewSpecMovesTheEditorAndAddressOntoIt()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var written = script.IndexOf("if (carrier.matches('[data-estimate-written]')) {", StringComparison.Ordinal);
+        Assert.True(written >= 0);
+        var handler = script[written..script.IndexOf("return;", written, StringComparison.Ordinal)];
+        Assert.Contains("form.querySelector('input[name=\"estimateId\"]')", handler, StringComparison.Ordinal);
+        Assert.Contains("posted.value = carrier.value;", handler, StringComparison.Ordinal);
+        Assert.Contains("address.searchParams.set('estimate', carrier.value);", handler, StringComparison.Ordinal);
+        Assert.Contains("window.history.replaceState(", handler, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Issue 1463 (FRD-16): clicking a section link mounts any preceding lazy
     /// placeholders, re-scrolls the target as preceding or bottom-clamping lazy
     /// sections finish loading, and holds the jumped link current only while
