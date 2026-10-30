@@ -1797,8 +1797,11 @@ public sealed class MailWorkspaceWebTests
         Assert.DoesNotContain("id=\"queue-filter\"", all, StringComparison.Ordinal);
         Assert.Contains("id=\"principal-filter\"", all, StringComparison.Ordinal);
         Assert.Contains("Message 0 from instructions", all, StringComparison.Ordinal);
-        Assert.Contains("Message 4 from instructions", all, StringComparison.Ordinal);
-        Assert.DoesNotContain("Message 1 from instructions", all, StringComparison.Ordinal);
+        // All lists every message, the unlinked ones included (R570).
+        foreach (var listed in new[] { 1, 2, 3, 4, 5 })
+        {
+            Assert.Contains($"Message {listed} from instructions", all, StringComparison.Ordinal);
+        }
         // SeedAsync returns newest first, so the Triage request is not ids[4].
         var triageId = await MessageIdAsync(factory, FirstMailboxId, $"{FirstMailboxId}-4");
         Assert.Contains($">{OperatorLabels.Inbox.NoCase}<", MailRow(all, triageId), StringComparison.Ordinal);
