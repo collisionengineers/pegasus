@@ -457,7 +457,7 @@ A file a member of staff uploads to a declared Case
 ([FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)) takes the
 type they chose for it on its row, one choice per file, from Instruction,
 Correspondence, Engineer report, Estimate, Valuation Evidence and Other;
-Other when none was chosen (operator, 30 October 2026; R559, R560). Image is
+Other when none was chosen (operator, 30 October 2026; R564, R565). Image is
 never chosen because a JPEG or PNG is always an Image, and Audit report is
 Mark as original report's after filing. The chosen type is carried with the
 file's receipt from staging to filing and recorded on the processed receipt.

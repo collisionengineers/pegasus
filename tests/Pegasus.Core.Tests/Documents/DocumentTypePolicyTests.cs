@@ -38,7 +38,7 @@ public sealed class DocumentTypePolicyTests
     /// The Upload page offers a declared-Case file every staff type but Image,
     /// which the file's format decides, and Audit report, which is Mark as
     /// original report's after filing; Other is the choice until changed
-    /// (operator, 30 October 2026; R559, R560).
+    /// (operator, 30 October 2026; R564, R565).
     /// </summary>
     [Fact]
     public void AnUploadOffersEveryStaffTypeButImageAndAuditReport()

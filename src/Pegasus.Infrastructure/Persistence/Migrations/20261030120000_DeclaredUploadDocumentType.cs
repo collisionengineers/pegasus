@@ -7,7 +7,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 
 /// <summary>
 /// A file uploaded to a declared Case carries the type the member of staff chose for it, from the
-/// staged receipt to the processed one, so the Worker files it as that type (FRD-18; R559, R560,
+/// staged receipt to the processed one, so the Worker files it as that type (FRD-18; R564, R565,
 /// 30 October 2026). Additive: one nullable name column on each receipt table, no row changes; a
 /// receipt staged before it has no choice and files as Other.
 /// </summary>

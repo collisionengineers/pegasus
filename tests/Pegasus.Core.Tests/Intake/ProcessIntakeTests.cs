@@ -118,7 +118,7 @@ public sealed class ProcessIntakeTests
         Assert.Equal(ProcessQueuedIntake.DeclaredDestinationReason, draft.DecisionReason);
         Assert.Equal(declaredCaseId, draft.DeclaredCaseId);
         // The type chosen at upload reaches the processed receipt with the
-        // declaration (R559), for the filer to read.
+        // declaration (R564), for the filer to read.
         Assert.Equal(DocumentSemanticRole.Estimate, draft.DeclaredDocumentType);
         Assert.Contains(draft.Evidence, evidence =>
             evidence.Signal == IntakeEvidenceSignals.DeclaredDestination

@@ -28,8 +28,8 @@ public enum IntakeWorkState
 /// so the Worker links the file there and runs no identification.
 /// </param>
 /// <param name="DeclaredDocumentType">
-/// The type the member of staff chose for the file on that upload (R559),
-/// carried the same way; null when none was chosen (R560).
+/// The type the member of staff chose for the file on that upload (R564),
+/// carried the same way; null when none was chosen (R565).
 /// </param>
 public sealed record IntakeStagedReceipt(
     Guid Id,
@@ -528,7 +528,7 @@ public sealed class ReceiveIntake(
     /// <summary>
     /// A replay of the same upload receipt must carry the same decision: the
     /// same token presented for a different Case, or with a different type
-    /// for the file (R559), is a second, different submission, and is
+    /// for the file (R564), is a second, different submission, and is
     /// refused like different bytes under one identity.
     /// </summary>
     private static void RequireSameDeclaredDestination(
