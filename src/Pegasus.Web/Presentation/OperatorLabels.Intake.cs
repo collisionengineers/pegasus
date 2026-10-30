@@ -422,7 +422,8 @@ public static partial class OperatorLabels
 
         /// <summary>
         /// The ledger row's Type chip tone (v42 H): navy for a New instruction,
-        /// amber for a Triage request, neutral for a Cancellation.
+        /// amber for a Triage request, neutral for a Cancellation or a
+        /// Pre-Pegasus case.
         /// </summary>
         public static string CategoryTone(Pegasus.Core.Intake.MailCategory category) => category switch
         {

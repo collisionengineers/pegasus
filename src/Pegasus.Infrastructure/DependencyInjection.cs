@@ -145,6 +145,12 @@ public static class DependencyInjection
         services.AddScoped<DismissRetainedMail>();
         services.AddScoped<RestoreRetainedMail>();
         services.AddScoped<GetRetainedMailFreshness>();
+        // The read-only old-system lookups (R550): Unavailable until a host
+        // composes the Graph and Box adapters, and the MCP tools say so.
+        services.TryAddSingleton<IApprovedMailboxSearchSource, UnavailableApprovedMailboxSearchSource>();
+        services.TryAddSingleton<IOldSystemCaseFolderSearch, UnavailableOldSystemCaseFolderSearch>();
+        services.AddScoped<SearchApprovedMailboxes>();
+        services.AddScoped<SearchOldSystemCaseFolders>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
         services.AddScoped<ReadUploadedImage>();
         services.AddScoped<IDownloadIntakeAsset, DownloadIntakeAsset>();
@@ -955,6 +961,12 @@ public static class DependencyInjection
             provider.GetRequiredService<BoxContentClient>()));
         services.AddSingleton<IDocumentContentStore>(provider => new BoxDocumentContentStore(
             provider.GetRequiredService<BoxContentClient>()));
+        // The old-system folder search behind pegasus_old_system_folder_search
+        // (R550): Unavailable until Box:OldSystemRootFolderId names the folder.
+        services.Replace(ServiceDescriptor.Singleton<IOldSystemCaseFolderSearch>(provider =>
+            new BoxOldSystemCaseFolderSearch(
+                provider.GetRequiredService<BoxContentClient>(),
+                provider.GetRequiredService<BoxCustodyOptions>())));
         services.AddScoped(provider => new EfCaseArtifactCustody(
             provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
             provider.GetRequiredService<IDocumentContentStore>(),
@@ -1167,6 +1179,8 @@ public static class DependencyInjection
         // Web sends and reads; the Sent-evidence poll that settles Submitted
         // into Sent is the Worker's alone (AddProductionExternalAdapters).
         AddStaffMailSending(services);
+        // The approved-mailbox search behind pegasus_mail_mailbox_search (R550).
+        services.Replace(ServiceDescriptor.Scoped<IApprovedMailboxSearchSource, GraphApprovedMailboxSearchSource>());
         return services;
     }
 

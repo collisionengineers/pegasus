@@ -1368,6 +1368,7 @@ public static partial class OperatorLabels
         Pegasus.Core.Intake.MailCategory.NewInstruction => "New instruction",
         Pegasus.Core.Intake.MailCategory.TriageRequest => "Triage request",
         Pegasus.Core.Intake.MailCategory.Cancellation => "Cancellation",
+        Pegasus.Core.Intake.MailCategory.PrePegasusCase => "Pre-Pegasus case",
         _ => throw new ArgumentOutOfRangeException(nameof(category))
     };
 

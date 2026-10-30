@@ -62,6 +62,29 @@ export interface LinkDestination {
   version: number;
 }
 
+export interface OldSystemFolderSearch {
+  query: string;
+  items: { folderId: string; name: string; modifiedAtUtc: string | null }[];
+  isTruncated: boolean;
+  state: "available" | "unavailable";
+}
+
+export interface MailboxSearch {
+  query: string;
+  items: {
+    mailboxId: string;
+    mailboxAddress: string;
+    messageId: string;
+    subject: string | null;
+    senderAddress: string | null;
+    receivedAtUtc: string | null;
+    preview: string | null;
+  }[];
+  mailboxes: { mailboxId: string; mailboxAddress: string; state: "available" | "unavailable" }[];
+  isTruncated: boolean;
+  state: "available" | "unavailable";
+}
+
 const Scope = "automation.mail";
 
 /**
@@ -136,6 +159,16 @@ export class PegasusMail {
 
   openQuery(args: { messageId: string; operationKey: string }): Promise<{ queryId: string }> {
     return this.call("pegasus_mail_open_query", args);
+  }
+
+  /** The read-only old-system folder search (R550): names and identities only. */
+  searchOldSystemFolders(query: string, pageSize: number): Promise<OldSystemFolderSearch> {
+    return this.call("pegasus_old_system_folder_search", { query, pageSize });
+  }
+
+  /** The read-only approved-mailbox search (R550): message headers only. */
+  searchMailboxes(query: string, pageSize: number): Promise<MailboxSearch> {
+    return this.call("pegasus_mail_mailbox_search", { query, pageSize });
   }
 
   link(args: {

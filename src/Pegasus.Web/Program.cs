@@ -727,7 +727,9 @@ documentStorage: composesLocalArtifactRoot
             builder.Configuration["Box:HoldingFolderId"],
             liveBoxCustody
                 ? BoxCustodyOptions.DevelopmentRootFolderId
-                : BoxCustodyOptions.ProductionRootFolderId))));
+                : BoxCustodyOptions.ProductionRootFolderId,
+            // The old system's folder, read by name search only (R550).
+            builder.Configuration["Box:OldSystemRootFolderId"]))));
 // The staff-identity surfaces need this host's Identity and key ring.
 builder.Services.AddPegasusStaffIdentity();
 // Glass's (ADR-0060), Cazana (ADR-0079) and Brego (ADR-0084) valuation:
