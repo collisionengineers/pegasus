@@ -41,7 +41,7 @@ Case. The ledger is full width: a select-all tick, then Case (None, in quiet
 type, when unlinked), Type, Subject, Sender (with the Principal under it) and
 Received. Type is the category's status chip; a New instruction carries its
 work type beneath it as a plain neutral chip, and Correspondence is a neutral
-chip (operator, 30 October 2026, R550). A row click opens
+chip (operator, 30 October 2026, R559). A row click opens
 `#mailMessageDialog`.
 
 The message dialog is full width. A context bar under the route line shows

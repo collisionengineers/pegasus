@@ -1290,7 +1290,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("reports@collisionengineers.co.uk", html, StringComparison.Ordinal);
         Assert.Contains("Message 1 from instructions", html, StringComparison.Ordinal);
         // The ledger row (v42 I): the unread dot and class, the Type as the
-        // neutral Correspondence chip (R550), the subject with its one-line
+        // neutral Correspondence chip (R559), the subject with its one-line
         // excerpt beneath, the sender, and the received date with its clock.
         Assert.Equal(3, CountOccurrences(html, "inbox-ledger-row unread"));
         Assert.Equal(3, CountOccurrences(html, "class=\"unread-indicator\""));
@@ -1435,7 +1435,7 @@ public sealed class MailWorkspaceWebTests
     /// <summary>
     /// The Type cell (v42 H, I): a category is its status chip with the work
     /// type beneath a New instruction as a plain neutral chip; Correspondence is
-    /// a neutral chip (R550).
+    /// a neutral chip (R559).
     /// </summary>
     [Theory]
     [InlineData(MailCategory.NewInstruction, "Audit", "navy", "Audit", "/Inbox")]
