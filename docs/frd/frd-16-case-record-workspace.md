@@ -772,7 +772,7 @@ and Valuation Evidence the Automation Actor filed wears the AI tint
 operator, 22 October 2026). While editing, a row offers **Change type**: a
 dialog with the type and a reason, posted at once under the session's lease
 like Remove, listing every type but Original source and Audit report, and
-Image only for a JPEG or PNG (operator, 21 and 30 October 2026; R551, R552).
+Image only for a JPEG or PNG (operator, 21 and 30 October 2026; R562, R563).
 Audit report is reached on the tab only through Mark as original report
 below; the Automation Actor's `set_type` may name it
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md)).

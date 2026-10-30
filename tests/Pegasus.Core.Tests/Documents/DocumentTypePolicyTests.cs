@@ -9,7 +9,7 @@ namespace Pegasus.Core.Tests.Documents;
 /// A document's type changed after filing (operator, 22 October 2026; R204):
 /// every type but Original source, a typed reason of up to 500 characters, and
 /// Audit report as Mark as original report's act, which the Documents tab
-/// never lists (operator, 30 October 2026; R551).
+/// never lists (operator, 30 October 2026; R562).
 /// </summary>
 public sealed class DocumentTypePolicyTests
 {

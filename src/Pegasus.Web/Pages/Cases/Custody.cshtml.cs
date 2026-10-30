@@ -91,7 +91,7 @@ public sealed class CustodyModel(
             keepEditing: true);
 
     /// <summary>
-    /// Change type on a Documents row (operator, 21 October 2026; R204, R551):
+    /// Change type on a Documents row (operator, 21 October 2026; R204, R562):
     /// posted at once from the row's dialog with the type and a reason, under
     /// the session's lease; Core refuses Original source, Audit report's own
     /// route, Image on a non-image file and the type the row already has.

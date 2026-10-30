@@ -79,7 +79,7 @@ public sealed class SetDocumentType(ISetDocumentTypeStore store, IReadOriginalRe
 /// included as a second route to Mark as original report for the Automation
 /// Actor; a typed reason of up to 500 characters; an issued report's documents
 /// and an Audit report document may be retyped. On the Documents tab Audit
-/// report is Mark as original report's alone (operator, 30 October 2026; R551).
+/// report is Mark as original report's alone (operator, 30 October 2026; R562).
 /// </summary>
 public static class DocumentTypePolicy
 {
@@ -97,7 +97,7 @@ public static class DocumentTypePolicy
     /// The types the Documents tab offers <paramref name="file"/>, read from
     /// the loaded row alone: not the type it has; Image only for a JPEG or PNG
     /// file; never Audit report, which the tab reaches through Mark as
-    /// original report (R551). A version that is not current, or was removed,
+    /// original report (R562). A version that is not current, or was removed,
     /// offers none.
     /// </summary>
     public static IReadOnlyList<DocumentSemanticRole> Choices(CaseFile file)
