@@ -236,7 +236,9 @@ public sealed class AutomationMcpIngressTests
             "pegasus_mail_link_case",
             "pegasus_mail_link_destinations",
             "pegasus_mail_list",
-            "pegasus_mail_open_query"
+            "pegasus_mail_mailbox_search",
+            "pegasus_mail_open_query",
+            "pegasus_old_system_folder_search"
         ];
 
         // The second list is served from the one built for the scope set.
