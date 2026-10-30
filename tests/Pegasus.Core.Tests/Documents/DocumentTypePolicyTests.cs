@@ -8,7 +8,8 @@ namespace Pegasus.Core.Tests.Documents;
 /// <summary>
 /// A document's type changed after filing (operator, 22 October 2026; R204):
 /// every type but Original source, a typed reason of up to 500 characters, and
-/// Audit report as Mark as original report's act.
+/// Audit report as Mark as original report's act, which the Documents tab
+/// never lists (operator, 30 October 2026; R551).
 /// </summary>
 public sealed class DocumentTypePolicyTests
 {
@@ -34,26 +35,25 @@ public sealed class DocumentTypePolicyTests
     }
 
     [Theory]
-    [InlineData("estimate.pdf", DocumentSemanticRole.Other, "application/pdf", false,
+    [InlineData("estimate.pdf", DocumentSemanticRole.Other, "application/pdf",
         "Instruction,Correspondence,EngineerReport,Estimate,ValuationEvidence")]
-    [InlineData("instruction.pdf", DocumentSemanticRole.Instruction, "application/pdf", true,
-        "Correspondence,EngineerReport,AuditReport,Estimate,ValuationEvidence,Other")]
-    [InlineData("photo.png", DocumentSemanticRole.Other, "image/png", false,
+    [InlineData("instruction.pdf", DocumentSemanticRole.Instruction, "application/pdf",
+        "Correspondence,EngineerReport,Estimate,ValuationEvidence,Other")]
+    [InlineData("photo.png", DocumentSemanticRole.Other, "image/png",
         "Instruction,Image,Correspondence,EngineerReport,Estimate,ValuationEvidence")]
-    [InlineData("front.jpg", DocumentSemanticRole.Image, "image/jpeg", true,
+    [InlineData("front.jpg", DocumentSemanticRole.Image, "image/jpeg",
         "Instruction,Correspondence,EngineerReport,Estimate,ValuationEvidence,Other")]
-    [InlineData("original-report.pdf", DocumentSemanticRole.AuditReport, "application/pdf", false,
+    [InlineData("original-report.pdf", DocumentSemanticRole.AuditReport, "application/pdf",
         "Instruction,Correspondence,EngineerReport,Estimate,ValuationEvidence,Other")]
     public void ARowOffersEveryChoosableTypeItMayTake(
         string fileName,
         DocumentSemanticRole current,
         string mediaType,
-        bool originalReportMissing,
         string expected)
     {
         Assert.Equal(
             expected.Split(','),
-            DocumentTypePolicy.Choices(File(current, mediaType, fileName), originalReportMissing)
+            DocumentTypePolicy.Choices(File(current, mediaType, fileName))
                 .Select(role => role.ToString()));
     }
 
@@ -65,8 +65,7 @@ public sealed class DocumentTypePolicyTests
         var file = File(DocumentSemanticRole.Other, "application/pdf", "superseded.pdf");
 
         Assert.Empty(DocumentTypePolicy.Choices(
-            file with { Version = file.Version with { IsCurrent = isCurrent, IsLogicallyRemoved = isRemoved } },
-            originalReportMissing: true));
+            file with { Version = file.Version with { IsCurrent = isCurrent, IsLogicallyRemoved = isRemoved } }));
     }
 
     [Theory]

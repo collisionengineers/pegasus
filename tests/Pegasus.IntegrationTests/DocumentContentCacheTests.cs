@@ -1169,7 +1169,6 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                     request.DocumentId!.Value,
                     request.VersionId!.Value,
                     1,
-                    DocumentSemanticRole.Image,
                     "source.bin",
                     "application/octet-stream",
                     "box-file-1",

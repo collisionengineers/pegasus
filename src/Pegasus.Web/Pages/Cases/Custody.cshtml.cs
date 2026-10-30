@@ -18,6 +18,7 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed class CustodyModel(
     ILogicallyRemoveDocument logicallyRemoveDocument,
     MarkAsOriginalReport markAsOriginalReport,
+    ISetDocumentType setDocumentType,
     ITagCaseImage tagCaseImage,
     IUntagCaseImage untagCaseImage,
     ISetCaseImageInReport setCaseImageInReport,
@@ -86,6 +87,42 @@ public sealed class CustodyModel(
                     versionId),
                 cancellationToken),
             "The original report was recorded.",
+            RedirectToFiles,
+            keepEditing: true);
+
+    /// <summary>
+    /// Change type on a Documents row (operator, 21 October 2026; R204, R551):
+    /// posted at once from the row's dialog with the type and a reason, under
+    /// the session's lease; Core refuses Original source, Audit report's own
+    /// route, Image on a non-image file and the type the row already has.
+    /// </summary>
+    public Task<IActionResult> OnPostSetDocumentTypeAsync(
+        Guid id,
+        Guid occurrenceId,
+        Guid versionId,
+        DocumentSemanticRole semanticRole,
+        long expectedVersion,
+        string operationKey,
+        string reason,
+        string editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ExecuteTransportCommandAsync(
+            id,
+            editLeaseToken,
+            "set_document_type",
+            actor => setDocumentType.ExecuteAsync(
+                new(
+                    id,
+                    occurrenceId,
+                    versionId,
+                    semanticRole,
+                    actor,
+                    reason,
+                    operationKey,
+                    expectedVersion,
+                    editLeaseToken),
+                cancellationToken),
+            CaseWorkspaceLabels.Files.TypeWasChanged,
             RedirectToFiles,
             keepEditing: true);
 

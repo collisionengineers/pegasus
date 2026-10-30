@@ -431,7 +431,9 @@ type but Original source, with a typed reason of up to 500 characters; an
 issued report's documents and an Audit report document may be retyped, and
 only a JPEG or PNG file may become an Image (operator, 22 October 2026;
 R204). A change to Audit report is Mark as original report's act
-([FRD-16](frd-16-case-record-workspace.md#files)), and an Audit report
+([FRD-16](frd-16-case-record-workspace.md#files)): the Documents tab's
+Change type never lists Audit report and the Automation Actor's `set_type`
+may name it (operator, 30 October 2026; R551). An Audit report
 document changed to another type brings back Original report missing. A
 change has the same guards as any other Case change and bumps the Case
 version, so it is on the record's timeline (operator, 21 October 2026).

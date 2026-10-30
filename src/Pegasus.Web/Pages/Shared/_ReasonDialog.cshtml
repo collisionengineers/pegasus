@@ -22,6 +22,12 @@
     // Supplied where a field outside the dialog joins its form (the Inbox's
     // Case / PO picker); absent otherwise, and the form carries no id.
     var formId = ViewData["DialogFormId"] as string;
+    // Supplied where the action takes a choice as well as its reason (the
+    // Documents tab's Change type): the field's label, the name it posts under
+    // and its options as (value, label); absent otherwise.
+    var choiceLabel = ViewData["DialogChoiceLabel"] as string;
+    var choiceName = ViewData["DialogChoiceName"] as string;
+    var choices = ViewData["DialogChoices"] as IReadOnlyList<KeyValuePair<string, string>>;
 }
 <div id="@dialogId" class="dialog-backdrop" data-dialog="@dialogId" hidden>
     <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="@(dialogId)_title">
@@ -43,6 +49,18 @@
                     <div class="notice notice--warning">
                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                         <span>@consequence</span>
+                    </div>
+                }
+                @if (choices is { Count: > 0 } && !string.IsNullOrWhiteSpace(choiceName))
+                {
+                    <div class="field">
+                        <label class="req" for="@(dialogId)_choice">@choiceLabel</label>
+                        <select id="@(dialogId)_choice" name="@choiceName" required>
+                            @foreach (var choice in choices)
+                            {
+                                <option value="@choice.Key">@choice.Value</option>
+                            }
+                        </select>
                     </div>
                 }
                 <div class="field">

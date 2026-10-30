@@ -1126,7 +1126,6 @@ public sealed class BoxDocumentContentStoreTests
         DocumentId,
         VersionId,
         1,
-        DocumentSemanticRole.Image,
         fileName,
         "image/jpeg");
 

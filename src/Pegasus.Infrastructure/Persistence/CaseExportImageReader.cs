@@ -118,7 +118,6 @@ public sealed class CaseExportImageReader(
                     selected.DocumentId,
                     selected.VersionId,
                     selected.Version,
-                    selected.SemanticRole,
                     selected.FileName,
                     selected.MediaType,
                     selected.BoxFileId,

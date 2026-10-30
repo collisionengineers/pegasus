@@ -1282,7 +1282,6 @@ public sealed class ProductionBoxCustodyTests
         Guid.Parse($"20000000-0000-0000-0000-{ordinal:D12}"),
         Guid.Parse($"30000000-0000-0000-{version:D4}-{ordinal:D12}"),
         version,
-        DocumentSemanticRole.Image,
         fileName,
         "image/jpeg");
 
