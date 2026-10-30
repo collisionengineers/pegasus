@@ -762,7 +762,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         await using var scope = database.CreateAsyncScope();
         var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var lease = await new CaseEditLeases(new EfCaseWorkflowStore(factory, TimeProvider.System))
+        var lease = await new CaseEditLeases(new EfCaseWorkflowStore(factory, TimeProvider.System), new InProcessCaseEditSignal())
             .ClaimAsync(new(caseId, 0, actor, "lease-custody"), default);
         IDocumentContentStore content = recover ? new FailFirstContentStore() : new SuccessfulContentStore();
         var artifacts = new MemoryArtifactStore();
@@ -813,7 +813,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         await using var scope = database.CreateAsyncScope();
         var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var lease = await new CaseEditLeases(new EfCaseWorkflowStore(factory, TimeProvider.System))
+        var lease = await new CaseEditLeases(new EfCaseWorkflowStore(factory, TimeProvider.System), new InProcessCaseEditSignal())
             .ClaimAsync(new(caseId, 0, actor, "lease-valuation"), default);
         var filing = new FileGuideValuationReport(
             new EfCaseArtifactCustody(factory, new SuccessfulContentStore(), new MemoryArtifactStore(), TimeProvider.System),

@@ -719,7 +719,7 @@ public sealed class CaseReportDeliveryPersistenceTests
                 var caseId = await SeedCaseAsync(factory, rules ?? PrincipalReportSendingRules.Default);
                 var artifact = await SeedConfirmedGenerationAsync(factory, caseId);
                 var lease = await new CaseEditLeases(
-                        new EfCaseWorkflowStore(factory, new FixedTimeProvider(StartUtc)))
+                        new EfCaseWorkflowStore(factory, new FixedTimeProvider(StartUtc)), new InProcessCaseEditSignal())
                     .ClaimAsync(new(caseId, 1, staff, "lease-send-report"), CancellationToken.None);
                 return new(database, factory, caseId, staff, lease, artifact);
             }
