@@ -216,10 +216,15 @@ public static class CaseReportDeliveryNaming
             // A pattern whose every token is empty names nothing, so the
             // standard name below applies.
         }
+        // A one-off Case's reference is its registration, printed once
+        // (operator, 1 November 2026; R580).
+        var reference = caseReference.Trim();
         var parts = new[]
         {
-            caseReference.Trim(),
-            registration?.Trim(),
+            reference,
+            string.Equals(reference, registration?.Trim(), StringComparison.OrdinalIgnoreCase)
+                ? null
+                : registration?.Trim(),
             string.IsNullOrWhiteSpace(outcome) ? "report" : $"{outcome.Trim()} report",
         };
         return string.Join(" ", parts.Where(part => !string.IsNullOrWhiteSpace(part)))

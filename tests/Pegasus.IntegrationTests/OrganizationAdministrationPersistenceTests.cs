@@ -165,6 +165,51 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Equal(ReportSendingRulesRule.InvalidAddress, refused.Rule);
     }
 
+    /// <summary>
+    /// A successor code keeps the way its Cases are referenced: replacing the
+    /// standing Private customer record's code still gives registration
+    /// references, and no other Principal gains them (R574).
+    /// </summary>
+    [Fact]
+    public async Task ReplacingThePrivateCustomerCodeKeepsRegistrationReferences()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var replacePrincipal = scope.ServiceProvider.GetRequiredService<IReplacePrincipal>();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var predecessor = await context.Principals.AsNoTracking().SingleAsync(item => item.Code == "PRIVATE");
+        Assert.Equal("registration", predecessor.ReferenceScheme);
+        var contactVersion = await context.Organizations.AsNoTracking()
+            .Where(item => item.Id == predecessor.OrganizationId)
+            .Select(item => item.Version)
+            .SingleAsync();
+
+        var successor = await replacePrincipal.ExecuteAsync(
+            new ReplacePrincipalRequest(
+                predecessor.Id,
+                predecessor.Version,
+                "PRIVATE2",
+                Administrator,
+                "principal:replace:private",
+                "Code replaced",
+                contactVersion),
+            default);
+
+        Assert.Equal(
+            "registration",
+            await context.Principals.AsNoTracking()
+                .Where(item => item.Id == successor.Id)
+                .Select(item => item.ReferenceScheme)
+                .SingleAsync());
+        Assert.Equal(
+            "principal_sequence",
+            await context.Principals.AsNoTracking()
+                .Where(item => item.Code == QdosPrincipal.Code)
+                .Select(item => item.ReferenceScheme)
+                .SingleAsync());
+    }
+
     [Fact]
     public async Task ReplacementDisablesAndLinksPredecessorWithoutChangingAllocatedCaseIdentity()
     {

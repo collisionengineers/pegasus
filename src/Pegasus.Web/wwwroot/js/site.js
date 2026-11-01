@@ -1645,30 +1645,59 @@
 
     // Create case: a Triage Case asks only for the Principal and the
     // registration, so choosing it hides every other field and stops it being
-    // required; choosing another type restores both. Without script every
-    // field shows and the server takes only what a Triage Case needs.
+    // required; a one-off for a private customer names no Principal, needs no
+    // claim number, asks for the claimant's address and is never a Triage
+    // (R577, R579). Each field says which of these hides it or makes it
+    // optional; what the markup required is remembered once, so the two
+    // controls never fight over a field. Without script every field shows and
+    // the server takes only what the chosen kind of Case needs.
     document.querySelectorAll('[data-manual-case-type]').forEach(function (select) {
         var form = select.closest('form');
         if (!form) {
             return;
         }
         var triageValue = select.getAttribute('data-manual-case-type');
+        var triageOption = select.querySelector('option[value="' + triageValue + '"]');
+        var privateCustomer = form.querySelector('[data-manual-private-customer]');
+        var fields = form.querySelectorAll(
+            '[data-triage-hidden], [data-private-hidden], [data-private-only], [data-private-optional]');
+        fields.forEach(function (field) {
+            field.querySelectorAll('input, select, textarea').forEach(function (control) {
+                if (control.required) {
+                    control.setAttribute('data-required', '');
+                }
+            });
+            field.querySelectorAll('label.req').forEach(function (label) {
+                label.setAttribute('data-req', '');
+            });
+        });
         function sync() {
+            var isPrivate = !!(privateCustomer && privateCustomer.checked);
+            if (triageOption) {
+                triageOption.disabled = isPrivate;
+                if (isPrivate && select.value === triageValue) {
+                    select.value = select.options[0].value;
+                }
+            }
             var triage = select.value === triageValue;
-            form.querySelectorAll('[data-triage-hidden]').forEach(function (field) {
-                field.hidden = triage;
+            fields.forEach(function (field) {
+                var hidden = (triage && field.hasAttribute('data-triage-hidden'))
+                    || (isPrivate && field.hasAttribute('data-private-hidden'))
+                    || (!isPrivate && field.hasAttribute('data-private-only'));
+                var optional = isPrivate && field.hasAttribute('data-private-optional');
+                field.hidden = hidden;
                 field.querySelectorAll('input, select, textarea').forEach(function (control) {
-                    if (triage && control.required) {
-                        control.setAttribute('data-triage-required', '');
-                        control.required = false;
-                    } else if (!triage && control.hasAttribute('data-triage-required')) {
-                        control.removeAttribute('data-triage-required');
-                        control.required = true;
-                    }
+                    control.required = control.hasAttribute('data-required') && !hidden && !optional;
+                });
+                field.querySelectorAll('label[data-req]').forEach(function (label) {
+                    label.classList.toggle('req', !optional);
                 });
             });
         }
         select.addEventListener('change', sync);
+        if (privateCustomer) {
+            privateCustomer.addEventListener('change', sync);
+        }
         sync();
     });
 })();

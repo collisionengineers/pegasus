@@ -125,6 +125,18 @@ public sealed partial class CreateModel(
     [BindProperty]
     public string? PrincipalCode { get; set; }
 
+    /// <summary>
+    /// A one-off Case for a private customer: it names no Principal, belongs
+    /// to the standing Private customer record and is referenced by its
+    /// registration (operator, 31 October 2026; R574).
+    /// </summary>
+    [BindProperty]
+    public bool IsPrivateCustomer { get; set; }
+
+    /// <summary>The private customer's address, the report's addressee (R576).</summary>
+    [BindProperty]
+    public string? ClaimantAddress { get; set; }
+
     [BindProperty]
     public Guid? ClaimSourceId { get; set; }
 
@@ -498,21 +510,32 @@ public sealed partial class CreateModel(
         {
             ModelState.AddModelError(string.Empty, "This request is no longer valid. Reload the page and try again.");
         }
-        PrincipalCode = (PrincipalCode ?? string.Empty).Trim().ToUpperInvariant();
-        if (PrincipalCode.Length == 0)
+        if (IsPrivateCustomer)
         {
-            ModelState.AddModelError(nameof(PrincipalCode), "Enter the principal code.");
+            // A one-off names no Principal: it belongs to the standing Private
+            // customer record (R574).
+            PrincipalCode = null;
         }
-        else if (PrincipalCode.Length > CasePrincipalCode.MaximumLength)
+        else
         {
-            ModelState.AddModelError(nameof(PrincipalCode), OperatorLabels.TooLong(OperatorLabels.PrincipalAdministration.CodeField, CasePrincipalCode.MaximumLength));
+            PrincipalCode = (PrincipalCode ?? string.Empty).Trim().ToUpperInvariant();
+            if (PrincipalCode.Length == 0)
+            {
+                ModelState.AddModelError(nameof(PrincipalCode), "Enter the principal code.");
+            }
+            else if (PrincipalCode.Length > CasePrincipalCode.MaximumLength)
+            {
+                ModelState.AddModelError(nameof(PrincipalCode), OperatorLabels.TooLong(OperatorLabels.PrincipalAdministration.CodeField, CasePrincipalCode.MaximumLength));
+            }
         }
         if (!Enum.IsDefined(CaseType))
         {
             ModelState.AddModelError(nameof(CaseType), "Choose a valid case type.");
         }
-        else if (CaseType == CaseType.Audit)
+        else if (CaseType == CaseType.Audit || (IsPrivateCustomer && CaseType == CaseType.Triage))
         {
+            // An Audit is never created by hand; a one-off is an Inspection or
+            // an Inspection and Audit (R577).
             ModelState.AddModelError(nameof(CaseType), "Choose a valid case type.");
         }
 
@@ -536,6 +559,8 @@ public sealed partial class CreateModel(
             InspectionDeadline: InspectionDate,
             InspectionAddress: InspectionAddress,
             InspectionMode: CaseDataPolicy.InferInspectionMode(InspectionAddress),
+            // The form asks a private customer's address only (R579).
+            ClaimantAddress: IsPrivateCustomer ? ClaimantAddress : null,
             ClaimSourceId: claimSource?.OrganizationId,
             ClaimSourceVersion: claimSource?.Version,
             ClaimSourceName: claimSource?.Name,
@@ -554,17 +579,7 @@ public sealed partial class CreateModel(
             data.IncidentDate,
             data.InspectionAddress,
             data.InspectionDate);
-        IReadOnlyList<string> missingFields;
-        if (isTriage)
-        {
-            missingFields = string.IsNullOrWhiteSpace(VehicleRegistration)
-                ? ["Vehicle registration"]
-                : [];
-        }
-        else
-        {
-            missingFields = InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
-        }
+        var missingFields = ManualCaseCreationPolicy.MissingFieldNames(CaseType, IsPrivateCustomer, draft);
         foreach (var missing in missingFields)
         {
             ModelState.AddModelError(string.Empty, $"{missing} is needed before a case can be created.");
@@ -600,7 +615,10 @@ public sealed partial class CreateModel(
         }
         catch (PrincipalUnavailableException)
         {
-            ModelState.AddModelError(nameof(PrincipalCode), "This principal is unavailable.");
+            // A one-off has no Principal code field to put this against.
+            ModelState.AddModelError(
+                IsPrivateCustomer ? string.Empty : nameof(PrincipalCode),
+                "This principal is unavailable.");
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {

@@ -74,6 +74,37 @@ public sealed class TriageReferenceAllocationTests
     }
 
     /// <summary>
+    /// One-off Cases for one private customer's vehicle racing: the PRIVATE
+    /// lineage's locked allocation queues them, so the references are the
+    /// registration, <c>.2</c>, <c>.3</c> and on, with no duplicate and no
+    /// gap (R575).
+    /// </summary>
+    [Fact]
+    public async Task ConcurrentOneOffsForOneRegistrationTakeTheRegistrationThenItsRepeats()
+    {
+        const int creations = 5;
+        using var factory = new IntakeWebApplicationFactory();
+
+        var tasks = Enumerable.Range(0, creations).Select(_ => Task.Run(async () =>
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var identity = await scope.ServiceProvider.GetRequiredService<ICreateManualCase>().ExecuteAsync(
+                new(
+                    ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+                    $"one-off-concurrent:{Guid.NewGuid():N}",
+                    null,
+                    CaseType.Inspection,
+                    new(ClaimantName: "Pat Private", VehicleRegistration: "PV12ATE")),
+                CancellationToken.None);
+            return identity.Reference;
+        }));
+
+        var references = (await Task.WhenAll(tasks)).Order(StringComparer.Ordinal).ToArray();
+
+        Assert.Equal(["PV12ATE", "PV12ATE.2", "PV12ATE.3", "PV12ATE.4", "PV12ATE.5"], references);
+    }
+
+    /// <summary>
     /// Triage Cases and manually created Cases racing on one Principal's
     /// sequence: the locked allocation queues them, so none deadlocks, none
     /// shares a number, and no number is skipped.

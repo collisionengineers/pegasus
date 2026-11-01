@@ -519,6 +519,9 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                     "CK_Principals_InspectionMode",
                     "[InspectionMode] IN ('physical_address', 'image_based_assessment')");
                 table.HasCheckConstraint("CK_Principals_DefaultFee", "[DefaultFee] > 0");
+                table.HasCheckConstraint(
+                    "CK_Principals_ReferenceScheme",
+                    "[ReferenceScheme] IN ('principal_sequence', 'registration')");
             });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Code).HasMaxLength(20).IsRequired();
@@ -526,6 +529,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 .HasMaxLength(40)
                 .IsRequired()
                 .HasDefaultValue("physical_address");
+            entity.Property(item => item.ReferenceScheme)
+                .HasMaxLength(40)
+                .IsRequired()
+                .HasDefaultValue(PrincipalReferenceSchemes.PrincipalSequence);
             entity.Property(item => item.DefaultInspectionLocationLabel).HasMaxLength(200);
             entity.Property(item => item.DefaultInspectionAddress).HasMaxLength(1000);
             entity.Property(item => item.DefaultInspectionPostcode).HasMaxLength(20);
@@ -1201,6 +1208,10 @@ internal sealed class PrincipalEntity
     public PrincipalEntity? Successor { get; set; }
     public bool IsActive { get; set; }
     public string InspectionMode { get; set; } = "physical_address";
+    // How this Principal's Cases are referenced: the code, year and annual
+    // sequence, or, for the standing Private customer record, the vehicle
+    // registration (R574). See PrincipalReferenceSchemes.
+    public string ReferenceScheme { get; set; } = PrincipalReferenceSchemes.PrincipalSequence;
     public string? DefaultInspectionLocationLabel { get; set; }
     public string? DefaultInspectionAddress { get; set; }
     public string? DefaultInspectionPostcode { get; set; }

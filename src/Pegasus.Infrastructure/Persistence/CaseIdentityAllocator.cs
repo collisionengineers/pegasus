@@ -1,8 +1,26 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Persistence;
+
+/// <summary>
+/// The persisted codes of <c>Principals.ReferenceScheme</c>: how a Principal's
+/// Cases are referenced.
+/// </summary>
+internal static class PrincipalReferenceSchemes
+{
+    /// <summary>The code, two-digit year and annual sequence: <c>QDOS26001</c>.</summary>
+    public const string PrincipalSequence = "principal_sequence";
+
+    /// <summary>
+    /// The vehicle registration, <c>.2</c> and on for a repeat: the standing
+    /// Private customer record's one-off Cases (operator, 31 October 2026;
+    /// R574, R575).
+    /// </summary>
+    public const string Registration = "registration";
+}
 
 /// <summary>
 /// Allocates the permanent portion of a Case identity. Every Case creator —
@@ -12,12 +30,26 @@ namespace Pegasus.Infrastructure.Persistence;
 /// the sequence row. The allocation stays in memory until <c>SaveChanges</c>,
 /// so a creator that returns early releases the number.
 /// </summary>
+/// <remarks>
+/// A Principal referenced by registration takes its lineage number the same
+/// way, so its Cases keep a year and sequence and the lineage's sequence lock
+/// serialises its creators; only the Case/PO differs. The repeat is read
+/// under that lock from the references already held, so two staff creating
+/// the same registration at once get the registration and <c>.2</c>.
+/// </remarks>
 internal static class CaseIdentityAllocator
 {
+    /// <param name="registration">
+    /// The Case's normalised vehicle registration, which only New case and
+    /// <c>pegasus_case_create</c> carry to allocation. A registration-scheme
+    /// Principal without one is refused: a one-off is created from New case
+    /// (R581).
+    /// </param>
     public static async Task<AllocatedCaseIdentity> AllocateAsync(
         PegasusDbContext context,
         PrincipalEntity principal,
         CaseType caseType,
+        string? registration,
         DateTimeOffset createdAtUtc,
         CancellationToken cancellationToken)
     {
@@ -48,8 +80,42 @@ internal static class CaseIdentityAllocator
         }
 
         var number = checked(++sequence.LastAllocatedSequence);
+        if (principal.ReferenceScheme == PrincipalReferenceSchemes.Registration)
+        {
+            return new(year, number, await RegistrationReferenceAsync(
+                context, caseType, registration, cancellationToken));
+        }
+
         var baseReference = CaseReferenceFormat.Base(principal.Code, year, number);
         return new(year, number, CaseReferenceFormat.CasePo(caseType, baseReference));
+    }
+
+    /// <summary>
+    /// A one-off's Case/PO: the registration, or <c>.2</c> and on when an
+    /// earlier Case already holds it. Read after the sequence lock, so the
+    /// previous creator's reference is committed and visible.
+    /// </summary>
+    private static async Task<string> RegistrationReferenceAsync(
+        PegasusDbContext context,
+        CaseType caseType,
+        string? registration,
+        CancellationToken cancellationToken)
+    {
+        if (caseType is not (CaseType.Inspection or CaseType.InspectionAndAudit)
+            || string.IsNullOrWhiteSpace(registration))
+        {
+            throw new OneOffCaseRouteException();
+        }
+
+        var prefix = registration + CaseReferenceFormat.RepeatSeparator;
+        var existing = await context.Cases
+            .AsNoTracking()
+            .Where(item => item.Reference == registration || item.Reference.StartsWith(prefix))
+            .Select(item => item.Reference)
+            .ToArrayAsync(cancellationToken);
+        return CaseReferenceFormat.Registration(
+            registration,
+            CaseReferenceFormat.NextRegistrationRepeat(registration, existing));
     }
 }
 

@@ -378,11 +378,13 @@ internal sealed class IntakeActionMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Creates a Case directly from entered facts, as the staff New case does, with no received item or source document. An Inspection or Inspection and Audit Case needs the identity-critical facts (claimant, claim number, registration and the rest the staff form asks for); a Triage Case takes only its Principal and the vehicle registration. An Audit is never created by hand. A Case reference is allocated once and never reused. Requires a mcp:-prefixed operation key; replaying the same key with the same facts returns the same Case.")]
+    [Description("Creates a Case directly from entered facts, as the staff New case does, with no received item or source document. An Inspection or Inspection and Audit Case needs the identity-critical facts (claimant, claim number, registration and the rest the staff form asks for); a Triage Case takes only its Principal and the vehicle registration. A one-off Case for a private customer (privateCustomer true, no principalCode) is an Inspection or Inspection and Audit Case: it needs the claimant's name and the registration, takes claimantAddress and no claim number, and its Case/PO is the registration. An Audit is never created by hand. A Case reference is allocated once and never reused. Requires a mcp:-prefixed operation key; replaying the same key with the same facts returns the same Case.")]
     public async Task<CaseCreateToolResult> CreateCaseAsync(
-        [Description("The Principal code, at most 20 characters.")] string principalCode,
         [Description("Inspection, InspectionAndAudit or Triage.")] string caseType,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description("The Principal code, at most 20 characters; omitted for a one-off Case for a private customer.")] string? principalCode = null,
+        [Description("True for a one-off Case for a private customer, which names no principalCode and is not a Triage.")] bool privateCustomer = false,
+        [Description("Private customer only: the claimant's address, the report's addressee.")] string? claimantAddress = null,
         [Description("Vehicle registration.")] string? vehicleRegistration = null,
         [Description("Not for Triage: claimant name.")] string? claimantName = null,
         [Description("Not for Triage: claim number.")] string? claimNumber = null,
@@ -402,7 +404,7 @@ internal sealed class IntakeActionMcpTools(
         return await auditor.RecordAsync(
             context,
             "pegasus_case_create",
-            principalCode?.Trim() ?? "invalid",
+            principalCode?.Trim() is { Length: > 0 } subject ? subject : privateCustomer ? "private-customer" : "invalid",
             key,
             () => AutomationMcpErrors.ExecuteAsync(() => AutomationMcpErrors.IntakeRefusalsAsync("pegasus_intake_get", async () =>
             {
@@ -411,7 +413,21 @@ internal sealed class IntakeActionMcpTools(
                     && parsedType != CaseType.Audit
                         ? parsedType
                         : throw new McpException("caseType must be Inspection, InspectionAndAudit or Triage.");
-                var principal = RequirePrincipalCode(principalCode);
+                // A one-off for a private customer names no Principal and is
+                // never a Triage (R574, R577); every other Case names one.
+                if (privateCustomer == !string.IsNullOrWhiteSpace(principalCode))
+                {
+                    throw new McpException("Give principalCode for a Principal's Case, or privateCustomer true for a one-off Case, not both.");
+                }
+                if (privateCustomer && type == CaseType.Triage)
+                {
+                    throw new McpException("A one-off Case for a private customer is Inspection or InspectionAndAudit.");
+                }
+                if (!privateCustomer && claimantAddress is not null)
+                {
+                    throw new McpException("claimantAddress is for a one-off Case for a private customer.");
+                }
+                var principal = privateCustomer ? null : RequirePrincipalCode(principalCode);
                 CaseEditableData data;
                 if (type == CaseType.Triage)
                 {
@@ -448,6 +464,7 @@ internal sealed class IntakeActionMcpTools(
                         InspectionDeadline: inspection,
                         InspectionAddress: inspectionAddress,
                         InspectionMode: CaseDataPolicy.InferInspectionMode(inspectionAddress),
+                        ClaimantAddress: claimantAddress,
                         ClaimSourceId: claimSource?.OrganizationId,
                         ClaimSourceVersion: claimSource?.Version,
                         ClaimSourceName: claimSource?.Name,

@@ -464,7 +464,12 @@ public sealed record AssessmentCaseOwnedData(
     // readiness and the projection read one value.
     DateOnly? InspectionDate,
     string? ClaimantName,
-    string? ClaimNumber);
+    string? ClaimNumber,
+    // A one-off Case for a private customer (R574): the report and fee note
+    // are addressed to the claimant at this address, and the claim number
+    // plays no part in readiness or Your Ref (R576, R578).
+    string? ClaimantAddress = null,
+    bool PrivateCustomer = false);
 
 /// <summary>
 /// One named blocker (FRD-13). <paramref name="Field"/> is the one recorded

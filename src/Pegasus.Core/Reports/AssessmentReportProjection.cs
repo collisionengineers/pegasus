@@ -155,7 +155,11 @@ public static class AssessmentReportProjection
 
         var owned = assessment.CaseOwned;
         var claimantName = Ready(owned.ClaimantName, "claimant name");
-        var yourReference = Ready(owned.ClaimNumber, "claim reference");
+        // A one-off for a private customer prints Your Ref only when a claim
+        // number was recorded (R578); every other report needs one.
+        var yourReference = owned.PrivateCustomer
+            ? (string.IsNullOrWhiteSpace(owned.ClaimNumber) ? null : owned.ClaimNumber)
+            : Ready(owned.ClaimNumber, "claim reference");
         var incidentDate = Ready(owned.IncidentDate, "incident date");
         var assessedOn = Ready(owned.InspectionDate, "inspection date");
         var assessmentMethod = MapAssessmentMethod(owned.InspectionMode)

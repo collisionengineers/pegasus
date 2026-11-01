@@ -1,3 +1,5 @@
+using Pegasus.Core.Cases;
+
 namespace Pegasus.Core.Intake;
 
 /// <summary>
@@ -48,16 +50,26 @@ public static class InstructionDraftCompleteness
     /// the other question — whether a corrected draft is complete enough to be
     /// decided — and changing that would change the intake decision itself.
     /// </remarks>
-    public static IReadOnlyList<string> MissingIdentityCriticalFieldNames(InstructionDraft draft) =>
-        Missing(draft, field => field.IdentityCritical);
+    /// <param name="privateCustomer">
+    /// A one-off Case for a private customer has no claim number: it plays no
+    /// part in its identity or completeness (operator, 1 November 2026; R578).
+    /// </param>
+    public static IReadOnlyList<string> MissingIdentityCriticalFieldNames(
+        InstructionDraft draft,
+        bool privateCustomer = false) =>
+        Missing(draft, field => field.IdentityCritical && Asked(field, privateCustomer));
 
     /// <summary>
     /// Whether every required instruction field carries a value. Nothing about
     /// where the value came from: a draft keyed entirely by hand is as complete
     /// as one extracted from a definitive instruction.
     /// </summary>
-    public static bool IsComplete(InstructionDraft draft) =>
-        MissingFieldNames(draft).Count == 0;
+    /// <param name="privateCustomer">See <see cref="MissingIdentityCriticalFieldNames"/>.</param>
+    public static bool IsComplete(InstructionDraft draft, bool privateCustomer = false) =>
+        Missing(draft, field => field.Required && Asked(field, privateCustomer)).Length == 0;
+
+    private static bool Asked(InstructionDraftField field, bool privateCustomer) =>
+        !privateCustomer || field.CaseDataFieldName != CaseDataFieldNames.ClaimNumber;
 
     private static string[] Missing(
         InstructionDraft draft,

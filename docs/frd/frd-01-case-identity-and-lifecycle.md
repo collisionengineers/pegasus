@@ -49,7 +49,25 @@ create or keep the Case as `Not ready`
 `001` to `999`, then `1000` onward with no upper limit. Inspection, Audit,
 Inspection + Audit and Triage Cases share one sequence per Principal per
 year, and each Case consumes one number. A sequence value is never reused and
-never wraps.
+never wraps. The one exception is a one-off Case for a private customer,
+below, whose Case/PO is the vehicle registration.
+
+**One-off Cases for private customers.** A Case for a private customer with
+no instructing organisation belongs to the standing Principal record
+**Private customer**, code `PRIVATE`, created once by migration and
+administered in Contacts like any other Principal
+([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)).
+Its Case/PO is the normalised vehicle registration, for example `AB12CDE`; a
+later one-off for the same registration is `AB12CDE.2`, then `AB12CDE.3`,
+and a reference once held is never given again. The Case still consumes a
+number from the `PRIVATE` sequence, which nothing prints. A one-off is an
+Inspection or an Inspection + Audit Case, whose Audit report is `a.AB12CDE`;
+it is never a Triage or a standalone Audit. It starts only from New case or
+`pegasus_case_create`
+([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts));
+receipt acceptance and Correct principal refuse the code `PRIVATE` with "A
+one-off case is created from New case." (operator, 31 October and 1 November
+2026; R574, R575, R577, R581).
 
 **The four Case types and their references.** The Case/PO is the base
 reference with the type's prefix: none for Inspection and Inspection + Audit,

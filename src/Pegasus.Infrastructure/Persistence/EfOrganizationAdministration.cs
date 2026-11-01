@@ -474,6 +474,9 @@ public sealed class EfOrganizationAdministration(
             SalvageMatrixJson = ToSalvageMatrixJson(result.SalvageMatrix),
             DefaultFee = result.DefaultFee,
             ReportSendingRulesJson = ToReportSendingJson(result.ReportSending),
+            // A successor code keeps the way its Cases are referenced, so a
+            // replaced Private customer code still gives registration references.
+            ReferenceScheme = predecessor.ReferenceScheme,
             DefaultInspectionLocationLabel = predecessor.DefaultInspectionLocationLabel,
             DefaultInspectionAddress = predecessor.DefaultInspectionAddress,
             DefaultInspectionPostcode = predecessor.DefaultInspectionPostcode,

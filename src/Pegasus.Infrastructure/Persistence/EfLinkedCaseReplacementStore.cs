@@ -85,10 +85,13 @@ public sealed class EfLinkedCaseReplacementStore(
         // The replacement keeps the original's type, so its Case/PO takes the
         // same prefix; it never carries an Audit report reference of its own.
         var now = timeProvider.GetUtcNow();
+        // Correct principal carries no registration to allocation, so the
+        // standing Private customer record is refused here (R581).
         var allocatedIdentity = await CaseIdentityAllocator.AllocateAsync(
             context,
             replacementPrincipal,
             CaseTypeCodes.Parse(original.Case.Type),
+            registration: null,
             now,
             cancellationToken);
         var originalCaseData = await context.CaseDataSnapshots

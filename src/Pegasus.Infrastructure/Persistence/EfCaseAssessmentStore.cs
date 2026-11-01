@@ -319,7 +319,11 @@ public sealed class EfCaseAssessmentStore(
             Current(CaseDataFieldNames.InspectionAddress),
             CurrentDate(CaseDataFieldNames.InspectionDate),
             Current(CaseDataFieldNames.ClaimantName),
-            Current(CaseDataFieldNames.ClaimNumber));
+            Current(CaseDataFieldNames.ClaimNumber),
+            Current(CaseDataFieldNames.ClaimantAddress),
+            // Every caller loads the Case with its Principal; a one-off is a
+            // Case of the Principal referenced by registration (R574).
+            PrivateCustomer: caseEntity.Principal.ReferenceScheme == PrincipalReferenceSchemes.Registration);
     }
 
     private static ActorKind ParseActorKind(string value) =>

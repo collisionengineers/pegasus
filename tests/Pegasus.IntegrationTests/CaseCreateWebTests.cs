@@ -135,6 +135,114 @@ public sealed partial class CaseCreateWebTests
         Assert.Contains($"t.{PrincipalCode}31001", await record.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A one-off Case for a private customer (operator, 31 October and 1
+    /// November 2026; R574, R575, R577, R578, R579): the form offers the
+    /// Private customer tick and a Claimant address; ticked, no Principal code
+    /// or claim number is needed, the Case belongs to the standing PRIVATE
+    /// record, is complete without a claim number and is referenced by its
+    /// registration; a later one-off for the same vehicle is <c>.2</c>.
+    /// </summary>
+    [Fact]
+    public async Task ManualCreateMakesAOneOffForAPrivateCustomerReferencedByItsRegistration()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        Assert.Contains("name=\"IsPrivateCustomer\"", form.Html, StringComparison.Ordinal);
+        Assert.Contains("data-manual-private-customer", form.Html, StringComparison.Ordinal);
+        Assert.Contains("name=\"ClaimantAddress\"", form.Html, StringComparison.Ordinal);
+        Assert.Contains("<span>Private customer</span>", form.Html, StringComparison.Ordinal);
+
+        var fields = KeyedFields();
+        fields.Remove("PrincipalCode");
+        fields.Remove("ClaimNumber");
+        fields["IsPrivateCustomer"] = "true";
+        fields["ClaimantName"] = "Pat Private";
+        fields["ClaimantAddress"] = "1 Private Lane\r\nExampleton EX1 2AB";
+        fields["VehicleRegistration"] = "pv12 ate";
+        fields["VehicleMileageUnit"] = "miles";
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var created = await context.Cases.AsNoTracking()
+            .Include(item => item.Principal)
+            .SingleAsync(item => item.Id == caseId);
+        Assert.Equal("PV12ATE", created.Reference);
+        Assert.Equal("PRIVATE", created.Principal.Code);
+        Assert.Equal(CaseTypeCodes.ToCode(CaseType.Inspection), created.Type);
+        Assert.True(created.InstructionComplete);
+        var snapshot = await context.CaseDataSnapshots.AsNoTracking()
+            .Include(item => item.Fields)
+            .SingleAsync(item => item.WorkId == caseId);
+        var address = Assert.Single(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimantAddress);
+        Assert.Equal(CaseDataCodes.Confirmed, address.ValueKind);
+        Assert.StartsWith("1 Private Lane", address.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimNumber);
+
+        using var record = await client.GetAsync($"/Cases/{caseId:D}");
+        Assert.Equal(HttpStatusCode.OK, record.StatusCode);
+        Assert.Contains("PV12ATE", await record.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        // A later one-off for the same vehicle (R575).
+        var secondForm = await OpenManualCaseScreenAsync(client);
+        using var secondResponse = await PostCreateAsync(client, secondForm, fields);
+        var secondCaseId = AssertCaseRedirect(secondResponse);
+        Assert.Equal(
+            "PV12ATE.2",
+            await context.Cases.AsNoTracking()
+                .Where(item => item.Id == secondCaseId)
+                .Select(item => item.Reference)
+                .SingleAsync());
+        Assert.Equal(2, await context.Cases.CountAsync(item => item.Principal.Code == "PRIVATE"));
+    }
+
+    /// <summary>A one-off is an Inspection or an Inspection + Audit, never a Triage (R577).</summary>
+    [Fact]
+    public async Task ManualOneOffTriageIsRefusedWithoutCreatingACase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        using var response = await PostCreateAsync(client, form, new()
+        {
+            ["IsPrivateCustomer"] = "true",
+            ["CaseType"] = CaseType.Triage.ToString(),
+            ["VehicleRegistration"] = "PV12ATE"
+        });
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Choose a valid case type.", html, StringComparison.Ordinal);
+        Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
+    }
+
+    /// <summary>A one-off needs the claimant's name (R577); nothing is created without it.</summary>
+    [Fact]
+    public async Task ManualOneOffWithoutAClaimantIsRefusedWithoutCreatingACase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        using var response = await PostCreateAsync(client, form, new()
+        {
+            ["IsPrivateCustomer"] = "true",
+            ["CaseType"] = CaseType.Inspection.ToString(),
+            ["VehicleRegistration"] = "PV12ATE"
+        });
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Claimant name is needed before a case can be created.", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Claim number is needed", html, StringComparison.Ordinal);
+        Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
+    }
+
     [Fact]
     public async Task ManualTriageCreateWithoutARegistrationIsRefusedWithoutCreatingACase()
     {

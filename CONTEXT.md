@@ -13,8 +13,12 @@ The organisation that instructs Collision Engineers and pays for the work. Its m
 _Avoid_: Client, Provider, Work Provider, sender
 
 **Case/PO**:
-Collision Engineers’ immutable internal reference, allocated from the accepted Principal’s sequence to a Case: no prefix for an Inspection or Inspection + Audit Case (`QDOS26001`), `a.` for a standalone Audit (`a.QDOS26002`) and `t.` for a Triage (`t.QDOS26003`). The Audit reference of an Inspection + Audit Case (`a.QDOS26001`) names its Audit report; it is not a Case/PO and consumes no number.
+Collision Engineers’ immutable internal reference, allocated from the accepted Principal’s sequence to a Case: no prefix for an Inspection or Inspection + Audit Case (`QDOS26001`), `a.` for a standalone Audit (`a.QDOS26002`) and `t.` for a Triage (`t.QDOS26003`). The Audit reference of an Inspection + Audit Case (`a.QDOS26001`) names its Audit report; it is not a Case/PO and consumes no number. A one-off Case for a private customer is the exception: its Case/PO is the vehicle registration (`AB12CDE`, and `AB12CDE.2` for a later one-off of the same vehicle) under the standing `PRIVATE` record ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
 _Avoid_: Claim number, external reference
+
+**Private customer**:
+The standing Principal record, code `PRIVATE`, that holds Collision Engineers' one-off work for a private individual with no instructing organisation (operator, 31 October 2026; R574). A one-off Case belongs to it, is an Inspection or Inspection + Audit created from New case or `pegasus_case_create`, is referenced by its registration, needs the claimant's name and registration and no claim number, and its report and fee note are addressed to the claimant ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md), [FRD-11](docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md)).
+_Avoid_: one-off Principal, no Principal
 
 **Received date**:
 The Europe/London date a Case was received: its instruction's receipt, or its creation when staff create it directly. It is the Case's only instruction date: the Case export's `Instruction Date` and the date the report says instructions were received ([FRD-23](docs/frd/frd-23-case-draft-fields-provenance-and-global-checks.md#instruction-field-meanings)).

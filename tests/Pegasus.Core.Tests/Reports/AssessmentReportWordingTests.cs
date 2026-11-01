@@ -625,6 +625,34 @@ public sealed class AssessmentReportWordingTests
     }
 
     /// <summary>
+    /// A one-off Case for a private customer is addressed to the claimant at
+    /// the Case's claimant address, not to the standing Private customer
+    /// record; every other Case to its Principal (operator, 31 October 2026;
+    /// R576).
+    /// </summary>
+    [Fact]
+    public void AOneOffIsAddressedToTheClaimantAndEveryOtherCaseToItsPrincipal()
+    {
+        var owned = new Pegasus.Core.Assessment.AssessmentCaseOwnedData(
+            "AB12CDE", "Ford", "Focus", "2012", 80_000, "miles", "owner",
+            new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 2), "PhysicalAddress", "1 Example Street",
+            new DateOnly(2026, 8, 3), "Pat Private", null,
+            ClaimantAddress: "1 Private Lane\r\nExampleton\r\nEX1 2AB");
+
+        Assert.Equal(
+            ["Pat Private", "1 Private Lane", "Exampleton", "EX1 2AB"],
+            AssessmentReportWording.ReportAddressee(
+                owned with { PrivateCustomer = true }, "Private customer", null, null));
+        Assert.Equal(
+            ["Pat Private"],
+            AssessmentReportWording.ReportAddressee(
+                owned with { PrivateCustomer = true, ClaimantAddress = " " }, "Private customer", null, null));
+        Assert.Equal(
+            ["QDOS Assistance", "Wilmslow", "SK9 1BH"],
+            AssessmentReportWording.ReportAddressee(owned, "QDOS Assistance", "Wilmslow", "SK9 1BH"));
+    }
+
+    /// <summary>
     /// A report needs an addressee: a principal with no name yields none, and
     /// the snapshot is refused for want of one.
     /// </summary>
