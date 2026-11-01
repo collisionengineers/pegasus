@@ -506,7 +506,8 @@ public sealed class OrganizationAdministrationPersistenceTests
     /// stays a distinct principal role rather than merging with a document
     /// issuer or any other principal. The Report Sending SOP seed adds the
     /// other 17 SOP Principals, the contact SOP seed the 20 job-sheet
-    /// Principals and the SOP v8 sync FRZ, so a fresh database holds 53.
+    /// Principals, the SOP v8 sync FRZ and the one-off migration the standing
+    /// Private customer record PRIVATE (R574), so a fresh database holds 54.
     /// </summary>
     [Fact]
     public async Task FreshDatabaseSeedsTheFifteenFrozenPrincipalsOnce()
@@ -541,7 +542,7 @@ public sealed class OrganizationAdministrationPersistenceTests
             .Select(principal => new { principal.Id, principal.Code })
             .ToListAsync();
 
-        Assert.Equal(53, seeded.Count);
+        Assert.Equal(54, seeded.Count);
         foreach (var (code, principalId) in expected)
         {
             var matches = seeded.Where(row => row.Id == principalId).ToArray();
