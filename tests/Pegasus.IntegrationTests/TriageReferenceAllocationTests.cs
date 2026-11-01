@@ -82,26 +82,36 @@ public sealed class TriageReferenceAllocationTests
     [Fact]
     public async Task ConcurrentOneOffsForOneRegistrationTakeTheRegistrationThenItsRepeats()
     {
-        const int creations = 5;
+        const int racingCreations = 4;
         using var factory = new IntakeWebApplicationFactory();
+        static CreateManualCaseRequest OneOff() => new(
+            ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+            $"one-off-concurrent:{Guid.NewGuid():N}",
+            null,
+            CaseType.Inspection,
+            new(ClaimantName: "Pat Private", VehicleRegistration: "PV12ATE"));
 
-        var tasks = Enumerable.Range(0, creations).Select(_ => Task.Run(async () =>
+        // The first one-off is created on its own: it starts the host and
+        // its development identity once, so only the allocations race.
+        string first;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            first = (await scope.ServiceProvider.GetRequiredService<ICreateManualCase>()
+                .ExecuteAsync(OneOff(), CancellationToken.None)).Reference;
+        }
+        Assert.Equal("PV12ATE", first);
+
+        var tasks = Enumerable.Range(0, racingCreations).Select(_ => Task.Run(async () =>
         {
             await using var scope = factory.Services.CreateAsyncScope();
-            var identity = await scope.ServiceProvider.GetRequiredService<ICreateManualCase>().ExecuteAsync(
-                new(
-                    ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
-                    $"one-off-concurrent:{Guid.NewGuid():N}",
-                    null,
-                    CaseType.Inspection,
-                    new(ClaimantName: "Pat Private", VehicleRegistration: "PV12ATE")),
-                CancellationToken.None);
+            var identity = await scope.ServiceProvider.GetRequiredService<ICreateManualCase>()
+                .ExecuteAsync(OneOff(), CancellationToken.None);
             return identity.Reference;
         }));
 
         var references = (await Task.WhenAll(tasks)).Order(StringComparer.Ordinal).ToArray();
 
-        Assert.Equal(["PV12ATE", "PV12ATE.2", "PV12ATE.3", "PV12ATE.4", "PV12ATE.5"], references);
+        Assert.Equal(["PV12ATE.2", "PV12ATE.3", "PV12ATE.4", "PV12ATE.5"], references);
     }
 
     /// <summary>
