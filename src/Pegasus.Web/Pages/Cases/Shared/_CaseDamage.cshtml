@@ -44,9 +44,9 @@
     // The derived cells are Core's own: the headline location (the area the
     // touching bursts sit in, or Multiple when the damages stand apart) and
     // the highest severity recorded, the words the report prints.
-    var (location, severity) = AssessmentPolicy.DeriveImpactValues(impacts);
-    var locationText = location is null ? OperatorLabels.CaseWorkspace.AbsentValue : DamageLabels.Location(location);
-    var severityText = severity is null ? OperatorLabels.CaseWorkspace.AbsentValue : DamageLabels.SeverityWord(severity);
+    var headline = AssessmentPolicy.DeriveImpactValues(impacts);
+    var locationText = headline.Location is null ? OperatorLabels.CaseWorkspace.AbsentValue : DamageLabels.Location(headline.Location);
+    var severityText = headline.Severity is null ? OperatorLabels.CaseWorkspace.AbsentValue : DamageLabels.SeverityWord(headline.Severity);
 
     string AreaNames(IReadOnlyList<string> codes) => string.Join(", ", codes.Select(DamageLabels.Location));
     string Svg(double value) => value.ToString("0.#", CultureInfo.InvariantCulture);
