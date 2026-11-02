@@ -432,7 +432,7 @@ telephone and e-mail; then the Claim source's Notes on every Case, read-only and
 ([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)), beside this Case's own Claim source notes.
 Below the cards, a full-width Principal panel holds the Principal's Notes on every Case, read-only and absent when the
 record has none, beside this Case's own Principal notes, which keep their half-width place when the record has none. A
-Case has no Case contact and no Notes from client (operator, 2 November 2026; R594–R599). A Triage Case shows
+Case has no Case contact and no Notes from client (operator, 2 November 2026; R617–R622). A Triage Case shows
 the Principal's notes too, read-only and absent when the Principal has none
 (operator ruling, 22 October 2026). Then Accident circumstances, across the
 full width.

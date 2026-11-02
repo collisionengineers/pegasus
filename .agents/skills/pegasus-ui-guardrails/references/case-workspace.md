@@ -99,7 +99,7 @@ Each section is the owner of its domain. Do not duplicate its full content elsew
 Important ownership decisions:
 
 - Case details contains the Case and Claim source cards, the Principal notes panel and the accident
-  band (v43, R594–R599), not a second Notes timeline.
+  band (v43, R617–R622), not a second Notes timeline.
 - Claim contains claimant and claim facts; Original report belongs only to Audit Cases.
 - Inspection owns inspection and storage-location details; Storage per day and Recovery charge are
   Engineer figures recorded in Decisions (operator, 9 October 2026). Decisions has no Costs, hire &
