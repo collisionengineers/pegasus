@@ -359,12 +359,31 @@ public static class ReportWordingComposition
         return -1;
     }
 
+    /// <summary>
+    /// The opening of the unroadworthy sentence, the same words the Case page
+    /// shows before the reason box so the Engineer finishes the sentence
+    /// (operator, 2 November 2026; R607, R612). "as" fits the clause-shaped
+    /// bank wordings that "due to" did not.
+    /// </summary>
+    public const string UnroadworthyOpening = "Please note the vehicle is unroadworthy as";
+
+    /// <summary>
+    /// The unroadworthy sentence as printed: the opening, the reason, one full
+    /// stop. A full stop the Engineer typed at the end is not doubled
+    /// (operator, 2 November 2026; R607).
+    /// </summary>
+    public static string UnroadworthySentence(string reason)
+    {
+        ArgumentNullException.ThrowIfNull(reason);
+        return $"{UnroadworthyOpening} {reason.Trim().TrimEnd('.')}.";
+    }
+
     private static string Comments(AssessmentReportSnapshot snapshot)
     {
         var parts = new List<string> { MileageSentence(snapshot.Vehicle.MileageSource) };
         if (snapshot.IsUnroadworthy)
         {
-            parts.Add($"Please note the vehicle is unroadworthy due to {snapshot.UnroadworthyReason}.");
+            parts.Add(UnroadworthySentence(snapshot.UnroadworthyReason ?? string.Empty));
         }
         if (!string.IsNullOrWhiteSpace(snapshot.EngineerComments))
         {

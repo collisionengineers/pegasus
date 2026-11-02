@@ -154,6 +154,56 @@ public sealed class CaseReportFreshnessTests
         Assert.Equal(CaseReportStaleReasons.ReportContentChanged, decision.ReasonCode);
     }
 
+    /// <summary>
+    /// FAO The Court and Include statement of truth are on until recorded
+    /// off (R610, R611), so a save that records "true" for one the Case never
+    /// recorded changes nothing the report prints.
+    /// </summary>
+    [Theory]
+    [InlineData(AssessmentVocabulary.ReportFaoTheCourt)]
+    [InlineData(AssessmentVocabulary.ReportIncludeStatementOfTruth)]
+    public void RecordingADefaultOnSwitchAsOnLeavesTheReportCurrent(string path)
+    {
+        var before = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var after = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [path] = "true",
+        };
+
+        var decision = CaseReportFreshness.ClassifyAssessment(before, after);
+
+        Assert.False(decision.IsStale);
+        Assert.Null(decision.ReasonCode);
+    }
+
+    /// <summary>
+    /// Recording "false" for a switch that is on until recorded off changes
+    /// what the report prints, whether the Case recorded it before or not.
+    /// </summary>
+    [Theory]
+    [InlineData(AssessmentVocabulary.ReportFaoTheCourt)]
+    [InlineData(AssessmentVocabulary.ReportIncludeStatementOfTruth)]
+    public void TurningADefaultOnSwitchOffMakesTheReportStale(string path)
+    {
+        var absent = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var on = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [path] = "true",
+        };
+        var off = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [path] = "false",
+        };
+
+        var fromAbsent = CaseReportFreshness.ClassifyAssessment(absent, off);
+        var fromOn = CaseReportFreshness.ClassifyAssessment(on, off);
+
+        Assert.True(fromAbsent.IsStale);
+        Assert.Equal(CaseReportStaleReasons.ReportContentChanged, fromAbsent.ReasonCode);
+        Assert.True(fromOn.IsStale);
+        Assert.Equal(CaseReportStaleReasons.ReportContentChanged, fromOn.ReasonCode);
+    }
+
     [Fact]
     public void RecordingAReportDateStalesWithTheReportContentReason()
     {

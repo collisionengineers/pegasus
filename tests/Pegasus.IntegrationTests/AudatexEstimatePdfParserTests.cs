@@ -177,6 +177,92 @@ public sealed class AudatexEstimatePdfParserTests
     }
 
     [Fact]
+    public void ASundryAmountLandsAsOneNewPartAndTotalPartsIsTheSourceTotal()
+    {
+        // R614: the Sub Total less a nil deduction, plus the sundry amount,
+        // is the printed Total Parts; the sundry amount is one more parts line.
+        var result = Parse(AudatexEstimateFixture.Build(
+            partsDeduction: ("0.0", "£0.00"), partsSundry: "£21.71", partsTotal: "£641.91"));
+
+        Assert.Equal(7, result.Lines.Count);
+        var sundry = result.Lines[5];
+        Assert.Equal("new_part", sundry.Type);
+        Assert.Null(sundry.GuideCode);
+        Assert.Equal("Sundry Parts", sundry.Description);
+        Assert.Equal(21.71m, sundry.Price);
+        Assert.False(sundry.Unpriced);
+        Assert.Equal("case", sundry.EvidenceLabel);
+        Assert.Equal(
+            ["labour:1", "labour:2", "paint:1", "parts:1", "parts:2", "parts:3", "extras:1"],
+            result.Lines.Select(line => line.SourceRowIdentity));
+        Assert.Equal(641.91m, result.SourceTotals!.Parts);
+        Assert.Null(result.Discounts);
+    }
+
+    [Fact]
+    public void ADeductionFromRrpBecomesThePartsDiscount()
+    {
+        // R615: Sub Total £442.03 less 5 % is £419.93, and the sundry £6.30
+        // makes the printed Total Parts £426.23. The 5 % lands as the
+        // estimate's parts discount, a fraction of one.
+        var result = Parse(AudatexEstimateFixture.Build(
+            pricedPart: "£442.03", partsSubTotal: "£442.03",
+            partsDeduction: ("5", "-£22.10"), partsSundry: "£6.30", partsTotal: "£426.23"));
+
+        Assert.Equal(
+            new EstimateDiscounts(Parts: 0.05m, Materials: 0m, Specialist: 0m, Overall: 0m),
+            result.Discounts);
+        Assert.Equal(442.03m, result.Lines[3].Price);
+        var sundry = Assert.Single(result.Lines, line => line.Description == "Sundry Parts");
+        Assert.Equal(6.30m, sundry.Price);
+        Assert.Equal(426.23m, result.SourceTotals!.Parts);
+    }
+
+    [Fact]
+    public void RejectsWhenSubTotalLessDeductionPlusSundryIsNotTotalParts()
+    {
+        var bytes = AudatexEstimateFixture.Build(
+            partsDeduction: ("5", "-£31.01"), partsSundry: "£6.30", partsTotal: "£620.20");
+
+        var rejection = Assert.Throws<EstimateParseRejectedException>(() => Parse(bytes));
+        Assert.Equal(
+            "The parts lines do not add up to the document's own printed total, so nothing was imported.",
+            rejection.Message);
+    }
+
+    [Fact]
+    public void AnEstimateWithoutAPartsFooterStillImports()
+    {
+        // An older report prints nothing under the parts Sub Total: the Sub
+        // Total stays the parts source total, with no sundry line or discount.
+        var result = Parse(AudatexEstimateFixture.Build());
+
+        Assert.Equal(620.20m, result.SourceTotals!.Parts);
+        Assert.DoesNotContain(result.Lines, line => line.Description == "Sundry Parts");
+        Assert.Null(result.Discounts);
+    }
+
+    [Fact]
+    public void ASpecialistLabourLineIsSpecialistByHours()
+    {
+        // R608: "1000 Specialist QC AND ROAD TEST 12.0*" at 12 WU to the hour
+        // is one hour of Specialist by hours, never a remove and refit.
+        var result = Parse(AudatexEstimateFixture.Build(
+            specialistLabour: true, labourUnitsPerHour: 12, labourTotalWorkUnits: "33.0"));
+
+        Assert.Equal(7, result.Lines.Count);
+        var specialist = result.Lines[2];
+        Assert.Equal("specialist_wu", specialist.Type);
+        Assert.Equal("1000", specialist.GuideCode);
+        Assert.Equal("Specialist QC AND ROAD TEST", specialist.Description);
+        Assert.Equal(1m, specialist.WorkUnits);
+        Assert.Null(specialist.Price);
+        Assert.Equal("labour:3", specialist.SourceRowIdentity);
+        Assert.Equal("REPAIR WING (TRIM REMOVED)", result.Lines[1].Description);
+        Assert.Equal(2.75m, result.SourceTotals!.PanelWorkUnits);
+    }
+
+    [Fact]
     public void RejectsWhenWorkUnitsDoNotAddUpToTheDocumentsOwnTotal()
     {
         var bytes = AudatexEstimateFixture.Build(labourTotalWorkUnits: "20.0");

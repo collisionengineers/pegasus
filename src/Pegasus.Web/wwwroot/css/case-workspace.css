@@ -587,6 +587,8 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 .dec .fc>label,.dec .fc>.lbl{display:none}
 .dec .fc{margin:0}
 .dec .fv .src-tag{margin-left:6px}
+/* The sentence's fixed opening stays in view above the reason box while editing (R612). */
+.is-editing .dec .fc:not(.ro) .fv.lead{display:flex;margin-bottom:6px}
 @media(max-width:900px){.dec{grid-template-columns:1fr}.dec .dl{padding-top:4px}}
 @media(max-width:760px){#section-settlement .metric-strip{grid-template-columns:repeat(2,1fr)}#section-settlement .metric:nth-child(-n+2){border-bottom:1px solid var(--line)}}
 
