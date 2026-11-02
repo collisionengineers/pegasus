@@ -958,6 +958,7 @@ deleted in wave 5.
 | `decision-card` | Message decision |
 | `inbox-row--ticks`, `inbox-row-tick`, `inbox-bulk` | A row's gutter tick and the one bulk form above the Inbox list (v41 I18) |
 | `dialog--mail`, `mail-context-bar`, `mail-settings-menu`, `inbox-ledger` | The Inbox ledger (Case, Type, Subject, Sender, Received) and the message dialog: full-width body, context bar, and the cog settings menu (Case, Type, Query, Change case, Decided) |
+| `mail-settings-section`, `mail-settings-case`, `mail-settings-actions`, `mail-settings-foot` | The cog menu's sections: one `mail-decision-label` each, a divider between them, actions as `btn--small` in a row, and the muted Decided foot line (R632 to R637) |
 | `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
 | `admin-layout`, `admin-nav` | Administration |
 | `up-sheet`, `up-drop`, `up-evidence`, `up-declared`, `up-file-list` (`upload.css`) | Upload's initial sheet (v42 E): its head states the destination and the limits, its body is the drop target, and **Selected files** with the one action bar appear under it once files are chosen; the file rows are the same list on the review |
