@@ -926,7 +926,10 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         Assert.Equal("Scuffed", saved.Assessment.Field(AssessmentVocabulary.EngineersComments)?.Value);
         Assert.Equal("120.00", saved.Assessment.Field(AssessmentVocabulary.AgreedFee)?.Value);
         Assert.Equal("2031-05-20", saved.Assessment.Field(AssessmentVocabulary.ReportDate)?.Value);
-        Assert.All(saved.Assessment.Fields, field => Assert.Equal(ActorKind.Staff, field.RecordedByKind));
+        // Every value this save wrote is staff's; the Good pre-incident
+        // condition the Case started with (R574) was not posted.
+        Assert.All(saved.Assessment.Fields.Where(field => field.RecordedBy != VehicleConditionDefault.RecorderId),
+            field => Assert.Equal(ActorKind.Staff, field.RecordedByKind));
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == harness.CaseId);
@@ -2635,13 +2638,14 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
     }
 
     // The rows a save wrote: the agreed fee the Case took from its Principal
-    // at creation is not one.
+    // and the Good pre-incident condition it started with (R574) are not.
     private static async Task<long> AssessmentFieldCountAsync(Harness harness)
     {
         await using var context = await harness.Factory.CreateDbContextAsync();
         return await context.CaseAssessmentFields.AsNoTracking()
             .LongCountAsync(item => item.WorkId == harness.CaseId
-                && item.RecordedBy != PrincipalDefaultFeePolicy.RecorderId);
+                && item.RecordedBy != PrincipalDefaultFeePolicy.RecorderId
+                && item.RecordedBy != VehicleConditionDefault.RecorderId);
     }
 
     private static async Task<Dictionary<string, CaseAssessmentFieldEntity>> AssessmentFieldsAsync(Harness harness)

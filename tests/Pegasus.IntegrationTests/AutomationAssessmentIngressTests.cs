@@ -305,7 +305,7 @@ public sealed class AutomationAssessmentIngressTests
         using var document = await ReadJsonRpcAsync(response);
         Assert.Contains("derived from damage.impacts", document.RootElement.ToString(), StringComparison.Ordinal);
         Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'"));
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy NOT IN (N'{PrincipalDefaultFeePolicy.RecorderId}', N'{VehicleConditionDefault.RecorderId}')"));
 
         using var estimateResponse = await PostMcpAsync(client, token, ToolCallPayload(42,
             "pegasus_assessment_update", new
@@ -388,7 +388,7 @@ public sealed class AutomationAssessmentIngressTests
             using var document = await ReadJsonRpcAsync(response);
             Assert.Contains(refusal, document.RootElement.ToString(), StringComparison.Ordinal);
             Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'"));
+                $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy NOT IN (N'{PrincipalDefaultFeePolicy.RecorderId}', N'{VehicleConditionDefault.RecorderId}')"));
         }
 
         // The Inspection section records the recovery charge, so automation
@@ -408,7 +408,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(lease.CaseVersion + 1, structured.GetProperty("caseVersion").GetInt64());
         }
         Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'"));
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy NOT IN (N'{PrincipalDefaultFeePolicy.RecorderId}', N'{VehicleConditionDefault.RecorderId}')"));
         Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseAssessmentFields
@@ -523,7 +523,7 @@ public sealed class AutomationAssessmentIngressTests
                     reason = "Automation recorded the assessment draft.",
                     fields = new Dictionary<string, string?>
                     {
-                        ["vehicle.condition"] = "good",
+                        ["vehicle.condition"] = "excellent",
                         [AssessmentVocabulary.VehicleBody] = "Hatchback"
                     }
                 })))
@@ -541,12 +541,13 @@ public sealed class AutomationAssessmentIngressTests
         }
 
         // Stored values carry the automation provenance. The agreed fee the
-        // Case took from its Principal at creation is not this save's.
+        // Case took from its Principal and the Good pre-incident condition it
+        // started with (R574) are not this save's.
         Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseAssessmentFields
             WHERE RecordedByKind = N'Automation'
-              AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'
+              AND RecordedBy NOT IN (N'{PrincipalDefaultFeePolicy.RecorderId}', N'{VehicleConditionDefault.RecorderId}')
             """));
         Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM CaseEstimateLines WHERE RecordedByKind = N'Automation'"));
@@ -585,7 +586,7 @@ public sealed class AutomationAssessmentIngressTests
                     reason = "Automation recorded the assessment draft.",
                     fields = new Dictionary<string, string?>
                     {
-                        ["vehicle.condition"] = "good",
+                        ["vehicle.condition"] = "excellent",
                         [AssessmentVocabulary.VehicleBody] = "Hatchback"
                     }
                 })))
@@ -964,7 +965,7 @@ public sealed class AutomationAssessmentIngressTests
                     editLeaseToken = automationToken,
                     operationKey = "mcp:request-accepted-write",
                     reason = "Automation wrote under the lease it was handed.",
-                    fields = new Dictionary<string, string?> { ["vehicle.condition"] = "good" }
+                    fields = new Dictionary<string, string?> { ["vehicle.condition"] = "excellent" }
                 })))
         {
             Assert.Equal(1, (await ReadStructuredContentAsync(write)).GetProperty("caseVersion").GetInt64());
