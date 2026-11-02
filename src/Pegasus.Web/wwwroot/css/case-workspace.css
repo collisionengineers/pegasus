@@ -207,7 +207,7 @@ span.blocker-name{cursor:default;text-decoration:none}
 
 
 /* ==== valuation ==== */
-/* ---- Valuation (v34, operator, 8 October 2026): the sources as guide cards, then the value increases, the deductions, the Engineer's Value and On the report ---- */
+/* ---- Valuation (v34, operator, 8 October 2026): the sources as guide cards, then the value increases, the deductions, and the Engineer's Value ---- */
 #section-valuation .valuation-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;min-width:0}
 /* A guide card: its name with the chosen word and Get valuation, then
    Retail, Trade and Guide month as text while reading and boxes while
@@ -276,11 +276,6 @@ span.blocker-name{cursor:default;text-decoration:none}
 #section-valuation [data-valuation-preview-host]{flex-basis:100%}
 #section-valuation [data-valuation-preview-host]:empty{display:none}
 #section-valuation [data-valuation-preview-host] .notice{margin:0}
-/* On the report: one line, the switches in the summary's place while editing. */
-#section-valuation .valuation-report{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px}
-#section-valuation .valuation-report>.lbl{margin:0}
-#section-valuation .valuation-report .fv{min-height:0;padding:0;border:0;background:transparent;font-size:12.5px;width:auto}
-#section-valuation .valuation-report .fi.switches{border:0;padding:0;background:transparent;flex-wrap:wrap;gap:6px 20px;width:auto}
 @media(max-width:1180px){
   #section-valuation .valuation-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
@@ -351,19 +346,24 @@ span.blocker-name{cursor:default;text-decoration:none}
 .image-grid-count{margin:6px 0 0;font-size:12px}
 
 .wording .stack{gap:8px}
+/* Report wording's settings (v45): one wrapping line of ticks, each block and then the three report switches. */
+.wording-settings{display:flex;flex-wrap:wrap;align-items:center;gap:6px 20px;margin:0 0 8px;padding:8px;border:1px solid var(--line);border-radius:4px;background:var(--surface-2)}
+.wording-settings .choice{display:inline-flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap}
+/* The Statement of truth closes the panel read-only, the guide sentence nested where it prints (v45). */
+.wording [data-wording-fixed]{margin-top:8px}
+.wb-fixed{background:var(--surface-2)}
+.wb-fixed .fc+.fc,.wb-fixed .wb-fixed{margin-top:8px}
+.wb-fixed .wb-fixed{background:var(--surface)}
 .wb{border:1px solid var(--line);border-radius:4px;padding:6px 8px;background:var(--surface)}
-.wb.is-off{opacity:.55}
 .wbh{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px}
 .wb .fi.wbt{flex:1 1 180px;min-width:0;font-weight:600}
 .wb .icon-button{display:inline-grid;place-items:center;width:22px;height:22px;border:1px solid transparent;border-radius:3px;background:none;color:var(--muted);cursor:pointer}
 .wb .icon-button:hover{border-color:var(--line);color:var(--navy)}
 .wb-tools{display:inline-flex;align-items:center;gap:4px;margin-left:auto}
-.wb-tools .choice{display:inline-flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap}
 .wb textarea.fi{width:100%}
 /* Reading, a block's heading and wording are ordinary read-only cells. */
 .wbh>.fc.wbt{flex:1 1 180px}
 .wbh>.fc.wbt .fv{font-weight:600}
-.wb-tools .choice .icon{width:13px;height:13px}
 
 /* ==== estimate ==== */
 /* ---- Estimate (v26 § Estimate) ---------------------------------------------- */

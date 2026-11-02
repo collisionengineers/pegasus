@@ -701,11 +701,11 @@ public sealed partial class DetailsModel(
     public string? IncidentNarrative { get; private set; }
 
     /// <summary>
-    /// The accepted statement of truth this Case's report prints, from Core, shown
-    /// read-only in the Report section in every state the workspace loads. Empty
-    /// only when the report inputs cannot be read.
+    /// The accepted statement of truth in its printed parts, from Core, shown
+    /// read-only as Report wording's last block in every state the workspace
+    /// loads (v45 D, I). Null only when the report inputs cannot be read.
     /// </summary>
-    public IReadOnlyList<string> StatementOfTruth { get; private set; } = [];
+    public ReportStatementParts? StatementParts { get; private set; }
 
     public string? ReportDraftCondition { get; private set; }
 
@@ -1315,7 +1315,7 @@ public sealed partial class DetailsModel(
         if (inputs is not null)
         {
             IncidentNarrative = ReportWordingComposition.NatureOfIncidentOf(inputs.Projection);
-            StatementOfTruth = AssessmentReportContract.StatementOfTruthOf(inputs.Projection);
+            StatementParts = AssessmentReportContract.StatementPartsOf(inputs.Projection);
             if (AssessmentCanOpen)
             {
                 var wording = WordingOf(inputs.Projection);

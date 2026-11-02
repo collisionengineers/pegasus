@@ -70,7 +70,6 @@ public static class CaseWorkspaceLabels
         public const string MatterLine = "Matter line";
         public const string Claim = "Claim";
         public const string OriginalReport = "Original report";
-        public const string OnTheReport = "On the report";
         /// <summary>The nature of the incident the matter line opens with; every Case Pegasus handles is one.</summary>
         public const string NatureOfIncident = "Road Traffic Accident";
 
@@ -277,18 +276,12 @@ public static class CaseWorkspaceLabels
         public static string? SectionOf(string field)
         {
             // Fields shown outside the section their editor list names: the
-            // claimant's VAT answer is on Claim, the report content switches
-            // are Valuation's On the report switches, and the report's Retail
-            // and Trade come from Valuation's chosen guide card.
+            // claimant's VAT answer is on Claim, and the report's Retail and
+            // Trade come from Valuation's chosen guide card.
             var shownElsewhere = field switch
             {
                 AssessmentVocabulary.SettlementClaimantVatRegistered => "claim",
-                AssessmentVocabulary.ReportDiscloseGuideSource
-                    or AssessmentVocabulary.ReportValuationCommentary
-                    or AssessmentVocabulary.ReportIncludeUnrelatedDamage
-                    or AssessmentVocabulary.ReportFaoTheCourt
-                    or AssessmentVocabulary.ReportIncludeStatementOfTruth
-                    or AssessmentVocabulary.ValueRetail
+                AssessmentVocabulary.ValueRetail
                     or AssessmentVocabulary.ValueTrade => "valuation",
                 _ => null
             };
@@ -409,11 +402,9 @@ public static class CaseWorkspaceLabels
         public const string ValuationCommentary = "Valuation commentary";
         public const string UnrelatedDamage = "Unrelated damage";
 
-        /// <summary>The two switches that are on until turned off (R610, R611); the summary names each only when it is off (R616).</summary>
+        /// <summary>The two switches that are on until turned off (R610, R611).</summary>
         public const string FaoTheCourt = "FAO The Court";
         public const string IncludeStatementOfTruth = "Include statement of truth";
-        public const string NoFaoTheCourt = "No FAO The Court";
-        public const string NoStatementOfTruth = "No statement of truth";
         public const string ReviewedRecipients = "Reviewed recipients";
         public const string AddTo = "Add To recipient";
         public const string AddCc = "Add Cc recipient";

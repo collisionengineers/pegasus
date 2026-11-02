@@ -357,7 +357,11 @@ public sealed class CaseEditModeWebTests
             Substitute<ICaseReportSnapshotSource>(services, store);
         });
         var html = await workspace.GetWorkspaceAsync();
-        foreach (var path in CaseWorkspaceLabels.Editors.Settlement.Keys.Concat(CaseWorkspaceLabels.Editors.Report.Keys)
+        // The Valuation commentary's words are its Report wording row (v45 E),
+        // which this store's unprojectable report does not draw (v45 B);
+        // CaseReportWordingWebTests holds that box to the Save form.
+        foreach (var path in CaseWorkspaceLabels.Editors.Settlement.Keys
+                     .Concat(CaseWorkspaceLabels.Editors.Report.Keys.Where(path => path != AssessmentVocabulary.ReportValuationCommentaryText))
                      .Concat(CaseWorkspaceLabels.Editors.Damage.Keys).Concat(CaseWorkspaceLabels.Editors.Vehicle.Keys)
                      .Append(AssessmentVocabulary.HistoryCheck).Append(AssessmentVocabulary.VehicleCondition))
         {

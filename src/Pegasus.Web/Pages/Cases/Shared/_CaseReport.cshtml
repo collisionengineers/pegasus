@@ -640,42 +640,69 @@
                     <input id="f-report-date" class="fi" type="date" name="reportDate" form="case-edit-form" value="@reportDate" />
                 }
             </div>
-            @* The comments take a full row like the commentary under them (v36 f38). *@
+            @* The comments take a full row (v36 f38). *@
             @{ await Field(AssessmentVocabulary.EngineersComments, labels[AssessmentVocabulary.EngineersComments], multi: true, extraClass: "span4");
             }
-            @* The valuation commentary itself, beside the switch that prints it:
-               the Engineer's words, frozen into the report when the switch is on. *@
-            @{ await Field(AssessmentVocabulary.ReportValuationCommentaryText, Words.ValuationCommentary, multi: true, extraClass: "span4"); }
         </div>
 
-        @* The Statement of truth is the same five paragraphs on every Case: a
-           sub-panel folded until this browser opens it, remembered by the fold
-           cookie as the aside's card is (v36 item P, 9 October 2026). *@
-        @{ var statementFold = Model.FoldedUntilOpened("case.report.statement"); }
-        <div class="sub-panel @(statementFold.Collapsed ? "is-collapsed" : null)" data-collapse="@statementFold.Key" data-collapse-folded data-report-statement>
-            <h3>@EngineerLabels.StatementOfTruth <partial name="Shared/_SubPanelToggle" model="statementFold" /></h3>
-            <div class="fg">
-                <div class="fc ro"><span class="lbl">@EngineerLabels.StatementOfTruth</span><div class="fv derived multi @(Model.StatementOfTruth.Count == 0 ? "empty" : null)">@(Model.StatementOfTruth.Count == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : string.Join("\n\n", Model.StatementOfTruth))</div></div>
+        @* Report wording (v28 P30; v45, operator, 2 November 2026): every
+           choice of what the report says is here. One settings checklist opens
+           the panel: each offered block in print order, then Disclose guide
+           source, FAO The Court and Include statement of truth, each as it
+           defaults today. A block has no on/off of its own and is drawn only
+           while its item is ticked. Valuation commentary and Unrelated damage
+           are their switches (v45 A); the commentary's words are its field
+           (v45 E). The Statement of truth closes the panel read-only, the
+           guide sentence in its print place (v45 D, I). While the report
+           cannot be projected the settings hold the five switches alone
+           (v45 B). *@
+        <div class="sub-panel wording" data-report-wording>
+            <h3>@WordingLabels.PanelTitle<span class="rt">@WordingLabels.InPrintOrder</span></h3>
+            <div class="wording-settings" data-wording-settings>
+                @if (Model.ReportWording.Count > 0)
+                {
+                    for (var index = 0; index < Model.ReportWording.Count; index++)
+                    {
+                        var block = Model.ReportWording[index];
+                        var slot = index.ToString(CultureInfo.InvariantCulture);
+                        switch (block.Key)
+                        {
+                            case ReportWordingComposition.ValuationCommentary:
+                                SwitchSetting(AssessmentVocabulary.ReportValuationCommentary, block.Key, Words.ValuationCommentary, editing);
+                                break;
+                            case ReportWordingComposition.UnrelatedDamage:
+                                SwitchSetting(AssessmentVocabulary.ReportIncludeUnrelatedDamage, block.Key, Words.UnrelatedDamage, editing);
+                                break;
+                            default:
+                                BlockSetting(block, slot, editing);
+                                break;
+                        }
+                    }
+                }
+                else
+                {
+                    SwitchSetting(AssessmentVocabulary.ReportValuationCommentary, ReportWordingComposition.ValuationCommentary, Words.ValuationCommentary, editing);
+                    SwitchSetting(AssessmentVocabulary.ReportIncludeUnrelatedDamage, ReportWordingComposition.UnrelatedDamage, Words.UnrelatedDamage, editing);
+                }
+                @{
+                    SwitchSetting(AssessmentVocabulary.ReportDiscloseGuideSource, "guide", Words.DiscloseGuideSource, editing);
+                    SwitchSetting(AssessmentVocabulary.ReportFaoTheCourt, "fao", Words.FaoTheCourt, editing);
+                    SwitchSetting(AssessmentVocabulary.ReportIncludeStatementOfTruth, "statement", Words.IncludeStatementOfTruth, editing);
+                }
             </div>
-        </div>
-
-        @* P30: the report's narrative, in print order. Each block tracks its
-           fields until the Engineer writes their own wording; the heading, the
-           order and whether the report carries it are theirs too. *@
-        @if (Model.ReportWording.Count > 0)
-        {
-            <div class="sub-panel wording" data-report-wording>
-                <h3>@WordingLabels.PanelTitle<span class="rt">@WordingLabels.InPrintOrder</span></h3>
-                @if (editing)
+            @if (Model.ReportWording.Count > 0)
+            {
+                if (editing)
                 {
                     <div class="stack" data-wording-list>
                         @for (var index = 0; index < Model.ReportWording.Count; index++)
                         {
-                            await WordingRow(Model.ReportWording[index], index.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                            await WordingRow(Model.ReportWording[index], index.ToString(CultureInfo.InvariantCulture));
                         }
                     </div>
                     @* A paragraph the Engineer adds is cloned from here with its
-                       own slot and key, and posts through the same names. *@
+                       own slot and key, and posts through the same names; the
+                       script gives it its tick in the settings. *@
                     <template data-wording-template>
                         @{ await WordingRow(
                                new ReportWordingBlock("__key__", WordingLabels.NewParagraph, string.Empty, 0, HandEdited: true, Manual: true),
@@ -690,28 +717,42 @@
                 }
                 else
                 {
-                    @* Reading, every block draws in the row it edits in — its
-                       heading and wording in greyed boxes, a block off the
-                       report dimmed as it is while editing (23 September 2026). *@
+                    @* Reading, every block on the report draws in the row it
+                       edits in, its heading and wording in greyed boxes. *@
                     <div class="stack">
-                        @foreach (var block in Model.ReportWording)
+                        @foreach (var block in Model.ReportWording.Where(block => block.Included))
                         {
-                            <div class="wb @(block.Included ? null : "is-off")" data-wording-block="@block.Key">
+                            <div class="wb" data-wording-block="@block.Key">
                                 <div class="wbh">
                                     <div class="fc ro wbt"><div class="fv">@block.Title</div></div>
                                     <span class="src-tag @(block.HandEdited ? "src-tag--warn" : null)">@WordingChip(block)</span>
-                                    @if (block.Included)
-                                    {
-                                        <span class="wb-tools"><span class="choice"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg><span>@WordingLabels.OnReport</span></span></span>
-                                    }
                                 </div>
                                 <div class="fc ro"><div class="fv multi">@block.Text</div></div>
                             </div>
                         }
                     </div>
                 }
-            </div>
-        }
+            }
+            @if (Model.StatementParts is { } statement)
+            {
+                var court = SwitchOn(AssessmentVocabulary.ReportIncludeStatementOfTruth);
+                var guide = SwitchOn(AssessmentVocabulary.ReportDiscloseGuideSource);
+                <div class="stack" data-wording-fixed>
+                    <div class="wb wb-fixed" data-wording-block="statement-of-truth">
+                        <div class="wbh"><div class="fc ro wbt"><div class="fv">@EngineerLabels.StatementOfTruth</div></div></div>
+                        <div class="fc ro" data-sot-court hidden="@(!court)"><div class="fv derived multi">@string.Join("\n\n", statement.Court)</div></div>
+                        @if (statement.Guide is { } guideSentence)
+                        {
+                            <div class="wb wb-fixed" data-wording-block="guide" hidden="@(!guide)">
+                                <div class="wbh"><div class="fc ro wbt"><div class="fv">@Words.DiscloseGuideSource</div></div></div>
+                                <div class="fc ro"><div class="fv derived multi">@guideSentence</div></div>
+                            </div>
+                        }
+                        <div class="fc ro"><div class="fv derived multi">@string.Join("\n\n", statement.Closing)</div></div>
+                    </div>
+                </div>
+            }
+        </div>
 
         @* P50: an image has one place. Whether the report uses it, its order and the
            tools that change it are on its tile under Files; the Report
@@ -773,16 +814,78 @@
                 _ => WordingLabels.TracksFields
             };
 
+    // Whether a report content switch is on, as the Case records it: the
+    // court line and the statement until recorded off (R611).
+    private bool SwitchOn(string path) =>
+        CaseReportContentSwitches.IsOn(path, Model.AssessmentEditorValue(path));
+
+    // One report content switch in Report wording's settings (v45): a tick
+    // joining the record's one Save form while the section edits, a static
+    // tick while reading. A checkbox posts "true" ahead of its hidden "false",
+    // so an unticked switch still records No.
+    private void SwitchSetting(string path, string key, string label, bool editable)
+    {
+        var on = SwitchOn(path);
+        if (editable)
+        {
+            var name = CaseWorkspaceLabels.Editors.FormName(path);
+            <label class="choice" data-field="@path">
+                <input type="checkbox" name="@name" value="true" form="case-edit-form" checked="@on" data-report-switch="@path" data-wording-toggle="@key" />
+                <input type="hidden" name="@name" value="false" form="case-edit-form" />
+                <span>@label</span>
+            </label>
+        }
+        else
+        {
+            StaticTick(key, label, on);
+        }
+    }
+
+    // One wording block's tick in the settings (v45 R3): it posts the block's
+    // own on/off under the block's slot.
+    private void BlockSetting(ReportWordingBlock block, string slot, bool editable)
+    {
+        if (editable)
+        {
+            var name = $"wordingEdits[{slot}].Included";
+            <label class="choice">
+                <input type="checkbox" name="@name" value="true" form="case-edit-form" checked="@block.Included" data-wording-included data-wording-toggle="@block.Key" />
+                <input type="hidden" name="@name" value="false" form="case-edit-form" />
+                <span>@block.Title</span>
+            </label>
+        }
+        else
+        {
+            StaticTick(block.Key, block.Title, block.Included);
+        }
+    }
+
+    private void StaticTick(string key, string label, bool on)
+    {
+        <span class="choice is-static" data-on="@(on ? "true" : "false")" data-wording-toggle="@key">
+            <span class="tick">
+                @if (on)
+                {
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
+                }
+            </span>
+            <span>@label</span>
+        </span>
+    }
+
     // One wording block while the section edits: its heading, its wording and
-    // the controls that move it, take it off the report or put it back. Every
-    // control joins the record's one Save form. The order is carried rather
-    // than typed: the move buttons rewrite it.
+    // the controls that move it. Its tick is in the settings and a block off
+    // the report is not drawn (v45 R3). Every control joins the record's one
+    // Save form. The order is carried rather than typed: the move buttons
+    // rewrite it. The commentary's text box is the Valuation commentary field
+    // itself (v45 E), so it has nothing to recompose.
     private async Task WordingRow(ReportWordingBlock block, string slot)
     {
         var name = $"wordingEdits[{slot}]";
         var id = $"f-wording-{slot}";
         var composed = Model.ReportWordingComposed.GetValueOrDefault(block.Key, string.Empty);
-        <div class="wb @(block.Included ? null : "is-off")" data-wording-row data-wording-block="@block.Key"
+        var commentary = block.Key == ReportWordingComposition.ValuationCommentary;
+        <div class="wb" hidden="@(!block.Included)" data-wording-row data-wording-block="@block.Key"
              data-wording-composed="@composed">
             <input type="hidden" name="@(name).Key" value="@block.Key" form="case-edit-form" data-wording-key />
             <input type="hidden" name="@(name).Manual" value="@(block.Manual ? "true" : "false")" form="case-edit-form" />
@@ -791,7 +894,7 @@
                 <input id="@(id)-title" class="fi wbt" name="@(name).Title" value="@block.Title" form="case-edit-form"
                        maxlength="@ReportWordingComposition.MaximumTitleLength" aria-label="@WordingLabels.Heading" />
                 <span class="src-tag @(block.HandEdited ? "src-tag--warn" : null)" data-wording-chip>@WordingChip(block)</span>
-                @if (!block.Manual)
+                @if (!block.Manual && !commentary)
                 {
                     <button type="button" class="icon-button" data-wording-recompose aria-label="@WordingLabels.Recompose" title="@WordingLabels.Recompose">
                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-undo")" /></svg>
@@ -804,16 +907,31 @@
                     <button type="button" class="icon-button" data-wording-down aria-label="@WordingLabels.MoveDown" title="@WordingLabels.MoveDown">
                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-down")" /></svg>
                     </button>
-                    <label class="choice">
-                        <input type="checkbox" name="@(name).Included" value="true" checked="@block.Included" form="case-edit-form" data-wording-included />
-                        <span>@WordingLabels.OnReport</span>
-                    </label>
-                    <input type="hidden" name="@(name).Included" value="false" form="case-edit-form" />
                 </span>
             </div>
-            <label class="sr-only" for="@(id)-text">@WordingLabels.Wording</label>
-            <textarea id="@(id)-text" class="fi" rows="3" name="@(name).Text" form="case-edit-form"
-                      maxlength="@ReportWordingComposition.MaximumTextLength" data-wording-text>@block.Text</textarea>
+            @if (commentary)
+            {
+                var path = AssessmentVocabulary.ReportValuationCommentaryText;
+                <label class="sr-only" for="@(id)-text">@WordingLabels.Wording</label>
+                @* The cell a readiness blocker's link lands on (FRD-13). *@
+                <div data-field="@path">
+                    @if (Model.CanEditAssessmentField(path))
+                    {
+                        <textarea id="@(id)-text" class="fi" rows="3" name="@CaseWorkspaceLabels.Editors.FormName(path)" form="case-edit-form"
+                                  maxlength="@AssessmentVocabulary.Definitions[path].MaximumLength">@Model.AssessmentEditorValue(path)</textarea>
+                    }
+                    else
+                    {
+                        <div class="fc ro"><div class="fv multi">@block.Text</div></div>
+                    }
+                </div>
+            }
+            else
+            {
+                <label class="sr-only" for="@(id)-text">@WordingLabels.Wording</label>
+                <textarea id="@(id)-text" class="fi" rows="3" name="@(name).Text" form="case-edit-form"
+                          maxlength="@ReportWordingComposition.MaximumTextLength" data-wording-text>@block.Text</textarea>
+            }
         </div>
     }
 

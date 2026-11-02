@@ -4649,6 +4649,7 @@
             panel.dataset.wordingBound = 'true';
             var list = panel.querySelector('[data-wording-list]');
             var template = panel.querySelector('[data-wording-template]');
+            var settings = panel.querySelector('[data-wording-settings]');
             if (!list) {
                 return;
             }
@@ -4658,8 +4659,12 @@
             // move or a new paragraph is a change too. A commit sends the
             // blocks only while this differs from what was drawn or last
             // landed (#1800); a redrawn panel binds afresh.
+            // The report switches and the commentary in the panel are
+            // assessment fields, not wording, so they are not counted.
             function state() {
-                return JSON.stringify(Array.prototype.map.call(panel.querySelectorAll('input, textarea, select'), function (control) {
+                return JSON.stringify(Array.prototype.filter.call(panel.querySelectorAll('input, textarea, select'), function (control) {
+                    return (control.name || '').indexOf('wordingEdits[') === 0;
+                }).map(function (control) {
                     return [control.name, control.type === 'checkbox' ? control.checked : control.value];
                 }));
             }
@@ -4719,14 +4724,54 @@
                 if (!fresh) { return; }
                 list.appendChild(fresh);
                 renumber();
+                addTick(fresh, slot, key);
                 var title = fresh.querySelector('.wbt');
                 if (title) { title.focus(); title.select(); }
             });
 
+            // The settings (v45): each item's tick shows or hides its block,
+            // the statement's tick its two court declarations. FAO The Court
+            // has no block.
+            function shownBy(key) {
+                return key === 'statement'
+                    ? panel.querySelector('[data-sot-court]')
+                    : panel.querySelector('[data-wording-block="' + key + '"]');
+            }
             panel.addEventListener('change', function (event) {
-                var box = event.target.closest('[data-wording-included]');
-                var row = box ? box.closest('[data-wording-row]') : null;
-                if (row) { row.classList.toggle('is-off', !box.checked); }
+                var box = event.target.closest('input[type="checkbox"][data-wording-toggle]');
+                var shown = box ? shownBy(box.getAttribute('data-wording-toggle')) : null;
+                if (shown) { shown.hidden = !box.checked; }
+            });
+            // A paragraph the Engineer adds gets its tick before the three
+            // report switches, posting its own on/off under its slot.
+            function addTick(row, slot, key) {
+                var before = settings && settings.querySelector('[data-wording-toggle="guide"]');
+                if (!before) { return; }
+                var name = 'wordingEdits[' + slot + '].Included';
+                var tick = document.createElement('label');
+                tick.className = 'choice';
+                var box = document.createElement('input');
+                box.type = 'checkbox'; box.name = name; box.value = 'true'; box.checked = true;
+                box.setAttribute('form', 'case-edit-form');
+                box.setAttribute('data-wording-included', '');
+                box.setAttribute('data-wording-toggle', key);
+                var off = document.createElement('input');
+                off.type = 'hidden'; off.name = name; off.value = 'false';
+                off.setAttribute('form', 'case-edit-form');
+                var text = document.createElement('span');
+                text.textContent = (row.querySelector('.wbt') || {}).value || '';
+                tick.appendChild(box); tick.appendChild(off); tick.appendChild(text);
+                settings.insertBefore(tick, before.closest('label') || before);
+            }
+            // A block's tick reads its heading as the Engineer renames it.
+            panel.addEventListener('input', function (event) {
+                var title = event.target.closest('input.wbt');
+                var row = title ? title.closest('[data-wording-row]') : null;
+                var tick = row && settings
+                    ? settings.querySelector('[data-wording-toggle="' + row.getAttribute('data-wording-block') + '"]')
+                    : null;
+                var text = tick && tick.closest('label') ? tick.closest('label').querySelector('span') : null;
+                if (text) { text.textContent = title.value; }
             });
         });
     }
@@ -5060,48 +5105,6 @@
     }
     bind(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
-})();
-
-// --- report: content switches ------------------------------------------------
-(function () {
-    'use strict';
-
-    // The court line and the statement are on until turned off, so the
-    // summary names each only when it is off (R616).
-    var words = {
-        'report.disclose_guide_source': ['Guide source disclosed', 'Guide source not disclosed'],
-        'report.valuation_commentary': ['valuation commentary', ''],
-        'report.include_unrelated_damage': ['unrelated damage', ''],
-        'report.fao_the_court': ['', 'No FAO The Court'],
-        'report.include_statement_of_truth': ['', 'No statement of truth']
-    };
-
-    function bindContent(root) {
-        root.querySelectorAll('[data-report-content]').forEach(function (summary) {
-            var group = summary.closest('[data-field="report-content"]');
-            if (!group || group.dataset.reportContentBound === 'true') {
-                return;
-            }
-            group.dataset.reportContentBound = 'true';
-            var switches = Array.prototype.slice.call(group.querySelectorAll('[data-report-switch]'));
-            function read() {
-                if (!switches.length) {
-                    return;
-                }
-                var parts = [];
-                switches.forEach(function (box) {
-                    var pair = words[box.getAttribute('data-report-switch')] || ['', ''];
-                    var text = box.checked ? pair[0] : pair[1];
-                    if (text) { parts.push(text); }
-                });
-                summary.textContent = parts.join(' · ');
-            }
-            switches.forEach(function (box) { box.addEventListener('change', read); });
-        });
-    }
-
-    bindContent(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindContent);
 })();
 
 // --- saved document previews -------------------------------------------------
