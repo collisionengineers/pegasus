@@ -15,7 +15,7 @@
 .unidentified-facts .fact:last-child { border-bottom: 0; }
 .unidentified-facts dd { margin: 0; overflow-wrap: anywhere; }
 .unidentified-files { margin: 0; padding-left: 18px; font-size: 12px; }
-/* Resolve (v41 U12, R574): one even column, Link to Case first, Close with reason set apart at the
+/* Resolve (v41 U12, R599): one even column, Link to Case first, Close with reason set apart at the
    bottom; the column is as wide as the longest label, not the panel. */
 .button-row.unidentified-resolve { display: inline-grid; grid-template-columns: max-content; gap: 8px; align-items: stretch; max-width: 100%; }
 .unidentified-resolve form { margin: 0; }

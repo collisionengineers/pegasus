@@ -158,7 +158,7 @@ public sealed class UnidentifiedRecordWebTests
         Assert.DoesNotContain("compose=reply", record, StringComparison.Ordinal);
     }
 
-    /// <summary>R574: a stored original that opens through Open message never reads "Original file unavailable".</summary>
+    /// <summary>R599: a stored original that opens through Open message never reads "Original file unavailable".</summary>
     [Fact]
     public async Task AStoredEmailSourceDoesNotReadUnavailable()
     {

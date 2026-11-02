@@ -82,7 +82,7 @@
                         </div>
                     }
                     <dl class="fact-grid unidentified-facts">
-                        @* The ribbon's Kind already says it when the source channel reads the same (U6; R574). *@
+                        @* The ribbon's Kind already says it when the source channel reads the same (U6; R599). *@
                         @if (!string.Equals(Model.SourceLabel, Model.MaterialLabel, StringComparison.OrdinalIgnoreCase))
                         {
                             <div class="fact"><dt>Source</dt><dd>@Model.SourceLabel</dd></div>
@@ -142,7 +142,7 @@
                         <p class="muted">@gallery.Length photograph@(gallery.Length == 1 ? string.Empty : "s") extracted from the retained file@(Model.MaterialReceipts.Count == 1 ? string.Empty : "s").</p>
                         <partial name="Shared/_ImageGallery" model="gallery" />
                     }
-                    @* A stored e-mail opens through Open message; only an unstored original reads unavailable (operator, 2 November 2026, R574). *@
+                    @* A stored e-mail opens through Open message; only an unstored original reads unavailable (operator, 2 November 2026, R599). *@
                     @if (Model.OpenFileHref is null && !Model.IsSourceStored && Model.SourceAsset is { } unavailableSource)
                     {
                         <p class="muted" data-unidentified-source-unavailable>
