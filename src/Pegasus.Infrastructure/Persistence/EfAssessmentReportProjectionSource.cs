@@ -198,7 +198,9 @@ internal sealed class EfAssessmentReportProjectionSource(
         var projection = new AssessmentReportProjectionInput(
             workspace.Assessment,
             reportReference,
-            AssessmentReportWording.ReportFor(
+            // The Principal's organisation, or the claimant for a one-off (R576).
+            AssessmentReportWording.ReportAddressee(
+                workspace.Assessment.CaseOwned,
                 workflow.PrincipalName, workflow.PrincipalAddress, workflow.PrincipalPostcode),
             ReportDate: null,
             photos,

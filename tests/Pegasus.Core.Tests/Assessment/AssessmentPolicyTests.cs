@@ -973,6 +973,26 @@ public sealed class AssessmentPolicyTests
     /// The date instructions were received is the Case's received date, which
     /// every Case has, so it is never one of them.
     /// </summary>
+    /// <summary>
+    /// A one-off Case for a private customer has no claim number to print, so
+    /// none is asked for; every other printed Case fact still is (operator,
+    /// 1 November 2026; R578).
+    /// </summary>
+    [Fact]
+    public void AOneOffForAPrivateCustomerIsReadyWithoutAClaimReference()
+    {
+        var oneOff = CompleteCaseOwned with { ClaimNumber = null, PrivateCustomer = true };
+
+        Assert.DoesNotContain(
+            AssessmentPolicy.EvaluatePostReviewReadiness(Projection([], oneOff)),
+            item => item.Source == "Case record");
+
+        var named = Assert.Single(
+            AssessmentPolicy.EvaluatePostReviewReadiness(Projection([], oneOff with { ClaimantName = null })),
+            item => item.Source == "Case record");
+        Assert.Equal("Claimant name", named.Requirement);
+    }
+
     [Theory]
     [InlineData(CaseDataFieldNames.ClaimantName, "Claimant name", "the Claim section")]
     [InlineData(CaseDataFieldNames.ClaimNumber, "Claim reference", "the Case details section")]

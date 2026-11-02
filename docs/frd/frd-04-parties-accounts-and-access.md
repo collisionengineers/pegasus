@@ -138,7 +138,12 @@ in the same transaction as that Contact and stays with the same
 Contact through a code replacement
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 That Contact is where a Principal exists: every route that allocates a Case
-requires its active Principal row and fails closed without one. Which
+requires its active Principal row and fails closed without one. The standing
+**Private customer** Contact, code `PRIVATE`, is that row for one-off Cases:
+created once by migration, it holds the default fee and report sending rules
+private work uses, its Cases are referenced by registration
+([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)),
+and a successor code keeps that (operator, 31 October 2026; R574). Which
 Principals have an accepted direct e-mail route, and how each one's
 instruction is read, is released code
 ([FRD-09](frd-09-principal-and-intermediary-routes.md#principal-and-intermediary-routes)),

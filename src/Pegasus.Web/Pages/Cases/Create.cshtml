@@ -54,8 +54,16 @@
         <section class="panel" aria-labelledby="case-title">
             <div class="panel-head"><h2 id="case-title">Case</h2></div>
             <div class="panel-body stack">
+                @* A one-off Case for a private customer names no Principal:
+                   the tick hides the Principal code, keeps the Claimant
+                   labels, adds the Claimant address, makes the claim number
+                   optional and withdraws Triage (R574, R577, R579). *@
+                <div class="field">
+                    <label class="choice"><input asp-for="IsPrivateCustomer" type="checkbox" data-manual-private-customer /> <span>Private customer</span></label>
+                    <span asp-validation-for="IsPrivateCustomer" class="field-error"></span>
+                </div>
                 <div class="grid grid-3">
-                    <div class="field">
+                    <div class="field" data-private-hidden>
                         <label class="req" asp-for="PrincipalCode">Principal code</label>
                         <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" required />
                         <span asp-validation-for="PrincipalCode" class="field-error"></span>
@@ -88,7 +96,7 @@
                         <input asp-for="ClaimantName" maxlength="300" required />
                         <span asp-validation-for="ClaimantName" class="field-error"></span>
                     </div>
-                    <div class="field" data-triage-hidden>
+                    <div class="field" data-triage-hidden data-private-optional>
                         <label class="req" asp-for="ClaimNumber">Claim number</label>
                         <input asp-for="ClaimNumber" maxlength="100" required />
                         <span asp-validation-for="ClaimNumber" class="field-error"></span>
@@ -98,6 +106,11 @@
                         <input asp-for="VehicleRegistration" maxlength="20" required />
                         <span asp-validation-for="VehicleRegistration" class="field-error"></span>
                     </div>
+                </div>
+                <div class="field" data-private-only data-triage-hidden>
+                    <label asp-for="ClaimantAddress">Claimant address</label>
+                    <textarea asp-for="ClaimantAddress" maxlength="1000" rows="3"></textarea>
+                    <span asp-validation-for="ClaimantAddress" class="field-error"></span>
                 </div>
             </div>
         </section>

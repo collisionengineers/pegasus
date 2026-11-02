@@ -538,7 +538,7 @@ public sealed class EfTriageStore(
         var allocated = principal is null
             ? null
             : await CaseIdentityAllocator.AllocateAsync(
-                context, principal, CaseType.Triage, now, cancellationToken);
+                context, principal, CaseType.Triage, registration: null, now, cancellationToken);
 
         // Re-probed under the sequence lock, because a creation with this
         // operation key may have committed between the probe above and this

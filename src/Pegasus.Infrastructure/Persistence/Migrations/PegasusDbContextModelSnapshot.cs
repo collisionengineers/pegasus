@@ -6125,6 +6125,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("PredecessorId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ReferenceScheme")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasDefaultValue("principal_sequence");
+
                     b.Property<string>("ReportSendingRulesJson")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -6168,6 +6175,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_Principals_DefaultFee", "[DefaultFee] > 0");
 
                             t.HasCheckConstraint("CK_Principals_InspectionMode", "[InspectionMode] IN ('physical_address', 'image_based_assessment')");
+
+                            t.HasCheckConstraint("CK_Principals_ReferenceScheme", "[ReferenceScheme] IN ('principal_sequence', 'registration')");
 
                             t.HasCheckConstraint("CK_Principals_Version", "[Version] >= 0");
                         });

@@ -165,6 +165,51 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Equal(ReportSendingRulesRule.InvalidAddress, refused.Rule);
     }
 
+    /// <summary>
+    /// A successor code keeps the way its Cases are referenced: replacing the
+    /// standing Private customer record's code still gives registration
+    /// references, and no other Principal gains them (R574).
+    /// </summary>
+    [Fact]
+    public async Task ReplacingThePrivateCustomerCodeKeepsRegistrationReferences()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var replacePrincipal = scope.ServiceProvider.GetRequiredService<IReplacePrincipal>();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var predecessor = await context.Principals.AsNoTracking().SingleAsync(item => item.Code == "PRIVATE");
+        Assert.Equal("registration", predecessor.ReferenceScheme);
+        var contactVersion = await context.Organizations.AsNoTracking()
+            .Where(item => item.Id == predecessor.OrganizationId)
+            .Select(item => item.Version)
+            .SingleAsync();
+
+        var successor = await replacePrincipal.ExecuteAsync(
+            new ReplacePrincipalRequest(
+                predecessor.Id,
+                predecessor.Version,
+                "PRIVATE2",
+                Administrator,
+                "principal:replace:private",
+                "Code replaced",
+                contactVersion),
+            default);
+
+        Assert.Equal(
+            "registration",
+            await context.Principals.AsNoTracking()
+                .Where(item => item.Id == successor.Id)
+                .Select(item => item.ReferenceScheme)
+                .SingleAsync());
+        Assert.Equal(
+            "principal_sequence",
+            await context.Principals.AsNoTracking()
+                .Where(item => item.Code == QdosPrincipal.Code)
+                .Select(item => item.ReferenceScheme)
+                .SingleAsync());
+    }
+
     [Fact]
     public async Task ReplacementDisablesAndLinksPredecessorWithoutChangingAllocatedCaseIdentity()
     {
@@ -461,7 +506,8 @@ public sealed class OrganizationAdministrationPersistenceTests
     /// stays a distinct principal role rather than merging with a document
     /// issuer or any other principal. The Report Sending SOP seed adds the
     /// other 17 SOP Principals, the contact SOP seed the 20 job-sheet
-    /// Principals and the SOP v8 sync FRZ, so a fresh database holds 53.
+    /// Principals, the SOP v8 sync FRZ and the one-off migration the standing
+    /// Private customer record PRIVATE (R574), so a fresh database holds 54.
     /// </summary>
     [Fact]
     public async Task FreshDatabaseSeedsTheFifteenFrozenPrincipalsOnce()
@@ -496,7 +542,7 @@ public sealed class OrganizationAdministrationPersistenceTests
             .Select(principal => new { principal.Id, principal.Code })
             .ToListAsync();
 
-        Assert.Equal(53, seeded.Count);
+        Assert.Equal(54, seeded.Count);
         foreach (var (code, principalId) in expected)
         {
             var matches = seeded.Where(row => row.Id == principalId).ToArray();

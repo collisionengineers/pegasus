@@ -234,7 +234,10 @@ followed by the same base reference for either assessment outcome; the outcome
 is recorded on the Case, not in its identity. A Triage Case/PO is `t.`
 followed by its base reference. The Audit of an Inspection + Audit case is
 part of that same Case, and its `a.` report reference consumes no number
-(ADR-0056). This is the only authoritative numbering implementation used by
+(ADR-0056). A one-off Case for a private customer takes its number from the
+`PRIVATE` lineage through the same allocator; only its Case/PO differs, being
+the registration, `.2` and on for a repeat, read under the same sequence lock
+(R574, R575). This is the only authoritative numbering implementation used by
 the web app, worker, API, MCP, EVA export, and Box naming.
 
 ## Outlook ingestion

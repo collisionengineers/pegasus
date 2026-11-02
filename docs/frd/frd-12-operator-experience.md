@@ -122,7 +122,12 @@ that cannot become a Case is refused with the reason and Open message / Open
 file. The direct form's Case type also offers **Triage**, which asks only for
 the Principal and the registration
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)); the
-form opened from a receipt does not offer it.
+form opened from a receipt does not offer it. The direct form also offers a
+**Private customer** tick for a one-off Case: ticked, it hides the Principal
+code, keeps the Claimant labels, adds a Claimant address box, makes the claim
+number optional and withdraws Triage
+([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts))
+(operator, 31 October and 1 November 2026; R577, R579).
 
 A skip link precedes the rail. Toasts announce in a live region. Every
 dialog traps focus and inerts the page behind it. The navless frame is two

@@ -468,4 +468,37 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Contains("\"[reg] Initial\" or \"[reg] Supplementary\"", Notes("PCH"), StringComparison.Ordinal);
         Assert.Equal("Inbox: Engineers", Notes("SWADE"));
     }
+
+    /// <summary>
+    /// The standing Private customer record (operator, 31 October 2026;
+    /// R574): one active Principal, code PRIVATE, referenced by registration,
+    /// with the standard default fee and the default sending rules, as a new
+    /// Principal Contact saves; every other Principal keeps its sequence.
+    /// </summary>
+    [Fact]
+    public async Task TheStandingPrivateCustomerRecordIsReferencedByRegistration()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        var (principals, organizations) = await LoadAsync(factory);
+
+        var principal = principals["PRIVATE"].Principal;
+        Assert.Equal(Guid.Parse("00000000-0000-4000-8000-00000000C036"), principal.Id);
+        Assert.Equal("registration", principal.ReferenceScheme);
+        Assert.True(principal.IsActive);
+        Assert.Equal("physical_address", principal.InspectionMode);
+        Assert.Equal(180.00m, principal.DefaultFee);
+        Assert.Null(principal.SalvageMatrixJson);
+        Assert.Null(principal.PredecessorId);
+        Assert.Equal(PrincipalReportSendingRules.Default, principals["PRIVATE"].Rules);
+        var organization = organizations[principal.OrganizationId];
+        Assert.Equal("Private customer", organization.Name);
+        Assert.Equal("principal", organization.Role);
+        Assert.True(organization.Active);
+        Assert.Null(organization.Address);
+        Assert.Equal(
+            ["PRIVATE"],
+            principals.Values
+                .Where(item => item.Principal.ReferenceScheme == "registration")
+                .Select(item => item.Principal.Code));
+    }
 }

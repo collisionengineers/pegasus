@@ -195,8 +195,17 @@ public sealed class IntakeAllocationOperationConflictException()
 public sealed class IntakeAllocationConcurrencyException()
     : Exception("The receipt or allocation state changed after it was loaded.");
 
-public sealed class PrincipalUnavailableException(string principalCode)
+public sealed class PrincipalUnavailableException(string? principalCode)
     : Exception($"The active principal '{principalCode}' does not exist.");
+
+/// <summary>
+/// A route other than New case or <c>pegasus_case_create</c> named the
+/// standing Private customer Principal: receipt acceptance and Correct
+/// principal refuse it, since a one-off's reference needs the registration
+/// those routes do not carry to allocation (operator, 1 November 2026; R581).
+/// </summary>
+public sealed class OneOffCaseRouteException()
+    : InvalidOperationException("A one-off case is created from New case.");
 
 /// <summary>
 /// The one Core owner for initial allocation, durable failure and reasoned
@@ -596,6 +605,13 @@ public sealed class AllocateIntake(
             IntakeAllocationFailureKind.PrincipalUnavailable,
             IntakeAllocationRecoveryDisposition.RetryAfterCorrection,
             "The selected Principal is not available. Correct it in Principal administration, then retry."),
+        // The standing Private customer record is not a route for a received
+        // item (R581): the Principal is corrected and the item retried, or
+        // the one-off is created from New case and the message linked after.
+        OneOffCaseRouteException oneOff => (
+            IntakeAllocationFailureKind.PrincipalUnavailable,
+            IntakeAllocationRecoveryDisposition.RetryAfterCorrection,
+            oneOff.Message),
         IntakeVersionConflictException or IntakeAllocationConcurrencyException => (
             IntakeAllocationFailureKind.ConcurrencyConflict,
             IntakeAllocationRecoveryDisposition.ReloadThenRetry,

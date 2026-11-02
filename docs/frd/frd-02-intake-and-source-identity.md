@@ -95,7 +95,13 @@ date it was created
 Ordinary detail may still be missing, so the new Case starts in `Not ready`
 until its normal requirements are met. A Triage created this way needs only
 its Principal and registration, starts `Open` and follows the Triage states
-([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
+([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)). A
+one-off Case for a private customer created this way names no Principal: it
+belongs to the Private customer record, needs the claimant's name and the
+registration, may carry the claimant's address, and its claim number plays
+no part in its identity, its completeness or its report
+([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity))
+(operator, 31 October and 1 November 2026; R574, R577, R578).
 
 A Case created directly, and any other acceptance by staff or the
 Automation Actor with no accepted mail route or Principal API credential to

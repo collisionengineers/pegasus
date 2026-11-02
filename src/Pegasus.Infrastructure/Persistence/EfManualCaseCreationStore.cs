@@ -55,16 +55,27 @@ public sealed class EfManualCaseCreationStore(
 
         // The Case number is allocated first, so the sequence row is this
         // transaction's first lock; a replay or refusal below releases it.
-        var principal = await context.Principals
-            .Include(item => item.Organization)
-            .SingleOrDefaultAsync(
-                item => item.Code == request.PrincipalCode && item.IsActive,
-                cancellationToken);
+        // A one-off names no Principal: it belongs to the one active Principal
+        // referenced by registration, the standing Private customer record
+        // (R574); none, or more than one, is that record unavailable.
+        var principal = request.IsPrivateCustomer
+            ? await context.Principals
+                .Include(item => item.Organization)
+                .Where(item => item.ReferenceScheme == PrincipalReferenceSchemes.Registration && item.IsActive)
+                .Take(2)
+                .ToArrayAsync(cancellationToken) is [var privateCustomer]
+                ? privateCustomer
+                : null
+            : await context.Principals
+                .Include(item => item.Organization)
+                .SingleOrDefaultAsync(
+                    item => item.Code == request.PrincipalCode && item.IsActive,
+                    cancellationToken);
         var now = UtcNow();
         var allocated = principal is null
             ? null
             : await CaseIdentityAllocator.AllocateAsync(
-                context, principal, request.CaseType, now, cancellationToken);
+                context, principal, request.CaseType, request.Data.VehicleRegistration, now, cancellationToken);
 
         var existing = await context.ActionHistory
             .AsNoTracking()
@@ -96,7 +107,7 @@ public sealed class EfManualCaseCreationStore(
                 context, transaction, request, principal, allocated, fingerprint, now, cancellationToken);
         }
         var completeness = new CaseCompleteness(
-            InstructionComplete: IsInstructionComplete(request.Data),
+            InstructionComplete: IsInstructionComplete(request.Data, request.IsPrivateCustomer),
             ImagesComplete: false);
         var configuration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
         var evaluation = CaseCompletenessPolicy.Evaluate(completeness, configuration);
@@ -325,7 +336,7 @@ public sealed class EfManualCaseCreationStore(
         }
     }
 
-    private static bool IsInstructionComplete(CaseEditableData data) =>
+    private static bool IsInstructionComplete(CaseEditableData data, bool privateCustomer) =>
         InstructionDraftCompleteness.IsComplete(new(
             null,
             data.ClaimantName,
@@ -337,7 +348,7 @@ public sealed class EfManualCaseCreationStore(
             data.AccidentCircumstances,
             data.IncidentDate,
             data.InspectionAddress,
-            data.InspectionDate));
+            data.InspectionDate), privateCustomer);
 
     private static CaseIdentity Identity(CaseEntity entity) => new(
         entity.Id,
