@@ -107,6 +107,41 @@ public static class DamageAreaGeometry
     }
 
     /// <summary>
+    /// The one plan area holding a point on the unit plan: the front and rear
+    /// bands pick the row, the left and right bands the column, and on the
+    /// side row the centre column splits at the middle. These are the tests
+    /// the Case page's readout makes under the pointer, so a burst sits where
+    /// it was pressed (operator, 2 November 2026).
+    /// </summary>
+    public static string AreaAt(DamagePlanPoint point)
+    {
+        ArgumentNullException.ThrowIfNull(point);
+        var row = point.Y < FrontBand ? "front" : point.Y > RearBand ? "rear" : null;
+        var column = point.X < LeftBand ? "left" : point.X > RightBand ? "right" : null;
+        if (row is null)
+        {
+            return (column ?? (point.X < 0.5 ? "left" : "right")) + "_side";
+        }
+        return column is null ? row : column + "_" + row;
+    }
+
+    /// <summary>
+    /// Whether two discs (unit-plan terms) overlap or touch on the canonical
+    /// plan: their centres are no further apart than their radii added
+    /// together, measured as <see cref="Disc"/> measures spread so the plan's
+    /// height does not squash the test. Tangent discs touch.
+    /// </summary>
+    public static bool Touch(DamageDisc first, DamageDisc second)
+    {
+        ArgumentNullException.ThrowIfNull(first);
+        ArgumentNullException.ThrowIfNull(second);
+        var deltaX = (first.CentreX - second.CentreX) * CanonicalWidth;
+        var deltaY = (first.CentreY - second.CentreY) * CanonicalHeight;
+        var reach = (first.Radius + second.Radius) * CanonicalWidth;
+        return deltaX * deltaX + deltaY * deltaY <= reach * reach;
+    }
+
+    /// <summary>
     /// Returns the plan areas with a positive-area intersection with a disc.
     /// Tangency at an area boundary is not coverage. The plan areas are the
     /// canonical rectangles defined by the four band boundaries; the caller's

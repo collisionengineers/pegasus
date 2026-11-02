@@ -68,6 +68,31 @@ public static class InstructionDraftCompleteness
     public static bool IsComplete(InstructionDraft draft, bool privateCustomer = false) =>
         Missing(draft, field => field.Required && Asked(field, privateCustomer)).Length == 0;
 
+    /// <summary>
+    /// The required instruction fields a Case's own data has not answered, in
+    /// operator words and asking order: the items the instruction gate names
+    /// (FRD-13). An empty list means the Case's instruction is complete.
+    /// </summary>
+    /// <param name="privateCustomer">See <see cref="MissingIdentityCriticalFieldNames"/>.</param>
+    public static IReadOnlyList<string> MissingCaseFieldNames(CaseEditableData data, bool privateCustomer)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        return Missing(
+            new(
+                null,
+                data.ClaimantName,
+                data.ClaimNumber,
+                data.VehicleRegistration,
+                data.VehicleMake,
+                data.VehicleModel,
+                data.VehicleMileage,
+                data.AccidentCircumstances,
+                data.IncidentDate,
+                data.InspectionAddress,
+                data.InspectionDate),
+            field => field.Required && Asked(field, privateCustomer));
+    }
+
     private static bool Asked(InstructionDraftField field, bool privateCustomer) =>
         !privateCustomer || field.CaseDataFieldName != CaseDataFieldNames.ClaimNumber;
 

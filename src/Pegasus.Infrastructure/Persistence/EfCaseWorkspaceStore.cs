@@ -333,6 +333,14 @@ public sealed class EfCaseWorkspaceStore(
                 completeness.ImagesComplete ?? snapshot.Work.Case.ImagesComplete;
         }
 
+        // A saved required instruction item clears its blocker at once: the
+        // instruction is complete as soon as the Case's data answers every
+        // required item (FRD-13).
+        if (movesCase)
+        {
+            CaseInstructionCompleteness.CompleteIfPresent(snapshot);
+        }
+
         // Readiness is evaluated from the row that was just written,
         // never from anything the caller claimed, and never forced to false as
         // a side effect of editing an unrelated fact.

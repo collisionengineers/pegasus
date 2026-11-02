@@ -355,6 +355,7 @@ public sealed class AssessmentPolicyTests
             Request(new() { [AssessmentVocabulary.DamageImpacts] = json }));
 
         Assert.Equal("[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"Bonnet\"},{\"areas\":[\"rear\",\"left_rear\"],\"severity\":\"heavy\",\"note\":\"Quarter\"}]", normalized.Fields[AssessmentVocabulary.DamageImpacts]);
+        // A front damage and a rear one stand apart: two groups read Multiple.
         Assert.Equal(("multiple", "heavy"), AssessmentPolicy.DeriveImpactValues(normalized.Fields[AssessmentVocabulary.DamageImpacts]));
         Assert.Equal(("underside", "heavy"), AssessmentPolicy.DeriveImpactValues("[{\"areas\":[\"underside\"],\"severity\":\"heavy\",\"note\":\"\"}]"));
         // Two discs over the same area are one headline location.
@@ -625,8 +626,10 @@ public sealed class AssessmentPolicyTests
     public void OverlappingDiscsAreIndependentEntries()
     {
         // Two discs may cover the same area: each stays its own damage with
-        // its own severity and note, and the headline location reads the
-        // distinct areas across them.
+        // its own severity and note. Their discs touch (the front disc and
+        // the wider one its two areas give), so they are one group whose two
+        // centres sit one in Front and one in RH Front: the tie goes to the
+        // record's order, Front (operator, 2 November 2026).
         const string json =
             "[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"Small\"},"
             + "{\"areas\":[\"front\",\"right_front\"],\"severity\":\"heavy\",\"note\":\"Wide\"}]";
@@ -636,13 +639,101 @@ public sealed class AssessmentPolicyTests
 
         Assert.Equal(json, normalized.Fields[AssessmentVocabulary.DamageImpacts]);
         Assert.Equal(
-            ("multiple", "heavy"),
+            ("front", "heavy"),
             AssessmentPolicy.DeriveImpactValues(normalized.Fields[AssessmentVocabulary.DamageImpacts]));
 
         var alone = AssessmentPolicy.DeriveImpactValues(
             "[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"Small\"}]");
         Assert.Equal(("front", "light"), alone);
     }
+
+    /// <summary>
+    /// The headline location (operator, 2 November 2026): bursts whose discs
+    /// touch are one damage reading as the area most of their centres sit
+    /// in; damages standing apart read Multiple.
+    /// </summary>
+    [Fact]
+    public void TouchingBurstsDeriveOneAreaAndSeparateOnesMultiple()
+    {
+        // One wide burst straddling Front and LH Front, pressed in LH Front.
+        Assert.Equal(("left_front", "moderate"), AssessmentPolicy.DeriveImpactValues(
+            Impacts(("moderate", new DamageDisc(0.3, 0.15, 0.2)))));
+
+        // Three touching bursts along the Front/RH Front line: two centres
+        // in Front, one in RH Front.
+        Assert.Equal(("front", "heavy"), AssessmentPolicy.DeriveImpactValues(
+            Impacts(
+                ("light", new DamageDisc(0.5, 0.1, 0.1)),
+                ("heavy", new DamageDisc(0.6, 0.15, 0.1)),
+                ("light", new DamageDisc(0.7, 0.2, 0.1)))));
+
+        // A chain: the first and the last do not touch, the middle one joins them.
+        Assert.Equal(("rear", "light"), AssessmentPolicy.DeriveImpactValues(
+            Impacts(
+                ("light", new DamageDisc(0.45, 0.85, 0.08)),
+                ("light", new DamageDisc(0.6, 0.85, 0.08)),
+                ("light", new DamageDisc(0.75, 0.85, 0.08)))));
+
+        // A tie between two areas goes to the record's order: Front before RH Front.
+        Assert.Equal(("front", "light"), AssessmentPolicy.DeriveImpactValues(
+            Impacts(
+                ("light", new DamageDisc(0.7, 0.1, 0.1)),
+                ("light", new DamageDisc(0.6, 0.1, 0.1)))));
+
+        // Two bursts standing apart are Multiple, and so is a plan damage
+        // beside an Underside one.
+        Assert.Equal(("multiple", "light"), AssessmentPolicy.DeriveImpactValues(
+            Impacts(
+                ("light", new DamageDisc(0.5, 0.1, 0.1)),
+                ("light", new DamageDisc(0.5, 0.9, 0.1)))));
+        Assert.Equal(("multiple", "heavy"), AssessmentPolicy.DeriveImpactValues(
+            "[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":0.1,\"r\":0.1},\"severity\":\"light\",\"note\":\"\"},"
+            + "{\"areas\":[\"underside\"],\"severity\":\"heavy\",\"note\":\"\"}]"));
+        Assert.Equal(("multiple", "heavy"), AssessmentPolicy.DeriveImpactValues(
+            "[{\"areas\":[\"interior\"],\"severity\":\"light\",\"note\":\"\"},"
+            + "{\"areas\":[\"underside\"],\"severity\":\"heavy\",\"note\":\"\"}]"));
+
+        // A damage recorded by area alone is judged by the disc its areas
+        // give: LH Side and RH Side together sit on the plan's middle, which
+        // reads RH Side.
+        Assert.Equal(("right_side", "light"), AssessmentPolicy.DeriveImpactValues(
+            "[{\"areas\":[\"left_side\",\"right_side\"],\"severity\":\"light\",\"note\":\"\"}]"));
+    }
+
+    [Fact]
+    public void ACentreSitsInOneAreaAndTangentDiscsTouch()
+    {
+        // The band tests are the Case page's readout's: strictly inside a
+        // band is the row or column, on the band line is the centre row or
+        // column, and the centre column of the side row splits at the middle.
+        Assert.Equal("front", DamageAreaGeometry.AreaAt(new(0.5, 0.1)));
+        Assert.Equal("left_front", DamageAreaGeometry.AreaAt(new(0.1, 0.1)));
+        Assert.Equal("right_front", DamageAreaGeometry.AreaAt(new(0.9, 0.1)));
+        Assert.Equal("left_side", DamageAreaGeometry.AreaAt(new(0.1, 0.5)));
+        Assert.Equal("left_side", DamageAreaGeometry.AreaAt(new(0.49, 0.5)));
+        Assert.Equal("right_side", DamageAreaGeometry.AreaAt(new(0.5, 0.5)));
+        Assert.Equal("right_side", DamageAreaGeometry.AreaAt(new(0.9, 0.5)));
+        Assert.Equal("rear", DamageAreaGeometry.AreaAt(new(0.5, 0.9)));
+        Assert.Equal("left_rear", DamageAreaGeometry.AreaAt(new(0.1, 0.9)));
+        Assert.Equal("right_rear", DamageAreaGeometry.AreaAt(new(0.9, 0.9)));
+        Assert.Equal("front", DamageAreaGeometry.AreaAt(new(DamageAreaGeometry.LeftBand, 0.1)));
+        Assert.Equal("left_side", DamageAreaGeometry.AreaAt(new(0.1, DamageAreaGeometry.FrontBand)));
+        Assert.Equal("left_side", DamageAreaGeometry.AreaAt(new(0.1, DamageAreaGeometry.RearBand)));
+
+        // Touching is measured on the canonical plan, so the same unit gap
+        // is further apart down the plan than across it.
+        Assert.True(DamageAreaGeometry.Touch(new(0.2, 0.5, 0.1), new(0.4, 0.5, 0.1)));
+        Assert.False(DamageAreaGeometry.Touch(new(0.2, 0.5, 0.1), new(0.401, 0.5, 0.1)));
+        Assert.False(DamageAreaGeometry.Touch(new(0.5, 0.3, 0.1), new(0.5, 0.5, 0.1)));
+        Assert.True(DamageAreaGeometry.Touch(new(0.5, 0.3, 0.1), new(0.5, 0.37, 0.1)));
+    }
+
+    private static string Impacts(params (string Severity, DamageDisc Disc)[] damages) =>
+        "[" + string.Join(",", damages.Select(damage =>
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{{\"areas\":[\"front\"],\"disc\":{{\"x\":{damage.Disc.CentreX},\"y\":{damage.Disc.CentreY},\"r\":{damage.Disc.Radius}}},\"severity\":\"{damage.Severity}\",\"note\":\"\"}}")))
+        + "]";
 
     [Fact]
     public void SaveBoundCoversTheWholeVocabulary()

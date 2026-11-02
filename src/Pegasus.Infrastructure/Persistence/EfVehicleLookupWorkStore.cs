@@ -220,6 +220,19 @@ internal sealed class EfVehicleLookupWorkStore(
         // Looked-up values fill the current work's empty fields when the answer
         // is for the registration that work now names.
         var workId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
+        // A looked-up value can answer the last required instruction item, so
+        // a Case whose instruction is still incomplete is re-checked once the
+        // fields are filled (FRD-13). Readiness belongs to the Case's own work
+        // and moves only while it has no Audit (decision M). The snapshot is
+        // tracked before the fill, so the fields the fill adds join it.
+        var readinessSnapshot = workId == workflow.CaseId
+            && !await context.Cases
+                .Where(item => item.Id == workflow.CaseId)
+                .Select(item => item.InstructionComplete)
+                .SingleAsync(cancellationToken)
+                ? await EfCaseDataStore.SnapshotQuery(context, tracking: true)
+                    .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken)
+                : null;
         var caseDataFields = await context.CaseDataFields
             .Where(item => item.WorkId == workId)
             .ToListAsync(cancellationToken);
@@ -234,6 +247,12 @@ internal sealed class EfVehicleLookupWorkStore(
         var beforeVehicle = ReportVehicleDependencies(caseDataFields);
         var (beforeAssessment, afterAssessment) = FillVehicleFields(
             context, caseDataFields, assessmentRows, workId, observationId, result, expected.Estimate, recordedAtUtc);
+        if (readinessSnapshot is not null
+            && CaseInstructionCompleteness.CompleteIfPresent(readinessSnapshot))
+        {
+            await CaseInstructionCompleteness.ApplyReadinessAsync(
+                context, workflow, readinessSnapshot, recordedAtUtc, cancellationToken);
+        }
         var freshness = CaseReportFreshness.ClassifyVehicle(
             beforeVehicle,
             ReportVehicleDependencies(caseDataFields));

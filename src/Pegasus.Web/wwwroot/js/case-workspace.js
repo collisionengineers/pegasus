@@ -1109,8 +1109,13 @@
         if (control.type === 'hidden' || control.type === 'file' || typeof control.defaultValue !== 'string') { return false; }
         return control.value !== control.defaultValue;
     }
+    // A section with an action in flight outside the queue (a card's Get
+    // valuation, busy on its own button) stays as it is too: drawn afresh,
+    // the answer would fill a card no longer on the page. The catch up after
+    // the next landed commit draws it once nothing is busy.
     function holdsUnsent(host) {
-        return Array.prototype.some.call(host.querySelectorAll('input, select, textarea'), unsentControl);
+        return !!host.querySelector('[data-busy]')
+            || Array.prototype.some.call(host.querySelectorAll('input, select, textarea'), unsentControl);
     }
     function sendingState(form) {
         return Array.prototype.map.call(form.elements, function (control) {
@@ -2567,18 +2572,22 @@
                     return path.isPointInFill(point);
                 });
             }
-            function areaAt(x, y) {
-                if (!onVehicle(x, y)) {
-                    return null;
-                }
-                var ux = (x - box.x) / box.w;
-                var uy = (y - box.y) / box.h;
+            // The one plan area holding a point on the unit plan, as Core
+            // judges it (DamageAreaGeometry.AreaAt): the readout under the
+            // pointer and the seat of a burst's centre share the one test.
+            function areaOfUnit(ux, uy) {
                 var band = uy < bands.front ? 'front' : uy > bands.rear ? 'rear' : 'side';
                 var lateral = ux < bands.left ? 'left' : ux > bands.right ? 'right' : 'centre';
                 if (band === 'side') {
                     return (lateral === 'centre' ? (ux < 0.5 ? 'left' : 'right') : lateral) + '_side';
                 }
                 return lateral === 'centre' ? band : lateral + '_' + band;
+            }
+            function areaAt(x, y) {
+                if (!onVehicle(x, y)) {
+                    return null;
+                }
+                return areaOfUnit((x - box.x) / box.w, (y - box.y) / box.h);
             }
             function circleIntersectsArea(disc, left, top, right, bottom) {
                 var closestX = Math.max(left, Math.min(disc.x, right));
@@ -2692,21 +2701,66 @@
                     chip.setAttribute('aria-pressed', recorded ? 'true' : 'false');
                 });
             }
+            // The headline location as Core derives it (AssessmentPolicy
+            // .DeriveImpactValues, 2 November 2026): marks whose stored discs
+            // touch are one group, read as the area holding most of their
+            // centres, a tie going to the record's order; an other-area mark
+            // is a group of its own. One group is the location; more are
+            // Multiple. Judged on the disc as it is stored, like areasUnder.
+            function storedDisc(mark) {
+                var drawn = mark.disc || renderedDisc(mark.areas);
+                return drawn ? toUnit(drawn) : null;
+            }
+            function touching(a, b) {
+                var dx = a.x - b.x;
+                var dy = (a.y - b.y) * box.h / box.w;
+                var reach = a.r + b.r;
+                return dx * dx + dy * dy <= reach * reach;
+            }
+            function groupAreas() {
+                var discs = marks.map(storedDisc);
+                var grouped = discs.map(function () { return false; });
+                var areas = [];
+                discs.forEach(function (first, seed) {
+                    if (grouped[seed]) {
+                        return;
+                    }
+                    grouped[seed] = true;
+                    if (!first) {
+                        areas.push(marks[seed].areas[0]);
+                        return;
+                    }
+                    var group = [first];
+                    for (var next = 0; next < group.length; next++) {
+                        discs.forEach(function (disc, candidate) {
+                            if (!grouped[candidate] && disc && touching(group[next], disc)) {
+                                grouped[candidate] = true;
+                                group.push(disc);
+                            }
+                        });
+                    }
+                    var seats = {};
+                    group.forEach(function (disc) {
+                        var area = areaOfUnit(disc.x, disc.y);
+                        seats[area] = (seats[area] || 0) + 1;
+                    });
+                    areas.push(Object.keys(seats).sort(function (a, b) {
+                        return seats[b] - seats[a] || order.indexOf(a) - order.indexOf(b);
+                    })[0]);
+                });
+                return areas;
+            }
             function paintDerived() {
                 if (countCell) {
                     countCell.textContent = String(marks.length);
                 }
                 if (locationCell) {
-                    var all = [];
-                    marks.forEach(function (mark) {
-                        mark.areas.forEach(function (area) { if (all.indexOf(area) < 0) { all.push(area); } });
-                    });
-                    var recorded = sortAreas(all).map(areaName);
-                    locationCell.textContent = recorded.length === 0
+                    var groups = groupAreas();
+                    locationCell.textContent = groups.length === 0
                         ? words.absent
-                        : recorded.length === 1
-                            ? recorded[0]
-                            : words.multiple + ' · ' + recorded.join(', ');
+                        : groups.length === 1
+                            ? areaName(groups[0])
+                            : words.multiple;
                 }
                 if (severityCell) {
                     var best = null;
@@ -3032,6 +3086,14 @@
 // no retail answers the click with its own sentence; a click into one of its
 // boxes is the Engineer about to type one.
 //
+// Get valuation that answers with a retail chooses its card the same way
+// (operator, 2 November 2026, R638). The last decision wins: the section
+// remembers the card the Engineer last decided on, the last Get valuation
+// pressed or the last card clicked, and an answer chooses its card only while
+// that card is still the decision; any other answer fills its card and leaves
+// the choice alone. A section with a lookup in flight is not redrawn by a
+// catch up (holdsUnsent), so the answer lands on the card that was pressed.
+//
 // The preview shows what the Save will use (operator, 28 September 2026): it
 // posts the chosen card's retail as typed and the claimant's VAT position as
 // the form holds it, so an unsaved figure is calculated, not the recorded one.
@@ -3286,10 +3348,16 @@
                 });
             }
 
+            // The card the Engineer last decided on: the last card clicked, or
+            // the last Get valuation pressed. A lookup's answer chooses its
+            // card only while that card is still the decision (R638).
+            var lastDecision = null;
+
             // Use a card: choose it as the basis and mark the decision for the
             // Save. A card with no retail has no figure to use, so it says so
             // on its own card instead.
             function use(card) {
+                lastDecision = card;
                 if (!useInput) {
                     return;
                 }
@@ -3375,9 +3443,23 @@
                     schedule();
                 }
             });
-            // Get valuation refilled the card that is already the basis.
-            section.addEventListener('pegasus:valuation-basis-refilled', function () {
-                schedule();
+            // A Get valuation pressed is a decision on its card, kept until the
+            // answer comes or a later decision replaces it. Seen on the way
+            // down: the button's own handler takes its content over for the
+            // busy state, after which the target no longer sits in the button.
+            section.addEventListener('click', function (event) {
+                var get = event.target.closest && event.target.closest('[data-valuation-get]');
+                if (get) { lastDecision = get.closest('[data-valuation-card]'); }
+            }, true);
+            // Get valuation filled a card. An answer with a retail chooses the
+            // card while it is still the Engineer's last decision (R638); a
+            // refilled basis card re-runs the calculation either way.
+            section.addEventListener('pegasus:valuation-filled', function (event) {
+                var card = event.target.closest('[data-valuation-card]');
+                if (!card) { return; }
+                var retail = parseFloat(shown(card, '[data-valuation-retail]', 'data-retail'));
+                if (card === lastDecision && retail > 0) { use(card); }
+                if (card === chosenCard()) { schedule(); }
             });
             // The whole card is the target; only its own buttons and links do
             // something else. A click into a box of a card with no retail is
@@ -3385,7 +3467,10 @@
             section.querySelectorAll('[data-valuation-card]').forEach(function (card) {
                 card.addEventListener('click', function (event) {
                     var target = event.target;
-                    if (!target.closest || target.closest('button, a')) {
+                    // A pressed button's own content is taken over by the busy
+                    // state before the click reaches the card, so a target no
+                    // longer in the card was a button's.
+                    if (!target.closest || !card.contains(target) || target.closest('button, a')) {
                         return;
                     }
                     if (target.closest('input') && !(parseFloat(shown(card, '[data-valuation-retail]', 'data-retail')) > 0)) {
@@ -3428,7 +3513,9 @@
         // Get valuation (23 September 2026): the source's figures come back as
         // JSON and fill the card's boxes, which belong to the Case form, so no
         // form is submitted, the page is not redrawn and nothing unsaved is put
-        // at risk; the Case save records the card. A source with no working
+        // at risk; the Case save records the card. An answer with a retail is
+        // the decision to use the card (operator, 2 November 2026, R638): the
+        // section chooses it as a click would. A source with no working
         // provider, or a refused request, shows the card's own notice. A source
         // known to have no provider offers no button at all.
         root.querySelectorAll('[data-valuation-get]').forEach(function (button) {
@@ -3466,14 +3553,11 @@
                         fill(card, '[data-valuation-retail]', answer.retail);
                         fill(card, '[data-valuation-trade]', answer.trade);
                         fill(card, '[data-valuation-entry-month]', answer.guideMonth);
-                        // When this card is already the basis, its new figures
-                        // are the basis figures and the calculation follows. The
-                        // Engineer's Value box is left as it stands until that
-                        // calculation lands.
-                        var basis = card.querySelector('[data-valuation-basis]');
-                        if (basis && basis.checked) {
-                            basis.dispatchEvent(new CustomEvent('pegasus:valuation-basis-refilled', { bubbles: true }));
-                        }
+                        // The section chooses the card while it is the last
+                        // decision, and the calculation follows the new
+                        // figures. The Engineer's Value box is left as it
+                        // stands until that calculation lands.
+                        card.dispatchEvent(new CustomEvent('pegasus:valuation-filled', { bubbles: true }));
                         done = true;
                         return;
                     }
@@ -4565,6 +4649,7 @@
             panel.dataset.wordingBound = 'true';
             var list = panel.querySelector('[data-wording-list]');
             var template = panel.querySelector('[data-wording-template]');
+            var settings = panel.querySelector('[data-wording-settings]');
             if (!list) {
                 return;
             }
@@ -4574,8 +4659,12 @@
             // move or a new paragraph is a change too. A commit sends the
             // blocks only while this differs from what was drawn or last
             // landed (#1800); a redrawn panel binds afresh.
+            // The report switches and the commentary in the panel are
+            // assessment fields, not wording, so they are not counted.
             function state() {
-                return JSON.stringify(Array.prototype.map.call(panel.querySelectorAll('input, textarea, select'), function (control) {
+                return JSON.stringify(Array.prototype.filter.call(panel.querySelectorAll('input, textarea, select'), function (control) {
+                    return (control.name || '').indexOf('wordingEdits[') === 0;
+                }).map(function (control) {
                     return [control.name, control.type === 'checkbox' ? control.checked : control.value];
                 }));
             }
@@ -4635,14 +4724,54 @@
                 if (!fresh) { return; }
                 list.appendChild(fresh);
                 renumber();
+                addTick(fresh, slot, key);
                 var title = fresh.querySelector('.wbt');
                 if (title) { title.focus(); title.select(); }
             });
 
+            // The settings (v45): each item's tick shows or hides its block,
+            // the statement's tick its two court declarations. FAO The Court
+            // has no block.
+            function shownBy(key) {
+                return key === 'statement'
+                    ? panel.querySelector('[data-sot-court]')
+                    : panel.querySelector('[data-wording-block="' + key + '"]');
+            }
             panel.addEventListener('change', function (event) {
-                var box = event.target.closest('[data-wording-included]');
-                var row = box ? box.closest('[data-wording-row]') : null;
-                if (row) { row.classList.toggle('is-off', !box.checked); }
+                var box = event.target.closest('input[type="checkbox"][data-wording-toggle]');
+                var shown = box ? shownBy(box.getAttribute('data-wording-toggle')) : null;
+                if (shown) { shown.hidden = !box.checked; }
+            });
+            // A paragraph the Engineer adds gets its tick before the three
+            // report switches, posting its own on/off under its slot.
+            function addTick(row, slot, key) {
+                var before = settings && settings.querySelector('[data-wording-toggle="guide"]');
+                if (!before) { return; }
+                var name = 'wordingEdits[' + slot + '].Included';
+                var tick = document.createElement('label');
+                tick.className = 'choice';
+                var box = document.createElement('input');
+                box.type = 'checkbox'; box.name = name; box.value = 'true'; box.checked = true;
+                box.setAttribute('form', 'case-edit-form');
+                box.setAttribute('data-wording-included', '');
+                box.setAttribute('data-wording-toggle', key);
+                var off = document.createElement('input');
+                off.type = 'hidden'; off.name = name; off.value = 'false';
+                off.setAttribute('form', 'case-edit-form');
+                var text = document.createElement('span');
+                text.textContent = (row.querySelector('.wbt') || {}).value || '';
+                tick.appendChild(box); tick.appendChild(off); tick.appendChild(text);
+                settings.insertBefore(tick, before.closest('label') || before);
+            }
+            // A block's tick reads its heading as the Engineer renames it.
+            panel.addEventListener('input', function (event) {
+                var title = event.target.closest('input.wbt');
+                var row = title ? title.closest('[data-wording-row]') : null;
+                var tick = row && settings
+                    ? settings.querySelector('[data-wording-toggle="' + row.getAttribute('data-wording-block') + '"]')
+                    : null;
+                var text = tick && tick.closest('label') ? tick.closest('label').querySelector('span') : null;
+                if (text) { text.textContent = title.value; }
             });
         });
     }
@@ -4976,48 +5105,6 @@
     }
     bind(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
-})();
-
-// --- report: content switches ------------------------------------------------
-(function () {
-    'use strict';
-
-    // The court line and the statement are on until turned off, so the
-    // summary names each only when it is off (R616).
-    var words = {
-        'report.disclose_guide_source': ['Guide source disclosed', 'Guide source not disclosed'],
-        'report.valuation_commentary': ['valuation commentary', ''],
-        'report.include_unrelated_damage': ['unrelated damage', ''],
-        'report.fao_the_court': ['', 'No FAO The Court'],
-        'report.include_statement_of_truth': ['', 'No statement of truth']
-    };
-
-    function bindContent(root) {
-        root.querySelectorAll('[data-report-content]').forEach(function (summary) {
-            var group = summary.closest('[data-field="report-content"]');
-            if (!group || group.dataset.reportContentBound === 'true') {
-                return;
-            }
-            group.dataset.reportContentBound = 'true';
-            var switches = Array.prototype.slice.call(group.querySelectorAll('[data-report-switch]'));
-            function read() {
-                if (!switches.length) {
-                    return;
-                }
-                var parts = [];
-                switches.forEach(function (box) {
-                    var pair = words[box.getAttribute('data-report-switch')] || ['', ''];
-                    var text = box.checked ? pair[0] : pair[1];
-                    if (text) { parts.push(text); }
-                });
-                summary.textContent = parts.join(' · ');
-            }
-            switches.forEach(function (box) { box.addEventListener('change', read); });
-        });
-    }
-
-    bindContent(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindContent);
 })();
 
 // --- saved document previews -------------------------------------------------

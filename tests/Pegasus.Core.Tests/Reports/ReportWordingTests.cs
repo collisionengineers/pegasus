@@ -185,33 +185,103 @@ public sealed class ReportWordingTests
     [Fact]
     public void ABlankComposedBlockWithAPersistedChangeRemainsOfferedButDoesNotPrint()
     {
-        var snapshot = Repairable() with
-        {
-            Content = Repairable().Content with { IncludeValuationCommentary = false },
-            ValuationCommentary = null,
-        };
+        // A repairable Case composes no salvage paragraph.
+        var snapshot = Repairable();
         var changes = new[]
         {
-            new CaseReportWording(ReportWordingComposition.ValuationCommentary, "Valuation note", null, null),
-            new CaseReportWording(ReportWordingComposition.ValuationCommentary, null, null, 0),
-            new CaseReportWording(ReportWordingComposition.ValuationCommentary, null, null, null, Included: false),
+            new CaseReportWording(ReportWordingComposition.Salvage, "Salvage note", null, null),
+            new CaseReportWording(ReportWordingComposition.Salvage, null, null, 0),
+            new CaseReportWording(ReportWordingComposition.Salvage, null, null, null, Included: false),
         };
 
         foreach (var change in changes)
         {
             var offered = ReportWordingComposition.Offered(snapshot, [change]);
 
-            Assert.Contains(offered, block => block.Key == ReportWordingComposition.ValuationCommentary);
+            Assert.Contains(offered, block => block.Key == ReportWordingComposition.Salvage);
             Assert.DoesNotContain(
                 ReportWordingComposition.Compose(snapshot, [change]),
-                block => block.Key == ReportWordingComposition.ValuationCommentary);
+                block => block.Key == ReportWordingComposition.Salvage);
         }
 
         Assert.DoesNotContain(
             ReportWordingComposition.Offered(
                 snapshot,
-                [new CaseReportWording(ReportWordingComposition.ValuationCommentary, null, null, null)]),
-            block => block.Key == ReportWordingComposition.ValuationCommentary);
+                [new CaseReportWording(ReportWordingComposition.Salvage, null, null, null)]),
+            block => block.Key == ReportWordingComposition.Salvage);
+    }
+
+    /// <summary>
+    /// Valuation commentary and Unrelated damage are offered whatever their
+    /// switch says and are on the report exactly while it is on: the switch
+    /// is their only on/off, so an on/off held against the block is not read
+    /// (operator, 2 November 2026; v45 A).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheSwitchIsTheOnlyOnOffOfTheBlocksItOwns(bool on)
+    {
+        var snapshot = Repairable() with
+        {
+            Content = Repairable().Content with { IncludeValuationCommentary = on, IncludeUnrelatedDamage = on },
+            ValuationCommentary = "Low mileage for its age.",
+        };
+        CaseReportWording[] saved =
+        [
+            new(ReportWordingComposition.ValuationCommentary, null, null, null, Included: !on),
+            new(ReportWordingComposition.UnrelatedDamage, null, null, null, Included: !on),
+        ];
+
+        var offered = ReportWordingComposition.Offered(snapshot, saved);
+        var printed = ReportWordingComposition.Compose(snapshot, saved);
+
+        foreach (var key in new[] { ReportWordingComposition.ValuationCommentary, ReportWordingComposition.UnrelatedDamage })
+        {
+            Assert.Equal(on, offered.Single(block => block.Key == key).Included);
+            Assert.Equal(on, printed.Any(block => block.Key == key));
+        }
+    }
+
+    [Fact]
+    public void TheSwitchOwnedBlocksAreOfferedWithNothingToSay()
+    {
+        var snapshot = Repairable() with
+        {
+            ValuationCommentary = null,
+            Damage = Repairable().Damage with { Unrelated = null },
+        };
+
+        var offered = ReportWordingComposition.Offered(snapshot, []);
+
+        Assert.Contains(offered, block => block.Key == ReportWordingComposition.ValuationCommentary);
+        Assert.Contains(offered, block => block.Key == ReportWordingComposition.UnrelatedDamage);
+    }
+
+    /// <summary>
+    /// The commentary's words are the Valuation commentary field's: wording
+    /// held against the block is not read, and a save holds none (v45 E).
+    /// </summary>
+    [Fact]
+    public void TheCommentaryBlockSaysWhatTheCommentaryFieldSays()
+    {
+        var snapshot = Repairable() with
+        {
+            Content = Repairable().Content with { IncludeValuationCommentary = true },
+            ValuationCommentary = "Low mileage for its age.",
+        };
+
+        var block = ReportWordingComposition.Offered(
+                snapshot,
+                [new(ReportWordingComposition.ValuationCommentary, null, "Other words.", null)])
+            .Single(item => item.Key == ReportWordingComposition.ValuationCommentary);
+
+        Assert.Equal("Low mileage for its age.", block.Text);
+        Assert.False(block.HandEdited);
+        Assert.Null(ReportWordingComposition.Validate(
+            new(ReportWordingComposition.ValuationCommentary, null, "Other words.", null)).Text);
+        Assert.True(ReportWordingComposition.Validate(
+            new(ReportWordingComposition.UnrelatedDamage, null, null, null, Included: false)).Included);
     }
 
     [Fact]
@@ -378,7 +448,7 @@ public sealed class ReportWordingTests
         var snapshot = Repairable() with
         {
             ImpactSeverity = "moderate_to_heavy",
-            ImpactLocation = ReportWordingComposition.SeveralAreas,
+            ImpactLocation = AssessmentVocabulary.SeveralAreas,
             Damage = new(
                 [
                     new(["right_side", "right_rear"], "moderate"),
@@ -423,9 +493,36 @@ public sealed class ReportWordingTests
     {
         Assert.Equal(expected, ReportWordingComposition.LeadingWords(area));
         Assert.Equal(
-            "The vehicle has suffered light collision/impact damage to the following areas:\n— " + expected,
+            "The vehicle has suffered light collision/impact damage to the following areas:\n— " + expected + "\n— Interior",
             ReportWordingComposition.NatureOfIncidentSentence(
-                "light", ReportWordingComposition.SeveralAreas, [area]));
+                "light", AssessmentVocabulary.SeveralAreas, [area, "interior"]));
+    }
+
+    /// <summary>
+    /// The sentence lists the areas whenever more than one is recorded, even
+    /// when the touching bursts derive one headline area (operator, 2
+    /// November 2026); one recorded area is the template's sentence whatever
+    /// word is passed as the location.
+    /// </summary>
+    [Fact]
+    public void TheListFollowsTheRecordedAreasNotTheHeadlineLocation()
+    {
+        Assert.Equal(
+            "The vehicle has suffered heavy collision/impact damage to the following areas:\n— Front\n— Left front",
+            ReportWordingComposition.NatureOfIncidentSentence("heavy", "front", ["front", "left_front"]));
+        Assert.Equal(
+            "The vehicle has suffered heavy collision/impact damage to the front.",
+            ReportWordingComposition.NatureOfIncidentSentence("heavy", "front", ["front"]));
+
+        var snapshot = Repairable() with
+        {
+            ImpactSeverity = "heavy",
+            ImpactLocation = "front",
+            Damage = new([new(["front", "left_front"], "heavy")], null, DamagePlanGeometry.Car),
+        };
+        Assert.Equal(
+            "The vehicle has suffered heavy collision/impact damage to the following areas:\n— Front\n— Left front",
+            snapshot.PrintedWording.Single(block => block.Key == ReportWordingComposition.NatureOfIncident).Text);
     }
 
     /// <summary>

@@ -800,7 +800,7 @@ public static class CaseReportReadiness
             new(
                 ValuationCommentaryRequirement, "Valuation",
                 "Valuation commentary is selected for the report but none is recorded.",
-                "Write the valuation commentary on the Report section, or turn off Valuation commentary under On the report on the Valuation section.",
+                "Write the valuation commentary on the Report section, or turn off Valuation commentary under Report wording on the Report section.",
                 Field: AssessmentVocabulary.ReportValuationCommentaryText));
         Require(
             !content.IncludeUnrelatedDamage
@@ -808,7 +808,7 @@ public static class CaseReportReadiness
             new(
                 UnrelatedDamageRequirement, "Report",
                 "Unrelated damage is selected for the report but none is recorded.",
-                "Record the unrelated damage on the Damage section, or turn off Unrelated damage under On the report on the Valuation section.",
+                "Record the unrelated damage on the Damage section, or turn off Unrelated damage under Report wording on the Report section.",
                 Field: AssessmentVocabulary.DamageUnrelated));
 
         return new(reasons, signatory, images, content, recordedDate);

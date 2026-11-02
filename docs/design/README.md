@@ -846,7 +846,9 @@ CAP and Cazana are each one card in a grid of three (cards since 8 October
 2026; the Case's own mileage is used; a card has none, 24 September 2026)
 holding Retail, Trade and Guide month — text while reading, boxes in the same
 place while editing — and, while editing, a Get valuation button centred at
-the card's foot (operator, 9 October 2026) that looks the figures up and fills the boxes in place (a source
+the card's foot (operator, 9 October 2026) that looks the figures up and fills the boxes in place, and
+chooses the card when a retail answers (operator, 2 November 2026, R638; the
+last card pressed or clicked wins when several lookups run) (a source
 with no working provider shows the card's notice from the start and has no
 button); the boxes are typed by hand just as well. A click anywhere on a card
 is the decision to use it: the card takes a red border and the word
@@ -863,8 +865,9 @@ condition deduction and the previous total loss tick box with its
 stands, with the basis it starts from beside it; each adjustment's amount
 shows beside its control, and the box's label carries a recorded
 calculation's source as one `src-tag` word. AI market research is a card of
-its own with its Valuation month and Get valuation, and On the report closes
-the section as one line.
+its own with its Valuation month and Get valuation. What the report includes
+is not here: it is Report wording's settings on the Report section (v45,
+operator, 2 November 2026; R640).
 There is no separate Add valuation
 dialog. This does not
 remove the Estimate section's selected configured-staff-account Glass's
@@ -958,6 +961,7 @@ deleted in wave 5.
 | `decision-card` | Message decision |
 | `inbox-row--ticks`, `inbox-row-tick`, `inbox-bulk` | A row's gutter tick and the one bulk form above the Inbox list (v41 I18) |
 | `dialog--mail`, `mail-context-bar`, `mail-settings-menu`, `inbox-ledger` | The Inbox ledger (Case, Type, Subject, Sender, Received) and the message dialog: full-width body, context bar, and the cog settings menu (Case, Type, Query, Change case, Decided) |
+| `mail-settings-section`, `mail-settings-case`, `mail-settings-actions`, `mail-settings-foot` | The cog menu's sections: one `mail-decision-label` each, a divider between them, actions as `btn--small` in a row, and the muted Decided foot line (R632 to R637) |
 | `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
 | `admin-layout`, `admin-nav` | Administration |
 | `up-sheet`, `up-drop`, `up-evidence`, `up-declared`, `up-file-list` (`upload.css`) | Upload's initial sheet (v42 E): its head states the destination and the limits, its body is the drop target, and **Selected files** with the one action bar appear under it once files are chosen; the file rows are the same list on the review |

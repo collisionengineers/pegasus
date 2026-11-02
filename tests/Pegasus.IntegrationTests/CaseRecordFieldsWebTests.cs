@@ -182,15 +182,21 @@ public sealed class CaseRecordFieldsWebTests
         };
         var ports = new RecordGapPorts(store);
         ports.Staff(AssessmentVocabulary.ReportValuationCommentaryText, "Guide adjusted up for low mileage.");
-        using var workspace = await EnterEditModeAsync(store, ports.Register);
+        // The commentary's box is its Report wording row, drawn while the
+        // report projects (v45 B, E).
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            ports.Register(services);
+            Substitute<ICaseReportSnapshotSource>(
+                services, new CaseReportWordingWebTests.ReadyReportSnapshots(store, currentEstimate: true));
+        });
 
         var report = SectionHtml(await workspace.GetWorkspaceAsync(), "report");
         var name = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportValuationCommentaryText);
         Assert.Contains($"data-field=\"{AssessmentVocabulary.ReportValuationCommentaryText}\"", report, StringComparison.Ordinal);
-        Assert.Contains(
-            $"name=\"{name}\" form=\"case-edit-form\" maxlength=\"4000\">Guide adjusted up for low mileage.</textarea>",
-            report,
-            StringComparison.Ordinal);
+        Assert.Matches(
+            $"name=\"{Regex.Escape(name)}\" form=\"case-edit-form\"\\s+maxlength=\"4000\">Guide adjusted up for low mileage\\.</textarea>",
+            report);
 
         using var response = await SaveAsync(workspace, (name, "Guide adjusted down for prior damage."));
 
@@ -292,14 +298,14 @@ public sealed class CaseRecordFieldsWebTests
     }
 
     /// <summary>
-    /// Valuation's On the report group holds all five switches. FAO The
-    /// Court and Include statement of truth are ticked on a Case that never
-    /// recorded them, and the summary names them only once they are off
-    /// (operator, 2 November 2026; R610, R611, R616). Unticking them posts
-    /// their hidden "false" alone, which the save records.
+    /// Report wording's settings hold all five report switches, and Valuation
+    /// none (operator, 2 November 2026; v45). FAO The Court and Include
+    /// statement of truth are ticked on a Case that never recorded them
+    /// (R610, R611). Unticking them posts their hidden "false" alone, which
+    /// the save records.
     /// </summary>
     [Fact]
-    public async Task TheValuationSectionOwnsTheReportContentSummaryAndAllFiveSwitches()
+    public async Task ReportWordingSettingsOwnAllFiveReportSwitches()
     {
         var store = new RecordingCaseDetailsStore
         {
@@ -316,15 +322,9 @@ public sealed class CaseRecordFieldsWebTests
         var valuation = SectionHtml(html, "valuation");
         var report = SectionHtml(html, "report");
 
-        Assert.Equal(1, Occurrences(valuation, "data-report-content"));
-        Assert.Equal(1, Occurrences(valuation, "data-report-switches"));
-        var decoded = WebUtility.HtmlDecode(valuation);
-        Assert.Contains(
-            "Guide source disclosed · valuation commentary · unrelated damage",
-            decoded,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(CaseWorkspaceLabels.Report.NoFaoTheCourt, decoded, StringComparison.Ordinal);
-        Assert.DoesNotContain(CaseWorkspaceLabels.Report.NoStatementOfTruth, decoded, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-switch", valuation, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-content", html, StringComparison.Ordinal);
+        Assert.Equal(1, Occurrences(report, "data-wording-settings"));
         foreach (var path in new[]
         {
             AssessmentVocabulary.ReportDiscloseGuideSource,
@@ -334,11 +334,10 @@ public sealed class CaseRecordFieldsWebTests
             AssessmentVocabulary.ReportIncludeStatementOfTruth
         })
         {
-            Assert.Equal(1, Occurrences(valuation, $"data-report-switch=\"{path}\""));
+            Assert.Equal(1, Occurrences(report, $"data-report-switch=\"{path}\""));
             // The three recorded on, and the two that are on until recorded off.
-            Assert.Contains("checked=\"checked\"", ReportSwitch(valuation, path), StringComparison.Ordinal);
+            Assert.Contains("checked=\"checked\"", ReportSwitch(report, path), StringComparison.Ordinal);
         }
-        Assert.DoesNotContain("data-report-content", report, StringComparison.Ordinal);
 
         using var response = await SaveAsync(
             workspace,
@@ -353,8 +352,7 @@ public sealed class CaseRecordFieldsWebTests
 
     /// <summary>
     /// Once a Case records FAO The Court and Include statement of truth as
-    /// "false" their boxes open unticked and the summary names each as off
-    /// (R611, R616).
+    /// "false" their ticks in Report wording's settings open unticked (R611).
     /// </summary>
     [Fact]
     public async Task TheCourtAndStatementSwitchesOpenUntickedOnceRecordedOff()
@@ -369,19 +367,15 @@ public sealed class CaseRecordFieldsWebTests
         ports.Staff(AssessmentVocabulary.ReportIncludeStatementOfTruth, "false");
         using var workspace = await EnterEditModeAsync(store, ports.Register);
 
-        var valuation = SectionHtml(await workspace.GetWorkspaceAsync(), "valuation");
+        var report = SectionHtml(await workspace.GetWorkspaceAsync(), "report");
 
-        Assert.Contains(
-            "Guide source not disclosed · No FAO The Court · No statement of truth",
-            WebUtility.HtmlDecode(valuation),
-            StringComparison.Ordinal);
         foreach (var path in new[]
         {
             AssessmentVocabulary.ReportFaoTheCourt,
             AssessmentVocabulary.ReportIncludeStatementOfTruth
         })
         {
-            var input = ReportSwitch(valuation, path);
+            var input = ReportSwitch(report, path);
             Assert.NotEmpty(input);
             Assert.DoesNotContain(" checked=", input, StringComparison.Ordinal);
         }
@@ -701,7 +695,7 @@ public sealed class CaseRecordFieldsWebTests
         return next < 0 ? html[start..] : html[start..next];
     }
 
-    /// <summary>The On the report checkbox for one switch, as one tag.</summary>
+    /// <summary>One report switch's checkbox in Report wording's settings, as one tag.</summary>
     private static string ReportSwitch(string html, string path) =>
         Regex.Match(html, $"<input type=\"checkbox\"[^>]*data-report-switch=\"{Regex.Escape(path)}\"[^>]*>").Value;
 

@@ -253,7 +253,7 @@ public sealed class ReportRequirementOwnershipTests
     [InlineData(AssessmentVocabulary.SalvageCategory, null, "settlement")]
     [InlineData(AssessmentVocabulary.SettlementContractSum, null, "settlement")]
     [InlineData(AssessmentVocabulary.SettlementClaimantVatRegistered, null, "claim")]
-    [InlineData(AssessmentVocabulary.ReportDiscloseGuideSource, null, "valuation")]
+    [InlineData(AssessmentVocabulary.ReportDiscloseGuideSource, null, "report")]
     [InlineData(AssessmentVocabulary.VehicleType, null, "vehicle")]
     [InlineData(AssessmentVocabulary.VehicleCondition, null, "vehicle")]
     [InlineData(AssessmentVocabulary.HistoryCheck, null, "vehicle")]

@@ -9,6 +9,7 @@ using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.IntegrationTests.Reports;
+using Pegasus.Web.Presentation;
 
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
@@ -52,27 +53,33 @@ public sealed class CaseReportWordingWebTests
             Assert.Contains("form=\"case-edit-form\"", control.Value, StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Valuation commentary and Unrelated damage are offered whatever their
+    /// switch says, drawn hidden while it is off, their switch their only
+    /// on/off: their rows post no on/off of their own (v45 A).
+    /// </summary>
     [Fact]
-    public async Task AnExcludedEmptyComposedBlockStillHasCaseSaveControls()
+    public async Task TheSwitchOwnedBlocksAreOfferedHiddenWhileTheirSwitchIsOff()
     {
         var store = ReadyStore();
-        using var workspace = await EnterEditModeAsync(
-            store,
-            services => Register(
-                services,
-                store,
-                [new CaseReportWording(
-                    ReportWordingComposition.ValuationCommentary,
-                    null,
-                    null,
-                    null,
-                    Included: false)]));
+        using var workspace = await EnterEditModeAsync(store, services => Register(services, store));
 
         var report = SectionHtml(await workspace.GetWorkspaceAsync(), "report");
 
-        Assert.Contains("data-wording-block=\"commentary\"", report, StringComparison.Ordinal);
+        foreach (var key in new[] { ReportWordingComposition.ValuationCommentary, ReportWordingComposition.UnrelatedDamage })
+        {
+            Assert.Matches($"<div class=\"wb\" hidden=\"hidden\" data-wording-row data-wording-block=\"{key}\"", report);
+            Assert.Matches(
+                $"name=\"wordingEdits\\[[0-9]+\\]\\.Key\" value=\"{key}\"[^>]*form=\"case-edit-form\"",
+                report);
+        }
+        Assert.DoesNotMatch(
+            "data-wording-included[^>]*data-wording-toggle=\"(?:commentary|unrelated)\"",
+            report);
+        // The commentary's text box is the Valuation commentary field (v45 E),
+        // joining the Case's one Save form.
         Assert.Matches(
-            "name=\"wordingEdits\\[[0-9]+\\]\\.Key\" value=\"commentary\"[^>]*form=\"case-edit-form\"",
+            $"<textarea[^>]*name=\"{Regex.Escape(CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportValuationCommentaryText))}\" form=\"case-edit-form\"",
             report);
     }
 
@@ -130,12 +137,12 @@ public sealed class CaseReportWordingWebTests
     }
 
     /// <summary>
-    /// A Case whose report cannot yet be projected carries no wording panel:
-    /// the readiness rail already states what is outstanding, and an empty
-    /// panel would state nothing.
+    /// A Case whose report cannot yet be projected has no wording blocks to
+    /// offer, so Report wording holds its settings' five report switches alone
+    /// (v45 B), and the statement of truth it prints in every state.
     /// </summary>
     [Fact]
-    public async Task ACaseWhoseReportCannotBeProjectedCarriesNoWordingPanel()
+    public async Task ACaseWhoseReportCannotBeProjectedHasTheFiveSwitchesAndNoBlocks()
     {
         var store = ReadyStore();
         var html = await ReadCaseAsync(
@@ -143,7 +150,11 @@ public sealed class CaseReportWordingWebTests
             services => Substitute<ICaseReportSnapshotSource>(
                 services, new ReadyReportSnapshots(store, currentEstimate: false)));
 
-        Assert.DoesNotContain("data-report-wording", SectionHtml(html, "report"), StringComparison.Ordinal);
+        var report = SectionHtml(html, "report");
+        Assert.Contains("data-wording-settings", report, StringComparison.Ordinal);
+        Assert.Equal(5, Regex.Count(report, "class=\"choice is-static\"[^>]*data-wording-toggle="));
+        Assert.DoesNotContain("data-wording-block=\"nature\"", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-wording-block=\"commentary\"", report, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -259,7 +270,7 @@ public sealed class CaseReportWordingWebTests
     /// A Case whose report projects: the ready report fixture's own facts,
     /// with the Current estimate withheld when the report is not to project.
     /// </summary>
-    private sealed class ReadyReportSnapshots(
+    internal sealed class ReadyReportSnapshots(
         RecordingCaseDetailsStore store,
         bool currentEstimate,
         IReadOnlyList<CaseReportWording>? wording = null)

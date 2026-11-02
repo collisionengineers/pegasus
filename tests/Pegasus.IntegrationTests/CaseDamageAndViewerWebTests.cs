@@ -106,7 +106,10 @@ public sealed class CaseDamageAndViewerWebTests
         Assert.Contains("<span class=\"fc ro\">", first, StringComparison.Ordinal);
         Assert.DoesNotContain("data-damage-area-set", damage, StringComparison.Ordinal);
         Assert.DoesNotContain("impact-row--areas", damage, StringComparison.Ordinal);
-        Assert.Contains(">Multiple &#xB7; LH Side, RH Side, Rear, LH Rear, Underside<", Cell(damage, "data-damage-location"), StringComparison.Ordinal);
+        // Three damages standing apart (the rear disc, the roof disc and the
+        // underside) read the one word the report prints, no area list
+        // (operator, 2 November 2026).
+        Assert.Contains(">Multiple<", Cell(damage, "data-damage-location"), StringComparison.Ordinal);
         Assert.Contains(">Heavy<", Cell(damage, "data-damage-severity"), StringComparison.Ordinal);
 
         // Read mode: the one hidden JSON field the Save reads is not rendered

@@ -60,9 +60,6 @@ public static class ReportWordingComposition
     /// <summary>The heading of a paragraph the Engineer adds, as the manager's case page names it.</summary>
     public const string ManualTitle = "New paragraph";
 
-    /// <summary>The impact location recorded when the damage names more than one area.</summary>
-    public const string SeveralAreas = "multiple";
-
     /// <summary>
     /// The blocks in the order the report prints them unless the Engineer
     /// moves one. The template prints six of the headings; Supplementary
@@ -97,7 +94,10 @@ public static class ReportWordingComposition
     /// Every block the Report section offers, in the Engineer's order and
     /// including the ones taken off the report, so putting one back is the
     /// same control that took it off. A block with nothing to say and no
-    /// change held is not offered.
+    /// change held is not offered, except the two a report switch owns,
+    /// which are always offered and on the report while their switch is
+    /// (v45 A); the commentary's words are always the Valuation commentary
+    /// field's (v45 E).
     /// </summary>
     public static IReadOnlyList<ReportWordingBlock> Offered(
         AssessmentReportSnapshot snapshot,
@@ -116,11 +116,13 @@ public static class ReportWordingComposition
             var (key, title) = Standard[index];
             byKey.TryGetValue(key, out var change);
             var composed = ComposedText(key, snapshot, presentation);
-            var text = Worded(change, composed);
+            // The commentary's words are the Valuation commentary field (v45 E).
+            var text = key == ValuationCommentary ? composed : Worded(change, composed);
+            var switchedOn = SwitchedOn(key, snapshot.Content);
             var hasChange = change is not null
                 && (change.Title is not null || change.Text is not null
                     || change.Order is not null || !change.Included);
-            if (string.IsNullOrWhiteSpace(text) && !hasChange)
+            if (switchedOn is null && string.IsNullOrWhiteSpace(text) && !hasChange)
             {
                 continue;
             }
@@ -130,10 +132,11 @@ public static class ReportWordingComposition
                 string.IsNullOrWhiteSpace(change?.Title) ? standardTitle : change!.Title!.Trim(),
                 text,
                 change?.Order ?? index,
-                HandEdited: !string.IsNullOrWhiteSpace(change?.Text)
+                HandEdited: key != ValuationCommentary
+                    && !string.IsNullOrWhiteSpace(change?.Text)
                     && !string.Equals(change!.Text!.Trim(), composed, StringComparison.Ordinal),
                 Manual: false,
-                Included: change?.Included ?? true));
+                Included: switchedOn ?? change?.Included ?? true));
         }
 
         // A paragraph the Engineer wrote themselves has no composed source.
@@ -186,9 +189,7 @@ public static class ReportWordingComposition
                 AreasOf(snapshot.Damage.Impacts.Select(impact => impact.Codes))),
             EngineersComments => Comments(snapshot),
             SupplementaryDamage => snapshot.SupplementaryStatement ?? string.Empty,
-            ValuationCommentary => snapshot.Content.IncludeValuationCommentary
-                ? snapshot.ValuationCommentary ?? string.Empty
-                : string.Empty,
+            ValuationCommentary => snapshot.ValuationCommentary ?? string.Empty,
             UnrelatedDamage => Unrelated(snapshot),
             VehicleHistoryCheck => snapshot.HistoryCheck,
             PreIncidentCondition =>
@@ -201,10 +202,12 @@ public static class ReportWordingComposition
 
     /// <summary>
     /// The Nature of Incident block's composed sentence, from the headline
-    /// impact severity and location codes. Damage to one area is the
-    /// template's sentence. Damage to several is the manager's case page's:
-    /// the areas follow the sentence, one to a line, in the order they were
-    /// recorded and named as that page names them.
+    /// impact severity and location codes and the distinct areas recorded.
+    /// Damage to one area is the template's sentence. Damage recorded over
+    /// several areas, whatever the headline location reads, is the manager's
+    /// case page's (operator, 2 November 2026): the areas follow the
+    /// sentence, one to a line, in the order they were recorded and named as
+    /// that page names them.
     /// </summary>
     public static string NatureOfIncidentSentence(
         string impactSeverity, string impactLocation, IReadOnlyList<string> areas)
@@ -212,7 +215,7 @@ public static class ReportWordingComposition
         ArgumentNullException.ThrowIfNull(impactSeverity);
         ArgumentNullException.ThrowIfNull(impactLocation);
         ArgumentNullException.ThrowIfNull(areas);
-        return string.Equals(impactLocation, SeveralAreas, StringComparison.Ordinal)
+        return areas.Count > 1
             ? $"The vehicle has suffered {Words(impactSeverity)} collision/impact damage to the following areas:"
                 + string.Concat(areas.Select(area => "\n— " + LeadingWords(area)))
             : $"The vehicle has suffered {Words(impactSeverity)} collision/impact damage to the {Words(impactLocation)}.";
@@ -239,13 +242,11 @@ public static class ReportWordingComposition
         ArgumentNullException.ThrowIfNull(input);
         var severity = input.Assessment.Field(AssessmentVocabulary.ImpactSeverity)?.Value;
         var location = input.Assessment.Field(AssessmentVocabulary.ImpactLocation)?.Value;
-        // Only damage to several areas reads the recorded damages, and that
-        // location is derived from them by the save that recorded them.
-        string[] areas = string.Equals(location, SeveralAreas, StringComparison.Ordinal)
-            ? AreasOf(AssessmentPolicy
-                .ParseImpacts(input.Assessment.Field(AssessmentVocabulary.DamageImpacts)?.Value)
-                .Select(impact => impact.Areas))
-            : [];
+        // The recorded damages name the areas the sentence lists; the
+        // location was derived from them by the save that recorded them.
+        var areas = AreasOf(AssessmentPolicy
+            .ParseImpacts(input.Assessment.Field(AssessmentVocabulary.DamageImpacts)?.Value)
+            .Select(impact => impact.Areas));
         var composed = string.IsNullOrWhiteSpace(severity) || string.IsNullOrWhiteSpace(location)
             ? string.Empty
             : NatureOfIncidentSentence(severity, location, areas);
@@ -298,7 +299,14 @@ public static class ReportWordingComposition
             throw new ArgumentException(
                 "A report wording order cannot be negative.", nameof(block));
         }
-        return block with { Title = title, Text = text };
+        // A switch-owned block holds no on/off of its own, and the commentary's
+        // words are the Valuation commentary field's (v45 A, E).
+        return block with
+        {
+            Title = title,
+            Text = block.Key == ValuationCommentary ? null : text,
+            Included = SwitchOwned(block.Key) || block.Included,
+        };
     }
 
     /// <summary>
@@ -394,8 +402,7 @@ public static class ReportWordingComposition
 
     private static string Unrelated(AssessmentReportSnapshot snapshot)
     {
-        if (!snapshot.Content.IncludeUnrelatedDamage
-            || string.IsNullOrWhiteSpace(snapshot.Damage.Unrelated))
+        if (string.IsNullOrWhiteSpace(snapshot.Damage.Unrelated))
         {
             return string.Empty;
         }
@@ -424,6 +431,26 @@ public static class ReportWordingComposition
                 + finding
                 + $" We suggest that the sale of the salvage will realise in the order of {Money(salvage)}."
                 + " We have not taken any action towards removal of the salvage at this time.";
+    }
+
+    /// <summary>Whether a report content switch is the block's only on/off (v45 A).</summary>
+    public static bool SwitchOwned(string key) => key is ValuationCommentary or UnrelatedDamage;
+
+    /// <summary>
+    /// Whether a block the report content switches own is on the report: the
+    /// Valuation commentary and Unrelated damage switches are those two
+    /// blocks' only on/off (operator, 2 November 2026; v45 A). Null for every
+    /// other block, which carries its own.
+    /// </summary>
+    public static bool? SwitchedOn(string key, CaseReportContentSwitches content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        return key switch
+        {
+            ValuationCommentary => content.IncludeValuationCommentary,
+            UnrelatedDamage => content.IncludeUnrelatedDamage,
+            _ => null,
+        };
     }
 
     /// <summary>A block's text: the Engineer's own wording when written, else the composed sentence.</summary>
