@@ -148,7 +148,7 @@
   border: 1px solid var(--line, #d2d8db); border-radius: var(--radius-lg, 4px);
   background: var(--surface, #fff); box-shadow: var(--shadow, 0 8px 24px rgba(0, 0, 0, .12));
 }
-/* v44 (R607-R612): one label style, a divider between sections, each section's
+/* v44 (R632-R637): one label style, a divider between sections, each section's
    actions as small buttons in a row, and Decided as a muted foot line. */
 .mail-settings-section { display: grid; gap: 6px; padding: 10px 0; }
 .mail-settings-section + .mail-settings-section { border-top: 1px solid var(--line, #d2d8db); }

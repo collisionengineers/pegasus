@@ -84,7 +84,7 @@
     var intakeVersion = receipt.Version.ToString(System.Globalization.CultureInfo.InvariantCulture);
     var leaseKey = Model.RetainedLeaseOperationKey ?? Guid.NewGuid().ToString("N");
     var operationKey = Model.RetainedOperationKey ?? Guid.NewGuid().ToString("D");
-    // Link to Case and Change linked Case hold the Case / PO picker (v44, R607).
+    // Link to Case and Change linked Case hold the Case / PO picker (v44, R632).
     var casePickerUrl = Url.Page("/Mail/Message", "LinkCaseOptions", new { id = summary.Id });
     var route = new
     {

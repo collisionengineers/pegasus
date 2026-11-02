@@ -54,7 +54,7 @@ it), Type (one select), Query (Open query or Mark query done), Change case
 (Place on Hold and Close case, only when the linked Case allows that act) and
 a Decided line. Each section carries one label and a divider, and its actions
 are small buttons in a row; the menu holds no Case / PO field (operator,
-2 November 2026, R607 to R612,
+2 November 2026, R632 to R637,
 [v44 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v44-mail-link-settings/v44_planning/notes/v44-notes.md)).
 Register images is offered on an unlinked, uncategorised image-only message.
 
@@ -189,7 +189,7 @@ a query
 
 Case linking starts with a deliberate choice: **Link to Case**, or **Change**
 on a linked message, opens one dialog holding the **Case / PO** picker above
-the reason (operator, 2 November 2026, R607); the choice and the
+the reason (operator, 2 November 2026, R632); the choice and the
 reason post together, in one step with no prepare round trip, still claiming
 the Case's edit authority and releasing it (v41 items I9 and I13, signed off
 19 October 2026,
@@ -205,7 +205,7 @@ it. Once no Case is current, **Link to Case** relinks the message. Both keep
 the history rule in
 [FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)
 (operator ruling, 15 October 2026). **Change** (its dialog titled Change
-linked Case, R608) and Unlink sit beside the Case in the settings menu, each
+linked Case, R633) and Unlink sit beside the Case in the settings menu, each
 asking for a reason in one step (v41 items I9 and I13,
 signed off 19 October 2026,
 [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
