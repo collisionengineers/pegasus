@@ -35,7 +35,24 @@
             return Array.prototype.slice.call(options.querySelectorAll("[role='option']"));
         }
 
+        // Emptying the list removes a focused option, whose focusout calls
+        // close() again mid-removal; the guard lets the outer call finish, so
+        // the chosen option's focus return still runs (v44: inside a dialog).
+        var closing = false;
+
         function close() {
+            if (closing) {
+                return;
+            }
+            closing = true;
+            try {
+                empty();
+            } finally {
+                closing = false;
+            }
+        }
+
+        function empty() {
             window.clearTimeout(timer);
             sequence++;
             options.hidden = true;
