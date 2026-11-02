@@ -60,9 +60,6 @@ public static class ReportWordingComposition
     /// <summary>The heading of a paragraph the Engineer adds, as the manager's case page names it.</summary>
     public const string ManualTitle = "New paragraph";
 
-    /// <summary>The impact location recorded when the damage names more than one area.</summary>
-    public const string SeveralAreas = "multiple";
-
     /// <summary>
     /// The blocks in the order the report prints them unless the Engineer
     /// moves one. The template prints six of the headings; Supplementary
@@ -201,10 +198,12 @@ public static class ReportWordingComposition
 
     /// <summary>
     /// The Nature of Incident block's composed sentence, from the headline
-    /// impact severity and location codes. Damage to one area is the
-    /// template's sentence. Damage to several is the manager's case page's:
-    /// the areas follow the sentence, one to a line, in the order they were
-    /// recorded and named as that page names them.
+    /// impact severity and location codes and the distinct areas recorded.
+    /// Damage to one area is the template's sentence. Damage recorded over
+    /// several areas, whatever the headline location reads, is the manager's
+    /// case page's (operator, 2 November 2026): the areas follow the
+    /// sentence, one to a line, in the order they were recorded and named as
+    /// that page names them.
     /// </summary>
     public static string NatureOfIncidentSentence(
         string impactSeverity, string impactLocation, IReadOnlyList<string> areas)
@@ -212,7 +211,7 @@ public static class ReportWordingComposition
         ArgumentNullException.ThrowIfNull(impactSeverity);
         ArgumentNullException.ThrowIfNull(impactLocation);
         ArgumentNullException.ThrowIfNull(areas);
-        return string.Equals(impactLocation, SeveralAreas, StringComparison.Ordinal)
+        return areas.Count > 1
             ? $"The vehicle has suffered {Words(impactSeverity)} collision/impact damage to the following areas:"
                 + string.Concat(areas.Select(area => "\n— " + LeadingWords(area)))
             : $"The vehicle has suffered {Words(impactSeverity)} collision/impact damage to the {Words(impactLocation)}.";
@@ -239,13 +238,11 @@ public static class ReportWordingComposition
         ArgumentNullException.ThrowIfNull(input);
         var severity = input.Assessment.Field(AssessmentVocabulary.ImpactSeverity)?.Value;
         var location = input.Assessment.Field(AssessmentVocabulary.ImpactLocation)?.Value;
-        // Only damage to several areas reads the recorded damages, and that
-        // location is derived from them by the save that recorded them.
-        string[] areas = string.Equals(location, SeveralAreas, StringComparison.Ordinal)
-            ? AreasOf(AssessmentPolicy
-                .ParseImpacts(input.Assessment.Field(AssessmentVocabulary.DamageImpacts)?.Value)
-                .Select(impact => impact.Areas))
-            : [];
+        // The recorded damages name the areas the sentence lists; the
+        // location was derived from them by the save that recorded them.
+        var areas = AreasOf(AssessmentPolicy
+            .ParseImpacts(input.Assessment.Field(AssessmentVocabulary.DamageImpacts)?.Value)
+            .Select(impact => impact.Areas));
         var composed = string.IsNullOrWhiteSpace(severity) || string.IsNullOrWhiteSpace(location)
             ? string.Empty
             : NatureOfIncidentSentence(severity, location, areas);

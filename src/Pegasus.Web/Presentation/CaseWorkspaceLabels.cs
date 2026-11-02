@@ -353,7 +353,7 @@ public static class CaseWorkspaceLabels
         /// <summary>An area, or the derived impact location, as the cells print it, from Core's names.</summary>
         public static string Location(string? code) =>
             code is null ? OperatorLabels.CaseWorkspace.AbsentValue
-            : code == "multiple" ? Multiple
+            : code == AssessmentVocabulary.SeveralAreas ? Multiple
             : AssessmentVocabulary.DamageAreas.TryGetValue(code, out var name) ? name
             : CodeWord(code);
 

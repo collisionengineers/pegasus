@@ -140,8 +140,15 @@ the burst is only its picture, and the disc alone decides the areas. The
 workspace and the report draw alike.
 
 The record also carries the unrelated damage. `impact_location` and
-`impact_severity` are derived from the areas by `Pegasus.Core`, never typed
-in: one distinct area reads as itself, more read Multiple.
+`impact_severity` are derived from the damages by `Pegasus.Core`, never
+typed in (operator, 2 November 2026, R639, replacing the rule that more than
+one distinct area read Multiple). Bursts whose discs overlap or touch are one
+damage: each entry is judged by its disc, drawn or the one its areas give,
+two are joined when their centres are no further apart than their radii
+added together, and joining chains. A group reads as the plan area most of
+its bursts' centres sit in, a tie going to the plan's order. Each of
+Underside, Interior and Mechanical is a group of its own. One group reads as
+its area; more read Multiple. The severity is the highest recorded.
 
 The report prints the marked diagram, which is the Case page's own plan, and
 no damage or tyre table (operator, 27 September 2026). Unrelated damage

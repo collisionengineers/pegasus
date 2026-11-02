@@ -134,6 +134,13 @@ public static class AssessmentVocabulary
     public static IReadOnlyList<string> DamageOtherAreas { get; } = ["underside", "interior", "mechanical"];
 
     /// <summary>
+    /// The impact location derived when the damages stand apart: more than
+    /// one group of touching bursts, or a plan damage beside an Underside,
+    /// Interior or Mechanical one (operator, 2 November 2026).
+    /// </summary>
+    public const string SeveralAreas = "multiple";
+
+    /// <summary>
     /// Every recordable area with its name, as the record and the Case page's
     /// cells show it. The report names an area in its own words
     /// (<see cref="Pegasus.Core.Reports.ReportWordingComposition.LeadingWords"/>).
@@ -195,7 +202,7 @@ public static class AssessmentVocabulary
         new(ImpactSeverity, AssessmentFieldType.Enumerated, 20,
             Codes: DamageSeverities.Keys.ToArray()),
         new(ImpactLocation, AssessmentFieldType.Enumerated, 20,
-            Codes: [.. DamagePlanAreas, .. DamageOtherAreas, "multiple"]),
+            Codes: [.. DamagePlanAreas, .. DamageOtherAreas, SeveralAreas]),
         new(DamageImpacts, AssessmentFieldType.Json, 4000, Format: DamageImpactsFormat),
         new(DamageUnrelated, AssessmentFieldType.Text, 2000),
         new(ValueRetail, AssessmentFieldType.Money, 20, MustBePositive: true),
