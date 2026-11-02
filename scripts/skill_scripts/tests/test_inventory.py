@@ -87,6 +87,8 @@ class World:
         self.counts = {1016: "2\t3", 1018: "0\t1", 1019: "5\t0"}  # behind, ahead
         self.contained = {(sha("head 1016"), sha("head 1018"))}  # 1018's head contains 1016's
         self.fetched = {}
+        self.register_diffs = {}   # number -> the -U0 diff of docs/rulings.md, when the PR changes it
+        self.target_register = ""  # docs/rulings.md at the target
 
     def add_pull_request(self, number):
         """Another pull request on dev that changes its own file."""
@@ -127,8 +129,12 @@ class World:
             return sha(f"merge-base {args[3]}") + "\n"
         if args[:3] == ["git", "rev-list", "--left-right"]:
             return self.counts[self.number_of_head(args[-1].split("...")[1])] + "\n"
+        if args[:3] == ["git", "diff", "-U0"]:
+            return self.register_diffs.get(self.number_of_head(args[5]), "")
         if args[:2] == ["git", "diff"]:
             return "\n".join(self.files[self.number_of_head(args[-1])]) + "\n"
+        if args[:2] == ["git", "show"]:
+            return self.target_register
         raise AssertionError(f"unexpected command {args}")
 
     def gh_json(self, args):
@@ -290,6 +296,73 @@ class InventoryBlockers(InventoryCase):
         code, out, _ = self.inventory(world)
         self.assertEqual(2, code)
         self.assertEqual(["- #1016: draft", "- #1019: PR is MERGED"], self.stop_list(out))
+
+
+class InventoryRegisterCollisions(InventoryCase):
+    """Two PRs written from the same target claim the same register id; the inventory says so up front."""
+
+    REGISTER = "docs/rulings.md"
+
+    def claims(self, world, number, diff):
+        world.files[number].append(self.REGISTER)
+        world.register_diffs[number] = diff
+
+    @staticmethod
+    def section(out):
+        if "## Register id collisions\n\n" not in out:
+            return None
+        return out.split("## Register id collisions\n\n", 1)[1].split("\n## Pinned", 1)[0]
+
+    @staticmethod
+    def register_calls(world):
+        return [call for call in world.commands if call[:3] == ["git", "diff", "-U0"] or call[:2] == ["git", "show"]]
+
+    def test_two_prs_claiming_one_id_are_listed_in_merge_order_and_do_not_stop(self):
+        world = World(self.tmp)
+        self.claims(world, 1019, "+| R550 | q | a |\n+| R551 | q | a |\n")
+        self.claims(world, 1016, "+| R550 | other | b |\n")
+        code, out, _ = self.inventory(world)
+        self.assertEqual(0, code)
+        self.assertEqual("- R550: #1016, #1019 (first in order keeps it; renumber the rest after each merge with "
+                         "renumber_register.py)\n", self.section(out))
+        self.assertIn("- #1016 × #1019: 2 file(s): `docs/rulings.md`, `shared.txt`\n", out)
+
+    def test_a_stacked_child_does_not_collide_with_the_parent_rows_it_contains(self):
+        world = World(self.tmp)
+        self.claims(world, 1016, "+| R550 | parent | a |\n")
+        self.claims(world, 1018, "+| R550 | parent | a |\n+| R551 | child | b |\n")
+        code, out, _ = self.inventory(world)
+        self.assertEqual(0, code)
+        self.assertEqual("No two PRs claim the same `docs/rulings.md` id.\n", self.section(out))
+
+    def test_an_edited_row_is_not_a_claim(self):
+        world = World(self.tmp)
+        self.claims(world, 1016, "-| R549 | old | a |\n+| R549 | new | a |\n+| R550 | q | a |\n")
+        self.claims(world, 1019, "+| R549 | mine | b |\n")
+        _, out, _ = self.inventory(world)
+        self.assertEqual("No two PRs claim the same `docs/rulings.md` id.\n", self.section(out))
+
+    def test_an_id_the_target_already_holds_reads_and_the_target(self):
+        world = World(self.tmp)
+        world.target_register = "| Id | Q | A |\n|---|---|---|\n| R550 | t | t |\n"
+        self.claims(world, 1016, "+| R550 | q | a |\n")
+        _, out, _ = self.inventory(world)
+        self.assertEqual("- R550: #1016 and the target (first in order keeps it; renumber the rest after each merge "
+                         "with renumber_register.py)\n", self.section(out))
+        self.assertEqual([["git", "diff", "-U0", "--no-renames", sha(f"merge-base {world.head(1016)}"),
+                           world.head(1016), "--", self.REGISTER],
+                          ["git", "show", f"{TARGET}:{self.REGISTER}"]], self.register_calls(world))
+
+    def test_no_section_and_no_git_call_when_no_pr_changes_the_register(self):
+        world = World(self.tmp)
+        _, out, _ = self.inventory(world)
+        self.assertIsNone(self.section(out))
+        self.assertEqual([], self.register_calls(world))
+
+    def test_register_claims_sorts_by_number(self):
+        with mock.patch.object(inventory, "run", lambda args, check=True: "+| R9 | a | b |\n+| R10 | c | d |\n"):
+            self.assertEqual(["R9", "R10"], inventory.register_claims("base", "head", self.REGISTER,
+                                                                      re.compile(r"^\|\s*(R[1-9]\d*)\s*\|")))
 
 
 class InventoryNetworkCalls(InventoryCase):

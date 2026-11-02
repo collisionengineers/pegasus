@@ -31,7 +31,9 @@ Write "No review feedback" where none existed.
 
 ## Merge resolution
 
-Per conflicted file: what each side did and what was kept. Name any renumbering.
+Per conflicted file: what each side did and what was kept. Name any renumbering:
+paste the `| PR | Was | Now | Files | Lines |` table `renumber_register.py` printed,
+one row per moved id, and the fix commit that carries it.
 Name any change one PR made that another deliberately replaced. Write "Everything
 merged automatically" if there were no conflicts, and say whether the PRs shared
 any files.

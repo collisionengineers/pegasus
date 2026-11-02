@@ -20,6 +20,7 @@ import json
 import re
 import subprocess
 import sys
+from collections import defaultdict
 
 # Every field the report reads, for all the pull requests in one request.
 PULL_REQUEST_FIELDS = """
@@ -109,8 +110,8 @@ def fetched_oids() -> dict[str, str]:
     return {("refs/heads/" if m["branch"] else "") + m["ref"]: m["oid"] for m in matches}
 
 
-def containment(prs: list[dict]) -> list[str]:
-    """One line for each pull request whose head contains the different head of another.
+def containment_pairs(prs: list[dict]) -> list[tuple[dict, dict]]:
+    """(contained, container) for each pull request whose head is inside the different head of another.
 
     One `git merge-base --independent` over the distinct heads names the ones no other head contains;
     only the rest can be contained, so only they are put to `--is-ancestor`, against the other heads.
@@ -120,8 +121,25 @@ def containment(prs: list[dict]) -> list[str]:
     inside = {a: {b for b in heads if b != a
                   and subprocess.run(["git", "merge-base", "--is-ancestor", a, b]).returncode == 0}
               for a in heads if a not in independent}
-    return [f"#{b['number']} already contains #{a['number']}'s head" for a in prs for b in prs
-            if b["headRefOid"] in inside.get(a["headRefOid"], ())]
+    return [(a, b) for a in prs for b in prs if b["headRefOid"] in inside.get(a["headRefOid"], ())]
+
+
+def containment(prs: list[dict]) -> list[str]:
+    """One line for each pull request whose head contains the different head of another."""
+    return [f"#{b['number']} already contains #{a['number']}'s head" for a, b in containment_pairs(prs)]
+
+
+def register_claims(base: str, head: str, register: str, row: re.Pattern) -> list[str]:
+    """The register ids the diff adds on rows it did not also remove (an edited row is not a claim)."""
+    added, removed = set(), set()
+    for line in run(["git", "diff", "-U0", "--no-renames", base, head, "--", register]).splitlines():
+        if line.startswith(("+++", "---")):
+            continue
+        match = row.match(line[1:]) if line[:1] in "+-" else None
+        if match:
+            (added if line[0] == "+" else removed).add(match.group(1))
+    return sorted(added - removed, key=lambda token: [int(part) if part.isdigit() else part
+                                                     for part in re.split(r"(\d+)", token)])
 
 
 def main() -> int:
@@ -132,7 +150,12 @@ def main() -> int:
     parser.add_argument("--remote", default="origin", help="remote that hosts the PRs (default origin)")
     parser.add_argument("--repo", help="owner/name; default is the gh repo for the current directory")
     parser.add_argument("--json-out", help="also write the full inventory as JSON to this path")
+    parser.add_argument("--register", default="docs/rulings.md",
+                        help="append-only register whose row ids the PRs may both claim (default docs/rulings.md)")
+    parser.add_argument("--register-row", default=r"^\|\s*(R[1-9]\d*)\s*\|",
+                        help=r"regex of a register row with the id as group 1 (default ^\|\s*(R[1-9]\d*)\s*\|)")
     opts = parser.parse_args()
+    row_pattern = re.compile(opts.register_row)
 
     repo = gh_json(["repo", "view", *([opts.repo] if opts.repo else []), "--json", "owner,name,defaultBranchRef"])
     owner, name = repo["owner"]["login"], repo["name"]
@@ -161,6 +184,8 @@ def main() -> int:
         pr["ahead"], pr["behind"] = int(ahead), int(behind)
         pr["changedFiles"] = [f for f in run(["git", "diff", "--name-only", "--no-renames", merge_base, head]).splitlines() if f]
         pr["checkSummary"], pr["failedChecks"] = summarize_checks(pr["statusCheckRollup"])
+        pr["registerIds"] = (register_claims(merge_base, head, opts.register, row_pattern)
+                             if opts.register in pr["changedFiles"] else [])
         prs.append(pr)
 
     by_head_ref = {pr["headRefName"]: pr for pr in prs if not pr["isCrossRepository"]}
@@ -208,7 +233,11 @@ def main() -> int:
     for pr in prs:
         place(pr)
 
-    contains = containment(prs)
+    pairs = containment_pairs(prs)
+    contains = [f"#{b['number']} already contains #{a['number']}'s head" for a, b in pairs]
+    # A head that contains another's claims that one's rows too; they are the contained PR's.
+    for a, b in pairs:
+        b["registerIds"] = [i for i in b["registerIds"] if i not in a["registerIds"]]
 
     out = []
     out.append(f"# PR inventory for `{opts.target}`\n")
@@ -262,16 +291,37 @@ def main() -> int:
         out.append(f"\nClosing keywords only fire on `{default_branch}`; issues for `{opts.target}` need closing by hand.")
 
     out.append("\n## File overlap\n")
-    pairs = []
+    overlaps = []
     for a, b in itertools.combinations(ordered, 2):
         shared = sorted(set(a["changedFiles"]) & set(b["changedFiles"]))
         if shared:
-            pairs.append((a, b, shared))
-    if not pairs:
+            overlaps.append((a, b, shared))
+    if not overlaps:
         out.append("No two PRs change the same file.")
-    for a, b, shared in pairs:
+    for a, b, shared in overlaps:
         shown = ", ".join(f"`{f}`" for f in shared[:8]) + (" …" if len(shared) > 8 else "")
         out.append(f"- #{a['number']} × #{b['number']}: {len(shared)} file(s): {shown}")
+
+    if any(pr["registerIds"] for pr in ordered):
+        out.append("\n## Register id collisions\n")
+        target_ids = {m.group(1) for m in map(row_pattern.match,
+                                               run(["git", "show", f"{target_sha}:{opts.register}"], check=False)
+                                               .splitlines()) if m}
+        claims: dict[str, list[str]] = defaultdict(list)
+        for pr in ordered:
+            for token in pr["registerIds"]:
+                claims[token].append(f"#{pr['number']}")
+        for token in sorted(target_ids):
+            if token in claims:
+                claims[token].append("the target")
+        collisions = {token: names for token, names in claims.items() if len(names) > 1}
+        if not collisions:
+            out.append(f"No two PRs claim the same `{opts.register}` id.")
+        for token in sorted(collisions, key=lambda t: [int(p) if p.isdigit() else p for p in re.split(r"(\d+)", t)]):
+            names = collisions[token]
+            holders = ", ".join(names[:-1]) + f" and {names[-1]}" if names[-1] == "the target" else ", ".join(names)
+            out.append(f"- {token}: {holders} (first in order keeps it; renumber the rest after each merge with "
+                       "renumber_register.py)")
 
     out.append("\n## Pinned arguments for simulate_merge.py and audit_combined.py\n")
     out.append("```")
