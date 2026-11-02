@@ -221,7 +221,7 @@ The figures are text while reading and inputs of the Case form in the same place
 card has no mileage box (operator, 24 September 2026): the Case's own accepted mileage is used by
 the lookup and recorded with a calculated Engineer's Value when the Case has one. Get valuation
 fills the same card in place, without redrawing the page, and chooses the card when a retail
-answers (operator, 2 November 2026, R623: the last card pressed or clicked wins when several
+answers (operator, 2 November 2026, R638: the last card pressed or clicked wins when several
 lookups run; a press never shows the no-retail sentence), or shows the card's notice when the
 source has no working provider. A source with no connected provider shows the approved sentence
 from the start and has no Get valuation button (an unavailable action is omitted, not disabled).

@@ -3038,7 +3038,7 @@
 // boxes is the Engineer about to type one.
 //
 // Get valuation that answers with a retail chooses its card the same way
-// (operator, 2 November 2026, R623). The last decision wins: the section
+// (operator, 2 November 2026, R638). The last decision wins: the section
 // remembers the card the Engineer last decided on, the last Get valuation
 // pressed or the last card clicked, and an answer chooses its card only while
 // that card is still the decision; any other answer fills its card and leaves
@@ -3301,7 +3301,7 @@
 
             // The card the Engineer last decided on: the last card clicked, or
             // the last Get valuation pressed. A lookup's answer chooses its
-            // card only while that card is still the decision (R623).
+            // card only while that card is still the decision (R638).
             var lastDecision = null;
 
             // Use a card: choose it as the basis and mark the decision for the
@@ -3403,7 +3403,7 @@
                 if (get) { lastDecision = get.closest('[data-valuation-card]'); }
             }, true);
             // Get valuation filled a card. An answer with a retail chooses the
-            // card while it is still the Engineer's last decision (R623); a
+            // card while it is still the Engineer's last decision (R638); a
             // refilled basis card re-runs the calculation either way.
             section.addEventListener('pegasus:valuation-filled', function (event) {
                 var card = event.target.closest('[data-valuation-card]');
@@ -3465,7 +3465,7 @@
         // JSON and fill the card's boxes, which belong to the Case form, so no
         // form is submitted, the page is not redrawn and nothing unsaved is put
         // at risk; the Case save records the card. An answer with a retail is
-        // the decision to use the card (operator, 2 November 2026, R623): the
+        // the decision to use the card (operator, 2 November 2026, R638): the
         // section chooses it as a click would. A source with no working
         // provider, or a refused request, shows the card's own notice. A source
         // known to have no provider offers no button at all.
