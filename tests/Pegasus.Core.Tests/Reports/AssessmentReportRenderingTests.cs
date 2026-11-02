@@ -17,7 +17,7 @@ public sealed class AssessmentReportRenderingTests
     /// tables and the settlement rows are recorded on the Case and are no
     /// part of the report. The damage carries the drawing its marks are
     /// printed on (28 September 2026). Version eight carries the FAO The
-    /// Court and statement of truth switches (2 November 2026; R606, R607).
+    /// Court and statement of truth switches (2 November 2026; R610, R611).
     /// </summary>
     [Fact]
     public void TheSnapshotIsVersionEightAndCarriesOnlyWhatTheTemplatePrints()
@@ -381,7 +381,7 @@ public sealed class AssessmentReportRenderingTests
     /// Include statement of truth off leaves out the two court declarations;
     /// the Glass's guide sentence (when it prints), the parts-price caveat
     /// and the fee-note paragraph still print in order (operator, 2 November
-    /// 2026; R605).
+    /// 2026; R609).
     /// </summary>
     [Fact]
     public void WithoutTheStatementTheCourtDeclarationsAreLeftOutAndTheRestPrint()

@@ -156,7 +156,7 @@ public sealed class CaseReportFreshnessTests
 
     /// <summary>
     /// FAO The Court and Include statement of truth are on until recorded
-    /// off (R606, R607), so a save that records "true" for one the Case never
+    /// off (R610, R611), so a save that records "true" for one the Case never
     /// recorded changes nothing the report prints.
     /// </summary>
     [Theory]

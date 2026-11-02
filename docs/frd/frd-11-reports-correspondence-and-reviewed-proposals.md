@@ -76,7 +76,7 @@ same paragraphs read-only ([FRD-16](frd-16-case-record-workspace.md#report)).
 Include statement of truth is on until turned off; off, the "Statement of
 Truth" heading and the two court declarations are left out, and the
 parts-price caveat, the fee-note paragraph and the sign-off still print at the
-top of the last page (operator, 2 November 2026; R605). The Vehicle Details table
+top of the last page (operator, 2 November 2026; R609). The Vehicle Details table
 prints no VIN-checked or fault-code row (operator, 24 September 2026).
 
 The report prints only what the template prints (operator, 27 September
@@ -239,7 +239,7 @@ with is not printed twice. A principal with no address prints its name alone
 on, as it is until turned off, the assessment report prints the line
 `FAO The Court` above the addressee's name; the image pack's Report For and
 the fee note's Bill To print the addressee alone (operator, 2 November 2026;
-R606, R607). A one-off Case for a private customer
+R610, R611). A one-off Case for a private customer
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity))
 is addressed to the claimant instead: the Case's Claimant name, then its
 Claimant address line by line; a claimant with no address prints the name
@@ -594,7 +594,7 @@ report-date override and the **valuation commentary** text, up to 4,000
 characters; the Sign-off Engineer is chosen on the Case card in Case details,
 and the five content switches under **On the report** in Valuation (v28
 P38; FAO The Court and Include statement of truth, on until turned off,
-operator, 2 November 2026; R606, R607). With the valuation commentary switch on, the report prints that text if
+operator, 2 November 2026; R610, R611). With the valuation commentary switch on, the report prints that text if
 recorded, otherwise the applied valuation's reason, and readiness accepts
 either. The Case save's own message, "Engineer's Value applied.", never
 counts as commentary: it does not print and does not satisfy readiness

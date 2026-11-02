@@ -266,7 +266,7 @@ public sealed class CaseRecordFieldsWebTests
     /// Valuation's On the report group holds all five switches. FAO The
     /// Court and Include statement of truth are ticked on a Case that never
     /// recorded them, and the summary names them only once they are off
-    /// (operator, 2 November 2026; R606, R607, R612). Unticking them posts
+    /// (operator, 2 November 2026; R610, R611, R616). Unticking them posts
     /// their hidden "false" alone, which the save records.
     /// </summary>
     [Fact]
@@ -325,7 +325,7 @@ public sealed class CaseRecordFieldsWebTests
     /// <summary>
     /// Once a Case records FAO The Court and Include statement of truth as
     /// "false" their boxes open unticked and the summary names each as off
-    /// (R607, R612).
+    /// (R611, R616).
     /// </summary>
     [Fact]
     public async Task TheCourtAndStatementSwitchesOpenUntickedOnceRecordedOff()

@@ -489,7 +489,7 @@ public sealed class AssessmentReportWordingTests
     /// <summary>
     /// "FAO The Court" opens the report's Report For block while the switch
     /// is on, and the addressee prints alone when it is off (operator,
-    /// 2 November 2026; R606).
+    /// 2 November 2026; R610).
     /// </summary>
     [Fact]
     public void FaoTheCourtOpensTheReportForBlockOnlyWhenOn()
@@ -509,7 +509,7 @@ public sealed class AssessmentReportWordingTests
 
     /// <summary>
     /// The last page's heading is the statement's while the statement of
-    /// truth is included, and there is none when it is off (R605).
+    /// truth is included, and there is none when it is off (R609).
     /// </summary>
     [Fact]
     public void TheStatementHeadingFollowsTheSwitch()

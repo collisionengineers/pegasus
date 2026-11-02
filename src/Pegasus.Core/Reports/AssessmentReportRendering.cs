@@ -13,7 +13,7 @@ public static class AssessmentReportContract
     /// (<c>reference/rendererref1</c>) prints. v7 (28 September 2026): the
     /// damage carries the vehicle drawing its bursts are printed on. v8
     /// (2 November 2026): the content switches carry the court line and the
-    /// statement of truth, and R&amp;I lines leave the work lists (R604–R606).
+    /// statement of truth, and R&amp;I lines leave the work lists (R608–R610).
     /// </summary>
     public const string TemplateVersion = "rendererref1-v8";
     public const string VatNumber = "262 0937 10";
@@ -57,7 +57,7 @@ public static class AssessmentReportContract
     /// edits its words. With Include statement of truth off, the two court
     /// declarations and the heading are left out and the parts-price caveat
     /// and the fee-note paragraph still print (operator, 2 November 2026;
-    /// R605).
+    /// R609).
     /// </summary>
     public static IReadOnlyList<string> StatementOfTruth(CaseReportContentSwitches content, ReportGuideSources guides)
     {

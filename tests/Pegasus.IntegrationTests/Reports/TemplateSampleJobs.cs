@@ -131,7 +131,7 @@ internal static class TemplateSampleJobs
             Sources: [new AcceptedReportSource(sample.Job, "1", new string('a', 64))],
             // The samples print the Glass's sentence in their statement of
             // truth. Their report_for already opens with "FAO The Court", so
-            // the switch that adds the line is off here (R606).
+            // the switch that adds the line is off here (R610).
             Content: new CaseReportContentSwitches(
                 DiscloseGuideSource: true, IncludeValuationCommentary: false, IncludeUnrelatedDamage: false,
                 AddressToTheCourt: false),
@@ -144,7 +144,7 @@ internal static class TemplateSampleJobs
     /// <summary>
     /// The template's own Engineer's Comments for an unroadworthy sample, as
     /// the Engineer's wording: the template prints "unroadworthy due to" and
-    /// Pegasus composes "unroadworthy as" (operator, 2 November 2026; R603),
+    /// Pegasus composes "unroadworthy as" (operator, 2 November 2026; R607),
     /// so the samples keep the template's words and the comparison stays with
     /// the template's letters. A roadworthy sample holds no wording.
     /// </summary>

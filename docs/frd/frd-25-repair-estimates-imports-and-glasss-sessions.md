@@ -258,7 +258,7 @@ those ordered lines, not a second renderer-owned specification. New parts
 lists Replace lines; Repairs lists Repair lines only; Additional operations
 lists Paint, Blend, Specialist and Other lines; R&I lines are on no list, so
 they leave the report, as the Case page's own lists do (operator,
-2 November 2026; R604).
+2 November 2026; R608).
 
 **Replay in the estimate editor.** The editor has no save of its own: the
 Case's one Save carries the specification with the rest of the Case
@@ -545,11 +545,11 @@ materials sit on lines. Extras keep their printed price. A LABOUR line whose
 description starts with "Specialist" (Audatex's opinion-time specialist
 operations) is a Specialist line by hours, costed at the rate as labour and
 listed under Additional operations, not an R&I line (operator, 2 November
-2026; R604). The parts footer is read past Sub Total: `Deduction from RRP`,
+2026; R608). The parts footer is read past Sub Total: `Deduction from RRP`,
 `Sundry Parts` and `Total Parts`. A Sundry Parts amount above zero lands as
 one New part line named `Sundry Parts` at the printed amount, so the parts
-total equals the document's Total Parts (R610). A deduction percentage above
-zero becomes the estimate's parts discount (R611); Audatex works the sundry
+total equals the document's Total Parts (R614). A deduction percentage above
+zero becomes the estimate's parts discount (R615); Audatex works the sundry
 out after the deduction while Pegasus discounts every part line, so such an
 estimate's parts total reads a few pence below the document's (32p on the
 one known 5 % case). The footer must reproduce the document's own

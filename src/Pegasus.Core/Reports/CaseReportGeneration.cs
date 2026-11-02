@@ -74,7 +74,7 @@ public enum CaseReportGenerationState
 
 /// <summary>
 /// The five independent report output choices (v3 § Report; operator,
-/// 2 November 2026; R606, R607). They select what the generated report says;
+/// 2 November 2026; R610, R611). They select what the generated report says;
 /// none of them deletes evidence. The first three are off until recorded on;
 /// the court line and the statement of truth are on until recorded off.
 /// </summary>
@@ -88,7 +88,7 @@ public sealed record CaseReportContentSwitches(
     public static readonly CaseReportContentSwitches None = new(false, false, false);
 
     /// <summary>The switches that are on until the Case records "false".</summary>
-    private static readonly IReadOnlySet<string> OnUntilRecordedOff = new HashSet<string>(StringComparer.Ordinal)
+    private static readonly HashSet<string> OnUntilRecordedOff = new(StringComparer.Ordinal)
     {
         AssessmentVocabulary.ReportFaoTheCourt,
         AssessmentVocabulary.ReportIncludeStatementOfTruth,

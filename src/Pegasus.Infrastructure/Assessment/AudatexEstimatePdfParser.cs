@@ -23,14 +23,14 @@ namespace Pegasus.Infrastructure.Assessment;
 /// because a dropped costed line breaks its section's sum.
 ///
 /// Under its "Sub Total" a current report prints the parts footer:
-/// "Deduction from RRP (N %)", "Sundry Parts" and "Total Parts" (R610).
+/// "Deduction from RRP (N %)", "Sundry Parts" and "Total Parts" (R614).
 /// The Sub Total less the deduction, to the penny, plus the sundry amount
 /// must be the printed Total Parts; the sundry amount lands as one more
-/// parts line and the deduction as the estimate's parts discount (R611).
+/// parts line and the deduction as the estimate's parts discount (R615).
 /// An older report prints no footer and imports on its Sub Total alone.
 ///
 /// A LABOUR line whose description starts "Specialist" is Specialist by
-/// hours (R604).
+/// hours (R608).
 ///
 /// Each LABOUR and PAINT WORK heading prints its own time basis
 /// ("Time Basis 10 WU = 1 HR"; 12 for some makes' labour). Printed work
@@ -271,7 +271,7 @@ internal static class AudatexEstimatePdfParser
 
         /// <summary>
         /// The rows the closed PARTS section prints under its "Sub Total"
-        /// (R610). On every corpus report each label shares its baseline with
+        /// (R614). On every corpus report each label shares its baseline with
         /// its amount, so the amount is the row's last word, and the footer
         /// may run onto the next page. Any other row there is not a line.
         /// </summary>
@@ -341,9 +341,9 @@ internal static class AudatexEstimatePdfParser
         /// <summary>
         /// A report that prints Total Parts must reconcile with it: the Sub
         /// Total less its deduction from RRP, to the penny, plus the sundry
-        /// amount (R610). The sundry amount then lands as one more parts line,
+        /// amount (R614). The sundry amount then lands as one more parts line,
         /// after the Sub Total check over the printed lines, and the deduction
-        /// is returned as the estimate's parts discount (R611). A footer row
+        /// is returned as the estimate's parts discount (R615). A footer row
         /// without Total Parts cannot be reconciled and rejects the import.
         /// </summary>
         private EstimateDiscounts? VerifyPartsFooter()

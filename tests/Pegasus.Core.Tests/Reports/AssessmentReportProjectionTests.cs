@@ -483,7 +483,7 @@ public sealed class AssessmentReportProjectionTests
     /// <summary>
     /// The report's Repairs Required list reads repair lines only, as the
     /// Case page's list does; an R&amp;I line is on no report list (operator,
-    /// 2 November 2026; R604).
+    /// 2 November 2026; R608).
     /// </summary>
     [Fact]
     public void AnRAndILineIsLeftOffTheReport()
@@ -804,14 +804,14 @@ public sealed class AssessmentReportProjectionTests
         Assert.Equal(includeUnrelatedDamage, snapshot.Content.IncludeUnrelatedDamage);
         Assert.False(snapshot.Content.IncludeValuationCommentary);
         Assert.Equal(discloseGuideSource, snapshot.PrintsGuideDisclosure);
-        // The court line and the statement are on with nothing recorded (R606, R607).
+        // The court line and the statement are on with nothing recorded (R610, R611).
         Assert.True(snapshot.Content.AddressToTheCourt);
         Assert.True(snapshot.Content.IncludeStatementOfTruth);
     }
 
     /// <summary>
     /// FAO The Court and Include statement of truth are on until the Case
-    /// records "false" (operator, 2 November 2026; R606, R607).
+    /// records "false" (operator, 2 November 2026; R610, R611).
     /// </summary>
     [Theory]
     [InlineData(null, true)]
@@ -839,7 +839,7 @@ public sealed class AssessmentReportProjectionTests
     /// <summary>
     /// With the statement of truth off the two court declarations are left
     /// out; the guide sentence (when it prints), the parts-price caveat and
-    /// the fee-note paragraph still follow in order (R605).
+    /// the fee-note paragraph still follow in order (R609).
     /// </summary>
     [Theory]
     [InlineData(false)]

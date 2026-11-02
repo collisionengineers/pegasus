@@ -87,7 +87,7 @@ public sealed class ReportWordingTests
 
     /// <summary>
     /// A full stop the Engineer typed at the end of the reason is not doubled
-    /// (operator, 2 November 2026; R603).
+    /// (operator, 2 November 2026; R607).
     /// </summary>
     [Fact]
     public void ATypedFullStopEndsTheUnroadworthySentenceOnce()
@@ -110,7 +110,7 @@ public sealed class ReportWordingTests
 
     /// <summary>
     /// The sentence the report prints opens with the words the Case page
-    /// shows before the reason box (R603, R608).
+    /// shows before the reason box (R607, R612).
     /// </summary>
     [Fact]
     public void TheUnroadworthySentenceOpensWithTheWordsTheCasePageShows()

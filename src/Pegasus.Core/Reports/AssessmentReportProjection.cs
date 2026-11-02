@@ -336,7 +336,7 @@ public static class AssessmentReportProjection
     /// specification's — Use estimate is the acceptance — so this only has to
     /// group by operation, as the Case page's lists do, and drop blank
     /// descriptions. Every line type has an operation; R&amp;I lines belong to
-    /// no list, so they leave the report (operator, 2 November 2026; R604).
+    /// no list, so they leave the report (operator, 2 November 2026; R608).
     /// </summary>
     private static string[] LinesOf(
         IReadOnlyList<CaseEstimateLineRecord> lines, params ReadOnlySpan<EstimateOperation> operations)

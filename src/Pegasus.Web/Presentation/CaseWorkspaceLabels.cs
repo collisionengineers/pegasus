@@ -411,7 +411,7 @@ public static class CaseWorkspaceLabels
         public const string ValuationCommentary = "Valuation commentary";
         public const string UnrelatedDamage = "Unrelated damage";
 
-        /// <summary>The two switches that are on until turned off (R606, R607); the summary names each only when it is off (R612).</summary>
+        /// <summary>The two switches that are on until turned off (R610, R611); the summary names each only when it is off (R616).</summary>
         public const string FaoTheCourt = "FAO The Court";
         public const string IncludeStatementOfTruth = "Include statement of truth";
         public const string NoFaoTheCourt = "No FAO The Court";
@@ -617,7 +617,7 @@ public static class CaseWorkspaceLabels
         /// <summary>The import a line came in on, as its Source chip reads it (v28 P18).</summary>
         public static string ImportedFrom(RepairSpecificationSourceRoute route) => route switch
         {
-            // "Auda", not "AX": AX is a Principal's code (operator, 2 November 2026; R609).
+            // "Auda", not "AX": AX is a Principal's code (operator, 2 November 2026; R613).
             RepairSpecificationSourceRoute.AudatexPdf => SourceImported + " \u00b7 Auda",
             RepairSpecificationSourceRoute.Glasses => SourceImported + " \u00b7 GL",
             RepairSpecificationSourceRoute.Json => SourceImported + " \u00b7 JSON",

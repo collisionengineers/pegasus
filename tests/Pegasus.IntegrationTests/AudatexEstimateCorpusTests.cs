@@ -99,7 +99,7 @@ public sealed class AudatexEstimateCorpusTests(ITestOutputHelper output)
         {
             // The printed parts lines less the parts discount, to the penny,
             // plus the one Sundry Parts line make the document's Total Parts
-            // (R610, R611); an older report's lines make its Sub Total.
+            // (R614, R615); an older report's lines make its Sub Total.
             var sundry = parsed.Lines
                 .Where(line => line.SourceRowIdentity!.StartsWith("parts:", StringComparison.Ordinal)
                     && line is { GuideCode: null, Description: "Sundry Parts" })

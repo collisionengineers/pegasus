@@ -379,7 +379,7 @@ public sealed partial class AssessmentReportRendererTests
     /// "FAO The Court" is the first line of the report's Report For band
     /// while the switch is on; the image pack's addressee band and the fee
     /// note's Bill To print the addressee alone (operator, 2 November 2026;
-    /// R606).
+    /// R610).
     /// </summary>
     [Fact]
     public async Task FaoTheCourtPrintsOnTheReportOnly()
@@ -416,7 +416,7 @@ public sealed partial class AssessmentReportRendererTests
     /// <summary>
     /// With Include statement of truth off the last page prints no heading:
     /// the parts-price caveat and the fee-note paragraph stand at its top,
-    /// then the sign-off (operator, 2 November 2026; R605).
+    /// then the sign-off (operator, 2 November 2026; R609).
     /// </summary>
     [Fact]
     public async Task WithoutTheStatementTheLastPageHasNoHeadingAndKeepsTheSignOff()

@@ -255,7 +255,7 @@ public sealed partial class DetailsModel
     /// <summary>
     /// The Report content line the five switches read as: "Guide source
     /// disclosed · valuation commentary · unrelated damage", then the court
-    /// line and the statement named only when turned off (R612).
+    /// line and the statement named only when turned off (R616).
     /// </summary>
     public string ReportContentSummary
     {

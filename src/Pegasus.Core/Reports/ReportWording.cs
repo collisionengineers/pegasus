@@ -362,7 +362,7 @@ public static class ReportWordingComposition
     /// <summary>
     /// The opening of the unroadworthy sentence, the same words the Case page
     /// shows before the reason box so the Engineer finishes the sentence
-    /// (operator, 2 November 2026; R603, R608). "as" fits the clause-shaped
+    /// (operator, 2 November 2026; R607, R612). "as" fits the clause-shaped
     /// bank wordings that "due to" did not.
     /// </summary>
     public const string UnroadworthyOpening = "Please note the vehicle is unroadworthy as";
@@ -370,7 +370,7 @@ public static class ReportWordingComposition
     /// <summary>
     /// The unroadworthy sentence as printed: the opening, the reason, one full
     /// stop. A full stop the Engineer typed at the end is not doubled
-    /// (operator, 2 November 2026; R603).
+    /// (operator, 2 November 2026; R607).
     /// </summary>
     public static string UnroadworthySentence(string reason)
     {

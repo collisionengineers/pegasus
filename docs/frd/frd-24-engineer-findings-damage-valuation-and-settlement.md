@@ -370,7 +370,7 @@ only to completeness. Outcome meanings are owned by
 The report prints the outcome, the roadworthiness and the unroadworthy
 reason as one sentence, `Please note the vehicle is unroadworthy as
 {reason}.`, with one full stop whether or not the Engineer typed one
-(operator, 2 November 2026; R603). On a total loss it prints the category and the salvage value. On a
+(operator, 2 November 2026; R607). On a total loss it prints the category and the salvage value. On a
 contract repair it prints the agreed contract sum. The other settlement
 fields are recorded on the Case and not printed (operator, 27 September
 2026).
@@ -413,7 +413,7 @@ a wording. The reason finishes the sentence the report prints: while editing,
 the reason row shows the sentence's fixed opening in the greyed value style
 before the box, and a wording inserted into an empty box keeps its small
 first letter; while reading, the row shows the whole sentence as printed
-(operator, 2 November 2026; R608).
+(operator, 2 November 2026; R612).
 
 Settlement saves with the Case's single workspace Save. Storage per day and
 recovery use the existing typed Inspection members. The repair total is read from the Current repair

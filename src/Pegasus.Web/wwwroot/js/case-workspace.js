@@ -4926,7 +4926,7 @@
                 var text = (area.value || '').trim();
                 if (text.toLowerCase().indexOf(wording.toLowerCase()) < 0) {
                     // The reason finishes the sentence the row opens, so a
-                    // wording keeps its small first letter (R603, R608).
+                    // wording keeps its small first letter (R607, R612).
                     area.value = text.length === 0
                         ? wording
                         : text.replace(/\.$/, '') + ' and ' + wording;
@@ -4983,7 +4983,7 @@
     'use strict';
 
     // The court line and the statement are on until turned off, so the
-    // summary names each only when it is off (R612).
+    // summary names each only when it is off (R616).
     var words = {
         'report.disclose_guide_source': ['Guide source disclosed', 'Guide source not disclosed'],
         'report.valuation_commentary': ['valuation commentary', ''],

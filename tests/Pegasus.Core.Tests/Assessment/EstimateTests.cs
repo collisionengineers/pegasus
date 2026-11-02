@@ -880,7 +880,7 @@ public sealed class EstimateTests
     }
 
     /// <summary>
-    /// R&amp;I lines are on no report list (R604); retyping one as a
+    /// R&amp;I lines are on no report list (R608); retyping one as a
     /// work-unit Specialist line with the same hours and no price moves no
     /// money: its hours stay priced panel labour at the one rate.
     /// </summary>

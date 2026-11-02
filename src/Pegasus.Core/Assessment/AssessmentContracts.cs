@@ -91,7 +91,7 @@ public static class AssessmentVocabulary
 
     /// <summary>
     /// The two report choices that are on until recorded off (operator,
-    /// 2 November 2026; R606, R607): the "FAO The Court" line above the
+    /// 2 November 2026; R610, R611): the "FAO The Court" line above the
     /// report's addressee, and the statement of truth.
     /// </summary>
     public const string ReportFaoTheCourt = "report.fao_the_court";

@@ -179,7 +179,7 @@ public sealed class AudatexEstimatePdfParserTests
     [Fact]
     public void ASundryAmountLandsAsOneNewPartAndTotalPartsIsTheSourceTotal()
     {
-        // R610: the Sub Total less a nil deduction, plus the sundry amount,
+        // R614: the Sub Total less a nil deduction, plus the sundry amount,
         // is the printed Total Parts; the sundry amount is one more parts line.
         var result = Parse(AudatexEstimateFixture.Build(
             partsDeduction: ("0.0", "£0.00"), partsSundry: "£21.71", partsTotal: "£641.91"));
@@ -202,7 +202,7 @@ public sealed class AudatexEstimatePdfParserTests
     [Fact]
     public void ADeductionFromRrpBecomesThePartsDiscount()
     {
-        // R611: Sub Total £442.03 less 5 % is £419.93, and the sundry £6.30
+        // R615: Sub Total £442.03 less 5 % is £419.93, and the sundry £6.30
         // makes the printed Total Parts £426.23. The 5 % lands as the
         // estimate's parts discount, a fraction of one.
         var result = Parse(AudatexEstimateFixture.Build(
@@ -245,7 +245,7 @@ public sealed class AudatexEstimatePdfParserTests
     [Fact]
     public void ASpecialistLabourLineIsSpecialistByHours()
     {
-        // R604: "1000 Specialist QC AND ROAD TEST 12.0*" at 12 WU to the hour
+        // R608: "1000 Specialist QC AND ROAD TEST 12.0*" at 12 WU to the hour
         // is one hour of Specialist by hours, never a remove and refit.
         var result = Parse(AudatexEstimateFixture.Build(
             specialistLabour: true, labourUnitsPerHour: 12, labourTotalWorkUnits: "33.0"));

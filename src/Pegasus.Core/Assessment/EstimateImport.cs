@@ -147,7 +147,7 @@ public sealed record EstimateSourceTotals(
 /// its format names one; it fills the Case's empty VIN
 /// (<see cref="GlassVinFillPolicy"/>). <see cref="Discounts"/> carries the
 /// deduction from RRP an Audatex document applies to its parts, which lands
-/// as the estimate's parts discount (R611).
+/// as the estimate's parts discount (R615).
 /// </summary>
 public sealed record ParsedEstimate(
     string SourceVersion,
@@ -402,7 +402,7 @@ public sealed class ImportRawEstimate(
         {
             // The spec keeps its name, labour-rate card, VAT and discounts,
             // save that a document's own parts deduction becomes its parts
-            // discount (R611); the import replaces its lines and source. The
+            // discount (R615); the import replaces its lines and source. The
             // store freezes the grid replaced and the import, and records
             // what the import supplements (v38 P3), so no supplementary is
             // carried here.
