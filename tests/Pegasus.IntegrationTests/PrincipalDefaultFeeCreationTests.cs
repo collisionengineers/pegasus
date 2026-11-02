@@ -11,7 +11,9 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// A new Case starts with its Principal's default fee as its agreed fee
 /// (operator, 5 October 2026), so the fee note is not a report blocker. The
-/// value is the Principal's, tagged as such, until staff change it.
+/// value is the Principal's, tagged as such, until staff change it. It also
+/// starts with a Good pre-incident condition under the default's recorder
+/// (R574), so the condition is not a report blocker either.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class PrincipalDefaultFeeCreationTests
@@ -97,5 +99,11 @@ public sealed class PrincipalDefaultFeeCreationTests
         Assert.Equal(expected, fee.Value);
         Assert.Equal(nameof(ActorKind.Automation), fee.RecordedByKind);
         Assert.Equal(PrincipalDefaultFeePolicy.RecorderId, fee.RecordedBy);
+
+        var condition = await context.CaseAssessmentFields.AsNoTracking().SingleAsync(item =>
+            item.WorkId == caseId && item.FieldPath == AssessmentVocabulary.VehicleCondition);
+        Assert.Equal(VehicleConditionDefault.Code, condition.Value);
+        Assert.Equal(nameof(ActorKind.Automation), condition.RecordedByKind);
+        Assert.Equal(VehicleConditionDefault.RecorderId, condition.RecordedBy);
     }
 }

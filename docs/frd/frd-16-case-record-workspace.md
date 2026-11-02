@@ -522,7 +522,10 @@ the registration clears them until the new vehicle is looked up
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
 Transmission keeps its place among them and is edited in place, picked from
 Manual, Automatic, Semi-automatic, CVT or Unknown, because no approved lookup
-returns it (operator, 24 September 2026). One **Look up DVLA & MOT** action
+returns it (operator, 24 September 2026). Pre-incident condition is picked
+from Poor, Below average, Average, Good or Excellent, with no Not recorded
+choice; every Case starts at Good, shown untagged, as a repair spec stands on
+Registered (operator, 2 November 2026; R574). One **Look up DVLA & MOT** action
 (`EXT-01`) fills an empty Make, Model, Year or Mileage and a Vehicle type
 that neither staff nor the Automation Actor has recorded, and records the
 lookup's own facts. It never overwrites an extracted, staff-entered or
