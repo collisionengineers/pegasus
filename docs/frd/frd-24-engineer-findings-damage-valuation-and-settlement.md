@@ -141,7 +141,7 @@ workspace and the report draw alike.
 
 The record also carries the unrelated damage. `impact_location` and
 `impact_severity` are derived from the damages by `Pegasus.Core`, never
-typed in (operator, 2 November 2026, R623, replacing the rule that more than
+typed in (operator, 2 November 2026, R639, replacing the rule that more than
 one distinct area read Multiple). Bursts whose discs overlap or touch are one
 damage: each entry is judged by its disc, drawn or the one its areas give,
 two are joined when their centres are no further apart than their radii
