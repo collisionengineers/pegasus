@@ -26,16 +26,11 @@ internal static class CaseDataSnapshotFactory
         };
     }
 
-    /// <param name="instructionEmail">
-    /// The retained message the receipt was read from, when it was an e-mail:
-    /// its From address, display name and plain-text body.
-    /// </param>
     public static CaseDataSnapshotEntity Create(
         CaseEntity caseEntity,
         IntakeReceiptEntity receipt,
         CaseAcceptanceRequest request,
-        DateTimeOffset acceptedAtUtc,
-        InstructionEmailSender? instructionEmail = null)
+        DateTimeOffset acceptedAtUtc)
     {
         ArgumentNullException.ThrowIfNull(caseEntity);
         ArgumentNullException.ThrowIfNull(receipt);
@@ -75,7 +70,6 @@ internal static class CaseDataSnapshotFactory
 
         AddPrincipalFact(snapshot, receipt, request, acceptedAtUtc);
         AddInstructionSuggestions(snapshot, receipt);
-        AddSenderContact(snapshot, receipt, instructionEmail);
         AddResolvedInspection(
             snapshot,
             receipt,
@@ -320,9 +314,6 @@ internal static class CaseDataSnapshotFactory
             Date(draft.InspectionDate));
         AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimantContactNumber, CaseDataCodes.Text, draft.ClaimantContactNumber);
         AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimantAddress, CaseDataCodes.Text, draft.ClaimantAddress);
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactName, CaseDataCodes.Text, draft.FileHandlerName);
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactEmailAddress, CaseDataCodes.Text, draft.FileHandlerEmailAddress);
-        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ContactPhoneNumber, CaseDataCodes.Text, draft.FileHandlerPhoneNumber);
         AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VatStatus, CaseDataCodes.Text, draft.VatStatus);
         AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleMileageUnit, CaseDataCodes.Text, draft.VehicleMileageUnit);
         var addressField = fields.SingleOrDefault(
@@ -373,58 +364,6 @@ internal static class CaseDataSnapshotFactory
                 CaseDataFieldNames.VehicleMileageUnit,
                 CaseDataCodes.Text,
                 "miles");
-        }
-    }
-
-    /// <summary>
-    /// The contact the instruction e-mail's sender gives (R462), after the
-    /// instruction's own values so they rank first: each field fills only
-    /// where the snapshot holds no fact or confirmed value for it. The name
-    /// and e-mail are the mail route's sender identity; the telephone number
-    /// is read from the sender's signature.
-    /// </summary>
-    private static void AddSenderContact(
-        CaseDataSnapshotEntity snapshot,
-        IntakeReceiptEntity receipt,
-        InstructionEmailSender? instructionEmail)
-    {
-        var route = receipt.MailRouteDecision;
-        if (route?.EffectiveSenderAddress is null)
-        {
-            return;
-        }
-
-        var values = SenderContactFill.CaseDataValues(
-            route.EffectiveSenderAddress,
-            instructionEmail?.Address,
-            instructionEmail?.DisplayName,
-            instructionEmail?.BodyPlainText);
-        foreach (var (fieldName, value) in values)
-        {
-            if (!Pegasus.Core.Vehicle.VehicleLookupFillPolicy.Fills(
-                    snapshot.Fields.Any(item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Fact),
-                    snapshot.Fields.Any(item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Confirmed)))
-            {
-                continue;
-            }
-
-            var fromSignature = fieldName == CaseDataFieldNames.ContactPhoneNumber;
-            snapshot.Fields.Add(new()
-            {
-                WorkId = snapshot.WorkId,
-                Snapshot = snapshot,
-                FieldName = fieldName,
-                ValueKind = CaseDataCodes.Fact,
-                ValueType = CaseDataCodes.Text,
-                Value = value,
-                SourceKind = fromSignature ? CaseDataCodes.IntakeEvidence : CaseDataCodes.MailRoute,
-                SourceIdentity = receipt.Id.ToString("D"),
-                SourceLabel = fromSignature
-                    ? "e-mail signature"
-                    : route.EffectiveSenderSourceLabel ?? "e-mail sender",
-                PolicyKey = SenderContactFill.PolicyKey,
-                PolicyVersion = SenderContactFill.PolicyVersion
-            });
         }
     }
 
@@ -689,6 +628,3 @@ internal static class CaseDataSnapshotFactory
         }
     }
 }
-
-/// <summary>The retained instruction e-mail's sender and body, as <see cref="SenderContactFill"/> reads them.</summary>
-internal sealed record InstructionEmailSender(string? Address, string? DisplayName, string? BodyPlainText);

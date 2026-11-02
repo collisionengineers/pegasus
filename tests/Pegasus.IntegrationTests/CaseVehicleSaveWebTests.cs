@@ -144,7 +144,6 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         Assert.Equal(before.Claimant, data!.Claimant);
         Assert.Equal(before.Claim, data.Claim);
         Assert.Equal(before.Accident, data.Accident);
-        Assert.Equal(before.Contact, data.Contact);
         Assert.Equal(before.Instruction, data.Instruction);
         Assert.Equal(before.Inspection, data.Inspection);
         Assert.Equal("AB12CDE", data!.Vehicle.Registration.Fact?.Value);
@@ -684,9 +683,6 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             Field("Inspection address", "1 Test Street, London"),
             Field("Claimant contact number", "07700 900123"),
             Field("Claimant address", "12 Example Street, Leeds, LS1 1AA"),
-            Field("Contact name", "Case handler"),
-            Field("Contact email", "handler@example.test"),
-            Field("Contact phone", "020 7946 0123"),
             Field("VAT status", "VAT registered")
         };
         if (!withMileage)
@@ -710,9 +706,6 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         draft.InspectionAddress = "1 Test Street, London";
         draft.ClaimantContactNumber = "07700 900123";
         draft.ClaimantAddress = "12 Example Street, Leeds, LS1 1AA";
-        draft.FileHandlerName = "Case handler";
-        draft.FileHandlerEmailAddress = "handler@example.test";
-        draft.FileHandlerPhoneNumber = "020 7946 0123";
         draft.VatStatus = "VAT registered";
         var receipt = await context.IntakeReceipts.SingleAsync(item => item.Id == receiptId);
         receipt.FieldsJson = EfIntakeReceiptStore.SerializeFields(fields);
@@ -754,9 +747,6 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         ("claimSourceContactName", InputValue(html, "claimSourceContactName")),
         ("claimSourceContactTelephone", InputValue(html, "claimSourceContactTelephone")),
         ("claimSourceContactEmail", InputValue(html, "claimSourceContactEmail")),
-        ("contactName", InputValue(html, "contactName")),
-        ("contactEmailAddress", InputValue(html, "contactEmailAddress")),
-        ("contactPhoneNumber", InputValue(html, "contactPhoneNumber")),
         ("vatStatus", InputValue(html, "vatStatus")),
         ("inspectionDate", InputValue(html, "inspectionDate")),
         ("inspectionDeadline", InputValue(html, "inspectionDeadline")),

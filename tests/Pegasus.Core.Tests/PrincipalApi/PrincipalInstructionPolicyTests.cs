@@ -13,7 +13,6 @@ public sealed class PrincipalInstructionPolicyTests
           "caseType": "inspection",
           "claimNumber": "12345/1",
           "claimant": { "name": "Alex  Mercer", "contactNumber": "07700 900000", "address": " 1 High Street \n  Leeds " },
-          "fileHandler": { "name": "Sam Handler", "emailAddress": "sam@example.test", "phoneNumber": "0113 496 0000" },
           "vehicle": { "registration": "ab12 cde", "make": "Peugeot", "model": "RCZ GT THP 156", "mileage": 48210, "mileageUnit": "miles" },
           "incident": { "dateOfIncident": "2031-04-01", "circumstances": "Rear-ended at a junction." },
           "inspection": { "dateRequested": "2031-05-20", "location": "Repairer Ltd\nLeeds" },

@@ -338,9 +338,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.VatStatus).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.VatStatus);
             entity.Property(item => item.ClaimantAddress).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.Address);
             entity.Property(item => item.ClaimantContactNumber).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.Telephone);
-            entity.Property(item => item.FileHandlerName).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.PersonName);
-            entity.Property(item => item.FileHandlerEmailAddress).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.EmailAddress);
-            entity.Property(item => item.FileHandlerPhoneNumber).HasMaxLength(Pegasus.Core.Cases.CaseDataLimits.Telephone);
             entity.Property(item => item.Notes).HasMaxLength(Pegasus.Core.Cases.AddCaseNote.MaximumLength);
             entity.HasOne(item => item.IntakeReceipt)
                 .WithOne(item => item.InstructionDraft)
@@ -1607,9 +1604,6 @@ internal sealed class InstructionDraftEntity
     public string? VatStatus { get; set; }
     public string? ClaimantAddress { get; set; }
     public string? ClaimantContactNumber { get; set; }
-    public string? FileHandlerName { get; set; }
-    public string? FileHandlerEmailAddress { get; set; }
-    public string? FileHandlerPhoneNumber { get; set; }
     public string? Notes { get; set; }
 }
 

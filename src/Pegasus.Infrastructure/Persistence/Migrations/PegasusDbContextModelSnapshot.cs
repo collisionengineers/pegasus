@@ -4388,18 +4388,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("DateOfIncident")
                         .HasColumnType("date");
 
-                    b.Property<string>("FileHandlerEmailAddress")
-                        .HasMaxLength(320)
-                        .HasColumnType("nvarchar(320)");
-
-                    b.Property<string>("FileHandlerName")
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<string>("FileHandlerPhoneNumber")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
                     b.Property<string>("InspectionAddress")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");

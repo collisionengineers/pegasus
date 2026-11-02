@@ -486,9 +486,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 VatStatus = draft.InstructionDraft.VatStatus,
                 ClaimantAddress = draft.InstructionDraft.ClaimantAddress,
                 ClaimantContactNumber = draft.InstructionDraft.ClaimantContactNumber,
-                FileHandlerName = draft.InstructionDraft.FileHandlerName,
-                FileHandlerEmailAddress = draft.InstructionDraft.FileHandlerEmailAddress,
-                FileHandlerPhoneNumber = draft.InstructionDraft.FileHandlerPhoneNumber,
                 Notes = draft.InstructionDraft.Notes
             };
         }
@@ -675,9 +672,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.VatStatus,
         entity.ClaimantAddress,
         entity.ClaimantContactNumber,
-        entity.FileHandlerName,
-        entity.FileHandlerEmailAddress,
-        entity.FileHandlerPhoneNumber,
         entity.Notes);
 
     private static IntakeMailRouteDecisionEntity MapMailRouteDecision(
@@ -905,9 +899,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.VatStatus = draft.VatStatus;
         entity.ClaimantAddress = draft.ClaimantAddress;
         entity.ClaimantContactNumber = draft.ClaimantContactNumber;
-        entity.FileHandlerName = draft.FileHandlerName;
-        entity.FileHandlerEmailAddress = draft.FileHandlerEmailAddress;
-        entity.FileHandlerPhoneNumber = draft.FileHandlerPhoneNumber;
         entity.Notes = draft.Notes;
         receipt.InstructionDraft = entity;
     }

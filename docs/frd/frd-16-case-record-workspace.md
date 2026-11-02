@@ -421,19 +421,21 @@ Audit with no original report at all, neither a filed report nor one kept
 from the instruction email, also has **Original report missing**, sourced
 from Audit.
 
-Then the Case and Principal cards, each folding and staying folded per
+Then the Case and Claim source cards, each folding and staying folded per
 browser; the Sign-off Engineer is decided on the Case card. Case type, Our ref and Principal are
 the ribbon's facts and are not repeated as cells (v36 item E, 9 October 2026); Received stays a
 greyed cell, with no padlock; the Case card carries the derived Matter line across its foot and, once a
 report has been sent, when and from which mailbox. A select's empty option carries the cell's
-absent word (Not recorded, Unassigned), so the control reads as the box does. The Claim source is chosen from the active
-Claim Source contacts. A Notes band shows the Principal's and the Claim
-source's Notes on every Case, read-only and absent when the record has none
-([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
-beside this Case's own Principal and Claim source notes. A Triage Case shows
+absent word (Not recorded, Unassigned), so the control reads as the box does. The Claim source card lays its cells two
+across, like the Case card: the Claim source, chosen from the active Claim Source contacts, and its contact name,
+telephone and e-mail; then the Claim source's Notes on every Case, read-only and absent when the record has none
+([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)), beside this Case's own Claim source notes.
+Below the cards, a full-width Principal panel holds the Principal's Notes on every Case, read-only and absent when the
+record has none, beside this Case's own Principal notes, which keep their half-width place when the record has none. A
+Case has no Case contact and no Notes from client (operator, 2 November 2026; R594–R599). A Triage Case shows
 the Principal's notes too, read-only and absent when the Principal has none
-(operator ruling, 22 October 2026). Then Accident
-circumstances beside Notes from client.
+(operator ruling, 22 October 2026). Then Accident circumstances, across the
+full width.
 
 ### Claim
 

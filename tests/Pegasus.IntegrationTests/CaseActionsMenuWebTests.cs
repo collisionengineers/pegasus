@@ -441,18 +441,19 @@ public sealed class CaseActionsMenuWebTests
     }
 
     /// <summary>
-    /// The Notes band (13 September): the Principal record's notes read live
-    /// and locked, absent when the record has none; this Case's own notes read
-    /// in read mode and become the Save form's textareas in the edit session.
+    /// The Principal panel (v43, 2 November 2026; the Notes band of 13 September):
+    /// the Principal record's notes read live and locked, absent when the record
+    /// has none; this Case's own notes read in read mode and become the Save
+    /// form's textareas in the edit session.
     /// </summary>
     [Fact]
-    public async Task TheNotesBandReadsTheRecordNotesAndEditsTheCasesOwn()
+    public async Task ThePrincipalPanelReadsTheRecordNotesAndEditsTheCasesOwn()
     {
         var store = new RecordingCaseDetailsStore { RecordNotes = new("Always telephone the handler first.", null) };
         store.DataOverride = await WithCaseNotesAsync(store, "Handler prefers e-mail.", null);
 
         var reading = OverviewPanel(await ReadCaseAsync(store));
-        Assert.Contains("data-notes-band", reading, StringComparison.Ordinal);
+        Assert.Contains("data-collapse=\"case.overview.principal-notes\"", reading, StringComparison.Ordinal);
         Assert.Contains("data-record-notes=\"principal\"", reading, StringComparison.Ordinal);
         Assert.Contains("Always telephone the handler first.", reading, StringComparison.Ordinal);
         Assert.DoesNotContain("data-record-notes=\"claim-source\"", reading, StringComparison.Ordinal);
@@ -472,7 +473,7 @@ public sealed class CaseActionsMenuWebTests
     }
 
     [Fact]
-    public async Task OverviewKeepsItsContactNotesAndAccidentBandsInsideBalancedMarkup()
+    public async Task OverviewKeepsItsCardsPrincipalPanelAndAccidentBandInsideBalancedMarkup()
     {
         var reading = OverviewPanel(await ReadCaseAsync(new RecordingCaseDetailsStore()));
         AssertOverviewBands(reading);
@@ -486,12 +487,12 @@ public sealed class CaseActionsMenuWebTests
     {
         AssertBalancedMarkup(overview);
         Assert.DoesNotContain("}", overview, StringComparison.Ordinal);
-        Assert.Contains("data-collapse=\"case.overview.contact\"", overview, StringComparison.Ordinal);
-        Assert.Contains("data-notes-band", overview, StringComparison.Ordinal);
+        Assert.Contains("data-collapse=\"case.overview.claim-source\"", overview, StringComparison.Ordinal);
+        Assert.Contains("data-collapse=\"case.overview.principal-notes\"", overview, StringComparison.Ordinal);
         Assert.Contains("data-accident-band", overview, StringComparison.Ordinal);
         var sectionEnd = overview.IndexOf("</section>", StringComparison.Ordinal);
-        Assert.True(sectionEnd > overview.IndexOf("data-collapse=\"case.overview.contact\"", StringComparison.Ordinal));
-        Assert.True(sectionEnd > overview.IndexOf("data-notes-band", StringComparison.Ordinal));
+        Assert.True(sectionEnd > overview.IndexOf("data-collapse=\"case.overview.claim-source\"", StringComparison.Ordinal));
+        Assert.True(sectionEnd > overview.IndexOf("data-collapse=\"case.overview.principal-notes\"", StringComparison.Ordinal));
         Assert.True(sectionEnd > overview.IndexOf("data-accident-band", StringComparison.Ordinal));
     }
 

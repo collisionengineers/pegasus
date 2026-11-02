@@ -570,8 +570,7 @@ public sealed partial class AssessmentReportDraftWebTests
             // existing report fixture's through the real writer.
             Overview = new(initial.Claimant.Name.Current?.Value,
                 initial.Claimant.ContactNumber.Current?.Value, initial.Claimant.Address.Current?.Value,
-                initial.Claim.Number.Current?.Value, initial.Contact.Name.Current?.Value,
-                initial.Contact.EmailAddress.Current?.Value, initial.Contact.PhoneNumber.Current?.Value,
+                initial.Claim.Number.Current?.Value,
                 existing.Assessment.CaseOwned.IncidentDate, initial.Accident.Circumstances.Current?.Value,
                 initial.Instruction.VatStatus.Current?.Value,
                 initial.Inspection.RepairerAddress?.Current?.Value, initial.Workspace?.ClaimSource),

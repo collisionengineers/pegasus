@@ -34,7 +34,6 @@ internal static class AssessmentWorkspaceTestData
                 emptyString, emptyString, emptyString, emptyString,
                 new CaseField<long>(null, null, null), emptyString),
             new CaseAccidentData(emptyDate, emptyString),
-            new CaseContactData(emptyString, emptyString, emptyString),
             new CaseInstructionData(new DateOnly(2026, 8, 2), emptyString),
             new CaseInspectionData(
                 emptyDate, emptyDate, emptyString,

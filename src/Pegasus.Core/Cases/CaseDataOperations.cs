@@ -166,9 +166,6 @@ public static class CaseDataPolicy
             VehicleYear = Text(data.VehicleYear, 10, nameof(data.VehicleYear)),
             VehicleMileageUnit = Text(data.VehicleMileageUnit, CaseDataLimits.MileageUnit, nameof(data.VehicleMileageUnit)),
             AccidentCircumstances = Paragraphs(data.AccidentCircumstances, CaseDataLimits.AccidentCircumstances, nameof(data.AccidentCircumstances)),
-            ContactName = Text(data.ContactName, CaseDataLimits.PersonName, nameof(data.ContactName)),
-            ContactEmailAddress = Text(data.ContactEmailAddress, CaseDataLimits.EmailAddress, nameof(data.ContactEmailAddress)),
-            ContactPhoneNumber = Text(data.ContactPhoneNumber, CaseDataLimits.Telephone, nameof(data.ContactPhoneNumber)),
             VatStatus = Text(data.VatStatus, CaseDataLimits.VatStatus, nameof(data.VatStatus)),
             InspectionAddress = Text(data.InspectionAddress, CaseDataLimits.Address, nameof(data.InspectionAddress)),
             StorageLocation = Text(data.StorageLocation, 1000, nameof(data.StorageLocation)),
@@ -190,7 +187,6 @@ public static class CaseDataPolicy
             InspectionNotes = Paragraphs(data.InspectionNotes, 2000, nameof(data.InspectionNotes)),
             PrincipalNotes = Paragraphs(data.PrincipalNotes, 2000, nameof(data.PrincipalNotes)),
             ClaimSourceNotes = Paragraphs(data.ClaimSourceNotes, 2000, nameof(data.ClaimSourceNotes)),
-            ClientNotes = Paragraphs(data.ClientNotes, 4000, nameof(data.ClientNotes)),
             ClaimSourceOverrideContactName = Text(data.ClaimSourceOverrideContactName, 300, nameof(data.ClaimSourceOverrideContactName)),
             ClaimSourceOverrideContactTelephone = Text(data.ClaimSourceOverrideContactTelephone, 100, nameof(data.ClaimSourceOverrideContactTelephone)),
             ClaimSourceOverrideContactEmailAddress = Text(data.ClaimSourceOverrideContactEmailAddress, 300, nameof(data.ClaimSourceOverrideContactEmailAddress))
