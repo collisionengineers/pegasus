@@ -194,10 +194,9 @@ public sealed class CaseRecordFieldsWebTests
         var report = SectionHtml(await workspace.GetWorkspaceAsync(), "report");
         var name = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportValuationCommentaryText);
         Assert.Contains($"data-field=\"{AssessmentVocabulary.ReportValuationCommentaryText}\"", report, StringComparison.Ordinal);
-        Assert.Contains(
-            $"name=\"{name}\" form=\"case-edit-form\" maxlength=\"4000\">Guide adjusted up for low mileage.</textarea>",
-            report,
-            StringComparison.Ordinal);
+        Assert.Matches(
+            $"name=\"{Regex.Escape(name)}\" form=\"case-edit-form\"\\s+maxlength=\"4000\">Guide adjusted up for low mileage\\.</textarea>",
+            report);
 
         using var response = await SaveAsync(workspace, (name, "Guide adjusted down for prior damage."));
 
