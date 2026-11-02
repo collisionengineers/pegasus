@@ -3495,7 +3495,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
             allocated.Identity.Reference,
             await harness.ReadCaseReferenceAsync(allocated.Identity.CaseId));
         // The replacement starts with its corrected Principal's default fee
-        // and a Good pre-incident condition (R574).
+        // and a Good pre-incident condition (R598).
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var fee = await context.CaseAssessmentFields.AsNoTracking().SingleAsync(item =>

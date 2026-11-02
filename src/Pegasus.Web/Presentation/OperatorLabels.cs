@@ -1312,7 +1312,7 @@ public static partial class OperatorLabels
     /// the findings a linked Triage filled Triage, any other Automation
     /// actor's AI, a Pegasus worker's Automatic; a staff
     /// value and the Good pre-incident condition every Case starts with
-    /// (R574) carry none.
+    /// (R598) carry none.
     /// </summary>
     public static SourceTagWord? SourceTag(AssessmentFieldValue? field) => field is null ? null : field.RecordedByKind switch
     {

@@ -13,7 +13,7 @@ namespace Pegasus.IntegrationTests;
 /// (operator, 5 October 2026), so the fee note is not a report blocker. The
 /// value is the Principal's, tagged as such, until staff change it. It also
 /// starts with a Good pre-incident condition under the default's recorder
-/// (R574), so the condition is not a report blocker either.
+/// (R598), so the condition is not a report blocker either.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class PrincipalDefaultFeeCreationTests

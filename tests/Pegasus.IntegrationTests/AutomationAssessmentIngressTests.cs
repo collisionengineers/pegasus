@@ -542,7 +542,7 @@ public sealed class AutomationAssessmentIngressTests
 
         // Stored values carry the automation provenance. The agreed fee the
         // Case took from its Principal and the Good pre-incident condition it
-        // started with (R574) are not this save's.
+        // started with (R598) are not this save's.
         Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseAssessmentFields

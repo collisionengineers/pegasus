@@ -927,7 +927,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         Assert.Equal("120.00", saved.Assessment.Field(AssessmentVocabulary.AgreedFee)?.Value);
         Assert.Equal("2031-05-20", saved.Assessment.Field(AssessmentVocabulary.ReportDate)?.Value);
         // Every value this save wrote is staff's; the Good pre-incident
-        // condition the Case started with (R574) was not posted.
+        // condition the Case started with (R598) was not posted.
         Assert.All(saved.Assessment.Fields.Where(field => field.RecordedBy != VehicleConditionDefault.RecorderId),
             field => Assert.Equal(ActorKind.Staff, field.RecordedByKind));
         await using (var context = await harness.Factory.CreateDbContextAsync())
@@ -2638,7 +2638,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
     }
 
     // The rows a save wrote: the agreed fee the Case took from its Principal
-    // and the Good pre-incident condition it started with (R574) are not.
+    // and the Good pre-incident condition it started with (R598) are not.
     private static async Task<long> AssessmentFieldCountAsync(Harness harness)
     {
         await using var context = await harness.Factory.CreateDbContextAsync();

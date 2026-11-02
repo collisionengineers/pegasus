@@ -7,7 +7,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 
 /// <summary>
 /// Every Case defaults to a Good pre-incident condition and there is no Not
-/// recorded choice (R574, 2 November 2026). A new Case records Good when it is
+/// recorded choice (R598, 2 November 2026). A new Case records Good when it is
 /// created (<c>NewCaseAssessmentDefaults</c>); this gives every existing work,
 /// primary and Audit, open or closed, the same Good row where it records no
 /// condition, under the default's recorder so the Case page shows it

@@ -107,7 +107,7 @@ public sealed class OriginalReportPrefillAcceptanceTests
             .Select(item => item.Id)
             .SingleAsync();
         // The Original report cells only: the agreed fee the Case took from
-        // its Principal and its Good pre-incident condition (R574) are not
+        // its Principal and its Good pre-incident condition (R598) are not
         // the reading's.
         return await context.CaseAssessmentFields
             .Where(item => item.WorkId == caseId

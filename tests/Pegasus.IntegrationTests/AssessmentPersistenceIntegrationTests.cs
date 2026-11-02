@@ -589,7 +589,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
                 automationLease.Token,
                 new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
-                    // Not Good, which the Case already starts with (R574).
+                    // Not Good, which the Case already starts with (R598).
                     ["vehicle.condition"] = "excellent",
                     ["damage.unrelated"] = "Kerbed nearside wheel",
                     // The findings and the valuation values are deliberately
