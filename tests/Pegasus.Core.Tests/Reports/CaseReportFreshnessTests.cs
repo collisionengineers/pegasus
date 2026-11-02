@@ -21,8 +21,8 @@ public sealed class CaseReportFreshnessTests
     [Fact]
     public void UnprintedWorkspaceChangesDoNotStaleTheGeneration()
     {
-        var beforeData = new CaseEditableData(ClientNotes: "Original note");
-        var afterData = beforeData with { ClientNotes = "Updated note" };
+        var beforeData = new CaseEditableData(PrincipalNotes: "Original note");
+        var afterData = beforeData with { PrincipalNotes = "Updated note" };
         var beforeAssessment = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             [AssessmentVocabulary.OriginalReportAssessor] = "Original assessor",
@@ -192,7 +192,7 @@ public sealed class CaseReportFreshnessTests
         var before = new CaseEditableData(
             VehicleMileage: 12_000,
             VehicleMileageUnit: "miles",
-            ClientNotes: "Same note");
+            PrincipalNotes: "Same note");
         var after = before with { VehicleMileage = 12_001 };
 
         var decision = ClassifyCaseData(before, after);

@@ -117,14 +117,13 @@ span.blocker-name{cursor:default;text-decoration:none}
 .sub-panel.is-collapsed>h3 .panel-collapse .icon{transform:rotate(-90deg)}
 .overview-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:10px}
 .accident{border:1px solid var(--line);padding:10px 12px;border-radius:var(--radius)}
-.notes-band .fg.g2{column-gap:14px}
 .fc .fv.multi{white-space:pre-wrap}
 .audit-facts{display:grid;grid-template-columns:auto 1fr;gap:8px 18px;margin:0;align-items:baseline}
 .audit-facts dt{font:600 10.5px var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 .audit-facts dd{margin:0;font-size:13px}
 .mono{font-family:var(--mono)}
 
-@media(max-width:1180px){.overview-grid{grid-template-columns:1fr 1fr}.notes-band .fg.g2{grid-template-columns:1fr}}
+@media(max-width:1180px){.overview-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:760px){.overview-grid{grid-template-columns:1fr}}
 /* A section head keeps its title whole; a long label in the actions truncates. */
 .case-record .record-section>.panel-head>h2{flex:0 0 auto}

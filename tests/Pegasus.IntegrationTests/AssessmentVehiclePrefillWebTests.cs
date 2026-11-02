@@ -255,7 +255,6 @@ public sealed class AssessmentVehiclePrefillWebTests
                 includeConfirmedFacts && !partialConfirmedVehicleEvidence ? Confirmed(40000L) : Empty<long>(),
                 includeConfirmedFacts && !partialConfirmedVehicleEvidence ? Confirmed("miles") : Empty<string>()),
             new(Empty<DateOnly>(), Empty<string>()),
-            new(Empty<string>(), Empty<string>(), Empty<string>()),
             new(new DateOnly(2026, 8, 1), Empty<string>()),
             new(Empty<DateOnly>(), Empty<DateOnly>(), Empty<string>(), Empty<CaseInspectionMode>()),
             AiDraftTargetDays: 1);

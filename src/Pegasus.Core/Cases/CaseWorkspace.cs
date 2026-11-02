@@ -192,9 +192,6 @@ public sealed record CaseWorkspaceOverview(
     string? ClaimantContactNumber,
     string? ClaimantAddress,
     string? ClaimNumber,
-    string? ContactName,
-    string? ContactEmailAddress,
-    string? ContactPhoneNumber,
     DateOnly? IncidentDate,
     string? AccidentCircumstances,
     string? VatStatus,
@@ -203,7 +200,6 @@ public sealed record CaseWorkspaceOverview(
     CaseWorkspaceRepairer? Repairer = null,
     string? PrincipalNotes = null,
     string? ClaimSourceNotes = null,
-    string? ClientNotes = null,
     DateOnly? DueBy = null);
 
 public sealed record CaseWorkspaceInspection(
@@ -1032,14 +1028,10 @@ public static class CaseWorkspacePolicy
                 ClaimantContactNumber = overview.ClaimantContactNumber,
                 ClaimantAddress = overview.ClaimantAddress,
                 ClaimNumber = overview.ClaimNumber,
-                ContactName = overview.ContactName,
-                ContactEmailAddress = overview.ContactEmailAddress,
-                ContactPhoneNumber = overview.ContactPhoneNumber,
                 IncidentDate = overview.IncidentDate,
                 AccidentCircumstances = overview.AccidentCircumstances,
                 PrincipalNotes = overview.PrincipalNotes,
                 ClaimSourceNotes = overview.ClaimSourceNotes,
-                ClientNotes = overview.ClientNotes,
                 VatStatus = overview.VatStatus,
                 RepairerAddress = overview.RepairerAddress,
                 RepairerName = overview.Repairer?.Name,

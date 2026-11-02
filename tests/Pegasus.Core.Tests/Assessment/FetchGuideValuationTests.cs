@@ -339,7 +339,6 @@ public sealed class FetchGuideValuationTests
                 new(new(mileage, CaseDataValueKind.Fact, source), null, null),
                 text),
             new(date, text),
-            new(text, text, text),
             new(new DateOnly(1970, 1, 1), text),
             new(date, date, text, new(null, null, null)));
     }

@@ -324,17 +324,12 @@ public sealed class CaseEditModeWebTests
         store.DataOverride = data with
         {
             Claim = new(new(data.Claim.Number.Confirmed! with { Kind = CaseDataValueKind.Fact },
-                data.Claim.Number.Confirmed! with { Kind = CaseDataValueKind.Suggestion, Value = "CLM-99" }, null)),
-            Contact = data.Contact with
-            {
-                Name = new(data.Contact.Name.Confirmed! with { Kind = CaseDataValueKind.Fact }, null, null)
-            }
+                data.Claim.Number.Confirmed! with { Kind = CaseDataValueKind.Suggestion, Value = "CLM-99" }, null))
         };
         using var workspace = await EnterEditModeAsync(store, services =>
             Substitute<ISaveCaseWorkspace>(services, store));
         var html = await workspace.GetWorkspaceAsync();
         Assert.Equal("CLM-42", InputValue(html, "claimNumber"));
-        Assert.Equal("Case contact", InputValue(html, "contactName"));
         using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
             Form(workspace.AntiforgeryToken, ("expectedVersion", (store.CaseVersion - 1).ToString(CultureInfo.InvariantCulture)),
                 ("operationKey", DetailsModelOperationKey), ("editLeaseToken", store.LeaseToken),
@@ -344,7 +339,6 @@ public sealed class CaseEditModeWebTests
         Assert.Equal(store.CaseVersion - 1, saved.ExpectedVersion);
         Assert.Null(saved.Overview!.ClaimantName);
         Assert.Equal("CLM-42", saved.Overview.ClaimNumber);
-        Assert.Equal("Case contact", saved.Overview.ContactName);
         Assert.Null(saved.Inspection);
         Assert.Null(saved.Vehicle);
         Assert.Null(saved.Report);
@@ -798,7 +792,7 @@ public sealed class CaseEditModeWebTests
         Assert.DoesNotContain("Edit Case data", editing, StringComparison.Ordinal);
         Assert.Equal(1, Occurrences(editing, CaseWorkspaceLabels.Inspection.SectionTitle + "</h2>"));
         // The editor's groups are the read view's groups.
-        foreach (var group in new[] { "<h3>Case <", "<h3>Principal <", "<h3>Claimant <" })
+        foreach (var group in new[] { "<h3>Case <", "<h3>Claim source <", "<h3>Principal <", "<h3>Claimant <" })
         {
             Assert.Equal(1, Occurrences(editing, group));
         }

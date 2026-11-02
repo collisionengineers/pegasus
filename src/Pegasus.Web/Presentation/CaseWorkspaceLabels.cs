@@ -145,13 +145,11 @@ public static class CaseWorkspaceLabels
         public const string ContactPhone = "Contact phone";
         public const string Address = "Address";
         public const string VatStatus = "Claimant VAT status";
-        public const string Notes = "Notes";
         public const string PrincipalNotes = "Principal notes";
         public const string PrincipalNotesThisCase = "Principal notes · this Case";
         public const string ClaimSourceNotes = "Claim source notes";
         public const string ClaimSourceNotesThisCase = "Claim source notes · this Case";
         public const string AccidentCircumstances = "Accident circumstances";
-        public const string NotesFromClient = "Notes from client";
         public const string NoClaimSource = "None";
         public const string ReportSent = "Report sent";
     }

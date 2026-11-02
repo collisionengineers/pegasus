@@ -102,7 +102,6 @@ public static class PrincipalInstructionJson
         }
 
         var claimant = body.Claimant ?? new();
-        var handler = body.FileHandler ?? new();
         var vehicle = body.Vehicle ?? new();
         var incident = body.Incident ?? new();
         var inspection = body.Inspection ?? new();
@@ -134,9 +133,6 @@ public static class PrincipalInstructionJson
                 VatStatus: CaseDataPolicy.Text(body.VatStatus, CaseDataLimits.VatStatus, "vatStatus"),
                 ClaimantAddress: CaseDataPolicy.Paragraphs(claimant.Address, CaseDataLimits.Address, "claimant.address"),
                 ClaimantContactNumber: CaseDataPolicy.Text(claimant.ContactNumber, CaseDataLimits.Telephone, "claimant.contactNumber"),
-                FileHandlerName: CaseDataPolicy.Text(handler.Name, CaseDataLimits.PersonName, "fileHandler.name"),
-                FileHandlerEmailAddress: CaseDataPolicy.Text(handler.EmailAddress, CaseDataLimits.EmailAddress, "fileHandler.emailAddress"),
-                FileHandlerPhoneNumber: CaseDataPolicy.Text(handler.PhoneNumber, CaseDataLimits.Telephone, "fileHandler.phoneNumber"),
                 Notes: CaseDataPolicy.Paragraphs(body.Notes, AddCaseNote.MaximumLength, "notes"));
             return new(caseType, verdict, draft);
         }
@@ -205,11 +201,6 @@ public sealed record PrincipalInstructionClaimantBody(
     string? ContactNumber = null,
     string? Address = null);
 
-public sealed record PrincipalInstructionPartyBody(
-    string? Name = null,
-    string? EmailAddress = null,
-    string? PhoneNumber = null);
-
 public sealed record PrincipalInstructionVehicleBody(
     string? Registration = null,
     string? Make = null,
@@ -237,7 +228,6 @@ public sealed record PrincipalSubmissionBody(
     string? CaseType = null,
     string? OriginalReportVerdict = null,
     PrincipalInstructionClaimantBody? Claimant = null,
-    PrincipalInstructionPartyBody? FileHandler = null,
     PrincipalInstructionVehicleBody? Vehicle = null,
     PrincipalInstructionIncidentBody? Incident = null,
     PrincipalInstructionInspectionBody? Inspection = null,
