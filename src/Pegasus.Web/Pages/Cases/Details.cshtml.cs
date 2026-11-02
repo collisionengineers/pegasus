@@ -2219,9 +2219,6 @@ public sealed partial class DetailsModel(
         string? accidentCircumstances,
         DateOnly? incidentDate,
         DateOnly? dueBy,
-        string? contactName,
-        string? contactEmailAddress,
-        string? contactPhoneNumber,
         string? vatStatus,
         DateOnly? inspectionDate,
         DateOnly? inspectionDeadline,
@@ -2243,7 +2240,6 @@ public sealed partial class DetailsModel(
         Guid? repairerDirectoryId,
         string? principalNotes,
         string? claimSourceNotes,
-        string? clientNotes,
         Guid? claimSourceId,
         string? claimSourceContactName,
         string? claimSourceContactTelephone,
@@ -2422,10 +2418,10 @@ public sealed partial class DetailsModel(
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 var reportSubmitted = reportFields.Count > 0 || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate));
                 var overviewSubmitted = new[] { nameof(claimantName), nameof(claimantContactNumber), nameof(claimantAddress),
-                    nameof(claimNumber), nameof(contactName), nameof(contactEmailAddress), nameof(contactPhoneNumber),
+                    nameof(claimNumber),
                     nameof(incidentDate), nameof(dueBy), nameof(accidentCircumstances), nameof(vatStatus),
                     nameof(repairerName), nameof(repairerAddress), nameof(repairerDirectoryId),
-                    nameof(principalNotes), nameof(claimSourceNotes), nameof(clientNotes), nameof(claimSourceId),
+                    nameof(principalNotes), nameof(claimSourceNotes), nameof(claimSourceId),
                     nameof(claimSourceContactName), nameof(claimSourceContactTelephone),
                     nameof(claimSourceContactEmail) }.Any(Posted);
                 // The claim source is a choice from the active Claim source
@@ -2535,9 +2531,6 @@ public sealed partial class DetailsModel(
                             Submitted(nameof(claimantContactNumber), claimantContactNumber, Accepted(data.Claimant.ContactNumber)?.Value),
                             Submitted(nameof(claimantAddress), claimantAddress, Accepted(data.Claimant.Address)?.Value),
                             Submitted(nameof(claimNumber), claimNumber, Accepted(data.Claim.Number)?.Value),
-                            Submitted(nameof(contactName), contactName, Accepted(data.Contact.Name)?.Value),
-                            Submitted(nameof(contactEmailAddress), contactEmailAddress, Accepted(data.Contact.EmailAddress)?.Value),
-                            Submitted(nameof(contactPhoneNumber), contactPhoneNumber, Accepted(data.Contact.PhoneNumber)?.Value),
                             Submitted(nameof(incidentDate), incidentDate, Accepted(data.Accident.IncidentDate)?.Value),
                             Submitted(nameof(accidentCircumstances), accidentCircumstances, Accepted(data.Accident.Circumstances)?.Value),
                             Submitted(nameof(vatStatus), vatStatus, Accepted(data.Instruction.VatStatus)?.Value),
@@ -2548,7 +2541,6 @@ public sealed partial class DetailsModel(
                             repairer,
                             Submitted(nameof(principalNotes), principalNotes, persisted?.PrincipalNotes),
                             Submitted(nameof(claimSourceNotes), claimSourceNotes, persisted?.ClaimSourceNotes),
-                            Submitted(nameof(clientNotes), clientNotes, persisted?.ClientNotes),
                             Submitted(
                                 nameof(dueBy),
                                 dueBy,
@@ -5361,9 +5353,6 @@ public sealed partial class DetailsModel(
             "dueBy" => (Case?.Workflow.DueWork?.DueBy
                     ?? Accepted(data.Inspection.Deadline)?.Value)
                 ?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            "contactName" => Accepted(data.Contact.Name)?.Value,
-            "contactEmailAddress" => Accepted(data.Contact.EmailAddress)?.Value,
-            "contactPhoneNumber" => Accepted(data.Contact.PhoneNumber)?.Value,
             "vatStatus" => Accepted(data.Instruction.VatStatus)?.Value,
             "inspectionDate" => Accepted(data.Inspection.InspectionDate)?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             "inspectionDeadline" => Accepted(data.Inspection.Deadline)?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
@@ -5399,9 +5388,6 @@ public sealed partial class DetailsModel(
         "accidentCircumstances" => "Accident circumstances",
         "incidentDate" => "Incident date",
         "dueBy" => FrameLabels.Due,
-        "contactName" => "Contact name",
-        "contactEmailAddress" => "Contact email",
-        "contactPhoneNumber" => "Contact phone",
         "vatStatus" => FrameLabels.VatStatus,
         "inspectionDate" => "Inspection date",
         "inspectionDeadline" => "Inspection deadline",

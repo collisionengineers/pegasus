@@ -31,28 +31,57 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class CaseRecordFieldsWebTests
 {
+    // v43 (operator, 2 November 2026): the Case and Claim source cards, then the
+    // Principal's notes in their own panel; no Case contact and no Notes from client.
     [Fact]
-    public async Task NotesFromClientSitBesideTheAccidentCircumstancesAndTravelWithTheSave()
+    public async Task CaseDetailsHoldTheCaseAndClaimSourceCardsThenThePrincipalNotes()
     {
-        var store = new RecordingCaseDetailsStore();
+        var store = new RecordingCaseDetailsStore
+        {
+            RecordNotes = new("Report by e-mail only.", "Call before attendance.")
+        };
         var reading = OverviewPanel(await ReadCaseAsync(store));
-        var band = Regex.Match(reading, "data-accident-band>(?<band>.*?)</section>|data-accident-band>(?<band>.*)", RegexOptions.Singleline).Groups["band"].Value;
-        Assert.Contains(CaseWorkspaceLabels.Frame.AccidentCircumstances, band, StringComparison.Ordinal);
-        Assert.Contains("data-client-notes", band, StringComparison.Ordinal);
-        Assert.Contains(CaseWorkspaceLabels.Frame.NotesFromClient, band, StringComparison.Ordinal);
-        Assert.Contains($"<div class=\"fv empty multi\">{OperatorLabels.CaseWorkspace.AbsentValue}</div>", band, StringComparison.Ordinal);
-        Assert.DoesNotContain("name=\"clientNotes\"", reading, StringComparison.Ordinal);
+        Assert.Equal(
+            ["Case", CaseWorkspaceLabels.Frame.ClaimSource, "Principal"],
+            Regex.Matches(reading, "<h3>(?<name>[^<]+)<").Select(match => match.Groups["name"].Value.Trim()).ToArray());
+        var claimSource = Between(reading, "data-collapse=\"case.overview.claim-source\"", "data-collapse=\"case.overview.principal-notes\"");
+        var principal = Between(reading, "data-collapse=\"case.overview.principal-notes\"", "data-accident-band");
+        var accident = reading[reading.IndexOf("data-accident-band", StringComparison.Ordinal)..];
+        Assert.Contains("Call before attendance.", claimSource, StringComparison.Ordinal);
+        Assert.Contains(System.Text.Encodings.Web.HtmlEncoder.Default.Encode(CaseWorkspaceLabels.Frame.ClaimSourceNotesThisCase), claimSource, StringComparison.Ordinal);
+        Assert.Contains("Report by e-mail only.", principal, StringComparison.Ordinal);
+        Assert.Contains(System.Text.Encodings.Web.HtmlEncoder.Default.Encode(CaseWorkspaceLabels.Frame.PrincipalNotesThisCase), principal, StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Frame.ClaimSourceNotes, principal, StringComparison.Ordinal);
+        Assert.Equal(1, Regex.Count(accident, "class=\"fc[ \"]"));
+        foreach (var gone in new[] { "Case contact", "case.overview.contact", "Notes from client", "data-client-notes", "data-notes-band" })
+        {
+            Assert.DoesNotContain(gone, reading, StringComparison.Ordinal);
+        }
 
         var ports = new RecordGapPorts(store);
         using var workspace = await EnterEditModeAsync(store, ports.Register);
         var editing = OverviewPanel(await workspace.GetWorkspaceAsync());
-        Assert.Contains("name=\"clientNotes\" form=\"case-edit-form\" maxlength=\"4000\"", editing, StringComparison.Ordinal);
+        Assert.Contains("name=\"claimSourceNotes\"", Between(editing, "data-collapse=\"case.overview.claim-source\"", "data-collapse=\"case.overview.principal-notes\""), StringComparison.Ordinal);
+        Assert.Contains("name=\"principalNotes\"", Between(editing, "data-collapse=\"case.overview.principal-notes\"", "data-accident-band"), StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"contactName\"", editing, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"clientNotes\"", editing, StringComparison.Ordinal);
 
-        using var response = await SaveAsync(workspace, ("clientNotes", "The claimant says the car was parked."));
+        using var response = await SaveAsync(
+            workspace, ("principalNotes", "Copy the handler."), ("claimSourceNotes", "Prefers mornings."));
 
         AssertPrg(response, store.CaseId);
-        Assert.Equal("The claimant says the car was parked.", Assert.Single(store.Saves).Overview!.ClientNotes);
-        Assert.Equal(new DateOnly(2031, 5, 10), store.Saves[0].Overview!.DueBy);
+        var overview = Assert.Single(store.Saves).Overview!;
+        Assert.Equal("Copy the handler.", overview.PrincipalNotes);
+        Assert.Equal("Prefers mornings.", overview.ClaimSourceNotes);
+    }
+
+    private static string Between(string html, string from, string to)
+    {
+        var start = html.IndexOf(from, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"{from} must render.");
+        var end = html.IndexOf(to, start, StringComparison.Ordinal);
+        Assert.True(end > start, $"{to} must follow {from}.");
+        return html[start..end];
     }
 
     [Fact]
@@ -262,8 +291,15 @@ public sealed class CaseRecordFieldsWebTests
         Assert.Empty(store.Saves);
     }
 
+    /// <summary>
+    /// Valuation's On the report group holds all five switches. FAO The
+    /// Court and Include statement of truth are ticked on a Case that never
+    /// recorded them, and the summary names them only once they are off
+    /// (operator, 2 November 2026; R610, R611, R616). Unticking them posts
+    /// their hidden "false" alone, which the save records.
+    /// </summary>
     [Fact]
-    public async Task TheValuationSectionOwnsTheReportContentSummaryAndAllThreeSwitches()
+    public async Task TheValuationSectionOwnsTheReportContentSummaryAndAllFiveSwitches()
     {
         var store = new RecordingCaseDetailsStore
         {
@@ -282,20 +318,73 @@ public sealed class CaseRecordFieldsWebTests
 
         Assert.Equal(1, Occurrences(valuation, "data-report-content"));
         Assert.Equal(1, Occurrences(valuation, "data-report-switches"));
+        var decoded = WebUtility.HtmlDecode(valuation);
         Assert.Contains(
             "Guide source disclosed · valuation commentary · unrelated damage",
-            WebUtility.HtmlDecode(valuation),
+            decoded,
             StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Report.NoFaoTheCourt, decoded, StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Report.NoStatementOfTruth, decoded, StringComparison.Ordinal);
         foreach (var path in new[]
         {
             AssessmentVocabulary.ReportDiscloseGuideSource,
             AssessmentVocabulary.ReportValuationCommentary,
-            AssessmentVocabulary.ReportIncludeUnrelatedDamage
+            AssessmentVocabulary.ReportIncludeUnrelatedDamage,
+            AssessmentVocabulary.ReportFaoTheCourt,
+            AssessmentVocabulary.ReportIncludeStatementOfTruth
         })
         {
             Assert.Equal(1, Occurrences(valuation, $"data-report-switch=\"{path}\""));
+            // The three recorded on, and the two that are on until recorded off.
+            Assert.Contains("checked=\"checked\"", ReportSwitch(valuation, path), StringComparison.Ordinal);
         }
         Assert.DoesNotContain("data-report-content", report, StringComparison.Ordinal);
+
+        using var response = await SaveAsync(
+            workspace,
+            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportFaoTheCourt), "false"),
+            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportIncludeStatementOfTruth), "false"));
+
+        AssertPrg(response, store.CaseId);
+        var saved = Assert.Single(store.Saves).Report!.AssessmentFields!;
+        Assert.Equal("false", saved[AssessmentVocabulary.ReportFaoTheCourt]);
+        Assert.Equal("false", saved[AssessmentVocabulary.ReportIncludeStatementOfTruth]);
+    }
+
+    /// <summary>
+    /// Once a Case records FAO The Court and Include statement of truth as
+    /// "false" their boxes open unticked and the summary names each as off
+    /// (R611, R616).
+    /// </summary>
+    [Fact]
+    public async Task TheCourtAndStatementSwitchesOpenUntickedOnceRecordedOff()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            CaseState = CaseLifecycleState.ReportPreparation
+        };
+        var ports = new RecordGapPorts(store);
+        ports.Staff(AssessmentVocabulary.ReportFaoTheCourt, "false");
+        ports.Staff(AssessmentVocabulary.ReportIncludeStatementOfTruth, "false");
+        using var workspace = await EnterEditModeAsync(store, ports.Register);
+
+        var valuation = SectionHtml(await workspace.GetWorkspaceAsync(), "valuation");
+
+        Assert.Contains(
+            "Guide source not disclosed · No FAO The Court · No statement of truth",
+            WebUtility.HtmlDecode(valuation),
+            StringComparison.Ordinal);
+        foreach (var path in new[]
+        {
+            AssessmentVocabulary.ReportFaoTheCourt,
+            AssessmentVocabulary.ReportIncludeStatementOfTruth
+        })
+        {
+            var input = ReportSwitch(valuation, path);
+            Assert.NotEmpty(input);
+            Assert.DoesNotContain(" checked=", input, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -612,6 +701,10 @@ public sealed class CaseRecordFieldsWebTests
         return next < 0 ? html[start..] : html[start..next];
     }
 
+    /// <summary>The On the report checkbox for one switch, as one tag.</summary>
+    private static string ReportSwitch(string html, string path) =>
+        Regex.Match(html, $"<input type=\"checkbox\"[^>]*data-report-switch=\"{Regex.Escape(path)}\"[^>]*>").Value;
+
     /// <summary>
     /// The reads the five gaps add, substituted together: the assessment
     /// workspace and access and the Claim source records.
@@ -776,7 +869,6 @@ public sealed class CaseRecordFieldsWebTests
         // A submitted section still contains the other accepted members.
         Assert.Equal("Rebecca Claimant", saved.Overview!.ClaimantName);
         Assert.Equal("CLM-42", saved.Overview.ClaimNumber);
-        Assert.Equal("Case contact", saved.Overview.ContactName);
         Assert.Null(saved.Vehicle);
     }
 

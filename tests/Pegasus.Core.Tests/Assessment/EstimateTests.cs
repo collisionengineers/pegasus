@@ -879,6 +879,36 @@ public sealed class EstimateTests
             totals.Raw.PanelLabour + totals.Raw.PaintLabour);
     }
 
+    /// <summary>
+    /// R&amp;I lines are on no report list (R608); retyping one as a
+    /// work-unit Specialist line with the same hours and no price moves no
+    /// money: its hours stay priced panel labour at the one rate.
+    /// </summary>
+    [Fact]
+    public void AnRAndILineRetypedAsWorkUnitSpecialistKeepsTheSameTotals()
+    {
+        var header = Header(rate: 83.28m, discounts: new(0.1m, 0.05m, 0.125m, 0.075m));
+        var removeAndRefit = Line("rnr", workUnits: 2.1m);
+        var retyped = removeAndRefit with { Type = "specialist_wu" };
+        var others = new[]
+        {
+            Line("repair", workUnits: 1.5m),
+            Line("new_part", price: 120m, quantity: 1),
+            Line("paint_repair", paintWorkUnits: 2m, materials: 30m),
+        };
+
+        var before = EstimateTotals.Compute(Estimate(header, [.. others, removeAndRefit]));
+        var after = EstimateTotals.Compute(Estimate(header, [.. others, retyped]));
+
+        Assert.Equal(before.Raw, after.Raw);
+        Assert.Equal(before.Printed, after.Printed);
+        Assert.Equal(before.Printed.Labour, after.Printed.Labour);
+        Assert.Empty(after.OffPattern);
+        Assert.Equal(
+            EstimateHours.Of(Estimate(header, [.. others, removeAndRefit])).PricedTotal,
+            EstimateHours.Of(Estimate(header, [.. others, retyped])).PricedTotal);
+    }
+
     [Fact]
     public void PaintAndBlendRowsKeepPanelAndPaintHoursInTheSharedSummary()
     {

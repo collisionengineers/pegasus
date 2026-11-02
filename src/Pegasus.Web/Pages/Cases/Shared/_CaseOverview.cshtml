@@ -1,7 +1,6 @@
 ﻿@*
-    Overview (v26, trimmed by v28 P4 and P7): the Lifecycle actions sub-panel, the three fact columns (Case / Principal /
-    Claimant), the Notes band (record notes beside this Case's notes) and the
-    accident band. One look for read and edit (operator, 23 September 2026):
+    Overview (v26, trimmed by v28 P4 and P7; v43, 2 November 2026): the Case and
+    Claim source cards, the Principal's notes panel and the accident band. One look for read and edit (operator, 23 September 2026):
     every fact is a .fc cell whose greyed value box and control box share the
     grid position, and the same cells render in both modes; a cell with no
     control is .ro. The controls belong to the record's one Save form,
@@ -43,12 +42,6 @@
     var dueIsOverdue = Model.DueIsOverdue;
     var circumstancesValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Accident.Circumstances);
     var circumstances = circumstancesValue?.Value;
-    var contactNameValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.Name);
-    var contactEmailValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.EmailAddress);
-    var contactPhoneValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.PhoneNumber);
-    var contactName = contactNameValue?.Value;
-    var contactEmail = contactEmailValue?.Value;
-    var contactPhone = contactPhoneValue?.Value;
     // The matter line (v28 P12): the nature of the incident, the claimant and
     // the incident date as one derived sentence, following its fields on save.
     var matterLine = string.Join(": ", new[]
@@ -160,12 +153,14 @@
                     <div class="fc ro span2"><span class="lbl">@Frame.MatterLine</span><div class="fv derived @(matterLine.Length == 0 ? "empty" : null)" data-matter-line>@(matterLine.Length == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : matterLine)</div></div>
                 </div>
             </div>
-            <div class="sub-panel @Model.CollapsedClass("case.overview.principal")" data-collapse="case.overview.principal"><h3>Principal <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.principal")" /></h3>
-                <div class="fg">
+            @* The Claim source card (v43 A and B, 2 November 2026): two cells across,
+               like the Case card, so the two cards stand level. *@
+            <div class="sub-panel @Model.CollapsedClass("case.overview.claim-source")" data-collapse="case.overview.claim-source"><h3>@Frame.ClaimSource <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.claim-source")" /></h3>
+                <div class="fg g2">
                     @* The claim source is chosen from the active Claim source
                        records while editing; each option carries the record's
-                       notes and contact so the notes band and the contact
-                       cells follow a change before Save (case-workspace.js). *@
+                       notes and contact so the notes and contact cells follow a
+                       change before Save (case-workspace.js). *@
                     <div class="fc @Ro()" data-claim-source-cell>@{ Lbl("f-claim-source", Frame.ClaimSource); }<div class="@ValueClass(claimSource?.Name)">@Value(claimSource?.Name)</div>@if (mayEdit)
                         {
                             <select id="f-claim-source" class="fi" name="claimSourceId" form="case-edit-form" data-claim-source-select>
@@ -183,45 +178,35 @@
                     <div class="fc @Ro()" data-claim-source-contact="name">@{ Lbl("f-claim-source-contact-name", Frame.ClaimSourceContactName); }<div class="@ValueClass(claimSource?.EffectiveContactName)">@Value(claimSource?.EffectiveContactName)</div>@if (mayEdit){<input id="f-claim-source-contact-name" class="fi" name="claimSourceContactName" form="case-edit-form" maxlength="300" value="@claimSource?.EffectiveContactName" />}</div>
                     <div class="fc @Ro()" data-claim-source-contact="phone">@{ Lbl("f-claim-source-contact-phone", Frame.ClaimSourceContactPhone); }<div class="@ValueClass(claimSource?.EffectiveContactTelephone)">@Value(claimSource?.EffectiveContactTelephone)</div>@if (mayEdit){<input id="f-claim-source-contact-phone" class="fi" name="claimSourceContactTelephone" form="case-edit-form" maxlength="100" value="@claimSource?.EffectiveContactTelephone" />}</div>
                     <div class="fc @Ro()" data-claim-source-contact="email">@{ Lbl("f-claim-source-contact-email", Frame.ClaimSourceContactEmail); }<div class="@ValueClass(claimSource?.EffectiveContactEmailAddress)">@Value(claimSource?.EffectiveContactEmailAddress)</div>@if (mayEdit){<input id="f-claim-source-contact-email" class="fi" name="claimSourceContactEmail" form="case-edit-form" type="email" maxlength="300" value="@claimSource?.EffectiveContactEmailAddress" />}</div>
+                    @if (!string.IsNullOrWhiteSpace(notes.ClaimSourceNotes))
+                    {
+                        <div class="fc ro" data-record-notes="claim-source"><span class="lbl">@Frame.ClaimSourceNotes</span><div class="fv multi" data-record-notes-text>@notes.ClaimSourceNotes</div></div>
+                    }
+                    else if (mayEdit)
+                    {
+                        @* While editing, an empty slot the claim source select can fill. *@
+                        <div class="fc ro" data-record-notes-slot="claim-source" hidden><span class="lbl">@Frame.ClaimSourceNotes</span><div class="fv multi" data-record-notes-text></div></div>
+                    }
+                    <div class="fc @Ro()">@{ Lbl("f-claim-source-notes", Frame.ClaimSourceNotesThisCase); }<div class="@ValueClass(caseNotes?.ClaimSourceNotes) multi">@Value(caseNotes?.ClaimSourceNotes)</div>@if (mayEdit){<textarea id="f-claim-source-notes" class="fi" name="claimSourceNotes" form="case-edit-form" maxlength="4000">@caseNotes?.ClaimSourceNotes</textarea>}</div>
                 </div>
             </div>
         </div>
-        @* The Case's own contact: who to speak to, distinct from the claimant. *@
-        <div class="sub-panel @Model.CollapsedClass("case.overview.contact")" data-collapse="case.overview.contact"><h3>Case contact <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.contact")" /></h3>
-            <div class="fg g3">
-                <div class="fc @Ro()">@{ Lbl("f-contact-name", Frame.ContactName, contactNameValue?.Source); }<div class="@ValueClass(contactName)">@Value(contactName)</div>@if (mayEdit){<input id="f-contact-name" class="fi" name="contactName" form="case-edit-form" maxlength="300" value="@contactName" />}</div>
-                <div class="fc @Ro()">@{ Lbl("f-contact-email", Frame.ContactEmail, contactEmailValue?.Source); }<div class="@ValueClass(contactEmail)">@Value(contactEmail)</div>@if (mayEdit){<input id="f-contact-email" class="fi" name="contactEmailAddress" form="case-edit-form" type="email" maxlength="300" value="@contactEmail" />}</div>
-                <div class="fc @Ro()">@{ Lbl("f-contact-phone", Frame.ContactPhone, contactPhoneValue?.Source); }<div class="@ValueClass(contactPhone)">@Value(contactPhone)</div>@if (mayEdit){<input id="f-contact-phone" class="fi" name="contactPhoneNumber" form="case-edit-form" maxlength="100" value="@contactPhone" />}</div>
-            </div>
-        </div>
-
-        @* The Notes band (13 September): the Principal record's and the Claim
-           source record's notes on every Case, read live and locked, absent
-           when the record has none, beside this Case's own notes. *@
-        <div class="sub-panel notes-band @Model.CollapsedClass("case.overview.notes")" data-notes-band data-collapse="case.overview.notes"><h3>@Frame.Notes <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.notes")" /></h3>
+        @* The Principal's notes (v43 C, 2 November 2026): the Principal record's
+           notes on every Case, read live and locked, absent when the record has
+           none, beside this Case's own Principal notes. *@
+        <div class="sub-panel @Model.CollapsedClass("case.overview.principal-notes")" data-collapse="case.overview.principal-notes"><h3>Principal <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.principal-notes")" /></h3>
             <div class="fg g2">
                 @if (!string.IsNullOrWhiteSpace(notes.PrincipalNotes))
                 {
                     <div class="fc ro" data-record-notes="principal"><span class="lbl">@Frame.PrincipalNotes</span><div class="fv multi">@notes.PrincipalNotes</div></div>
                 }
                 <div class="fc @Ro()">@{ Lbl("f-principal-notes", Frame.PrincipalNotesThisCase); }<div class="@ValueClass(caseNotes?.PrincipalNotes) multi">@Value(caseNotes?.PrincipalNotes)</div>@if (mayEdit){<textarea id="f-principal-notes" class="fi" name="principalNotes" form="case-edit-form" maxlength="4000">@caseNotes?.PrincipalNotes</textarea>}</div>
-                @if (!string.IsNullOrWhiteSpace(notes.ClaimSourceNotes))
-                {
-                    <div class="fc ro" data-record-notes="claim-source"><span class="lbl">@Frame.ClaimSourceNotes</span><div class="fv multi" data-record-notes-text>@notes.ClaimSourceNotes</div></div>
-                }
-                else if (mayEdit)
-                {
-                    @* While editing, an empty slot the claim source select can fill. *@
-                    <div class="fc ro" data-record-notes-slot="claim-source" hidden><span class="lbl">@Frame.ClaimSourceNotes</span><div class="fv multi" data-record-notes-text></div></div>
-                }
-                <div class="fc @Ro()">@{ Lbl("f-claim-source-notes", Frame.ClaimSourceNotesThisCase); }<div class="@ValueClass(caseNotes?.ClaimSourceNotes) multi">@Value(caseNotes?.ClaimSourceNotes)</div>@if (mayEdit){<textarea id="f-claim-source-notes" class="fi" name="claimSourceNotes" form="case-edit-form" maxlength="4000">@caseNotes?.ClaimSourceNotes</textarea>}</div>
             </div>
         </div>
 
         <div class="accident" data-accident-band>
-            <div class="fg g2">
+            <div class="fg">
                 <div class="fc @Ro()">@{ Lbl("f-circumstances", Frame.AccidentCircumstances, circumstancesValue?.Source); }<div class="@ValueClass(circumstances) multi">@Value(circumstances)</div>@if (mayEdit){<textarea id="f-circumstances" class="fi" name="accidentCircumstances" form="case-edit-form" maxlength="2000">@circumstances</textarea>}</div>
-                <div class="fc @Ro()" data-client-notes>@{ Lbl("f-client-notes", Frame.NotesFromClient); }<div class="@ValueClass(caseNotes?.ClientNotes) multi">@Value(caseNotes?.ClientNotes)</div>@if (mayEdit){<textarea id="f-client-notes" class="fi" name="clientNotes" form="case-edit-form" maxlength="4000">@caseNotes?.ClientNotes</textarea>}</div>
             </div>
         </div>
     </div>

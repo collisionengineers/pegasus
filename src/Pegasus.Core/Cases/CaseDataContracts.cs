@@ -77,8 +77,7 @@ public sealed record CasePrincipalData(CaseField<string> PrincipalCode);
 
 /// <summary>
 /// The claimant. <see cref="ContactNumber"/> and <see cref="Address"/> are the
-/// claimant's own — distinct from <see cref="CaseContactData"/>, which is the
-/// file handler Pegasus corresponds with about the case.
+/// claimant's own.
 /// </summary>
 public sealed record CaseClaimantData(
     CaseField<string> Name,
@@ -106,11 +105,6 @@ public sealed record CaseVehicleData(
 public sealed record CaseAccidentData(
     CaseField<DateOnly> IncidentDate,
     CaseField<string> Circumstances);
-
-public sealed record CaseContactData(
-    CaseField<string> Name,
-    CaseField<string> EmailAddress,
-    CaseField<string> PhoneNumber);
 
 /// <summary>
 /// The instruction's own facts. <see cref="ReceivedDate"/> is the Case's
@@ -201,7 +195,6 @@ public sealed record CaseDataProjection(
     CaseClaimData Claim,
     CaseVehicleData Vehicle,
     CaseAccidentData Accident,
-    CaseContactData Contact,
     CaseInstructionData Instruction,
     CaseInspectionData Inspection,
     // Appended for the v1 Case workspace.
@@ -236,8 +229,7 @@ public sealed record CaseWorkspaceData(
     CaseOdometerUnit? VehicleMileageDisplayUnit,
     CaseWorkspaceRepairer? Repairer = null,
     string? PrincipalNotes = null,
-    string? ClaimSourceNotes = null,
-    string? ClientNotes = null);
+    string? ClaimSourceNotes = null);
 
 public sealed record CaseEditableData(
     string? ClaimantName = null,
@@ -249,9 +241,6 @@ public sealed record CaseEditableData(
     string? VehicleMileageUnit = null,
     string? AccidentCircumstances = null,
     DateOnly? IncidentDate = null,
-    string? ContactName = null,
-    string? ContactEmailAddress = null,
-    string? ContactPhoneNumber = null,
     string? VatStatus = null,
     DateOnly? InspectionDate = null,
     DateOnly? InspectionDeadline = null,
@@ -302,8 +291,6 @@ public sealed record CaseEditableData(
     // Principal and Claim source records' notes. Same rule as above.
     string? PrincipalNotes = null,
     string? ClaimSourceNotes = null,
-    // Appended for the accident band's Notes from client. Same rule as above.
-    string? ClientNotes = null,
     // Appended for the Overview editor. Due by is projected through CaseDueWork;
     // the contact overrides are Case-local values beside the selected source's
     // immutable snapshot.

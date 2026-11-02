@@ -252,12 +252,16 @@ public sealed partial class DetailsModel
     private static string TitleOf(string kind, string? registration) =>
         string.IsNullOrWhiteSpace(registration) ? $"{kind} Report" : $"{kind} Report — {registration}";
 
-    /// <summary>The Report content line the three switches read as: "Guide source disclosed · valuation commentary · unrelated damage".</summary>
+    /// <summary>
+    /// The Report content line the five switches read as: "Guide source
+    /// disclosed · valuation commentary · unrelated damage", then the court
+    /// line and the statement named only when turned off (R616).
+    /// </summary>
     public string ReportContentSummary
     {
         get
         {
-            bool On(string path) => string.Equals(Assessment?.Field(path)?.Value, "true", StringComparison.OrdinalIgnoreCase);
+            bool On(string path) => CaseReportContentSwitches.IsOn(path, Assessment?.Field(path)?.Value);
             var parts = new List<string>
             {
                 On(AssessmentVocabulary.ReportDiscloseGuideSource) ? "Guide source disclosed" : "Guide source not disclosed"
@@ -269,6 +273,14 @@ public sealed partial class DetailsModel
             if (On(AssessmentVocabulary.ReportIncludeUnrelatedDamage))
             {
                 parts.Add("unrelated damage");
+            }
+            if (!On(AssessmentVocabulary.ReportFaoTheCourt))
+            {
+                parts.Add(CaseWorkspaceLabels.Report.NoFaoTheCourt);
+            }
+            if (!On(AssessmentVocabulary.ReportIncludeStatementOfTruth))
+            {
+                parts.Add(CaseWorkspaceLabels.Report.NoStatementOfTruth);
             }
             return string.Join(" · ", parts);
         }

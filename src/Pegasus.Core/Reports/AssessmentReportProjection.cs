@@ -193,7 +193,7 @@ public static class AssessmentReportProjection
                 ? ParseMoney(Field(fields, AssessmentVocabulary.SalvageValue)) : null,
             Costs: costs,
             NewParts: LinesOf(lines, EstimateOperation.Replace),
-            Repairs: LinesOf(lines, EstimateOperation.Repair, EstimateOperation.RemoveAndRefit),
+            Repairs: LinesOf(lines, EstimateOperation.Repair),
             Operations: LinesOf(
                 lines,
                 EstimateOperation.Paint, EstimateOperation.Blend, EstimateOperation.Specialist, EstimateOperation.Other),
@@ -335,7 +335,8 @@ public static class AssessmentReportProjection
     /// parts/repairs/operations lists. The lines are the Current accepted
     /// specification's — Use estimate is the acceptance — so this only has to
     /// group by operation, as the Case page's lists do, and drop blank
-    /// descriptions. Every line type has an operation, so none is dropped.
+    /// descriptions. Every line type has an operation; R&amp;I lines belong to
+    /// no list, so they leave the report (operator, 2 November 2026; R608).
     /// </summary>
     private static string[] LinesOf(
         IReadOnlyList<CaseEstimateLineRecord> lines, params ReadOnlySpan<EstimateOperation> operations)

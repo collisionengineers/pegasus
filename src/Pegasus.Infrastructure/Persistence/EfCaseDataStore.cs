@@ -150,10 +150,6 @@ public sealed class EfCaseDataStore(
             DateField(snapshot, CaseDataFieldNames.IncidentDate),
             TextField(snapshot, CaseDataFieldNames.AccidentCircumstances)),
         new(
-            TextField(snapshot, CaseDataFieldNames.ContactName),
-            TextField(snapshot, CaseDataFieldNames.ContactEmailAddress),
-            TextField(snapshot, CaseDataFieldNames.ContactPhoneNumber)),
-        new(
             CaseDataPolicy.ReceivedDate(snapshot.OriginReceivedAtUtc, snapshot.Work.Case.CreatedAtUtc),
             TextField(snapshot, CaseDataFieldNames.VatStatus)),
         new(
@@ -214,8 +210,7 @@ public sealed class EfCaseDataStore(
                     : null,
             new(data.RepairerId, data.RepairerVersion, data.RepairerName),
             data.PrincipalNotes,
-            data.ClaimSourceNotes,
-            data.ClientNotes);
+            data.ClaimSourceNotes);
     }
 
     private static CaseField<string> TextField(
@@ -351,9 +346,6 @@ internal static class CaseDataFieldWriter
         Text(CaseDataFieldNames.VehicleMileageUnit, data.VehicleMileageUnit);
         Text(CaseDataFieldNames.AccidentCircumstances, data.AccidentCircumstances);
         Day(CaseDataFieldNames.IncidentDate, data.IncidentDate);
-        Text(CaseDataFieldNames.ContactName, data.ContactName);
-        Text(CaseDataFieldNames.ContactEmailAddress, data.ContactEmailAddress);
-        Text(CaseDataFieldNames.ContactPhoneNumber, data.ContactPhoneNumber);
         Text(CaseDataFieldNames.VatStatus, data.VatStatus);
         Day(CaseDataFieldNames.InspectionDate, data.InspectionDate);
         Day(CaseDataFieldNames.InspectionDeadline, data.InspectionDeadline);
@@ -400,7 +392,6 @@ internal static class CaseDataFieldWriter
         Text(CaseDataFieldNames.InspectionNotes, data.InspectionNotes);
         Text(CaseDataFieldNames.PrincipalNotes, data.PrincipalNotes);
         Text(CaseDataFieldNames.ClaimSourceNotes, data.ClaimSourceNotes);
-        Text(CaseDataFieldNames.ClientNotes, data.ClientNotes);
         snapshot.ClaimSourceOverrideContactName = data.ClaimSourceOverrideContactName;
         snapshot.ClaimSourceOverrideContactTelephone = data.ClaimSourceOverrideContactTelephone;
         snapshot.ClaimSourceOverrideContactEmailAddress = data.ClaimSourceOverrideContactEmailAddress;
@@ -460,9 +451,6 @@ internal static class CaseDataFieldWriter
         AcceptedText(snapshot, CaseDataFieldNames.VehicleMileageUnit),
         AcceptedText(snapshot, CaseDataFieldNames.AccidentCircumstances),
         AcceptedDate(snapshot, CaseDataFieldNames.IncidentDate),
-        AcceptedText(snapshot, CaseDataFieldNames.ContactName),
-        AcceptedText(snapshot, CaseDataFieldNames.ContactEmailAddress),
-        AcceptedText(snapshot, CaseDataFieldNames.ContactPhoneNumber),
         AcceptedText(snapshot, CaseDataFieldNames.VatStatus),
         AcceptedDate(snapshot, CaseDataFieldNames.InspectionDate),
         AcceptedDate(snapshot, CaseDataFieldNames.InspectionDeadline),
@@ -503,7 +491,6 @@ internal static class CaseDataFieldWriter
         AcceptedText(snapshot, CaseDataFieldNames.VehicleYear),
         AcceptedText(snapshot, CaseDataFieldNames.PrincipalNotes),
         AcceptedText(snapshot, CaseDataFieldNames.ClaimSourceNotes),
-        AcceptedText(snapshot, CaseDataFieldNames.ClientNotes),
         DueBy: null,
         ClaimSourceOverrideContactName: snapshot.ClaimSourceOverrideContactName,
         ClaimSourceOverrideContactTelephone: snapshot.ClaimSourceOverrideContactTelephone,

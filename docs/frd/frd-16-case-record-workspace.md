@@ -421,19 +421,21 @@ Audit with no original report at all, neither a filed report nor one kept
 from the instruction email, also has **Original report missing**, sourced
 from Audit.
 
-Then the Case and Principal cards, each folding and staying folded per
+Then the Case and Claim source cards, each folding and staying folded per
 browser; the Sign-off Engineer is decided on the Case card. Case type, Our ref and Principal are
 the ribbon's facts and are not repeated as cells (v36 item E, 9 October 2026); Received stays a
 greyed cell, with no padlock; the Case card carries the derived Matter line across its foot and, once a
 report has been sent, when and from which mailbox. A select's empty option carries the cell's
-absent word (Not recorded, Unassigned), so the control reads as the box does. The Claim source is chosen from the active
-Claim Source contacts. A Notes band shows the Principal's and the Claim
-source's Notes on every Case, read-only and absent when the record has none
-([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
-beside this Case's own Principal and Claim source notes. A Triage Case shows
+absent word (Not recorded, Unassigned), so the control reads as the box does. The Claim source card lays its cells two
+across, like the Case card: the Claim source, chosen from the active Claim Source contacts, and its contact name,
+telephone and e-mail; then the Claim source's Notes on every Case, read-only and absent when the record has none
+([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)), beside this Case's own Claim source notes.
+Below the cards, a full-width Principal panel holds the Principal's Notes on every Case, read-only and absent when the
+record has none, beside this Case's own Principal notes, which keep their half-width place when the record has none. A
+Case has no Case contact and no Notes from client (operator, 2 November 2026; R617–R622). A Triage Case shows
 the Principal's notes too, read-only and absent when the Principal has none
-(operator ruling, 22 October 2026). Then Accident
-circumstances beside Notes from client.
+(operator ruling, 22 October 2026). Then Accident circumstances, across the
+full width.
 
 ### Claim
 
@@ -712,13 +714,17 @@ in edit mode it waits for a change not yet sent to land. While something blocks,
 the one availability label **Not ready** in both modes (operator, 26
 September 2026); the blocker list itself is the aside's Report not ready card
 (operator, 8 October 2026).
-The content switches are under **On the report** in Valuation. The report
+The content switches are under **On the report** in Valuation: the three
+off-until-ticked switches and, since 2 November 2026, **FAO The Court** and
+**Include statement of truth**, ticked until turned off; the read-mode line
+names those two only when off (operator; R611, R616). The report
 renders the sign-off Engineer tuple and the marked damage diagram. The
 diagram is the Case page's own plan: the report and the Damage section draw
 the same vehicle and place each burst alike (operator, 27 September 2026). The
 **Statement of truth** is a sub-panel folded until the browser opens it,
 remembered per browser (v36 item P, 9 October 2026); its cell shows the accepted
-statement the report prints, read-only; no Case edits it
+statement the report prints, read-only, as the Include statement of truth
+switch leaves it (R609); no Case edits its words
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
 
 **The report card** names the report and says where it stands in plain words
@@ -1004,7 +1010,8 @@ or **Use repair spec**. Not registered remains a choice. A hand-picked set
 with no wording still blocks the report (operator, 19 October 2026). VAT
 categories nobody chose by hand follow the Repairer VAT status as it changes
 (operator, 28 September 2026). Lines an import brought
-in read `imported · AX`, `GL`, `JSON` or `AI` on their
+in read `imported · Auda` (not `AX`, a Principal's code; operator,
+2 November 2026; R613), `GL`, `JSON` or `AI` on their
 Source chip (P18); a cell Core finds off-pattern reads amber and named
 Off-pattern, and the rollup carries the off-pattern amount as specialist
 (P37). **Delete all lines** sits beside Add line and asks first; a removed

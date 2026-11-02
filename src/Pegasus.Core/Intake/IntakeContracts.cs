@@ -726,9 +726,6 @@ public sealed record InstructionDraft(
     string? VatStatus = null,
     string? ClaimantAddress = null,
     string? ClaimantContactNumber = null,
-    string? FileHandlerName = null,
-    string? FileHandlerEmailAddress = null,
-    string? FileHandlerPhoneNumber = null,
     string? Notes = null);
 
 public sealed record IntakeReceipt(
