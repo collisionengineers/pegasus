@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Intake;
@@ -125,6 +126,45 @@ public sealed class InstructionDraftCompletenessTests
             Assert.DoesNotContain(profile.FieldRoles.Keys, key => key.EndsWith("boundary", StringComparison.Ordinal));
         });
     }
+
+    /// <summary>
+    /// A Case's own data is held to the same required items, and the gate
+    /// names those still blank in asking order (FRD-13).
+    /// </summary>
+    [Fact]
+    public void ACasesBlankRequiredItemsAreNamedInAskingOrder() =>
+        Assert.Equal(
+            ["Vehicle make", "Date of incident", "Inspection address"],
+            InstructionDraftCompleteness.MissingCaseFieldNames(
+                CompleteCaseData() with { VehicleMake = " ", IncidentDate = null, InspectionAddress = null },
+                privateCustomer: false));
+
+    [Fact]
+    public void ACaseThatAnswersEveryRequiredItemMissesNothing() =>
+        Assert.Empty(InstructionDraftCompleteness.MissingCaseFieldNames(
+            CompleteCaseData() with { InspectionDate = null }, privateCustomer: false));
+
+    /// <summary>A one-off for a private customer is complete without a claim number (R578).</summary>
+    [Fact]
+    public void APrivateCustomerCaseIsNotAskedForAClaimNumber()
+    {
+        var data = CompleteCaseData() with { ClaimNumber = null };
+
+        Assert.Empty(InstructionDraftCompleteness.MissingCaseFieldNames(data, privateCustomer: true));
+        Assert.Equal(["Claim number"], InstructionDraftCompleteness.MissingCaseFieldNames(data, privateCustomer: false));
+    }
+
+    private static CaseEditableData CompleteCaseData() => new(
+        ClaimantName: "Controlled Claimant",
+        ClaimNumber: "PROTOCOL-2031-001",
+        VehicleRegistration: "AB12CDE",
+        VehicleMake: "Example Make",
+        VehicleModel: "Example Model",
+        VehicleMileage: 12345L,
+        VehicleMileageUnit: "miles",
+        AccidentCircumstances: "Controlled protocol circumstances",
+        IncidentDate: new DateOnly(2031, 3, 4),
+        InspectionAddress: "1 Example Street, Exampleton");
 
     private static InstructionDraft Complete() => new(
         "QDOS",

@@ -12,6 +12,7 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 
@@ -217,6 +218,106 @@ public sealed partial class CaseCreateWebTests
                 .Select(item => item.Reference)
                 .SingleAsync());
         Assert.Equal(2, await context.Cases.CountAsync(item => item.Principal.Code == "PRIVATE"));
+    }
+
+    /// <summary>
+    /// A Case created without every required instruction item names the ones
+    /// missing, and saving the last one clears the blocker at once (FRD-13;
+    /// operator, 2 November 2026). Clearing an item afterwards does not block
+    /// the Case again. Before this, the instruction stayed incomplete for good.
+    /// </summary>
+    [Fact]
+    public async Task ManualCaseInstructionClearsWhenItsLastRequiredItemIsSaved()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        var fields = KeyedFields();
+        fields.Remove("PrincipalCode");
+        fields.Remove("ClaimNumber");
+        fields.Remove("DateOfIncident");
+        fields["IsPrivateCustomer"] = "true";
+        fields["ClaimantName"] = "Pat Private";
+        fields["VehicleRegistration"] = "PV12ATE";
+        fields["VehicleMileageUnit"] = "miles";
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        Assert.False(await context.Cases.AsNoTracking()
+            .Where(item => item.Id == caseId)
+            .Select(item => item.InstructionComplete)
+            .SingleAsync());
+        using (var record = await client.GetAsync($"/Cases/{caseId:D}"))
+        {
+            var html = await record.Content.ReadAsStringAsync();
+            Assert.Contains("Instructions incomplete", html, StringComparison.Ordinal);
+            Assert.Contains("Case requirements &#xB7; Date of incident<", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("Case completeness is not confirmed", html, StringComparison.Ordinal);
+        }
+
+        var lease = await scope.ServiceProvider.GetRequiredService<CaseEditLeases>().ClaimAsync(
+            new(
+                caseId,
+                await context.CaseWorkflows.AsNoTracking()
+                    .Where(item => item.CaseId == caseId)
+                    .Select(item => item.Version)
+                    .SingleAsync(),
+                StaffActor,
+                Guid.NewGuid().ToString("N")),
+            CancellationToken.None);
+        CaseWorkspaceOverview Overview(string? circumstances) => new(
+            "Pat Private",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new DateOnly(2031, 3, 4),
+            circumstances,
+            null,
+            null,
+            null);
+        var store = scope.ServiceProvider.GetRequiredService<ICaseWorkspaceStore>();
+        await store.SaveAsync(
+            new SaveCaseWorkspaceRequest(caseId, lease.Version, StaffActor, "instruction-last-item", null, lease.Token)
+            {
+                Overview = Overview(fields["AccidentCircumstances"])
+            },
+            CancellationToken.None);
+
+        Assert.True(await context.Cases.AsNoTracking()
+            .Where(item => item.Id == caseId)
+            .Select(item => item.InstructionComplete)
+            .SingleAsync());
+        var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
+        // Images are still missing, so the Case waits for them alone.
+        Assert.Equal(nameof(CaseLifecycleState.NotReady), workflow.State);
+        using (var record = await client.GetAsync($"/Cases/{caseId:D}"))
+        {
+            var html = await record.Content.ReadAsStringAsync();
+            Assert.DoesNotContain("Instructions incomplete", html, StringComparison.Ordinal);
+            Assert.Contains("Images incomplete", html, StringComparison.Ordinal);
+        }
+
+        // Opening the Case page in between leaves the earlier lease behind, so
+        // the second edit claims its own.
+        var secondLease = await scope.ServiceProvider.GetRequiredService<CaseEditLeases>().ClaimAsync(
+            new(caseId, workflow.Version, StaffActor, Guid.NewGuid().ToString("N")) { TakeOver = true },
+            CancellationToken.None);
+        await store.SaveAsync(
+            new SaveCaseWorkspaceRequest(caseId, secondLease.Version, StaffActor, "instruction-item-cleared", null, secondLease.Token)
+            {
+                Overview = Overview(null)
+            },
+            CancellationToken.None);
+        Assert.True(await context.Cases.AsNoTracking()
+            .Where(item => item.Id == caseId)
+            .Select(item => item.InstructionComplete)
+            .SingleAsync());
     }
 
     /// <summary>

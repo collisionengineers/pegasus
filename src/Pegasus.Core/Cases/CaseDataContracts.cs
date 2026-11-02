@@ -155,7 +155,33 @@ public sealed record CaseCompletenessEvaluation(
 
 public sealed record CaseCompletenessProjection(
     CaseCompleteness Values,
-    CaseCompletenessEvaluation Evaluation);
+    CaseCompletenessEvaluation Evaluation)
+{
+    /// <summary>
+    /// While the instruction is incomplete, the required instruction items the
+    /// Case's data still lacks, by their field labels: the gate names every
+    /// required item that is still missing (FRD-13).
+    /// </summary>
+    public IReadOnlyList<string> MissingInstructionItems { get; init; } = [];
+
+    public bool Equals(CaseCompletenessProjection? other) =>
+        other is not null
+        && Values == other.Values
+        && Evaluation == other.Evaluation
+        && MissingInstructionItems.SequenceEqual(other.MissingInstructionItems, StringComparer.Ordinal);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Values);
+        hash.Add(Evaluation);
+        foreach (var item in MissingInstructionItems)
+        {
+            hash.Add(item, StringComparer.Ordinal);
+        }
+        return hash.ToHashCode();
+    }
+}
 
 public sealed record CaseDataProjection(
     CaseIdentity Identity,
