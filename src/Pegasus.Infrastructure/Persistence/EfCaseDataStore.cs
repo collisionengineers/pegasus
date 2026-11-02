@@ -124,7 +124,12 @@ public sealed class EfCaseDataStore(
             new(
                 snapshot.CompletenessPolicySatisfied,
                 snapshot.CompletenessPolicyKey,
-                snapshot.CompletenessPolicyVersion)),
+                snapshot.CompletenessPolicyVersion))
+        {
+            MissingInstructionItems = snapshot.Work.Case.InstructionComplete
+                ? []
+                : CaseInstructionCompleteness.Missing(snapshot)
+        },
         new(TextField(snapshot, CaseDataFieldNames.PrincipalCode)),
         new(
             TextField(snapshot, CaseDataFieldNames.ClaimantName),

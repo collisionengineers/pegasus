@@ -98,7 +98,15 @@ operator, 19 October 2026,
 completeness are each a versioned list of items marked required or not
 required in Workflow configuration
 ([FRD-17](frd-17-administration-workspace.md#workflow-configuration)). The
-gate names every required item that is still missing.
+gate names every required item that is still missing: the Instructions row's
+line lists the missing items by their field labels, as "Case requirements ·
+Date of incident, Vehicle make" (operator, 2 November 2026,
+[R603](../rulings.md)). A Case's instruction is complete once its own data
+answers every required instruction item, the claim number aside for a one-off
+([R578](../rulings.md)), and it is re-checked whenever those items are saved
+or a vehicle lookup fills them. The check only clears the blocker; clearing
+an item afterwards does not block the Case again (operator, 2 November 2026,
+[R604](../rulings.md)).
 
 **How a Case reaches Review.** When every required instruction item and every
 required image is present, the Case moves from Not ready to Review on its

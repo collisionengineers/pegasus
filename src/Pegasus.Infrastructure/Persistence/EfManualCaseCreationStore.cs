@@ -376,18 +376,7 @@ public sealed class EfManualCaseCreationStore(
     }
 
     private static bool IsInstructionComplete(CaseEditableData data, bool privateCustomer) =>
-        InstructionDraftCompleteness.IsComplete(new(
-            null,
-            data.ClaimantName,
-            data.ClaimNumber,
-            data.VehicleRegistration,
-            data.VehicleMake,
-            data.VehicleModel,
-            data.VehicleMileage,
-            data.AccidentCircumstances,
-            data.IncidentDate,
-            data.InspectionAddress,
-            data.InspectionDate), privateCustomer);
+        InstructionDraftCompleteness.MissingCaseFieldNames(data, privateCustomer).Count == 0;
 
     private static CaseIdentity Identity(CaseEntity entity) => new(
         entity.Id,

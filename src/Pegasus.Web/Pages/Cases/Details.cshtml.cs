@@ -312,9 +312,17 @@ public sealed partial class DetailsModel(
             {
                 requirements.Add(new(Labels.OriginalReportMissing, "Audit", null, "files"));
             }
+            // The instruction row names the items still missing, by their field
+            // labels, in place of the chase reason (FRD-13; operator, 2 November 2026).
+            var missingInstructionItems = data.Completeness.MissingInstructionItems;
             requirements.AddRange(data.Completeness.Evaluation.MissingRequirements
                 .Select(requirement => new CaseRequirement(
-                    Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete(requirement), "Case requirements", why, "overview")));
+                    Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete(requirement),
+                    "Case requirements",
+                    requirement == "Instructions" && missingInstructionItems.Count > 0
+                        ? string.Join(", ", missingInstructionItems)
+                        : why,
+                    "overview")));
             return requirements;
         }
     }

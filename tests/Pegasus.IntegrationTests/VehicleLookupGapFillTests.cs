@@ -789,6 +789,44 @@ public sealed class VehicleLookupGapFillTests
             $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
     }
 
+    /// <summary>
+    /// A Case whose instruction lacked only its vehicle make, model and mileage
+    /// is complete once the lookup fills them, and with its images present it
+    /// moves from Not ready to Review on its own (FRD-13; operator, 2 November 2026).
+    /// </summary>
+    [Fact]
+    public async Task ALookupThatAnswersTheLastRequiredItemsCompletesTheInstruction()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using (var context = await database.CreateContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Cases SET InstructionComplete = {false} WHERE Id = {caseId}");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {CaseLifecycleState.NotReady.ToString()} WHERE CaseId = {caseId}");
+            foreach (var (field, valueType, value) in new[]
+            {
+                (CaseDataFieldNames.ClaimantName, "text", "Gap Fill Claimant"),
+                (CaseDataFieldNames.ClaimNumber, "text", "GAP-2026-001"),
+                (CaseDataFieldNames.AccidentCircumstances, "text", "Gap fill circumstances"),
+                (CaseDataFieldNames.IncidentDate, "date", "2026-08-01"),
+                (CaseDataFieldNames.InspectionAddress, "text", "1 Example Street, Exampleton")
+            })
+            {
+                await context.Database.ExecuteSqlInterpolatedAsync(
+                    $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {field}, {"fact"}, {valueType}, {value}, {"intake_evidence"}, {"instruction.pdf"}, {"page 1"}, {"extraction"}, {1})");
+            }
+        }
+
+        await RecordLookupAsync(database, caseId);
+
+        Assert.True(await database.ScalarAsync<bool>(
+            $"SELECT InstructionComplete FROM Cases WHERE Id = '{caseId:D}'"));
+        Assert.Equal(CaseLifecycleState.Review.ToString(), await database.ScalarAsync<string>(
+            $"SELECT State FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+    }
+
     [Fact]
     public async Task AnExtractedMakeOutranksTheLookupsOwn()
     {
