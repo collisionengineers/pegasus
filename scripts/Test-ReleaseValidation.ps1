@@ -236,7 +236,7 @@ if ($joined.StartsWith('rest ')) {
     '{"value":[]}'; exit 0
 }
 # The restore point the migration records before SQL (R605).
-if ($joined.StartsWith('sql db show')) { '{"earliestRestoreDate":"2026-11-01T00:00:00+00:00"}'; exit 0 }
+if ($joined.StartsWith('sql db show')) { '2026-11-01T00:00:00+00:00'; exit 0 }
 if ($joined.StartsWith('webapp show')) {
     $siteHost = "$web.azurewebsites.net"
     @{ state = $state.web.state; stack = 'DOTNETCORE|10.0'; host = $siteHost; defaultHostName = $siteHost; hostNames = @($siteHost); enabledHostNames = @($siteHost); httpsOnly = $true } | ConvertTo-Json -Compress
