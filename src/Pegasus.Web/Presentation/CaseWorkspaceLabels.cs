@@ -145,13 +145,11 @@ public static class CaseWorkspaceLabels
         public const string ContactPhone = "Contact phone";
         public const string Address = "Address";
         public const string VatStatus = "Claimant VAT status";
-        public const string Notes = "Notes";
         public const string PrincipalNotes = "Principal notes";
         public const string PrincipalNotesThisCase = "Principal notes · this Case";
         public const string ClaimSourceNotes = "Claim source notes";
         public const string ClaimSourceNotesThisCase = "Claim source notes · this Case";
         public const string AccidentCircumstances = "Accident circumstances";
-        public const string NotesFromClient = "Notes from client";
         public const string NoClaimSource = "None";
         public const string ReportSent = "Report sent";
     }
@@ -202,7 +200,9 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.ReportDiscloseGuideSource] = "Disclose guide source",
             [AssessmentVocabulary.ReportValuationCommentary] = "Valuation commentary",
             [AssessmentVocabulary.ReportValuationCommentaryText] = "Valuation commentary text",
-            [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "Include unrelated damage"
+            [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "Include unrelated damage",
+            [AssessmentVocabulary.ReportFaoTheCourt] = "FAO The Court",
+            [AssessmentVocabulary.ReportIncludeStatementOfTruth] = "Include statement of truth"
         };
 
         public static IReadOnlyDictionary<string, string> Damage { get; } = new Dictionary<string, string>
@@ -286,6 +286,8 @@ public static class CaseWorkspaceLabels
                 AssessmentVocabulary.ReportDiscloseGuideSource
                     or AssessmentVocabulary.ReportValuationCommentary
                     or AssessmentVocabulary.ReportIncludeUnrelatedDamage
+                    or AssessmentVocabulary.ReportFaoTheCourt
+                    or AssessmentVocabulary.ReportIncludeStatementOfTruth
                     or AssessmentVocabulary.ValueRetail
                     or AssessmentVocabulary.ValueTrade => "valuation",
                 _ => null
@@ -406,6 +408,12 @@ public static class CaseWorkspaceLabels
         public const string DiscloseGuideSource = "Disclose guide source";
         public const string ValuationCommentary = "Valuation commentary";
         public const string UnrelatedDamage = "Unrelated damage";
+
+        /// <summary>The two switches that are on until turned off (R610, R611); the summary names each only when it is off (R616).</summary>
+        public const string FaoTheCourt = "FAO The Court";
+        public const string IncludeStatementOfTruth = "Include statement of truth";
+        public const string NoFaoTheCourt = "No FAO The Court";
+        public const string NoStatementOfTruth = "No statement of truth";
         public const string ReviewedRecipients = "Reviewed recipients";
         public const string AddTo = "Add To recipient";
         public const string AddCc = "Add Cc recipient";
@@ -607,7 +615,8 @@ public static class CaseWorkspaceLabels
         /// <summary>The import a line came in on, as its Source chip reads it (v28 P18).</summary>
         public static string ImportedFrom(RepairSpecificationSourceRoute route) => route switch
         {
-            RepairSpecificationSourceRoute.AudatexPdf => SourceImported + " \u00b7 AX",
+            // "Auda", not "AX": AX is a Principal's code (operator, 2 November 2026; R613).
+            RepairSpecificationSourceRoute.AudatexPdf => SourceImported + " \u00b7 Auda",
             RepairSpecificationSourceRoute.Glasses => SourceImported + " \u00b7 GL",
             RepairSpecificationSourceRoute.Json => SourceImported + " \u00b7 JSON",
             RepairSpecificationSourceRoute.AiDraft => SourceImported + " \u00b7 AI",

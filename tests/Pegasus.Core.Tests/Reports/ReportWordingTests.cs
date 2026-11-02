@@ -80,9 +80,45 @@ public sealed class ReportWordingTests
 
         Assert.Equal(
             "The mileage has been calculated from online data."
-            + "\n\nPlease note the vehicle is unroadworthy due to the illegal offside front tyre."
+            + "\n\nPlease note the vehicle is unroadworthy as the illegal offside front tyre."
             + "\n\nThe repairer has the vehicle.",
             comments.Text);
+    }
+
+    /// <summary>
+    /// A full stop the Engineer typed at the end of the reason is not doubled
+    /// (operator, 2 November 2026; R607).
+    /// </summary>
+    [Fact]
+    public void ATypedFullStopEndsTheUnroadworthySentenceOnce()
+    {
+        var snapshot = Repairable() with
+        {
+            LegalStatus = "unroadworthy",
+            UnroadworthyReason = "the rear body has been compromised.",
+        };
+
+        var comments = ReportWordingComposition
+            .Compose(snapshot, [])
+            .Single(block => block.Key == ReportWordingComposition.EngineersComments);
+
+        Assert.Equal(
+            "The mileage has been calculated from online data."
+            + "\n\nPlease note the vehicle is unroadworthy as the rear body has been compromised.",
+            comments.Text);
+    }
+
+    /// <summary>
+    /// The sentence the report prints opens with the words the Case page
+    /// shows before the reason box (R607, R612).
+    /// </summary>
+    [Fact]
+    public void TheUnroadworthySentenceOpensWithTheWordsTheCasePageShows()
+    {
+        var sentence = ReportWordingComposition.UnroadworthySentence("  the vehicle has no MOT  ");
+
+        Assert.StartsWith(ReportWordingComposition.UnroadworthyOpening + " ", sentence, StringComparison.Ordinal);
+        Assert.Equal("Please note the vehicle is unroadworthy as the vehicle has no MOT.", sentence);
     }
 
     [Fact]

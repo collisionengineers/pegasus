@@ -53,10 +53,7 @@ public static class InstructionDraftFields
         new("Vehicle mileage unit", CaseDataFieldNames.VehicleMileageUnit, draft => draft.VehicleMileageUnit),
         new("VAT status", CaseDataFieldNames.VatStatus, draft => draft.VatStatus),
         new("Claimant address", CaseDataFieldNames.ClaimantAddress, draft => draft.ClaimantAddress),
-        new("Claimant contact number", CaseDataFieldNames.ClaimantContactNumber, draft => draft.ClaimantContactNumber),
-        new("Contact name", CaseDataFieldNames.ContactName, draft => draft.FileHandlerName),
-        new("Contact email", CaseDataFieldNames.ContactEmailAddress, draft => draft.FileHandlerEmailAddress),
-        new("Contact phone", CaseDataFieldNames.ContactPhoneNumber, draft => draft.FileHandlerPhoneNumber)
+        new("Claimant contact number", CaseDataFieldNames.ClaimantContactNumber, draft => draft.ClaimantContactNumber)
     ];
 
     /// <summary>

@@ -129,11 +129,34 @@ internal static class TemplateSampleJobs
             FeeDescriptionLines: Lines(fee, "description_lines"),
             Photos: Photographs(),
             Sources: [new AcceptedReportSource(sample.Job, "1", new string('a', 64))],
-            // The samples print the Glass's sentence in their statement of truth.
+            // The samples print the Glass's sentence in their statement of
+            // truth. Their report_for already opens with "FAO The Court", so
+            // the switch that adds the line is off here (R610).
             Content: new CaseReportContentSwitches(
-                DiscloseGuideSource: true, IncludeValuationCommentary: false, IncludeUnrelatedDamage: false),
-            Guides: new ReportGuideSources([ValuationSource.Glasses]));
+                DiscloseGuideSource: true, IncludeValuationCommentary: false, IncludeUnrelatedDamage: false,
+                AddressToTheCourt: false),
+            Guides: new ReportGuideSources([ValuationSource.Glasses]),
+            Wording: TemplateComments(
+                Text(assessment, "legal_status"), Text(vehicle, "mileage_source"), Optional(assessment, "unroadworthy_reason")));
         return new(sample.Name, Path.Combine(referenceFolder, sample.ReferencePdf), snapshot, money);
+    }
+
+    /// <summary>
+    /// The template's own Engineer's Comments for an unroadworthy sample, as
+    /// the Engineer's wording: the template prints "unroadworthy due to" and
+    /// Pegasus composes "unroadworthy as" (operator, 2 November 2026; R607),
+    /// so the samples keep the template's words and the comparison stays with
+    /// the template's letters. A roadworthy sample holds no wording.
+    /// </summary>
+    private static CaseReportWording[]? TemplateComments(string legalStatus, string mileageSource, string? reason)
+    {
+        if (!string.Equals(legalStatus, "unroadworthy", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        var comments = ReportWordingComposition.MileageSentence(mileageSource)
+            + $"\n\nPlease note the vehicle is unroadworthy due to {reason}.";
+        return [new CaseReportWording(ReportWordingComposition.EngineersComments, null, comments, null)];
     }
 
     /// <summary>The sample's figures as the template's generator derives them.</summary>

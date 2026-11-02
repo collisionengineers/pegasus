@@ -731,9 +731,8 @@ public sealed class AutomationAssessmentIngressTests
                     expectedVersion = caseVersion,
                     editLeaseToken = leaseToken,
                     operationKey = "mcp:ingress-details-1",
-                    reason = "Automation recorded the contact details.",
-                    contactName = "Automation QA Contact",
-                    contactEmailAddress = "automation-qa@example.test"
+                    reason = "Automation recorded the claimant.",
+                    claimantName = "Automation QA Claimant"
                 })))
         {
             Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
@@ -754,9 +753,9 @@ public sealed class AutomationAssessmentIngressTests
             $"""
             SELECT COUNT(*) FROM CaseDataFields
             WHERE WorkId = '{caseId:D}'
-              AND FieldName = N'contact_name'
+              AND FieldName = N'claimant_name'
               AND ValueKind = N'confirmed'
-              AND Value = N'Automation QA Contact'
+              AND Value = N'Automation QA Claimant'
               AND SourceKind = N'staff_correction'
               AND ConfirmedByActor = N'pegasus-automation'
             """));
@@ -801,9 +800,8 @@ public sealed class AutomationAssessmentIngressTests
                     expectedVersion = caseVersion,
                     editLeaseToken = leaseToken,
                     operationKey = "mcp:ingress-details-1",
-                    reason = "Automation recorded the contact details.",
-                    contactName = "Automation QA Contact",
-                    contactEmailAddress = "automation-qa@example.test"
+                    reason = "Automation recorded the claimant.",
+                    claimantName = "Automation QA Claimant"
                 })))
         {
             Assert.Equal(HttpStatusCode.OK, replayResponse.StatusCode);
@@ -817,7 +815,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields
-            WHERE WorkId = '{caseId:D}' AND FieldName = N'contact_name'
+            WHERE WorkId = '{caseId:D}' AND FieldName = N'claimant_name' AND ValueKind = N'confirmed'
             """));
     }
 
@@ -1378,8 +1376,8 @@ public sealed class AutomationAssessmentIngressTests
                     caseId,
                     expectedVersion = 0,
                     operationKey = "mcp:ingress-details-implicit-lease",
-                    reason = "Automation corrected the contact.",
-                    contactName = "Recorded under a one-command lease"
+                    reason = "Automation corrected the claimant.",
+                    claimantName = "Recorded under a one-command lease"
                 })))
         {
             var saved = await ReadStructuredContentAsync(response);
@@ -1397,7 +1395,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields
-            WHERE WorkId = '{caseId:D}' AND FieldName = N'contact_name' AND ValueKind = N'confirmed'
+            WHERE WorkId = '{caseId:D}' AND FieldName = N'claimant_name' AND ValueKind = N'confirmed'
             """));
         Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseWorkflows WHERE CaseId = '{caseId:D}' AND EditLeaseHolderKind IS NULL"));
@@ -1418,7 +1416,7 @@ public sealed class AutomationAssessmentIngressTests
                     expectedVersion = currentVersion,
                     operationKey = "mcp:ingress-details-implicit-lease-held",
                     reason = "Automation attempted a save while staff edit.",
-                    contactName = "Should not be recorded"
+                    claimantName = "Should not be recorded"
                 }));
         Assert.Equal(currentVersion, await GetWorkflowVersionAsync(mcpFactory, caseId));
         Assert.Equal(
@@ -1455,14 +1453,11 @@ public sealed class AutomationAssessmentIngressTests
                         null,
                         null,
                         null,
-                        null,
-                        null,
-                        null,
                         "1 Repair Road, Leeds",
                         null,
                         new CaseWorkspaceRepairer(null, null, "Leeds Bodyshop"),
                         PrincipalNotes: "Principal asked for photos first.",
-                        ClientNotes: "Client is away until Friday."),
+                        ClaimSourceNotes: "Claimant is away until Friday."),
                     Inspection = new(
                         CaseReportAddressTreatment.PhysicalVehicleLocation,
                         "5 Yard Lane, Leeds",
@@ -1520,7 +1515,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal("Leeds Bodyshop", data.Inspection.RepairerName?.Current?.Value);
         Assert.Equal("1 Repair Road, Leeds", data.Inspection.RepairerAddress?.Current?.Value);
         Assert.Equal("Principal asked for photos first.", data.Workspace?.PrincipalNotes);
-        Assert.Equal("Client is away until Friday.", data.Workspace?.ClientNotes);
+        Assert.Equal("Claimant is away until Friday.", data.Workspace?.ClaimSourceNotes);
         Assert.Equal("5 Yard Lane, Leeds", data.Inspection.Address.Current?.Value);
         Assert.Equal("Bay 4", data.Inspection.StorageLocation?.Current?.Value);
         Assert.Equal("Ford", data.Vehicle.Make.Current?.Value);

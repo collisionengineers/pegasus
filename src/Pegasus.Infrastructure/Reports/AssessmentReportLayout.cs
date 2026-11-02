@@ -111,7 +111,7 @@ internal static class AssessmentReportLayout
 
         // Page 1: the outcome at a glance, the vehicle, and the two slots.
         Title(column, presentation.Title, italic: true, ReportTitle);
-        AddresseeBand(column, ReportTitle.Beneath, ReportForLabel, snapshot.ReportFor, References(snapshot));
+        AddresseeBand(column, ReportTitle.Beneath, ReportForLabel, ReportForBlock(snapshot), References(snapshot));
         LabelledLine(column, MatterGap, MatterLabel, Matter(snapshot));
         column.Item().PaddingTop(AfterMatterGap, Unit.Millimetre).Row(row =>
         {
@@ -213,15 +213,26 @@ internal static class AssessmentReportLayout
             Images(column, images.Photos, gapAbove: 0.18f);
         }
 
+        // The last page: the statement of truth under its heading, or with
+        // the statement off (R609) the remaining paragraphs alone at the
+        // page's top, then the sign-off.
         column.Item().PageBreak();
-        Section(column, StatementOfTruthHeading, ReportRhythm, opensPage: true, Brand, section =>
+        var statement = StatementOfTruthParagraphs(snapshot);
+        Action<ColumnDescriptor> paragraphs = section =>
         {
-            var statement = StatementOfTruthParagraphs(snapshot);
             for (var index = 0; index < statement.Count; index++)
             {
                 Paragraph(section, statement[index], index == 0 ? 0 : ParagraphGap);
             }
-        });
+        };
+        if (StatementOfTruthHeadingOf(snapshot) is { } heading)
+        {
+            Section(column, heading, ReportRhythm, opensPage: true, Brand, paragraphs);
+        }
+        else
+        {
+            column.Item().PaddingTop(ReportRhythm.AtPageTop, Unit.Millimetre).Column(paragraphs);
+        }
         SignOff(column, snapshot.Signatory, images.Signature);
     }
 

@@ -487,6 +487,44 @@ public sealed class AssessmentReportWordingTests
     }
 
     /// <summary>
+    /// "FAO The Court" opens the report's Report For block while the switch
+    /// is on, and the addressee prints alone when it is off (operator,
+    /// 2 November 2026; R610).
+    /// </summary>
+    [Fact]
+    public void FaoTheCourtOpensTheReportForBlockOnlyWhenOn()
+    {
+        var sample = Sample(AssessmentReportOutcome.TotalLoss) with
+        {
+            ReportFor = ["QDOS Assistance", "3rd Floor, Crown House", "SK9 1BH"],
+        };
+        var off = sample with { Content = sample.Content with { AddressToTheCourt = false } };
+
+        Assert.Equal("FAO The Court", AssessmentReportWording.FaoTheCourt);
+        Assert.Equal(
+            ["FAO The Court", "QDOS Assistance", "3rd Floor, Crown House", "SK9 1BH"],
+            AssessmentReportWording.ReportForBlock(sample));
+        Assert.Equal(["QDOS Assistance", "3rd Floor, Crown House", "SK9 1BH"], AssessmentReportWording.ReportForBlock(off));
+    }
+
+    /// <summary>
+    /// The last page's heading is the statement's while the statement of
+    /// truth is included, and there is none when it is off (R609).
+    /// </summary>
+    [Fact]
+    public void TheStatementHeadingFollowsTheSwitch()
+    {
+        var sample = Sample(AssessmentReportOutcome.TotalLoss);
+        var off = sample with { Content = sample.Content with { IncludeStatementOfTruth = false } };
+
+        Assert.Equal("Statement of Truth", AssessmentReportWording.StatementOfTruthHeadingOf(sample));
+        Assert.Null(AssessmentReportWording.StatementOfTruthHeadingOf(off));
+        Assert.Equal(
+            [AssessmentReportContract.StatementOfTruth3, AssessmentReportContract.StatementOfTruth4],
+            AssessmentReportWording.StatementOfTruthParagraphs(off));
+    }
+
+    /// <summary>
     /// Template: Sample - Total Loss Report.pdf, page 6. Its third paragraph
     /// opens with the guide sentence and runs on.
     /// </summary>

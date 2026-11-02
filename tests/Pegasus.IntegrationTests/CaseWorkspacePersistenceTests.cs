@@ -484,7 +484,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
             {
                 Overview = Overview(claimantFact.Value) with
                 {
-                    ClientNotes = "Unchanged extracted facts reviewed; note added.",
+                    PrincipalNotes = "Unchanged extracted facts reviewed; note added.",
                 },
             },
             CancellationToken.None);
@@ -493,7 +493,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         Assert.Null(saved.Data.Claimant.Name.Confirmed);
         Assert.Equal(
             "Unchanged extracted facts reviewed; note added.",
-            saved.Data.Workspace!.ClientNotes);
+            saved.Data.Workspace!.PrincipalNotes);
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(
             nameof(CaseReportGenerationState.Confirmed),
@@ -679,7 +679,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         var noted = await harness.WorkspaceStore.SaveAsync(
             Request(harness, initial.Version, noteLease.Token, "direct-case-data-note-save") with
             {
-                Overview = Overview("Jane Example") with { ClientNotes = "Photos will follow." },
+                Overview = Overview("Jane Example") with { PrincipalNotes = "Photos will follow." },
             },
             CancellationToken.None);
 
@@ -696,7 +696,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         await harness.WorkspaceStore.SaveAsync(
             Request(harness, noted.Version, claimantLease.Token, "direct-case-data-claimant-save") with
             {
-                Overview = Overview("Janet Example") with { ClientNotes = "Photos will follow." },
+                Overview = Overview("Janet Example") with { PrincipalNotes = "Photos will follow." },
             },
             CancellationToken.None);
 
@@ -1008,7 +1008,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
         var lease = await harness.AcquireLeaseAsync(initial.Version, actor, "lease-preserve-provenance");
-        var overview = Overview(initial.Claimant.Name.Fact.Value) with { ContactName = "Jane Corrected" };
+        var overview = Overview(initial.Claimant.Name.Fact.Value) with { VatStatus = "Not VAT registered" };
         var saved = await harness.WorkspaceStore.SaveAsync(
             Request(harness, initial.Version, lease.Token, "workspace-preserve-provenance", actor) with
             {
@@ -1022,8 +1022,8 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         Assert.Equal(initial.Claimant.Address.Suggestion, saved.Data.Claimant.Address.Suggestion);
         Assert.Null(saved.Data.Claimant.Address.Confirmed);
         Assert.Equal(initial.Inspection.Address.Confirmed, saved.Data.Inspection.Address.Confirmed);
-        Assert.Equal("Jane Corrected", saved.Data.Contact.Name.Confirmed?.Value);
-        Assert.Equal(actor.SubjectId, saved.Data.Contact.Name.Confirmed?.ConfirmedByActor);
+        Assert.Equal("Not VAT registered", saved.Data.Instruction.VatStatus.Confirmed?.Value);
+        Assert.Equal(actor.SubjectId, saved.Data.Instruction.VatStatus.Confirmed?.ConfirmedByActor);
 
         var correctionLease = await harness.AcquireLeaseAsync(saved.Version, actor, "lease-genuine-correction");
         var corrected = await harness.WorkspaceStore.SaveAsync(
@@ -1043,7 +1043,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         Assert.Equal(initial.Claimant.Address.Suggestion.Value, corrected.Data.Claimant.Address.Confirmed?.Value);
         Assert.Equal(actor.SubjectId, corrected.Data.Claimant.Address.Confirmed?.ConfirmedByActor);
         Assert.Equal(initial.Claimant.Address.Suggestion, corrected.Data.Claimant.Address.Suggestion);
-        Assert.Equal(saved.Data.Contact.Name.Confirmed, corrected.Data.Contact.Name.Confirmed);
+        Assert.Equal(saved.Data.Instruction.VatStatus.Confirmed, corrected.Data.Instruction.VatStatus.Confirmed);
         Assert.Equal(initial.Inspection.Address.Confirmed, corrected.Data.Inspection.Address.Confirmed);
     }
 
@@ -1069,10 +1069,9 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
             var dueWork = await context.CaseDueWork.SingleOrDefaultAsync(item => item.CaseId == harness.CaseId);
             overview = new(
                 shown.ClaimantName, shown.ClaimantContactNumber, shown.ClaimantAddress, shown.ClaimNumber,
-                shown.ContactName, shown.ContactEmailAddress, shown.ContactPhoneNumber, shown.IncidentDate,
+                shown.IncidentDate,
                 shown.AccidentCircumstances, shown.VatStatus, shown.RepairerAddress, null,
                 PrincipalNotes: shown.PrincipalNotes, ClaimSourceNotes: shown.ClaimSourceNotes,
-                ClientNotes: shown.ClientNotes,
                 DueBy: CaseDuePolicy.Resolve(dueWork?.DueBy, snapshot.Work.Case.AcceptedInspectionDeadline));
         }
         Assert.Equal(initial.Claimant.Name.Fact.Value, overview.ClaimantName);
@@ -1125,15 +1124,15 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
 
         await SaveAsync("session-save-1", Overview("Jane Example"));
         lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-2");
-        await SaveAsync("session-save-2", Overview("Jane Example") with { ClientNotes = "Photos to follow." });
+        await SaveAsync("session-save-2", Overview("Jane Example") with { PrincipalNotes = "Photos to follow." });
         lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-3");
-        await SaveAsync("session-save-3", Overview("John Example") with { ClientNotes = "Photos to follow." });
+        await SaveAsync("session-save-3", Overview("John Example") with { PrincipalNotes = "Photos to follow." });
 
         var session = Assert.Single(await SavedLinesAsync());
         Assert.Equal((opened, version), (session.BeforeVersion, session.AfterVersion));
         var line = session.Reason ?? string.Empty;
         Assert.Single(line.Split(" · ")[0].Split(", "), part => part == "Claimant name");
-        Assert.Contains("Client notes", line, StringComparison.Ordinal);
+        Assert.Contains("Principal notes", line, StringComparison.Ordinal);
         Assert.EndsWith(" · Recorded the Case workspace", line, StringComparison.Ordinal);
         Assert.Single(line.Split(" · "), part => part == "Recorded the Case workspace");
         Assert.Equal(3, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
@@ -1152,14 +1151,14 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
             CancellationToken.None);
         var reopened = version;
         lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-5");
-        await SaveAsync("session-save-4", Overview("John Example") with { ClientNotes = "Parked outside." });
+        await SaveAsync("session-save-4", Overview("John Example") with { PrincipalNotes = "Parked outside." });
 
         var lines = await SavedLinesAsync();
         Assert.Equal(2, lines.Length);
         var latest = lines.Single(entry => entry.AfterVersion == version);
         Assert.Equal(reopened, latest.BeforeVersion);
         Assert.DoesNotContain("Claimant name", latest.Reason ?? string.Empty, StringComparison.Ordinal);
-        Assert.Contains("Client notes", latest.Reason ?? string.Empty, StringComparison.Ordinal);
+        Assert.Contains("Principal notes", latest.Reason ?? string.Empty, StringComparison.Ordinal);
 
         // A Case note between two saves keeps the timeline in order.
         lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-6");
@@ -1167,7 +1166,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
             new(harness.CaseId, harness.StaffActor, "session-note", "Called the repairer."),
             harness.TimeProvider.GetUtcNow(),
             CancellationToken.None);
-        await SaveAsync("session-save-5", Overview("John Example") with { ClientNotes = "Parked on the drive." });
+        await SaveAsync("session-save-5", Overview("John Example") with { PrincipalNotes = "Parked on the drive." });
 
         Assert.Equal(3, (await SavedLinesAsync()).Length);
     }
@@ -2244,10 +2243,10 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
     /// <summary>
     /// Phase 5b: a changed claim source must be an active Claim source record
     /// when the save commits; a deactivated one or an organisation without the
-    /// role leaves the Case unchanged. Notes from client save with the Case.
+    /// role leaves the Case unchanged. This Case's Claim source notes save with the Case.
     /// </summary>
     [Fact]
-    public async Task AChangedClaimSourceMustBeAnActiveClaimSourceAndNotesFromClientSaveWithTheCase()
+    public async Task AChangedClaimSourceMustBeAnActiveClaimSourceAndItsNotesSaveWithTheCase()
     {
         await using var harness = await Harness.CreateAsync();
         var inactiveId = Guid.NewGuid();
@@ -2282,16 +2281,16 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
                 Overview = Overview("Jane Example") with
                 {
                     ClaimSource = new(activeId, 3, "Acme Claims", "A Handler", null, null),
-                    ClientNotes = "The claimant says the car was parked.\n\nPhotos to follow."
+                    ClaimSourceNotes = "The claimant says the car was parked.\n\nPhotos to follow."
                 }
             }, default);
 
         Assert.Equal(activeId, saved.Data.Workspace!.ClaimSource!.ClaimSourceId);
-        Assert.Equal("The claimant says the car was parked.\n\nPhotos to follow.", saved.Data.Workspace.ClientNotes);
+        Assert.Equal("The claimant says the car was parked.\n\nPhotos to follow.", saved.Data.Workspace.ClaimSourceNotes);
         var history = await new EfCaseQueryStore(harness.Factory, harness.TimeProvider)
             .ListHistoryByCursorAsync(harness.CaseId, null, null, 20, default);
         Assert.Contains(history, entry => entry.Reason?.Contains("Claim source: Acme Claims", StringComparison.Ordinal) == true
-            && entry.Reason.Contains("Client notes", StringComparison.Ordinal));
+            && entry.Reason.Contains("Claim source notes", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -2681,9 +2680,6 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         null,
         null,
         "QDOS-123",
-        null,
-        null,
-        null,
         null,
         null,
         null,

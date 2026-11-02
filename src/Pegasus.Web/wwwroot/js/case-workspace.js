@@ -4925,8 +4925,10 @@
                 var wording = pick.getAttribute('data-bank-wording');
                 var text = (area.value || '').trim();
                 if (text.toLowerCase().indexOf(wording.toLowerCase()) < 0) {
+                    // The reason finishes the sentence the row opens, so a
+                    // wording keeps its small first letter (R607, R612).
                     area.value = text.length === 0
-                        ? wording.charAt(0).toUpperCase() + wording.slice(1)
+                        ? wording
                         : text.replace(/\.$/, '') + ' and ' + wording;
                     area.dispatchEvent(new Event('input', { bubbles: true }));
                 }
@@ -4980,10 +4982,14 @@
 (function () {
     'use strict';
 
+    // The court line and the statement are on until turned off, so the
+    // summary names each only when it is off (R616).
     var words = {
         'report.disclose_guide_source': ['Guide source disclosed', 'Guide source not disclosed'],
         'report.valuation_commentary': ['valuation commentary', ''],
-        'report.include_unrelated_damage': ['unrelated damage', '']
+        'report.include_unrelated_damage': ['unrelated damage', ''],
+        'report.fao_the_court': ['', 'No FAO The Court'],
+        'report.include_statement_of_truth': ['', 'No statement of truth']
     };
 
     function bindContent(root) {

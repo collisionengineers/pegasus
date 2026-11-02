@@ -21,8 +21,8 @@ public sealed class CaseReportFreshnessTests
     [Fact]
     public void UnprintedWorkspaceChangesDoNotStaleTheGeneration()
     {
-        var beforeData = new CaseEditableData(ClientNotes: "Original note");
-        var afterData = beforeData with { ClientNotes = "Updated note" };
+        var beforeData = new CaseEditableData(PrincipalNotes: "Original note");
+        var afterData = beforeData with { PrincipalNotes = "Updated note" };
         var beforeAssessment = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             [AssessmentVocabulary.OriginalReportAssessor] = "Original assessor",
@@ -154,6 +154,56 @@ public sealed class CaseReportFreshnessTests
         Assert.Equal(CaseReportStaleReasons.ReportContentChanged, decision.ReasonCode);
     }
 
+    /// <summary>
+    /// FAO The Court and Include statement of truth are on until recorded
+    /// off (R610, R611), so a save that records "true" for one the Case never
+    /// recorded changes nothing the report prints.
+    /// </summary>
+    [Theory]
+    [InlineData(AssessmentVocabulary.ReportFaoTheCourt)]
+    [InlineData(AssessmentVocabulary.ReportIncludeStatementOfTruth)]
+    public void RecordingADefaultOnSwitchAsOnLeavesTheReportCurrent(string path)
+    {
+        var before = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var after = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [path] = "true",
+        };
+
+        var decision = CaseReportFreshness.ClassifyAssessment(before, after);
+
+        Assert.False(decision.IsStale);
+        Assert.Null(decision.ReasonCode);
+    }
+
+    /// <summary>
+    /// Recording "false" for a switch that is on until recorded off changes
+    /// what the report prints, whether the Case recorded it before or not.
+    /// </summary>
+    [Theory]
+    [InlineData(AssessmentVocabulary.ReportFaoTheCourt)]
+    [InlineData(AssessmentVocabulary.ReportIncludeStatementOfTruth)]
+    public void TurningADefaultOnSwitchOffMakesTheReportStale(string path)
+    {
+        var absent = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var on = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [path] = "true",
+        };
+        var off = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [path] = "false",
+        };
+
+        var fromAbsent = CaseReportFreshness.ClassifyAssessment(absent, off);
+        var fromOn = CaseReportFreshness.ClassifyAssessment(on, off);
+
+        Assert.True(fromAbsent.IsStale);
+        Assert.Equal(CaseReportStaleReasons.ReportContentChanged, fromAbsent.ReasonCode);
+        Assert.True(fromOn.IsStale);
+        Assert.Equal(CaseReportStaleReasons.ReportContentChanged, fromOn.ReasonCode);
+    }
+
     [Fact]
     public void RecordingAReportDateStalesWithTheReportContentReason()
     {
@@ -192,7 +242,7 @@ public sealed class CaseReportFreshnessTests
         var before = new CaseEditableData(
             VehicleMileage: 12_000,
             VehicleMileageUnit: "miles",
-            ClientNotes: "Same note");
+            PrincipalNotes: "Same note");
         var after = before with { VehicleMileage = 12_001 };
 
         var decision = ClassifyCaseData(before, after);

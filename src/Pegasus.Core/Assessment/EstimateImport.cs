@@ -145,7 +145,9 @@ public sealed record EstimateSourceTotals(
 /// system the document came from and titles the Draft it lands as.
 /// <see cref="Vin"/> is the vehicle's VIN as the document states it, when
 /// its format names one; it fills the Case's empty VIN
-/// (<see cref="GlassVinFillPolicy"/>).
+/// (<see cref="GlassVinFillPolicy"/>). <see cref="Discounts"/> carries the
+/// deduction from RRP an Audatex document applies to its parts, which lands
+/// as the estimate's parts discount (R615).
 /// </summary>
 public sealed record ParsedEstimate(
     string SourceVersion,
@@ -153,7 +155,8 @@ public sealed record ParsedEstimate(
     string ProviderName,
     RepairSpecificationSourceRoute Route,
     EstimateSourceTotals? SourceTotals = null,
-    string? Vin = null);
+    string? Vin = null,
+    EstimateDiscounts? Discounts = null);
 
 /// <summary>
 /// The whole import is refused with an operator-readable reason. Wrong
@@ -397,10 +400,12 @@ public sealed class ImportRawEstimate(
         var artifactIdentity = $"estimate-import:{retained.OccurrenceId:D}";
         if (target is not null)
         {
-            // The spec keeps its name, labour-rate card, VAT and discounts;
-            // the import replaces its lines and source. The store freezes the
-            // grid replaced and the import, and records what the import
-            // supplements (v38 P3), so no supplementary is carried here.
+            // The spec keeps its name, labour-rate card, VAT and discounts,
+            // save that a document's own parts deduction becomes its parts
+            // discount (R615); the import replaces its lines and source. The
+            // store freezes the grid replaced and the import, and records
+            // what the import supplements (v38 P3), so no supplementary is
+            // carried here.
             var updated = await store.SaveImportedEstimateAsync(
                 EstimatePolicy.ValidateImportedSave(
                 new(request.CaseId,
@@ -410,7 +415,7 @@ public sealed class ImportRawEstimate(
                     request.Reason,
                     request.EditLeaseToken,
                     target.SpecificationId,
-                    target.Details,
+                    parsed.Discounts is null ? target.Details : target.Details with { Discounts = parsed.Discounts },
                     [.. parsed.Lines.Select((line, index) => WithProvenance(
                         line, index + 1, artifactIdentity, request.DocumentVersionId, sha256))],
                     new(parsed.Route, artifactIdentity, parsed.SourceVersion, sha256))
@@ -444,7 +449,8 @@ public sealed class ImportRawEstimate(
                         ? NextName(existing, parsed.ProviderName)
                         : request.Name.Trim(),
                     LabourRate: null, OtherCosts: null,
-                    EstimatePolicy.DefaultVatPercent),
+                    EstimatePolicy.DefaultVatPercent,
+                    Discounts: parsed.Discounts),
                 [.. parsed.Lines.Select((line, index) => WithProvenance(
                     line, index + 1, artifactIdentity, request.DocumentVersionId, sha256))],
                 new(parsed.Route, artifactIdentity, parsed.SourceVersion, sha256))

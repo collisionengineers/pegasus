@@ -1205,7 +1205,6 @@ internal static partial class CaseWebTestSupport
                 new(Confirmed("CLM-42")),
                 VehicleFields(),
                 new(Empty<DateOnly>(), Confirmed("Rear impact")),
-                new(Confirmed("Case contact"), Empty<string>(), Empty<string>()),
                 new(CaseDataPolicy.ReceivedDate(_now.AddDays(-2), _now.AddDays(-2)), Confirmed("Standard")),
                 new(
                     Empty<DateOnly>(),

@@ -245,10 +245,6 @@ paths:
                       1 Example Street
                       Exampleton
                       EX1 1AA
-                  fileHandler:
-                    name: Sam Handler
-                    emailAddress: sam.handler@example.com
-                    phoneNumber: '020 7946 0000'
                   vehicle:
                     registration: AB12CDE
                     make: Ford
@@ -505,8 +501,6 @@ components:
             case-insensitively. It records the assessment on the Case.
         claimant:
           $ref: '#/components/schemas/Claimant'
-        fileHandler:
-          $ref: '#/components/schemas/FileHandler'
         vehicle:
           $ref: '#/components/schemas/Vehicle'
         incident:
@@ -556,23 +550,6 @@ components:
           type: string
           maxLength: 1000
           description: Postal address. Line breaks are kept; blank lines and runs of spaces collapse.
-
-    FileHandler:
-      type: object
-      description: The instructing party's contact for the file.
-      properties:
-        name:
-          type: string
-          maxLength: 300
-          description: Contact name. Runs of whitespace are collapsed.
-        emailAddress:
-          type: string
-          maxLength: 320
-          description: Contact email address.
-        phoneNumber:
-          type: string
-          maxLength: 100
-          description: Contact telephone number.
 
     Vehicle:
       type: object
