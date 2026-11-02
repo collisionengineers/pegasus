@@ -78,14 +78,21 @@ public static class AssessmentReportContract
     }
 
     /// <summary>
-    /// The statement this Case's report prints, from the content switches and
-    /// guide sources a generation freezes; available before a report can be
-    /// projected.
+    /// The statement's paragraphs in their three printed parts, for the Case's
+    /// Report wording to show read-only beside the switches that choose them
+    /// (v45 D, I): the two court declarations Include statement of truth
+    /// prints, the guide sentence Disclose guide source prints (null unless a
+    /// Glass's guide was used) and the two paragraphs every report prints.
+    /// Available before a report can be projected.
     /// </summary>
-    public static IReadOnlyList<string> StatementOfTruthOf(AssessmentReportProjectionInput input)
+    public static ReportStatementParts StatementPartsOf(AssessmentReportProjectionInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
-        return StatementOfTruth(CaseReportReadiness.ContentOf(input.Assessment), input.Guides ?? ReportGuideSources.None);
+        var guides = input.Guides ?? ReportGuideSources.None;
+        return new(
+            [StatementOfTruth1, StatementOfTruth2],
+            guides.UsesGlassesValuationGuide ? StatementOfTruthGuide : null,
+            [StatementOfTruth3, StatementOfTruth4]);
     }
 
     /// <summary>
@@ -104,6 +111,12 @@ public enum AssessmentReportOutcome
     CashInLieu,
     ContractRepair,
 }
+
+/// <summary>The statement of truth's paragraphs by the switch that prints them (v45).</summary>
+public sealed record ReportStatementParts(
+    IReadOnlyList<string> Court,
+    string? Guide,
+    IReadOnlyList<string> Closing);
 
 /// <summary>The one mapping from a recorded outcome code (<c>assessment.outcome</c>, <c>original_report.outcome</c>) to its outcome.</summary>
 public static class AssessmentReportOutcomes

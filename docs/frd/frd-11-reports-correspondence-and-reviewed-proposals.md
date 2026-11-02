@@ -120,7 +120,12 @@ keeps no narrative of its own (operator, 24 September 2026).
 
 A block tracks the Case's own facts until the Engineer writes wording in its
 place. The Engineer may rename a block, move it, take it off the report, put
-it back, and add a paragraph of their own. Wording that reads the same as the
+it back, and add a paragraph of their own. PAV commentary and Unrelated
+damage are on the report exactly while their report switch is, which is
+their only on/off, and are offered whatever the switch says; PAV
+commentary's words are the recorded valuation commentary text (or the
+applied valuation's reason), never wording held against the block
+(operator, 2 November 2026; R625 A, E). Wording that reads the same as the
 composed sentence is no change, so the block keeps tracking its fields. The
 Engineer's changes are held per Case, separately for the Inspection and the
 Audit once an Audit exists, and written by the one Case save. The save
@@ -592,9 +597,10 @@ version and edit lease
 reason. Report records Engineer comments, agreed fee, description lines, the
 report-date override and the **valuation commentary** text, up to 4,000
 characters; the Sign-off Engineer is chosen on the Case card in Case details,
-and the five content switches under **On the report** in Valuation (v28
-P38; FAO The Court and Include statement of truth, on until turned off,
-operator, 2 November 2026; R610, R611). With the valuation commentary switch on, the report prints that text if
+and the five content switches in Report wording's settings on the Report
+section (v28 P38; FAO The Court and Include statement of truth, on until
+turned off, operator, 2 November 2026; R610, R611; moved from Valuation,
+R624). With the valuation commentary switch on, the report prints that text if
 recorded, otherwise the applied valuation's reason, and readiness accepts
 either. The Case save's own message, "Engineer's Value applied.", never
 counts as commentary: it does not print and does not satisfy readiness
@@ -621,7 +627,7 @@ Case page and Generate evaluate the whole list before a generation is
 recorded. The preview refuses on the same printed facts, sign-off Engineer,
 Current repair spec, labour rate and repairer VAT status before anything is
 projected; it does not wait for the report images or the valuation
-commentary and unrelated damage the On the report switches ask for. A fact
+commentary and unrelated damage the report switches ask for. A fact
 Review already checked is named again only when it is missing and the report
 prints it. Missing accepted state is never invented.
 

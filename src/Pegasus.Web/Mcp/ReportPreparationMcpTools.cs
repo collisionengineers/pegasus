@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -34,9 +35,9 @@ internal sealed record ReportWordingToolResult(
 internal sealed record ReportWordingBlockToolInput(
     [property: Description("The block's key: a standard block's key (nature, comments, supplementary, commentary, unrelated, history, condition, settlement, salvage) or a paragraph the Engineer wrote, keyed 'manual:' followed by a name of your choosing.")] string Key,
     [property: Description("The heading, at most 80 characters and one line. Omit to keep it; an empty string puts a standard block's own heading back.")] string? Title = null,
-    [property: Description("The wording, at most 4000 characters. Omit to keep it; an empty string puts a standard block back to the sentence composed from the Case's fields, and deletes a 'manual:' paragraph. Wording equal to the composed sentence is no change.")] string? Text = null,
+    [property: Description("The wording, at most 4000 characters. Omit to keep it; an empty string puts a standard block back to the sentence composed from the Case's fields, and deletes a 'manual:' paragraph. Wording equal to the composed sentence is no change. Not for commentary, whose wording is report.valuation_commentary_text.")] string? Text = null,
     [property: Description("The block's place among the blocks, 0 or more; lower prints first. Omit to keep it.")] int? Order = null,
-    [property: Description("false takes the block off the report, true puts it back. Omit to keep it.")] bool? Included = null);
+    [property: Description("false takes the block off the report, true puts it back. Omit to keep it. Not for commentary or unrelated, which are on the report while report.valuation_commentary or report.include_unrelated_damage is.")] bool? Included = null);
 
 internal sealed record ImageCropToolInput(
     [property: Description("Left edge, a fraction 0 to 1 of the rotated image's width, at most 7 decimal places.")] decimal Left,
@@ -366,6 +367,18 @@ internal sealed class ReportPreparationMcpTools(
             if (!seen.Add(key))
             {
                 throw new McpException($"The wording block '{key}' is named more than once.");
+            }
+            // The two report switches are those blocks' only on/off, and the
+            // commentary's words are its field (v45 A, E).
+            if (block.Included is not null && ReportWordingComposition.SwitchOwned(key))
+            {
+                throw new McpException(
+                    $"The '{key}' block is on the report while its report switch is: set {AssessmentVocabulary.ReportValuationCommentary} or {AssessmentVocabulary.ReportIncludeUnrelatedDamage} with pegasus_assessment_update.");
+            }
+            if (block.Text is not null && key == ReportWordingComposition.ValuationCommentary)
+            {
+                throw new McpException(
+                    $"The commentary block's wording is {AssessmentVocabulary.ReportValuationCommentaryText}: write it with pegasus_assessment_update.");
             }
             changes[index] = block with { Key = key };
         }
