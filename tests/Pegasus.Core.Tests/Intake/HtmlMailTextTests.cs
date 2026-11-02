@@ -34,7 +34,7 @@ public sealed class HtmlMailTextTests
             "<div>Smith &amp; Sons</div><p>Line one<br>Line two</p><span>inline</span>");
 
         var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        Assert.Equal(new[] { "Smith & Sons", "Line one", "Line two", "inline" }, lines);
+        Assert.Equal("Smith & Sons|Line one|Line two|inline", string.Join('|', lines));
     }
 
     [Fact]
