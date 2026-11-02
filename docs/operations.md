@@ -5,6 +5,21 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Cutover - 2 November 2026
+
+- The operator ruled 2 November 2026 the cutover date (R603): production
+  stops being a disposable test estate and carries live Cases from the wipe
+  the operator ran that day. No figures for that wipe were supplied to the
+  repository.
+- Mailbox state as the operator stated it: desk@, info@ and engineers@ are
+  disabled (R590; info@ confirmed disabled on 2 November), and instructions@
+  with the staff-forward route is the intake (R586).
+- Schema policy from this date is the contained destructive route with a
+  recorded restore point and an approved window (R605); ADR-0030 has expired.
+- The intake-wipe tooling stays as it is, approval only (R604); a wipe now
+  destroys real Cases.
+- Sequence seeding from the old system (#1601) stays parked (R606).
+
 ## Intake data wipe - 30 October 2026
 
 - Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
@@ -396,7 +411,7 @@ boundary, confined to an approved disposable test subtree. Folder
 run writes under when `Features:LiveBoxCustody` is on (approved 2026-10-07);
 its holding folder is created by the operator beneath it. None of these
 folders is standing write authority. The exact-target approval and invocation checks are
-owned by the [runbook's live-operation approval matrix](runbook.md#operational-authority).
+owned by the [runbook's operational authority](runbook.md#operational-authority).
 The activated production caller is confined to case-scoped objects under the
 configured root and has no move, copy, or share operation, and no delete
 except the abort of an upload session that was not committed (operator ruling
@@ -477,9 +492,8 @@ acceptance or disaster-recovery exercise is claimed by this documentation change
 Historical evidence remains historical; an unresolved incident stays explicit
 until an observation establishes its disposition.
 
-## Current development estate choices
+## Current estate choices
 
 The current Web warm settings are the operator's chosen configuration, not an
-architectural minimum. Current data is disposable test data and need not be
-preserved during an authorized reset. Neither fact supplies permission to
-change settings or clear an estate outside the current task's authorization.
+architectural minimum. That supplies no permission to change settings or
+clear an estate outside the current task's authorization.

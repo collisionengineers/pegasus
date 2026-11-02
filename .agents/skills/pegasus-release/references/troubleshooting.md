@@ -21,6 +21,9 @@ Use this reference only after the normal route fails or rollback is requested.
 ## Rollback
 
 Use the [canonical recovery procedure](../../../../docs/runbook.md#production-recovery)
-for the selected retained artifact and schema. This troubleshooting reference
-does not define a second rollback sequence. Stop on an unexpected read-back and
-report it; do not improvise unreviewed inputs or data resets.
+for the selected retained artifact and schema. A migration's recorded restore
+point (R605) is the input to the runbook's
+[point-in-time restore commands](../../../../docs/runbook.md#point-in-time-restore-commands).
+This troubleshooting reference does not define a second rollback sequence.
+Stop on an unexpected read-back and report it; do not improvise unreviewed
+inputs or data resets.

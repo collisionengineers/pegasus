@@ -6,9 +6,11 @@ and [CONTEXT.md](CONTEXT.md) for reserved business terminology.
 
 ## Project principles
 
-- Treat the project as unreleased development. Replace obsolete behaviour and
-  update affected consumers; do not implement compatibility for features being
-  removed, or legacy fallbacks.
+- Production has carried live Cases since the cutover of 2 November 2026
+  (R603). Replace obsolete behaviour and update affected consumers; do not
+  implement compatibility for features being removed, or legacy fallbacks. A
+  change that removes or rewrites stored data names its migration class and
+  recovery boundary ([engineering](docs/engineering.md#migrations)).
 - Core owns business policy and ports. Infrastructure implements those ports;
   Web and Worker compose both. Imported source, skills and models own no
   policy.
@@ -102,8 +104,9 @@ and the [verification procedure](docs/runbook.md).
   message grants a release's promotion push and Azure writes (R567).
 - Plan destructive migrations explicitly: identify the affected capability and
   forward-only recovery boundary, then require approved old-Worker `Stopped` and
-  old-Web `Stopped` and unserved read-back before SQL. After actual release,
-  approve a concrete window outside typical usage. The release is incomplete
+  old-Web `Stopped` and unserved read-back before SQL. A non-additive
+  migration runs only in an operator-approved window outside typical usage,
+  with the restore point recorded before SQL (R605). The release is incomplete
   until approved new Web/Worker bytes are explicitly active, healthy and smoked;
   never revive old bytes after destructive SQL begins.
 - The release containment sequence explicitly stops and verifies

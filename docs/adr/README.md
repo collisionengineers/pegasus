@@ -52,7 +52,7 @@ Records whose status is superseded live in `superseded/` with their IDs unchange
 | [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md) | Authorization code with PKCE for external MCP connectors | accepted | ADR-0041 | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
 | [ADR-0028](superseded/0028-run-integrated-renderer-in-web-container-app.md) | Run the integrated report renderer in the Web Container App | superseded | ADR-0049, ADR-0050 | EXT-08, RPT-01, RPT-02 |
 | [ADR-0029](0029-image-initiated-case-projection.md) | Image-initiated Case projection | accepted | ADR-0045 | INT-17, INT-28 |
-| [ADR-0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | accepted | ADR-0046 (partial) | — |
+| [ADR-0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | accepted; expired at cutover, 2 November 2026 (R603) | ADR-0046 (partial) | — |
 | [ADR-0031](0031-automation-actor-contract-without-eva-export-tools.md) | Automation Actor contract without EVA export tools | accepted | ADR-0064 (professional findings) | MCP-06, AI-09 |
 | [ADR-0032](superseded/0032-near-real-time-durable-intake-triggering.md) | Near-real-time durable intake triggering | superseded | ADR-0033 | INT-33 |
 | [ADR-0033](0033-warm-unified-work-queue-for-five-second-intake.md) | Warm unified work queue for five-second intake | accepted | — | INT-33 |

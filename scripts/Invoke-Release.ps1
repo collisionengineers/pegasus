@@ -592,11 +592,21 @@ function Invoke-Migration {
         [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, 'Process')
     }
 
+    # R605: the restore point is read and recorded before the first SQL
+    # statement; it is the input to the runbook's point-in-time restore.
+    $sqlServer = [string]$values['AZURE_SQL_SERVER_FQDN'] -replace '\.database\.windows\.net$', ''
+    $restore = Invoke-AzJson -Failure 'Reading the database restore point failed. Nothing starts.' -Arguments @(
+        'sql', 'db', 'show', '--subscription', $subscriptionId, '--resource-group', $resourceGroup,
+        '--server', $sqlServer, '--name', $values['AZURE_SQL_DATABASE_NAME'],
+        '--query', '{earliestRestoreDate:earliestRestoreDate}')
+    $script:record['Restore point'] = "$([DateTimeOffset]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss'))Z before SQL; earliestRestoreDate $($restore.earliestRestoreDate)"
+    Write-Host "Restore point recorded: $($script:record['Restore point'])"
+
     $bundlePath = Join-Path (Split-Path -Parent $script:manifestPath) $Manifest.migrationBundleName
     Push-Location (Join-Path $Root 'src/Pegasus.Web')
     try {
         & $bundlePath --connection $env:ConnectionStrings__Pegasus
-        if ($LASTEXITCODE -ne 0) { throw 'Migration bundle failed. The Worker, the classifier and the Web App stay stopped; recover forward only.' }
+        if ($LASTEXITCODE -ne 0) { throw 'Migration bundle failed. Nothing starts; on the destructive route the Worker, the classifier and the Web App stay stopped. Recover forward only; the recorded restore point is the recovery source.' }
     }
     finally {
         Pop-Location

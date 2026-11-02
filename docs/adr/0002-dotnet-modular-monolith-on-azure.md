@@ -10,7 +10,7 @@ tags: [architecture, stack, hosting]
 ---
 # ADR-0002: .NET modular monolith on Azure App Service
 
-- Status: Accepted; provider API/MCP authentication boundary superseded by ADR-0004, deployment mechanism partially superseded by ADR-0007, the expand-and-contract schema clause superseded by ADR-0030 for pre-cutover releases only, and polling/timer-first intake triggering partially superseded by ADR-0032
+- Status: Accepted; provider API/MCP authentication boundary superseded by ADR-0004, deployment mechanism partially superseded by ADR-0007, the expand-and-contract schema clause superseded by ADR-0030 for pre-cutover releases and amended from cutover by R605 (2 November 2026), and polling/timer-first intake triggering partially superseded by ADR-0032
 - Date: 2026-07-23
 - Owners: Alex and the Pegasus development team
 
@@ -19,9 +19,10 @@ tags: [architecture, stack, hosting]
 
 The modular-monolith and Core ownership choices survive. Web hosting follows
 ADR-0049 (ADR-0015’s Container Apps hosting is superseded), environment shape
-ADR-0014, and current intake scheduling ADR-0033. Schema compatibility is
-bounded by the actual supported data/consumer contract; ADR-0030’s historical
-alpha milestone is not a new development-data obligation. ADR-0043 partially
+ADR-0014, and current intake scheduling ADR-0033. Schema policy from the
+cutover of 2 November 2026 is the contained destructive route with a recorded
+restore point (R603, R605; [engineering](../engineering.md#migrations));
+ADR-0030 has expired. ADR-0043 partially
 supersedes the reusable-vendor-secret clause only for per-Engineer credentials
 and their protected session state in existing SQL; other secret ownership is
 unchanged. ADR-0056, which supersedes ADR-0051, owns the type prefixes in
@@ -402,7 +403,11 @@ Historical GitHub Actions sequence:
 Schema changes use expand-and-contract deployment. A release must not require the
 old and new code to disagree about a destructive schema change during deployment
 or rollback. Rolling back application code does not automatically reverse a
-database migration.
+database migration. Amended 2 November 2026 (R605): a non-additive migration
+runs only on the contained destructive route of ADR-0046, in an
+operator-approved window outside typical usage, with the database's
+`earliestRestoreDate` and a UTC restore point recorded before SQL; no
+expand/contract pair is staged.
 
 ## Monitoring and recovery
 

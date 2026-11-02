@@ -235,6 +235,8 @@ if ($joined.StartsWith('rest ')) {
     }
     '{"value":[]}'; exit 0
 }
+# The restore point the migration records before SQL (R605).
+if ($joined.StartsWith('sql db show')) { '{"earliestRestoreDate":"2026-11-01T00:00:00+00:00"}'; exit 0 }
 if ($joined.StartsWith('webapp show')) {
     $siteHost = "$web.azurewebsites.net"
     @{ state = $state.web.state; stack = 'DOTNETCORE|10.0'; host = $siteHost; defaultHostName = $siteHost; hostNames = @($siteHost); enabledHostNames = @($siteHost); httpsOnly = $true } | ConvertTo-Json -Compress
@@ -813,6 +815,9 @@ try {
         'azd env get-values*')
     Assert-True ((Get-CallCount $result.Calls 'az functionapp deployment source config-zip*') -eq 1) $case 'staged the Worker package more than once.' $result.Diagnostic
     Assert-True ((Get-CallIndex $result.Calls 'azd env get-values*') -gt (Get-CallIndex $result.Calls 'az rest*/health/live*')) $case 'reached the migration gate before the containment read-back.' $result.Diagnostic
+    # R605: the restore point is read after containment and before the bundle, and the record names it.
+    Assert-True ((Get-CallIndex $result.Calls 'az sql db show*') -gt (Get-CallIndex $result.Calls 'az rest*/health/live*')) $case 'did not read the restore point after the containment read-back.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Restore point recorded:') -and $result.Output.Contains('earliestRestoreDate 2026-11-01T00:00:00+00:00')) $case 'did not record the restore point before SQL.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns @('az webapp deploy*', 'az webapp start*', 'az functionapp start*', 'azd provision*')
     $probe = @($result.Calls | Where-Object { $_ -like 'az rest*/health/live*' })[0]
     Assert-True ($probe.Contains("--url $($releaseWebOrigin)health/live")) $case 'probed something other than the origin plus health/live.' $result.Diagnostic
@@ -839,7 +844,7 @@ try {
     Assert-True ($result.ExitCode -ne 0) $case 'should stop at the full smoke run-from-package read.' $result.Diagnostic
     Assert-True ($result.Output.Contains('WEBSITE_RUN_FROM_PACKAGE')) $case 'did not reach the full smoke.' $result.Diagnostic
     Assert-True ($result.Output.Contains("continuing from 'deploy-web'")) $case 'did not resume at the Web deploy.' $result.Diagnostic
-    Assert-NoCall -Result $result -Case $case -Patterns @('az webapp stop*', 'az functionapp stop*', 'az functionapp config appsettings set*')
+    Assert-NoCall -Result $result -Case $case -Patterns @('az webapp stop*', 'az functionapp stop*', 'az functionapp config appsettings set*', 'az sql db show*')
     Assert-Order -Result $result -Case $case -Patterns @(
         'az webapp deploy*--restart false*--track-status false*',
         'azd env set PEGASUS_WEB_ACTIVATION approved*',

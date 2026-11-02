@@ -137,7 +137,7 @@ exclusion.
 | OPS-09 | Database backup, restore proof, 15-minute RPO, and four-hour RTO (deferred) | [Quality and recovery objectives](prd/pegasus-product.md#quality-capacity-security-and-evidence) |
 | OPS-11 | Production isolated from local-development resources | [ADR-0014](adr/0014-local-to-production-deployment.md) |
 | OPS-13 | Deployment preview, policy/quota checks, health probes, and smoke tests | [ADR-0007 decision](adr/0007-direct-terminal-azure-deployment.md#decision) |
-| OPS-14 | Production cutover and previous-artifact rollback procedure | [ADR-0007 decision](adr/0007-direct-terminal-azure-deployment.md#decision) |
+| OPS-14 | Previous-artifact rollback procedure | [Runbook rollback](runbook.md#previous-artifact-rollback-web-and-worker) |
 | OPS-20 | Capacity for about eight concurrent staff and 2,000 new cases per month | [ADR-0002 context](adr/0002-dotnet-modular-monolith-on-azure.md#context) |
 | OPS-24 | Direct production deployment from an authorised terminal using committed Bicep through `azd` | [ADR-0007 decision](adr/0007-direct-terminal-azure-deployment.md#decision) |
 | OPS-23 | Operator acceptance against the real end-to-end workflow | [Acceptance model](prd/pegasus-product.md#acceptance-model) |
