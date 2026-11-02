@@ -281,7 +281,7 @@ internal sealed class TriageMcpTools(
         [Description(VersionDescription)] long expectedVersion,
         [Description("Assign or Unassign.")] string action,
         [Description(KeyDescription)] string operationKey,
-        [Description("Assign only: the staff identifier of an enabled member of staff.")] Guid? assigneeId = null,
+        [Description("Assign only: the staff identifier of an enabled member of staff, from pegasus_vocabulary_get staff.")] Guid? assigneeId = null,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
