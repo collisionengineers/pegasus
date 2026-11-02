@@ -450,7 +450,9 @@ public sealed record AssessmentReportPresentation(
 /// </summary>
 public sealed record AssessmentReportSnapshot(
     string OurReference,
-    string YourReference,
+    // Null only for a one-off Case for a private customer with no claim
+    // number: the Your Ref row is then left out (R578).
+    string? YourReference,
     DateOnly ReportDate,
     string ClaimantName,
     DateOnly IncidentDate,
@@ -544,7 +546,10 @@ public sealed record AssessmentReportSnapshot(
     public void Validate()
     {
         AcceptedReportSource.Required(OurReference, nameof(OurReference));
-        AcceptedReportSource.Required(YourReference, nameof(YourReference));
+        if (YourReference is not null)
+        {
+            AcceptedReportSource.Required(YourReference, nameof(YourReference));
+        }
         AcceptedReportSource.Required(ClaimantName, nameof(ClaimantName));
         AcceptedReportSource.Required(Vehicle.Registration, nameof(Vehicle.Registration));
         AcceptedReportSource.Required(HistoryCheck, nameof(HistoryCheck));

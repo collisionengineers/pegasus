@@ -167,8 +167,10 @@ public sealed class EfCaseAcceptanceStore(
         }
 
         var acceptedAtUtc = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
+        // Acceptance carries no registration to allocation, so the standing
+        // Private customer record is refused here (R581).
         var allocatedIdentity = await CaseIdentityAllocator.AllocateAsync(
-            context, principal, request.CaseType, acceptedAtUtc, cancellationToken);
+            context, principal, request.CaseType, registration: null, acceptedAtUtc, cancellationToken);
 
         var receipt = await context.IntakeReceipts
             .Include(item => item.InstructionDraft)
@@ -252,7 +254,7 @@ public sealed class EfCaseAcceptanceStore(
             Version = 0
         };
         context.Cases.Add(caseEntity);
-        PrincipalDefaultFeeWriter.Apply(context, caseId, principal, acceptedAtUtc);
+        NewCaseAssessmentDefaults.Apply(context, caseId, principal, acceptedAtUtc);
         if (standaloneAuditEvidence is not null)
         {
             // A standalone Audit is created with its Original report cells

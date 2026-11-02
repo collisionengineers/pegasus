@@ -75,7 +75,7 @@ internal sealed class CaseLifecycleMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key with the same inputs returns the same outcome.")] string operationKey,
         [Description("The act: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup or manual_chase.")] string action,
         [Description("Why (case history reason, at most 500 characters). Required for every act except assign_engineer, create_audit, vehicle_lookup and manual_chase, which take none.")] string? reason = null,
-        [Description("assign_engineer: the staff identifier of the Engineer to assign; the account must exist and be enabled. Omitted, the Case is Unassigned.")] Guid? engineerId = null,
+        [Description("assign_engineer: the staff identifier of the Engineer to assign, from pegasus_vocabulary_get staff; the account must exist and be enabled. Omitted, the Case is Unassigned.")] Guid? engineerId = null,
         [Description("hold: the optional date, yyyy-MM-dd (Europe/London, today or later), to look at the Case again; it is the held Case's due date in the Work Centre. Nothing is sent on it.")] string? reviewOn = null,
         [Description("close: the terminal outcome, one of PrincipalCancelled, CollisionEngineersRejected, CreatedInError or SourceEmailUnlinked. Which outcomes the Case's state allows is Core's decision.")] string? outcome = null,
         [Description("reopen: where the closed Case goes, one of NotReady, Review, ReportPreparation (Unassigned when the Case has no Engineer) or ReportSent (needs linked report-Sent evidence). A Case created in error is never reopened.")] string? destination = null,

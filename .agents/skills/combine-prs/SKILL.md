@@ -54,9 +54,10 @@ Scripts live in this skill's `scripts/` folder. Run them from inside the
 repository with Python 3. They use `git` (≥ 2.38) and an authenticated `gh`, and
 they print markdown you can paste into the PR body.
 
-- `inventory.py --target <branch> <PR…>`: pins head SHAs, flags blockers, reads review feedback, detects stacks and maps file overlap. Exit code 2 means there is something to ask about.
+- `inventory.py --target <branch> <PR…>`: pins head SHAs, flags blockers, reads review feedback, detects stacks, maps file overlap and lists the register ids two PRs both claim. Exit code 2 means there is something to ask about.
 - `simulate_merge.py --target <sha> [--pairwise] N=<sha>…`: dry-runs the merge train in memory.
-- `audit_combined.py --target <sha> --tip HEAD N=<sha>…`: the lost-work audit.
+- `renumber_register.py --head <sha> --target <sha> --label N`: after a PR's merge, moves the register ids it shares with an earlier row to the next free numbers and rewrites the citations on that PR's own lines only.
+- `audit_combined.py --target <sha> --tip HEAD --id-pattern 'R[1-9]\d*' N=<sha>…`: the lost-work audit; with the pattern a renumbered citation is REVIEW, not FAIL.
 
 References, read when the step points to them:
 - `references/conflict-patterns.md`: how to resolve each kind of conflict.
@@ -83,6 +84,12 @@ Stop and ask the user when the inventory shows any of these:
 - a base that is neither the target nor another PR in the set;
 - a fork head the user may not control;
 - a head that moved during the inventory.
+
+Read the **register id collisions** section. Every PR written from the same
+target appends its rulings with the next free number, so in a wave of
+several PRs the same `Rnnn` is claimed more than once; that is expected, not a
+blocker. The first PR in the order keeps its numbers; each later PR is
+renumbered right after its merge (step 5).
 
 Then read the **review feedback** and linked issues it lists. Each PR was
 written to address something. A combination that lands a PR with an
@@ -151,6 +158,22 @@ decision, not a merge mechanic.
 Record every resolution in the merge commit message: the file, what each side
 did, and what you kept. You will reuse these notes in the PR body.
 
+**A register id claimed twice** (`docs/rulings.md`, or another append-only
+numbered table) is resolved by keeping both rows and, once the merge commit
+exists, running the renumber script for the later PR:
+
+```bash
+python <skill>/scripts/renumber_register.py --head <head-sha> --target <target-sha> --label <N>
+git commit -am "fix: renumber #<N>'s register ids (R550=R559) after #<M>'s R550-R558"
+```
+
+It moves only that PR's new ids, to the next free numbers, and rewrites the
+citations on the lines that PR added, in every file; nothing anyone else wrote
+changes. Exit 3 lists the lines it left for you (a line two PRs both added, a
+range only partly this PR's). A stacked child passes `--base <parent-head>` and
+`--map` for each pair its parent received. Paste the summary it prints into the
+PR body's "Merge resolution" section.
+
 ### 6. Check that the union holds together
 
 A merge with no textual conflicts can still be broken. In one earlier case two
@@ -164,8 +187,13 @@ one PR deleted an interface member the other had started using.
 ### 7. Audit for lost work
 
 ```bash
-python <skill>/scripts/audit_combined.py --target <target-sha> --tip HEAD <N=sha …>
+python <skill>/scripts/audit_combined.py --target <target-sha> --tip HEAD --id-pattern 'R[1-9]\d*' <N=sha …>
 ```
+
+The pattern names the register ids; a line present at the tip with only those
+ids changed is reported as REVIEW ("present with only ids changed"), and each
+such line must match a renumber commit from step 5. Leave the pattern out for a
+repository with no numbered register.
 
 It checks:
 - every PR head and the target are ancestors of the tip;
@@ -189,8 +217,11 @@ Do not push until the audit is clean or fully explained.
 - **The defect exists only in the combination** (an interaction): commit it on the integration branch as its own commit, naming the PRs involved (`fix: build the union of #12 and #15 …`).
 
 If a constituent head moves for any reason, merge the new head in rather than
-rebuilding, and update the pinned SHA. After every fix, re-run the audit with
-the current pins.
+rebuilding, and update the pinned SHA. If the **target** moves (another PR
+landed while you worked), merge the new target SHA into the integration branch
+with `--no-ff`, resolve as in step 5, and re-run the audit with the new target
+as `--target`; against the old pin, the target's own new work would read as
+unexplained changes. After every fix, re-run the audit with the current pins.
 
 ### 9. Push and open the combined PR
 
@@ -231,7 +262,9 @@ failure reported. Report:
 - CI state;
 - open review findings;
 - anything held or excluded;
-- what landing will need.
+- what landing will need;
+- which files and register ids the PRs collided on, so the next wave's dispatch
+  keeps issues that touch the same owner file with one agent.
 
 Do not merge without an explicit instruction.
 

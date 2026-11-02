@@ -158,6 +158,30 @@ public sealed class UnidentifiedRecordWebTests
         Assert.DoesNotContain("compose=reply", record, StringComparison.Ordinal);
     }
 
+    /// <summary>R599: a stored original that opens through Open message never reads "Original file unavailable".</summary>
+    [Fact]
+    public async Task AStoredEmailSourceDoesNotReadUnavailable()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var messageId = await SeedSourceMessageAsync(factory, sendReady: false);
+        IntakeAssetRecord[] stored =
+        [
+            new(
+                Guid.NewGuid(), "uploaded source", "unreadable-document.pdf", "application/pdf",
+                IntakeAssetKind.Source, IntakeAssetDisposition.Source, 2048,
+                "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                "test-source-key", null, null, null, null, IncomingArtifactCustodyState.Confirmed)
+        ];
+        var (_, itemId, _) = await SeedOpenItemAsync(
+            factory, UnidentifiedReasonCode.UnreadableOrCorruptContent, stored, sourceMessageId: messageId);
+
+        var record = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+
+        Assert.Contains("data-unidentified-action=\"open-message\"", record, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-unidentified-source-unavailable", record, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ACouldNotBeReadItemSaysSo()
     {

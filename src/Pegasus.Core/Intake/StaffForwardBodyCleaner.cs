@@ -171,10 +171,35 @@ public static partial class StaffForwardBodyCleaner
         return string.Join('\n', kept).TrimEnd('\n', ' ', '\t');
     }
 
+    /// <summary>
+    /// Drops every line that is wholly one bracketed token — the placeholder a
+    /// plain-text part writes for a signature image: its source URL
+    /// (<c>[http://…/logo.gif]</c>) or its alt text (<c>[Company Logo]</c>).
+    /// A line with any other text keeps its brackets. Display-side only, and
+    /// run after <see cref="TrimPrincipalFooter"/>, which reads an image URL
+    /// placeholder as a footer boundary.
+    /// </summary>
+    public static string WithoutImagePlaceholderLines(string body)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        var lines = body
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n')
+            .Where(line => !ImagePlaceholderLineRegex().IsMatch(line));
+        return string.Join('\n', lines);
+    }
+
     // Leaked inline-image references: `[cid:token]`, `<cid:token>`, or a bare
-    // `cid:token`, including the emptied bracket the removal can leave behind.
-    [GeneratedRegex("\\[?<?cid:[^\\]>\\s\"']+>?\\]?", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // `cid:token`, including the emptied bracket the removal can leave behind
+    // and the `Description: ` an older Outlook writes before the token.
+    [GeneratedRegex("\\[?(?:Description:\\s*)?<?cid:[^\\]>\\s\"']+>?\\]?", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex CidTokenRegex();
+
+    [GeneratedRegex(
+        "^\\s*\\[(?:https?://[^\\]\\s]+|[^\\[\\]\\r\\n]{1,80})\\]\\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ImagePlaceholderLineRegex();
 
     // MAIL-011: Outlook writes Cc:, and can write Bcc:, between To: and
     // Subject:. Allowing them is what lets a forward with a copied recipient

@@ -4,12 +4,46 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Cases;
 
+/// <param name="PrincipalCode">
+/// The Principal's code, or null for a one-off Case for a private customer:
+/// the Case belongs to the standing Private customer record and its Case/PO
+/// is the registration (operator, 31 October 2026; R574).
+/// </param>
 public sealed record CreateManualCaseRequest(
     ActionActor Actor,
     string OperationKey,
-    string PrincipalCode,
+    string? PrincipalCode,
     CaseType CaseType,
-    CaseEditableData Data);
+    CaseEditableData Data)
+{
+    public bool IsPrivateCustomer => PrincipalCode is null;
+}
+
+/// <summary>
+/// What a Case created directly must carry before it can be created, by
+/// Case type: a Triage its registration; a one-off for a private customer
+/// the claimant's name and the registration, with no claim number
+/// (operator, 31 October and 1 November 2026; R577, R578); every other Case
+/// its identity-critical fields.
+/// </summary>
+public static class ManualCaseCreationPolicy
+{
+    public static IReadOnlyList<string> MissingFieldNames(
+        CaseType caseType,
+        bool privateCustomer,
+        InstructionDraft draft)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        if (caseType == CaseType.Triage)
+        {
+            return string.IsNullOrWhiteSpace(draft.VehicleRegistration)
+                ? ["Vehicle registration"]
+                : [];
+        }
+
+        return InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft, privateCustomer);
+    }
+}
 
 /// <summary>
 /// What the creation transaction committed: the new Case's identity and, when
@@ -61,25 +95,15 @@ public sealed class CreateManualCase(
             data.IncidentDate,
             data.InspectionAddress,
             data.InspectionDate);
-        // A Triage Case asks only for its Principal and the vehicle
-        // registration; every other Case needs the identity-critical fields.
-        IReadOnlyList<string> missingIdentity;
-        if (request.CaseType == CaseType.Triage)
-        {
-            missingIdentity = string.IsNullOrWhiteSpace(data.VehicleRegistration)
-                ? ["Vehicle registration"]
-                : [];
-        }
-        else
-        {
-            missingIdentity = InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
-        }
+        var missingIdentity = ManualCaseCreationPolicy.MissingFieldNames(
+            request.CaseType, request.IsPrivateCustomer, draft);
         if (missingIdentity.Count > 0)
         {
             throw new InvalidOperationException(
                 $"A manual case needs {string.Join(", ", missingIdentity)}.");
         }
-        if (request.CaseType is CaseType.Audit)
+        // A one-off for a private customer is never a Triage (R577).
+        if (request.IsPrivateCustomer && request.CaseType is CaseType.Triage)
         {
             throw new InvalidOperationException("The case type is invalid.");
         }
@@ -87,7 +111,9 @@ public sealed class CreateManualCase(
         var outcome = await store.CreateAsync(request with
         {
             OperationKey = request.OperationKey.Trim(),
-            PrincipalCode = CasePrincipalCode.Normalize(request.PrincipalCode),
+            PrincipalCode = request.PrincipalCode is null
+                ? null
+                : CasePrincipalCode.Normalize(request.PrincipalCode),
             Data = data
         }, cancellationToken);
         if (outcome.VehicleLookupWorkId is { } vehicleLookupWorkId)

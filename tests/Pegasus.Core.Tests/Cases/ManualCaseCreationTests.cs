@@ -57,20 +57,26 @@ public sealed class ManualCaseCreationTests
         Assert.Equal("mcp:manual-create-automation", store.Request.OperationKey);
     }
 
+    /// <summary>
+    /// An Audit may be created directly (operator, 30 October 2026, R595): it
+    /// takes the same identity-critical facts as an Inspection, and its
+    /// original report is a Case requirement rather than a creation refusal.
+    /// </summary>
     [Fact]
-    public async Task RefusesAStandaloneAuditOutsideTheRetainedClassificationRoute()
+    public async Task AStandaloneAuditMayBeCreatedDirectly()
     {
-        var useCase = new CreateManualCase(new RecordingStore(), new CommittedWorkPublisherDouble());
+        var store = new RecordingStore();
+        var useCase = new CreateManualCase(store, new CommittedWorkPublisherDouble());
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => useCase.ExecuteAsync(new(
+        await useCase.ExecuteAsync(new(
             Staff,
             "manual-create-2",
             "CE",
             CaseType.Audit,
             new(ClaimantName: "Jane Doe", ClaimNumber: "C-1", VehicleRegistration: "AB12CDE")),
-            CancellationToken.None));
+            CancellationToken.None);
 
-        Assert.Equal("The case type is invalid.", exception.Message);
+        Assert.Equal(CaseType.Audit, store.Request!.CaseType);
     }
 
     /// <summary>
@@ -148,6 +154,102 @@ public sealed class ManualCaseCreationTests
         await useCase.ExecuteAsync(Request("manual-create-4"), CancellationToken.None);
 
         Assert.Empty(publisher.ExternalWorkIds);
+    }
+
+    /// <summary>
+    /// A one-off Case for a private customer names no Principal and needs the
+    /// claimant's name and the registration; the claim number plays no part
+    /// (operator, 31 October and 1 November 2026; R574, R577, R578).
+    /// </summary>
+    [Fact]
+    public async Task AOneOffNeedsOnlyTheClaimantAndTheRegistration()
+    {
+        var store = new RecordingStore();
+        var useCase = new CreateManualCase(store, new CommittedWorkPublisherDouble());
+
+        await useCase.ExecuteAsync(new(
+            Staff,
+            "manual-private-1",
+            null,
+            CaseType.InspectionAndAudit,
+            new(ClaimantName: " Pat  Private ", VehicleRegistration: " ab 12 cde ", ClaimantAddress: "1 Private Lane\nExampleton")),
+            CancellationToken.None);
+
+        Assert.NotNull(store.Request);
+        Assert.True(store.Request!.IsPrivateCustomer);
+        Assert.Null(store.Request.PrincipalCode);
+        Assert.Equal("Pat Private", store.Request.Data.ClaimantName);
+        Assert.Equal("AB12CDE", store.Request.Data.VehicleRegistration);
+        Assert.Null(store.Request.Data.ClaimNumber);
+        Assert.Equal("1 Private Lane\nExampleton", store.Request.Data.ClaimantAddress);
+    }
+
+    [Fact]
+    public async Task AOneOffWithoutAClaimantIsRefused()
+    {
+        var store = new RecordingStore();
+        var useCase = new CreateManualCase(store, new CommittedWorkPublisherDouble());
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => useCase.ExecuteAsync(new(
+            Staff,
+            "manual-private-2",
+            null,
+            CaseType.Inspection,
+            new(ClaimNumber: "C-1", VehicleRegistration: "AB12CDE")),
+            CancellationToken.None));
+
+        Assert.Equal("A manual case needs Claimant name.", exception.Message);
+        Assert.Null(store.Request);
+    }
+
+    /// <summary>A one-off is never a Triage (R577).</summary>
+    [Fact]
+    public async Task AOneOffTriageIsRefused()
+    {
+        var store = new RecordingStore();
+        var useCase = new CreateManualCase(store, new CommittedWorkPublisherDouble());
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => useCase.ExecuteAsync(new(
+            Staff,
+            "manual-private-3",
+            null,
+            CaseType.Triage,
+            new(VehicleRegistration: "AB12CDE")),
+            CancellationToken.None));
+
+        Assert.Equal("The case type is invalid.", exception.Message);
+        Assert.Null(store.Request);
+    }
+
+    /// <summary>A one-off may be a standalone Audit (operator, 2 November 2026, R600).</summary>
+    [Fact]
+    public async Task AOneOffMayBeAStandaloneAudit()
+    {
+        var store = new RecordingStore();
+        var useCase = new CreateManualCase(store, new CommittedWorkPublisherDouble());
+
+        await useCase.ExecuteAsync(new(
+            Staff,
+            "manual-private-4",
+            null,
+            CaseType.Audit,
+            new(ClaimantName: "Pat Private", VehicleRegistration: "AB12CDE")),
+            CancellationToken.None);
+
+        Assert.True(store.Request!.IsPrivateCustomer);
+        Assert.Equal(CaseType.Audit, store.Request.CaseType);
+    }
+
+    [Theory]
+    [InlineData(CaseType.Inspection, false, new[] { "Claimant name", "Claim number", "Vehicle registration" })]
+    [InlineData(CaseType.Inspection, true, new[] { "Claimant name", "Vehicle registration" })]
+    [InlineData(CaseType.Triage, false, new[] { "Vehicle registration" })]
+    public void WhatACaseCreatedDirectlyNeedsDependsOnItsKind(CaseType caseType, bool privateCustomer, string[] expected)
+    {
+        var empty = new Pegasus.Core.Intake.InstructionDraft(
+            null, null, null, null, null, null, null, null, null, null, null);
+
+        Assert.Equal(expected, ManualCaseCreationPolicy.MissingFieldNames(caseType, privateCustomer, empty));
     }
 
     private static CreateManualCaseRequest Request(string operationKey) => new(

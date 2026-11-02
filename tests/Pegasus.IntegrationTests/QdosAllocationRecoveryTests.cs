@@ -689,6 +689,36 @@ public sealed class QdosAllocationRecoveryTests
         Assert.Equal(3, await AllocationTestData.CountAsync(factory.Services, "ExternalWorkItems"));
     }
 
+    /// <summary>
+    /// A received item is never allocated to the standing Private customer
+    /// record (operator, 1 November 2026; R581): the attempt fails recoverably
+    /// with the one-off message, so the Principal is corrected and the item
+    /// retried, or the one-off is created from New case; no reference or
+    /// Case is left behind.
+    /// </summary>
+    [Fact]
+    public async Task ReceiptAcceptanceUnderThePrivateCustomerCodeIsRefusedWithoutACase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            "PRIVATE");
+
+        IntakeAllocationResult? first;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var allocate = scope.ServiceProvider.GetRequiredService<IAllocateIntake>();
+            first = await allocate.AttemptAutomaticAsync(scope.ServiceProvider, receipt.Id, Guid.NewGuid());
+        }
+
+        Assert.Equal(IntakeAllocationProjectionStatus.FailedRecoverable, first?.State.Status);
+        Assert.Equal(IntakeAllocationFailureKind.PrincipalUnavailable, first?.State.FailureKind);
+        Assert.Equal("A one-off case is created from New case.", first?.State.SafeReason);
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "CaseSequences"));
+    }
+
     [Fact]
     public async Task MissingPrincipalFailurePersistsAndReasonedStaffRetryAllocatesExactlyOnce()
     {

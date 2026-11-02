@@ -319,10 +319,14 @@ public static class AssessmentPolicy
             !string.IsNullOrWhiteSpace(owned.ClaimantName), "Claimant name", CaseDataFieldNames.ClaimantName,
             "The report prints the claimant's name and none is recorded.",
             "Record it on the Claim section.");
-        RequireCaseFact(
-            !string.IsNullOrWhiteSpace(owned.ClaimNumber), "Claim reference", CaseDataFieldNames.ClaimNumber,
-            "The report prints the claim reference as Your Ref and none is recorded.",
-            "Record it on the Case details section.");
+        // A one-off for a private customer has no claim number to print (R578).
+        if (!owned.PrivateCustomer)
+        {
+            RequireCaseFact(
+                !string.IsNullOrWhiteSpace(owned.ClaimNumber), "Claim reference", CaseDataFieldNames.ClaimNumber,
+                "The report prints the claim reference as Your Ref and none is recorded.",
+                "Record it on the Case details section.");
+        }
         RequireCaseFact(
             owned.IncidentDate is not null, "Incident date", CaseDataFieldNames.IncidentDate,
             "The report prints the incident date and none is recorded.",

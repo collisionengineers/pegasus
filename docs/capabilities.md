@@ -66,7 +66,7 @@ exclusion.
 | CASE-02 | Inspection cases | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
 | CASE-03 | Standalone Audit Case with or without the original report | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
 | CASE-04 | Inspection + Audit: one Case whose Audit is added by Create audit | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
-| CASE-07 | Shared principal/year case sequence | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
+| CASE-07 | Shared principal/year case sequence; registration references for one-off Cases | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | CASE-08 | One `a.` Audit reference prefix, independent of assessment outcome | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | CASE-09 | Case principal and reference immutability after allocation | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | CASE-10 | Wrong-principal `Created in error` closure and linked replacement case | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |

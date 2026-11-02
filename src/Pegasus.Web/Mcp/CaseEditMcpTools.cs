@@ -97,6 +97,14 @@ internal sealed record ImageTagVocabularyItem(
     string Colour,
     bool IsBuiltIn);
 
+internal sealed record StaffVocabularyItem(Guid StaffId, string Username);
+
+internal sealed record SignOffEngineerVocabularyItem(
+    Guid StaffId,
+    string PrintedName,
+    string? Qualifications,
+    bool IsDefault);
+
 internal sealed record VocabularyToolResult(
     IReadOnlyList<AssessmentFieldVocabularyItem> AssessmentFields,
     IReadOnlyList<CodeMeaningItem> EstimateLineTypes,
@@ -105,6 +113,8 @@ internal sealed record VocabularyToolResult(
     IReadOnlyList<string> EstimateVatCategories,
     IReadOnlyList<string> ValuationSources,
     IReadOnlyList<ImageTagVocabularyItem> ImageTags,
+    [property: Description("The enabled staff, by username: the identifiers pegasus_case_action assign_engineer, pegasus_triage_assign and pegasus_case_query assign accept.")] IReadOnlyList<StaffVocabularyItem> Staff,
+    [property: Description("The eligible Sign-off Engineers, by printed name: the identifiers pegasus_case_update_details signOffEngineerId accepts.")] IReadOnlyList<SignOffEngineerVocabularyItem> SignOffEngineers,
     string CorrelationId);
 
 internal sealed record DirectoryToolItem(
@@ -141,6 +151,8 @@ internal sealed class CaseEditMcpTools(
     IFetchGuideValuation fetchGuideValuation,
     IContactDirectoryQueries contactDirectory,
     IReadImageTagVocabulary imageTags,
+    Pegasus.Core.Identity.ICaseEngineerChoices staffChoices,
+    Pegasus.Core.Identity.IStaffAccountQueries staffAccounts,
     TimeProvider timeProvider,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
@@ -192,7 +204,7 @@ internal sealed class CaseEditMcpTools(
         [Description("Storage location for the vehicle.")] string? storageLocation = null,
         [Description("Inspection date, yyyy-MM-dd; the report prints it as the date the damage was assessed.")] string? inspectionDate = null,
         [Description("Inspection deadline, yyyy-MM-dd.")] string? inspectionDeadline = null,
-        [Description("The Sign-off Engineer's staff identifier.")] Guid? signOffEngineerId = null,
+        [Description("The Sign-off Engineer's staff identifier, from pegasus_vocabulary_get signOffEngineers.")] Guid? signOffEngineerId = null,
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
@@ -653,7 +665,7 @@ internal sealed class CaseEditMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Returns the vocabularies the write tools accept: every assessment field path with its type, accepted codes, the format a structured value takes (damage.impacts), staff label and whether pegasus_assessment_update may write it (for example Roadworthiness is assessment.legal_status and the outcome is assessment.outcome); the estimate line types and evidence labels with their meanings; repairer VAT statuses and VAT categories; valuation sources; and the shared image tags pegasus_document_action applies.")]
+    [Description("Returns the vocabularies the write tools accept: every assessment field path with its type, accepted codes, the format a structured value takes (damage.impacts), staff label and whether pegasus_assessment_update may write it (for example Roadworthiness is assessment.legal_status and the outcome is assessment.outcome); the estimate line types and evidence labels with their meanings; repairer VAT statuses and VAT categories; valuation sources; the shared image tags pegasus_document_action applies; the enabled staff by username, whose identifiers the assign actions take; and the eligible Sign-off Engineers by printed name.")]
     public async Task<VocabularyToolResult> GetVocabularyAsync(CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync("pegasus_vocabulary_get", cancellationToken);
@@ -662,37 +674,52 @@ internal sealed class CaseEditMcpTools(
             "pegasus_vocabulary_get",
             "vocabulary",
             operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () => new VocabularyToolResult(
-                AssessmentVocabulary.Definitions.Values
-                    .Select(definition =>
-                    {
-                        var refusal = AssessmentMcpTools.WriteRefusal(definition.Path);
-                        return new AssessmentFieldVocabularyItem(
-                            definition.Path,
-                            definition.Type.ToString(),
-                            definition.MaximumLength,
-                            definition.MustBePositive,
-                            definition.Codes,
-                            definition.Format,
-                            CaseWorkspaceLabels.Editors.Label(CaseWorkspaceLabels.Editors.FormName(definition.Path)),
-                            refusal is null,
-                            refusal);
-                    })
-                    .ToArray(),
-                EstimateLineCodes.Types
-                    .Select(type => new CodeMeaningItem(type, OperatorLabels.EstimateLineType(type)))
-                    .ToArray(),
-                EstimateLineCodes.EvidenceLabelMeanings
-                    .Select(label => new CodeMeaningItem(label.Key, label.Value))
-                    .ToArray(),
-                RepairerVatStatuses.ChoosableNames,
-                [nameof(EstimateVatCategories.Labour), nameof(EstimateVatCategories.Parts),
-                    nameof(EstimateVatCategories.Materials), nameof(EstimateVatCategories.Specialist)],
-                Enum.GetNames<ValuationSource>(),
-                (await imageTags.ListAsync(cancellationToken))
-                    .Select(tag => new ImageTagVocabularyItem(tag.Id, tag.Name, tag.Colour.ToString(), tag.IsBuiltIn))
-                    .ToArray(),
-                context.TraceIdentifier)),
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                // Each read opens its own context, so they run side by side.
+                var tagsRead = imageTags.ListAsync(cancellationToken);
+                var staffRead = staffChoices.GetAsync(context.Actor, cancellationToken);
+                var signOffRead = staffAccounts.ListSignOffEngineersAsync(cancellationToken);
+                await Task.WhenAll(tagsRead, staffRead, signOffRead);
+                return new VocabularyToolResult(
+                    AssessmentVocabulary.Definitions.Values
+                        .Select(definition =>
+                        {
+                            var refusal = AssessmentMcpTools.WriteRefusal(definition.Path);
+                            return new AssessmentFieldVocabularyItem(
+                                definition.Path,
+                                definition.Type.ToString(),
+                                definition.MaximumLength,
+                                definition.MustBePositive,
+                                definition.Codes,
+                                definition.Format,
+                                CaseWorkspaceLabels.Editors.Label(CaseWorkspaceLabels.Editors.FormName(definition.Path)),
+                                refusal is null,
+                                refusal);
+                        })
+                        .ToArray(),
+                    EstimateLineCodes.Types
+                        .Select(type => new CodeMeaningItem(type, OperatorLabels.EstimateLineType(type)))
+                        .ToArray(),
+                    EstimateLineCodes.EvidenceLabelMeanings
+                        .Select(label => new CodeMeaningItem(label.Key, label.Value))
+                        .ToArray(),
+                    RepairerVatStatuses.ChoosableNames,
+                    [nameof(EstimateVatCategories.Labour), nameof(EstimateVatCategories.Parts),
+                        nameof(EstimateVatCategories.Materials), nameof(EstimateVatCategories.Specialist)],
+                    Enum.GetNames<ValuationSource>(),
+                    (await tagsRead)
+                        .Select(tag => new ImageTagVocabularyItem(tag.Id, tag.Name, tag.Colour.ToString(), tag.IsBuiltIn))
+                        .ToArray(),
+                    (await staffRead)
+                        .Select(staff => new StaffVocabularyItem(staff.StaffId, staff.DisplayName))
+                        .ToArray(),
+                    (await signOffRead)
+                        .Select(engineer => new SignOffEngineerVocabularyItem(
+                            engineer.StaffId, engineer.PrintedName, engineer.Qualifications, engineer.IsDefault))
+                        .ToArray(),
+                    context.TraceIdentifier);
+            }),
             cancellationToken);
     }
 

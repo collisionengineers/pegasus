@@ -37,6 +37,20 @@ public sealed class CaseReportDeliveryNamingTests
             expected,
             CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Total loss", sentCount));
 
+    /// <summary>
+    /// A one-off Case's reference is its registration, printed once
+    /// (operator, 1 November 2026; R580); a repeat's reference differs from
+    /// the registration, so both print.
+    /// </summary>
+    [Theory]
+    [InlineData("AB12CDE", "AB12CDE Repairable report")]
+    [InlineData("ab12cde", "ab12cde Repairable report")]
+    [InlineData("AB12CDE.2", "AB12CDE.2 AB12CDE Repairable report")]
+    public void AOneOffNamesItsReportWithTheRegistrationOnce(string reference, string expected) =>
+        Assert.Equal(
+            expected,
+            CaseReportDeliveryNaming.ReportName(reference, "AB12CDE", "Repairable", 0));
+
     [Fact]
     public void ACaseWithNoRegistrationOrOutcomeStillNamesItsReport() =>
         Assert.Equal(

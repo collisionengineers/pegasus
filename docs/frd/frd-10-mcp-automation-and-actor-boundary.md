@@ -205,7 +205,10 @@ refused. `pegasus_vocabulary_get` lists every assessment field path with its
 type, accepted codes, the format a structured value takes (the damage entries
 of `damage.impacts`), staff label and whether the tool may write it, with the
 estimate line types and evidence labels, the repairer VAT statuses and VAT
-categories, the valuation sources and the shared image tags.
+categories, the valuation sources and the shared image tags. It also lists
+the enabled staff by id and username, whose ids the assign actions take, and
+the eligible Sign-off Engineers by id and printed name, whose id
+`signOffEngineerId` takes (operator, 2 November 2026; R593).
 
 **Valuation.** `pegasus_valuation_list` returns the Case's valuation cards:
 each guide card, the Engineer's Value card and any AI market research card.
@@ -433,9 +436,17 @@ replays by its operation key.
   ([FRD-03](frd-03-triage.md#triage); operator, 22 October 2026; R223).
 - `pegasus_case_create` creates a Case directly, as staff **New case** does
   ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)): an
-  Inspection or Inspection and Audit Case with its identity-critical facts,
-  or a Triage Case from its Principal and registration. An Audit is never
-  created by hand.
+  Inspection, Audit or Inspection and Audit Case with its identity-critical
+  facts, a Triage Case from its Principal and registration, or, with
+  `privateCustomer` and no `principalCode`, a one-off Case for a private
+  customer from the claimant's name and the registration, with an optional
+  `claimantAddress`
+  ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity);
+  operator, 31 October 2026, R577); a one-off may be an Audit, `a.` and its
+  registration (operator, 2 November 2026; R600, R601). An Audit
+  created this way starts with **Original report missing** until a filed
+  document is recorded as the original report (operator, 30 October 2026,
+  [R595](../rulings.md)).
 - `pegasus_unidentified_resolve` with `targetKind` Closed is **Close with
   reason**: it names no destination. `pegasus_unidentified_reopen` withdraws
   a resolution or closure with a reason.
@@ -576,7 +587,7 @@ its one command when none is given.
 | `automation.cases` | `pegasus_case_action` | One Case lifecycle act with an `action`: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, manual_chase | one-command lease |
 | `automation.cases` | `pegasus_case_query` | One query act with an `action`: open, mark_done, reopen, assign. No edit lease, expected version or reason. Reopen is refused on a closed or archived Case | key only |
 | `automation.cases` | `pegasus_directory_search` | The active directory Repairers or Claim sources a Case links to | none |
-| `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags | none |
+| `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags; enabled staff by username; Sign-off Engineers by printed name | none |
 | `automation.cases` | `pegasus_work_centre_dismiss` | Dismiss a Case, Unidentified item, AI job, or a System Action's underlying receipt, image intake or query from the Work Centre | key only |
 | `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`) or a Triage Case (`automation.intake`) for multi-step work; `takeOver` asks a staff holder of a Case to hand over and waits; takes over a staff Triage scope | explicit lease |
 | `automation.intake` | `pegasus_intake_queue_list` | List intake receipts by decision and allocation | none |

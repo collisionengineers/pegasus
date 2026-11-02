@@ -6,6 +6,7 @@
 .unidentified-record .ribbon-facts { flex-wrap: wrap; min-width: 0; }
 .unidentified-record .ribbon-item { min-width: 0; }
 .unidentified-record .ribbon-value { overflow-wrap: anywhere; }
+.unidentified-record .ribbon-chips { border-right: 0; }
 
 .unidentified-body { display: grid; gap: 12px; padding: 12px 16px 16px; }
 .unidentified-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
@@ -14,8 +15,9 @@
 .unidentified-facts .fact:last-child { border-bottom: 0; }
 .unidentified-facts dd { margin: 0; overflow-wrap: anywhere; }
 .unidentified-files { margin: 0; padding-left: 18px; font-size: 12px; }
-/* Resolve (v41 U12): one even column, Link to Case first, Close with reason set apart at the bottom. */
-.button-row.unidentified-resolve { display: grid; gap: 8px; align-items: stretch; }
+/* Resolve (v41 U12, R599): one even column, Link to Case first, Close with reason set apart at the
+   bottom; the column is as wide as the longest label, not the panel. */
+.button-row.unidentified-resolve { display: inline-grid; grid-template-columns: max-content; gap: 8px; align-items: stretch; max-width: 100%; }
 .unidentified-resolve form { margin: 0; }
 .unidentified-resolve .btn { width: 100%; justify-content: flex-start; }
 .unidentified-resolve-end { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -30,4 +32,5 @@
 @media (max-width: 760px) {
     .unidentified-body { padding: 10px; }
     .unidentified-facts .fact { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+    .button-row.unidentified-resolve { display: grid; grid-template-columns: minmax(0, 1fr); }
 }

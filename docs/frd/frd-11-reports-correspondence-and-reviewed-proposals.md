@@ -231,7 +231,15 @@ style.
 **Report For.** The report is addressed to the principal: its name, then its
 address line by line, then its postcode. A postcode the address already ends
 with is not printed twice. A principal with no address prints its name alone
-(operator, 27 September 2026).
+(operator, 27 September 2026). A one-off Case for a private customer
+([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity))
+is addressed to the claimant instead: the Case's Claimant name, then its
+Claimant address line by line; a claimant with no address prints the name
+alone. The fee note's Bill To is the same block. Its Your Ref row is left out
+when the Case has no claim number, and its attachment is named with the
+registration once, `AB12CDE Repairable report.pdf`, unless the Private
+customer record's sending rules name a pattern (operator, 31 October and 1
+November 2026; R576, R578, R580).
 
 **Sign-off on the report.** The snapshot carries the Case's sign-off tuple:
 printed name, qualifications and signature image, read from the Sign-off

@@ -61,6 +61,25 @@ public sealed partial class CaseCreateWebTests
         Assert.DoesNotContain("Open the received item", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The principal code box completes from the active Principals' codes.
+    /// </summary>
+    [Fact]
+    public async Task ManualCaseFormOffersTheActivePrincipalCodesAsCompletions()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenManualCaseScreenAsync(client);
+
+        Assert.Contains("list=\"principal-codes\"", form.Html, StringComparison.Ordinal);
+        Assert.Contains("<datalist id=\"principal-codes\">", form.Html, StringComparison.Ordinal);
+        Assert.Contains($"<option value=\"{PrincipalCode}\"></option>", form.Html, StringComparison.Ordinal);
+        // The Private customer record is reached by its tick, not offered as a code (R602).
+        Assert.DoesNotContain("<option value=\"PRIVATE\"></option>", form.Html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ManualCreateMakesAReceiptlessCaseWithStaffConfirmedFacts()
     {
@@ -133,6 +152,153 @@ public sealed partial class CaseCreateWebTests
         using var record = await client.GetAsync($"/Cases/{caseId:D}");
         Assert.Equal(HttpStatusCode.OK, record.StatusCode);
         Assert.Contains($"t.{PrincipalCode}31001", await record.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A one-off Case for a private customer (operator, 31 October and 1
+    /// November 2026; R574, R575, R577, R578, R579): the form offers the
+    /// Private customer tick and a Claimant address; ticked, no Principal code
+    /// or claim number is needed, the Case belongs to the standing PRIVATE
+    /// record, is complete without a claim number and is referenced by its
+    /// registration; a later one-off for the same vehicle is <c>.2</c>.
+    /// </summary>
+    [Fact]
+    public async Task ManualCreateMakesAOneOffForAPrivateCustomerReferencedByItsRegistration()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        Assert.Contains("name=\"IsPrivateCustomer\"", form.Html, StringComparison.Ordinal);
+        Assert.Contains("data-manual-private-customer", form.Html, StringComparison.Ordinal);
+        Assert.Contains("name=\"ClaimantAddress\"", form.Html, StringComparison.Ordinal);
+        Assert.Contains("<span>Private customer</span>", form.Html, StringComparison.Ordinal);
+
+        var fields = KeyedFields();
+        fields.Remove("PrincipalCode");
+        fields.Remove("ClaimNumber");
+        fields["IsPrivateCustomer"] = "true";
+        fields["ClaimantName"] = "Pat Private";
+        fields["ClaimantAddress"] = "1 Private Lane\r\nExampleton EX1 2AB";
+        fields["VehicleRegistration"] = "pv12 ate";
+        fields["VehicleMileageUnit"] = "miles";
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var created = await context.Cases.AsNoTracking()
+            .Include(item => item.Principal)
+            .SingleAsync(item => item.Id == caseId);
+        Assert.Equal("PV12ATE", created.Reference);
+        Assert.Equal("PRIVATE", created.Principal.Code);
+        Assert.Equal(CaseTypeCodes.ToCode(CaseType.Inspection), created.Type);
+        Assert.True(created.InstructionComplete);
+        var snapshot = await context.CaseDataSnapshots.AsNoTracking()
+            .Include(item => item.Fields)
+            .SingleAsync(item => item.WorkId == caseId);
+        var address = Assert.Single(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimantAddress);
+        Assert.Equal(CaseDataCodes.Confirmed, address.ValueKind);
+        Assert.StartsWith("1 Private Lane", address.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimNumber);
+
+        using var record = await client.GetAsync($"/Cases/{caseId:D}");
+        Assert.Equal(HttpStatusCode.OK, record.StatusCode);
+        Assert.Contains("PV12ATE", await record.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        // A later one-off for the same vehicle (R575).
+        var secondForm = await OpenManualCaseScreenAsync(client);
+        using var secondResponse = await PostCreateAsync(client, secondForm, fields);
+        var secondCaseId = AssertCaseRedirect(secondResponse);
+        Assert.Equal(
+            "PV12ATE.2",
+            await context.Cases.AsNoTracking()
+                .Where(item => item.Id == secondCaseId)
+                .Select(item => item.Reference)
+                .SingleAsync());
+        Assert.Equal(2, await context.Cases.CountAsync(item => item.Principal.Code == "PRIVATE"));
+    }
+
+    /// <summary>
+    /// A one-off may be a standalone Audit, referenced <c>a.</c> and its
+    /// registration on the repeat it shares with the vehicle's other one-offs
+    /// (operator, 2 November 2026; R600, R601).
+    /// </summary>
+    [Fact]
+    public async Task ManualOneOffAuditSharesTheRegistrationsRepeat()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var fields = KeyedFields();
+        fields.Remove("PrincipalCode");
+        fields.Remove("ClaimNumber");
+        fields["IsPrivateCustomer"] = "true";
+        fields["CaseType"] = CaseType.Audit.ToString();
+        fields["ClaimantName"] = "Pat Private";
+        fields["VehicleRegistration"] = "PV12AUD";
+        fields["VehicleMileageUnit"] = "miles";
+        using var auditResponse = await PostCreateAsync(client, await OpenManualCaseScreenAsync(client), fields);
+        var auditId = AssertCaseRedirect(auditResponse);
+
+        fields["CaseType"] = CaseType.Inspection.ToString();
+        using var inspectionResponse = await PostCreateAsync(client, await OpenManualCaseScreenAsync(client), fields);
+        var inspectionId = AssertCaseRedirect(inspectionResponse);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var audit = await context.Cases.AsNoTracking().SingleAsync(item => item.Id == auditId);
+        Assert.Equal("a.PV12AUD", audit.Reference);
+        Assert.Equal(CaseTypeCodes.ToCode(CaseType.Audit), audit.Type);
+        Assert.Equal(
+            "PV12AUD.2",
+            await context.Cases.AsNoTracking()
+                .Where(item => item.Id == inspectionId)
+                .Select(item => item.Reference)
+                .SingleAsync());
+    }
+
+    /// <summary>A one-off is never a Triage (R577).</summary>
+    [Fact]
+    public async Task ManualOneOffTriageIsRefusedWithoutCreatingACase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        using var response = await PostCreateAsync(client, form, new()
+        {
+            ["IsPrivateCustomer"] = "true",
+            ["CaseType"] = CaseType.Triage.ToString(),
+            ["VehicleRegistration"] = "PV12ATE"
+        });
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Choose a valid case type.", html, StringComparison.Ordinal);
+        Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
+    }
+
+    /// <summary>A one-off needs the claimant's name (R577); nothing is created without it.</summary>
+    [Fact]
+    public async Task ManualOneOffWithoutAClaimantIsRefusedWithoutCreatingACase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        using var response = await PostCreateAsync(client, form, new()
+        {
+            ["IsPrivateCustomer"] = "true",
+            ["CaseType"] = CaseType.Inspection.ToString(),
+            ["VehicleRegistration"] = "PV12ATE"
+        });
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Claimant name is needed before a case can be created.", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Claim number is needed", html, StringComparison.Ordinal);
+        Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
     }
 
     [Fact]
@@ -288,6 +454,165 @@ public sealed partial class CaseCreateWebTests
         Assert.StartsWith("a.", created.Reference, StringComparison.Ordinal);
         Assert.Null(created.StandaloneAuditAssessment);
         Assert.Null(created.StandaloneAuditEvidenceId);
+    }
+
+    /// <summary>
+    /// The direct form offers Audit (operator, 30 October 2026, R595): the
+    /// Case takes its own a. reference and shows Original report missing
+    /// until a filed document is recorded as the original report.
+    /// </summary>
+    [Fact]
+    public async Task ManualCreateMakesAStandaloneAuditWithItsOriginalReportMissing()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        Assert.Contains($"<option value=\"{CaseType.Audit}\">Audit</option>", form.Html, StringComparison.Ordinal);
+        var fields = KeyedFields();
+        fields["CaseType"] = CaseType.Audit.ToString();
+        fields["VehicleMileageUnit"] = "miles";
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var created = await context.Cases.AsNoTracking().SingleAsync(item => item.Id == caseId);
+        Assert.Equal(CaseTypeCodes.ToCode(CaseType.Audit), created.Type);
+        Assert.Equal($"a.{PrincipalCode}31001", created.Reference);
+        Assert.Null(created.StandaloneAuditEvidenceId);
+
+        using var record = await client.GetAsync($"/Cases/{caseId:D}");
+        Assert.Equal(HttpStatusCode.OK, record.StatusCode);
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.OriginalReportMissing,
+            await record.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A Case created directly records its Principal as the creator's
+    /// confirmation (FRD-02), as a staff acceptance does, so it is a match
+    /// target for later mail and images and its export names the Principal.
+    /// Before, it recorded none and the match index projected no row.
+    /// </summary>
+    [Fact]
+    public async Task ManualCreateRecordsItsPrincipalSoTheCaseIsAMatchTarget()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, QdosPrincipal.Code);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        var fields = KeyedFields();
+        fields["PrincipalCode"] = QdosPrincipal.Code;
+        fields["VehicleMileageUnit"] = "miles";
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var snapshot = await context.CaseDataSnapshots
+            .Include(item => item.Fields)
+            .SingleAsync(item => item.WorkId == caseId);
+        Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.PrincipalCode
+            && item.ValueKind == CaseDataCodes.Confirmed
+            && item.SourceKind == CaseDataCodes.CaseAcceptance
+            && item.Value == QdosPrincipal.Code);
+        Assert.True(await context.CaseMatchIndex.AnyAsync(item =>
+            item.CaseId == caseId && item.PrincipalCode == QdosPrincipal.Code));
+    }
+
+    /// <summary>
+    /// A Case created directly for a Principal that inspects by images takes
+    /// Image Based Assessment from the Principal setting, as an accepted
+    /// intake does (ADR-0018), with the same history line.
+    /// </summary>
+    [Fact]
+    public async Task ManualCreateForAnImageBasedPrincipalTakesImageBasedAssessment()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+        await using (var seed = factory.Services.CreateAsyncScope())
+        {
+            var seedContext = seed.ServiceProvider.GetRequiredService<PegasusDbContext>();
+            await seedContext.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Principals SET InspectionMode = {PrincipalInspectionModePolicy.ImageBasedAssessmentCode} WHERE Code = {PrincipalCode}");
+        }
+
+        var form = await OpenManualCaseScreenAsync(client);
+        var fields = KeyedFields();
+        fields["VehicleMileageUnit"] = "miles";
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var snapshot = await context.CaseDataSnapshots
+            .Include(item => item.Fields)
+            .SingleAsync(item => item.WorkId == caseId);
+        Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.InspectionAddress
+            && item.ValueKind == CaseDataCodes.Confirmed
+            && item.SourceKind == CaseDataCodes.PrincipalSetting
+            && item.Value == Ext18InspectionAddressPolicy.ImageBasedAssessment);
+        Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.InspectionMode
+            && item.ValueKind == CaseDataCodes.Confirmed
+            && item.Value == PrincipalInspectionModePolicy.ImageBasedAssessmentCode);
+        Assert.True(await context.CaseHistory.AnyAsync(item =>
+            item.CaseId == caseId && item.EventType == "principal_inspection_mode_applied"));
+    }
+
+    /// <summary>
+    /// Files chosen on the direct form go through the declared-Case upload
+    /// (FRD-18; operator, 30 October 2026, R596): one press creates the Case,
+    /// then submits its files for it with the type chosen for each, and the
+    /// operator lands on the Case's Files.
+    /// </summary>
+    [Fact]
+    public async Task ManualCreateWithFilesFilesThemOnTheCase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        Assert.Contains("data-upload-type-template", form.Html, StringComparison.Ordinal);
+        Assert.Contains("enctype=\"multipart/form-data\"", form.Html, StringComparison.Ordinal);
+        var fields = KeyedFields();
+        fields["VehicleMileageUnit"] = "miles";
+        fields["ExternalReceiptToken"] = InputValue(form.Html, "ExternalReceiptToken");
+        fields["DocumentTypes[0]"] = Pegasus.Core.Documents.DocumentSemanticRole.Instruction.ToString();
+        using var multipart = new MultipartFormDataContent();
+        foreach (var (key, value) in form.Values.Concat(fields))
+        {
+            multipart.Add(new StringContent(value), key);
+        }
+        var pdf = new ByteArrayContent(IntakeTestEvidence.CreatePdf("A hand-keyed instruction."));
+        pdf.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/pdf");
+        multipart.Add(pdf, "Upload", "instruction.pdf");
+        var photograph = new ByteArrayContent(MultiFormatFixture.Photograph(1));
+        photograph.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("image/jpeg");
+        multipart.Add(photograph, "Upload", "front.jpg");
+
+        using var response = await client.PostAsync("/Cases/Create?handler=Create", multipart);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var location = response.Headers.Location!.OriginalString;
+        Assert.Contains("section=files", location, StringComparison.Ordinal);
+        var caseId = Guid.Parse(location.Split('?')[0].Split('/', StringSplitOptions.RemoveEmptyEntries).Last());
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var staged = await context.IntakeStagedReceipts.AsNoTracking()
+            .Where(item => item.DeclaredCaseId == caseId)
+            .ToListAsync();
+        Assert.Equal(2, staged.Count);
+        Assert.Contains(staged, item => item.SourceFileName == "instruction.pdf"
+            && item.DeclaredDocumentType == nameof(Pegasus.Core.Documents.DocumentSemanticRole.Instruction));
+        Assert.Contains(staged, item => item.SourceFileName == "front.jpg" && item.DeclaredDocumentType is null);
+        // The Case itself still has no receipt of its own (FRD-02).
+        Assert.Null((await context.Cases.AsNoTracking().SingleAsync(item => item.Id == caseId)).OriginIntakeReceiptId);
     }
 
     /// <summary>

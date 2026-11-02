@@ -197,6 +197,24 @@ public sealed class AutomationMcpIngressTests
         Assert.True(properties.TryGetProperty("inspectionDate", out _));
         Assert.False(properties.TryGetProperty("instructionDate", out _));
 
+        // R577: a one-off Case for a private customer names no Principal, so
+        // the Principal code is no longer required and the one-off takes its
+        // own two arguments.
+        var caseCreate = toolsDocument.RootElement
+            .GetProperty("result")
+            .GetProperty("tools")
+            .EnumerateArray()
+            .Single(tool => tool.GetProperty("name").GetString() == "pegasus_case_create");
+        var caseCreateSchema = caseCreate.GetProperty("inputSchema");
+        Assert.True(caseCreateSchema.GetProperty("properties").TryGetProperty("privateCustomer", out _));
+        Assert.True(caseCreateSchema.GetProperty("properties").TryGetProperty("claimantAddress", out _));
+        Assert.True(caseCreateSchema.GetProperty("properties").TryGetProperty("principalCode", out _));
+        var required = caseCreateSchema.TryGetProperty("required", out var requiredElement)
+            ? requiredElement.EnumerateArray().Select(item => item.GetString()).ToArray()
+            : [];
+        Assert.Contains("caseType", required);
+        Assert.DoesNotContain("principalCode", required);
+
         // R185: market research carries its retail value only, so the tool
         // takes no trade value; its arguments are exactly these. It is listed
         // (ADR-0087), and the findings document comes as

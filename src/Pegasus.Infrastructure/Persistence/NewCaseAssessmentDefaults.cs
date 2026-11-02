@@ -5,15 +5,16 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// Gives a new Case its Principal's default fee as its agreed fee, inside the
-/// creating transaction (<see cref="PrincipalDefaultFeePolicy"/>). The value
-/// lands as <see cref="PrincipalDefaultFeePolicy.RecorderId"/>, so the Fee
-/// pane tags it Principal until staff change it.
+/// The assessment values a new Case starts with, written inside the creating
+/// transaction: its Principal's default fee as its agreed fee
+/// (<see cref="PrincipalDefaultFeePolicy"/>), which the Fee pane tags
+/// Principal until staff change it, and a Good pre-incident condition
+/// (<see cref="VehicleConditionDefault"/>), shown untagged.
 /// </summary>
-internal static class PrincipalDefaultFeeWriter
+internal static class NewCaseAssessmentDefaults
 {
     /// <summary>
-    /// Writes the fee on the new Case's primary work, which holds no
+    /// Writes the defaults on the new Case's primary work, which holds no
     /// assessment field yet.
     /// </summary>
     public static void Apply(
@@ -31,6 +32,15 @@ internal static class PrincipalDefaultFeeWriter
             PrincipalDefaultFeePolicy.AgreedFeeValue(principal.DefaultFee),
             ActorKind.Automation,
             PrincipalDefaultFeePolicy.RecorderId,
+            now);
+        AssessmentFieldWriter.Write(
+            context,
+            caseId,
+            existing: null,
+            AssessmentVocabulary.VehicleCondition,
+            VehicleConditionDefault.Code,
+            ActorKind.Automation,
+            VehicleConditionDefault.RecorderId,
             now);
     }
 }

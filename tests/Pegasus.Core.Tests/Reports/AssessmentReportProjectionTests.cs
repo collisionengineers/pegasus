@@ -394,6 +394,42 @@ public sealed class AssessmentReportProjectionTests
         Assert.Equal(field, reason.Field);
     }
 
+    /// <summary>
+    /// A one-off Case for a private customer projects without a claim number:
+    /// the snapshot carries no Your Ref and the renderer accepts it; a claim
+    /// number that was recorded still prints (operator, 1 November 2026; R578).
+    /// </summary>
+    [Fact]
+    public void AOneOffForAPrivateCustomerProjectsWithoutAYourRef()
+    {
+        var input = ReadyInput();
+        var oneOff = input with
+        {
+            Assessment = input.Assessment with
+            {
+                CaseOwned = input.Assessment.CaseOwned with { ClaimNumber = null, PrivateCustomer = true }
+            }
+        };
+
+        var result = AssessmentReportProjection.Project(oneOff);
+
+        Assert.True(result.IsReady);
+        Assert.Null(result.Snapshot!.YourReference);
+        result.Snapshot.Validate();
+        Assert.Equal(
+            ["Date:", "Our Ref:"],
+            AssessmentReportWording.References(result.Snapshot).Select(row => row.Label));
+
+        var withClaimNumber = AssessmentReportProjection.Project(oneOff with
+        {
+            Assessment = oneOff.Assessment with
+            {
+                CaseOwned = oneOff.Assessment.CaseOwned with { ClaimNumber = "P-100" }
+            }
+        });
+        Assert.Equal("P-100", withClaimNumber.Snapshot!.YourReference);
+    }
+
     [Fact]
     public void UnrecognizedInspectionModeAtGenerationIsAnInvalidState()
     {

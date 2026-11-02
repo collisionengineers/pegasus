@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
@@ -55,16 +56,27 @@ public sealed class EfManualCaseCreationStore(
 
         // The Case number is allocated first, so the sequence row is this
         // transaction's first lock; a replay or refusal below releases it.
-        var principal = await context.Principals
-            .Include(item => item.Organization)
-            .SingleOrDefaultAsync(
-                item => item.Code == request.PrincipalCode && item.IsActive,
-                cancellationToken);
+        // A one-off names no Principal: it belongs to the one active Principal
+        // referenced by registration, the standing Private customer record
+        // (R574); none, or more than one, is that record unavailable.
+        var principal = request.IsPrivateCustomer
+            ? await context.Principals
+                .Include(item => item.Organization)
+                .Where(item => item.ReferenceScheme == PrincipalReferenceSchemes.Registration && item.IsActive)
+                .Take(2)
+                .ToArrayAsync(cancellationToken) is [var privateCustomer]
+                ? privateCustomer
+                : null
+            : await context.Principals
+                .Include(item => item.Organization)
+                .SingleOrDefaultAsync(
+                    item => item.Code == request.PrincipalCode && item.IsActive,
+                    cancellationToken);
         var now = UtcNow();
         var allocated = principal is null
             ? null
             : await CaseIdentityAllocator.AllocateAsync(
-                context, principal, request.CaseType, now, cancellationToken);
+                context, principal, request.CaseType, request.Data.VehicleRegistration, now, cancellationToken);
 
         var existing = await context.ActionHistory
             .AsNoTracking()
@@ -95,8 +107,14 @@ public sealed class EfManualCaseCreationStore(
             return await CreateTriageAsync(
                 context, transaction, request, principal, allocated, fingerprint, now, cancellationToken);
         }
+        // An image-based Principal's Case takes its inspection mode from the
+        // Principal setting, as an accepted intake does (ADR-0018), so its
+        // address counts toward the instruction like the autofilled value.
+        var imageBased = principal.InspectionMode == PrincipalInspectionModePolicy.ImageBasedAssessmentCode;
         var completeness = new CaseCompleteness(
-            InstructionComplete: IsInstructionComplete(request.Data),
+            InstructionComplete: IsInstructionComplete(imageBased
+                ? request.Data with { InspectionAddress = Ext18InspectionAddressPolicy.ImageBasedAssessment }
+                : request.Data, request.IsPrivateCustomer),
             ImagesComplete: false);
         var configuration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
         var evaluation = CaseCompletenessPolicy.Evaluate(completeness, configuration);
@@ -122,11 +140,43 @@ public sealed class EfManualCaseCreationStore(
             Version = 0
         };
         context.Cases.Add(caseEntity);
-        PrincipalDefaultFeeWriter.Apply(context, caseId, principal, now);
+        NewCaseAssessmentDefaults.Apply(context, caseId, principal, now);
 
         var snapshot = CaseDataSnapshotFactory.CreateManual(
             caseEntity, evaluation, now);
         CaseDataFieldWriter.ApplyEditableData(context, snapshot, request.Data, request.Actor, now);
+        // The accepted Principal is the creator's confirmation, as on a
+        // receipt-backed staff acceptance (FRD-02): without it the match index
+        // projected no row and the Case export named no Work Provider.
+        CaseDataSnapshotFactory.AddStaffAllocatedPrincipal(
+            snapshot,
+            request.Actor,
+            principal.Code,
+            evaluation.PolicyKey,
+            evaluation.PolicyVersion,
+            now);
+        if (imageBased)
+        {
+            CaseDataSnapshotFactory.AddPrincipalInspectionMode(
+                snapshot,
+                principal.Code,
+                request.Actor.SubjectId,
+                request.Actor.SubjectId,
+                now);
+            context.CaseHistory.Add(new()
+            {
+                Id = Guid.NewGuid(),
+                Case = caseEntity,
+                CaseId = caseId,
+                EventType = "principal_inspection_mode_applied",
+                Actor = request.Actor.SubjectId,
+                Reason = "Principal setting: inspection address autofilled as Image Based Assessment",
+                OccurredAtUtc = now,
+                OperationKey = $"principal-mode:{caseId:N}",
+                BeforeVersion = null,
+                AfterVersion = 0
+            });
+        }
         context.CaseDataSnapshots.Add(snapshot);
         CaseMatchIndexProjector.Apply(
             context,
@@ -325,7 +375,7 @@ public sealed class EfManualCaseCreationStore(
         }
     }
 
-    private static bool IsInstructionComplete(CaseEditableData data) =>
+    private static bool IsInstructionComplete(CaseEditableData data, bool privateCustomer) =>
         InstructionDraftCompleteness.IsComplete(new(
             null,
             data.ClaimantName,
@@ -337,7 +387,7 @@ public sealed class EfManualCaseCreationStore(
             data.AccidentCircumstances,
             data.IncidentDate,
             data.InspectionAddress,
-            data.InspectionDate));
+            data.InspectionDate), privateCustomer);
 
     private static CaseIdentity Identity(CaseEntity entity) => new(
         entity.Id,

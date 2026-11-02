@@ -1,5 +1,3 @@
-using System.Net;
-using System.Text.RegularExpressions;
 using MimeKit;
 using Pegasus.Core.Intake;
 
@@ -55,7 +53,7 @@ public static partial class LocalEmailDisplayReader
         var body = message.TextBody;
         if (string.IsNullOrWhiteSpace(body) && !string.IsNullOrWhiteSpace(message.HtmlBody))
         {
-            body = ToInertText(message.HtmlBody);
+            body = HtmlMailText.ToText(message.HtmlBody);
         }
 
         // A staff forward that carries the provider's original as an attached
@@ -73,7 +71,7 @@ public static partial class LocalEmailDisplayReader
             if (string.IsNullOrWhiteSpace(originalBody)
                 && !string.IsNullOrWhiteSpace(attachedOriginal.HtmlBody))
             {
-                originalBody = ToInertText(attachedOriginal.HtmlBody);
+                originalBody = HtmlMailText.ToText(attachedOriginal.HtmlBody);
             }
 
             if (!string.IsNullOrWhiteSpace(originalBody))
@@ -249,15 +247,6 @@ public static partial class LocalEmailDisplayReader
         return trimmed.StartsWith("fw:", StringComparison.OrdinalIgnoreCase)
             || trimmed.StartsWith("fwd:", StringComparison.OrdinalIgnoreCase);
     }
-
-    private static string ToInertText(string html) =>
-        WebUtility.HtmlDecode(HtmlTagRegex().Replace(html, " "))
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace("\r", "\n", StringComparison.Ordinal)
-            .Trim();
-
-    [GeneratedRegex("<[^>]+>", RegexOptions.Compiled | RegexOptions.CultureInvariant)]
-    private static partial Regex HtmlTagRegex();
 
     /// <summary>
     /// Counts bytes without keeping them: an attachment's size is wanted, its

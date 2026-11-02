@@ -57,6 +57,8 @@ public sealed class SourceTagLabelTests
             new OperatorLabels.SourceTagWord("AI", "ai"),
             OperatorLabels.SourceTag(Recorded(ActorKind.Automation, "pegasus-automation")));
         Assert.Null(OperatorLabels.SourceTag(Recorded(ActorKind.Staff, "recorded-engineer")));
+        // The Good pre-incident condition every Case starts with reads as staff's (R598).
+        Assert.Null(OperatorLabels.SourceTag(Recorded(ActorKind.Automation, VehicleConditionDefault.RecorderId)));
     }
 
     [Fact]

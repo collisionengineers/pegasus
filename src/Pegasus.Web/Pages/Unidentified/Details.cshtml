@@ -82,7 +82,11 @@
                         </div>
                     }
                     <dl class="fact-grid unidentified-facts">
-                        <div class="fact"><dt>Source</dt><dd>@Model.SourceLabel</dd></div>
+                        @* The ribbon's Kind already says it when the source channel reads the same (U6; R599). *@
+                        @if (!string.Equals(Model.SourceLabel, Model.MaterialLabel, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <div class="fact"><dt>Source</dt><dd>@Model.SourceLabel</dd></div>
+                        }
                         <div class="fact"><dt>Needs attention</dt><dd>@OperatorLabels.UnidentifiedReason(Model.Item.ReasonCode)</dd></div>
                     </dl>
                     @if (Model.RetainedFiles.Count > 0)
@@ -138,18 +142,19 @@
                         <p class="muted">@gallery.Length photograph@(gallery.Length == 1 ? string.Empty : "s") extracted from the retained file@(Model.MaterialReceipts.Count == 1 ? string.Empty : "s").</p>
                         <partial name="Shared/_ImageGallery" model="gallery" />
                     }
+                    @* A stored e-mail opens through Open message; only an unstored original reads unavailable (operator, 2 November 2026, R599). *@
+                    @if (Model.OpenFileHref is null && !Model.IsSourceStored && Model.SourceAsset is { } unavailableSource)
+                    {
+                        <p class="muted" data-unidentified-source-unavailable>
+                            Original file unavailable — @Record.CustodyLabel(unavailableSource.CustodyState).
+                        </p>
+                    }
                     <div class="button-row" data-unidentified-material-actions>
                         @if (Model.OpenFileHref is { } fileHref)
                         {
                             <a class="btn" href="@fileHref" target="_blank" rel="noopener" data-unidentified-action="open-file">
                                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg><span>Open file</span>
                             </a>
-                        }
-                        else if (Model.SourceAsset is { } unavailableSource)
-                        {
-                            <span class="muted" data-unidentified-source-unavailable>
-                                Original file unavailable — @Record.CustodyLabel(unavailableSource.CustodyState).
-                            </span>
                         }
                         @if (Model.OpenMessageHref is { } messageHref)
                         {

@@ -222,10 +222,10 @@
                     @if (canEditCondition)
                     {
                         <select id="edit-vehicle-condition" class="fi" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.VehicleCondition)" form="case-edit-form">
-                            <option value="" selected="@(condition is null ? "selected" : null)">@OperatorLabels.CaseWorkspace.AbsentValue</option>
+                            @* No Not recorded choice: an unrecorded condition picks Good (R598). *@
                             @foreach (var code in conditionCodes)
                             {
-                                <option value="@code" selected="@(condition == code ? "selected" : null)">@VehicleLabels.ConditionLabel(code)</option>
+                                <option value="@code" selected="@((condition ?? VehicleConditionDefault.Code) == code ? "selected" : null)">@VehicleLabels.ConditionLabel(code)</option>
                             }
                         </select>
                     }

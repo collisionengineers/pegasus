@@ -273,12 +273,28 @@ public sealed class AutomationQueueIngressTests
         using (var refused = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_case_create", new
         {
             principalCode = QdosPrincipal.Code,
+            caseType = "Survey",
+            vehicleRegistration = "AB12CDE",
+            operationKey = "mcp:case-create-unknown"
+        })))
+        {
+            Assert.Contains("Inspection, Audit, InspectionAndAudit or Triage", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+
+        // An Audit may be created directly, as staff may (R595): it takes the
+        // Audit's own a. reference.
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_case_create", new
+        {
+            principalCode = QdosPrincipal.Code,
             caseType = "Audit",
             vehicleRegistration = "AB12CDE",
+            claimantName = "Automation Audit Claimant",
+            claimNumber = "AUTO-AUDIT-1",
             operationKey = "mcp:case-create-audit"
         })))
         {
-            Assert.Contains("Inspection, InspectionAndAudit or Triage", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+            var created = await ReadStructuredContentAsync(response);
+            Assert.StartsWith("a.", created.GetProperty("reference").GetString(), StringComparison.Ordinal);
         }
 
         using (var refused = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_case_create", new
@@ -328,6 +344,100 @@ public sealed class AutomationQueueIngressTests
               AND ActorKind = N'Automation'
               AND Outcome = N'Succeeded'
               AND CorrelationId = N'mcp:case-create-triage'
+            """));
+    }
+
+    /// <summary>
+    /// R574, R577 (operator, 31 October 2026): the Actor creates a one-off
+    /// Case for a private customer as New case does, naming no Principal; it
+    /// is referenced by its registration, a second for the same vehicle by
+    /// <c>.2</c>, and it is never a Triage nor given with a Principal code.
+    /// </summary>
+    [Fact]
+    public async Task TheActorCreatesAOneOffForAPrivateCustomerReferencedByItsRegistration()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        _ = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, "automation.intake");
+
+        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_case_create", new
+        {
+            privateCustomer = true,
+            principalCode = QdosPrincipal.Code,
+            caseType = "Inspection",
+            claimantName = "Pat Private",
+            vehicleRegistration = "PV12ATE",
+            operationKey = "mcp:case-create-private-both"
+        })))
+        {
+            Assert.Contains("not both", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+
+        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_case_create", new
+        {
+            privateCustomer = true,
+            caseType = "Triage",
+            vehicleRegistration = "PV12ATE",
+            operationKey = "mcp:case-create-private-triage"
+        })))
+        {
+            Assert.Contains("Inspection, Audit or InspectionAndAudit", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+
+        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_case_create", new
+        {
+            privateCustomer = true,
+            caseType = "Inspection",
+            vehicleRegistration = "PV12ATE",
+            operationKey = "mcp:case-create-private-no-claimant"
+        })))
+        {
+            Assert.Contains("Claimant name", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+
+        Guid caseId;
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_case_create", new
+        {
+            privateCustomer = true,
+            caseType = "Inspection",
+            claimantName = "Pat Private",
+            claimantAddress = "1 Private Lane\nExampleton EX1 2AB",
+            vehicleRegistration = "pv12 ate",
+            operationKey = "mcp:case-create-private"
+        })))
+        {
+            var created = await ReadStructuredContentAsync(response);
+            caseId = created.GetProperty("caseId").GetGuid();
+            Assert.Equal("PV12ATE", created.GetProperty("reference").GetString());
+        }
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_case_create", new
+        {
+            privateCustomer = true,
+            caseType = "InspectionAndAudit",
+            claimantName = "Pat Private",
+            vehicleRegistration = "PV12ATE",
+            operationKey = "mcp:case-create-private-again"
+        })))
+        {
+            Assert.Equal("PV12ATE.2", (await ReadStructuredContentAsync(response)).GetProperty("reference").GetString());
+        }
+
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM Cases AS c
+            INNER JOIN Principals AS p ON p.Id = c.PrincipalId
+            WHERE c.Id = '{caseId:D}' AND p.Code = N'PRIVATE' AND c.Reference = N'PV12ATE'
+            """));
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM CaseDataFields AS f
+            INNER JOIN CaseWorks AS w ON w.Id = f.WorkId
+            WHERE w.CaseId = '{caseId:D}'
+              AND f.FieldName = N'claimant_address'
+              AND f.ValueKind = N'confirmed'
             """));
     }
 

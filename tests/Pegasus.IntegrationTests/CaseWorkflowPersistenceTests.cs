@@ -3393,6 +3393,38 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         Assert.Equal(0L, persisted?.Version);
     }
 
+    /// <summary>
+    /// Correct principal never lands on the standing Private customer record
+    /// (operator, 1 November 2026; R581): the replacement is refused with the
+    /// one-off message and the original Case is untouched.
+    /// </summary>
+    [Fact]
+    public async Task LinkedCaseReplacementUnderThePrivateCustomerCodeIsRefused()
+    {
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.SecondCaseId, 0, actor, "claim-private-replacement"),
+            default);
+        var create = new CreateLinkedReplacement(harness.ReplacementStore, new DiscardingCommittedWorkPublisher());
+
+        var refused = await Assert.ThrowsAsync<OneOffCaseRouteException>(() => create.ExecuteAsync(
+            new(
+                harness.SecondCaseId,
+                0,
+                actor,
+                "replace-private-customer",
+                "Corrected principal is the private customer",
+                lease.Token,
+                "PRIVATE"),
+            default));
+
+        Assert.Equal("A one-off case is created from New case.", refused.Message);
+        var unchanged = await harness.Store.GetAsync(harness.SecondCaseId, default);
+        Assert.Equal(CaseLifecycleState.Review, unchanged?.State);
+        Assert.Null(unchanged?.ReplacementCaseId);
+    }
+
     [Fact]
     public async Task AuditCaseLinkedCaseReplacementIsAllocatedLinkedAndReplayedAtomically()
     {
@@ -3462,13 +3494,18 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         Assert.Equal(
             allocated.Identity.Reference,
             await harness.ReadCaseReferenceAsync(allocated.Identity.CaseId));
-        // The replacement starts with its corrected Principal's default fee.
+        // The replacement starts with its corrected Principal's default fee
+        // and a Good pre-incident condition (R598).
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var fee = await context.CaseAssessmentFields.AsNoTracking().SingleAsync(item =>
                 item.WorkId == allocated.Identity.CaseId && item.FieldPath == AssessmentVocabulary.AgreedFee);
             Assert.Equal("195.00", fee.Value);
             Assert.Equal(PrincipalDefaultFeePolicy.RecorderId, fee.RecordedBy);
+            var condition = await context.CaseAssessmentFields.AsNoTracking().SingleAsync(item =>
+                item.WorkId == allocated.Identity.CaseId && item.FieldPath == AssessmentVocabulary.VehicleCondition);
+            Assert.Equal(VehicleConditionDefault.Code, condition.Value);
+            Assert.Equal(VehicleConditionDefault.RecorderId, condition.RecordedBy);
         }
         // A standalone Audit's a. prefix is on its own Case/PO; it never
         // carries an Audit report reference.

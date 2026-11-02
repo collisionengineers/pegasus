@@ -1,4 +1,5 @@
 using System.Globalization;
+using Pegasus.Core.Assessment;
 
 namespace Pegasus.Core.Reports;
 
@@ -121,16 +122,26 @@ public static class AssessmentReportWording
     /// <summary>What the template prints as the odometer of a vehicle with no mileage.</summary>
     public const string NoMileage = "TBC";
 
-    /// <summary>Date, Our Ref and Your Ref, in the template's order. The fee note prints the same three.</summary>
+    /// <summary>
+    /// Date, Our Ref and Your Ref, in the template's order. The fee note
+    /// prints the same three. A one-off for a private customer with no claim
+    /// number has no Your Ref row (R578).
+    /// </summary>
     public static IReadOnlyList<ReportRow> References(AssessmentReportSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return
-        [
-            new("Date:", Date(snapshot.ReportDate)),
-            new("Our Ref:", snapshot.OurReference),
-            new("Your Ref:", snapshot.YourReference),
-        ];
+        return snapshot.YourReference is null
+            ?
+            [
+                new("Date:", Date(snapshot.ReportDate)),
+                new("Our Ref:", snapshot.OurReference),
+            ]
+            :
+            [
+                new("Date:", Date(snapshot.ReportDate)),
+                new("Our Ref:", snapshot.OurReference),
+                new("Your Ref:", snapshot.YourReference),
+            ];
     }
 
     /// <summary>The matter, composed and never typed. <see cref="MatterLabel"/> and a space stand before it.</summary>
@@ -455,6 +466,25 @@ public static class AssessmentReportWording
     }
 
     // ---- Who the report is for ---------------------------------------------
+
+    /// <summary>
+    /// The Report For block, and through it the fee note's Bill To: the
+    /// Principal's organisation, or for a one-off Case for a private customer
+    /// the claimant at the Case's claimant address (operator, 31 October 2026;
+    /// R576). A claimant with no address prints their name alone, as a
+    /// Principal does.
+    /// </summary>
+    public static IReadOnlyList<string> ReportAddressee(
+        AssessmentCaseOwnedData owned,
+        string? principalName,
+        string? principalAddress,
+        string? principalPostcode)
+    {
+        ArgumentNullException.ThrowIfNull(owned);
+        return owned.PrivateCustomer
+            ? ReportFor(owned.ClaimantName, owned.ClaimantAddress, null)
+            : ReportFor(principalName, principalAddress, principalPostcode);
+    }
 
     /// <summary>
     /// The Report For block: the principal's name, then each line of its
