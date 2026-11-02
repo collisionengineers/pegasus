@@ -48,9 +48,9 @@ public sealed class CaseRecordFieldsWebTests
         var principal = Between(reading, "data-collapse=\"case.overview.principal-notes\"", "data-accident-band");
         var accident = reading[reading.IndexOf("data-accident-band", StringComparison.Ordinal)..];
         Assert.Contains("Call before attendance.", claimSource, StringComparison.Ordinal);
-        Assert.Contains(CaseWorkspaceLabels.Frame.ClaimSourceNotesThisCase, claimSource, StringComparison.Ordinal);
+        Assert.Contains(System.Text.Encodings.Web.HtmlEncoder.Default.Encode(CaseWorkspaceLabels.Frame.ClaimSourceNotesThisCase), claimSource, StringComparison.Ordinal);
         Assert.Contains("Report by e-mail only.", principal, StringComparison.Ordinal);
-        Assert.Contains(CaseWorkspaceLabels.Frame.PrincipalNotesThisCase, principal, StringComparison.Ordinal);
+        Assert.Contains(System.Text.Encodings.Web.HtmlEncoder.Default.Encode(CaseWorkspaceLabels.Frame.PrincipalNotesThisCase), principal, StringComparison.Ordinal);
         Assert.DoesNotContain(CaseWorkspaceLabels.Frame.ClaimSourceNotes, principal, StringComparison.Ordinal);
         Assert.Equal(1, Regex.Count(accident, "class=\"fc[ \"]"));
         foreach (var gone in new[] { "Case contact", "case.overview.contact", "Notes from client", "data-client-notes", "data-notes-band" })
