@@ -4,7 +4,8 @@ namespace Pegasus.Web.Presentation;
 
 /// <summary>
 /// View shaping for a retained message body: the leading forwarded
-/// From:/Sent:/To:/Subject: block becomes a quoted header, and each remaining
+/// From:/Sent:/To:/Subject: block becomes a quoted header, the Principal's
+/// footer and signature-image placeholder lines are dropped, and each remaining
 /// non-blank line becomes a paragraph. Pure presentation over already-cleaned
 /// text.
 /// </summary>
@@ -19,6 +20,7 @@ public static class MailBodyPresentation
         ArgumentNullException.ThrowIfNull(bodyPlainText);
         var (headerLines, body) = StaffForwardBodyCleaner.SplitForwardedHeader(bodyPlainText);
         body = StaffForwardBodyCleaner.TrimPrincipalFooter(body);
+        body = StaffForwardBodyCleaner.WithoutImagePlaceholderLines(body);
         var paragraphs = body
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n')

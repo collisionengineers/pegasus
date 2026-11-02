@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Net;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
@@ -1270,9 +1269,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         var body = message.TextBody;
         if (string.IsNullOrWhiteSpace(body) && !string.IsNullOrWhiteSpace(message.HtmlBody))
         {
-            body = WebUtility.HtmlDecode(HtmlTagRegex().Replace(
-                HtmlLineBreakRegex().Replace(message.HtmlBody, "\n"),
-                " "));
+            body = HtmlMailText.ToText(message.HtmlBody);
         }
 
         if (!string.IsNullOrWhiteSpace(body))
@@ -1745,12 +1742,6 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
     }
 
     private static string SourceLabel(string fileName) => $"uploaded {Path.GetFileName(fileName)}";
-
-    [GeneratedRegex("<[^>]+>", RegexOptions.CultureInvariant)]
-    private static partial Regex HtmlTagRegex();
-
-    [GeneratedRegex("</?(?:br|p|div|tr|li|h[1-6])\\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex HtmlLineBreakRegex();
 
     [GeneratedRegex(
         "(?i)(?<![a-z0-9._%+-])(?<address>[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,})(?![a-z0-9._%+-])",

@@ -249,6 +249,13 @@ body-display policy; the Mail pages and
   placeholders, tel/mailto/http wrappers, confidentiality/disclaimer/
   registered-office lines), **failing open** to the whole body when trimming
   would leave nothing.
+- `WithoutImagePlaceholderLines` — after the footer cut, a line that is wholly
+  one bracketed signature-image placeholder (`[http://…/logo.gif]`,
+  `[Company Logo]`) is not shown.
+- An HTML-only message's stored text comes from
+  `src/Pegasus.Infrastructure/Intake/HtmlMailText.cs`: `<head>`, `<style>`,
+  `<script>` and comments are dropped with their content, so a sender's CSS
+  is never body text.
 - Stored bodies are truthful: signature-only bodies legitimately show the
   signature; inline-letter emails legitimately show the letter.
 
