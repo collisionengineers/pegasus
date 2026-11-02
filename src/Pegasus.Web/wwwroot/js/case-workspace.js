@@ -2567,18 +2567,22 @@
                     return path.isPointInFill(point);
                 });
             }
-            function areaAt(x, y) {
-                if (!onVehicle(x, y)) {
-                    return null;
-                }
-                var ux = (x - box.x) / box.w;
-                var uy = (y - box.y) / box.h;
+            // The one plan area holding a point on the unit plan, as Core
+            // judges it (DamageAreaGeometry.AreaAt): the readout under the
+            // pointer and the seat of a burst's centre share the one test.
+            function areaOfUnit(ux, uy) {
                 var band = uy < bands.front ? 'front' : uy > bands.rear ? 'rear' : 'side';
                 var lateral = ux < bands.left ? 'left' : ux > bands.right ? 'right' : 'centre';
                 if (band === 'side') {
                     return (lateral === 'centre' ? (ux < 0.5 ? 'left' : 'right') : lateral) + '_side';
                 }
                 return lateral === 'centre' ? band : lateral + '_' + band;
+            }
+            function areaAt(x, y) {
+                if (!onVehicle(x, y)) {
+                    return null;
+                }
+                return areaOfUnit((x - box.x) / box.w, (y - box.y) / box.h);
             }
             function circleIntersectsArea(disc, left, top, right, bottom) {
                 var closestX = Math.max(left, Math.min(disc.x, right));
@@ -2692,21 +2696,66 @@
                     chip.setAttribute('aria-pressed', recorded ? 'true' : 'false');
                 });
             }
+            // The headline location as Core derives it (AssessmentPolicy
+            // .DeriveImpactValues, 2 November 2026): marks whose stored discs
+            // touch are one group, read as the area holding most of their
+            // centres, a tie going to the record's order; an other-area mark
+            // is a group of its own. One group is the location; more are
+            // Multiple. Judged on the disc as it is stored, like areasUnder.
+            function storedDisc(mark) {
+                var drawn = mark.disc || renderedDisc(mark.areas);
+                return drawn ? toUnit(drawn) : null;
+            }
+            function touching(a, b) {
+                var dx = a.x - b.x;
+                var dy = (a.y - b.y) * box.h / box.w;
+                var reach = a.r + b.r;
+                return dx * dx + dy * dy <= reach * reach;
+            }
+            function groupAreas() {
+                var discs = marks.map(storedDisc);
+                var grouped = discs.map(function () { return false; });
+                var areas = [];
+                discs.forEach(function (first, seed) {
+                    if (grouped[seed]) {
+                        return;
+                    }
+                    grouped[seed] = true;
+                    if (!first) {
+                        areas.push(marks[seed].areas[0]);
+                        return;
+                    }
+                    var group = [first];
+                    for (var next = 0; next < group.length; next++) {
+                        discs.forEach(function (disc, candidate) {
+                            if (!grouped[candidate] && disc && touching(group[next], disc)) {
+                                grouped[candidate] = true;
+                                group.push(disc);
+                            }
+                        });
+                    }
+                    var seats = {};
+                    group.forEach(function (disc) {
+                        var area = areaOfUnit(disc.x, disc.y);
+                        seats[area] = (seats[area] || 0) + 1;
+                    });
+                    areas.push(Object.keys(seats).sort(function (a, b) {
+                        return seats[b] - seats[a] || order.indexOf(a) - order.indexOf(b);
+                    })[0]);
+                });
+                return areas;
+            }
             function paintDerived() {
                 if (countCell) {
                     countCell.textContent = String(marks.length);
                 }
                 if (locationCell) {
-                    var all = [];
-                    marks.forEach(function (mark) {
-                        mark.areas.forEach(function (area) { if (all.indexOf(area) < 0) { all.push(area); } });
-                    });
-                    var recorded = sortAreas(all).map(areaName);
-                    locationCell.textContent = recorded.length === 0
+                    var groups = groupAreas();
+                    locationCell.textContent = groups.length === 0
                         ? words.absent
-                        : recorded.length === 1
-                            ? recorded[0]
-                            : words.multiple + ' · ' + recorded.join(', ');
+                        : groups.length === 1
+                            ? areaName(groups[0])
+                            : words.multiple;
                 }
                 if (severityCell) {
                     var best = null;

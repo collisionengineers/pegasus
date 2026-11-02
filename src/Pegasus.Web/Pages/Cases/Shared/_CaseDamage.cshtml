@@ -6,7 +6,7 @@
     areas it touches, with a severity and a note, and is drawn as the one
     yellow comic burst (28 September 2026), unclipped and unnumbered, here and
     on the report. Underside, Interior and Mechanical are chips, each recorded
-    alone. Impact location and severity derive from the areas. A drawn disc is
+    alone. Impact location and severity derive from the damages. A drawn disc is
     kept as drawn (ruled 23 September 2026), no wider than the vehicle; a
     damage recorded by area alone is drawn with the disc its areas give
     (DamageAreaGeometry). The page reads without
@@ -41,25 +41,12 @@
     var damageFields = CaseWorkspaceLabels.Editors.Damage;
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "damage");
     var profile = DamagePlanGeometry.ProfileFor(Model.AssessmentEditorValue(AssessmentVocabulary.VehicleType));
-    // The derived cells follow Core's rule: one distinct area reads as itself,
-    // more than one reads "Multiple · a, b"; the severity is the highest rank
-    // recorded.
-    var recordedAreas = impacts
-        .SelectMany(impact => impact.Areas)
-        .Distinct(StringComparer.Ordinal)
-        .OrderBy(AssessmentVocabulary.DamageAreaOrder)
-        .ToArray();
-    var locationText = recordedAreas.Length == 0
-        ? OperatorLabels.CaseWorkspace.AbsentValue
-        : recordedAreas.Length == 1
-            ? DamageLabels.Location(recordedAreas[0])
-            : DamageLabels.Multiple + " · " + string.Join(", ", recordedAreas.Select(DamageLabels.Location));
-    var severityText = impacts.Count == 0
-        ? OperatorLabels.CaseWorkspace.AbsentValue
-        : DamageLabels.SeverityWord(impacts
-            .Select(impact => impact.Severity)
-            .OrderByDescending(code => AssessmentVocabulary.DamageSeverities.TryGetValue(code, out var severity) ? severity.Rank : -1)
-            .First());
+    // The derived cells are Core's own: the headline location (the area the
+    // touching bursts sit in, or Multiple when the damages stand apart) and
+    // the highest severity recorded, the words the report prints.
+    var (location, severity) = AssessmentPolicy.DeriveImpactValues(impacts);
+    var locationText = location is null ? OperatorLabels.CaseWorkspace.AbsentValue : DamageLabels.Location(location);
+    var severityText = severity is null ? OperatorLabels.CaseWorkspace.AbsentValue : DamageLabels.SeverityWord(severity);
 
     string AreaNames(IReadOnlyList<string> codes) => string.Join(", ", codes.Select(DamageLabels.Location));
     string Svg(double value) => value.ToString("0.#", CultureInfo.InvariantCulture);

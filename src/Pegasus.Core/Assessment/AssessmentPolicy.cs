@@ -168,22 +168,77 @@ public static class AssessmentPolicy
         return ReadImpacts(document.RootElement);
     }
 
-    public static (string? Location, string? Severity) DeriveImpactValues(string? value)
+    public static (string? Location, string? Severity) DeriveImpactValues(string? value) =>
+        DeriveImpactValues(ParseImpacts(value));
+
+    /// <summary>
+    /// The headline impact the recorded damages derive (operator, 2 November
+    /// 2026: bursts that touch are one damage). Each damage is judged by its
+    /// disc on the canonical plan, drawn or the one its areas give, and two
+    /// are one group when their discs touch; a group chains. A group reads
+    /// as the plan area holding most of its centres, a tie going to the
+    /// record's order. Underside, Interior and Mechanical have no disc and
+    /// are each a group reading as themselves. One group is the location;
+    /// more read <see cref="AssessmentVocabulary.SeveralAreas"/>. The
+    /// severity is the highest recorded. No damage derives nothing.
+    /// </summary>
+    public static (string? Location, string? Severity) DeriveImpactValues(IReadOnlyList<AssessmentImpact> impacts)
     {
-        var impacts = ParseImpacts(value);
+        ArgumentNullException.ThrowIfNull(impacts);
         if (impacts.Count == 0)
         {
             return (null, null);
         }
 
-        var areas = impacts
-            .SelectMany(impact => impact.Areas)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        var location = areas.Length > 1 ? "multiple" : areas[0];
+        var groups = GroupAreas(impacts);
+        var location = groups.Count == 1 ? groups[0] : AssessmentVocabulary.SeveralAreas;
         var severity = impacts.MaxBy(
             impact => AssessmentVocabulary.DamageSeverities[impact.Severity].Rank)!.Severity;
         return (location, severity);
+    }
+
+    /// <summary>The area each group of touching damages reads as, one entry per group.</summary>
+    private static List<string> GroupAreas(IReadOnlyList<AssessmentImpact> impacts)
+    {
+        var discs = impacts
+            .Select(impact => impact.Disc ?? DamageAreaGeometry.Disc(impact.Areas))
+            .ToArray();
+        var grouped = new bool[discs.Length];
+        var areas = new List<string>();
+        for (var seed = 0; seed < discs.Length; seed++)
+        {
+            if (grouped[seed])
+            {
+                continue;
+            }
+            grouped[seed] = true;
+            if (discs[seed] is not { } first)
+            {
+                // An other area: recorded alone, with no disc to touch.
+                areas.Add(impacts[seed].Areas[0]);
+                continue;
+            }
+            var group = new List<DamageDisc> { first };
+            for (var next = 0; next < group.Count; next++)
+            {
+                for (var candidate = 0; candidate < discs.Length; candidate++)
+                {
+                    if (!grouped[candidate] && discs[candidate] is { } disc && DamageAreaGeometry.Touch(group[next], disc))
+                    {
+                        grouped[candidate] = true;
+                        group.Add(disc);
+                    }
+                }
+            }
+            areas.Add(group
+                .Select(disc => DamageAreaGeometry.AreaAt(new(disc.CentreX, disc.CentreY)))
+                .GroupBy(area => area, StringComparer.Ordinal)
+                .OrderByDescending(seats => seats.Count())
+                .ThenBy(seats => AssessmentVocabulary.DamageAreaOrder(seats.Key))
+                .First()
+                .Key);
+        }
+        return areas;
     }
 
     /// <summary>
