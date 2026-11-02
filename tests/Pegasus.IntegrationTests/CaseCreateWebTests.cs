@@ -303,8 +303,13 @@ public sealed partial class CaseCreateWebTests
             Assert.Contains("Images incomplete", html, StringComparison.Ordinal);
         }
 
+        // Opening the Case page in between leaves the earlier lease behind, so
+        // the second edit claims its own.
+        var secondLease = await scope.ServiceProvider.GetRequiredService<CaseEditLeases>().ClaimAsync(
+            new(caseId, workflow.Version, StaffActor, Guid.NewGuid().ToString("N")) { TakeOver = true },
+            CancellationToken.None);
         await store.SaveAsync(
-            new SaveCaseWorkspaceRequest(caseId, workflow.Version, StaffActor, "instruction-item-cleared", null, lease.Token)
+            new SaveCaseWorkspaceRequest(caseId, secondLease.Version, StaffActor, "instruction-item-cleared", null, secondLease.Token)
             {
                 Overview = Overview(null)
             },
