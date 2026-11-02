@@ -113,6 +113,63 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
         }
     }
 
+    /// <summary>
+    /// Features:LiveGraphMail turns the hosted test instance's mailbox reads to
+    /// Graph over an app registration credential and leaves every send
+    /// unavailable: it reads the production mailboxes and writes nothing (ADR-0088).
+    /// </summary>
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public async Task LiveGraphMailComposesTheGraphReadsAndKeepsSendUnavailable()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Development",
+            new Dictionary<string, string?>
+            {
+                ["Runtime:Profile"] = "DevelopmentOffline",
+                ["ConnectionStrings:Pegasus"] = database.ConnectionString,
+                ["Intake:LocalArtifactPath"] = Path.Combine(Path.GetTempPath(), $"pegasus-live-graph-mail-{Guid.NewGuid():N}"),
+                ["Features:LocalIntake"] = "false",
+                ["Features:LiveGraphMail"] = "true",
+                ["Graph:ClientId"] = "4f0d4c7e-1b2a-4c3d-9e8f-0a1b2c3d4e5f",
+                ["Graph:ClientSecret"] = "local-test-instance-secret"
+            });
+
+        await using var scope = factory.Services.CreateAsyncScope();
+
+        Assert.Equal(
+            "Pegasus.Infrastructure.Email.GraphApprovedMailboxResolver",
+            scope.ServiceProvider.GetRequiredService<Pegasus.Core.Identity.IResolveApprovedMailboxIdentity>().GetType().FullName);
+        Assert.Equal(
+            "Azure.Identity.ClientSecretCredential",
+            scope.ServiceProvider.GetRequiredService<Azure.Core.TokenCredential>().GetType().FullName);
+        Assert.IsType<Pegasus.Infrastructure.Email.UnavailableStaffMailSend>(
+            scope.ServiceProvider.GetRequiredService<Pegasus.Core.Operations.IStaffMailSend>());
+        Assert.IsType<Pegasus.Infrastructure.Email.UnavailableStaffReportSend>(
+            scope.ServiceProvider.GetRequiredService<Pegasus.Core.Operations.IStaffReportSend>());
+    }
+
+    [Fact]
+    public void LiveGraphMailWithoutAClientSecretFailsAtStartNamingTheKey()
+    {
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Development",
+            new Dictionary<string, string?>
+            {
+                ["Runtime:Profile"] = "DevelopmentOffline",
+                ["Intake:LocalArtifactPath"] = Path.Combine(Path.GetTempPath(), "pegasus-live-graph-mail-no-secret"),
+                ["Features:LocalIntake"] = "false",
+                ["Features:LiveGraphMail"] = "true",
+                ["Graph:ClientId"] = "4f0d4c7e-1b2a-4c3d-9e8f-0a1b2c3d4e5f"
+            });
+
+        var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+        var configurationException = Assert.IsType<InvalidOperationException>(exception.GetBaseException());
+
+        Assert.Equal("Graph:ClientSecret is required for Features:LiveGraphMail.", configurationException.Message);
+    }
+
     [Fact]
     public void LiveBoxCustodyAndLocalDocumentCustodyTogetherFailAtStartNamingBoth()
     {
@@ -140,6 +197,7 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
     [InlineData("Features:LiveBoxCustody")]
     [InlineData("Features:LiveGlass")]
     [InlineData("Features:PasswordSignIn")]
+    [InlineData("Features:LiveGraphMail")]
     public void ProductionRefusesTheLocalLiveOptIns(string key)
     {
         using var factory = new ConfiguredWebApplicationFactory(

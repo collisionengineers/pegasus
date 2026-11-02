@@ -166,8 +166,10 @@ spreadsheet-driven customer and garage-procedure automation remain deferred.
 - BND-06: Persistent external case/customer portal.
 - BND-07: Independent Engineer accounts.
 - BND-08: Solicitor, insurer, repairer, or vehicle-owner accounts.
-- BND-09: Separate QA/test environment.
-- BND-10: Separate user-acceptance environment.
+- BND-09: Separate Azure QA/test environment (the one hosted test instance,
+  OPS-28, is not an Azure environment; ADR-0088, R628).
+- BND-10: Separate Azure user-acceptance environment (UAT rounds run on the
+  hosted test instance; ADR-0088, R628).
 - BND-11: Training/demo environment.
 
 

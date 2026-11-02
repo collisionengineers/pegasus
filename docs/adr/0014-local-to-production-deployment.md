@@ -3,7 +3,7 @@ id: ADR-0014
 status: accepted
 date: 2026-07-31
 supersedes: [ADR-0007]
-superseded_by: []
+superseded_by: [ADR-0088]
 related_capabilities: []
 related_frd: []
 tags: [deployment, environment]
@@ -11,7 +11,13 @@ tags: [deployment, environment]
 # ADR-0014: Local-to-production deployment only
 
 **Status:** Accepted (2026-07-31)  
-**Supersedes:** ADR-0007's Azure development/integration-environment clauses
+**Supersedes:** ADR-0007's Azure development/integration-environment clauses  
+**Superseded in part by:** [ADR-0088](0088-one-hosted-test-instance.md)
+(2026-11-02, R628): the clause "There is no Azure development, test,
+integration, or staging environment" no longer excludes the one hosted test
+instance, which is not an Azure environment. The direct-terminal production
+route, the prohibition on a non-production Azure environment and OPS-10/OPS-11
+stand.
 
 ## Context
 

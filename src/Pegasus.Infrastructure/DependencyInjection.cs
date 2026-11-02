@@ -1088,6 +1088,32 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(graphOptions);
         ArgumentNullException.ThrowIfNull(vehicleOptions);
 
+        services.AddGraphApprovedMailReads(graphOptions);
+        // The Worker alone may move a retained message: it tidies the instruction a
+        // confirmed report send answered (ADR-0071). Web composes no mover.
+        services.Replace(ServiceDescriptor.Singleton<ISentReportInstructionMover, GraphSentReportInstructionMover>());
+        AddStaffMailSending(services);
+        services.AddSingleton<GraphMailboxChangeSubscriptions>();
+        return services.AddLiveVehicleLookup(vehicleOptions);
+    }
+
+    /// <summary>
+    /// The Graph read side alone: the mail client, the approved Inbox and Sent
+    /// sources and their pollers. Production reaches it through
+    /// <see cref="AddProductionExternalAdapters"/>, which adds the writes (staff
+    /// send, the answered-instruction move, change subscriptions). A
+    /// DevelopmentOffline Worker that opts into <c>Features:LiveGraphMail</c>
+    /// composes exactly this: the hosted test instance reads the production
+    /// mailboxes and writes nothing to them (ADR-0088); its Exchange grant is
+    /// read-only as the second fence.
+    /// </summary>
+    public static IServiceCollection AddGraphApprovedMailReads(
+        this IServiceCollection services,
+        GraphApprovedMailboxOptions graphOptions)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(graphOptions);
+
         services.AddSingleton(graphOptions);
         services.AddHttpClient(nameof(GraphMailClient), client =>
                 client.Timeout = TimeSpan.FromSeconds(100))
@@ -1096,18 +1122,13 @@ public static class DependencyInjection
             provider.GetRequiredService<TokenCredential>(),
             provider.GetRequiredService<GraphApprovedMailboxOptions>().BaseUri,
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphMailClient))));
-        // The Worker alone may move a retained message: it tidies the instruction a
-        // confirmed report send answered (ADR-0071). Web composes no mover.
-        services.Replace(ServiceDescriptor.Singleton<ISentReportInstructionMover, GraphSentReportInstructionMover>());
-        AddStaffMailSending(services);
-        services.AddSingleton<GraphMailboxChangeSubscriptions>();
         services.AddSingleton<IApprovedInboxSource, GraphApprovedInboxSource>();
         services.AddSingleton<IApprovedSentSource, GraphApprovedSentSource>();
         services.AddScoped<IApprovedInboxPollStore, EfApprovedInboxPollStore>();
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
         services.AddScoped<PollApprovedInbox>();
         services.AddScoped<PollSentEvidence>();
-        return services.AddLiveVehicleLookup(vehicleOptions);
+        return services;
     }
 
     /// <summary>
@@ -1159,6 +1180,26 @@ public static class DependencyInjection
         string? graphBaseUri)
     {
         ArgumentNullException.ThrowIfNull(services);
+        services.AddGraphApprovedMailboxReads(graphBaseUri);
+        // Web sends and reads; the Sent-evidence poll that settles Submitted
+        // into Sent is the Worker's alone (AddProductionExternalAdapters).
+        AddStaffMailSending(services);
+        return services;
+    }
+
+    /// <summary>
+    /// The Web's Graph reads alone: resolving and access-checking an address the
+    /// operator typed, and the approved-mailbox search behind
+    /// <c>pegasus_mail_mailbox_search</c> (R561). Production adds staff send in
+    /// <see cref="AddProductionApprovedMailboxResolver"/>; a DevelopmentOffline Web
+    /// that opts into <c>Features:LiveGraphMail</c> composes exactly this and keeps
+    /// its unavailable senders, so the hosted test instance writes no mail (ADR-0088).
+    /// </summary>
+    public static IServiceCollection AddGraphApprovedMailboxReads(
+        this IServiceCollection services,
+        string? graphBaseUri)
+    {
+        ArgumentNullException.ThrowIfNull(services);
         var baseUri = GraphApprovedMailboxOptions.ParseBaseUri(graphBaseUri);
         services.AddHttpClient(nameof(GraphMailClient), client =>
                 client.Timeout = TimeSpan.FromSeconds(100))
@@ -1176,9 +1217,6 @@ public static class DependencyInjection
             provider.GetRequiredService<TokenCredential>(),
             baseUri,
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphMailClient))));
-        // Web sends and reads; the Sent-evidence poll that settles Submitted
-        // into Sent is the Worker's alone (AddProductionExternalAdapters).
-        AddStaffMailSending(services);
         // The approved-mailbox search behind pegasus_mail_mailbox_search (R561).
         services.Replace(ServiceDescriptor.Scoped<IApprovedMailboxSearchSource, GraphApprovedMailboxSearchSource>());
         return services;

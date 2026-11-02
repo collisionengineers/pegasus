@@ -136,6 +136,7 @@ exclusion.
 | OPS-08 | Alerts for ingestion, processing, Box, export, security and cost | [ADR-0002 monitoring and recovery](adr/0002-dotnet-modular-monolith-on-azure.md#monitoring-and-recovery) |
 | OPS-09 | Database backup, restore proof, 15-minute RPO, and four-hour RTO (deferred) | [Quality and recovery objectives](prd/pegasus-product.md#quality-capacity-security-and-evidence) |
 | OPS-11 | Production isolated from local-development resources | [ADR-0014](adr/0014-local-to-production-deployment.md) |
+| OPS-28 | One hosted test instance: the DevelopmentOffline lifecycle on an operator-owned Linux/WSL machine over Tailscale, reading the production mailboxes and writing nothing to them | [ADR-0088](adr/0088-one-hosted-test-instance.md) |
 | OPS-13 | Deployment preview, policy/quota checks, health probes, and smoke tests | [ADR-0007 decision](adr/0007-direct-terminal-azure-deployment.md#decision) |
 | OPS-14 | Previous-artifact rollback procedure | [Runbook rollback](runbook.md#previous-artifact-rollback-web-and-worker) |
 | OPS-20 | Capacity for about eight concurrent staff and 2,000 new cases per month | [ADR-0002 context](adr/0002-dotnet-modular-monolith-on-azure.md#context) |
@@ -238,8 +239,8 @@ exclusion.
 | BND-06 | Persistent external case/customer portal (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | BND-07 | Independent Engineer accounts (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | BND-08 | Solicitor, insurer, repairer, or vehicle-owner accounts (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
-| BND-09 | Separate QA/test environment (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
-| BND-10 | Separate user-acceptance environment (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
+| BND-09 | Separate Azure QA/test environment (excluded; the hosted test instance is OPS-28) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
+| BND-10 | Separate Azure user-acceptance environment (excluded; UAT runs on OPS-28) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | BND-11 | Training/demo environment (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 
 ## Retired identities

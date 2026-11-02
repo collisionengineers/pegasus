@@ -38,12 +38,13 @@ in the same folder by the operator.
 | EXT-06, ENG-01 | Glass's launch, estimator, return and import | the export lands on the Case as the current estimate and the file is filed under the Case folder in Box | needs the staff member's own browser on this machine with the dev certificate trusted; cannot run headless |
 | EXT-12 | Estimate PDF or XML import | the parsed estimate matches the source | needs real estimate files from the supplied corpus |
 | INT-02, MAIL-01, INT-23 | Mailbox-folder ingestion and Unidentified routing | `.eml` files seeded into `<run>/mailbox/inbox` become Received items, matched Cases or Unidentified items | folder adapter, not Graph; see seeding |
-| MAIL-14 | Sent-item evidence | `*.sent.json` seeded into `<run>/mailbox/sent` attach as report-sent evidence | folder adapter |
+| INT-02, MAIL-01, INT-23 | Graph ingestion from the production mailboxes, read-only | with `Features__LiveGraphMail` and a mailbox enabled in Administration > Mailboxes, the five-minute recovery poll turns new production mail into Received items, matched Cases or Unidentified items; the Worker log shows no Graph `send`, `move` or `subscriptions` request | the read-only app registration (ADR-0088, R626); mail before the activation time is never re-ingested |
+| MAIL-14 | Sent-item evidence | `*.sent.json` seeded into `<run>/mailbox/sent` attach as report-sent evidence; with `Features__LiveGraphMail`, the production Sent Items are polled read-only | folder adapter, or Graph read-only |
 | INT-13, INT-17 | Image intake and plate reading | uploaded vehicle photos read their registration and group | in-process ONNX |
 | TRI-01 | Triage Case lifecycle | a Triage Case walks its states | the outcome reply cannot send |
 | RPT-01, RPT-03 | Report rendering | the Inspection and Audit PDFs render and download | in-process renderer |
 | CASE-28, ENG-01 | Assessment findings and repair specification | the Engineer sections save and the report reflects it | — |
-| ACC-03, ACC-15, ACC-05, ACC-07, ACC-08, UI-11 | Administration workspace | accounts, Contacts, mailbox allowlist and configuration save | local mailbox resolver stands in for Graph |
+| ACC-03, ACC-15, ACC-05, ACC-07, ACC-08, UI-11 | Administration workspace | accounts, Contacts, mailbox allowlist and configuration save | local mailbox resolver stands in for Graph unless `Features__LiveGraphMail` is on, when the Graph resolver and access check answer |
 | OPS-26 | Release notes | a published note is shown once | — |
 | OPS-27 | Report a problem | the report is kept as Not sent and can be retried | the GitHub sink is deliberately unconfigured locally |
 | MI-01 | MI reports | figures reflect the seeded data | needs data in the database |
@@ -52,8 +53,8 @@ in the same folder by the operator.
 
 | Area | Why | Owner |
 | --- | --- | --- |
-| Staff mail send, report send, Triage reply | `Unavailable` offline until a Graph test mailbox is approved | [FRD-21](../frd/README.md) |
-| Graph subscriptions, webhooks, deleted-mail search | folder adapters replace Graph | [FRD-26](../frd/README.md) |
+| Staff mail send, report send, Triage reply | `Unavailable` in every local composition: the hosted test instance reads the production mailboxes and writes nothing to them (ADR-0088, R626) | [FRD-21](../frd/README.md) |
+| Graph subscriptions, webhooks, the answered-instruction move | not composed locally; the recovery poll stands in for the subscription | [FRD-26](../frd/README.md) |
 | OCR (INT-16) | Document Intelligence needs the Worker managed identity | [ADR-0040](../adr/0040-qualified-document-intelligence-ocr.md) |
 | Problem-report issue creation | a real token would file issues in the production repository | [ADR-0055](../adr/0055-github-issues-as-the-problem-report-sink.md) |
 | Durable cloud behaviour, RBAC, deployment | the local run proves the process graph and these flows only | [runbook](../runbook.md#status-and-smoke) |

@@ -63,7 +63,7 @@ and the [verification procedure](docs/runbook.md).
   when source structure changes.
 - `.agents/skills/`: the Pegasus procedures (`pegasus-release`,
   `pegasus-wipe-intake-data`, `pegasus-corpus-holding`,
-  `pegasus-ui-guardrails`, `razor-pages-ui-design`,
+  `pegasus-test-instance`, `pegasus-ui-guardrails`, `razor-pages-ui-design`,
   `razor-pages-ui-implementation`, `razor-pages-ui-review`,
   `razor-html-mockup-creation`, `razor-html-mockup-conversion`) and the
   issue workflow skills (`combine-prs`, `investigate-issue`, `record-issue`,
@@ -97,7 +97,9 @@ and the [verification procedure](docs/runbook.md).
 - Read-only cloud inventory is permitted. External writes require authorization
   covering the actual operation and targets; tool availability is not a grant.
 - Local work does not mutate Outlook or Box except an explicitly approved
-  test mailbox or disposable Box subtree.
+  test mailbox or disposable Box subtree. The hosted test instance reads the
+  production mailboxes and writes nothing to them: no send, no move, no
+  subscription (ADR-0088, R626).
 - Use PowerShell 7 on Windows or Linux, one platform per evidence run. Paths and
   commands are repository-relative. Follow the existing [release skill](.agents/skills/pegasus-release/SKILL.md)
   for the authorized workstation and platform-matching artifacts; one approval
