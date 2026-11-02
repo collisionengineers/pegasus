@@ -34,6 +34,33 @@ public sealed class StaffForwardBodyCleanerTests
     }
 
     [Fact]
+    public void StripsADescribedContentIdTokenWhole()
+    {
+        var cleaned = StaffForwardBodyCleaner.Clean(
+            "Regards\n[Description: cid:image001.png@01CFFE99.1B78B2A0]\nClaims team",
+            isStaffForward: false);
+
+        Assert.DoesNotContain("Description", cleaned, StringComparison.Ordinal);
+        Assert.DoesNotContain("[", cleaned, StringComparison.Ordinal);
+        Assert.Contains("Claims team", cleaned, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ImagePlaceholderLinesAreDroppedAndBracketsInProseKept()
+    {
+        const string body =
+            "Please inspect the vehicle [urgent] today.\n"
+            + "[http://apps.abi.org.uk/tphire/Images/page_main/main_logo_16.gif]\n"
+            + "  [Company Logo]  \n"
+            + "[TEN Legal email banner FINAL]\n"
+            + "Kind regards";
+
+        var shown = StaffForwardBodyCleaner.WithoutImagePlaceholderLines(body);
+
+        Assert.Equal("Please inspect the vehicle [urgent] today.\nKind regards", shown);
+    }
+
+    [Fact]
     public void StaffForwardFocusesThePrincipalOriginalAndDropsTheForwarderSignature()
     {
         var cleaned = StaffForwardBodyCleaner.Clean(StaffForward, isStaffForward: true);
