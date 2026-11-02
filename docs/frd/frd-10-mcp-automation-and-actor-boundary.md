@@ -205,7 +205,10 @@ refused. `pegasus_vocabulary_get` lists every assessment field path with its
 type, accepted codes, the format a structured value takes (the damage entries
 of `damage.impacts`), staff label and whether the tool may write it, with the
 estimate line types and evidence labels, the repairer VAT statuses and VAT
-categories, the valuation sources and the shared image tags.
+categories, the valuation sources and the shared image tags. It also lists
+the enabled staff by id and username, whose ids the assign actions take, and
+the eligible Sign-off Engineers by id and printed name, whose id
+`signOffEngineerId` takes (operator, 2 November 2026; R593).
 
 **Valuation.** `pegasus_valuation_list` returns the Case's valuation cards:
 each guide card, the Engineer's Value card and any AI market research card.
@@ -580,7 +583,7 @@ its one command when none is given.
 | `automation.cases` | `pegasus_case_action` | One Case lifecycle act with an `action`: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, manual_chase | one-command lease |
 | `automation.cases` | `pegasus_case_query` | One query act with an `action`: open, mark_done, reopen, assign. No edit lease, expected version or reason. Reopen is refused on a closed or archived Case | key only |
 | `automation.cases` | `pegasus_directory_search` | The active directory Repairers or Claim sources a Case links to | none |
-| `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags | none |
+| `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags; enabled staff by username; Sign-off Engineers by printed name | none |
 | `automation.cases` | `pegasus_work_centre_dismiss` | Dismiss a Case, Unidentified item, AI job, or a System Action's underlying receipt, image intake or query from the Work Centre | key only |
 | `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`) or a Triage Case (`automation.intake`) for multi-step work; `takeOver` asks a staff holder of a Case to hand over and waits; takes over a staff Triage scope | explicit lease |
 | `automation.intake` | `pegasus_intake_queue_list` | List intake receipts by decision and allocation | none |

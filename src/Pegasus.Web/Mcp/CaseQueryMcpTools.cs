@@ -50,7 +50,7 @@ internal sealed class CaseQueryMcpTools(
         [Description("open from a linked e-mail: the retained message. Omit it to log a query by channel.")] Guid? messageId = null,
         [Description("open of a logged query: Email, Phone, WhatsApp or Other.")] string? channel = null,
         [Description("open of a logged query: what the query is.")] string? details = null,
-        [Description("assign: the staff identifier, or omit for Unassigned.")] Guid? assigneeStaffId = null,
+        [Description("assign: the staff identifier, from pegasus_vocabulary_get staff, or omit for Unassigned.")] Guid? assigneeStaffId = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync("pegasus_case_query", cancellationToken);
