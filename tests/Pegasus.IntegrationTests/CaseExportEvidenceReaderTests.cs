@@ -76,7 +76,6 @@ public sealed class CaseExportEvidenceReaderTests
             new(Empty<string>()),
             new(Accepted("AB12CDE"), make, model, Empty<string>(), Empty<long>(), Empty<string>()),
             new(Empty<DateOnly>(), Empty<string>()),
-            new(Empty<string>(), Empty<string>(), Empty<string>()),
             new(new DateOnly(2031, 5, 1), Empty<string>()),
             new(Empty<DateOnly>(), Empty<DateOnly>(), Empty<string>(), Empty<CaseInspectionMode>()));
     }

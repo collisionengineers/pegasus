@@ -13,35 +13,6 @@ public sealed class CaseRecordGapsTests
     private static readonly ActionActor Staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
     [Fact]
-    public void NotesFromClientKeepTheirParagraphsWithinFourThousandCharacters()
-    {
-        var normalized = CaseDataPolicy.Normalize(new CaseEditableData(
-            ClientNotes: "  The claimant says the   car was parked.\r\n\r\n\r\nPhotos to follow.  "));
-
-        Assert.Equal("The claimant says the car was parked.\n\nPhotos to follow.", normalized.ClientNotes);
-        Assert.Equal(4000, CaseDataPolicy.Normalize(new CaseEditableData(ClientNotes: new string('x', 4000))).ClientNotes!.Length);
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            CaseDataPolicy.Normalize(new CaseEditableData(ClientNotes: new string('x', 4001))));
-        Assert.Null(CaseDataPolicy.Normalize(new CaseEditableData(ClientNotes: "   ")).ClientNotes);
-    }
-
-    [Fact]
-    public void TheOverviewSectionCarriesNotesFromClientOntoTheCase()
-    {
-        var request = new SaveCaseWorkspaceRequest(
-            Guid.NewGuid(), 3, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), "op-client-notes", null, new string('a', 32))
-        {
-            Overview = new CaseWorkspaceOverview(
-                "A Claimant", null, null, null, null, null, null, null, null, null, null, null,
-                ClientNotes: "Collected from the depot on Monday.")
-        };
-
-        var merged = CaseWorkspacePolicy.Overlay(new CaseEditableData(ClientNotes: "Old note"), request);
-
-        Assert.Equal("Collected from the depot on Monday.", merged.ClientNotes);
-    }
-
-    [Fact]
     public void TheHistoryLineNamesTheClaimSourceOnceByTheSourceItNowIs()
     {
         var before = new CaseEditableData(
@@ -53,12 +24,12 @@ public sealed class CaseRecordGapsTests
             ClaimSourceVersion = 4,
             ClaimSourceName = "Acme Claims",
             ClaimSourceContactName = "B Handler",
-            ClientNotes = "Photos to follow."
+            ClaimSourceNotes = "Photos to follow."
         };
         var none = new Dictionary<string, object?>();
 
         Assert.Equal(
-            "Claim source: Acme Claims, Client notes",
+            "Claim source: Acme Claims, Claim source notes",
             CaseWorkspaceChangeSummary.Describe(before, after, none, none, false, 0, null));
         Assert.Equal(
             "Claim source: none",

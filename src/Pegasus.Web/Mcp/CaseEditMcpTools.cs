@@ -166,7 +166,7 @@ internal sealed class CaseEditMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Edits the Case facts staff edit on the Case page, through the same Case save: claimant, claim, contact, accident, VAT status, repairer (typed, or linked to a directory Repairer), claim source (a directory Claim source) and its contact for this Case, notes, due by, vehicle identity and mileage, inspection and the Sign-off Engineer. Omit a value to leave it as it is; send an empty string to clear a text or date value. Values not named are never changed. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). Dates are yyyy-MM-dd; inspectionMode is 'physical_address' or 'image_based_assessment'. Assessment fields (outcome, roadworthiness, values, damage and the rest) are written with pegasus_assessment_update.")]
+    [Description("Edits the Case facts staff edit on the Case page, through the same Case save: claimant, claim, accident, VAT status, repairer (typed, or linked to a directory Repairer), claim source (a directory Claim source) and its contact for this Case, Principal and Claim source notes, due by, vehicle identity and mileage, inspection and the Sign-off Engineer. Omit a value to leave it as it is; send an empty string to clear a text or date value. Values not named are never changed. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). Dates are yyyy-MM-dd; inspectionMode is 'physical_address' or 'image_based_assessment'. Assessment fields (outcome, roadworthiness, values, damage and the rest) are written with pegasus_assessment_update.")]
     public async Task<CaseUpdateDetailsToolResult> UpdateDetailsAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -176,9 +176,6 @@ internal sealed class CaseEditMcpTools(
         [Description("Claimant contact number.")] string? claimantContactNumber = null,
         [Description("Claimant address.")] string? claimantAddress = null,
         [Description("Claim number.")] string? claimNumber = null,
-        [Description("Contact name.")] string? contactName = null,
-        [Description("Contact email address.")] string? contactEmailAddress = null,
-        [Description("Contact phone number.")] string? contactPhoneNumber = null,
         [Description("Incident date, yyyy-MM-dd.")] string? incidentDate = null,
         [Description("Accident circumstances.")] string? accidentCircumstances = null,
         [Description("VAT status text.")] string? vatStatus = null,
@@ -188,7 +185,6 @@ internal sealed class CaseEditMcpTools(
         [Description("Records the Case's claim source as an active directory Claim source (pegasus_directory_search, role ClaimSource), copied onto the Case with its contact. The empty identifier 00000000-0000-0000-0000-000000000000 records none.")] Guid? claimSourceId = null,
         [Description("The Case's own notes beside its Principal.")] string? principalNotes = null,
         [Description("The Case's own notes beside its Claim source.")] string? claimSourceNotes = null,
-        [Description("Notes from client.")] string? clientNotes = null,
         [Description("Due by date, yyyy-MM-dd.")] string? dueBy = null,
         [Description("Claim source contact name for this Case.")] string? claimSourceContactName = null,
         [Description("Claim source contact telephone for this Case.")] string? claimSourceContactTelephone = null,
@@ -244,11 +240,10 @@ internal sealed class CaseEditMcpTools(
                         var persisted = data.Workspace;
 
                         CaseWorkspaceOverview? overview = null;
-                        if (Any(claimantName, claimantContactNumber, claimantAddress, claimNumber, contactName,
-                                contactEmailAddress, contactPhoneNumber, incidentDate, accidentCircumstances,
-                                vatStatus, repairerName, repairerAddress, principalNotes, claimSourceNotes,
-                                clientNotes, dueBy, claimSourceContactName, claimSourceContactTelephone,
-                                claimSourceContactEmail)
+                        if (Any(claimantName, claimantContactNumber, claimantAddress, claimNumber,
+                                incidentDate, accidentCircumstances, vatStatus, repairerName, repairerAddress,
+                                principalNotes, claimSourceNotes, dueBy, claimSourceContactName,
+                                claimSourceContactTelephone, claimSourceContactEmail)
                             || repairerDirectoryId is not null
                             || claimSourceId is not null)
                         {
@@ -299,9 +294,6 @@ internal sealed class CaseEditMcpTools(
                                 Text(claimantContactNumber, Accepted(data.Claimant.ContactNumber)),
                                 Text(claimantAddress, Accepted(data.Claimant.Address)),
                                 Text(claimNumber, Accepted(data.Claim.Number)),
-                                Text(contactName, Accepted(data.Contact.Name)),
-                                Text(contactEmailAddress, Accepted(data.Contact.EmailAddress)),
-                                Text(contactPhoneNumber, Accepted(data.Contact.PhoneNumber)),
                                 Date(incidentDate, nameof(incidentDate), Accepted(data.Accident.IncidentDate)),
                                 Text(accidentCircumstances, Accepted(data.Accident.Circumstances)),
                                 Text(vatStatus, Accepted(data.Instruction.VatStatus)),
@@ -317,7 +309,6 @@ internal sealed class CaseEditMcpTools(
                                         Text(repairerName, Accepted(data.Inspection.RepairerName))),
                                 Text(principalNotes, persisted?.PrincipalNotes),
                                 Text(claimSourceNotes, persisted?.ClaimSourceNotes),
-                                Text(clientNotes, persisted?.ClientNotes),
                                 Date(dueBy, nameof(dueBy),
                                     current.Workflow.DueWork?.DueBy ?? Accepted(data.Inspection.Deadline)));
                         }

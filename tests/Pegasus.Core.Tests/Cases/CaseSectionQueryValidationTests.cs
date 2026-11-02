@@ -299,7 +299,6 @@ public sealed class CaseSectionQueryValidationTests
             new(text),
             new(text, text, text, text, new(null, null, null), text),
             new(date, text),
-            new(text, text, text),
             new(new DateOnly(1970, 1, 1), text),
             new(date, date, text, new(null, null, null)));
     }

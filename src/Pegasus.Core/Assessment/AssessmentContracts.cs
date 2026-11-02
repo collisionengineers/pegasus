@@ -88,6 +88,14 @@ public static class AssessmentVocabulary
     /// </summary>
     public const string ReportValuationCommentaryText = "report.valuation_commentary_text";
     public const string ReportIncludeUnrelatedDamage = "report.include_unrelated_damage";
+
+    /// <summary>
+    /// The two report choices that are on until recorded off (operator,
+    /// 2 November 2026; R610, R611): the "FAO The Court" line above the
+    /// report's addressee, and the statement of truth.
+    /// </summary>
+    public const string ReportFaoTheCourt = "report.fao_the_court";
+    public const string ReportIncludeStatementOfTruth = "report.include_statement_of_truth";
     public const string ReportDate = "report.report_date";
     public const string EngineerName = "engineer.name";
     public const string EngineerQualifications = "engineer.qualifications";
@@ -219,6 +227,8 @@ public static class AssessmentVocabulary
         new(ReportValuationCommentary, AssessmentFieldType.Flag, 5),
         new(ReportValuationCommentaryText, AssessmentFieldType.Text, 4000),
         new(ReportIncludeUnrelatedDamage, AssessmentFieldType.Flag, 5),
+        new(ReportFaoTheCourt, AssessmentFieldType.Flag, 5),
+        new(ReportIncludeStatementOfTruth, AssessmentFieldType.Flag, 5),
         new(ReportDate, AssessmentFieldType.Date, 10),
         new(SettlementClaimantVatRegistered, AssessmentFieldType.Flag, 5),
         new(SettlementStoragePerDay, AssessmentFieldType.Money, 20),

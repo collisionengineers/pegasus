@@ -16,9 +16,6 @@ public static class CaseDataFieldNames
     public const string VehicleMileageUnit = "vehicle_mileage_unit";
     public const string AccidentCircumstances = "accident_circumstances";
     public const string IncidentDate = "incident_date";
-    public const string ContactName = "contact_name";
-    public const string ContactEmailAddress = "contact_email_address";
-    public const string ContactPhoneNumber = "contact_phone_number";
     public const string VatStatus = "vat_status";
     public const string InspectionDate = "inspection_date";
     public const string InspectionDeadline = "inspection_deadline";
@@ -69,8 +66,4 @@ public static class CaseDataFieldNames
     // while the record notes are read live from the record and never copied.
     public const string PrincipalNotes = "principal_notes";
     public const string ClaimSourceNotes = "claim_source_notes";
-
-    // Notes from client (v26 accident band): free text the client sent about
-    // the Case, saved with the Case beside the accident circumstances.
-    public const string ClientNotes = "client_notes";
 }

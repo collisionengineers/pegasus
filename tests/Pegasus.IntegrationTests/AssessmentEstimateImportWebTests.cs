@@ -118,6 +118,12 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.NotNull(store.ActiveLease);
         Assert.Contains("value=\"lease-3\"", afterHtml, StringComparison.Ordinal);
         Assert.Contains("data-case-editing=\"true\"", afterHtml, StringComparison.Ordinal);
+        // The imported lines' Source chip names the Audatex import "Auda":
+        // AX is a Principal's code (operator, 2 November 2026; R613).
+        var decoded = WebUtility.HtmlDecode(afterHtml);
+        Assert.Equal("imported · Auda", CaseWorkspaceLabels.Estimate.ImportedFrom(RepairSpecificationSourceRoute.AudatexPdf));
+        Assert.Contains(">imported · Auda</span>", decoded, StringComparison.Ordinal);
+        Assert.DoesNotContain("imported · AX", decoded, StringComparison.Ordinal);
     }
 
     [Fact]
