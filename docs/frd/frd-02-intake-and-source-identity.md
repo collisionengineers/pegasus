@@ -95,7 +95,9 @@ operator, 30 October 2026, [R595](../rulings.md)). The creator must
 supply the identity-critical Case facts. The principal code box offers the
 active Principals' codes as completions while it is typed; a code it does not
 offer can still be entered and is checked on create (operator, 30 October
-2026, [R597](../rulings.md)). The action is recorded in the
+2026, [R597](../rulings.md)). The standing Private customer record is not
+offered there; a one-off is reached by its tick (operator, 2 November 2026,
+[R602](../rulings.md)). The action is recorded in the
 creator's name. No intake receipt and no invented source provenance are
 created. Its Received date, which is the Case's instruction date, is the
 date it was created

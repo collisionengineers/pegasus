@@ -76,6 +76,8 @@ public sealed partial class CaseCreateWebTests
         Assert.Contains("list=\"principal-codes\"", form.Html, StringComparison.Ordinal);
         Assert.Contains("<datalist id=\"principal-codes\">", form.Html, StringComparison.Ordinal);
         Assert.Contains($"<option value=\"{PrincipalCode}\"></option>", form.Html, StringComparison.Ordinal);
+        // The Private customer record is reached by its tick, not offered as a code (R602).
+        Assert.DoesNotContain("<option value=\"PRIVATE\"></option>", form.Html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -217,7 +219,46 @@ public sealed partial class CaseCreateWebTests
         Assert.Equal(2, await context.Cases.CountAsync(item => item.Principal.Code == "PRIVATE"));
     }
 
-    /// <summary>A one-off is an Inspection or an Inspection + Audit, never a Triage (R577).</summary>
+    /// <summary>
+    /// A one-off may be a standalone Audit, referenced <c>a.</c> and its
+    /// registration on the repeat it shares with the vehicle's other one-offs
+    /// (operator, 2 November 2026; R600, R601).
+    /// </summary>
+    [Fact]
+    public async Task ManualOneOffAuditSharesTheRegistrationsRepeat()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var fields = KeyedFields();
+        fields.Remove("PrincipalCode");
+        fields.Remove("ClaimNumber");
+        fields["IsPrivateCustomer"] = "true";
+        fields["CaseType"] = CaseType.Audit.ToString();
+        fields["ClaimantName"] = "Pat Private";
+        fields["VehicleRegistration"] = "PV12AUD";
+        fields["VehicleMileageUnit"] = "miles";
+        using var auditResponse = await PostCreateAsync(client, await OpenManualCaseScreenAsync(client), fields);
+        var auditId = AssertCaseRedirect(auditResponse);
+
+        fields["CaseType"] = CaseType.Inspection.ToString();
+        using var inspectionResponse = await PostCreateAsync(client, await OpenManualCaseScreenAsync(client), fields);
+        var inspectionId = AssertCaseRedirect(inspectionResponse);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var audit = await context.Cases.AsNoTracking().SingleAsync(item => item.Id == auditId);
+        Assert.Equal("a.PV12AUD", audit.Reference);
+        Assert.Equal(CaseTypeCodes.ToCode(CaseType.Audit), audit.Type);
+        Assert.Equal(
+            "PV12AUD.2",
+            await context.Cases.AsNoTracking()
+                .Where(item => item.Id == inspectionId)
+                .Select(item => item.Reference)
+                .SingleAsync());
+    }
+
+    /// <summary>A one-off is never a Triage (R577).</summary>
     [Fact]
     public async Task ManualOneOffTriageIsRefusedWithoutCreatingACase()
     {

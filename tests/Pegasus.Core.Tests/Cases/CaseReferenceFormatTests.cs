@@ -100,4 +100,19 @@ public sealed class CaseReferenceFormatTests
             CaseReferenceFormat.NextRegistrationRepeat(
                 "AB12CDE", ["AB12CDEF", "AB12CDE-01", "AB12CDE.x", "QDOS26001"]));
     }
+
+    /// <summary>
+    /// A one-off Audit is <c>a.AB12CDE</c> and shares the registration's
+    /// repeat with every other one-off of that vehicle (operator, 2 November
+    /// 2026; R600, R601).
+    /// </summary>
+    [Fact]
+    public void AOneOffAuditSharesTheRegistrationsRepeat()
+    {
+        Assert.Equal(2, CaseReferenceFormat.NextRegistrationRepeat("AB12CDE", ["a.AB12CDE"]));
+        Assert.Equal(4, CaseReferenceFormat.NextRegistrationRepeat("AB12CDE", ["AB12CDE", "a.AB12CDE.3"]));
+        Assert.Equal(
+            "a.AB12CDE.2",
+            CaseReferenceFormat.CasePo(CaseType.Audit, CaseReferenceFormat.Registration("AB12CDE", 2)));
+    }
 }

@@ -442,7 +442,8 @@ replays by its operation key.
   customer from the claimant's name and the registration, with an optional
   `claimantAddress`
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity);
-  operator, 31 October 2026, R577). An Audit
+  operator, 31 October 2026, R577); a one-off may be an Audit, `a.` and its
+  registration (operator, 2 November 2026; R600, R601). An Audit
   created this way starts with **Original report missing** until a filed
   document is recorded as the original report (operator, 30 October 2026,
   [R595](../rulings.md)).

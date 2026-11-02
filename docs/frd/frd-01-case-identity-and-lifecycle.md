@@ -61,8 +61,11 @@ Its Case/PO is the normalised vehicle registration, for example `AB12CDE`; a
 later one-off for the same registration is `AB12CDE.2`, then `AB12CDE.3`,
 and a reference once held is never given again. The Case still consumes a
 number from the `PRIVATE` sequence, which nothing prints. A one-off is an
-Inspection or an Inspection + Audit Case, whose Audit report is `a.AB12CDE`;
-it is never a Triage or a standalone Audit. It starts only from New case or
+Inspection or an Inspection + Audit Case, whose Audit report is `a.AB12CDE`,
+or a standalone Audit, whose Case/PO is `a.AB12CDE`; it is never a Triage
+(operator, 2 November 2026, [R600](../rulings.md)). Every one-off of a
+registration shares its repeat, so after `a.AB12CDE` a later Inspection is
+`AB12CDE.2` (operator, 2 November 2026, [R601](../rulings.md)). It starts only from New case or
 `pegasus_case_create`
 ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts));
 receipt acceptance and Correct principal refuse the code `PRIVATE` with "A

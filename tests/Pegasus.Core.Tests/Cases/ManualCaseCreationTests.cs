@@ -202,7 +202,7 @@ public sealed class ManualCaseCreationTests
         Assert.Null(store.Request);
     }
 
-    /// <summary>A one-off is an Inspection or an Inspection + Audit, never a Triage (R577).</summary>
+    /// <summary>A one-off is never a Triage (R577).</summary>
     [Fact]
     public async Task AOneOffTriageIsRefused()
     {
@@ -219,6 +219,25 @@ public sealed class ManualCaseCreationTests
 
         Assert.Equal("The case type is invalid.", exception.Message);
         Assert.Null(store.Request);
+    }
+
+    /// <summary>A one-off may be a standalone Audit (operator, 2 November 2026, R600).</summary>
+    [Fact]
+    public async Task AOneOffMayBeAStandaloneAudit()
+    {
+        var store = new RecordingStore();
+        var useCase = new CreateManualCase(store, new CommittedWorkPublisherDouble());
+
+        await useCase.ExecuteAsync(new(
+            Staff,
+            "manual-private-4",
+            null,
+            CaseType.Audit,
+            new(ClaimantName: "Pat Private", VehicleRegistration: "AB12CDE")),
+            CancellationToken.None);
+
+        Assert.True(store.Request!.IsPrivateCustomer);
+        Assert.Equal(CaseType.Audit, store.Request.CaseType);
     }
 
     [Theory]

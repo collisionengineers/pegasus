@@ -383,7 +383,7 @@ public sealed class AutomationQueueIngressTests
             operationKey = "mcp:case-create-private-triage"
         })))
         {
-            Assert.Contains("Inspection or InspectionAndAudit", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+            Assert.Contains("Inspection, Audit or InspectionAndAudit", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
 
         using (var refused = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_case_create", new

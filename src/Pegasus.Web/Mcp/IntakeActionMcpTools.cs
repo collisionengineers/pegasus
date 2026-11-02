@@ -378,7 +378,7 @@ internal sealed class IntakeActionMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Creates a Case directly from entered facts, as the staff New case does, with no received item or source document. An Inspection, Audit or Inspection and Audit Case needs the identity-critical facts (claimant, claim number, registration and the rest the staff form asks for); a Triage Case takes only its Principal and the vehicle registration. A one-off Case for a private customer (privateCustomer true, no principalCode) is an Inspection or Inspection and Audit Case: it needs the claimant's name and the registration, takes claimantAddress and no claim number, and its Case/PO is the registration. An Audit created here starts with its original report missing until a filed document is recorded as the report. A Case reference is allocated once and never reused. Requires a mcp:-prefixed operation key; replaying the same key with the same facts returns the same Case.")]
+    [Description("Creates a Case directly from entered facts, as the staff New case does, with no received item or source document. An Inspection, Audit or Inspection and Audit Case needs the identity-critical facts (claimant, claim number, registration and the rest the staff form asks for); a Triage Case takes only its Principal and the vehicle registration. A one-off Case for a private customer (privateCustomer true, no principalCode) is an Inspection, Audit or Inspection and Audit Case: it needs the claimant's name and the registration, takes claimantAddress and no claim number, and its Case/PO is the registration (a.-prefixed for an Audit). An Audit created here starts with its original report missing until a filed document is recorded as the report. A Case reference is allocated once and never reused. Requires a mcp:-prefixed operation key; replaying the same key with the same facts returns the same Case.")]
     public async Task<CaseCreateToolResult> CreateCaseAsync(
         [Description("Inspection, Audit, InspectionAndAudit or Triage.")] string caseType,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
@@ -420,7 +420,7 @@ internal sealed class IntakeActionMcpTools(
                 }
                 if (privateCustomer && type == CaseType.Triage)
                 {
-                    throw new McpException("A one-off Case for a private customer is Inspection or InspectionAndAudit.");
+                    throw new McpException("A one-off Case for a private customer is Inspection, Audit or InspectionAndAudit.");
                 }
                 if (!privateCustomer && claimantAddress is not null)
                 {

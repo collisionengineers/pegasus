@@ -50,7 +50,10 @@ public static class CaseReferenceFormat
     /// The repeat number the next one-off of this registration takes, given
     /// every Case reference already held: one more than the highest taken,
     /// where the bare registration counts as 1. The highest is used, not a
-    /// count, so a gap can never hand out a reference twice.
+    /// count, so a gap can never hand out a reference twice. A one-off Audit's
+    /// <c>a.</c> reference takes its repeat from the same count, so
+    /// <c>a.AB12CDE</c> and a later <c>AB12CDE.2</c> never share a base
+    /// (operator, 2 November 2026; R600, R601).
     /// </summary>
     public static int NextRegistrationRepeat(
         string normalisedRegistration,
@@ -60,8 +63,11 @@ public static class CaseReferenceFormat
         ArgumentNullException.ThrowIfNull(existingReferences);
         var highest = 0;
         var prefix = normalisedRegistration + RepeatSeparator;
-        foreach (var reference in existingReferences)
+        foreach (var held in existingReferences)
         {
+            var reference = held.StartsWith(AuditPrefix, StringComparison.Ordinal)
+                ? held[AuditPrefix.Length..]
+                : held;
             if (string.Equals(reference, normalisedRegistration, StringComparison.Ordinal))
             {
                 highest = Math.Max(highest, 1);

@@ -101,21 +101,26 @@ internal static class CaseIdentityAllocator
         string? registration,
         CancellationToken cancellationToken)
     {
-        if (caseType is not (CaseType.Inspection or CaseType.InspectionAndAudit)
+        // A one-off is never a Triage (R577); a standalone Audit takes the
+        // a. prefix on the shared repeat (R600, R601).
+        if (caseType is not (CaseType.Inspection or CaseType.InspectionAndAudit or CaseType.Audit)
             || string.IsNullOrWhiteSpace(registration))
         {
             throw new OneOffCaseRouteException();
         }
 
         var prefix = registration + CaseReferenceFormat.RepeatSeparator;
+        var audit = CaseReferenceFormat.AuditPrefix + registration;
+        var auditPrefix = audit + CaseReferenceFormat.RepeatSeparator;
         var existing = await context.Cases
             .AsNoTracking()
-            .Where(item => item.Reference == registration || item.Reference.StartsWith(prefix))
+            .Where(item => item.Reference == registration || item.Reference.StartsWith(prefix)
+                || item.Reference == audit || item.Reference.StartsWith(auditPrefix))
             .Select(item => item.Reference)
             .ToArrayAsync(cancellationToken);
-        return CaseReferenceFormat.Registration(
+        return CaseReferenceFormat.CasePo(caseType, CaseReferenceFormat.Registration(
             registration,
-            CaseReferenceFormat.NextRegistrationRepeat(registration, existing));
+            CaseReferenceFormat.NextRegistrationRepeat(registration, existing)));
     }
 }
 

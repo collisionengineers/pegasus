@@ -656,6 +656,18 @@ public sealed class EfImageIntakeStore(
             .ToArrayAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<string>> ListNewCasePrincipalCodesAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.Principals.AsNoTracking()
+            .Where(principal => principal.IsActive
+                && principal.ReferenceScheme == PrincipalReferenceSchemes.PrincipalSequence)
+            .OrderBy(principal => principal.Code)
+            .Select(principal => principal.Code)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ImageIntakeLifecycleEvent>> ListHistoryAsync(
         Guid imageIntakeId,
         CancellationToken cancellationToken)

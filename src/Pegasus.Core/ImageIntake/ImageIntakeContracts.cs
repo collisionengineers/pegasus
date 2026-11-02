@@ -391,6 +391,16 @@ public interface IImageIntakeQueries
         CancellationToken cancellationToken) =>
         Task.FromException<IReadOnlyList<string>>(
             new NotSupportedException("Active principal options are not available."));
+
+    /// <summary>
+    /// The active principals' codes offered as completions on Create case: the
+    /// same list less the standing Private customer record, which a one-off
+    /// reaches only through its tick (operator, 2 November 2026, R602).
+    /// </summary>
+    Task<IReadOnlyList<string>> ListNewCasePrincipalCodesAsync(
+        CancellationToken cancellationToken) =>
+        Task.FromException<IReadOnlyList<string>>(
+            new NotSupportedException("Active principal options are not available."));
 }
 
 /// <summary>

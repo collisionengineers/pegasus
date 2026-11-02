@@ -99,7 +99,10 @@ public sealed partial class CreateModel(
 
     public IReadOnlyList<ContactChoice> ClaimSourceChoices { get; private set; } = [];
 
-    /// <summary>The active Principals' codes, the principal code box's completions.</summary>
+    /// <summary>
+    /// The active Principals' codes, the principal code box's completions; the
+    /// Private customer record is reached by its tick instead (R602).
+    /// </summary>
     public IReadOnlyList<string> PrincipalCodes { get; private set; } = [];
 
     [BindProperty]
@@ -727,7 +730,7 @@ public sealed partial class CreateModel(
     {
         var claimSourcesRead = contacts.ListByRoleAsync(
             actor, ContactRole.ClaimSource, cancellationToken);
-        var principalCodesRead = principalQueries.ListActivePrincipalCodesAsync(cancellationToken);
+        var principalCodesRead = principalQueries.ListNewCasePrincipalCodesAsync(cancellationToken);
         await Task.WhenAll(claimSourcesRead, principalCodesRead);
         ClaimSourceChoices = await claimSourcesRead;
         PrincipalCodes = await principalCodesRead;
@@ -934,7 +937,7 @@ public sealed partial class CreateModel(
         var effectivePrincipalCode = Optional(PrincipalCode)
             ?? receipt.InstructionDraft?.SuggestedPrincipalCode;
         PrincipalIsImageBased = await IsImageBasedAsync(effectivePrincipalCode, cancellationToken);
-        PrincipalCodes = await principalQueries.ListActivePrincipalCodesAsync(cancellationToken);
+        PrincipalCodes = await principalQueries.ListNewCasePrincipalCodesAsync(cancellationToken);
         AddressResolution = await addressResolutionStore.GetAsync(receiptId, cancellationToken)
             ?? new(
                 receiptId,
