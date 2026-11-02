@@ -589,7 +589,8 @@ be blank and is saved as entered. While editing, the boxes belong to the Case
 form, and a connected source's card has **Get valuation**, a small button
 centred at the card's foot (operator, 9 October 2026), which asks the
 provider for the Case's accepted registration and mileage in that month and
-fills the boxes in place, without redrawing the page. Glass's, Brego and Cazana
+fills the boxes in place, without redrawing the page, and chooses the card
+when a retail answers (operator, 2 November 2026, R623). Glass's, Brego and Cazana
 are the connected sources; each valuation's PDF report is filed on the Case's
 Documents after the figures have answered and appears there on the next load
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
@@ -623,7 +624,13 @@ and the next save records the calculation against it even when it is
 unchanged, including for a card typed in the same edit, and writes the
 report's Retail and Trade from it. A card with no retail answers the click
 with "Enter the retail value on this card to use it."; a click into one of its
-boxes only focuses the box. A save after a card was chosen, while the
+boxes only focuses the box, and a press on its Get valuation never shows that
+sentence. A Get valuation whose answer carries a retail chooses its card the
+same way, and the last decision wins when several are in flight: the card
+last pressed or last clicked is the one its answer chooses, and any other
+answer only fills its card (operator, 2 November 2026, R623;
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
+A save after a card was chosen, while the
 Engineer's Value no longer holds that card's calculated figure, is refused
 with "The Engineer's Value no longer matches the figure you chose to use."
 (operator, 9 October 2026). A save also records a calculation that changed

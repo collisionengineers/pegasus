@@ -846,7 +846,9 @@ CAP and Cazana are each one card in a grid of three (cards since 8 October
 2026; the Case's own mileage is used; a card has none, 24 September 2026)
 holding Retail, Trade and Guide month — text while reading, boxes in the same
 place while editing — and, while editing, a Get valuation button centred at
-the card's foot (operator, 9 October 2026) that looks the figures up and fills the boxes in place (a source
+the card's foot (operator, 9 October 2026) that looks the figures up and fills the boxes in place, and
+chooses the card when a retail answers (operator, 2 November 2026, R623; the
+last card pressed or clicked wins when several lookups run) (a source
 with no working provider shows the card's notice from the start and has no
 button); the boxes are typed by hand just as well. A click anywhere on a card
 is the decision to use it: the card takes a red border and the word

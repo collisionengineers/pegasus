@@ -316,6 +316,13 @@ withdraws the decision; typing in the box withdraws it too. A card with no
 retail answers the click with "Enter the retail value on this card to use
 it.", and a cleared retail box is "no retail", not the recorded card's
 figure.
+A Get valuation that answers with a retail is the same decision on its card
+(operator, 2 November 2026, [R623](../rulings.md)): the card is chosen as a
+click would choose it, and pressing the button never answers with the
+no-retail sentence. The last decision wins: the card the Engineer last decided
+on, by the last Get valuation pressed or the last card clicked, is the one an
+answer chooses; an answer for any other card fills that card and leaves the
+choice alone, and an answer with no retail chooses nothing.
 
 **The preview shows what the Save will use.** The figure that fills the
 Engineer's Value box, and the commercial VAT and previous total loss amounts

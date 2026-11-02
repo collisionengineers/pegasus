@@ -1109,8 +1109,13 @@
         if (control.type === 'hidden' || control.type === 'file' || typeof control.defaultValue !== 'string') { return false; }
         return control.value !== control.defaultValue;
     }
+    // A section with an action in flight outside the queue (a card's Get
+    // valuation, busy on its own button) stays as it is too: drawn afresh,
+    // the answer would fill a card no longer on the page. The catch up after
+    // the next landed commit draws it once nothing is busy.
     function holdsUnsent(host) {
-        return Array.prototype.some.call(host.querySelectorAll('input, select, textarea'), unsentControl);
+        return !!host.querySelector('[data-busy]')
+            || Array.prototype.some.call(host.querySelectorAll('input, select, textarea'), unsentControl);
     }
     function sendingState(form) {
         return Array.prototype.map.call(form.elements, function (control) {
@@ -3032,6 +3037,14 @@
 // no retail answers the click with its own sentence; a click into one of its
 // boxes is the Engineer about to type one.
 //
+// Get valuation that answers with a retail chooses its card the same way
+// (operator, 2 November 2026, R623). The last decision wins: the section
+// remembers the card the Engineer last decided on, the last Get valuation
+// pressed or the last card clicked, and an answer chooses its card only while
+// that card is still the decision; any other answer fills its card and leaves
+// the choice alone. A section with a lookup in flight is not redrawn by a
+// catch up (holdsUnsent), so the answer lands on the card that was pressed.
+//
 // The preview shows what the Save will use (operator, 28 September 2026): it
 // posts the chosen card's retail as typed and the claimant's VAT position as
 // the form holds it, so an unsaved figure is calculated, not the recorded one.
@@ -3286,10 +3299,16 @@
                 });
             }
 
+            // The card the Engineer last decided on: the last card clicked, or
+            // the last Get valuation pressed. A lookup's answer chooses its
+            // card only while that card is still the decision (R623).
+            var lastDecision = null;
+
             // Use a card: choose it as the basis and mark the decision for the
             // Save. A card with no retail has no figure to use, so it says so
             // on its own card instead.
             function use(card) {
+                lastDecision = card;
                 if (!useInput) {
                     return;
                 }
@@ -3375,9 +3394,23 @@
                     schedule();
                 }
             });
-            // Get valuation refilled the card that is already the basis.
-            section.addEventListener('pegasus:valuation-basis-refilled', function () {
-                schedule();
+            // A Get valuation pressed is a decision on its card, kept until the
+            // answer comes or a later decision replaces it. Seen on the way
+            // down: the button's own handler takes its content over for the
+            // busy state, after which the target no longer sits in the button.
+            section.addEventListener('click', function (event) {
+                var get = event.target.closest && event.target.closest('[data-valuation-get]');
+                if (get) { lastDecision = get.closest('[data-valuation-card]'); }
+            }, true);
+            // Get valuation filled a card. An answer with a retail chooses the
+            // card while it is still the Engineer's last decision (R623); a
+            // refilled basis card re-runs the calculation either way.
+            section.addEventListener('pegasus:valuation-filled', function (event) {
+                var card = event.target.closest('[data-valuation-card]');
+                if (!card) { return; }
+                var retail = parseFloat(shown(card, '[data-valuation-retail]', 'data-retail'));
+                if (card === lastDecision && retail > 0) { use(card); }
+                if (card === chosenCard()) { schedule(); }
             });
             // The whole card is the target; only its own buttons and links do
             // something else. A click into a box of a card with no retail is
@@ -3385,7 +3418,10 @@
             section.querySelectorAll('[data-valuation-card]').forEach(function (card) {
                 card.addEventListener('click', function (event) {
                     var target = event.target;
-                    if (!target.closest || target.closest('button, a')) {
+                    // A pressed button's own content is taken over by the busy
+                    // state before the click reaches the card, so a target no
+                    // longer in the card was a button's.
+                    if (!target.closest || !card.contains(target) || target.closest('button, a')) {
                         return;
                     }
                     if (target.closest('input') && !(parseFloat(shown(card, '[data-valuation-retail]', 'data-retail')) > 0)) {
@@ -3428,7 +3464,9 @@
         // Get valuation (23 September 2026): the source's figures come back as
         // JSON and fill the card's boxes, which belong to the Case form, so no
         // form is submitted, the page is not redrawn and nothing unsaved is put
-        // at risk; the Case save records the card. A source with no working
+        // at risk; the Case save records the card. An answer with a retail is
+        // the decision to use the card (operator, 2 November 2026, R623): the
+        // section chooses it as a click would. A source with no working
         // provider, or a refused request, shows the card's own notice. A source
         // known to have no provider offers no button at all.
         root.querySelectorAll('[data-valuation-get]').forEach(function (button) {
@@ -3466,14 +3504,11 @@
                         fill(card, '[data-valuation-retail]', answer.retail);
                         fill(card, '[data-valuation-trade]', answer.trade);
                         fill(card, '[data-valuation-entry-month]', answer.guideMonth);
-                        // When this card is already the basis, its new figures
-                        // are the basis figures and the calculation follows. The
-                        // Engineer's Value box is left as it stands until that
-                        // calculation lands.
-                        var basis = card.querySelector('[data-valuation-basis]');
-                        if (basis && basis.checked) {
-                            basis.dispatchEvent(new CustomEvent('pegasus:valuation-basis-refilled', { bubbles: true }));
-                        }
+                        // The section chooses the card while it is the last
+                        // decision, and the calculation follows the new
+                        // figures. The Engineer's Value box is left as it
+                        // stands until that calculation lands.
+                        card.dispatchEvent(new CustomEvent('pegasus:valuation-filled', { bubbles: true }));
                         done = true;
                         return;
                     }
