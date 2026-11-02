@@ -76,11 +76,11 @@ public sealed class CaseReportWordingWebTests
         Assert.DoesNotMatch(
             "data-wording-included[^>]*data-wording-toggle=\"(?:commentary|unrelated)\"",
             report);
-        // The commentary's text box is the Valuation commentary field (v45 E).
-        Assert.Contains(
-            $"name=\"{CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportValuationCommentaryText)}\"",
-            report,
-            StringComparison.Ordinal);
+        // The commentary's text box is the Valuation commentary field (v45 E),
+        // joining the Case's one Save form.
+        Assert.Matches(
+            $"<textarea[^>]*name=\"{Regex.Escape(CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportValuationCommentaryText))}\" form=\"case-edit-form\"",
+            report);
     }
 
     /// <summary>
@@ -270,7 +270,7 @@ public sealed class CaseReportWordingWebTests
     /// A Case whose report projects: the ready report fixture's own facts,
     /// with the Current estimate withheld when the report is not to project.
     /// </summary>
-    private sealed class ReadyReportSnapshots(
+    internal sealed class ReadyReportSnapshots(
         RecordingCaseDetailsStore store,
         bool currentEstimate,
         IReadOnlyList<CaseReportWording>? wording = null)

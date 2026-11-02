@@ -182,7 +182,14 @@ public sealed class CaseRecordFieldsWebTests
         };
         var ports = new RecordGapPorts(store);
         ports.Staff(AssessmentVocabulary.ReportValuationCommentaryText, "Guide adjusted up for low mileage.");
-        using var workspace = await EnterEditModeAsync(store, ports.Register);
+        // The commentary's box is its Report wording row, drawn while the
+        // report projects (v45 B, E).
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            ports.Register(services);
+            Substitute<ICaseReportSnapshotSource>(
+                services, new CaseReportWordingWebTests.ReadyReportSnapshots(store, currentEstimate: true));
+        });
 
         var report = SectionHtml(await workspace.GetWorkspaceAsync(), "report");
         var name = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportValuationCommentaryText);
