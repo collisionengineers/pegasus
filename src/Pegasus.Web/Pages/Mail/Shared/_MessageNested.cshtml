@@ -84,6 +84,8 @@
     var intakeVersion = receipt.Version.ToString(System.Globalization.CultureInfo.InvariantCulture);
     var leaseKey = Model.RetainedLeaseOperationKey ?? Guid.NewGuid().ToString("N");
     var operationKey = Model.RetainedOperationKey ?? Guid.NewGuid().ToString("D");
+    // Link to Case and Change linked Case hold the Case / PO picker (v44, R607).
+    var casePickerUrl = Url.Page("/Mail/Message", "LinkCaseOptions", new { id = summary.Id });
     var route = new
     {
         id = summary.Id,
@@ -103,7 +105,6 @@
         var unlinkDialogData = new ViewDataDictionary(ViewData)
         {
             ["DialogId"] = "unlinkCaseDialog",
-            ["DialogFormId"] = "unlinkCaseForm",
             ["DialogTitle"] = $"Unlink from {current.Reference}",
             ["DialogConsequence"] = consequence,
             ["DialogActionUrl"] = Url.Page("/Mail/Message", "UnlinkCase", route),
@@ -123,7 +124,7 @@
             var changeDialogData = new ViewDataDictionary(ViewData)
             {
                 ["DialogId"] = "changeLinkedCaseDialog",
-                ["DialogFormId"] = "changeLinkedCaseForm",
+                ["DialogCasePickerUrl"] = casePickerUrl,
                 ["DialogTitle"] = OperatorLabels.Inbox.ChangeLinkedCase,
                 ["DialogConsequence"] = consequence,
                 ["DialogActionUrl"] = Url.Page("/Mail/Message", "ChangeLinkedCase", route),
@@ -144,7 +145,7 @@
         var linkDialogData = new ViewDataDictionary(ViewData)
         {
             ["DialogId"] = "linkCaseDialog",
-            ["DialogFormId"] = "linkCaseForm",
+            ["DialogCasePickerUrl"] = casePickerUrl,
             ["DialogTitle"] = OperatorLabels.Inbox.LinkToCase,
             ["DialogActionUrl"] = Url.Page("/Mail/Message", "LinkCase", route),
             ["DialogHiddenFields"] = new Dictionary<string, string?>

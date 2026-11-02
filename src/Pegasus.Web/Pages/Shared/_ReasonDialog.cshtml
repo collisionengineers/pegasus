@@ -19,9 +19,10 @@
     var consequence = ViewData["DialogConsequence"] as string;
     var reasonMaxLength = ViewData["DialogReasonMaxLength"] as int? ?? 500;
     var reason = ViewData["DialogReason"] as string ?? string.Empty;
-    // Supplied where a field outside the dialog joins its form (the Inbox's
-    // Case / PO picker); absent otherwise, and the form carries no id.
-    var formId = ViewData["DialogFormId"] as string;
+    // Supplied where the action names a Case (the Inbox's Link to Case and
+    // Change linked Case, v44 R607): the Case / PO picker's option list URL;
+    // the picker is then the dialog's first field. Absent otherwise.
+    var casePickerUrl = ViewData["DialogCasePickerUrl"] as string;
     // Supplied where the action takes a choice as well as its reason (the
     // Documents tab's Change type): the field's label, the name it posts under
     // and its options as (value, label); absent otherwise.
@@ -37,7 +38,7 @@
                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
             </button>
         </div>
-        <form method="post" action="@actionUrl" id="@formId">
+        <form method="post" action="@actionUrl">
             @Html.AntiForgeryToken()
             @foreach (var field in hiddenFields)
             {
@@ -49,6 +50,16 @@
                     <div class="notice notice--warning">
                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                         <span>@consequence</span>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(casePickerUrl))
+                {
+                    <div class="field case-picker" data-case-picker data-case-picker-fill data-case-picker-url="@casePickerUrl">
+                        <label class="req" for="@(dialogId)_casePo">@OperatorLabels.Inbox.CasePo</label>
+                        <input id="@(dialogId)_casePo" name="caseReference" type="text" maxlength="100" required
+                               autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"
+                               aria-controls="@(dialogId)_casePoOptions" />
+                        <div id="@(dialogId)_casePoOptions" class="case-picker-options" data-case-picker-options hidden></div>
                     </div>
                 }
                 @if (choices is { Count: > 0 } && !string.IsNullOrWhiteSpace(choiceName))

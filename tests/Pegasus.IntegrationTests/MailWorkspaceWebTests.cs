@@ -534,7 +534,8 @@ public sealed class MailWorkspaceWebTests
         var linked = await GetHtmlAsync(client, link.Headers.Location.ToString());
         Assert.Contains("Message linked to the confirmed case.", linked, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.Inbox.Unlink}</button>", linked, StringComparison.Ordinal);
-        Assert.Contains($">{OperatorLabels.Inbox.ChangeLinkedCase}</button>", linked, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.Change}</button>", linked, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.ChangeLinkedCase}</h2>", linked, StringComparison.Ordinal);
         Assert.Contains("data-mail-change-case", linked, StringComparison.Ordinal);
         // The links land on the Case page with its dialog drawn open, as Tasks does.
         Assert.Contains("dialog=hold", linked, StringComparison.Ordinal);
@@ -727,7 +728,9 @@ public sealed class MailWorkspaceWebTests
 
         // The linked record's picker belongs to the Change linked Case dialog; typing lists another Case.
         var page = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
-        Assert.Contains("form=\"changeLinkedCaseForm\"", page, StringComparison.Ordinal);
+        var changeDialog = Between(page, "id=\"changeLinkedCaseDialog\"", "</form>");
+        Assert.Contains("id=\"changeLinkedCaseDialog_casePo\" name=\"caseReference\"", changeDialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"caseReference\"", Between(page, "data-mail-settings", "</details>"), StringComparison.Ordinal);
         using (var options = await client.GetAsync($"/Inbox/{messageId:D}?handler=LinkCaseOptions&q=MAIL34002"))
         {
             Assert.Equal(HttpStatusCode.OK, options.StatusCode);
@@ -781,8 +784,8 @@ public sealed class MailWorkspaceWebTests
 
         var page = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
         Assert.Contains($">{OperatorLabels.Inbox.Unlink}</button>", page, StringComparison.Ordinal);
-        Assert.DoesNotContain($">{OperatorLabels.Inbox.ChangeLinkedCase}</button>", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("changeLinkedCaseForm", page, StringComparison.Ordinal);
+        Assert.DoesNotContain($">{OperatorLabels.Inbox.Change}</button>", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("changeLinkedCaseDialog", page, StringComparison.Ordinal);
 
         // A stale page or another client can still post it: the Unlink dialog's
         // keys, to the Change handler, with the Case typed.
@@ -836,8 +839,7 @@ public sealed class MailWorkspaceWebTests
         var page = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
         Assert.DoesNotContain($">{OperatorLabels.Inbox.LinkToCase}</button>", page, StringComparison.Ordinal);
         Assert.DoesNotContain("linkCaseDialog", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("linkCaseForm", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("id=\"mailLinkCaseReference\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"caseReference\"", page, StringComparison.Ordinal);
 
         // A stale page or another client can still post it: the dialog's keys, with the Case typed.
         long receiptVersion;
@@ -1494,7 +1496,7 @@ public sealed class MailWorkspaceWebTests
 
         var record = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
         var settings = Between(record, "data-mail-settings", "</details>");
-        Assert.Contains($"<span>{OperatorLabels.Inbox.Case}</span>", settings, StringComparison.Ordinal);
+        Assert.Contains($"<span class=\"mail-decision-label\">{OperatorLabels.Inbox.Case}</span>", settings, StringComparison.Ordinal);
         Assert.Contains($"<a href=\"/Cases/{triageCaseId:D}\">t.QDOS31007</a>", settings, StringComparison.Ordinal);
     }
 
@@ -1521,7 +1523,7 @@ public sealed class MailWorkspaceWebTests
         var settings = Between(record, "data-mail-settings", "</details>");
         Assert.Contains($"<a href=\"/Cases/{triageCaseId:D}\">t.QDOS31008</a>", settings, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.Inbox.Unlink}</button>", record, StringComparison.Ordinal);
-        Assert.Contains($">{OperatorLabels.Inbox.ChangeLinkedCase}</button>", record, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.Change}</button>", record, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1544,7 +1546,7 @@ public sealed class MailWorkspaceWebTests
 
         Assert.Contains($"<a href=\"/Cases/{triageCaseId:D}\">t.QDOS31010</a>", record, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.Inbox.LinkToCase}</button>", record, StringComparison.Ordinal);
-        Assert.Contains("id=\"mailLinkCaseReference\"", record, StringComparison.Ordinal);
+        Assert.Contains("id=\"linkCaseDialog_casePo\" name=\"caseReference\"", Between(record, "id=\"linkCaseDialog\"", "</form>"), StringComparison.Ordinal);
     }
 
     [Fact]

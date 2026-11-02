@@ -144,12 +144,18 @@
 .mail-settings-popover {
   position: absolute; right: 0; top: calc(100% + 8px); z-index: 30;
   width: 364px; max-width: calc(100vw - 40px);
-  padding: 12px 14px; display: grid; gap: 10px;
+  padding: 4px 14px; display: grid;
   border: 1px solid var(--line, #d2d8db); border-radius: var(--radius-lg, 4px);
   background: var(--surface, #fff); box-shadow: var(--shadow, 0 8px 24px rgba(0, 0, 0, .12));
 }
-.mail-settings-list { display: grid; gap: 2px; }
-.mail-settings-item { display: flex; align-items: center; min-height: 32px; padding: 4px 8px; text-decoration: none; }
+/* v44 (R607-R612): one label style, a divider between sections, each section's
+   actions as small buttons in a row, and Decided as a muted foot line. */
+.mail-settings-section { display: grid; gap: 6px; padding: 10px 0; }
+.mail-settings-section + .mail-settings-section { border-top: 1px solid var(--line, #d2d8db); }
+.mail-settings-case { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
+.mail-settings-case > a, .mail-settings-case > strong { min-width: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 600; }
+.mail-settings-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.mail-settings-foot { margin: 0; padding: 8px 0 10px; border-top: 1px solid var(--line, #d2d8db); font-size: 11px; color: var(--muted); }
 .mail-type-select { width: 100%; height: 32px; }
 .mail-inline-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line, #d2d8db); }
 .inbox-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 14px; }

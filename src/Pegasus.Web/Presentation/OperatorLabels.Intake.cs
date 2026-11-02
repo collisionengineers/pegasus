@@ -400,8 +400,11 @@ public static partial class OperatorLabels
         public const string CorrectionReason = "Reason for correction";
         public const string SaveCorrection = "Save correction";
 
-        // The record's Case row (v41 I9): the Case / PO picker and its buttons.
+        // The record's Case row (v41 I9): its buttons, and the Case / PO picker
+        // the Link to Case and Change linked Case dialogs hold (v44, R607). The
+        // cog menu's button reads Change; its dialog is titled Change linked Case (R608).
         public const string CasePo = "Case / PO";
+        public const string Change = "Change";
         public const string CasePoHint = "Search by Case / PO, registration, claimant, claim number, or Principal.";
         public const string LinkToCase = "Link to Case";
         public const string ChangeLinkedCase = "Change linked Case";
