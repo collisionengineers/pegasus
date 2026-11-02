@@ -52,9 +52,11 @@
     // ------------------------------------------------------------------
     // Choosing files.
     // ------------------------------------------------------------------
+    // The Upload sheet wraps its form; Create case's Files panel sits inside
+    // the Create form, which carries the hook instead.
     var select = document.querySelector('[data-upload-select]');
     if (select && typeof DataTransfer === 'function') {
-        var form = select.querySelector('[data-upload-form]');
+        var form = select.querySelector('[data-upload-form]') || select.closest('[data-upload-form]');
         var input = form.querySelector('input[type="file"]');
         var drop = form.querySelector('[data-drop]');
         var heading = form.querySelector('[data-select-heading]');
@@ -108,9 +110,11 @@
             heading.textContent = any ? 'Ready to upload' : 'Choose the files for this upload';
             dropHeading.textContent = any ? 'Add more files' : 'Drop files here';
             choose.classList.toggle('btn--primary', !any);
-            actions.hidden = !any;
-            summary.textContent = any ? files(chosen.length) + ' · ' + fileSize(total) : '';
-            submitLabel.textContent = 'Upload ' + files(chosen.length);
+            // Only the Upload sheet has its own action bar; Create case keeps
+            // its one Create case button.
+            if (actions) { actions.hidden = !any; }
+            if (summary) { summary.textContent = any ? files(chosen.length) + ' · ' + fileSize(total) : ''; }
+            if (submitLabel) { submitLabel.textContent = 'Upload ' + files(chosen.length); }
             panel.hidden = !any;
             select.classList.toggle('has-files', any);
             count.textContent = any ? files(chosen.length) + ' · ' + fileSize(total) : '';
@@ -277,8 +281,10 @@
         // One POST stores the whole batch, so every row enters Uploading
         // together and no row is ticked before the response proves it. A
         // redirect is that proof; anything else is re-submitted natively so
-        // the server's own validation page is what the operator reads.
-        if (typeof fetch === 'function' && typeof FormData === 'function') {
+        // the server's own validation page is what the operator reads. Only
+        // the Upload sheet opts in: Create case posts natively under its own
+        // busy label.
+        if (form.hasAttribute('data-upload-fetch') && typeof fetch === 'function' && typeof FormData === 'function') {
             form.addEventListener('submit', function (event) {
                 if (uploading || store.files.length === 0) {
                     return;

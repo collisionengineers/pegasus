@@ -1,7 +1,5 @@
-using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Web.Presentation;
@@ -45,9 +43,6 @@ public sealed partial class UploadModel(
     TimeProvider timeProvider,
     ILogger<UploadModel> logger) : StaffPageModel
 {
-    public static string MaximumSizeLabel =>
-        OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumContentLength);
-
     /// <summary>The limits the picker states and upload.js checks before posting, from their one owner (FRD-18).</summary>
     public static int MaximumFileCount => IntakeEnvelopeLimits.MaximumBatchFileCount;
 
@@ -123,36 +118,7 @@ public sealed partial class UploadModel(
         {
             ModelState.AddModelError(nameof(Upload), "Choose a file to upload.");
         }
-        else if (Upload.Length > IntakeEnvelopeLimits.MaximumBatchFileCount)
-        {
-            ModelState.AddModelError(
-                nameof(Upload),
-                $"You selected {Upload.Length} files. Submit {IntakeEnvelopeLimits.MaximumBatchFileCount} "
-                + "or fewer at a time.");
-        }
-        if (Upload.Sum(file => file.Length) > IntakeEnvelopeLimits.MaximumBatchFileContentLength)
-        {
-            ModelState.AddModelError(
-                nameof(Upload),
-                $"The selected files exceed the {OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumBatchFileContentLength)} total upload limit.");
-        }
-        for (var index = 0; index < Upload.Length; index++)
-        {
-            var file = Upload[index];
-            if (file.Length == 0)
-            {
-                ModelState.AddModelError(
-                    nameof(Upload),
-                    Upload.Length == 1 ? "That file is empty." : $"File {index + 1} is empty.");
-            }
-            else if (file.Length > IntakeEnvelopeLimits.MaximumContentLength)
-            {
-                ModelState.AddModelError(
-                    nameof(Upload),
-                    $"File {index + 1} is {OperatorLabels.FileSize(file.Length)}. "
-                    + $"Files must be {MaximumSizeLabel} or smaller.");
-            }
-        }
+        UploadFormValidation.CheckLimits(Upload, ModelState, nameof(Upload));
 
         if (!ModelState.IsValid)
         {
@@ -162,51 +128,16 @@ public sealed partial class UploadModel(
         var uploader = IntakeActorIdentity.Staff(actor.SubjectId);
         try
         {
-            var files = new List<StreamedGroupedIntakeFile>(Upload.Length);
-            for (var index = 0; index < Upload.Length; index++)
-            {
-                var file = Upload[index];
-                var header = new byte[Math.Min(file.Length, 40)];
-                await using (var stream = file.OpenReadStream())
-                {
-                    await stream.ReadExactlyAsync(header, cancellationToken);
-                }
-                if (!IntakeUploadFilePolicy.IsAccepted(file.FileName, file.ContentType, header))
-                {
-                    ModelState.AddModelError(
-                        nameof(Upload),
-                        $"File {index + 1} has an unsupported type or its contents do not match the selected file type.");
-                    continue;
-                }
-                // The type chosen for this file on a declared upload, by the
-                // file's place in the post (FRD-18): none posted files as Other;
-                // a value the page never offered is a malformed post.
-                DocumentSemanticRole? declaredType = null;
-                if (DeclaredCaseId is not null
-                    && Request.Form.TryGetValue($"DocumentTypes[{index}]", out var posted)
-                    && !string.IsNullOrWhiteSpace(posted))
-                {
-                    if (!TryParseUploadType(posted.ToString(), out var parsed))
-                    {
-                        ModelState.AddModelError(nameof(Upload), $"File {index + 1} has a type that is not offered.");
-                        continue;
-                    }
-                    declaredType = parsed;
-                }
-                files.Add(new(
-                    index,
-                    new(
-                        Path.GetFileName(file.FileName),
-                        string.IsNullOrWhiteSpace(file.ContentType)
-                            ? "application/octet-stream"
-                            : file.ContentType,
-                        file.Length,
-                        _ => ValueTask.FromResult<Stream>(file.OpenReadStream()),
-                        timeProvider.GetUtcNow(),
-                        uploader,
-                        new(IntakeSourceChannel.ManualUpload, ExternalReceiptToken),
-                        DeclaredDocumentType: declaredType)));
-            }
+            var files = await UploadFormValidation.ReadAsync(
+                Upload,
+                Request.Form,
+                DeclaredCaseId is not null,
+                ExternalReceiptToken,
+                uploader,
+                timeProvider.GetUtcNow(),
+                ModelState,
+                nameof(Upload),
+                cancellationToken);
 
             if (!ModelState.IsValid)
             {
@@ -278,19 +209,6 @@ public sealed partial class UploadModel(
         }
 
         return Page();
-    }
-
-    /// <summary>A posted type by name only, and one the page offers (<see cref="DocumentTypePolicy.UploadChoices"/>); a number is not a type.</summary>
-    private static bool TryParseUploadType(string posted, out DocumentSemanticRole type)
-    {
-        var parsed = Enum.TryParse<DocumentSemanticRole>(posted.Trim(), ignoreCase: true, out type)
-            && !int.TryParse(posted, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)
-            && DocumentTypePolicy.UploadChoices.Contains(type);
-        if (!parsed)
-        {
-            type = default;
-        }
-        return parsed;
     }
 
     private async Task LoadDestinationAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken)

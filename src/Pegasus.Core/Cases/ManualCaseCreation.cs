@@ -102,10 +102,8 @@ public sealed class CreateManualCase(
             throw new InvalidOperationException(
                 $"A manual case needs {string.Join(", ", missingIdentity)}.");
         }
-        // An Audit is never created by hand; a one-off for a private customer
-        // is an Inspection or an Inspection + Audit (R577).
-        if (request.CaseType is CaseType.Audit
-            || (request.IsPrivateCustomer && request.CaseType is CaseType.Triage))
+        // A one-off for a private customer is never a Triage (R577).
+        if (request.IsPrivateCustomer && request.CaseType is CaseType.Triage)
         {
             throw new InvalidOperationException("The case type is invalid.");
         }

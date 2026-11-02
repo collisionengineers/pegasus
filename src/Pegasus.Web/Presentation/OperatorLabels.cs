@@ -744,16 +744,6 @@ public static partial class OperatorLabels
         _ => Humanise(status.ToString())
     };
 
-    /// <summary>An image's custody state, in the operator's words.</summary>
-    public static string ImageCustodyState(ImageCustodyState state) => state switch
-    {
-        Pegasus.Core.ImageIntake.ImageCustodyState.Pending => "Storing",
-        Pegasus.Core.ImageIntake.ImageCustodyState.Confirmed => "Stored",
-        Pegasus.Core.ImageIntake.ImageCustodyState.Merged => "Merged",
-        Pegasus.Core.ImageIntake.ImageCustodyState.Failed => "Storage failed",
-        _ => Humanise(state.ToString())
-    };
-
     /// <summary>
     /// The case's Box folder state, in the operator's words, for the cases
     /// where there is no live folder to open. A confirmed folder with a remote

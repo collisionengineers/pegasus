@@ -104,6 +104,15 @@ upload rather than chosen after it:
   Unidentified
   ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)).
 
+**Create case** is a second surface of the same declared upload (operator,
+30 October 2026, [R576](../rulings.md)): its **Files** panel is this
+sheet's picker, with the same Type per file and the same limits. The files
+are checked before the Case is created; once it is, they are submitted for
+it as above and the operator lands on its Files panel with the Case's
+creation notice followed by the same received notice. If the Case was
+created but its files could not be stored, the operator still lands on the
+Case with a notice to use **Add evidence**.
+
 The review surface still exists for a declared upload (from the Intake
 log): it never offers a decision, and reports **Added to Case** once the
 link is recorded.

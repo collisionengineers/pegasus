@@ -80,28 +80,39 @@ internal static class CaseDataSnapshotFactory
             snapshot,
             receipt,
             request.PrincipalInspectionMode == CaseInspectionMode.ImageBasedAssessment);
-        AddPrincipalInspectionMode(snapshot, request, acceptedAtUtc);
+        if (request.PrincipalInspectionMode == CaseInspectionMode.ImageBasedAssessment)
+        {
+            AddPrincipalInspectionMode(
+                snapshot,
+                request.PrincipalCode,
+                request.Actor.SubjectId,
+                receipt.Id.ToString("D"),
+                acceptedAtUtc);
+        }
         AddAcceptedDeadline(snapshot, receipt, request, acceptedAtUtc);
         return snapshot;
     }
 
-    private static void AddPrincipalInspectionMode(
+    /// <summary>
+    /// An image-based Principal's inspection mode, applied to a new Case
+    /// (ADR-0018): the exact Image Based Assessment address and mode, with the
+    /// Principal setting's provenance. A receipt-backed Case names its receipt
+    /// as the source; a Case created directly names the actor who created it.
+    /// </summary>
+    internal static void AddPrincipalInspectionMode(
         CaseDataSnapshotEntity snapshot,
-        CaseAcceptanceRequest request,
+        string principalCode,
+        string actorSubjectId,
+        string sourceIdentity,
         DateTimeOffset acceptedAtUtc)
     {
-        if (request.PrincipalInspectionMode != CaseInspectionMode.ImageBasedAssessment)
-        {
-            return;
-        }
-
         // The Principal setting determines the mode even when the instruction
         // carried a physical location or staff resolved one at intake; those
         // remain as suggestion rows and staff may still override on the case.
         snapshot.Fields.RemoveAll(item =>
             item.FieldName is CaseDataFieldNames.InspectionAddress or CaseDataFieldNames.InspectionMode
             && item.ValueKind == CaseDataCodes.Confirmed);
-        var sourceLabel = $"principal setting:{request.PrincipalCode}";
+        var sourceLabel = $"principal setting:{principalCode}";
         snapshot.Fields.Add(new()
         {
             WorkId = snapshot.WorkId,
@@ -111,11 +122,11 @@ internal static class CaseDataSnapshotFactory
             ValueType = CaseDataCodes.Text,
             Value = Ext18InspectionAddressPolicy.ImageBasedAssessment,
             SourceKind = CaseDataCodes.PrincipalSetting,
-            SourceIdentity = (snapshot.OriginIntakeReceiptId ?? throw new InvalidOperationException("Receipt-backed case data requires its intake receipt identity.")).ToString("D"),
+            SourceIdentity = sourceIdentity,
             SourceLabel = sourceLabel,
             PolicyKey = PrincipalInspectionModePolicy.PolicyKey,
             PolicyVersion = PrincipalInspectionModePolicy.PolicyVersion,
-            ConfirmedByActor = request.Actor.SubjectId,
+            ConfirmedByActor = actorSubjectId,
             ConfirmedAtUtc = acceptedAtUtc
         });
         snapshot.Fields.Add(new()
@@ -127,11 +138,11 @@ internal static class CaseDataSnapshotFactory
             ValueType = CaseDataCodes.InspectionMode,
             Value = PrincipalInspectionModePolicy.ImageBasedAssessmentCode,
             SourceKind = CaseDataCodes.PrincipalSetting,
-            SourceIdentity = (snapshot.OriginIntakeReceiptId ?? throw new InvalidOperationException("Receipt-backed case data requires its intake receipt identity.")).ToString("D"),
+            SourceIdentity = sourceIdentity,
             SourceLabel = sourceLabel,
             PolicyKey = PrincipalInspectionModePolicy.PolicyKey,
             PolicyVersion = PrincipalInspectionModePolicy.PolicyVersion,
-            ConfirmedByActor = request.Actor.SubjectId,
+            ConfirmedByActor = actorSubjectId,
             ConfirmedAtUtc = acceptedAtUtc
         });
     }
@@ -189,7 +200,13 @@ internal static class CaseDataSnapshotFactory
         }
         else
         {
-            AddStaffAllocatedPrincipal(snapshot, request, acceptedAtUtc);
+            AddStaffAllocatedPrincipal(
+                snapshot,
+                request.Actor,
+                request.PrincipalCode,
+                request.CompletenessEvaluation.PolicyKey,
+                request.CompletenessEvaluation.PolicyVersion,
+                acceptedAtUtc);
             return;
         }
 
@@ -221,34 +238,37 @@ internal static class CaseDataSnapshotFactory
     /// stated. A confirmation is a casework decision, so a system-worker caller
     /// without a route or binding records nothing here. Recording nothing left the case with no Principal at all:
     /// the case export wrote an empty Work Provider and the case-match index
-    /// projected no row, so images never associated automatically.
+    /// projected no row, so images never associated automatically. A Case
+    /// created directly records it the same way, naming the actor as its
+    /// source because it has no receipt.
     /// </summary>
-    private static void AddStaffAllocatedPrincipal(
+    internal static void AddStaffAllocatedPrincipal(
         CaseDataSnapshotEntity snapshot,
-        CaseAcceptanceRequest request,
+        ActionActor actor,
+        string? principalCode,
+        string? policyKey,
+        int? policyVersion,
         DateTimeOffset acceptedAtUtc)
     {
-        if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.Automation)
-            || string.IsNullOrWhiteSpace(request.PrincipalCode))
+        if (actor.Kind is not (ActorKind.Staff or ActorKind.Automation)
+            || string.IsNullOrWhiteSpace(principalCode))
         {
             return;
         }
 
-        RequirePolicy(
-            request.CompletenessEvaluation.PolicyKey,
-            request.CompletenessEvaluation.PolicyVersion,
-            "case acceptance");
+        RequirePolicy(policyKey, policyVersion, "case acceptance");
         UpsertConfirmed(
             snapshot,
             CaseDataFieldNames.PrincipalCode,
             CaseDataCodes.Text,
-            request.PrincipalCode.Trim(),
-            request.Actor.SubjectId,
+            principalCode.Trim(),
+            actor.SubjectId,
             acceptedAtUtc,
-            request.CompletenessEvaluation.PolicyKey,
-            request.CompletenessEvaluation.PolicyVersion,
+            policyKey!,
+            policyVersion!.Value,
             CaseDataCodes.CaseAcceptance,
-            "staff-accepted principal allocation");
+            "staff-accepted principal allocation",
+            fallbackSourceIdentity: actor.SubjectId);
     }
 
     private static void AddInstructionSuggestions(
@@ -617,7 +637,8 @@ internal static class CaseDataSnapshotFactory
         int fallbackPolicyVersion,
         string fallbackSourceKind = CaseDataCodes.CaseAcceptance,
         string fallbackSourceLabel = "accepted case review",
-        bool inheritUnderlying = true)
+        bool inheritUnderlying = true,
+        string? fallbackSourceIdentity = null)
     {
         var underlying = inheritUnderlying
             ? snapshot.Fields.SingleOrDefault(
@@ -636,7 +657,10 @@ internal static class CaseDataSnapshotFactory
             ValueType = valueType,
             Value = value,
             SourceKind = underlying?.SourceKind ?? fallbackSourceKind,
-            SourceIdentity = underlying?.SourceIdentity ?? (snapshot.OriginIntakeReceiptId ?? throw new InvalidOperationException("Receipt-backed case data requires its intake receipt identity.")).ToString("D"),
+            SourceIdentity = underlying?.SourceIdentity
+                ?? snapshot.OriginIntakeReceiptId?.ToString("D")
+                ?? fallbackSourceIdentity
+                ?? throw new InvalidOperationException("Receipt-backed case data requires its intake receipt identity."),
             SourceLabel = underlying?.SourceLabel ?? fallbackSourceLabel,
             PolicyKey = underlying?.PolicyKey ?? fallbackPolicyKey,
             PolicyVersion = underlying?.PolicyVersion ?? fallbackPolicyVersion,

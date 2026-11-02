@@ -378,9 +378,9 @@ internal sealed class IntakeActionMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Creates a Case directly from entered facts, as the staff New case does, with no received item or source document. An Inspection or Inspection and Audit Case needs the identity-critical facts (claimant, claim number, registration and the rest the staff form asks for); a Triage Case takes only its Principal and the vehicle registration. A one-off Case for a private customer (privateCustomer true, no principalCode) is an Inspection or Inspection and Audit Case: it needs the claimant's name and the registration, takes claimantAddress and no claim number, and its Case/PO is the registration. An Audit is never created by hand. A Case reference is allocated once and never reused. Requires a mcp:-prefixed operation key; replaying the same key with the same facts returns the same Case.")]
+    [Description("Creates a Case directly from entered facts, as the staff New case does, with no received item or source document. An Inspection, Audit or Inspection and Audit Case needs the identity-critical facts (claimant, claim number, registration and the rest the staff form asks for); a Triage Case takes only its Principal and the vehicle registration. A one-off Case for a private customer (privateCustomer true, no principalCode) is an Inspection or Inspection and Audit Case: it needs the claimant's name and the registration, takes claimantAddress and no claim number, and its Case/PO is the registration. An Audit created here starts with its original report missing until a filed document is recorded as the report. A Case reference is allocated once and never reused. Requires a mcp:-prefixed operation key; replaying the same key with the same facts returns the same Case.")]
     public async Task<CaseCreateToolResult> CreateCaseAsync(
-        [Description("Inspection, InspectionAndAudit or Triage.")] string caseType,
+        [Description("Inspection, Audit, InspectionAndAudit or Triage.")] string caseType,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         [Description("The Principal code, at most 20 characters; omitted for a one-off Case for a private customer.")] string? principalCode = null,
         [Description("True for a one-off Case for a private customer, which names no principalCode and is not a Triage.")] bool privateCustomer = false,
@@ -395,7 +395,7 @@ internal sealed class IntakeActionMcpTools(
         [Description("Not for Triage: accident circumstances.")] string? accidentCircumstances = null,
         [Description("Not for Triage: date of incident, yyyy-MM-dd.")] string? incidentDate = null,
         [Description("Not for Triage: inspection date, yyyy-MM-dd; it is also the inspection deadline.")] string? inspectionDate = null,
-        [Description("Not for Triage: inspection address; the inspection mode is inferred from it as on the staff form.")] string? inspectionAddress = null,
+        [Description("Not for Triage: inspection address; the inspection mode is inferred from it as on the staff form, unless the Principal inspects by images, whose Case takes Image Based Assessment.")] string? inspectionAddress = null,
         [Description("Not for Triage: an active Claim Source's organisation identifier from the Contacts directory.")] Guid? claimSourceId = null,
         CancellationToken cancellationToken = default)
     {
@@ -410,9 +410,8 @@ internal sealed class IntakeActionMcpTools(
             {
                 var type = Enum.TryParse<CaseType>(caseType?.Trim(), ignoreCase: true, out var parsedType)
                     && Enum.IsDefined(parsedType)
-                    && parsedType != CaseType.Audit
                         ? parsedType
-                        : throw new McpException("caseType must be Inspection, InspectionAndAudit or Triage.");
+                        : throw new McpException("caseType must be Inspection, Audit, InspectionAndAudit or Triage.");
                 // A one-off for a private customer names no Principal and is
                 // never a Triage (R574, R577); every other Case names one.
                 if (privateCustomer == !string.IsNullOrWhiteSpace(principalCode))

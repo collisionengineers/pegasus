@@ -436,13 +436,16 @@ replays by its operation key.
   ([FRD-03](frd-03-triage.md#triage); operator, 22 October 2026; R223).
 - `pegasus_case_create` creates a Case directly, as staff **New case** does
   ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)): an
-  Inspection or Inspection and Audit Case with its identity-critical facts,
-  a Triage Case from its Principal and registration, or, with
+  Inspection, Audit or Inspection and Audit Case with its identity-critical
+  facts, a Triage Case from its Principal and registration, or, with
   `privateCustomer` and no `principalCode`, a one-off Case for a private
   customer from the claimant's name and the registration, with an optional
   `claimantAddress`
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity);
-  operator, 31 October 2026, R577). An Audit is never created by hand.
+  operator, 31 October 2026, R577). An Audit
+  created this way starts with **Original report missing** until a filed
+  document is recorded as the original report (operator, 30 October 2026,
+  [R575](../rulings.md)).
 - `pegasus_unidentified_resolve` with `targetKind` Closed is **Close with
   reason**: it names no destination. `pegasus_unidentified_reopen` withdraws
   a resolution or closure with a reason.
