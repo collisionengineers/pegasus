@@ -16,13 +16,14 @@ public sealed class AssessmentReportRenderingTests
     /// vehicle's colour, body, transmission and expiry dates, the damage
     /// tables and the settlement rows are recorded on the Case and are no
     /// part of the report. The damage carries the drawing its marks are
-    /// printed on (28 September 2026).
+    /// printed on (28 September 2026). Version eight carries the FAO The
+    /// Court and statement of truth switches (2 November 2026; R606, R607).
     /// </summary>
     [Fact]
-    public void TheSnapshotIsVersionSevenAndCarriesOnlyWhatTheTemplatePrints()
+    public void TheSnapshotIsVersionEightAndCarriesOnlyWhatTheTemplatePrints()
     {
-        Assert.Equal("rendererref1-v7", AssessmentReportContract.TemplateVersion);
-        Assert.Equal("rendererref1-v7", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
+        Assert.Equal("rendererref1-v8", AssessmentReportContract.TemplateVersion);
+        Assert.Equal("rendererref1-v8", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
         Assert.Equal(
             [
                 "Registration", "Make", "Model", "Year", "Condition",
@@ -377,6 +378,39 @@ public sealed class AssessmentReportRenderingTests
     }
 
     /// <summary>
+    /// Include statement of truth off leaves out the two court declarations;
+    /// the Glass's guide sentence (when it prints), the parts-price caveat
+    /// and the fee-note paragraph still print in order (operator, 2 November
+    /// 2026; R605).
+    /// </summary>
+    [Fact]
+    public void WithoutTheStatementTheCourtDeclarationsAreLeftOutAndTheRestPrint()
+    {
+        var glasses = new ReportGuideSources([ValuationSource.Glasses]);
+
+        Assert.Equal(
+            [
+                AssessmentReportContract.StatementOfTruth1,
+                AssessmentReportContract.StatementOfTruth2,
+                AssessmentReportContract.StatementOfTruth3,
+                AssessmentReportContract.StatementOfTruth4,
+            ],
+            AssessmentReportContract.StatementOfTruth(CaseReportContentSwitches.None, glasses));
+        Assert.Equal(
+            [AssessmentReportContract.StatementOfTruth3, AssessmentReportContract.StatementOfTruth4],
+            AssessmentReportContract.StatementOfTruth(
+                CaseReportContentSwitches.None with { IncludeStatementOfTruth = false }, glasses));
+        Assert.Equal(
+            [
+                AssessmentReportContract.StatementOfTruthGuide,
+                AssessmentReportContract.StatementOfTruth3,
+                AssessmentReportContract.StatementOfTruth4,
+            ],
+            AssessmentReportContract.StatementOfTruth(
+                new CaseReportContentSwitches(true, false, false, IncludeStatementOfTruth: false), glasses));
+    }
+
+    /// <summary>
     /// Verification moved to open time (issue 850): the snapshot no longer
     /// holds image bytes, so an image whose bytes are not the ones custody
     /// pinned is refused when the renderer opens it, naming the file in staff's words.
@@ -517,7 +551,7 @@ public sealed class AssessmentReportRenderingTests
         var renderer = new FakeRenderer();
         var invalid = Snapshot(AssessmentReportOutcome.Repairable) with
         {
-            PayloadVersion = "rendererref1-v6",
+            PayloadVersion = "rendererref1-v7",
         };
 
         var refusal = await Assert.ThrowsAsync<ReportRenderRejectedException>(

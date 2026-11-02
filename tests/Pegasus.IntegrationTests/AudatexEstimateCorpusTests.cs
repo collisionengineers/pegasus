@@ -97,7 +97,17 @@ public sealed class AudatexEstimateCorpusTests(ITestOutputHelper output)
         }
         if (Has("parts"))
         {
-            Assert.Equal<decimal?>(totals.Parts, Money("parts"));
+            // The printed parts lines less the parts discount, to the penny,
+            // plus the one Sundry Parts line make the document's Total Parts
+            // (R610, R611); an older report's lines make its Sub Total.
+            var sundry = parsed.Lines
+                .Where(line => line.SourceRowIdentity!.StartsWith("parts:", StringComparison.Ordinal)
+                    && line is { GuideCode: null, Description: "Sundry Parts" })
+                .Sum(line => line.Price ?? 0m);
+            var discount = parsed.Discounts?.Parts ?? 0m;
+            Assert.Equal<decimal?>(
+                totals.Parts,
+                Math.Round((Money("parts") - sundry) * (1m - discount), 2, MidpointRounding.AwayFromZero) + sundry);
         }
         if (Has("extras"))
         {

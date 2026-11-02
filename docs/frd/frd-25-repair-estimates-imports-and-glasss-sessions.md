@@ -254,8 +254,11 @@ stored figure, and the statement and Compare sheet read two decimals like the
 report (operator, 22 October 2026). A Case with no Current spec cannot generate a report. The
 specification uses one line vocabulary and one calculation basis. The three assessment-report lists (new parts, repairs
 and additional operations) are one deterministic names-only projection of
-those ordered lines, not a second renderer-owned specification. Repairs lists
-repair and R&I lines, as the Case page does.
+those ordered lines, not a second renderer-owned specification. New parts
+lists Replace lines; Repairs lists Repair lines only; Additional operations
+lists Paint, Blend, Specialist and Other lines; R&I lines are on no list, so
+they leave the report, as the Case page's own lists do (operator,
+2 November 2026; R604).
 
 **Replay in the estimate editor.** The editor has no save of its own: the
 Case's one Save carries the specification with the rest of the Case
@@ -538,7 +541,21 @@ one report. The section's work units reconcile to its printed total and are
 then divided by that basis, so every line carries hours, and paint time is
 paint hours. A section without a readable basis refuses the import. The
 printed Total Paint And Material Cost lands on the first paint line, as
-materials sit on lines. Extras keep their printed price.
+materials sit on lines. Extras keep their printed price. A LABOUR line whose
+description starts with "Specialist" (Audatex's opinion-time specialist
+operations) is a Specialist line by hours, costed at the rate as labour and
+listed under Additional operations, not an R&I line (operator, 2 November
+2026; R604). The parts footer is read past Sub Total: `Deduction from RRP`,
+`Sundry Parts` and `Total Parts`. A Sundry Parts amount above zero lands as
+one New part line named `Sundry Parts` at the printed amount, so the parts
+total equals the document's Total Parts (R610). A deduction percentage above
+zero becomes the estimate's parts discount (R611); Audatex works the sundry
+out after the deduction while Pegasus discounts every part line, so such an
+estimate's parts total reads a few pence below the document's (32p on the
+one known 5 % case). The footer must reproduce the document's own
+arithmetic, `Sub Total × (1 − deduction) + Sundry = Total Parts`, or the
+import is refused like any other section that does not add up; an older
+report that prints no footer imports as before.
 
 Readable embedded text is required. An unusable font map, a scan-like page
 or a parser failure gives an explicit refusal, never an OCR request

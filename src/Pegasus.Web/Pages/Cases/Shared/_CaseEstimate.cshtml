@@ -1245,7 +1245,7 @@
         var culture = CultureInfo.GetCultureInfo("en-GB");
         string Money(decimal value) => "£" + value.ToString("N2", culture);
         var newParts = lines.Where(line => line.Operation == "Replace").Select(line => line.Description).Where(text => !string.IsNullOrWhiteSpace(text)).ToArray();
-        var repairs = lines.Where(line => line.Operation is "Repair" or "RemoveAndRefit").Select(line => line.Description).Where(text => !string.IsNullOrWhiteSpace(text)).ToArray();
+        var repairs = lines.Where(line => line.Operation == "Repair").Select(line => line.Description).Where(text => !string.IsNullOrWhiteSpace(text)).ToArray();
         var operations = lines.Where(line => line.Operation is "Paint" or "Blend" or "Specialist" or "Other").Select(line => line.Description).Where(text => !string.IsNullOrWhiteSpace(text)).ToArray();
         <div class="est-bottom">
             <div class="wl" data-estimate-worklists>

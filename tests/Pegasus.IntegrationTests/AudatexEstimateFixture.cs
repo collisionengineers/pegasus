@@ -18,7 +18,10 @@ internal static class AudatexEstimateFixture
     /// a priced and an unpriced row, an extras table with inline prices, and
     /// the document's own section totals. Each LABOUR and PAINT WORK heading
     /// prints its time basis unless that basis is null; a materials total
-    /// prints a MATERIAL COST section.
+    /// prints a MATERIAL COST section. A Specialist labour row prints when
+    /// asked, and each parts footer row ("Deduction from RRP", "Sundry
+    /// Parts", "Total Parts") prints under the Sub Total when it is given; by
+    /// default there is none, as on an older report.
     /// </summary>
     internal static byte[] Build(
         string partsSubTotal = "£620.20",
@@ -27,7 +30,12 @@ internal static class AudatexEstimateFixture
         bool includeIdentity = true,
         int? labourUnitsPerHour = 10,
         int? paintUnitsPerHour = 10,
-        string? paintMaterials = null)
+        string? paintMaterials = null,
+        bool specialistLabour = false,
+        string pricedPart = "£620.20",
+        (string Percent, string Amount)? partsDeduction = null,
+        string? partsSundry = null,
+        string? partsTotal = null)
     {
         var builder = new PdfDocumentBuilder();
         var font = builder.AddStandard14Font(Standard14Font.Helvetica);
@@ -65,6 +73,13 @@ internal static class AudatexEstimateFixture
             Text(522, 621.5, "3.0");
         }
         Text(159, 612, "(TRIM REMOVED)");
+        if (specialistLabour)
+        {
+            Text(20, 606, "1000");
+            Text(159, 606, "Specialist QC AND ROAD TEST");
+            Text(547, 606, "*");
+            Text(522, 605, "12.0");
+        }
         Text(259, 600, "Total");
         Text(291, 600, "Work");
         Text(324, 600, "Units");
@@ -106,7 +121,7 @@ internal static class AudatexEstimateFixture
         Text(103, 496, "FRONT BUMPER");
         Text(242, 496, "51 11 8 067");
         Text(353, 496, "0%");
-        Text(501, 495, "£620.20");
+        Text(501, 495, pricedPart);
         Text(20, 484, "431");
         Text(103, 484, "GRILLE BADGE");
         Text(242, 484, "51 76 7");
@@ -114,6 +129,25 @@ internal static class AudatexEstimateFixture
         Text(214, 472, "Sub");
         Text(239, 472, "Total");
         Text(490, 472, partsSubTotal);
+
+        // The parts footer: each label shares its baseline with its amount,
+        // as on the real reports.
+        if (partsDeduction is { } deduction)
+        {
+            Text(214, 466, "Deduction from RRP");
+            Text(352, 466, $"({deduction.Percent} %)");
+            Text(501, 466, deduction.Amount);
+        }
+        if (partsSundry is not null)
+        {
+            Text(214, 461, "Sundry Parts");
+            Text(508, 461, partsSundry);
+        }
+        if (partsTotal is not null)
+        {
+            Text(352, 456, "Total Parts");
+            Text(490, 456, partsTotal);
+        }
 
         Text(20, 450, "Extras");
         Text(103, 438, "Description");

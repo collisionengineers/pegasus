@@ -481,11 +481,12 @@ public sealed class AssessmentReportProjectionTests
     }
 
     /// <summary>
-    /// The report's Repairs Required list reads repair and R&amp;I lines, as
-    /// the Case page's list does; an R&amp;I line is never dropped.
+    /// The report's Repairs Required list reads repair lines only, as the
+    /// Case page's list does; an R&amp;I line is on no report list (operator,
+    /// 2 November 2026; R604).
     /// </summary>
     [Fact]
-    public void AnRAndILineIsListedWithTheRepairs()
+    public void AnRAndILineIsLeftOffTheReport()
     {
         var estimate = ReadyCurrentEstimate();
         var result = AssessmentReportProjection.Project(ReadyInput() with
@@ -493,7 +494,11 @@ public sealed class AssessmentReportProjectionTests
             CurrentEstimate = estimate with { Lines = [.. estimate.Lines, Line(4, "rnr", "Front bumper cover")] },
         });
 
-        Assert.Equal(["Nearside door", "Front bumper cover"], result.Snapshot!.Repairs);
+        var snapshot = result.Snapshot!;
+        Assert.Equal(["Nearside door"], snapshot.Repairs);
+        Assert.DoesNotContain("Front bumper cover", snapshot.NewParts);
+        Assert.DoesNotContain("Front bumper cover", snapshot.Repairs);
+        Assert.DoesNotContain("Front bumper cover", snapshot.Operations);
     }
 
     [Fact]
@@ -799,6 +804,71 @@ public sealed class AssessmentReportProjectionTests
         Assert.Equal(includeUnrelatedDamage, snapshot.Content.IncludeUnrelatedDamage);
         Assert.False(snapshot.Content.IncludeValuationCommentary);
         Assert.Equal(discloseGuideSource, snapshot.PrintsGuideDisclosure);
+        // The court line and the statement are on with nothing recorded (R606, R607).
+        Assert.True(snapshot.Content.AddressToTheCourt);
+        Assert.True(snapshot.Content.IncludeStatementOfTruth);
+    }
+
+    /// <summary>
+    /// FAO The Court and Include statement of truth are on until the Case
+    /// records "false" (operator, 2 November 2026; R606, R607).
+    /// </summary>
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("true", true)]
+    [InlineData("false", false)]
+    public void TheCourtAndStatementSwitchesAreOnUntilRecordedOff(string? recorded, bool on)
+    {
+        var input = ReadyInput();
+        var fields = input.Assessment.Fields.ToList();
+        if (recorded is not null)
+        {
+            fields.Add(Field(AssessmentVocabulary.ReportFaoTheCourt, recorded));
+            fields.Add(Field(AssessmentVocabulary.ReportIncludeStatementOfTruth, recorded));
+        }
+
+        var snapshot = AssessmentReportProjection.Project(input with
+        {
+            Assessment = input.Assessment with { Fields = fields },
+        }).Snapshot!;
+
+        Assert.Equal(on, snapshot.Content.AddressToTheCourt);
+        Assert.Equal(on, snapshot.Content.IncludeStatementOfTruth);
+    }
+
+    /// <summary>
+    /// With the statement of truth off the two court declarations are left
+    /// out; the guide sentence (when it prints), the parts-price caveat and
+    /// the fee-note paragraph still follow in order (R605).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WithoutTheStatementTheCourtDeclarationsAreLeftOffTheSnapshot(bool discloseGuideSource)
+    {
+        var input = ReadyInput();
+        var snapshot = AssessmentReportProjection.Project(input with
+        {
+            Assessment = input.Assessment with
+            {
+                Fields =
+                [
+                    .. input.Assessment.Fields,
+                    Field(AssessmentVocabulary.ReportIncludeStatementOfTruth, "false"),
+                    Field(AssessmentVocabulary.ReportDiscloseGuideSource, discloseGuideSource ? "true" : "false"),
+                ]
+            },
+            Guides = new ReportGuideSources([ValuationSource.Glasses]),
+        }).Snapshot!;
+
+        var expected = new List<string>();
+        if (discloseGuideSource)
+        {
+            expected.Add(AssessmentReportContract.StatementOfTruthGuide);
+        }
+        expected.Add(AssessmentReportContract.StatementOfTruth3);
+        expected.Add(AssessmentReportContract.StatementOfTruth4);
+        Assert.Equal(expected, snapshot.StatementOfTruth);
     }
 
     [Fact]

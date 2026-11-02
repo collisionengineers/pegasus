@@ -351,6 +351,35 @@ public static class AssessmentReportWording
     public const string ImagePackTitle = "VEHICLE IMAGES";
 
     public const string StatementOfTruthHeading = "Statement of Truth";
+
+    /// <summary>
+    /// The last page's heading: the statement's while the Case includes the
+    /// statement of truth, none when it is off and only the parts-price
+    /// caveat and the fee-note paragraph print (operator, 2 November 2026;
+    /// R605).
+    /// </summary>
+    public static string? StatementOfTruthHeadingOf(AssessmentReportSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return snapshot.Content.IncludeStatementOfTruth ? StatementOfTruthHeading : null;
+    }
+
+    /// <summary>The line printed above the addressee when the report is for the court (operator, 2 November 2026; R606).</summary>
+    public const string FaoTheCourt = "FAO The Court";
+
+    /// <summary>
+    /// The assessment report's Report For block: the FAO line, then the
+    /// addressee, while FAO The Court is on. The image pack and the fee
+    /// note's Bill To print the addressee alone (R606).
+    /// </summary>
+    public static IReadOnlyList<string> ReportForBlock(AssessmentReportSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return snapshot.Content.AddressToTheCourt
+            ? [FaoTheCourt, .. snapshot.ReportFor]
+            : snapshot.ReportFor;
+    }
+
     public const string Valediction = "Yours faithfully,";
     public const string SignatoryRole = "Independent Automotive Engineer, " + CompanyName;
 

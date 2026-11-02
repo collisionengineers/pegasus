@@ -27,6 +27,7 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using System.Globalization
 @using Pegasus.Core.Assessment
+@using Pegasus.Core.Reports
 @using Pegasus.Web.Presentation
 @using ValuationLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Valuation
 @{
@@ -254,10 +255,11 @@
 
         <partial name="Cases/Shared/_CaseValuationCalculation" model="Model" />
 
-        @* On the report (v28 P38): the three content switches, decided beside
+        @* On the report (v28 P38): the five content switches, decided beside
            the valuation they describe, as one line. One cell, so editing shows
            the switches in place of the summary. A checkbox posts "true" ahead
-           of its hidden "false", so an unticked switch still records No. *@
+           of its hidden "false", so an unticked switch still records No. The
+           court line and the statement are ticked until recorded off (R607). *@
         <div class="valuation-report fc @(reportEditable ? null : "ro")" data-field="report-content">
             <span class="lbl">@CaseWorkspaceLabels.Frame.OnTheReport</span>
             <div class="fv" data-report-content>@Model.ReportContentSummary</div>
@@ -268,12 +270,14 @@
                     {
                         (AssessmentVocabulary.ReportDiscloseGuideSource, CaseWorkspaceLabels.Report.DiscloseGuideSource),
                         (AssessmentVocabulary.ReportValuationCommentary, CaseWorkspaceLabels.Report.ValuationCommentary),
-                        (AssessmentVocabulary.ReportIncludeUnrelatedDamage, CaseWorkspaceLabels.Report.UnrelatedDamage)
+                        (AssessmentVocabulary.ReportIncludeUnrelatedDamage, CaseWorkspaceLabels.Report.UnrelatedDamage),
+                        (AssessmentVocabulary.ReportFaoTheCourt, CaseWorkspaceLabels.Report.FaoTheCourt),
+                        (AssessmentVocabulary.ReportIncludeStatementOfTruth, CaseWorkspaceLabels.Report.IncludeStatementOfTruth)
                     })
                     {
                         var switchName = CaseWorkspaceLabels.Editors.FormName(path);
                         <label class="choice">
-                            <input type="checkbox" name="@switchName" value="true" form="case-edit-form" checked="@(string.Equals(Model.AssessmentEditorValue(path), "true", StringComparison.OrdinalIgnoreCase) ? "checked" : null)" data-report-switch="@path" />
+                            <input type="checkbox" name="@switchName" value="true" form="case-edit-form" checked="@(CaseReportContentSwitches.IsOn(path, Model.AssessmentEditorValue(path)) ? "checked" : null)" data-report-switch="@path" />
                             <input type="hidden" name="@switchName" value="false" form="case-edit-form" />
                             <span>@label</span>
                         </label>

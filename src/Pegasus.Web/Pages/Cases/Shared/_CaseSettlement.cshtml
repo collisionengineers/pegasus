@@ -68,9 +68,13 @@
                     share: true);
                 await DecisionRow(AssessmentVocabulary.LegalStatus, labels[AssessmentVocabulary.LegalStatus], false);
             }
+            @* The reason finishes the sentence the report prints, so the row
+               shows the sentence's opening before the box while editing and
+               the whole sentence while reading (operator, 2 November 2026;
+               R603, R608). *@
             <div class="dec" data-decision="@AssessmentVocabulary.UnroadworthyReason" data-shown-when="unroadworthy" hidden="@(isUnroadworthy ? null : "hidden")">
                 <span class="dl">@labels[AssessmentVocabulary.UnroadworthyReason]</span>
-                @{ await Field(AssessmentVocabulary.UnroadworthyReason, labels[AssessmentVocabulary.UnroadworthyReason], multi: true); }
+                @{ await Field(AssessmentVocabulary.UnroadworthyReason, labels[AssessmentVocabulary.UnroadworthyReason], multi: true, sentence: true); }
                 @if (editing && Model.CanEditAssessmentField(AssessmentVocabulary.UnroadworthyReason))
                 {
                     @* The firm's bank (P15): a wording is inserted into the reason,
@@ -195,8 +199,10 @@
 
     // One assessment cell on the vocabulary's own type: a Yes/No select for a
     // flag, the codes for an enumeration, a money/number/date input, a text
-    // input or textarea. The control renders only while the field edits.
-    private async Task Field(string path, string label, bool multi = false, string? extraClass = null)
+    // input or textarea. The control renders only while the field edits. A
+    // sentence field (the unroadworthy reason) reads as the sentence the
+    // report prints and edits behind the sentence's fixed opening (R608).
+    private async Task Field(string path, string label, bool multi = false, string? extraClass = null, bool sentence = false)
     {
         var definition = AssessmentVocabulary.Definitions[path];
         var editable = Model.SectionIsEditable("settlement") && Model.CanEditAssessmentField(path);
@@ -216,9 +222,13 @@
             {
                 <span class="lbl">@label@(tag?.Render())</span>
             }
-            <div class="fv @(mono ? "mono" : null) @(isMulti ? "multi" : null) @(absent ? "empty" : null)">@Model.AssessmentDisplay(path)</div>
+            <div class="fv @(mono ? "mono" : null) @(isMulti ? "multi" : null) @(absent ? "empty" : null)">@(sentence && !absent ? ReportWordingComposition.UnroadworthySentence(Model.AssessmentDisplay(path)) : Model.AssessmentDisplay(path))</div>
             @if (editable)
             {
+                if (sentence)
+                {
+                    <div class="fv derived lead" data-sentence-lead>@ReportWordingComposition.UnroadworthyOpening</div>
+                }
                 if (definition.Type == AssessmentFieldType.Flag)
                 {
                     <select id="@id" class="fi" name="@name" form="case-edit-form">

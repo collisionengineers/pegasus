@@ -73,6 +73,8 @@ public static class CaseReportFreshness
         AssessmentVocabulary.ReportDiscloseGuideSource,
         AssessmentVocabulary.ReportValuationCommentary,
         AssessmentVocabulary.ReportIncludeUnrelatedDamage,
+        AssessmentVocabulary.ReportFaoTheCourt,
+        AssessmentVocabulary.ReportIncludeStatementOfTruth,
     };
 
     // The assessment facts the report prints: the ones its snapshot carries
@@ -244,9 +246,8 @@ public static class CaseReportFreshness
         IEnumerable<string> paths,
         IReadOnlyDictionary<string, string?> before,
         IReadOnlyDictionary<string, string?> after) =>
-        paths.Any(path => IsOn(before.GetValueOrDefault(path)) != IsOn(after.GetValueOrDefault(path)));
-
-    private static bool IsOn(string? value) => string.Equals(value, "true", StringComparison.Ordinal);
+        paths.Any(path => CaseReportContentSwitches.IsOn(path, before.GetValueOrDefault(path))
+            != CaseReportContentSwitches.IsOn(path, after.GetValueOrDefault(path)));
 
     private static bool ImagesDiffer(
         IReadOnlyList<CaseAssetPreparation> before,

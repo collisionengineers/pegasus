@@ -368,7 +368,9 @@ only to completeness. Outcome meanings are owned by
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes).
 
 The report prints the outcome, the roadworthiness and the unroadworthy
-reason. On a total loss it prints the category and the salvage value. On a
+reason as one sentence, `Please note the vehicle is unroadworthy as
+{reason}.`, with one full stop whether or not the Engineer typed one
+(operator, 2 November 2026; R603). On a total loss it prints the category and the salvage value. On a
 contract repair it prints the agreed contract sum. The other settlement
 fields are recorded on the Case and not printed (operator, 27 September
 2026).
@@ -407,7 +409,11 @@ into the reason, joined to what is already there with "and", and may save
 the typed reason to the Principal's own bank. Seven standard wordings are
 offered to every firm; a firm's saved wordings follow them. The wordings
 print on the assessment report, so they are report wording. Nothing deletes
-a wording.
+a wording. The reason finishes the sentence the report prints: while editing,
+the reason row shows the sentence's fixed opening in the greyed value style
+before the box, and a wording inserted into an empty box keeps its small
+first letter; while reading, the row shows the whole sentence as printed
+(operator, 2 November 2026; R608).
 
 Settlement saves with the Case's single workspace Save. Storage per day and
 recovery use the existing typed Inspection members. The repair total is read from the Current repair

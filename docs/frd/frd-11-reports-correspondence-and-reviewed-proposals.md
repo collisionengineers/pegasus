@@ -69,10 +69,14 @@ with a placeholder or a guess.
 The statement of truth is the accepted wording `Pegasus.Core` owns, printed
 in its accepted order. Its Glass's guide sentence prints only when Disclose
 guide source is on and a Glass's valuation guide was used; no sentence stands
-in for another guide. No Case edits the statement: its only per-Case inputs
-are that switch and the Sign-off Engineer who signs below it, and the Case's
-Report section shows the same paragraphs read-only
-([FRD-16](frd-16-case-record-workspace.md#report)). The Vehicle Details table
+in for another guide. No Case edits the statement's words: its per-Case
+inputs are that switch, the **Include statement of truth** switch and the
+Sign-off Engineer who signs below it, and the Case's Report section shows the
+same paragraphs read-only ([FRD-16](frd-16-case-record-workspace.md#report)).
+Include statement of truth is on until turned off; off, the "Statement of
+Truth" heading and the two court declarations are left out, and the
+parts-price caveat, the fee-note paragraph and the sign-off still print at the
+top of the last page (operator, 2 November 2026; R605). The Vehicle Details table
 prints no VIN-checked or fault-code row (operator, 24 September 2026).
 
 The report prints only what the template prints (operator, 27 September
@@ -231,7 +235,11 @@ style.
 **Report For.** The report is addressed to the principal: its name, then its
 address line by line, then its postcode. A postcode the address already ends
 with is not printed twice. A principal with no address prints its name alone
-(operator, 27 September 2026). A one-off Case for a private customer
+(operator, 27 September 2026). While the Case's **FAO The Court** switch is
+on, as it is until turned off, the assessment report prints the line
+`FAO The Court` above the addressee's name; the image pack's Report For and
+the fee note's Bill To print the addressee alone (operator, 2 November 2026;
+R606, R607). A one-off Case for a private customer
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity))
 is addressed to the claimant instead: the Case's Claimant name, then its
 Claimant address line by line; a claimant with no address prints the name
@@ -584,8 +592,9 @@ version and edit lease
 reason. Report records Engineer comments, agreed fee, description lines, the
 report-date override and the **valuation commentary** text, up to 4,000
 characters; the Sign-off Engineer is chosen on the Case card in Case details,
-and the three content switches under **On the report** in Valuation (v28
-P38). With the valuation commentary switch on, the report prints that text if
+and the five content switches under **On the report** in Valuation (v28
+P38; FAO The Court and Include statement of truth, on until turned off,
+operator, 2 November 2026; R606, R607). With the valuation commentary switch on, the report prints that text if
 recorded, otherwise the applied valuation's reason, and readiness accepts
 either. The Case save's own message, "Engineer's Value applied.", never
 counts as commentary: it does not print and does not satisfy readiness

@@ -73,15 +73,36 @@ public enum CaseReportGenerationState
 }
 
 /// <summary>
-/// The three independent report output choices (v3 § Report). They select
-/// what the generated report says; none of them deletes evidence.
+/// The five independent report output choices (v3 § Report; operator,
+/// 2 November 2026; R606, R607). They select what the generated report says;
+/// none of them deletes evidence. The first three are off until recorded on;
+/// the court line and the statement of truth are on until recorded off.
 /// </summary>
 public sealed record CaseReportContentSwitches(
     bool DiscloseGuideSource,
     bool IncludeValuationCommentary,
-    bool IncludeUnrelatedDamage)
+    bool IncludeUnrelatedDamage,
+    bool AddressToTheCourt = true,
+    bool IncludeStatementOfTruth = true)
 {
     public static readonly CaseReportContentSwitches None = new(false, false, false);
+
+    /// <summary>The switches that are on until the Case records "false".</summary>
+    private static readonly IReadOnlySet<string> OnUntilRecordedOff = new HashSet<string>(StringComparer.Ordinal)
+    {
+        AssessmentVocabulary.ReportFaoTheCourt,
+        AssessmentVocabulary.ReportIncludeStatementOfTruth,
+    };
+
+    /// <summary>
+    /// Whether a switch is on, from the value the Case records for it: the
+    /// one reading of "absent" for every switch, so the page, the freshness
+    /// check and the generation agree.
+    /// </summary>
+    public static bool IsOn(string path, string? recorded) =>
+        OnUntilRecordedOff.Contains(path)
+            ? !string.Equals(recorded, "false", StringComparison.OrdinalIgnoreCase)
+            : string.Equals(recorded, "true", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -807,7 +828,9 @@ public static class CaseReportReadiness
         };
 
     /// <summary>
-    /// The report content switches as persisted. Absent means off.
+    /// The report content switches as persisted, read through
+    /// <see cref="CaseReportContentSwitches.IsOn"/>: absent means off for
+    /// the first three and on for the court line and the statement.
     /// </summary>
     public static CaseReportContentSwitches ContentOf(CaseAssessmentProjection assessment)
     {
@@ -815,7 +838,9 @@ public static class CaseReportReadiness
         return new(
             Flag(assessment, AssessmentVocabulary.ReportDiscloseGuideSource),
             Flag(assessment, AssessmentVocabulary.ReportValuationCommentary),
-            Flag(assessment, AssessmentVocabulary.ReportIncludeUnrelatedDamage));
+            Flag(assessment, AssessmentVocabulary.ReportIncludeUnrelatedDamage),
+            Flag(assessment, AssessmentVocabulary.ReportFaoTheCourt),
+            Flag(assessment, AssessmentVocabulary.ReportIncludeStatementOfTruth));
     }
 
     /// <summary>
@@ -843,7 +868,7 @@ public static class CaseReportReadiness
         assessment.Field(path)?.Value;
 
     private static bool Flag(CaseAssessmentProjection assessment, string path) =>
-        string.Equals(Value(assessment, path), "true", StringComparison.Ordinal);
+        CaseReportContentSwitches.IsOn(path, Value(assessment, path));
 
     private static DateOnly? Date(CaseAssessmentProjection assessment, string path) =>
         Value(assessment, path) is { } value

@@ -11,9 +11,11 @@ public static class AssessmentReportContract
     /// <summary>
     /// v6 (27 September 2026): the snapshot carries only what the template
     /// (<c>reference/rendererref1</c>) prints. v7 (28 September 2026): the
-    /// damage carries the vehicle drawing its bursts are printed on.
+    /// damage carries the vehicle drawing its bursts are printed on. v8
+    /// (2 November 2026): the content switches carry the court line and the
+    /// statement of truth, and R&amp;I lines leave the work lists (R604–R606).
     /// </summary>
-    public const string TemplateVersion = "rendererref1-v7";
+    public const string TemplateVersion = "rendererref1-v8";
     public const string VatNumber = "262 0937 10";
     public const decimal FeeVatRate = 0.20m;
     public const string AccountName = "Collision Engineers Ltd";
@@ -52,12 +54,28 @@ public static class AssessmentReportContract
     /// <summary>
     /// The accepted statement of truth in print order: the one owner. The PDF
     /// prints it and the Case's Report section shows it read-only; no Case
-    /// edits it.
+    /// edits its words. With Include statement of truth off, the two court
+    /// declarations and the heading are left out and the parts-price caveat
+    /// and the fee-note paragraph still print (operator, 2 November 2026;
+    /// R605).
     /// </summary>
-    public static IReadOnlyList<string> StatementOfTruth(CaseReportContentSwitches content, ReportGuideSources guides) =>
-        PrintsGuideDisclosure(content, guides)
-            ? [StatementOfTruth1, StatementOfTruth2, StatementOfTruthGuide, StatementOfTruth3, StatementOfTruth4]
-            : [StatementOfTruth1, StatementOfTruth2, StatementOfTruth3, StatementOfTruth4];
+    public static IReadOnlyList<string> StatementOfTruth(CaseReportContentSwitches content, ReportGuideSources guides)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        var sentences = new List<string>();
+        if (content.IncludeStatementOfTruth)
+        {
+            sentences.Add(StatementOfTruth1);
+            sentences.Add(StatementOfTruth2);
+        }
+        if (PrintsGuideDisclosure(content, guides))
+        {
+            sentences.Add(StatementOfTruthGuide);
+        }
+        sentences.Add(StatementOfTruth3);
+        sentences.Add(StatementOfTruth4);
+        return sentences;
+    }
 
     /// <summary>
     /// The statement this Case's report prints, from the content switches and

@@ -22,6 +22,16 @@ namespace Pegasus.Infrastructure.Assessment;
 /// import is rejected — no partial or silently dropped line can survive,
 /// because a dropped costed line breaks its section's sum.
 ///
+/// Under its "Sub Total" a current report prints the parts footer:
+/// "Deduction from RRP (N %)", "Sundry Parts" and "Total Parts" (R610).
+/// The Sub Total less the deduction, to the penny, plus the sundry amount
+/// must be the printed Total Parts; the sundry amount lands as one more
+/// parts line and the deduction as the estimate's parts discount (R611).
+/// An older report prints no footer and imports on its Sub Total alone.
+///
+/// A LABOUR line whose description starts "Specialist" is Specialist by
+/// hours (R604).
+///
 /// Each LABOUR and PAINT WORK heading prints its own time basis
 /// ("Time Basis 10 WU = 1 HR"; 12 for some makes' labour). Printed work
 /// units are checked against the section total as printed, then divided by
@@ -30,7 +40,8 @@ namespace Pegasus.Infrastructure.Assessment;
 /// "Total Paint And Material Cost" lands on the first paint line.
 ///
 /// Those same printed totals are returned as
-/// <see cref="ParsedEstimate.SourceTotals"/>. They are the document's own
+/// <see cref="ParsedEstimate.SourceTotals"/>, the parts total being Total
+/// Parts when the footer prints it. They are the document's own
 /// arithmetic and never overrule <see cref="EstimateTotals"/>, which costs
 /// the estimate from the rows at Pegasus's own rate, discounts and VAT
 /// categories; the import does not store them.
@@ -147,6 +158,9 @@ internal static class AudatexEstimatePdfParser
         private string? assessmentNumber;
         private string? documentVersion;
         private decimal? paintMaterials;
+        private decimal? partsDeductionPercent;
+        private decimal? partsSundry;
+        private decimal? partsTotal;
         private bool sawAudatexFooter;
 
         public void Read(VisualRow row)
@@ -173,6 +187,11 @@ internal static class AudatexEstimatePdfParser
             if (current == Section.Materials)
             {
                 CaptureMaterials(row);
+                return;
+            }
+            if (current == Section.Parts && sections[current].Closed)
+            {
+                CapturePartsFooter(row);
                 return;
             }
             if (current is Section.None or Section.Ignored || sections[current].Closed)
@@ -221,6 +240,7 @@ internal static class AudatexEstimatePdfParser
             VerifySection(Section.Labour, "labour");
             VerifySection(Section.Paint, "paint");
             VerifySection(Section.Parts, "parts");
+            var discounts = VerifyPartsFooter();
             VerifySection(Section.Extras, "specialist charges");
             PlaceMaterials();
 
@@ -241,11 +261,130 @@ internal static class AudatexEstimatePdfParser
                 ProviderName,
                 RepairSpecificationSourceRoute.AudatexPdf,
                 new EstimateSourceTotals(
-                    Parts: sections[Section.Parts].PrintedTotal,
+                    Parts: partsTotal ?? sections[Section.Parts].PrintedTotal,
                     PanelWorkUnits: InHours(Section.Labour, sections[Section.Labour].PrintedTotal),
                     PaintWorkUnits: InHours(Section.Paint, sections[Section.Paint].PrintedTotal),
                     Materials: paintMaterials,
-                    Specialist: sections[Section.Extras].PrintedTotal));
+                    Specialist: sections[Section.Extras].PrintedTotal),
+                Discounts: discounts);
+        }
+
+        /// <summary>
+        /// The rows the closed PARTS section prints under its "Sub Total"
+        /// (R610). On every corpus report each label shares its baseline with
+        /// its amount, so the amount is the row's last word, and the footer
+        /// may run onto the next page. Any other row there is not a line.
+        /// </summary>
+        private void CapturePartsFooter(VisualRow row)
+        {
+            var text = row.JoinedText;
+            if (text.StartsWith("Deduction from RRP", StringComparison.Ordinal))
+            {
+                const string label = "Deduction from RRP";
+                if (partsDeductionPercent is not null)
+                {
+                    throw MoreThanOneFooterRow(label);
+                }
+                // The deduction prints as a negative amount ("-£22.10").
+                var amount = row.Words[^1].Text;
+                _ = ParseAmount(amount.StartsWith('-') ? amount[1..] : amount) ?? throw UnreadableFooterRow(label);
+                partsDeductionPercent = ReadPercent(text) ?? throw UnreadableFooterRow(label);
+            }
+            else if (text.StartsWith("Sundry Parts", StringComparison.Ordinal))
+            {
+                const string label = "Sundry Parts";
+                if (partsSundry is not null)
+                {
+                    throw MoreThanOneFooterRow(label);
+                }
+                partsSundry = ParseAmount(row.Words[^1].Text) ?? throw UnreadableFooterRow(label);
+            }
+            else if (text.StartsWith("Total Parts", StringComparison.Ordinal))
+            {
+                const string label = "Total Parts";
+                if (partsTotal is not null)
+                {
+                    throw MoreThanOneFooterRow(label);
+                }
+                partsTotal = ParseAmount(row.Words[^1].Text) ?? throw UnreadableFooterRow(label);
+            }
+        }
+
+        private static EstimateParseRejectedException MoreThanOneFooterRow(string label) =>
+            new($"The estimate prints more than one {label} row, so nothing was imported.");
+
+        private static EstimateParseRejectedException UnreadableFooterRow(string label) =>
+            new($"The estimate's {label} row could not be read as an amount, so nothing was imported.");
+
+        /// <summary>
+        /// The percentage a "Deduction from RRP (5 %)" row prints in its
+        /// parentheses, to the two places a parts discount fraction keeps.
+        /// </summary>
+        private static decimal? ReadPercent(string text)
+        {
+            var open = text.IndexOf('(', StringComparison.Ordinal);
+            var close = text.IndexOf(')', StringComparison.Ordinal);
+            if (open < 0 || close < open)
+            {
+                return null;
+            }
+            var inner = text[(open + 1)..close].Trim();
+            return inner.EndsWith('%')
+                && decimal.TryParse(
+                    inner[..^1].Trim(), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var percent)
+                && percent <= 100m
+                && decimal.Round(percent, 2) == percent
+                ? percent
+                : null;
+        }
+
+        /// <summary>
+        /// A report that prints Total Parts must reconcile with it: the Sub
+        /// Total less its deduction from RRP, to the penny, plus the sundry
+        /// amount (R610). The sundry amount then lands as one more parts line,
+        /// after the Sub Total check over the printed lines, and the deduction
+        /// is returned as the estimate's parts discount (R611). A footer row
+        /// without Total Parts cannot be reconciled and rejects the import.
+        /// </summary>
+        private EstimateDiscounts? VerifyPartsFooter()
+        {
+            var parts = sections[Section.Parts];
+            if (parts.Lines.Count == 0)
+            {
+                return null;
+            }
+            if (partsTotal is not { } total)
+            {
+                if (partsDeductionPercent is not null || partsSundry is not null)
+                {
+                    throw new EstimateParseRejectedException(
+                        "The document's own total for its parts lines could not be found, so nothing was imported.");
+                }
+                return null;
+            }
+
+            var deduction = partsDeductionPercent ?? 0m;
+            var sundry = partsSundry ?? 0m;
+            var deducted = decimal.Round(
+                parts.PrintedTotal!.Value * (1m - (deduction / 100m)), 2, MidpointRounding.AwayFromZero);
+            if (deducted + sundry != total)
+            {
+                throw new EstimateParseRejectedException(
+                    "The parts lines do not add up to the document's own printed total, so nothing was imported.");
+            }
+            if (sundry > 0m)
+            {
+                parts.Lines.Add(new(
+                    "new_part", null, "Sundry Parts",
+                    WorkUnits: null, Price: sundry, Unpriced: false,
+                    PartNumber: null, Betterment: null,
+                    EvidenceLabel: "case", Justification: null,
+                    SourceRowIdentity: string.Create(
+                        CultureInfo.InvariantCulture, $"parts:{parts.Lines.Count + 1}")));
+            }
+            return deduction > 0m
+                ? new EstimateDiscounts(Parts: deduction / 100m, Materials: 0m, Specialist: 0m, Overall: 0m)
+                : null;
         }
 
         /// <summary>
@@ -692,6 +831,7 @@ internal static class AudatexEstimatePdfParser
 
         private static string LabourType(string description) => description switch
         {
+            _ when description.StartsWith("Specialist", StringComparison.OrdinalIgnoreCase) => "specialist_wu",
             _ when description.StartsWith("REPAIR", StringComparison.OrdinalIgnoreCase) => "repair",
             _ when description.StartsWith("CHECK", StringComparison.OrdinalIgnoreCase) => "check_labour",
             _ => "rnr",

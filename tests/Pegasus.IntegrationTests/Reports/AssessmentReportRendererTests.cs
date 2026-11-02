@@ -376,6 +376,77 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     /// <summary>
+    /// "FAO The Court" is the first line of the report's Report For band
+    /// while the switch is on; the image pack's addressee band and the fee
+    /// note's Bill To print the addressee alone (operator, 2 November 2026;
+    /// R606).
+    /// </summary>
+    [Fact]
+    public async Task FaoTheCourtPrintsOnTheReportOnly()
+    {
+        await using var provider = RendererProvider();
+        var draft = new GenerateAssessmentReportDraft(provider.GetRequiredService<IAssessmentReportRenderer>());
+        var snapshot = ReadySnapshot();
+        Assert.True(snapshot.Content.AddressToTheCourt);
+        var addressee = snapshot.ReportFor[0];
+
+        var report = PageTexts((await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport)).Pdf);
+        var imagePack = string.Join(" ", PageTexts((await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.ImagePack)).Pdf));
+        var feeNote = string.Join(" ", PageTexts((await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.FeeNote)).Pdf));
+
+        var court = report[0].IndexOf(AssessmentReportWording.FaoTheCourt, StringComparison.Ordinal);
+        Assert.True(court >= 0, "Page 1 does not print FAO The Court.");
+        Assert.True(
+            court < report[0].IndexOf(addressee, StringComparison.Ordinal),
+            "FAO The Court does not precede the addressee.");
+        Assert.Equal(1, Regex.Count(string.Join(" ", report[..^1]), AssessmentReportWording.FaoTheCourt));
+        // The fee note's pages at the end of the report's document carry no FAO line either.
+        Assert.DoesNotContain(AssessmentReportWording.FaoTheCourt, report[^1], StringComparison.Ordinal);
+        Assert.Contains(addressee, imagePack, StringComparison.Ordinal);
+        Assert.DoesNotContain(AssessmentReportWording.FaoTheCourt, imagePack, StringComparison.Ordinal);
+        Assert.Contains(addressee, feeNote, StringComparison.Ordinal);
+        Assert.DoesNotContain(AssessmentReportWording.FaoTheCourt, feeNote, StringComparison.Ordinal);
+
+        var off = PageTexts((await draft.ExecuteAsync(
+            snapshot with { Content = snapshot.Content with { AddressToTheCourt = false } },
+            CaseReportArtifactKind.AssessmentReport)).Pdf);
+        Assert.DoesNotContain(AssessmentReportWording.FaoTheCourt, string.Join(" ", off), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// With Include statement of truth off the last page prints no heading:
+    /// the parts-price caveat and the fee-note paragraph stand at its top,
+    /// then the sign-off (operator, 2 November 2026; R605).
+    /// </summary>
+    [Fact]
+    public async Task WithoutTheStatementTheLastPageHasNoHeadingAndKeepsTheSignOff()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var ready = ReadySnapshot();
+        var snapshot = ready with { Content = ready.Content with { IncludeStatementOfTruth = false } };
+
+        var report = await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
+
+        var pages = PageTexts(report.Pdf);
+        var reportPages = pages[..^1];
+        var text = string.Join(" ", reportPages);
+        var last = reportPages[^1];
+        Assert.DoesNotContain(AssessmentReportWording.StatementOfTruthHeading, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(AssessmentReportContract.StatementOfTruth1, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(AssessmentReportContract.StatementOfTruth2, text, StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportContract.StatementOfTruth3, last, StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportContract.StatementOfTruth4, last, StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportWording.Valediction, last, StringComparison.Ordinal);
+        Assert.Contains(snapshot.Signatory.PrintedName, last, StringComparison.Ordinal);
+        Assert.True(
+            last.IndexOf(AssessmentReportContract.StatementOfTruth3, StringComparison.Ordinal)
+                < last.IndexOf(AssessmentReportWording.Valediction, StringComparison.Ordinal),
+            "The sign-off does not follow the paragraphs.");
+    }
+
+    /// <summary>
     /// The report's own document always ends with the fee note's pages — one
     /// document, the fee note last, after a page break — and the separate
     /// fee-note document is exactly those pages.
