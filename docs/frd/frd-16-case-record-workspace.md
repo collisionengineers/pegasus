@@ -570,7 +570,7 @@ Valuation draws its sources as guide cards in a grid (operator, 8 October
 2026), then the value increases, the deductions, the **Engineer's Value** with
 the basis its calculation starts from. What the report includes is decided
 in the Report section's Report wording, not here (operator, 2 November 2026;
-R624). The Engineer's Value is the one box: a field of the Case form, greyed while
+R640). The Engineer's Value is the one box: a field of the Case form, greyed while
 reading, that each save records. The report's **Retail value** and **Trade
 value** are the chosen card's figures; nobody types them, and with no card
 chosen they are blank and stay report blockers. The section head reads the
@@ -716,7 +716,7 @@ the one availability label **Not ready** in both modes (operator, 26
 September 2026); the blocker list itself is the aside's Report not ready card
 (operator, 8 October 2026).
 The content switches are in Report wording's settings (operator, 2 November
-2026; R624, replacing R611's Valuation home and R616's read-mode line). The
+2026; R640, replacing R611's Valuation home and R616's read-mode line). The
 report renders the sign-off Engineer tuple and the marked damage diagram. The
 diagram is the Case page's own plan: the report and the Damage section draw
 the same vehicle and place each burst alike (operator, 27 September 2026).
@@ -1042,7 +1042,7 @@ change it
 Without script both panes stand.
 
 The Report tab carries **Report wording** (v28 P30; v45, operator, 2 November
-2026; R624, R625), every choice of what the report says in one panel:
+2026; R640, R641), every choice of what the report says in one panel:
 
 - **Settings** open the panel as one wrapping line of ticks: each offered
   block in print order under its heading, then **Disclose guide source**,
@@ -1050,13 +1050,13 @@ The Report tab carries **Report wording** (v28 P30; v45, operator, 2 November
   always has: a block is on, Disclose guide source, Valuation commentary and
   Unrelated damage are off until ticked, and FAO The Court and the statement
   are on until turned off (R611). The commentary block's tick reads
-  **Valuation commentary**; its printed heading stays PAV commentary (R625 H).
+  **Valuation commentary**; its printed heading stays PAV commentary (R641 H).
   While reading, the settings are static ticks.
 - **Blocks** follow, in print order. A block has no on/off of its own: it is
   drawn only while its tick is on, and ticking it draws it. A block tracks the
   Case's fields until the Engineer writes their own wording, and Recompose
   puts the composed sentence back. The commentary's text box is the Valuation
-  commentary field itself, so it has no Recompose (R625 E). The move controls,
+  commentary field itself, so it has no Recompose (R641 E). The move controls,
   the paragraph the Engineer adds (which gets its tick) and drawing a block as
   its tick changes are enhancements over controls the one Save form already
   carries; the ticks, headings and wording stand without script.
@@ -1065,12 +1065,12 @@ The Report tab carries **Report wording** (v28 P30; v45, operator, 2 November
   declarations shown while Include statement of truth is on, the Glass's
   guide sentence in its print place while Disclose guide source is on and a
   Glass's guide was used, and the two paragraphs every report prints
-  (R609, R625 D, I); no Case edits its words
+  (R609, R641 D, I); no Case edits its words
   ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
   FAO The Court is a tick with no block.
 
 While the Case cannot yet be projected into a report the settings hold the
-five report switches alone and no block is drawn (R625 B); the readiness rail
+five report switches alone and no block is drawn (R641 B); the readiness rail
 states what is outstanding. What the blocks are and what each composes from
 is owned by
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks).

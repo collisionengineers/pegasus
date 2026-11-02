@@ -125,7 +125,7 @@ damage are on the report exactly while their report switch is, which is
 their only on/off, and are offered whatever the switch says; PAV
 commentary's words are the recorded valuation commentary text (or the
 applied valuation's reason), never wording held against the block
-(operator, 2 November 2026; R625 A, E). Wording that reads the same as the
+(operator, 2 November 2026; R641 A, E). Wording that reads the same as the
 composed sentence is no change, so the block keeps tracking its fields. The
 Engineer's changes are held per Case, separately for the Inspection and the
 Audit once an Audit exists, and written by the one Case save. The save
@@ -600,7 +600,7 @@ characters; the Sign-off Engineer is chosen on the Case card in Case details,
 and the five content switches in Report wording's settings on the Report
 section (v28 P38; FAO The Court and Include statement of truth, on until
 turned off, operator, 2 November 2026; R610, R611; moved from Valuation,
-R624). With the valuation commentary switch on, the report prints that text if
+R640). With the valuation commentary switch on, the report prints that text if
 recorded, otherwise the applied valuation's reason, and readiness accepts
 either. The Case save's own message, "Engineer's Value applied.", never
 counts as commentary: it does not print and does not satisfy readiness

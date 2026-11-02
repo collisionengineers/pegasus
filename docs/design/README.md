@@ -865,7 +865,7 @@ shows beside its control, and the box's label carries a recorded
 calculation's source as one `src-tag` word. AI market research is a card of
 its own with its Valuation month and Get valuation. What the report includes
 is not here: it is Report wording's settings on the Report section (v45,
-operator, 2 November 2026; R624).
+operator, 2 November 2026; R640).
 There is no separate Add valuation
 dialog. This does not
 remove the Estimate section's selected configured-staff-account Glass's
