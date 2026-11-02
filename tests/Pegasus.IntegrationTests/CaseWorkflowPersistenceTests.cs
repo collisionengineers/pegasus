@@ -3494,13 +3494,18 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         Assert.Equal(
             allocated.Identity.Reference,
             await harness.ReadCaseReferenceAsync(allocated.Identity.CaseId));
-        // The replacement starts with its corrected Principal's default fee.
+        // The replacement starts with its corrected Principal's default fee
+        // and a Good pre-incident condition (R574).
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var fee = await context.CaseAssessmentFields.AsNoTracking().SingleAsync(item =>
                 item.WorkId == allocated.Identity.CaseId && item.FieldPath == AssessmentVocabulary.AgreedFee);
             Assert.Equal("195.00", fee.Value);
             Assert.Equal(PrincipalDefaultFeePolicy.RecorderId, fee.RecordedBy);
+            var condition = await context.CaseAssessmentFields.AsNoTracking().SingleAsync(item =>
+                item.WorkId == allocated.Identity.CaseId && item.FieldPath == AssessmentVocabulary.VehicleCondition);
+            Assert.Equal(VehicleConditionDefault.Code, condition.Value);
+            Assert.Equal(VehicleConditionDefault.RecorderId, condition.RecordedBy);
         }
         // A standalone Audit's a. prefix is on its own Case/PO; it never
         // carries an Audit report reference.

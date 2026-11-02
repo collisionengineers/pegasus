@@ -589,7 +589,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
                 automationLease.Token,
                 new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
-                    ["vehicle.condition"] = "good",
+                    // Not Good, which the Case already starts with (R574).
+                    ["vehicle.condition"] = "excellent",
                     ["damage.unrelated"] = "Kerbed nearside wheel",
                     // The findings and the valuation values are deliberately
                     // absent: a finding is recorded only by staff, and the
@@ -696,12 +697,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             });
 
         var first = await harness.SaveAssessment.ExecuteAsync(
-            Request("good"),
+            Request("excellent"),
             CancellationToken.None);
         Assert.Equal(1, first.CaseVersion);
 
         var replay = await harness.SaveAssessment.ExecuteAsync(
-            Request("good"),
+            Request("excellent"),
             CancellationToken.None);
         Assert.Equal(1, replay.CaseVersion);
         await using (var context = await harness.Factory.CreateDbContextAsync())

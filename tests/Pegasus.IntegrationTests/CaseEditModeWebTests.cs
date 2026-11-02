@@ -386,6 +386,10 @@ public sealed class CaseEditModeWebTests
         // than a row among the vehicle's facts, in edit mode as in read mode.
         Assert.Contains("data-vehicle-history", html, StringComparison.Ordinal);
         Assert.Matches("<textarea[^>]*id=\"edit-vehicle-history\"[^>]*form=\"case-edit-form\"", html);
+        // No Not recorded choice: a Case that records no condition picks Good (R574).
+        var condition = Regex.Match(html, "<select id=\"edit-vehicle-condition\".*?</select>", RegexOptions.Singleline).Value;
+        Assert.DoesNotContain("value=\"\"", condition, StringComparison.Ordinal);
+        Assert.Matches("<option value=\"good\" selected=\"selected\">", condition);
         Assert.True(store.MetadataReads > 0);
 
         var fields = new (string Name, string Value)[]

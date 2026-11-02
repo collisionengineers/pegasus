@@ -1311,10 +1311,12 @@ public static partial class OperatorLabels
     /// and a VIN filled from a capture document Extracted, the agreed fee a new Case took from its Principal Principal,
     /// the findings a linked Triage filled Triage, any other Automation
     /// actor's AI, a Pegasus worker's Automatic; a staff
-    /// value carries none.
+    /// value and the Good pre-incident condition every Case starts with
+    /// (R574) carry none.
     /// </summary>
     public static SourceTagWord? SourceTag(AssessmentFieldValue? field) => field is null ? null : field.RecordedByKind switch
     {
+        ActorKind.Automation when field.RecordedBy == VehicleConditionDefault.RecorderId => null,
         ActorKind.Automation when field.RecordedBy == VehicleLookupFillPolicy.RecorderId => SourceTagWord.Lookup,
         ActorKind.Automation when field.RecordedBy == OriginalReportPrefillPolicy.RecorderId => SourceTagWord.Extracted,
         ActorKind.Automation when field.RecordedBy == Pegasus.Core.Intake.ThirdPartyReports.VehicleCaptureFill.RecorderId => SourceTagWord.Extracted,
