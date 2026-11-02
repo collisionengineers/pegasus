@@ -291,18 +291,28 @@ public sealed class AssessmentReportProjectionTests
             Guides = new ReportGuideSources([guide]),
         };
 
-        var statement = AssessmentReportContract.StatementOfTruthOf(input);
+        var parts = AssessmentReportContract.StatementPartsOf(input);
+        var printed = AssessmentReportProjection.Project(input).Snapshot!.StatementOfTruth;
 
-        Assert.Equal(AssessmentReportProjection.Project(input).Snapshot!.StatementOfTruth, statement);
-        Assert.Equal(namesGlasses, statement.Contains(AssessmentReportContract.StatementOfTruthGuide));
-        Assert.Equal(
-            [AssessmentReportContract.StatementOfTruth1, AssessmentReportContract.StatementOfTruth2],
-            statement.Take(2));
-        Assert.Equal(
-            [AssessmentReportContract.StatementOfTruth3, AssessmentReportContract.StatementOfTruth4],
-            statement.TakeLast(2));
+        // The Case's read-only block (v45 D, I) shows the parts the report prints:
+        // the court declarations, the guide sentence where a Glass's guide was
+        // used, and the two closing paragraphs.
+        Assert.Equal([AssessmentReportContract.StatementOfTruth1, AssessmentReportContract.StatementOfTruth2], parts.Court);
+        Assert.Equal([AssessmentReportContract.StatementOfTruth3, AssessmentReportContract.StatementOfTruth4], parts.Closing);
+        Assert.Equal(guide == ValuationSource.Glasses, parts.Guide == AssessmentReportContract.StatementOfTruthGuide);
+        Assert.Equal(namesGlasses, printed.Contains(AssessmentReportContract.StatementOfTruthGuide));
+        var expected = new List<string>(parts.Court);
+        if (namesGlasses)
+        {
+            expected.Add(parts.Guide!);
+        }
+        expected.AddRange(parts.Closing);
+        Assert.Equal(expected, printed);
         // The Case shows it before a report can be projected.
-        Assert.Equal(statement, AssessmentReportContract.StatementOfTruthOf(input with { Signatory = null }));
+        var unprojected = AssessmentReportContract.StatementPartsOf(input with { Signatory = null });
+        Assert.Equal(parts.Court, unprojected.Court);
+        Assert.Equal(parts.Guide, unprojected.Guide);
+        Assert.Equal(parts.Closing, unprojected.Closing);
     }
 
     [Theory]
