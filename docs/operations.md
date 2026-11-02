@@ -172,15 +172,7 @@ named below, and one read-only count of 22 October 2026 posted on
 
 ## Release 133 - 2 November 2026 (deployment live, additive migration)
 
-Release 133 deployed combine PR 1841 (PRs 1815, 1817, 1818, 1823, 1824, 1825, 1832, 1838 and 1839). The changes:
-- One-off Cases for private customers under the standing PRIVATE record (R574–R581). A one-off may also be an Audit, `a.REG` on a shared repeat (R600, R601).
-- Create case takes files, offers Audit and suggests Principal codes without PRIVATE (R594–R597, R602).
-- Every Case starts at a Good pre-incident condition (R598).
-- The Unidentified record is tidied (R599).
-- Message bodies no longer show sender CSS or signature placeholders.
-- The MCP vocabulary lists staff (R593), and the combine-prs renumber script and rulings R582–R592 were added.
-
-Normal route after two additive migrations, no provision; no outage. The ordinary intake wipe followed.
+Release 133 deployed combine PR 1841 (PRs 1815, 1817, 1818, 1823, 1824, 1825, 1832, 1838, 1839): one-off Cases for private customers under the PRIVATE record, which may also be an Audit `a.REG` on a shared repeat (R574–R581, R600, R601); Create case takes files, offers Audit and suggests Principal codes without PRIVATE (R594–R597, R602); every Case starts at a Good pre-incident condition (R598); the Unidentified record tidy (R599); no sender CSS or signature placeholders in message bodies; the MCP staff roster (R593); the combine-prs renumber script; and rulings R582–R592. Normal route after two additive migrations, no provision; no outage; the ordinary intake wipe followed.
 
 | Observation | Value |
 | --- | --- |
