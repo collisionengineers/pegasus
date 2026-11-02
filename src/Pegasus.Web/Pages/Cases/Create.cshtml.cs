@@ -45,7 +45,7 @@ namespace Pegasus.Web.Pages.Cases;
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 // The direct form's Files panel posts the same batch the Upload sheet does
-// (R576), so it takes the same request limits.
+// (R596), so it takes the same request limits.
 [RequestSizeLimit(IntakeEnvelopeLimits.MaximumBatchContentLength)]
 [RequestFormLimits(
     BufferBody = true,
@@ -105,7 +105,7 @@ public sealed partial class CreateModel(
     [BindProperty]
     public bool IsManual { get; set; }
 
-    /// <summary>The files chosen in the direct form's Files panel (R576).</summary>
+    /// <summary>The files chosen in the direct form's Files panel (R596).</summary>
     [BindProperty]
     public IFormFile[] Upload { get; set; } = [];
 
@@ -625,7 +625,7 @@ public sealed partial class CreateModel(
         }
 
         // The chosen files pass the Upload sheet's own checks before the Case
-        // exists, so a refused file never leaves a Case behind it (R576).
+        // exists, so a refused file never leaves a Case behind it (R596).
         var uploader = IntakeActorIdentity.Staff(actor.SubjectId);
         IReadOnlyList<StreamedGroupedIntakeFile> files = [];
         if (Upload.Length > 0)

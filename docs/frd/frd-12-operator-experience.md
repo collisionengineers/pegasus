@@ -120,7 +120,7 @@ intake allocation path, not a second allocation route
 ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)). A file
 that cannot become a Case is refused with the reason and Open message / Open
 file. The direct form's Case type offers **Inspection**, **Audit**
-(operator, 30 October 2026, [R575](../rulings.md)), **Inspection and
+(operator, 30 October 2026, [R595](../rulings.md)), **Inspection and
 Audit** and **Triage**, which asks only for the Principal and the
 registration
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)); the
@@ -134,7 +134,7 @@ number optional and withdraws Triage
 file; the one **Create case** press creates the Case and then files the
 chosen files through the declared-Case upload
 ([FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case); operator,
-30 October 2026, [R576](../rulings.md)).
+30 October 2026, [R596](../rulings.md)).
 
 A skip link precedes the rail. Toasts announce in a live region. Every
 dialog traps focus and inerts the page behind it. The navless frame is two

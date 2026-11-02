@@ -445,7 +445,7 @@ replays by its operation key.
   operator, 31 October 2026, R577). An Audit
   created this way starts with **Original report missing** until a filed
   document is recorded as the original report (operator, 30 October 2026,
-  [R575](../rulings.md)).
+  [R595](../rulings.md)).
 - `pegasus_unidentified_resolve` with `targetKind` Closed is **Close with
   reason**: it names no destination. `pegasus_unidentified_reopen` withdraws
   a resolution or closure with a reason.
