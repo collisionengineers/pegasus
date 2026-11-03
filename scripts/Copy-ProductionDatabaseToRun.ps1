@@ -88,11 +88,23 @@ $stamp = [DateTimeOffset]::UtcNow.ToString('yyyyMMddTHHmmssZ')
 $dacpacPath = Join-Path $runRoot "state/pegasus-production-$stamp.dacpac"
 $recordPath = Join-Path $runRoot "state/production-copy-$stamp.json"
 $deactivateStatement = 'UPDATE dbo.ApprovedMailboxes SET ActivatedAtUtc = NULL WHERE ActivatedAtUtc IS NOT NULL;'
+# R633: a copied subscription row would make the instance renew production's
+# subscription instead of creating its own under its own webhook.
+$clearSubscriptionsStatement = 'DELETE FROM dbo.ApprovedMailboxSubscriptions;'
+# R634: production's Principal API keys must not authenticate against the instance.
+$pauseCredentialsStatement = "UPDATE dbo.PrincipalApiCredentials SET State = 'Paused', PausedAtUtc = SYSUTCDATETIME(), Version = Version + 1 WHERE State = 'Active';"
+# R635: the answered-instruction tidy does not check activation, so the copied
+# pending tidies are closed here; the instance then moves only the instructions
+# its own sends answered.
+$closeTidiesStatement = "UPDATE dbo.StaffMailSendOperations SET InstructionMoveState = 'Failed', InstructionMoveFailureCode = 'production_copy' WHERE InstructionMoveState IS NULL AND Purpose = 'CaseReport' AND State = 'Sent';"
 
 Write-Host "Source:   $sqlServer / $sqlDatabase (read-only extract under your az sign-in)"
 Write-Host "Dacpac:   $dacpacPath"
 Write-Host "Target:   container $containerName, database $databaseName (replaced)"
 Write-Host "Then:     $deactivateStatement"
+Write-Host "          $clearSubscriptionsStatement"
+Write-Host "          $pauseCredentialsStatement"
+Write-Host "          $closeTidiesStatement"
 Write-Host "Skipped:  $excludedObjectTypes; database options"
 if (-not $Approve) {
     Write-Host 'Nothing was read or written. Re-run with -Approve to copy.'
@@ -203,8 +215,13 @@ try {
 
     # 3. Deactivate every approved mailbox (R627): the copy carries production's
     #    activated rows, and the test Worker must poll nothing until an
-    #    Administrator enables a mailbox on the instance.
+    #    Administrator enables a mailbox on the instance. Then clear the copied
+    #    subscriptions (R633), pause the copied Principal API keys (R634) and
+    #    close the copied pending instruction tidies (R635).
     $deactivated = Invoke-RunSql -Query ($deactivateStatement + ' SELECT @@ROWCOUNT;')
+    $subscriptionsCleared = Invoke-RunSql -Query ($clearSubscriptionsStatement + ' SELECT @@ROWCOUNT;')
+    $credentialsPaused = Invoke-RunSql -Query ($pauseCredentialsStatement + ' SELECT @@ROWCOUNT;')
+    $tidiesClosed = Invoke-RunSql -Query ($closeTidiesStatement + ' SELECT @@ROWCOUNT;')
     $migrationHead = Invoke-RunSql -Query 'SELECT TOP 1 MigrationId FROM dbo.__EFMigrationsHistory ORDER BY MigrationId DESC;'
     $caseCount = Invoke-RunSql -Query 'SELECT COUNT(*) FROM dbo.Cases;'
 }
@@ -222,9 +239,12 @@ $record = [ordered]@{
     migrationHead = $migrationHead
     caseCount = [int]$caseCount
     mailboxesDeactivated = [int]$deactivated
+    subscriptionsCleared = [int]$subscriptionsCleared
+    principalCredentialsPaused = [int]$credentialsPaused
+    instructionTidiesClosed = [int]$tidiesClosed
 }
 [System.IO.File]::WriteAllText($recordPath, (($record | ConvertTo-Json -Depth 5) + "`n"), [System.Text.UTF8Encoding]::new($false))
 
-Write-Host "Copied. Migration head $migrationHead; $caseCount Cases; $deactivated mailbox row(s) deactivated."
+Write-Host "Copied. Migration head $migrationHead; $caseCount Cases; $deactivated mailbox row(s) deactivated; $subscriptionsCleared subscription row(s) cleared; $credentialsPaused Principal API key(s) paused; $tidiesClosed pending instruction tidy(ies) closed."
 Write-Host "Record: $recordPath"
-Write-Host "Next: pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -RunId $RunId  (migrates the copy forward), then enable a mailbox in Administration > Mailboxes for read-only intake."
+Write-Host "Next: pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -RunId $RunId  (migrates the copy forward), then enable a mailbox in Administration > Mailboxes for intake and send."

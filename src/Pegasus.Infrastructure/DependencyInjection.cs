@@ -1088,24 +1088,40 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(graphOptions);
         ArgumentNullException.ThrowIfNull(vehicleOptions);
 
-        services.AddGraphApprovedMailReads(graphOptions);
-        // The Worker alone may move a retained message: it tidies the instruction a
-        // confirmed report send answered (ADR-0071). Web composes no mover.
-        services.Replace(ServiceDescriptor.Singleton<ISentReportInstructionMover, GraphSentReportInstructionMover>());
-        AddStaffMailSending(services);
+        services.AddGraphApprovedMail(graphOptions);
         services.AddSingleton<GraphMailboxChangeSubscriptions>();
         return services.AddLiveVehicleLookup(vehicleOptions);
     }
 
     /// <summary>
+    /// The Worker's Graph mail side: the reads, the answered-instruction move and
+    /// staff send. Production reaches it through
+    /// <see cref="AddProductionExternalAdapters"/>, which adds change
+    /// subscriptions; a DevelopmentOffline Worker that opts into
+    /// <c>Features:LiveGraphMail</c> composes exactly this and adds the
+    /// subscriptions only when its webhook is configured, so the hosted test
+    /// instance has Graph parity with production on the mailboxes the operator
+    /// enables on it (ADR-0088 as amended, R630, R632).
+    /// </summary>
+    public static IServiceCollection AddGraphApprovedMail(
+        this IServiceCollection services,
+        GraphApprovedMailboxOptions graphOptions)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(graphOptions);
+
+        services.AddGraphApprovedMailReads(graphOptions);
+        // The Worker alone may move a retained message: it tidies the instruction a
+        // confirmed report send answered (ADR-0071). Web composes no mover.
+        services.Replace(ServiceDescriptor.Singleton<ISentReportInstructionMover, GraphSentReportInstructionMover>());
+        AddStaffMailSending(services);
+        return services;
+    }
+
+    /// <summary>
     /// The Graph read side alone: the mail client, the approved Inbox and Sent
-    /// sources and their pollers. Production reaches it through
-    /// <see cref="AddProductionExternalAdapters"/>, which adds the writes (staff
-    /// send, the answered-instruction move, change subscriptions). A
-    /// DevelopmentOffline Worker that opts into <c>Features:LiveGraphMail</c>
-    /// composes exactly this: the hosted test instance reads the production
-    /// mailboxes and writes nothing to them (ADR-0088); its Exchange grant is
-    /// read-only as the second fence.
+    /// sources and their pollers. Only <see cref="AddGraphApprovedMail"/> calls
+    /// it; the writes come with it.
     /// </summary>
     public static IServiceCollection AddGraphApprovedMailReads(
         this IServiceCollection services,
@@ -1157,8 +1173,9 @@ public static class DependencyInjection
 
     /// <summary>
     /// The Worker's tidy of a sent report's answered instruction (ADR-0071). It runs
-    /// in both Worker profiles; the offline profile has the unavailable mover, so
-    /// the use case does nothing there.
+    /// in both Worker profiles; the offline profile without
+    /// <c>Features:LiveGraphMail</c> has the unavailable mover, so the use case
+    /// does nothing there.
     /// </summary>
     public static IServiceCollection AddSentReportInstructionTidy(this IServiceCollection services)
     {
@@ -1170,10 +1187,11 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// The mailbox-administration "add an address" resolve port alone — independent of
-    /// <see cref="AddProductionExternalAdapters"/>, which composes Worker-only pollers
-    /// over database-backed approved mailbox leases. Web composes only this:
-    /// it never polls, it only resolves an address the operator just typed.
+    /// The Web's Graph mail side: the reads (<see cref="AddGraphApprovedMailboxReads"/>)
+    /// and staff send, independent of <see cref="AddProductionExternalAdapters"/>,
+    /// which composes the Worker-only pollers over database-backed approved mailbox
+    /// leases. The Production Web and a DevelopmentOffline Web that opts into
+    /// <c>Features:LiveGraphMail</c> both compose this (ADR-0088 as amended, R630).
     /// </summary>
     public static IServiceCollection AddProductionApprovedMailboxResolver(
         this IServiceCollection services,
@@ -1190,10 +1208,9 @@ public static class DependencyInjection
     /// <summary>
     /// The Web's Graph reads alone: resolving and access-checking an address the
     /// operator typed, and the approved-mailbox search behind
-    /// <c>pegasus_mail_mailbox_search</c> (R561). Production adds staff send in
-    /// <see cref="AddProductionApprovedMailboxResolver"/>; a DevelopmentOffline Web
-    /// that opts into <c>Features:LiveGraphMail</c> composes exactly this and keeps
-    /// its unavailable senders, so the hosted test instance writes no mail (ADR-0088).
+    /// <c>pegasus_mail_mailbox_search</c> (R561). Only
+    /// <see cref="AddProductionApprovedMailboxResolver"/> calls it; staff send
+    /// comes with it.
     /// </summary>
     public static IServiceCollection AddGraphApprovedMailboxReads(
         this IServiceCollection services,

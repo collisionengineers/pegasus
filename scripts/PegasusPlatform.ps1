@@ -1071,7 +1071,7 @@ function Get-PegasusDatabaseConnectionString {
 #
 # An operator-supplied, ignored KEY=VALUE file that opts a DevelopmentOffline
 # run into real vendor integrations (live DVLA/DVSA, Box custody, Glass's,
-# read-only Graph mail) and password sign-in. Its values reach only the Web and
+# Graph mail with parity) and password sign-in. Its values reach only the Web and
 # Worker process environments; the run manifest records the derived boolean
 # flags and never a value. The lifecycle owns the keys named in
 # Get-PegasusReservedLocalSettingKeys.

@@ -120,15 +120,19 @@ public static class WorkerDependencyInjection
         {
             if (liveGraphMail)
             {
-                // The hosted test instance (ADR-0088) polls the production mailboxes
-                // exactly as Production does, over an app registration whose Exchange
-                // grant is read-only, and composes none of Production's mail writes:
-                // the mover stays unavailable, nothing sends, and no change
-                // subscription is registered, so the five-minute recovery poll
-                // alone carries mail and no webhook is needed.
+                // The hosted test instance (ADR-0088 as amended, R630) composes
+                // Production's Graph mail side over an app registration: the
+                // pollers, the answered-instruction move and staff send. Change
+                // subscriptions are added only when the settings file names the
+                // Funnelled webhook and its client state (R631); without them the
+                // five-minute recovery poll alone carries mail.
                 services.AddSingleton(LocalGraphCredential.Create(key => configuration[key]));
-                services.AddGraphApprovedMailReads(
+                services.AddGraphApprovedMail(
                     GraphApprovedMailboxOptions.Create(configuration["Graph:BaseUri"]));
+                if (LocalGraphCredential.HasChangeNotifications(key => configuration[key]))
+                {
+                    services.AddSingleton<GraphMailboxChangeSubscriptions>();
+                }
             }
             else
             {

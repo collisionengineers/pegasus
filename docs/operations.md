@@ -5,6 +5,38 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Test instance Graph identity admitted - 3 November 2026
+
+- The hosted test instance's Graph identity is the tenant's existing
+  `CollisionSpike Graph Intake` app registration, client id
+  `5d37a155-2af8-4878-b96a-6faad5207137` (ADR-0088 as amended, R630, R632).
+  Its Exchange RBAC grant on 3 November 2026 was `Application Mail.Read` and
+  `Application Mail.ReadWrite` on scope `CollisionSpike-Intake-Prod`; the
+  operator, as Microsoft 365 administrator, added `Application Mail.Send` on
+  the same scope at about 10:55 UTC. No new registration or scope.
+- `Test-ServicePrincipalAuthorization` afterwards lists all three roles
+  `InScope True` on `CollisionSpike-Intake-Prod` for both
+  `instructions@collisionengineers.co.uk` and `desk@collisionengineers.co.uk`,
+  so the scope already covers desk@; its filter is still to be read. The
+  registration's other scope, `CS-Intake-EngDigital`, covers neither.
+- Not yet done: Funnel of the webhook path, the Graph settings lines, the
+  restart and enabling a mailbox on the instance.
+
+## Hosted test instance first run - 2 November 2026
+
+- The one hosted test instance (ADR-0088) first ran on the operator's WSL
+  machine `cemattypc-1` from PR #1865's head `bdd2f4770`, run id
+  `83ec377dd6f249d59c2e8ae8e96459c3`, Web on port 7139. Public origin
+  `https://cemattypc-1.tail432b53.ts.net` through `tailscale serve` inside
+  WSL (tailnet only; the operator's user set as the Tailscale operator); the
+  `/Cases` redirect lands on the `ts.net` host. Smoke passed.
+- Opt-ins on: vehicleLookup, boxCustody (local-test root `425169015650`),
+  glass, passwordSignIn. Off: graphMail, automationMcp, principalApi. No
+  read-only Graph identity exists yet, so the run uses the folder mailbox
+  adapters and reads no production mailbox.
+- The October run `9d112a34...` was Reset first: its database held the
+  pre-Baseline migration chain and could not migrate forward (R484).
+
 ## Cutover - 2 November 2026
 
 - The operator ruled 2 November 2026 the cutover date (R603): production

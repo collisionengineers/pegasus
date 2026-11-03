@@ -136,7 +136,7 @@ exclusion.
 | OPS-08 | Alerts for ingestion, processing, Box, export, security and cost | [ADR-0002 monitoring and recovery](adr/0002-dotnet-modular-monolith-on-azure.md#monitoring-and-recovery) |
 | OPS-09 | Database backup, restore proof, 15-minute RPO, and four-hour RTO (deferred) | [Quality and recovery objectives](prd/pegasus-product.md#quality-capacity-security-and-evidence) |
 | OPS-11 | Production isolated from local-development resources | [ADR-0014](adr/0014-local-to-production-deployment.md) |
-| OPS-28 | One hosted test instance: the DevelopmentOffline lifecycle on an operator-owned Linux/WSL machine over Tailscale, reading the production mailboxes and writing nothing to them | [ADR-0088](adr/0088-one-hosted-test-instance.md) |
+| OPS-28 | One hosted test instance: the DevelopmentOffline lifecycle on an operator-owned Linux/WSL machine over Tailscale, with Graph parity on the production mailboxes the operator enables on it | [ADR-0088](adr/0088-one-hosted-test-instance.md) |
 | OPS-13 | Deployment preview, policy/quota checks, health probes, and smoke tests | [ADR-0007 decision](adr/0007-direct-terminal-azure-deployment.md#decision) |
 | OPS-14 | Previous-artifact rollback procedure | [Runbook rollback](runbook.md#previous-artifact-rollback-web-and-worker) |
 | OPS-20 | Capacity for about eight concurrent staff and 2,000 new cases per month | [ADR-0002 context](adr/0002-dotnet-modular-monolith-on-azure.md#context) |

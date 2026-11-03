@@ -422,19 +422,20 @@ public sealed class WorkerCompositionTests
     }
 
     /// <summary>
-    /// Features:LiveGraphMail composes Production's Graph read side over an app
-    /// registration credential and none of its writes: the hosted test instance
-    /// polls the production mailboxes and never sends, moves or subscribes
-    /// (ADR-0088), so the five-minute recovery poll carries mail with no webhook.
+    /// Features:LiveGraphMail composes Production's Graph mail side over an app
+    /// registration credential: the pollers, the answered-instruction move, staff
+    /// send and, with the webhook keys, change subscriptions (ADR-0088 as
+    /// amended, R630, R631).
     /// </summary>
     [Fact]
-    public void DevelopmentOfflineWithLiveGraphMailReadsTheMailboxesAndWritesNothing()
+    public void DevelopmentOfflineWithLiveGraphMailComposesProductionsGraphMailSide()
     {
         var root = CreateTemporaryRoot();
         try
         {
             var values = CreateDevelopmentOfflineValues(root);
             AddLiveGraphValues(values);
+            AddLiveGraphWebhookValues(values);
             var services = CreateWorkerServices(Build(values), new TestHostEnvironment(root));
 
             using var provider = services.BuildServiceProvider(validateScopes: true);
@@ -450,14 +451,72 @@ public sealed class WorkerCompositionTests
             Assert.Equal(
                 "Azure.Identity.ClientSecretCredential",
                 provider.GetRequiredService<Azure.Core.TokenCredential>().GetType().FullName);
-            // No write path: no subscription maintenance, no answered-instruction
-            // move, no staff send.
-            Assert.Null(provider.GetService<GraphMailboxChangeSubscriptions>());
-            Assert.IsType<UnavailableSentReportInstructionMover>(
-                provider.GetRequiredService<ISentReportInstructionMover>());
-            Assert.Null(scope.ServiceProvider.GetService<Pegasus.Core.Operations.IStaffMailSend>());
+            // The writes Production has: the move, staff send, and the subscriptions.
+            var mover = provider.GetRequiredService<ISentReportInstructionMover>();
+            Assert.Equal("Pegasus.Infrastructure.Email.GraphSentReportInstructionMover", mover.GetType().FullName);
+            Assert.True(mover.IsAvailable);
+            Assert.Contains(services, descriptor =>
+                descriptor.ServiceType == typeof(Pegasus.Core.Operations.IStaffMailSend));
+            Assert.NotNull(provider.GetService<GraphMailboxChangeSubscriptions>());
             Assert.NotNull(scope.ServiceProvider.GetRequiredService<PollSentEvidence>());
             WorkerFunctionSet.AssertEveryFunctionActivates(scope.ServiceProvider);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Without the two webhook keys the instance is poll-only: the move and staff
+    /// send are composed, no subscription provider is, and the maintenance pass
+    /// has nothing to call (R631).
+    /// </summary>
+    [Fact]
+    public void DevelopmentOfflineWithLiveGraphMailWithoutWebhookKeysComposesNoSubscriptions()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = CreateDevelopmentOfflineValues(root);
+            AddLiveGraphValues(values);
+            var services = CreateWorkerServices(Build(values), new TestHostEnvironment(root));
+
+            using var provider = services.BuildServiceProvider(validateScopes: true);
+            using var scope = provider.CreateScope();
+
+            Assert.Null(provider.GetService<GraphMailboxChangeSubscriptions>());
+            Assert.Equal(
+                "Pegasus.Infrastructure.Email.GraphSentReportInstructionMover",
+                provider.GetRequiredService<ISentReportInstructionMover>().GetType().FullName);
+            Assert.Contains(services, descriptor =>
+                descriptor.ServiceType == typeof(Pegasus.Core.Operations.IStaffMailSend));
+            WorkerFunctionSet.AssertEveryFunctionActivates(scope.ServiceProvider);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>One webhook key without the other fails at build naming the missing one.</summary>
+    [Fact]
+    public void DevelopmentOfflineWithLiveGraphMailFailsAtBuildWhenOnlyOneWebhookKeyIsSet()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = CreateDevelopmentOfflineValues(root);
+            AddLiveGraphValues(values);
+            AddLiveGraphWebhookValues(values);
+            values["Graph:ChangeNotificationClientState"] = null;
+
+            var error = Assert.Throws<InvalidOperationException>(() =>
+                CreateWorkerServices(Build(values), new TestHostEnvironment(root)));
+
+            Assert.Equal(
+                "Graph:ChangeNotificationClientState is required with Graph:ChangeNotificationUrl for Features:LiveGraphMail.",
+                error.Message);
         }
         finally
         {
@@ -735,6 +794,12 @@ public sealed class WorkerCompositionTests
         values["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94";
         values["Graph:ClientId"] = "4f0d4c7e-1b2a-4c3d-9e8f-0a1b2c3d4e5f";
         values["Graph:ClientSecret"] = "local-test-instance-secret";
+    }
+
+    private static void AddLiveGraphWebhookValues(Dictionary<string, string?> values)
+    {
+        values["Graph:ChangeNotificationUrl"] = "https://test-instance.example.ts.net:8443/hooks/microsoft-graph/mail";
+        values["Graph:ChangeNotificationClientState"] = "local-test-instance-client-state";
     }
 
     private static void AddLiveBoxValues(Dictionary<string, string?> values, string rootFolderId)

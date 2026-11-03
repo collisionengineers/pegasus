@@ -97,9 +97,10 @@ and the [verification procedure](docs/runbook.md).
 - Read-only cloud inventory is permitted. External writes require authorization
   covering the actual operation and targets; tool availability is not a grant.
 - Local work does not mutate Outlook or Box except an explicitly approved
-  test mailbox or disposable Box subtree. The hosted test instance reads the
-  production mailboxes and writes nothing to them: no send, no move, no
-  subscription (ADR-0088, R626).
+  test mailbox or disposable Box subtree. The hosted test instance has full
+  Graph parity on the production mailboxes the operator enables on it: read,
+  send, the answered-instruction move and change subscriptions (ADR-0088 as
+  amended, R630, R632).
 - Use PowerShell 7 on Windows or Linux, one platform per evidence run. Paths and
   commands are repository-relative. Follow the existing [release skill](.agents/skills/pegasus-release/SKILL.md)
   for the authorized workstation and platform-matching artifacts; one approval

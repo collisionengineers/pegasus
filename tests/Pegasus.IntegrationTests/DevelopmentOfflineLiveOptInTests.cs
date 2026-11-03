@@ -114,13 +114,14 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
     }
 
     /// <summary>
-    /// Features:LiveGraphMail turns the hosted test instance's mailbox reads to
-    /// Graph over an app registration credential and leaves every send
-    /// unavailable: it reads the production mailboxes and writes nothing (ADR-0088).
+    /// Features:LiveGraphMail composes the Web's Graph mail side over an app
+    /// registration credential, as Production does: the resolver and staff send,
+    /// with the offline Unavailable senders gone rather than shadowed (ADR-0088
+    /// as amended, R630).
     /// </summary>
     [Fact]
     [Trait("Category", "SqlServer")]
-    public async Task LiveGraphMailComposesTheGraphReadsAndKeepsSendUnavailable()
+    public async Task LiveGraphMailComposesTheGraphReadsAndStaffSend()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
         using var factory = new ConfiguredWebApplicationFactory(
@@ -144,10 +145,12 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
         Assert.Equal(
             "Azure.Identity.ClientSecretCredential",
             scope.ServiceProvider.GetRequiredService<Azure.Core.TokenCredential>().GetType().FullName);
-        Assert.IsType<Pegasus.Infrastructure.Email.UnavailableStaffMailSend>(
+        Assert.IsType<Pegasus.Core.Operations.StaffMailSend>(
             scope.ServiceProvider.GetRequiredService<Pegasus.Core.Operations.IStaffMailSend>());
-        Assert.IsType<Pegasus.Infrastructure.Email.UnavailableStaffReportSend>(
+        Assert.IsType<Pegasus.Core.Operations.StaffReportSend>(
             scope.ServiceProvider.GetRequiredService<Pegasus.Core.Operations.IStaffReportSend>());
+        Assert.Single(scope.ServiceProvider.GetServices<Pegasus.Core.Operations.IStaffMailSend>());
+        Assert.Single(scope.ServiceProvider.GetServices<Pegasus.Core.Operations.IStaffReportSend>());
     }
 
     [Fact]

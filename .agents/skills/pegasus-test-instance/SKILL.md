@@ -1,6 +1,6 @@
 ---
 name: pegasus-test-instance
-description: Stand up, reach, update, seed, copy production data into and stop the one hosted Pegasus test instance (ADR-0088) - the DevelopmentOffline lifecycle on the operator's Linux/WSL machine, reached over Tailscale, with live DVLA/DVSA, Box under the local-test root, Glass's, the production mailboxes read-only and the classifier agent in dry run. Use whenever the operator mentions the test instance, a test version, test server, dev server, staging, UAT environment, the WSL box, a Tailscale URL, release rehearsal on a copy of production, or wants Pegasus running anywhere that is not production, even if they never say "test instance". Not for production releases (pegasus-release), intake wipes (pegasus-wipe-intake-data), or a plain Offline run on a developer's own machine.
+description: Stand up, reach, update, seed, copy production data into and stop the one hosted Pegasus test instance (ADR-0088) - the DevelopmentOffline lifecycle on the operator's Linux/WSL machine, reached over Tailscale, with live DVLA/DVSA, Box under the local-test root, Glass's, Graph parity on the production mailboxes the operator enables on it (read, send, move, subscriptions), the Principal API and the Automation MCP, and the classifier agent in dry run. Use whenever the operator mentions the test instance, a test version, test server, dev server, staging, UAT environment, the WSL box, a Tailscale URL, release rehearsal on a copy of production, or wants Pegasus running anywhere that is not production, even if they never say "test instance". Not for production releases (pegasus-release), intake wipes (pegasus-wipe-intake-data), or a plain Offline run on a developer's own machine.
 ---
 
 # The hosted Pegasus test instance
@@ -10,22 +10,27 @@ Tailscale network. It is the `DevelopmentOffline` lifecycle the runbook owns
 ([local live-integration run](../../../docs/runbook.md#local-live-integration-run))
 with every opt-in on, so the procedure here is the order of the runbook's
 commands and the approvals between them. [ADR-0088](../../../docs/adr/0088-one-hosted-test-instance.md)
-and rulings R623 to R629 decided its shape; this skill invents none of it.
+and rulings R623 to R635 decided its shape; this skill invents none of it.
 
 What it is for (R624): the operator's and agents' QA walks, staff UAT rounds,
 and rehearsing a release (migrations included) on a copy of production.
 
 ## What never happens here
 
-- **No write to production mail.** The instance reads the production mailboxes
-  through its own read-only app registration (R626). Sends stay Unavailable,
-  nothing is moved, no Graph subscription is created. If a step would need any
-  of those, stop and ask.
-- **No Azure spend.** Key Vault secret reads, Graph reads and the SqlPackage
+- **Mail is real.** The instance has Graph parity with production on the
+  mailboxes the operator enables on it (R630, R632): a send leaves the
+  production mailbox and reaches its recipients, the answered-instruction
+  move happens in the shared mailbox, and both the instance and production
+  ingest the same incoming mail while a mailbox is enabled on both. Send only
+  to addresses the operator names, and enable a production mailbox on the
+  instance for the window the operator names.
+- **No Azure spend.** Key Vault secret reads, Graph calls and the SqlPackage
   extract to a local file are the only Azure touches (R623). A step that would
   create or run anything in Azure is a question to the operator first.
-- **No Tailscale Funnel.** `tailscale serve` only: the origin is reachable on
-  the tailnet, never the public internet.
+- **Funnel for the Graph webhook path alone.** `tailscale serve` on 443 keeps
+  the origin on the tailnet; `tailscale funnel` on 8443 exposes
+  `/hooks/microsoft-graph/mail` and nothing else (R631). Nothing else is
+  ever Funnelled.
 - **No public origin without password sign-in.** `Start` refuses it; the
   automatic offline sign-in would make every tailnet caller the Administrator.
 - **No Reset of the long-lived run without the operator saying so.** Reset
@@ -38,9 +43,11 @@ and rehearsing a release (migrations included) on a copy of production.
 | Step | Needs | Why |
 | --- | --- | --- |
 | `New-LocalLiveSettings.ps1 -Approve` | the operator's `az` sign-in and their word | reads six Key Vault secrets from `pegasusprodkv252ow37g` (names printed first) |
-| Graph identity | a Microsoft 365 administrator (the operator) | one app registration and one Exchange read-only role assignment; recorded in operations |
+| Graph identity | a Microsoft 365 administrator (the operator) | the existing `CollisionSpike Graph Intake` registration and scope `CollisionSpike-Intake-Prod`; adds the one role it lacks (`Application Mail.Send`) and the secret; recorded in operations |
+| `tailscale funnel` of the webhook path | the operator | the one public path on the machine |
 | `Copy-ProductionDatabaseToRun.ps1 -Approve` | the operator's word per copy | a live read of production SQL |
-| Enabling a mailbox on the instance | the operator | names which production mailbox the instance reads |
+| Enabling a mailbox on the instance | the operator | names which production mailbox the instance reads from, sends from and subscribes to, and for how long |
+| A send from the instance | the operator names the recipient | a real e-mail from a production mailbox |
 | Anthropic key for the classifier | the operator supplies it | metered spend, not Azure |
 
 Everything else (Initialize, Start, Status, Smoke, Stop, seeding from the
@@ -78,20 +85,28 @@ operator's word, writes `artifacts/local-development/local.settings.env`
 Then append by hand, in the same file:
 
 ```text
+Features__PrincipalApi=true
 Features__AutomationMcp=true
 AutomationMcp__UseDevelopmentKeys=true
 AutomationMcp__ClientSecret=<32+ characters the operator chooses>
 Features__LiveGraphMail=true
 Graph__BaseUri=https://graph.microsoft.com/v1.0/
 Graph__TenantId=<tenant id>
-Graph__ClientId=<app registration client id>
+Graph__ClientId=5d37a155-2af8-4878-b96a-6faad5207137
 Graph__ClientSecret=<its secret>
+Graph__ChangeNotificationUrl=https://<host>.<tailnet>.ts.net:8443/hooks/microsoft-graph/mail
+Graph__ChangeNotificationClientState=<at most 128 characters the operator chooses, not production's>
 ```
 
 The Graph lines wait until the identity exists (section 4); start without
-them if it does not yet, and the run uses the folder mailbox adapters. Never
-put `AutomationMcp__PublicOrigin` or `Glass__CallbackBaseUri` in the file: the
-lifecycle owns both and refuses them.
+them if it does not yet, and the run uses the folder mailbox adapters. The two
+`ChangeNotification` lines go together and wait until the webhook path is
+Funnelled (section 3); without them the run polls and never subscribes. The
+Principal API issues its keys on the instance (Administration > Contacts);
+the MCP serves the local classifier and tailnet agents, with no connector
+redirect (R634). Never put `AutomationMcp__PublicOrigin` or
+`Glass__CallbackBaseUri` in the file: the lifecycle owns both and refuses
+them.
 
 ## 3. Start it and reach it
 
@@ -107,12 +122,17 @@ through WSL localhost forwarding, or Tailscale inside WSL):
 
 ```bash
 tailscale serve --bg --https=443 https+insecure://localhost:7139
+tailscale funnel --bg --https=8443 --set-path /hooks/microsoft-graph/mail https+insecure://localhost:7139/hooks/microsoft-graph/mail
 tailscale serve status
+tailscale funnel status
 ```
 
 `+insecure` is needed because Kestrel presents the development certificate;
 the tailnet certificate is what the browser sees, so nothing is exported or
-trusted by hand. Prove the proxy keeps the host:
+trusted by hand. The second command is the one public path (R631): `funnel
+status` must list `:8443` with that path alone, and
+`curl -sS -X POST 'https://<host>.<tailnet>.ts.net:8443/hooks/microsoft-graph/mail?validationToken=x'`
+must print `x`. Prove the proxy keeps the host:
 
 ```bash
 curl -sI https://<host>.<tailnet>.ts.net/Cases | grep -i '^location'
@@ -125,26 +145,32 @@ the offline profile, which is a code change, not a configuration one.
 Staff accounts for a UAT round are created in Administration > Accounts on
 the instance; Glass's logins are per account (ADR-0043) and entered there.
 
-## 4. Mail from the production mailboxes, read-only
+## 4. Mail from the production mailboxes, with parity
 
 Follow the runbook's
-[admitting the test instance's read-only identity](../../../docs/runbook.md#runbook-admitting-the-test-instances-read-only-identity)
-with the Exchange commands in
-[references/graph-read-only-identity.md](references/graph-read-only-identity.md).
+[admitting the test instance's Graph identity](../../../docs/runbook.md#runbook-admitting-the-test-instances-graph-identity)
+with the Exchange and Funnel commands in
+[references/graph-parity-identity.md](references/graph-parity-identity.md).
 The operator runs the tenant steps; the agent prepares the exact commands and
 the operations record. Then add the Graph lines to the settings file, restart
 the run (`Stop`, then `Start -RunId <id>`), and enable the mailbox in
-Administration > Mailboxes on the instance, Incoming only. The Worker log
+Administration > Mailboxes on the instance, Incoming and Outgoing as
+production has it. The Worker log
 (`artifacts/local-development/<run>/logs/worker-*.stdout.log`) shows the
-five-minute poll; it must never show a Graph `send`, `move` or
-`subscriptions` request:
+instance's own subscription being created within five minutes, the poll, and
+a wake on new mail:
 
 ```bash
-grep -Ei 'graph.*(send|/move|subscriptions)' artifacts/local-development/<run>/logs/*.log || echo 'no Graph writes'
+grep -Ei 'graph.*subscriptions' artifacts/local-development/<run>/logs/worker-*.log
+grep -i 'graph_subscription_maintenance_failed' artifacts/local-development/<run>/logs/worker-*.log
 ```
 
-A mailbox row added before the Graph lines existed holds a local identity:
-disable it and add the address again.
+The first grep shows the `POST`; the second must be empty (a failure there
+names the mailbox and is usually the Funnel path or the scope). A send from
+the instance to an address the operator names then appears in that mailbox's
+Sent Items and settles to Sent; after a report send, the log shows the
+`/move` of its answered instruction. A mailbox row added before the Graph
+lines existed holds a local identity: disable it and add the address again.
 
 ## 5. Seed and walk
 
@@ -185,9 +211,13 @@ pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -RunId <id>   # migrate
 
 The copy is a SqlPackage extract of production to a local `.dacpac` under the
 run's `state/`, published over the run database with users, logins, role
-memberships, permissions and database options left out, and every approved
-mailbox deactivated (R627). The record `state/production-copy-<utc>.json`
-holds the migration head, the Case count and the rows deactivated. The
+memberships, permissions and database options left out, every approved
+mailbox deactivated (R627), the copied subscription rows cleared (R633), the
+copied Principal API keys paused (R634) and the copied pending
+answered-instruction tidies closed (R635), so the instance subscribes under
+its own webhook, authenticates no production key and moves only what its own
+sends answered. The record `state/production-copy-<utc>.json` holds the
+migration head, the Case count and the four counts. The
 rehearsal is then the next Start: the checked-out revision's migrations run
 against production's schema and data. The first run of this script on a
 machine is itself a test of the SqlPackage route; read its output before
@@ -204,13 +234,16 @@ Anthropic key in an ignored `.env`.
 
 ```powershell
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Stop -RunId <id>
-tailscale serve reset        # only when the instance is retired
+tailscale funnel reset       # only when the instance is retired; the webhook path goes first
+tailscale serve reset
 ```
 
 ## The record
 
 When the identity is admitted and when the instance first runs, write a
 dated record in [operations](../../../docs/operations.md): the machine, the
-public origin, the run id, the app registration (client id, scope, the
-permitted and denied checks), and which mailbox the instance reads. Secret
-values are never recorded.
+public origin, the Funnel origin and path, the run id, the app registration
+(client id, scope, the roles including the added `Mail.Send`, the permitted
+and denied checks), and
+which mailboxes the instance reads from and sends from. Secret values are
+never recorded.
