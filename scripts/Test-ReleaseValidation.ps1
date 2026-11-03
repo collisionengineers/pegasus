@@ -185,10 +185,13 @@ function New-Estate {
         [bool] $ClassifierPresent = $true,
         [string] $ClassifierState = 'Running',
         [bool] $StickyServing = $false,
+        # What the hosted test instance serves; the candidate unless a case says otherwise (R657).
+        [string] $InstanceSourceSha = '',
         [Parameter(Mandatory)][string] $NewSha
     )
     return [ordered]@{
         web = [ordered]@{ state = $WebState; serving = $WebServing; sourceSha = $WebSourceSha; deployedSha = $WebSourceSha; version = $releaseVersion; stickyServing = $StickyServing }
+        instance = [ordered]@{ sourceSha = $(if ($InstanceSourceSha) { $InstanceSourceSha } else { $NewSha }) }
         worker = [ordered]@{ state = $WorkerState; disabled = $WorkerDisabled }
         classifier = [ordered]@{ present = $ClassifierPresent; state = $ClassifierState }
         newSha = $NewSha
@@ -225,6 +228,11 @@ if ($joined.StartsWith('account get-access-token')) { 'fake-token'; exit 0 }
 if ($joined.Contains('bicep build')) { Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH; exit 0 }
 if ($joined.StartsWith('rest ')) {
     $url = Get-Argument '--url'
+    if ($url.StartsWith('https://cemattypc-1.tail432b53.ts.net/')) {
+        # The test instance answers its version from its own state (R657).
+        if ($url.EndsWith('/diagnostics/version')) { @{ sourceSha = $state.instance.sourceSha; version = $state.web.version } | ConvertTo-Json -Compress; exit 0 }
+        [Console]::Error.WriteLine('Not found'); exit 1
+    }
     if ($url.EndsWith('/health/live') -or $url.EndsWith('/health/ready')) {
         if ($state.web.serving) { exit 0 }
         [Console]::Error.WriteLine('Forbidden'); exit 1
@@ -301,6 +309,8 @@ if ($joined.StartsWith('provision')) {
     Set-Content -LiteralPath (Join-Path $Directory 'gh.ps1') -Encoding ascii -Value @'
 param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
 Add-Content -LiteralPath $env:PEGASUS_TEST_AZ_ARGUMENTS_PATH -Value "gh $($Arguments -join ' ')"
+# One green push-to-dev run (R656), one green pull request.
+if ($Arguments[0] -eq 'run') { '[{"status":"completed","conclusion":"success","url":"https://example.test/runs/1"}]'; exit 0 }
 '{"number":1,"title":"fixture","state":"MERGED","statusCheckRollup":[{"name":"unit","conclusion":"SUCCESS"}]}'
 exit 0
 '@
@@ -770,7 +780,8 @@ try {
     Assert-True ($result.Output.Contains('Route: promotion-only')) $case 'did not classify a documentation-only range as promotion only.' $result.Diagnostic
     Assert-True ($result.Output.Contains("Migration head: $identity; candidate identity: $identity")) $case 'did not compare the head with the candidate identity.' $result.Diagnostic
     Assert-True ($result.Output.Contains('Provision: needed (no retained release')) $case 'did not say provision is needed without a retained baseline.' $result.Diagnostic
-    Assert-NoCall -Result $result -Case $case -Patterns $writes
+    Assert-True ($result.Output.Contains("dev run for $($releaseSha): success")) $case 'did not read the push-to-dev run (R656).' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns ($writes + @('az rest*cemattypc-1*'))
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Estate (New-Estate -NewSha $releaseSha) -MigrationHead $identity `
@@ -796,15 +807,17 @@ try {
     Assert-NoCall -Result $result -Case $case -Patterns $writes
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'promoted before refusing.' $result.Diagnostic
 
-    # The fresh destructive run: it promotes, disables, stages, stops in order,
-    # reads the containment back and reaches the migration gate; the fixture
-    # bundle cannot run, so it stops there with nothing deployed or started.
+    # The fresh destructive run: it reads the test instance, disables, stages,
+    # stops in order, reads the containment back and reaches the migration
+    # gate; the fixture bundle cannot run, so it stops there with nothing
+    # deployed or started, and main has not moved: it moves after the smoke (R655).
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments ($executeDestructive + @('-ApprovedOldWebSourceSha', $oldWebSha)) `
         -Estate (New-Estate -NewSha $releaseSha) -MigrationHead 'old'
     $case = 'Destructive route, fresh run'
     Assert-True ($result.ExitCode -ne 0) $case 'should stop at the fixture bundle.' $result.Diagnostic
-    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $releaseSha -and (& git -C $fixture.Bare rev-parse dev).Trim() -eq $releaseSha) $case 'did not promote main and dev to the approved SHA.' $result.Diagnostic
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'promoted main before the smoke.' $result.Diagnostic
     Assert-Order -Result $result -Case $case -Patterns @(
+        'az rest*cemattypc-1.tail432b53.ts.net/diagnostics/version*',
         'az functionapp config appsettings set*=true*',
         'az functionapp config appsettings list*AzureWebJobs*',
         'az functionapp deployment source config-zip*--name pegasus-prod-worker-252ow37gij*',
@@ -843,6 +856,7 @@ try {
     $case = 'Destructive route resumed after SQL'
     Assert-True ($result.ExitCode -ne 0) $case 'should stop at the full smoke run-from-package read.' $result.Diagnostic
     Assert-True ($result.Output.Contains('WEBSITE_RUN_FROM_PACKAGE')) $case 'did not reach the full smoke.' $result.Diagnostic
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'promoted main before the smoke passed.' $result.Diagnostic
     Assert-True ($result.Output.Contains("continuing from 'deploy-web'")) $case 'did not resume at the Web deploy.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns @('az webapp stop*', 'az functionapp stop*', 'az functionapp config appsettings set*', 'az sql db show*')
     Assert-Order -Result $result -Case $case -Patterns @(
@@ -852,7 +866,7 @@ try {
         'azd provision*',
         'az webapp start*',
         'az rest*/health/ready*',
-        'az rest*/diagnostics/version*',
+        'az rest*azurewebsites.net/diagnostics/version*',
         'az functionapp start*--name pegasus-prod-worker-252ow37gij*',
         'az functionapp start*--name pegasus-prod-classifier-252ow37gij*',
         'az functionapp deployment source config-zip*--name pegasus-prod-classifier-252ow37gij*')
@@ -863,11 +877,12 @@ try {
     $case = 'Normal route without provision'
     Assert-True ($result.ExitCode -ne 0) $case 'should stop at the full smoke run-from-package read.' $result.Diagnostic
     Assert-True ($result.Output.Contains('WEBSITE_RUN_FROM_PACKAGE')) $case 'did not reach the full smoke.' $result.Diagnostic
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'promoted main before the smoke passed.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns @('azd provision*', 'azd env set*', 'az webapp stop*', 'az functionapp stop*', 'az functionapp config appsettings set*', '*--track-status*')
     Assert-Order -Result $result -Case $case -Patterns @(
         'az webapp deploy*--restart true*',
         'az rest*/health/ready*',
-        'az rest*/diagnostics/version*',
+        'az rest*azurewebsites.net/diagnostics/version*',
         'az functionapp deployment source config-zip*--name pegasus-prod-worker-252ow37gij*',
         'az functionapp deployment source config-zip*--name pegasus-prod-classifier-252ow37gij*')
     $probe = @($result.Calls | Where-Object { $_ -like 'az rest*/health/ready*' })[0]
@@ -893,6 +908,22 @@ try {
     Assert-True ($result.ExitCode -ne 0) $case 'should stop at the fixture bundle.' $result.Diagnostic
     Assert-True ($result.Output.Contains('applying the additive migration first')) $case 'did not reach the migration.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns @('az webapp deploy*', 'az functionapp deployment source config-zip*', 'azd provision*', 'azd env set*')
+
+    # The instance is not serving the candidate: nothing is written (R657).
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeNormal -Estate (New-Estate -NewSha $releaseSha -InstanceSourceSha ('d' * 40)) -MigrationHead $identity
+    $case = 'Test instance serving another SHA'
+    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("The test instance at https://cemattypc-1.tail432b53.ts.net/ is serving $('d' * 40), not the candidate $releaseSha")) $case 'did not name both SHAs.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns $writes
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
+
+    # The promotion-only route: the exact SHA goes to main and dev in one push.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PromoteOnly', '-ApprovedReleaseSha', $releaseSha) -Estate (New-Estate -NewSha $releaseSha)
+    $case = 'Promotion only'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("main and dev read back $releaseSha")) $case 'did not read both refs back.' $result.Diagnostic
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $releaseSha -and (& git -C $fixture.Bare rev-parse dev).Trim() -eq $releaseSha) $case 'did not promote main and dev to the approved SHA.' $result.Diagnostic
+    Assert-True ($result.Calls.Count -eq 0) $case 'called a CLI.' $result.Diagnostic
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PromoteOnly', '-ApprovedReleaseSha', $releaseSha) -Estate (New-Estate -NewSha $releaseSha)
     $case = 'Promotion already done'
