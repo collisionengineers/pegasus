@@ -1839,6 +1839,8 @@ public sealed class StaffCorrespondenceWebTests
             await context.SaveChangesAsync();
         }
 
+        // A staff forward's Reply-To is the forwarder itself.
+        IReadOnlyList<string> replyTo = sender == "sender@example.invalid" ? ["reply@example.invalid"] : [sender];
         await scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>().RetainAsync(
             new(
                 mailboxId,
@@ -1857,7 +1859,7 @@ public sealed class StaffCorrespondenceWebTests
                     "Sender Name",
                     [mailboxAddress, "other-to@example.invalid"],
                     ["copy@example.invalid", mailboxAddress, "other-to@example.invalid"],
-                    sender == "sender@example.invalid" ? new[] { "reply@example.invalid" } : new[] { sender },
+                    replyTo,
                     subject,
                     body,
                     [],
