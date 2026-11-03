@@ -233,6 +233,7 @@ public sealed class CaseEngineerSectionsWebTests
             return
             [
                 Field(AssessmentVocabulary.Impacts, "[{\"severity\":\"moderate\",\"location\":\"right_rear\",\"note\":\"\"}]"),
+                Field(AssessmentVocabulary.DamageMarkers, "[{\"x\":0.5,\"y\":0.92,\"r\":0.12}]"),
                 Field(AssessmentVocabulary.Outcome, "repairable"),
                 Field(AssessmentVocabulary.SalvageCategory, "S"),
                 Field(AssessmentVocabulary.SalvageValue, "750.00"),

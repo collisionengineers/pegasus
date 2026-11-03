@@ -242,6 +242,43 @@ public sealed class AssessmentReportProjectionTests
         Assert.True(AssessmentReportProjection.Project(WithSkip(noImpact, "true")).IsReady);
     }
 
+    /// <summary>
+    /// The damage markers are always required (operator, 3 November 2026;
+    /// R650): a Case with none names Damage markers whether or not Skip
+    /// impacts is ticked, and markers beside a skip are a ready Case.
+    /// </summary>
+    [Fact]
+    public void TheReportAlwaysNeedsADamageMarker()
+    {
+        var noMarkers = WithMarkers(ReadyInput(), null);
+        var reason = AssertNotReady(AssessmentReportProjection.Project(noMarkers), "Damage markers");
+        Assert.Equal("Assessment record", reason.Source);
+        Assert.Equal("No damage marker is drawn.", reason.WhyOutstanding);
+        Assert.Equal("Draw a marker on the plan on the Damage section.", reason.HowToResolve);
+        Assert.Equal(AssessmentVocabulary.DamageMarkers, reason.Field);
+        AssertNotReady(AssessmentReportProjection.Project(WithMarkers(ReadyInput(), "[]")), "Damage markers");
+
+        var skippedWithoutMarkers = WithSkip(WithImpacts(noMarkers, null), "true");
+        var skippedReason = AssertNotReady(AssessmentReportProjection.Project(skippedWithoutMarkers), "Damage markers");
+        Assert.Equal(AssessmentVocabulary.DamageMarkers, skippedReason.Field);
+
+        var skippedWithMarkers = WithSkip(WithImpacts(ReadyInput(), null), "true");
+        Assert.True(AssessmentReportProjection.Project(skippedWithMarkers).IsReady);
+    }
+
+    private static AssessmentReportProjectionInput WithMarkers(AssessmentReportProjectionInput input, string? markers) =>
+        input with
+        {
+            Assessment = input.Assessment with
+            {
+                Fields =
+                [
+                    .. input.Assessment.Fields.Where(field => field.Path != AssessmentVocabulary.DamageMarkers),
+                    .. markers is null ? Array.Empty<AssessmentFieldValue>() : [Field(AssessmentVocabulary.DamageMarkers, markers)],
+                ]
+            }
+        };
+
     private static AssessmentReportProjectionInput WithSkip(AssessmentReportProjectionInput input, string skipped) =>
         input with
         {

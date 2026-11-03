@@ -115,6 +115,8 @@ public sealed class CaseDamageAndViewerWebTests
         // The impacts block is the cell a readiness jump outlines; with rows
         // there is no Skip impacts.
         Assert.Contains($"data-impacts data-field=\"{AssessmentVocabulary.Impacts}\"", damage, StringComparison.Ordinal);
+        // The plan is the cell the Damage markers blocker outlines (R650).
+        Assert.Contains($"data-damage-view data-field=\"{AssessmentVocabulary.DamageMarkers}\"", damage, StringComparison.Ordinal);
         Assert.DoesNotContain("Skip impacts", damage, StringComparison.Ordinal);
 
         // Read mode: neither hidden JSON field the Save reads is rendered

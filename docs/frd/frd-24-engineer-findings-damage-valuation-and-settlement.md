@@ -151,7 +151,10 @@ smallest disc and no wider than half the vehicle — kept as drawn
 location or severity is derived from the markers. While the Damage section
 edits, pressing and dragging on the vehicle draws a marker and dragging one
 moves it; dragging never removes a marker, and **Clear markers** removes them
-all. There is no Reset.
+all. There is no Reset. The report always needs at least one marker, whether
+or not Skip impacts is ticked (operator, 3 November 2026, R650): until one is
+drawn, readiness names **Damage markers** ("No damage marker is drawn.").
+Markers beside a ticked Skip impacts are a complete damage record.
 
 The plan is the recorded Vehicle type's drawing: a van is drawn as the van, a
 motorcycle or scooter as the motorbike, and anything else, or no type, as the

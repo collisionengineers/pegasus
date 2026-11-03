@@ -471,6 +471,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             [AssessmentVocabulary.VehicleType] = "car",
             [AssessmentVocabulary.VehicleCondition] = "good",
             [AssessmentVocabulary.Impacts] = "[{\"severity\":\"moderate\",\"location\":\"right_rear\",\"note\":\"\"}]",
+            [AssessmentVocabulary.DamageMarkers] = "[{\"x\":0.5,\"y\":0.92,\"r\":0.12}]",
             [AssessmentVocabulary.ValueRetail] = "5000.00",
             [AssessmentVocabulary.ValueTrade] = "4000.00",
             [AssessmentVocabulary.ValueEngineer] = "5000.00",

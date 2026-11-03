@@ -78,7 +78,7 @@
             <input type="hidden" id="case-damage-markers" name="damageMarkers" form="case-edit-form" value="@rawMarkers" data-damage-input />
         }
         <div class="damage-workbench">
-            <div class="damage-view" data-damage-view>
+            <div class="damage-view" data-damage-view data-field="@AssessmentVocabulary.DamageMarkers">
                 <svg class="damage-diagram" viewBox="@DamagePlanGeometry.ViewBox" role="group" aria-label="@DamageLabels.DiagramLabel">
                     <text class="damage-diagram-label" x="120" y="8" text-anchor="middle">@DamageLabels.Front</text>
                     @Html.Raw(DamagePlanGeometry.Artwork(profile))

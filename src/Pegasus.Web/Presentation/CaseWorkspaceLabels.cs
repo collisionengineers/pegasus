@@ -507,6 +507,8 @@ public static class CaseWorkspaceLabels
             AssessmentVocabulary.VehicleType,
             AssessmentVocabulary.VehicleCondition,
             AssessmentVocabulary.HistoryCheck,
+            AssessmentVocabulary.DamageMarkers,
+            AssessmentVocabulary.Impacts,
             AssessmentVocabulary.DamageUnrelated,
             AssessmentVocabulary.ValueRetail,
             AssessmentVocabulary.ValueTrade,

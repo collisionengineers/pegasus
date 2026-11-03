@@ -366,6 +366,17 @@ public static class AssessmentPolicy
 
         RequireField(AssessmentVocabulary.VehicleType, "Vehicle type", "Vehicle");
         RequireField(AssessmentVocabulary.VehicleCondition, "Pre-incident condition", "Vehicle");
+        // The damage markers are always required, Skip impacts or not (operator,
+        // 3 November 2026; R650): the report's picture marks the damage.
+        if (ParseMarkers(fields.GetValueOrDefault(AssessmentVocabulary.DamageMarkers)).Count == 0)
+        {
+            items.Add(new(
+                "Damage markers",
+                "Assessment record",
+                "No damage marker is drawn.",
+                "Draw a marker on the plan on the Damage section.",
+                Field: AssessmentVocabulary.DamageMarkers));
+        }
         // An impact, or the deliberate Skip impacts (v47, operator, 3 November
         // 2026; R647–R649): the Incident narrative is not required, but leaving
         // it out is a choice, never an oversight. A row missing its severity or

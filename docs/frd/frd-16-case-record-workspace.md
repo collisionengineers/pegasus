@@ -564,6 +564,8 @@ enables it again; adding a row hides the tick, and clearing the last row
 offers it again, unticked. While reading with no row, Skip impacts is a static
 tick under the empty line, ticked or not
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)).
+A report blocker for the markers (R650) jumps to the plan, and one for the
+impacts to the impact rows.
 The **Incident narrative** is read-only: it is the report's Nature of Incident
 wording, the Engineer's own from Report wording or else a sentence for each
 impact, each its own line with a line's space between them (v47 item G),

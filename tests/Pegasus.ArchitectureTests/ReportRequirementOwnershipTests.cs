@@ -514,6 +514,7 @@ public sealed class ReportRequirementOwnershipTests
         AssessmentVocabulary.LegalStatus => "roadworthy",
         // A complete impact: the report needs one or Skip impacts (v47, R647–R649).
         AssessmentVocabulary.Impacts => "[{\"severity\":\"moderate\",\"location\":\"rear\",\"note\":\"\"}]",
+        AssessmentVocabulary.DamageMarkers => "[{\"x\":0.5,\"y\":0.92,\"r\":0.12}]",
         _ => definition.Type switch
         {
             AssessmentFieldType.Text => "value",
