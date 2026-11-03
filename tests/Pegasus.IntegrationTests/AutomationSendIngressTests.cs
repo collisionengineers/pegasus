@@ -252,7 +252,7 @@ public sealed class AutomationSendIngressTests
             operationKey = "mcp:mail-forward-from", to = Handler, fromMailbox = mailbox.Address,
         })))
         {
-            Assert.Contains("fromMailbox applies to chaser only", await ReadErrorTextAsync(forwardFrom), StringComparison.Ordinal);
+            Assert.Contains("fromMailbox does not apply to forward", await ReadErrorTextAsync(forwardFrom), StringComparison.Ordinal);
         }
         Assert.Empty(mail.Commands);
 
