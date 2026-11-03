@@ -154,7 +154,7 @@ exit 0
 
 $releaseScript = Join-Path $PSScriptRoot 'Invoke-Release.ps1'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-# The fixture release steps from the live v1.0.0 tag to 1.1.0 (R659, R660).
+# The fixture release steps from the live v1.0.0 tag to 1.1.0 (R662, R663).
 $releaseVersion = '1.1.0'
 $liveVersion = '1.0.0'
 $releaseWebOrigin = 'https://pegasus-prod-web-252ow37gij.azurewebsites.net/'
@@ -187,11 +187,11 @@ function New-Estate {
         [bool] $ClassifierPresent = $true,
         [string] $ClassifierState = 'Running',
         [bool] $StickyServing = $false,
-        # What the hosted test instance serves; the candidate unless a case says otherwise (R657).
+        # What the hosted test instance serves; the candidate unless a case says otherwise (R660).
         [string] $InstanceSourceSha = '',
         # What the Web App reports before the release; the release version once it serves the candidate.
         [string] $WebVersion = $liveVersion,
-        # The one pull request's closing issue and its labels (R660).
+        # The one pull request's closing issue and its labels (R663).
         [bool] $PullClosesIssue = $true,
         [string[]] $IssueLabels = @('type:feature'),
         [Parameter(Mandatory)][string] $NewSha
@@ -238,7 +238,7 @@ if ($joined.Contains('bicep build')) { Get-Content -Raw -LiteralPath $env:PEGASU
 if ($joined.StartsWith('rest ')) {
     $url = Get-Argument '--url'
     if ($url.StartsWith('https://cemattypc-1.tail432b53.ts.net/')) {
-        # The test instance answers its version from its own state (R657).
+        # The test instance answers its version from its own state (R660).
         if ($url.EndsWith('/diagnostics/version')) { @{ sourceSha = $state.instance.sourceSha; version = '0.0.0-dev' } | ConvertTo-Json -Compress; exit 0 }
         [Console]::Error.WriteLine('Not found'); exit 1
     }
@@ -321,8 +321,8 @@ if ($joined.StartsWith('provision')) {
 param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
 Add-Content -LiteralPath $env:PEGASUS_TEST_AZ_ARGUMENTS_PATH -Value "gh $($Arguments -join ' ')"
 $state = Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_RELEASE_STATE_PATH | ConvertFrom-Json
-# One green push-to-dev run (R656), one green pull request closing issue 7
-# when the estate says so, whose labels the estate holds (R660).
+# One green push-to-dev run (R659), one green pull request closing issue 7
+# when the estate says so, whose labels the estate holds (R663).
 if ($Arguments[0] -eq 'run') { '[{"status":"completed","conclusion":"success","url":"https://example.test/runs/1"}]'; exit 0 }
 if ($Arguments[0] -eq 'issue') { @{ labels = @(@($state.issueLabels) | ForEach-Object { @{ name = $_ } }) } | ConvertTo-Json -Compress -Depth 4; exit 0 }
 $closing = if ($state.pullClosesIssue) { '[{"number":7}]' } else { '[]' }
@@ -793,15 +793,15 @@ try {
     $case = 'Preflight only'
     Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
     Assert-True ($result.Output.Contains('Route: promotion-only')) $case 'did not classify a documentation-only range as promotion only.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('Live version: none (no v* tag on main); the Web App reports 0.1.0-alpha.1')) $case 'did not report the absent tag (R659).' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Live version: none (no v* tag on main); the Web App reports 0.1.0-alpha.1')) $case 'did not report the absent tag (R662).' $result.Diagnostic
     Assert-True ($result.Output.Contains('Version: none; a promotion-only range deploys nothing')) $case 'proposed a version for a promotion-only range.' $result.Diagnostic
     Assert-True ($result.Output.Contains("Migration head: $identity; candidate identity: $identity")) $case 'did not compare the head with the candidate identity.' $result.Diagnostic
     Assert-True ($result.Output.Contains('Provision: needed (no retained release')) $case 'did not say provision is needed without a retained baseline.' $result.Diagnostic
-    Assert-True ($result.Output.Contains("dev run for $($releaseSha): success")) $case 'did not read the push-to-dev run (R656).' $result.Diagnostic
+    Assert-True ($result.Output.Contains("dev run for $($releaseSha): success")) $case 'did not read the push-to-dev run (R659).' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns ($writes + @('az rest*cemattypc-1*'))
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
 
-    # main carries the first Semantic Version's tag (R659, R661): every
+    # main carries the first Semantic Version's tag (R662, R664): every
     # release after it is one step above the tag.
     & git -C $fixture.Work @($fixture.Git) tag -a -m 'Release 1.0.0' "v$liveVersion" $fixture.MainSha
     & git -C $fixture.Work push --quiet origin "refs/tags/v$liveVersion"
@@ -815,7 +815,7 @@ try {
     Assert-NoCall -Result $result -Case $case -Patterns $writes
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'promoted before refusing.' $result.Diagnostic
 
-    # R660: the approved version is one step above the live tag, and the one
+    # R663: the approved version is one step above the live tag, and the one
     # the manifest was built with; both are read before any write.
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Estate (New-Estate -NewSha $releaseSha) -MigrationHead $identity `
         -Arguments @('-Execute', '-Version', '1.3.0', '-Route', 'Normal', '-ApprovedReleaseSha', $releaseSha, '-ApprovedManifestSha256', $artifacts.ManifestSha256)
@@ -851,7 +851,7 @@ try {
     # The fresh destructive run: it reads the test instance, disables, stages,
     # stops in order, reads the containment back and reaches the migration
     # gate; the fixture bundle cannot run, so it stops there with nothing
-    # deployed or started, and main has not moved: it moves after the smoke (R655).
+    # deployed or started, and main has not moved: it moves after the smoke (R658).
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments ($executeDestructive + @('-ApprovedOldWebSourceSha', $oldWebSha)) `
         -Estate (New-Estate -NewSha $releaseSha) -MigrationHead 'old'
     $case = 'Destructive route, fresh run'
@@ -952,7 +952,7 @@ try {
     Assert-True ($result.Output.Contains('applying the additive migration first')) $case 'did not reach the migration.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns @('az webapp deploy*', 'az functionapp deployment source config-zip*', 'azd provision*', 'azd env set*')
 
-    # The instance is not serving the candidate: nothing is written (R657).
+    # The instance is not serving the candidate: nothing is written (R660).
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeNormal -Estate (New-Estate -NewSha $releaseSha -InstanceSourceSha ('d' * 40)) -MigrationHead $identity
     $case = 'Test instance serving another SHA'
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
@@ -1004,7 +1004,7 @@ try {
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns $writes
 
-    # --- The version proposal (R659, R660) on a deployable range ---------------
+    # --- The version proposal (R662, R663) on a deployable range ---------------
     # dev gains a merged pull request that changes src/; main stays tagged
     # v1.0.0. The proposal reads what the pull request closes and the issue's
     # type labels; the approval names the version, so -Version overrides.

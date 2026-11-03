@@ -792,7 +792,7 @@ if (developmentOfflineProfile)
         : VehicleLookupAvailability.DevelopmentOfflineReplay);
     if (liveGraphMail)
     {
-        // The hosted test instance (ADR-0088 as amended, R648) composes the Web's
+        // The hosted test instance (ADR-0088 as amended, R651) composes the Web's
         // Graph mail side as Production does, over an app registration: the
         // resolver, access check and search, and staff send from the production
         // mailboxes the operator enables on it.

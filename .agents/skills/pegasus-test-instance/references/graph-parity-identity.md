@@ -2,7 +2,7 @@
 
 The instance has Graph parity with production on the production mailboxes
 the operator enables on it: read, send, the answered-instruction move and
-change subscriptions (R648, R650). The hosts compose Production's Graph mail
+change subscriptions (R651, R653). The hosts compose Production's Graph mail
 side under `Features:LiveGraphMail`, and the identity they present holds the
 three Exchange application roles on the named mailboxes and nothing on any
 other. This page is the identity. The runbook section
@@ -78,7 +78,7 @@ administrator, the time, and both results.
 
 Graph delivers change notifications only to a URL it can reach from the
 internet, so the webhook path alone is Funnelled, on its own port; port 443
-stays tailnet-only (R649). On the Tailscale node that owns the name:
+stays tailnet-only (R652). On the Tailscale node that owns the name:
 
 ```bash
 tailscale funnel --bg --https=8443 --set-path /hooks/microsoft-graph/mail https+insecure://localhost:7139/hooks/microsoft-graph/mail

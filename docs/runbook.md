@@ -332,7 +332,7 @@ clears it. In front of the run, `tailscale serve --bg --https=443
 https+insecure://localhost:7139` (the Windows host's Tailscale through WSL
 localhost forwarding, or Tailscale inside WSL) answers with the tailnet's
 certificate, so no development certificate is exported. Tailscale Funnel
-exposes one path alone, the Graph webhook, on its own port (R649):
+exposes one path alone, the Graph webhook, on its own port (R652):
 `tailscale funnel --bg --https=8443 --set-path /hooks/microsoft-graph/mail
 https+insecure://localhost:7139/hooks/microsoft-graph/mail`; port 443 stays
 tailnet-only. OpenIddict issues tokens for the host a request arrived on, so a
@@ -340,7 +340,7 @@ classifier or connector uses the public origin for both the token endpoint and
 the MCP endpoint.
 
 The instance has Graph parity with production on the mailboxes the operator
-enables on it (R648, R650). `Features__LiveGraphMail=true` with
+enables on it (R651, R653). `Features__LiveGraphMail=true` with
 `Graph__BaseUri`, `Graph__TenantId`, `Graph__ClientId` and
 `Graph__ClientSecret` in the settings file composes Production's Graph mail
 side (reads, staff and report send, the answered-instruction move) over an
@@ -359,21 +359,21 @@ enabled on both. A mailbox row added earlier under the local resolver holds a
 local identity and fails its access check: disable it and add the address
 again.
 
-The instance runs `dev` (R654). To move it to `dev`'s tip, `Stop` the run,
+The instance runs `dev` (R657). To move it to `dev`'s tip, `Stop` the run,
 `git checkout dev && git pull --ff-only origin dev` with a clean tree, run
 `Initialize-LocalDevelopment.ps1`, and `Start -RunId <run-id>` with the same
 ports; the manifest's source and artifact evidence follow the new build,
 `--initialize-development` migrates the existing database forward, and the
 Tailscale proxy keeps working because the port is unchanged. Status prints
 `SourceSha` for the comparison with `origin/dev`, and the release preflight
-refuses a candidate the instance is not serving (R657). `Reset` removes the database with the run, so a
+refuses a candidate the instance is not serving (R660). `Reset` removes the database with the run, so a
 long-lived instance keeps one run id; an older revision is not supported
 (migrations go forward only). For release rehearsal,
 `scripts/Copy-ProductionDatabaseToRun.ps1 -RunId <run-id>` replaces the
 Stopped run's database with a SqlPackage copy of production, deactivates
 every approved mailbox in the copy (R627), clears the copied subscription rows
-(R651), pauses the copied Principal API credentials (R652) and closes the
-copied pending answered-instruction tidies (R653); without `-Approve` it prints
+(R654), pauses the copied Principal API credentials (R655) and closes the
+copied pending answered-instruction tidies (R656); without `-Approve` it prints
 the source, target and statements and stops, and with it the extract is a live
 production read under the operator's own `az` sign-in. The procedure around
 these steps, the machine prerequisites and the classifier's local run are the
@@ -390,7 +390,7 @@ drives when files are supplied.
 What the instance cannot prove, even with every opt-in on, is listed in the
 matrix: OCR and the problem-report sink. Staff send, Graph subscriptions and
 the answered-instruction move run on it with `Features__LiveGraphMail`, as a
-rehearsal; production remains their proof of record (R650).
+rehearsal; production remains their proof of record (R653).
 
 ### Isolated runs and failure controls
 
@@ -782,7 +782,7 @@ The hosted test instance (ADR-0088 as amended) reaches the production
 mailboxes through its own Entra app registration, never through the Web or
 Worker managed identities, which exist only inside Azure. The grant gives it
 Graph parity with production on the mailboxes in its scope and nothing on any
-other (R648, R650).
+other (R651, R653).
 
 1. The identity is the tenant's existing **CollisionSpike Graph Intake**
    app registration (client id `5d37a155-2af8-4878-b96a-6faad5207137`, no
@@ -1193,9 +1193,9 @@ Check it against the actual schema and current preservation requirements.
 Production has carried live Cases since 2 November 2026 (R603);
 [rollback step 3](#previous-artifact-rollback-web-and-worker) distinguishes
 compatible artifact rollback from roll-forward. `main` moves only after a
-release's full smoke has passed (R655), so a failed release leaves it at the
+release's full smoke has passed (R658), so a failed release leaves it at the
 SHA still serving; nothing in git is reset. The released SHA carries the tag
-`v<version>` (R661). A rollback redeploys the previous version's artifacts
+`v<version>` (R664). A rollback redeploys the previous version's artifacts
 and moves neither `main` nor the tag: the record names the version the
 estate serves, and the next release steps above the tag.
 

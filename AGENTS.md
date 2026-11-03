@@ -100,7 +100,7 @@ and the [verification procedure](docs/runbook.md).
   test mailbox or disposable Box subtree. The hosted test instance has full
   Graph parity on the production mailboxes the operator enables on it: read,
   send, the answered-instruction move and change subscriptions (ADR-0088 as
-  amended, R648, R650).
+  amended, R651, R653).
 - Use PowerShell 7 on Windows or Linux, one platform per evidence run. Paths and
   commands are repository-relative. Follow the existing [release skill](.agents/skills/pegasus-release/SKILL.md)
   for the authorized workstation and platform-matching artifacts; one approval
@@ -150,14 +150,14 @@ Historical tickets and retired plans are provenance only.
 
 `main` is the live deployment: it moves only when a release's full smoke has
 passed, or by the promotion-only route for a range that deploys nothing
-(R654, R655). A release is a Semantic Version from 1.0.0, named in the
-approval and tagged `v<version>` on the released SHA (R659 to R661); a fix
-ships as a PATCH of `dev`'s tip, and there is no hotfix branch (R662). `dev`
+(R657, R658). A release is a Semantic Version from 1.0.0, named in the
+approval and tagged `v<version>` on the released SHA (R662 to R664); a fix
+ships as a PATCH of `dev`'s tip, and there is no hotfix branch (R665). `dev`
 is what the hosted test instance runs; a change is vetted there and promoted
-to `main` (R654, R657). Task work uses a worktree at
+to `main` (R657, R660). Task work uses a worktree at
 `../pegasus-worktrees/<slug>` on branch `task/<slug>`, created from
 `origin/dev` with `--no-track`; a change that depends on an open PR may branch
-from that PR's branch and target it (R658). A release build uses a detached
+from that PR's branch and target it (R661). A release build uses a detached
 worktree at `../pegasus-worktrees/release-<sha8>`.
 `.agents/skills/resolve-issue/scripts/cleanup_worktree.py` removes a task
 worktree once the PR head equals the worktree HEAD and the tree is clean.
