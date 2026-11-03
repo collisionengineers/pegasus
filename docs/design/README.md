@@ -1193,6 +1193,7 @@ Use guidance only where the operator must understand a consequence:
 - "Glass's cannot value this vehicle because of its age: Glass's values cars and motorcycles up to 20 years old and light commercial vehicles up to 15."
 - "The Case registration has changed since this Glass's estimate was started. Restore the original vehicle details to reopen it."
 - "The Case registration has changed since this Glass's session started. The session still holds the account. Restore the original vehicle details to resume, or close the external session and confirm its closure before launching again."
+- "Only close this once Glass's is closed and no estimate is open. The Glass's account is then free for another estimate." (the Close Glass's session dialog, R647)
 
 Illustrative text must not fabricate operational input. Loading, empty,
 stale/partial, retryable error, denied/unauthenticated, validation, conflict,
