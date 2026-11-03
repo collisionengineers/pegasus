@@ -4,8 +4,8 @@ using Pegasus.Core.Operations;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// Reads a Case's instruction email: the retained mailbox message whose
-/// receipt is the Case's origin receipt.
+/// Reads a Case's instruction email, the retained mailbox message whose
+/// receipt is the Case's origin receipt, and its Principal's Send from.
 /// </summary>
 public sealed class EfCaseInstructionEmailQueries(
     IDbContextFactory<PegasusDbContext> contextFactory) : ICaseInstructionEmailQueries
@@ -28,6 +28,7 @@ public sealed class EfCaseInstructionEmailQueries(
                           select new CaseInstructionEmail(
                               retained.Id,
                               retained.MailboxId!.Value,
+                              retained.MailboxAddress,
                               retained.ImmutableMessageId,
                               retained.InternetMessageIdentity,
                               retained.ConversationIdentity,
@@ -43,5 +44,15 @@ public sealed class EfCaseInstructionEmailQueries(
         }
 
         return rows.SingleOrDefault();
+    }
+
+    public async Task<string?> SendFromAsync(Guid caseId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var json = await context.Cases.AsNoTracking()
+            .Where(@case => @case.Id == caseId)
+            .Select(@case => @case.Principal.ReportSendingRulesJson)
+            .SingleOrDefaultAsync(cancellationToken);
+        return json is null ? null : EfOrganizationAdministration.ReadReportSending(json).SendFromMailbox;
     }
 }

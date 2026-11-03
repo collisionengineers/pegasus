@@ -157,7 +157,9 @@ Marking a Triage Awaiting information asks no reason either; the Triage Case
 page does not offer it.
 **Reply with finding** is optional. The completion notice and Record
 finding's Reply with finding tickbox offer it when the Triage came by e-mail
-and its mailbox may send. It opens the composer with the
+and a mailbox may answer it
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence),
+R651). It opens the composer with the
 Triage outcome template from Administration
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)), which the
 user can edit. A sent reply is linked to the

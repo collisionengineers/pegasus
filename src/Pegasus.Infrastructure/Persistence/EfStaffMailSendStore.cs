@@ -51,11 +51,14 @@ internal sealed class EfStaffMailSendStore(
         {
             var retained = await db.Set<RetainedMailboxMessageEntity>().AsNoTracking()
                 .SingleOrDefaultAsync(value => value.Id == original.RetainedMessageId
-                    && value.MailboxId == command.ApprovedMailboxId,
+                    && value.MailboxId == original.ApprovedMailboxId,
                     cancellationToken)
                 ?? throw new UnauthorizedAccessException(
                     "The original retained message is not owned by the approved mailbox.");
-            if (original.ApprovedMailboxId != command.ApprovedMailboxId
+            // Only a reply may leave another mailbox than the one holding the
+            // original: a staff forward answered from the mailbox that forwarded it.
+            if ((original.ApprovedMailboxId != command.ApprovedMailboxId
+                    && command.ComposeMode is not (StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll))
                 || !string.Equals(retained.ImmutableMessageId, original.ImmutableMessageId, StringComparison.Ordinal)
                 || !string.Equals(retained.InternetMessageIdentity, original.InternetMessageId, StringComparison.Ordinal)
                 || !string.Equals(retained.ConversationIdentity, original.ConversationId, StringComparison.Ordinal))

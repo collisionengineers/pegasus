@@ -681,7 +681,7 @@ public sealed partial class DetailsModel(
     /// Who the report leaves as: a reply to the instruction email from the
     /// mailbox it arrived in, or the Outgoing mailboxes staff choose from.
     /// </summary>
-    public CaseMailSenderOptions ReportSenders { get; private set; } = new(null, []);
+    public CaseMailSenderOptions ReportSenders { get; private set; } = new(null, [], null);
 
     /// <summary>What the Case's report has already been sent (v28 P23).</summary>
     public CaseReportSendHistory ReportSendHistory { get; private set; } = CaseReportSendHistory.None;

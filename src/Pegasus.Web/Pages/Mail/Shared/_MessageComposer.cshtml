@@ -55,10 +55,30 @@
                         <input asp-for="CorrespondenceCc" type="text" />
                     </div>
                 }
-                else
+                else if (Model.ReplyAnswer.Fixed is { } replyFrom)
                 {
                     var copied = string.IsNullOrWhiteSpace(Model.CorrespondenceCc) ? string.Empty : $" · Cc {Model.CorrespondenceCc}";
-                    <p class="mail-route">@($"From {Model.CorrespondenceMailbox!.Address} · To {Model.CorrespondenceTo}{copied}")</p>
+                    <p class="mail-route">@($"From {replyFrom.Address} · To {Model.CorrespondenceTo}{copied}")</p>
+                }
+                else
+                {
+                    @* A staff forward whose forwarding mailbox cannot send:
+                       staff choose From, the Principal's Send from chosen to
+                       start with (operator, 3 November 2026). *@
+                    var copied = string.IsNullOrWhiteSpace(Model.CorrespondenceCc) ? string.Empty : $" · Cc {Model.CorrespondenceCc}";
+                    var chosenFrom = Model.CorrespondenceFromMailboxId ?? Model.ReplySendFrom?.Id;
+                    <div class="field">
+                        <label asp-for="CorrespondenceFromMailboxId">From</label>
+                        <select asp-for="CorrespondenceFromMailboxId" required>
+                            <option value=""></option>
+                            @foreach (var mailbox in Model.ReplyAnswer.Choices)
+                            {
+                                <option value="@mailbox.Id" selected="@(mailbox.Id == chosenFrom)">@mailbox.Address</option>
+                            }
+                        </select>
+                        <span asp-validation-for="CorrespondenceFromMailboxId"></span>
+                    </div>
+                    <p class="mail-route">@($"To {Model.CorrespondenceTo}{copied}")</p>
                 }
                 <div class="field case-picker" data-case-picker @(Model.InDialog ? Html.Raw("data-case-picker-fill") : null)
                      data-case-picker-url="@Url.Page("/Mail/Message", "CorrespondenceCaseOptions", new { id = summary.Id })">

@@ -197,7 +197,8 @@ The Principal section of a Contact carries:
   - Send from: the Outgoing mailbox the send form chooses to start with for
     a new message, when there is no instruction e-mail to reply from; staff
     may change it. A reply always leaves from the mailbox the instruction
-    arrived in;
+    arrived in, or for a staff forward held in instructions@ the mailbox
+    that forwarded it (operator, 3 November 2026; R651, R652);
   - Send to: fixed addresses that replace the original instruction sender.
     Empty means the original sender. Send to only means those addresses and
     no Cc at all. Reply all keeps the instruction's own Cc addresses;

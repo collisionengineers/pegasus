@@ -39,4 +39,5 @@ public sealed record TriageCasePorts(
     GetRetainedMail? RetainedMail = null,
     IStaffMailSend? StaffMailSend = null,
     IApprovedMailboxStore? ApprovedMailboxes = null,
-    IStaffMailAttachmentResolver? AttachmentResolver = null);
+    IStaffMailAttachmentResolver? AttachmentResolver = null,
+    ICaseInstructionEmailQueries? CaseInstructions = null);
