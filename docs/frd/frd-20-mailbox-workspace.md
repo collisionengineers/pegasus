@@ -97,8 +97,8 @@ row carries a checkbox in its left gutter; ticking it neither opens nor
 selects the row (v41 item I18, signed off 19 October 2026,
 [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 A received row offers **Reply** when a mailbox can answer it: the mailbox
-it arrived in, or for a staff forward the mailbox that forwarded it or one
-staff choose (R651); it opens the message dialog's Reply
+it arrived in, or for a staff forward held in instructions@ the mailbox that
+forwarded it or one staff choose (R651, R652); it opens the message dialog's Reply
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 Rows show retained read and unread state, but this workspace never
 changes that state.

@@ -13,12 +13,14 @@ namespace Pegasus.Web.Pages.Cases;
 /// Case's instruction email from the mailbox it arrived in; with no
 /// instruction email to reply to, staff choose the Outgoing mailbox and the
 /// chaser is a new message. It opens addressed, titled and worded from the
-/// Case; staff change any of it before sending.
+/// Case, and with no fixed sender its From on the Principal's Send from
+/// (operator, 3 November 2026; R654); staff change any of it before sending.
 /// </summary>
 public sealed class ChaserModel(
     IStaffMailSend staffMailSend,
     IGetCaseHeader getCaseHeader,
     ResolveCaseMailSender senders,
+    ICaseInstructionEmailQueries caseSendFrom,
     IStaffMailAttachmentResolver attachmentResolver,
     RenderEmailTemplate renderTemplate,
     ICaseChaserRecipientQueries chaserRecipients,
@@ -61,7 +63,7 @@ public sealed class ChaserModel(
 
     public CaseHeader? Case { get; private set; }
 
-    public CaseMailSenderOptions Senders { get; private set; } = new(null, []);
+    public CaseMailSenderOptions Senders { get; private set; } = new(null, [], null);
 
     public StaffMailOperation? Operation { get; private set; }
 
@@ -202,10 +204,17 @@ public sealed class ChaserModel(
     /// <summary>
     /// Only a field still empty is filled. A reply keeps the instruction
     /// email's subject with one "Re:"; a new chaser opens with the
-    /// registration and claimant.
+    /// registration and claimant. With no fixed sender, From starts on the
+    /// Principal's Send from.
     /// </summary>
     private async Task PrefillAsync(ActionActor actor, CancellationToken cancellationToken)
     {
+        if (Senders.Reply is null && FromMailboxId is null && Senders.Mailboxes.Count > 0)
+        {
+            var sendFrom = await caseSendFrom.SendFromAsync(Id, cancellationToken);
+            FromMailboxId = Senders.Mailboxes.FirstOrDefault(mailbox =>
+                string.Equals(mailbox.Address, sendFrom, StringComparison.OrdinalIgnoreCase))?.Id;
+        }
         var details = Case!;
         var facts = new CaseChaserFacts(
             details.Summary.Registration,

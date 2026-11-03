@@ -934,7 +934,7 @@ public sealed partial class AssessmentReportDraftWebTests
             new ReportInstructionMessage(
                 Guid.NewGuid(), Guid.NewGuid(), "engineers@collisionengineers.example", "immutable-1",
                 null, null, "handler@principal.example",
-                ["noreply@principal.example", "copy@principal.example"], "Claim for PK12TMZ"),
+                ["noreply@principal.example", "copy@principal.example"], "Claim for PK12TMZ", SenderAddress: null),
             Outcome: "repairable");
         // The already-sent line lists every address the last send went to, To then Cc (v41 K5).
         var history = new CaseReportSendHistory(
@@ -948,7 +948,7 @@ public sealed partial class AssessmentReportDraftWebTests
         using var factory = WithDispatchFacts(
             baseFactory, caseId, new FakeCurrentGeneration(caseId), facts, history,
             new CaseInstructionEmail(
-                Guid.NewGuid(), engineers.Id, "immutable-1", null, null,
+                Guid.NewGuid(), engineers.Id, engineers.Address, "immutable-1", null, null,
                 "Claim for PK12TMZ", "handler@principal.example", null),
             engineers);
         using var client = Client(factory);

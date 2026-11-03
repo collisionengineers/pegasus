@@ -28,6 +28,7 @@ public sealed class EfCaseInstructionEmailQueries(
                           select new CaseInstructionEmail(
                               retained.Id,
                               retained.MailboxId!.Value,
+                              retained.MailboxAddress,
                               retained.ImmutableMessageId,
                               retained.InternetMessageIdentity,
                               retained.ConversationIdentity,

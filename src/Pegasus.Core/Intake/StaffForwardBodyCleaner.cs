@@ -113,7 +113,7 @@ public static partial class StaffForwardBodyCleaner
     /// paint, instead of showing the forwarding desk until intake
     /// processing writes the authoritative route decision (MAIL-009).
     /// Fails closed: a body with no forwarded header, or a From: line
-    /// carrying no address, yields null rather than a guess.
+    /// carrying no address or more than one, yields null rather than a guess.
     /// </summary>
     public static string? ForwardedSenderAddress(string body)
     {
@@ -124,10 +124,8 @@ public static partial class StaffForwardBodyCleaner
             return null;
         }
 
-        var from = boundary.Groups["from"].Value;
-        var angled = AngledAddressRegex().Match(from);
-        var candidate = (angled.Success ? angled.Groups["address"].Value : from).Trim();
-        return BareAddressRegex().IsMatch(candidate) ? candidate : null;
+        var addresses = HeaderAddresses(boundary.Groups["from"].Value);
+        return addresses.Count == 1 ? addresses[0] : null;
     }
 
     /// <summary>
@@ -147,33 +145,22 @@ public static partial class StaffForwardBodyCleaner
         }
 
         return (
-            [.. HeaderAddresses(boundary.Groups["to"].Value)],
-            [.. boundary.Groups["cc"].Captures.SelectMany(capture => HeaderAddresses(capture.Value))]);
+            HeaderAddresses(boundary.Groups["to"].Value),
+            HeaderAddresses(string.Join(' ', boundary.Groups["cc"].Captures.Select(capture => capture.Value))));
     }
 
-    /// <summary>The addresses of one header line: "Name &lt;a@b&gt;" parts split on ";", bare parts on ";" or ",".</summary>
-    private static IEnumerable<string> HeaderAddresses(string line)
+    /// <summary>
+    /// The distinct addresses on one header line, in first-seen order. It
+    /// reads address tokens, not angle-bracket contents, so Outlook's
+    /// text-body form "Name &lt;a@b&lt;mailto:a@b&gt;&gt;" yields a@b once,
+    /// and a line separated by ";" or "," yields each address.
+    /// </summary>
+    public static IReadOnlyList<string> HeaderAddresses(string line)
     {
-        foreach (var segment in line.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var angled = AngledAddressRegex().Matches(segment);
-            if (angled.Count > 0)
-            {
-                foreach (Match match in angled)
-                {
-                    yield return match.Groups["address"].Value.Trim();
-                }
-                continue;
-            }
-            foreach (var part in segment.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            {
-                var candidate = part.Trim('\'', '"');
-                if (BareAddressRegex().IsMatch(candidate))
-                {
-                    yield return candidate;
-                }
-            }
-        }
+        ArgumentNullException.ThrowIfNull(line);
+        return [.. AddressTokenRegex().Matches(line)
+            .Select(match => match.Groups["address"].Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
     }
 
     /// <summary>
@@ -260,15 +247,12 @@ public static partial class StaffForwardBodyCleaner
     [GeneratedRegex("\\n{3,}", RegexOptions.CultureInvariant)]
     private static partial Regex BlankRunRegex();
 
-    // "Display Name <address@example.com>" — the shape Outlook writes on a
-    // forwarded From: line when the sender has a display name.
-    [GeneratedRegex("<(?<address>[^<>\\s]+@[^<>\\s]+)>", RegexOptions.CultureInvariant)]
-    private static partial Regex AngledAddressRegex();
-
+    // One address token wherever it sits on a header line: bare, inside
+    // "<…>", or after Outlook's "mailto:".
     [GeneratedRegex(
-        "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+        "(?i)(?<![a-z0-9._%+-])(?<address>[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,})(?![a-z0-9._%+-])",
         RegexOptions.CultureInvariant)]
-    private static partial Regex BareAddressRegex();
+    private static partial Regex AddressTokenRegex();
 
     // The measured footer boundary markers (MAIL-007): a line that is an
     // image placeholder, carries a decorated contact link, or opens the

@@ -12,8 +12,9 @@ namespace Pegasus.Core.Reports;
 /// message a report replies to, the approved mailbox that holds it, and who
 /// sent and copied it. <paramref name="SenderAddress"/> is its transport
 /// sender; for a Collision Engineers staff forward that is the forwarding
-/// mailbox, and <paramref name="Cc"/> is the original message's own Cc list
-/// (operator, 3 November 2026).
+/// mailbox, and for one held in instructions@ <paramref name="Cc"/> is the
+/// original message's own Cc list less that mailbox (operator, 3 November
+/// 2026; R651, R652, R653).
 /// </summary>
 public sealed record ReportInstructionMessage(
     Guid RetainedMessageId,
@@ -25,7 +26,7 @@ public sealed record ReportInstructionMessage(
     string? EffectiveSender,
     IReadOnlyList<string> Cc,
     string? Subject,
-    string? SenderAddress = null);
+    string? SenderAddress);
 
 /// <summary>
 /// One of the Case's recognised filed estimate documents as an attachment,

@@ -6,10 +6,14 @@ namespace Pegasus.Core.Operations;
 /// <summary>
 /// The retained email a Case was instructed by: the mailbox message its
 /// origin receipt came from, with what a reply to it needs.
+/// <paramref name="ApprovedMailboxAddress"/> is the address of the mailbox
+/// holding it, which decides whether a staff forward is answered as though
+/// the original had arrived directly (<see cref="StaffMailAnswer"/>).
 /// </summary>
 public sealed record CaseInstructionEmail(
     Guid RetainedMessageId,
     Guid ApprovedMailboxId,
+    string ApprovedMailboxAddress,
     string ImmutableMessageId,
     string? InternetMessageId,
     string? ConversationId,
@@ -35,12 +39,13 @@ public interface ICaseInstructionEmailQueries
 /// <summary>
 /// Which mailbox a reply to one retained message leaves from (operator, 12
 /// October and 3 November 2026). A message is answered from the mailbox it
-/// arrived in. A Collision Engineers staff forward is answered as though it
-/// had arrived in the mailbox that forwarded it ("Pretend instructions IS
-/// desk"): from that mailbox when it can send, otherwise from the mailbox
-/// staff choose. A reply that leaves another mailbox than the one holding
-/// the message goes as a new message, since only the holding mailbox has a
-/// copy to reply in.
+/// arrived in. A Collision Engineers staff forward held in instructions@ is
+/// answered as though it had arrived in the mailbox that forwarded it
+/// ("Pretend instructions IS desk", R651; "Only instructions@", R652): from
+/// that mailbox when it can send, otherwise from the mailbox staff choose. A
+/// staff forward held in any other mailbox is answered as any message is. A
+/// reply that leaves another mailbox than the one holding the message goes
+/// as a new message, since only the holding mailbox has a copy to reply in.
 /// </summary>
 /// <param name="Fixed">The mailbox the reply leaves from, which staff cannot change.</param>
 /// <param name="Choices">The mailboxes staff choose from when nothing is fixed; empty when the reply cannot be sent.</param>
@@ -53,17 +58,19 @@ public sealed record StaffMailAnswer(ApprovedMailbox? Fixed, IReadOnlyList<Appro
         Fixed ?? Choices.SingleOrDefault(mailbox => mailbox.Id == chosenMailboxId);
 
     /// <summary>
-    /// The answer to the message held in <paramref name="holdingMailboxId"/>,
-    /// sent by <paramref name="senderAddress"/>, among the mailboxes that can send.
+    /// The answer to the message held in <paramref name="holdingMailboxId"/>
+    /// at <paramref name="holdingMailboxAddress"/>, sent by
+    /// <paramref name="senderAddress"/>, among the mailboxes that can send.
     /// </summary>
     public static StaffMailAnswer For(
         Guid holdingMailboxId,
+        string? holdingMailboxAddress,
         string? senderAddress,
         string? effectiveSenderAddress,
         IReadOnlyList<ApprovedMailbox> sending)
     {
         ArgumentNullException.ThrowIfNull(sending);
-        if (PrincipalMailRoutePolicy.StaffForwardOriginalSender(senderAddress, effectiveSenderAddress) is null)
+        if (OriginalSender(holdingMailboxAddress, senderAddress, effectiveSenderAddress) is null)
         {
             return new(sending.Sender(holdingMailboxId), []);
         }
@@ -71,6 +78,25 @@ public sealed record StaffMailAnswer(ApprovedMailbox? Fixed, IReadOnlyList<Appro
             && string.Equals(mailbox.Address.Trim(), senderAddress!.Trim(), StringComparison.OrdinalIgnoreCase));
         return forwarder is null ? new(null, sending) : new(forwarder, []);
     }
+
+    /// <summary>
+    /// The original sender a message is answered to as though it had arrived
+    /// directly: a Collision Engineers staff forward's
+    /// (<see cref="PrincipalMailRoutePolicy.StaffForwardOriginalSender"/>)
+    /// while instructions@ holds it (R651, R652). Null for every other
+    /// message, a staff forward held in another mailbox included, which is
+    /// answered as itself.
+    /// </summary>
+    public static string? OriginalSender(
+        string? holdingMailboxAddress,
+        string? senderAddress,
+        string? effectiveSenderAddress) =>
+        string.Equals(
+            holdingMailboxAddress?.Trim(),
+            PrincipalMailRoutePolicy.StaffForwardMailboxAddress,
+            StringComparison.OrdinalIgnoreCase)
+            ? PrincipalMailRoutePolicy.StaffForwardOriginalSender(senderAddress, effectiveSenderAddress)
+            : null;
 }
 
 /// <summary>
@@ -104,11 +130,15 @@ public sealed class ResolveCaseMailSender(
         var answer = instruction is null
             ? null
             : StaffMailAnswer.For(
-                instruction.ApprovedMailboxId, instruction.SenderAddress, instruction.EffectiveSenderAddress, sending);
+                instruction.ApprovedMailboxId,
+                instruction.ApprovedMailboxAddress,
+                instruction.SenderAddress,
+                instruction.EffectiveSenderAddress,
+                sending);
         return new(
             answer?.Fixed is { } replyMailbox ? new CaseMailSender(replyMailbox, instruction) : null,
             sending,
-            // A staff forward is still answered from the mailbox staff choose.
+            // A staff forward held in instructions@ is still answered from the mailbox staff choose.
             answer is { Choices.Count: > 0 } ? instruction : null);
     }
 
@@ -141,7 +171,7 @@ public sealed class CaseMailSenderRequiredException()
 public sealed record CaseMailSenderOptions(
     CaseMailSender? Reply,
     IReadOnlyList<ApprovedMailbox> Mailboxes,
-    CaseInstructionEmail? Answers = null)
+    CaseInstructionEmail? Answers)
 {
     /// <summary>The sender when staff chose <paramref name="mailbox"/>.</summary>
     public CaseMailSender Chosen(ApprovedMailbox mailbox) => new(mailbox, Answers);

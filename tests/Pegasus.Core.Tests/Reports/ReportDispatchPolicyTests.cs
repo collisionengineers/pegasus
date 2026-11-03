@@ -1203,7 +1203,7 @@ public sealed class ReportDispatchPolicyTests
         IReadOnlyList<string>? cc = null,
         string? subject = "Claim AB12 CDE") => new(
         RetainedId, MailboxId, "engineers@collisionengineers.example", "immutable-1",
-        "<instruction@insurer.example>", "conversation-1", sender, cc ?? [], subject);
+        "<instruction@insurer.example>", "conversation-1", sender, cc ?? [], subject, SenderAddress: null);
 
     private static ReportDispatchFacts Facts(
         PrincipalReportSendingRules rules,

@@ -1322,25 +1322,21 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The reply answers the message's Reply-To, or From without one; a
-    /// Collision Engineers staff forward is answered to its proven original
-    /// sender instead of the forwarding desk (FRD-21 Reply targets).
+    /// Collision Engineers staff forward, whichever mailbox holds it, is
+    /// answered to its proven original sender instead of the forwarding desk
+    /// (FRD-21 Reply targets, issue 1042).
     /// </summary>
     internal static StaffMailRecipient[] TriageReplyRecipients(RetainedMailDetail detail) =>
-        Pegasus.Web.Pages.Mail.MessageModel.ReplyRecipients(detail).To
-            .Where(item => IsTriageMailboxAddress(item.Address))
-            .ToArray();
+        PrincipalMailRoutePolicy.StaffForwardOriginalSender(
+            detail.Summary.SenderAddress, detail.Summary.EffectiveSenderAddress) is { } originalSender
+            ? ParseTriageRecipients(originalSender)
+            : Pegasus.Web.Pages.Mail.MessageModel.ReplyRecipients(detail).To
+                .Where(item => IsTriageMailboxAddress(item.Address))
+                .ToArray();
 
     private static StaffMailRecipient[] ParseTriageRecipients(string? value) =>
         (value ?? string.Empty)
             .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(address => new StaffMailRecipient(address.Trim(), DisplayName: null))
-            .Where(item => IsTriageMailboxAddress(item.Address))
-            .DistinctBy(item => item.Address, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-    private static StaffMailRecipient[] ParseTriageRecipients(IReadOnlyList<string>? values) =>
-        (values ?? [])
-            .SelectMany(val => (val ?? string.Empty).Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Select(address => new StaffMailRecipient(address.Trim(), DisplayName: null))
             .Where(item => IsTriageMailboxAddress(item.Address))
             .DistinctBy(item => item.Address, StringComparer.OrdinalIgnoreCase)

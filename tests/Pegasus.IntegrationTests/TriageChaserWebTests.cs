@@ -796,9 +796,10 @@ public sealed partial class QdosTriageIntegrationTests
     }
 
     /// <summary>
-    /// A staff forward is answered as though it had arrived in the mailbox
-    /// that forwarded it (operator, 3 November 2026): From is that mailbox,
-    /// and the reply still names the forwarded message it answers.
+    /// A staff forward held in instructions@ is answered as though it had
+    /// arrived in the mailbox that forwarded it (operator, 3 November 2026;
+    /// R651, R652): From is that mailbox, and the reply still names the
+    /// forwarded message it answers.
     /// </summary>
     [Fact]
     public async Task AStaffForwardedTriageIsAnsweredFromTheMailboxThatForwardedIt()
@@ -818,7 +819,8 @@ public sealed partial class QdosTriageIntegrationTests
             senderAddress: forwarder,
             replyToAddress: forwarder,
             subject: "FW: Engineer Triage AB12CDE",
-            body: ForwardedTriageBody);
+            body: ForwardedTriageBody,
+            mailboxAddress: "instructions@collisionengineers.co.uk");
 
         using (var page = await client.GetAsync($"/Cases/{fixture.TriageCaseId}"))
         {
@@ -1019,10 +1021,10 @@ public sealed partial class QdosTriageIntegrationTests
         string senderAddress = "sender@example.invalid",
         string? replyToAddress = "reply@example.invalid",
         string subject = "Originating triage subject",
-        string body = "Originating triage body.")
+        string body = "Originating triage body.",
+        string mailboxAddress = "sc08-sender@collisionengineers.co.uk")
     {
         var externalToken = $"12:instructions{Guid.NewGuid():N}";
-        const string mailboxAddress = "sc08-sender@collisionengineers.co.uk";
         const string immutableMessageId = "triage-msg-001";
         const string internetMessageId = "<triage-msg-001@example.invalid>";
         const string conversationId = "conv-triage-001";

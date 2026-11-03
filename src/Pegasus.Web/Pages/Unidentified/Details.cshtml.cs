@@ -498,6 +498,7 @@ public sealed partial class DetailsModel(
             SourceMessageCanReply = !string.IsNullOrWhiteSpace(source.Summary.SenderAddress)
                 && StaffMailAnswer.For(
                     source.Summary.MailboxId,
+                    source.Summary.MailboxAddress,
                     source.Summary.SenderAddress,
                     source.Summary.EffectiveSenderAddress,
                     [.. (await approvedMailboxes.ListAsync(cancellationToken)).Where(mailbox => mailbox.CanSend)]).CanSend;

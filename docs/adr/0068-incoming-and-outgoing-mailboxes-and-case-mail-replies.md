@@ -69,8 +69,11 @@ instructed in.
    message, so everything linked to that message holds, and
    `GraphStaffMailSender` creates it as a new message, since only the
    holding mailbox can `createReply`. A forward still leaves the holding
-   mailbox. Decision 1 stands: the forward is recognised per message, not
-   by mailbox.
+   mailbox. *Amended 3 November 2026 (R652):* only a staff forward held in
+   instructions@ (`PrincipalMailRoutePolicy.StaffForwardMailboxAddress`) is
+   answered this way; one held in any other mailbox is answered from that
+   mailbox like any message. This is the one exception to decision 1's
+   "never by its mailbox".
 4. Every Outgoing mailbox sends under one fixed limit,
    `ApprovedStaffSendMailbox.OutgoingEncodedMessageSizeLimit`
    (36,700,160 encoded bytes).

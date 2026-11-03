@@ -31,7 +31,6 @@ public sealed class IndexModel(
     public bool StaffMailAvailable => staffMailSend is not null
         && staffMailSend is not UnavailableStaffMailSend;
 
-    /// <summary>The approved mailboxes a reply can leave from; a received message held by one offers Reply.</summary>
     /// <summary>The approved mailboxes that can send, which a reply from the list may leave from.</summary>
     public IReadOnlyList<ApprovedMailbox> ReplyMailboxes { get; private set; } = [];
     internal const int PageSize = 25;
@@ -221,7 +220,8 @@ public sealed class IndexModel(
         Folder != MailFolderScope.Sent
         && !Dismissed
         && !string.IsNullOrWhiteSpace(item.SenderAddress)
-        && StaffMailAnswer.For(item.MailboxId, item.SenderAddress, item.EffectiveSenderAddress, ReplyMailboxes).CanSend;
+        && StaffMailAnswer.For(
+            item.MailboxId, item.MailboxAddress, item.SenderAddress, item.EffectiveSenderAddress, ReplyMailboxes).CanSend;
 
     /// <summary>The list itself.</summary>
     private async Task ReadListAsync(

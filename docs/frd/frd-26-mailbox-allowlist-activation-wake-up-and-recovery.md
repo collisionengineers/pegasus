@@ -53,9 +53,9 @@ message by classification
 ([FRD-08](frd-08-email-mailbox-and-background-processing.md)), whichever
 mailbox received it. The staff forwards that reach instructions@ (R586) are
 no exception: they are recognised per message, by a Collision Engineers
-transport sender with an external original, never by the mailbox, and are
-answered from the mailbox that forwarded them (operator, 3 November 2026;
-R651; [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)). Mail settings (`/Administration/Mailboxes`) shows the
+transport sender with an external original. Only the answer depends on the
+mailbox: one held in instructions@ is answered from the mailbox that
+forwarded it (operator, 3 November 2026; R651, R652; [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)). Mail settings (`/Administration/Mailboxes`) shows the
 two as checkboxes under **Used for**.
 
 The accepted intake target is four business mailboxes:

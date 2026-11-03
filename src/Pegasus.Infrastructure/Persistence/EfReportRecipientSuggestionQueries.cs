@@ -101,12 +101,17 @@ public sealed class EfReportRecipientSuggestionQueries(
                 instructionText = text.Length == 0 ? null : text;
                 if (row.ReceiptChannel == "mailbox" && retained.MailboxId is { } mailboxId)
                 {
-                    // A staff forward is answered as though the original had
-                    // arrived directly, so its Cc is the original's own
-                    // (operator, 3 November 2026).
-                    var cc = PrincipalMailRoutePolicy.StaffForwardOriginalSender(retained.SenderAddress, row.EffectiveSender) is null
+                    // A staff forward held in instructions@ is answered as
+                    // though the original had arrived directly, so its Cc is
+                    // the original's own, less the mailbox that forwarded it
+                    // (operator, 3 November 2026; R651, R652, R653).
+                    var cc = StaffMailAnswer.OriginalSender(
+                            retained.MailboxAddress, retained.SenderAddress, row.EffectiveSender) is null
                         ? JsonSerializer.Deserialize<string[]>(retained.CcAddressesJson, RetainedJsonOptions) ?? []
-                        : StaffForwardBodyCleaner.ForwardedRecipients(retained.BodyPlainText ?? string.Empty).Cc;
+                        : StaffForwardBodyCleaner.ForwardedRecipients(retained.BodyPlainText ?? string.Empty).Cc
+                            .Where(address => !string.Equals(
+                                address, retained.SenderAddress?.Trim(), StringComparison.OrdinalIgnoreCase))
+                            .ToArray();
                     instruction = new ReportInstructionMessage(
                         retained.Id,
                         mailboxId,

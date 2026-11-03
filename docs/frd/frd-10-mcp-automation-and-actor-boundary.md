@@ -324,10 +324,11 @@ submission is not part of it.
   (omitted, every confirmed document the generation holds, the fee note
   included) and the covering message as written. It is a reply to the
   Case's instruction e-mail from the mailbox it arrived in, or for a staff
-  forward from the mailbox that forwarded it (R651); `fromMailbox` names the
+  forward held in instructions@ from the mailbox that forwarded it (R651,
+  R652); `fromMailbox` names the
   Outgoing mailbox only when the send has no fixed sender (no instruction
-  e-mail to reply to, or a staff forward whose forwarding mailbox cannot
-  send)
+  e-mail to reply to, or a staff forward held in instructions@ whose
+  forwarding mailbox cannot send)
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
   On a Case that has its Audit, `otherReport` adds the other work's current
   confirmed report to the same email, with `otherAttach` choosing its
@@ -337,8 +338,8 @@ submission is not part of it.
   Case's **Send chaser**, recorded as the Case's chaser; `reply`, `reply_all`
   and `forward` answer one retained message from the approved mailbox that
   holds it, with the recipients the message page gives them, except that a
-  reply to a Collision Engineers staff forward leaves the mailbox that
-  forwarded it (R651); `fromMailbox` names the Outgoing mailbox only when a
+  reply to a Collision Engineers staff forward held in instructions@ leaves
+  the mailbox that forwarded it (R651, R652); `fromMailbox` names the Outgoing mailbox only when a
   send other than `forward` has no fixed sender; `triage_reply` is the Triage Case's reply to its
   origin e-mail, the chaser until the outcome is recorded and the outcome
   reply once Completed ([FRD-03](frd-03-triage.md)). `reply` and
@@ -673,8 +674,9 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
   without a To recipient, or with an address that is not a plain e-mail
   address, is refused and nothing is sent.
 - A send with no fixed sender (a chaser or report send for a Case with no
-  instruction e-mail to reply to, or a reply to a staff forward whose
-  forwarding mailbox cannot send), without `fromMailbox`, is refused;
+  instruction e-mail to reply to, or a reply to a staff forward held in
+  instructions@ whose forwarding mailbox cannot send), without
+  `fromMailbox`, is refused;
   `fromMailbox` beside a fixed sender, or on a `forward`, is refused rather
   than ignored.
 - Mail is filed against an instruction Case; a Triage Case is answered only

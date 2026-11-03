@@ -1566,7 +1566,8 @@ public sealed class MessageModel(
     /// Automation Actor's <c>pegasus_mail_send</c> alike: the send-ready
     /// mailbox that holds it, which Forward sends as, and the
     /// <see cref="StaffMailAnswer"/> Reply and Reply all leave from. Only the
-    /// holding mailbox is read, unless the message is a staff forward.
+    /// holding mailbox is read, unless the message is a staff forward held in
+    /// instructions@.
     /// </summary>
     internal static async Task<(ApprovedMailbox? Holding, StaffMailAnswer Reply)> CorrespondenceSendersAsync(
         RetainedMailDetail detail,
@@ -1579,7 +1580,7 @@ public sealed class MessageModel(
         {
             return (null, new(null, []));
         }
-        if (StaffForwardOriginalSender(detail) is null)
+        if (StaffForwardOriginalSender(detail.Summary) is null)
         {
             var holding = await mailboxes.GetSenderAsync(detail.Summary.MailboxId, cancellationToken);
             return (holding, new(holding, []));
@@ -1588,12 +1589,16 @@ public sealed class MessageModel(
         return (
             sending.Sender(detail.Summary.MailboxId),
             StaffMailAnswer.For(
-                detail.Summary.MailboxId, detail.Summary.SenderAddress, detail.Summary.EffectiveSenderAddress, sending));
+                detail.Summary.MailboxId,
+                detail.Summary.MailboxAddress,
+                detail.Summary.SenderAddress,
+                detail.Summary.EffectiveSenderAddress,
+                sending));
     }
 
-    private static string? StaffForwardOriginalSender(RetainedMailDetail detail) =>
-        PrincipalMailRoutePolicy.StaffForwardOriginalSender(
-            detail.Summary.SenderAddress, detail.Summary.EffectiveSenderAddress);
+    /// <summary>The original sender a staff forward held in instructions@ is answered to; null otherwise.</summary>
+    private static string? StaffForwardOriginalSender(RetainedMailSummary summary) =>
+        StaffMailAnswer.OriginalSender(summary.MailboxAddress, summary.SenderAddress, summary.EffectiveSenderAddress);
 
     private async Task<bool> LoadCorrespondenceContextAsync(
         ActionActor actor,
@@ -1838,19 +1843,21 @@ public sealed class MessageModel(
 
     /// <summary>
     /// Reply answers the message's Reply-To, or From without one; a Collision
-    /// Engineers staff forward is answered as though the original had arrived
-    /// directly, to its original sender (operator, 3 November 2026).
+    /// Engineers staff forward held in instructions@ is answered as though the
+    /// original had arrived directly, to its original sender (operator, 3
+    /// November 2026; R651, R652).
     /// </summary>
     internal static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyRecipients(
         RetainedMailDetail detail) =>
-        (StaffForwardOriginalSender(detail) is { } original
+        (StaffForwardOriginalSender(detail.Summary) is { } original
             ? ParseRecipients(original)
             : ParseRecipients(detail.ReplyToAddresses), []);
 
     /// <summary>
     /// Reply all adds the message's To and Cc, less <paramref name="ownAddress"/>;
-    /// a staff forward's are the original message's own, read from its
-    /// forwarded header.
+    /// a staff forward held in instructions@ adds the original message's own,
+    /// read from its forwarded header, less the mailbox that forwarded it too
+    /// (operator, 3 November 2026; R652, R653).
     /// </summary>
     internal static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyAllRecipients(
         RetainedMailDetail detail,
@@ -1862,13 +1869,14 @@ public sealed class MessageModel(
         var to = new List<StaffMailRecipient>();
         var cc = new List<StaffMailRecipient>();
         AddUnique(to, ReplyRecipients(detail).To, seen);
-        if (StaffForwardOriginalSender(detail) is null)
+        if (StaffForwardOriginalSender(detail.Summary) is null)
         {
             AddUnique(to, detail.ToAddresses.Select(AddressRecipient), seen);
             AddUnique(cc, detail.CcAddresses.Select(AddressRecipient), seen);
         }
         else
         {
+            seen.Add(detail.Summary.SenderAddress!.Trim());
             var original = StaffForwardBodyCleaner.ForwardedRecipients(detail.BodyPlainText ?? string.Empty);
             AddUnique(to, original.To.Select(AddressRecipient), seen);
             AddUnique(cc, original.Cc.Select(AddressRecipient), seen);
@@ -1914,8 +1922,12 @@ public sealed class MessageModel(
         var value = summary.Subject?.Trim() ?? string.Empty;
         return mode switch
         {
-            StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll =>
+            // Only a staff forward held in instructions@ drops its "FW:" here (R652).
+            StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll when StaffForwardOriginalSender(summary) is not null =>
                 StaffMailReplySubject.For(summary.Subject, summary.SenderAddress, summary.EffectiveSenderAddress),
+            StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll
+                when value.StartsWith("Re:", StringComparison.OrdinalIgnoreCase) => value,
+            StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll => $"Re: {value}".TrimEnd(),
             StaffMailComposeMode.Forward when value.StartsWith("Fwd:", StringComparison.OrdinalIgnoreCase) => value,
             StaffMailComposeMode.Forward => $"Fwd: {value}".TrimEnd(),
             _ => value
