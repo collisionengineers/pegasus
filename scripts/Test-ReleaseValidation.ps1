@@ -866,7 +866,7 @@ try {
         'azd provision*',
         'az webapp start*',
         'az rest*/health/ready*',
-        'az rest*/diagnostics/version*',
+        'az rest*azurewebsites.net/diagnostics/version*',
         'az functionapp start*--name pegasus-prod-worker-252ow37gij*',
         'az functionapp start*--name pegasus-prod-classifier-252ow37gij*',
         'az functionapp deployment source config-zip*--name pegasus-prod-classifier-252ow37gij*')
@@ -882,7 +882,7 @@ try {
     Assert-Order -Result $result -Case $case -Patterns @(
         'az webapp deploy*--restart true*',
         'az rest*/health/ready*',
-        'az rest*/diagnostics/version*',
+        'az rest*azurewebsites.net/diagnostics/version*',
         'az functionapp deployment source config-zip*--name pegasus-prod-worker-252ow37gij*',
         'az functionapp deployment source config-zip*--name pegasus-prod-classifier-252ow37gij*')
     $probe = @($result.Calls | Where-Object { $_ -like 'az rest*/health/ready*' })[0]
