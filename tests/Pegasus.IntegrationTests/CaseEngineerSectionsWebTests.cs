@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -68,10 +69,12 @@ public sealed class CaseEngineerSectionsWebTests
         // The Incident narrative and the statement of truth are Core's, composed
         // in every state, as the issued report printed them; neither is a
         // recorded field.
-        Assert.Contains(
-            $"data-damage-narrative>{ReportWordingComposition.NatureOfIncidentSentence("moderate", "right_rear")}</div>",
-            html,
-            StringComparison.Ordinal);
+        // Each sentence is its own line block (v47).
+        Assert.Matches(
+            "data-damage-narrative>\\s*<span class=\"fv-line\">"
+            + Regex.Escape(ReportWordingComposition.NatureOfIncidentSentence("moderate", "right_rear"))
+            + "</span>\\s*</div>",
+            html);
         Assert.Contains(AssessmentReportContract.StatementOfTruth1, html, StringComparison.Ordinal);
 
         if (!AssessmentPolicy.IsWritableState(state))
@@ -233,6 +236,7 @@ public sealed class CaseEngineerSectionsWebTests
             return
             [
                 Field(AssessmentVocabulary.Impacts, "[{\"severity\":\"moderate\",\"location\":\"right_rear\",\"note\":\"\"}]"),
+                Field(AssessmentVocabulary.DamageMarkers, "[{\"x\":0.5,\"y\":0.92,\"r\":0.12}]"),
                 Field(AssessmentVocabulary.Outcome, "repairable"),
                 Field(AssessmentVocabulary.SalvageCategory, "S"),
                 Field(AssessmentVocabulary.SalvageValue, "750.00"),

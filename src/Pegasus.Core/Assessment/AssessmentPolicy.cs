@@ -164,6 +164,23 @@ public static class AssessmentPolicy
         return ReadImpacts(document.RootElement);
     }
 
+    /// <summary>
+    /// Skip impacts stands only while no impact row exists (v47 items B and D,
+    /// operator, 3 November 2026; R649): a save that would leave the skip
+    /// ticked beside any row, complete or not, is refused, for staff and the
+    /// Automation actor alike. <paramref name="merged"/> is the work's values
+    /// after the save.
+    /// </summary>
+    public static void RequireSkipOnlyWithoutImpacts(IReadOnlyDictionary<string, string> merged)
+    {
+        ArgumentNullException.ThrowIfNull(merged);
+        if (string.Equals(merged.GetValueOrDefault(AssessmentVocabulary.ImpactsSkipped), "true", StringComparison.Ordinal)
+            && ParseImpacts(merged.GetValueOrDefault(AssessmentVocabulary.Impacts)).Count > 0)
+        {
+            throw new InvalidOperationException("Skip impacts can be ticked only while no impact is entered.");
+        }
+    }
+
     /// <summary>The damage markers drawn on the plan (v46: positions only); nothing stored is none.</summary>
     public static IReadOnlyList<DamageDisc> ParseMarkers(string? value)
     {
@@ -349,6 +366,32 @@ public static class AssessmentPolicy
 
         RequireField(AssessmentVocabulary.VehicleType, "Vehicle type", "Vehicle");
         RequireField(AssessmentVocabulary.VehicleCondition, "Pre-incident condition", "Vehicle");
+        // The damage markers are always required, Skip impacts or not (operator,
+        // 3 November 2026; R650): the report's picture marks the damage.
+        if (ParseMarkers(fields.GetValueOrDefault(AssessmentVocabulary.DamageMarkers)).Count == 0)
+        {
+            items.Add(new(
+                "Damage markers",
+                "Assessment record",
+                "No damage marker is drawn.",
+                "Draw a marker on the plan on the Damage section.",
+                Field: AssessmentVocabulary.DamageMarkers));
+        }
+        // An impact, or the deliberate Skip impacts (v47, operator, 3 November
+        // 2026; R647–R649): the Incident narrative is not required, but leaving
+        // it out is a choice, never an oversight. A row missing its severity or
+        // location is not an impact.
+        if (!ParseImpacts(fields.GetValueOrDefault(AssessmentVocabulary.Impacts)).Any(impact => impact.IsComplete)
+            && !string.Equals(
+                fields.GetValueOrDefault(AssessmentVocabulary.ImpactsSkipped), "true", StringComparison.Ordinal))
+        {
+            items.Add(new(
+                "Impacts",
+                "Assessment record",
+                "No impact is entered.",
+                "Enter an impact, or tick Skip impacts, on the Damage section.",
+                Field: AssessmentVocabulary.Impacts));
+        }
         // The report prints the retail, trade and Engineer's values side by
         // side, so each is named until entered. Retail and trade are the
         // chosen guide card's (operator, 8 October 2026), and an AI market

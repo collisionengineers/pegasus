@@ -92,6 +92,7 @@ internal static class AssessmentWriteSet
                 merged[path] = value;
             }
         }
+        AssessmentPolicy.RequireSkipOnlyWithoutImpacts(merged);
 
         return (toWrite, merged);
     }

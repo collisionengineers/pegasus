@@ -210,6 +210,23 @@ span.blocker-name{cursor:default;text-decoration:none}
   #section-damage .impact-entry-empty{margin-left:0}
   .case-record.is-editing #section-damage[data-damage-editable="true"] .impact-entry-foot{display:block}
 }
+/* v47: with no impact row the empty state sits on the facts' own left edge, Add impact and
+   Skip impacts on one line; with rows the grid above is unchanged and the tick is hidden. */
+#section-damage .impact-entry:not(:has([data-impacts-rows] [data-impact-row])) .impact-entry-empty{margin-left:0}
+.case-record.is-editing #section-damage[data-damage-editable="true"] .impact-entry:not(:has([data-impacts-rows] [data-impact-row])) .impact-entry-foot{display:flex;align-items:center;gap:16px;margin-top:0}
+#section-damage .impact-entry:not(:has([data-impacts-rows] [data-impact-row])) .impact-entry-foot > span:first-child{display:none}
+#section-damage .impact-entry-skip[hidden]{display:none}
+#section-damage .impact-entry-skip.choice{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;min-height:var(--control)}
+#section-damage .impact-entry-skip input{width:15px;height:15px;min-height:0;margin:0;accent-color:var(--red)}
+#section-damage .choice.is-static{cursor:default;color:var(--muted)}
+#section-damage .choice.is-static[data-on="true"]{color:var(--ink)}
+#section-damage .choice.is-static .tick{display:inline-grid;place-items:center;width:15px;height:15px;flex:none;border:1px solid var(--line-strong);border-radius:2px;background:var(--surface-2)}
+#section-damage .choice.is-static .tick .icon{width:11px;height:11px}
+#section-damage .impact-entry-foot.impact-entry-foot--read{display:block;margin-top:0}
+/* v47: each Incident narrative sentence is its own line, a line's space between them. */
+#section-damage .fc .fv[data-damage-narrative]{display:block;white-space:normal}
+#section-damage [data-damage-narrative] .fv-line{display:block;white-space:pre-wrap}
+#section-damage [data-damage-narrative] .fv-line+.fv-line{margin-top:1lh}
 #section-damage .thumbs.evidence{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
 #section-damage .thumbs.evidence .th{position:relative;display:flex;align-items:flex-end;aspect-ratio:4/3;border:1px solid var(--line);border-radius:3px;overflow:hidden;padding:5px;background:var(--surface-3);color:#fff;font:600 9.5px var(--mono);text-shadow:0 1px 2px rgba(0,0,0,.5);text-decoration:none;cursor:zoom-in}
 #section-damage .thumbs.evidence .th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
