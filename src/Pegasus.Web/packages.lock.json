@@ -971,7 +971,7 @@
           "OpenIddict.EntityFrameworkCore": "[7.6.0, )",
           "PDFtoImage": "[5.2.1, )",
           "PdfPig": "[0.1.15, )",
-          "Pegasus.Core": "[0.1.0-alpha.1, )",
+          "Pegasus.Core": "[0.0.0-dev, )",
           "QuestPDF": "[2026.8.0, )",
           "SkiaSharp": "[3.119.2, )",
           "SkiaSharp.NativeAssets.Linux.NoDependencies": "[3.119.2, )",

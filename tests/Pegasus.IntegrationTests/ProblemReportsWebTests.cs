@@ -230,7 +230,7 @@ public sealed class ProblemReportsWebTests
         var request = ProblemReportRequests.Build(
             http,
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
-            new ApplicationBuild("0.1.0-alpha.1", new string('a', 40)),
+            new ApplicationBuild("1.0.0", new string('a', 40)),
             cache,
             new ProblemReportRequests.PostedFacts(
                 "The Save request failed.",

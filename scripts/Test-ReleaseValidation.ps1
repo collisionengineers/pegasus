@@ -154,7 +154,9 @@ exit 0
 
 $releaseScript = Join-Path $PSScriptRoot 'Invoke-Release.ps1'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$releaseVersion = '0.1.0-alpha.1'
+# The fixture release steps from the live v1.0.0 tag to 1.1.0 (R659, R660).
+$releaseVersion = '1.1.0'
+$liveVersion = '1.0.0'
 $releaseWebOrigin = 'https://pegasus-prod-web-252ow37gij.azurewebsites.net/'
 $oldWebSha = 'a' * 40
 
@@ -187,11 +189,18 @@ function New-Estate {
         [bool] $StickyServing = $false,
         # What the hosted test instance serves; the candidate unless a case says otherwise (R657).
         [string] $InstanceSourceSha = '',
+        # What the Web App reports before the release; the release version once it serves the candidate.
+        [string] $WebVersion = $liveVersion,
+        # The one pull request's closing issue and its labels (R660).
+        [bool] $PullClosesIssue = $true,
+        [string[]] $IssueLabels = @('type:feature'),
         [Parameter(Mandatory)][string] $NewSha
     )
     return [ordered]@{
-        web = [ordered]@{ state = $WebState; serving = $WebServing; sourceSha = $WebSourceSha; deployedSha = $WebSourceSha; version = $releaseVersion; stickyServing = $StickyServing }
+        web = [ordered]@{ state = $WebState; serving = $WebServing; sourceSha = $WebSourceSha; deployedSha = $WebSourceSha; version = $WebVersion; releaseVersion = $releaseVersion; stickyServing = $StickyServing }
         instance = [ordered]@{ sourceSha = $(if ($InstanceSourceSha) { $InstanceSourceSha } else { $NewSha }) }
+        pullClosesIssue = $PullClosesIssue
+        issueLabels = @($IssueLabels)
         worker = [ordered]@{ state = $WorkerState; disabled = $WorkerDisabled }
         classifier = [ordered]@{ present = $ClassifierPresent; state = $ClassifierState }
         newSha = $NewSha
@@ -230,7 +239,7 @@ if ($joined.StartsWith('rest ')) {
     $url = Get-Argument '--url'
     if ($url.StartsWith('https://cemattypc-1.tail432b53.ts.net/')) {
         # The test instance answers its version from its own state (R657).
-        if ($url.EndsWith('/diagnostics/version')) { @{ sourceSha = $state.instance.sourceSha; version = $state.web.version } | ConvertTo-Json -Compress; exit 0 }
+        if ($url.EndsWith('/diagnostics/version')) { @{ sourceSha = $state.instance.sourceSha; version = '0.0.0-dev' } | ConvertTo-Json -Compress; exit 0 }
         [Console]::Error.WriteLine('Not found'); exit 1
     }
     if ($url.EndsWith('/health/live') -or $url.EndsWith('/health/ready')) {
@@ -238,7 +247,9 @@ if ($joined.StartsWith('rest ')) {
         [Console]::Error.WriteLine('Forbidden'); exit 1
     }
     if ($url.EndsWith('/diagnostics/version')) {
-        if ($state.web.serving) { @{ sourceSha = $state.web.sourceSha; version = $state.web.version } | ConvertTo-Json -Compress; exit 0 }
+        # The bytes report the release version once the candidate serves.
+        $reported = if ($state.web.sourceSha -eq $state.newSha) { $state.web.releaseVersion } else { $state.web.version }
+        if ($state.web.serving) { @{ sourceSha = $state.web.sourceSha; version = $reported } | ConvertTo-Json -Compress; exit 0 }
         [Console]::Error.WriteLine('Forbidden'); exit 1
     }
     '{"value":[]}'; exit 0
@@ -309,9 +320,13 @@ if ($joined.StartsWith('provision')) {
     Set-Content -LiteralPath (Join-Path $Directory 'gh.ps1') -Encoding ascii -Value @'
 param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
 Add-Content -LiteralPath $env:PEGASUS_TEST_AZ_ARGUMENTS_PATH -Value "gh $($Arguments -join ' ')"
-# One green push-to-dev run (R656), one green pull request.
+$state = Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_RELEASE_STATE_PATH | ConvertFrom-Json
+# One green push-to-dev run (R656), one green pull request closing issue 7
+# when the estate says so, whose labels the estate holds (R660).
 if ($Arguments[0] -eq 'run') { '[{"status":"completed","conclusion":"success","url":"https://example.test/runs/1"}]'; exit 0 }
-'{"number":1,"title":"fixture","state":"MERGED","statusCheckRollup":[{"name":"unit","conclusion":"SUCCESS"}]}'
+if ($Arguments[0] -eq 'issue') { @{ labels = @(@($state.issueLabels) | ForEach-Object { @{ name = $_ } }) } | ConvertTo-Json -Compress -Depth 4; exit 0 }
+$closing = if ($state.pullClosesIssue) { '[{"number":7}]' } else { '[]' }
+"{`"number`":1,`"title`":`"fixture`",`"state`":`"MERGED`",`"statusCheckRollup`":[{`"name`":`"unit`",`"conclusion`":`"SUCCESS`"}],`"closingIssuesReferences`":$closing}"
 exit 0
 '@
 }
@@ -769,26 +784,52 @@ try {
     Copy-Item -Recurse -LiteralPath (Join-Path $fixture.Work '.azure') -Destination (Join-Path $worktree '.azure')
     $artifacts = New-FixtureArtifacts -Worktree $worktree -Sha $releaseSha
     $identity = $artifacts.MigrationIdentity
-    $executeNormal = @('-Execute', '-ReleaseNumber', '1', '-Route', 'Normal', '-ApprovedReleaseSha', $releaseSha, '-ApprovedManifestSha256', $artifacts.ManifestSha256)
-    $executeDestructive = @('-Execute', '-ReleaseNumber', '1', '-Route', 'Destructive', '-ApprovedReleaseSha', $releaseSha, '-ApprovedManifestSha256', $artifacts.ManifestSha256)
+    $executeNormal = @('-Execute', '-Version', $releaseVersion, '-Route', 'Normal', '-ApprovedReleaseSha', $releaseSha, '-ApprovedManifestSha256', $artifacts.ManifestSha256)
+    $executeDestructive = @('-Execute', '-Version', $releaseVersion, '-Route', 'Destructive', '-ApprovedReleaseSha', $releaseSha, '-ApprovedManifestSha256', $artifacts.ManifestSha256)
     $writes = @('az webapp deploy*', 'az webapp stop*', 'az webapp start*', 'az functionapp stop*', 'az functionapp start*',
         'az functionapp deployment source config-zip*', 'az functionapp config appsettings set*', 'azd provision*', 'azd env set*')
 
-    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $releaseSha) -MigrationHead $identity
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $releaseSha -WebVersion '0.1.0-alpha.1') -MigrationHead $identity
     $case = 'Preflight only'
     Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
     Assert-True ($result.Output.Contains('Route: promotion-only')) $case 'did not classify a documentation-only range as promotion only.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Live version: none (no v* tag on main); the Web App reports 0.1.0-alpha.1')) $case 'did not report the absent tag (R659).' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Version: none; a promotion-only range deploys nothing')) $case 'proposed a version for a promotion-only range.' $result.Diagnostic
     Assert-True ($result.Output.Contains("Migration head: $identity; candidate identity: $identity")) $case 'did not compare the head with the candidate identity.' $result.Diagnostic
     Assert-True ($result.Output.Contains('Provision: needed (no retained release')) $case 'did not say provision is needed without a retained baseline.' $result.Diagnostic
     Assert-True ($result.Output.Contains("dev run for $($releaseSha): success")) $case 'did not read the push-to-dev run (R656).' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns ($writes + @('az rest*cemattypc-1*'))
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
 
+    # main carries the first Semantic Version's tag (R659, R661): every
+    # release after it is one step above the tag.
+    & git -C $fixture.Work @($fixture.Git) tag -a -m 'Release 1.0.0' "v$liveVersion" $fixture.MainSha
+    & git -C $fixture.Work push --quiet origin "refs/tags/v$liveVersion"
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to tag the fixture main branch.' }
+
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Estate (New-Estate -NewSha $releaseSha) -MigrationHead $identity `
-        -Arguments @('-Execute', '-ReleaseNumber', '1', '-Route', 'Normal', '-ApprovedReleaseSha', $releaseSha, '-ApprovedManifestSha256', ('0' * 64))
+        -Arguments @('-Execute', '-Version', $releaseVersion, '-Route', 'Normal', '-ApprovedReleaseSha', $releaseSha, '-ApprovedManifestSha256', ('0' * 64))
     $case = 'Manifest SHA-256 mismatch'
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
     Assert-True ($result.Output.Contains('does not match the approved SHA-256')) $case 'did not name the mismatch.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns $writes
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'promoted before refusing.' $result.Diagnostic
+
+    # R660: the approved version is one step above the live tag, and the one
+    # the manifest was built with; both are read before any write.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Estate (New-Estate -NewSha $releaseSha) -MigrationHead $identity `
+        -Arguments @('-Execute', '-Version', '1.3.0', '-Route', 'Normal', '-ApprovedReleaseSha', $releaseSha, '-ApprovedManifestSha256', $artifacts.ManifestSha256)
+    $case = 'Version not one step above the live one'
+    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('1.3.0 is not one step above the live v1.0.0: the next versions are 1.0.1 (PATCH), 1.1.0 (MINOR) or 2.0.0 (MAJOR)')) $case 'did not name the next versions.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns $writes
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'promoted before refusing.' $result.Diagnostic
+
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Estate (New-Estate -NewSha $releaseSha) -MigrationHead $identity `
+        -Arguments @('-Execute', '-Version', '2.0.0', '-Route', 'Normal', '-ApprovedReleaseSha', $releaseSha, '-ApprovedManifestSha256', $artifacts.ManifestSha256)
+    $case = 'Version the manifest was not built for'
+    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('run the read-only run with -Version 2.0.0 first')) $case 'did not name the missing build.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns $writes
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'promoted before refusing.' $result.Diagnostic
 
@@ -877,6 +918,8 @@ try {
     $case = 'Normal route without provision'
     Assert-True ($result.ExitCode -ne 0) $case 'should stop at the full smoke run-from-package read.' $result.Diagnostic
     Assert-True ($result.Output.Contains('WEBSITE_RUN_FROM_PACKAGE')) $case 'did not reach the full smoke.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("Version: $releaseVersion (MINOR above v$liveVersion).")) $case 'did not accept the approved version as one step above the tag.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("Web App read back Running, ready and at $releaseSha / $releaseVersion")) $case 'did not read the release version back from the site.' $result.Diagnostic
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'promoted main before the smoke passed.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns @('azd provision*', 'azd env set*', 'az webapp stop*', 'az functionapp stop*', 'az functionapp config appsettings set*', '*--track-status*')
     Assert-Order -Result $result -Case $case -Patterns @(
@@ -960,6 +1003,49 @@ try {
     Assert-True ($result.Output.Contains("origin/dev is at $movedSha")) $case 'did not name where dev is.' $result.Diagnostic
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns $writes
+
+    # --- The version proposal (R659, R660) on a deployable range ---------------
+    # dev gains a merged pull request that changes src/; main stays tagged
+    # v1.0.0. The proposal reads what the pull request closes and the issue's
+    # type labels; the approval names the version, so -Version overrides.
+    & git -C $fixture.Work @($fixture.Git) checkout --quiet -b fixture/change
+    Set-Content -LiteralPath (Join-Path $fixture.Work 'src/Pegasus.Web/placeholder.txt') -Value 'changed' -Encoding ascii
+    & git -C $fixture.Work @($fixture.Git) add -A
+    & git -C $fixture.Work @($fixture.Git) commit --quiet -m 'feat: change'
+    & git -C $fixture.Work @($fixture.Git) checkout --quiet dev
+    & git -C $fixture.Work @($fixture.Git) merge --quiet --no-ff -m 'Merge pull request #1 from fixture/change' fixture/change
+    & git -C $fixture.Work push --quiet origin dev
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to merge the fixture pull request.' }
+    $proposalSha = (& git -C $fixture.Work rev-parse HEAD).Trim()
+
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha) -MigrationHead $identity
+    $case = 'Proposal for a feature'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("Live version: $liveVersion (tag v$liveVersion on main); the Web App reports $liveVersion")) $case 'did not read the live tag.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Proposed: 1.1.0 (MINOR: #1 closes #7 (type:feature))')) $case 'did not propose a MINOR step for a feature.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Build version: 1.1.0 (proposed')) $case 'did not build the proposal.' $result.Diagnostic
+    Assert-True ($result.Calls.Contains('gh issue view 7 --repo collisionengineers/pegasus --json labels')) $case 'did not read the closing issue.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns $writes
+
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -IssueLabels @('type:bug')) -MigrationHead $identity
+    $case = 'Proposal for bug fixes only'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Proposed: 1.0.1 (PATCH: every pull request in the range closes only type:bug issues)')) $case 'did not propose a PATCH step.' $result.Diagnostic
+
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -PullClosesIssue $false) -MigrationHead $identity
+    $case = 'Proposal when a pull request closes nothing'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Proposed: 1.1.0 (MINOR: #1 closes no issue)')) $case 'did not propose a MINOR step.' $result.Diagnostic
+
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly', '-Version', '2.0.0') -Estate (New-Estate -NewSha $proposalSha) -MigrationHead $identity
+    $case = 'Preflight with a given version'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Build version: 2.0.0 (MAJOR, given)')) $case 'did not take the given version.' $result.Diagnostic
+
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly', '-Version', '1.2.0') -Estate (New-Estate -NewSha $proposalSha) -MigrationHead $identity
+    $case = 'Preflight with a version that is not one step'
+    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("1.2.0 is not one step above the live v$liveVersion")) $case 'did not refuse the version.' $result.Diagnostic
 
     & git -C $fixture.Work worktree remove --force $worktree
 

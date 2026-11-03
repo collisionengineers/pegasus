@@ -19,8 +19,8 @@ and [CONTEXT.md](CONTEXT.md) for reserved business terminology.
   feature flag, skill, cache, edit-authority concept or plan names the
   existing one it replaces, or shows that none exists.
 - Release as often as verifying a change needs, and keep each release cheap:
-  the record in `docs/operations.md` is at most 15 lines, and anything still
-  owed after a release becomes a GitHub issue.
+  the record in `docs/operations.md` ("Release <version>") is at most 15
+  lines, and anything still owed after a release becomes a GitHub issue.
 - Decide once, in the repository. The operator's rulings are the decision
   record and live in [docs/rulings.md](docs/rulings.md); a behaviour rule goes
   into the FRD clause it changes, dated and citing its ruling. An ADR is
@@ -150,8 +150,11 @@ Historical tickets and retired plans are provenance only.
 
 `main` is the live deployment: it moves only when a release's full smoke has
 passed, or by the promotion-only route for a range that deploys nothing
-(R654, R655). `dev` is what the hosted test instance runs; a change is vetted
-there and promoted to `main` (R654, R657). Task work uses a worktree at
+(R654, R655). A release is a Semantic Version from 1.0.0, named in the
+approval and tagged `v<version>` on the released SHA (R659 to R661); a fix
+ships as a PATCH of `dev`'s tip, and there is no hotfix branch (R662). `dev`
+is what the hosted test instance runs; a change is vetted there and promoted
+to `main` (R654, R657). Task work uses a worktree at
 `../pegasus-worktrees/<slug>` on branch `task/<slug>`, created from
 `origin/dev` with `--no-track`; a change that depends on an open PR may branch
 from that PR's branch and target it (R658). A release build uses a detached

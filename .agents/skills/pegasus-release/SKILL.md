@@ -73,6 +73,23 @@ route, and the agent names each non-additive operation, the capability it
 affects and the forward-only recovery boundary in the approval request.
 Uncertainty is resolved before approval, never during the route.
 
+## Version
+
+Releases are Semantic Versions from 1.0.0 (R659): `MAJOR.MINOR.PATCH` with no
+suffix, because the running build reports `<version>+<sha>` and the `+`
+separates the two. The live version is the highest `v*` tag on `main`; the
+released SHA gets its annotated tag `v<version>` in the promotion push after
+the smoke (R661). Nothing in source carries a release version:
+`Directory.Build.props` stamps `0.0.0-dev` into every build that is not a
+release, the test instance included. The read-only run proposes the next
+version (R660): PATCH when every pull request in the range closes only
+`type:bug` issues, MAJOR when the route is destructive, MINOR otherwise. The
+approval names the version it grants; the script refuses one that is not one
+step above the live version, or not the one the manifest was built with. A
+fix is a PATCH of `dev`'s tip; there is no hotfix branch from `main` (R662).
+The version replaces the release counter: the record is "Release 1.0.0" and
+the retained folder `release-<version>-<sha8>`.
+
 ## 1. The read-only run
 
 ```powershell
@@ -85,10 +102,12 @@ checks, reads the deployed state (Web state and stack, `/diagnostics/version`,
 Worker and classifier states, the schedule and Disabled settings), reads the
 live migration head, prints the route and whether provision is needed, reads
 the test instance's `/diagnostics/version` over the tailnet and refuses a
-deployable candidate the instance is not serving (R657), then builds the
-artifacts in a detached worktree at `../pegasus-worktrees/release-<sha8>` and
+deployable candidate the instance is not serving (R657), prints the live
+version and the proposed next one (R660), then builds the artifacts at that
+version in a detached worktree at `../pegasus-worktrees/release-<sha8>` and
 validates them. It writes nothing to GitHub or Azure. `-PreflightOnly` stops
-before the build.
+before the build; `-Version <v>` builds another version than the proposal,
+the MAJOR when the agent classifies the range's migration as non-additive.
 
 Read the report. A pull request that is not green is either waived by number
 in the approval or the candidate waits. A head that differs from the candidate
@@ -97,10 +116,11 @@ identity while the range adds no migration is a question, not a route.
 ## 2. The one approval
 
 One message from the operator names the release SHA, the manifest SHA-256,
-the route, the targets, whether provision runs and, for a destructive route,
-the old Web source SHA and the window (operator, 30 October 2026). That
-message grants the Azure writes for exactly those values and the promotion
-of `main` that follows the smoke (R655); nothing else is a grant. The script refuses if `origin/dev` moved
+the version (R660), the route, the targets, whether provision runs and, for a
+destructive route, the old Web source SHA and the window (operator, 30
+October 2026). That message grants the Azure writes for exactly those values
+and the promotion and tag of `main` that follow the smoke (R655, R661);
+nothing else is a grant. The script refuses if `origin/dev` moved
 after the message, and a moved head needs a fresh message. The agent never
 retries a refused promotion with a rebase, a reset, an unleased push or a
 different SHA.
@@ -108,19 +128,21 @@ different SHA.
 ## 3. The approved run
 
 ```powershell
-pwsh ./scripts/Invoke-Release.ps1 -Execute -ReleaseNumber <n> -Route Normal `
+pwsh ./scripts/Invoke-Release.ps1 -Execute -Version <v> -Route Normal `
   -ApprovedReleaseSha <sha> -ApprovedManifestSha256 <hash> [-Provision]
-pwsh ./scripts/Invoke-Release.ps1 -Execute -ReleaseNumber <n> -Route Destructive `
+pwsh ./scripts/Invoke-Release.ps1 -Execute -Version <v> -Route Destructive `
   -ApprovedReleaseSha <sha> -ApprovedManifestSha256 <hash> -ApprovedOldWebSourceSha <sha>
 pwsh ./scripts/Invoke-Release.ps1 -PromoteOnly -ApprovedReleaseSha <sha>
 ```
 
-The script re-validates the worktree and the manifest against the approved
-values, reads `dev` and the test instance again, runs the route to a passing
-full smoke, then promotes `main` alone to the released SHA with one leased
-push and reads it back (R655): `main` records what is live, so a failed
-release leaves it at the SHA still serving, with nothing in git to reset.
-`-PromoteOnly` keeps the atomic push of the SHA to `main` and `dev`.
+The script checks the version is one step above the live tag and the one
+the manifest was built with, re-validates the worktree and the manifest
+against the approved values, reads `dev` and the test instance again, runs
+the route to a passing full smoke, then promotes `main` to the released SHA
+and tags it `v<version>` in one leased push and reads both back (R655,
+R661): `main` records what is live, so a failed release leaves it at the SHA
+still serving, with nothing in git to reset. `-PromoteOnly` keeps the atomic
+push of the SHA to `main` and `dev`, with no tag: nothing was deployed.
 
 The normal route provisions when `-Provision` is given, deploys `web.zip`
 with a restart, waits for the site to read back `Running`, ready and at the
@@ -176,7 +198,7 @@ the SHAs and hashes, the migration head, the restore point when a migration
 ran, the deployment ids, the smoke time and what is owed. Owed items become GitHub issues, not sentences carried from
 record to record. `docs/current-architecture.md` changes only when source
 structure changed. The exact artifacts are retained at
-`artifacts/releases/release-<n>-<sha8>` (ignored), beside the previous
+`artifacts/releases/release-<version>-<sha8>` (ignored), beside the previous
 releases', and the worktree is removed.
 
 Rollback is the runbook's [production recovery](../../../docs/runbook.md#production-recovery);
