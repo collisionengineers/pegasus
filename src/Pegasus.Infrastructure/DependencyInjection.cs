@@ -1095,7 +1095,7 @@ public static class DependencyInjection
 
     /// <summary>
     /// The Worker's Graph mail side: the reads, the answered-instruction move and
-    /// staff send. Production reaches it through
+    /// the staff-send store. Production reaches it through
     /// <see cref="AddProductionExternalAdapters"/>, which adds change
     /// subscriptions; a DevelopmentOffline Worker that opts into
     /// <c>Features:LiveGraphMail</c> composes exactly this and adds the
@@ -1114,7 +1114,9 @@ public static class DependencyInjection
         // The Worker alone may move a retained message: it tidies the instruction a
         // confirmed report send answered (ADR-0071). Web composes no mover.
         services.Replace(ServiceDescriptor.Singleton<ISentReportInstructionMover, GraphSentReportInstructionMover>());
-        AddStaffMailSending(services);
+        // The Sent-evidence poll settles the Web's Submitted sends against the
+        // Sent folder; the send itself is the Web's (AddProductionApprovedMailboxResolver).
+        AddStaffMailSendStore(services);
         return services;
     }
 
@@ -1268,11 +1270,21 @@ public static class DependencyInjection
                 options.Clock = new TimeProviderCacheClock(timeProvider));
     }
 
-    private static void AddStaffMailSending(IServiceCollection services)
+    /// <summary>
+    /// The staff-send store alone: what the Worker's Sent-evidence poll reads to
+    /// settle a Submitted send into Sent. No sender, lock, transport or upload
+    /// progress: those need the Web's data protection, which no Worker has.
+    /// </summary>
+    private static void AddStaffMailSendStore(IServiceCollection services)
     {
         services.AddScoped<EfStaffMailSendStore>();
         services.AddScoped<IStaffMailSendStore>(provider => provider.GetRequiredService<EfStaffMailSendStore>());
         services.AddScoped<IApprovedStaffSendMailboxQueries>(provider => provider.GetRequiredService<EfStaffMailSendStore>());
+    }
+
+    private static void AddStaffMailSending(IServiceCollection services)
+    {
+        AddStaffMailSendStore(services);
         services.AddScoped<IStaffMailUploadProgress, EfStaffMailUploadProgress>();
         services.AddScoped<IStaffMailExecutionLock, SqlStaffMailExecutionLock>();
         services.AddScoped<StaffMailSend>();

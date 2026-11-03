@@ -451,11 +451,13 @@ public sealed class WorkerCompositionTests
             Assert.Equal(
                 "Azure.Identity.ClientSecretCredential",
                 provider.GetRequiredService<Azure.Core.TokenCredential>().GetType().FullName);
-            // The writes Production has: the move, staff send, and the subscriptions.
+            // The writes Production's Worker has: the move and the subscriptions, and
+            // the send store its Sent-evidence poll settles the Web's sends with.
             var mover = provider.GetRequiredService<ISentReportInstructionMover>();
             Assert.Equal("Pegasus.Infrastructure.Email.GraphSentReportInstructionMover", mover.GetType().FullName);
             Assert.True(mover.IsAvailable);
-            Assert.Contains(services, descriptor =>
+            Assert.NotNull(scope.ServiceProvider.GetService<Pegasus.Core.Operations.IStaffMailSendStore>());
+            Assert.DoesNotContain(services, descriptor =>
                 descriptor.ServiceType == typeof(Pegasus.Core.Operations.IStaffMailSend));
             Assert.NotNull(provider.GetService<GraphMailboxChangeSubscriptions>());
             Assert.NotNull(scope.ServiceProvider.GetRequiredService<PollSentEvidence>());
@@ -489,7 +491,8 @@ public sealed class WorkerCompositionTests
             Assert.Equal(
                 "Pegasus.Infrastructure.Email.GraphSentReportInstructionMover",
                 provider.GetRequiredService<ISentReportInstructionMover>().GetType().FullName);
-            Assert.Contains(services, descriptor =>
+            Assert.NotNull(scope.ServiceProvider.GetService<Pegasus.Core.Operations.IStaffMailSendStore>());
+            Assert.DoesNotContain(services, descriptor =>
                 descriptor.ServiceType == typeof(Pegasus.Core.Operations.IStaffMailSend));
             WorkerFunctionSet.AssertEveryFunctionActivates(scope.ServiceProvider);
         }

@@ -16,11 +16,16 @@ Release 124 are one line each in [operations history](operations-history.md).
   the same scope at about 10:55 UTC. No new registration or scope.
 - `Test-ServicePrincipalAuthorization` afterwards lists all three roles
   `InScope True` on `CollisionSpike-Intake-Prod` for both
-  `instructions@collisionengineers.co.uk` and `desk@collisionengineers.co.uk`,
-  so the scope already covers desk@; its filter is still to be read. The
-  registration's other scope, `CS-Intake-EngDigital`, covers neither.
-- Not yet done: Funnel of the webhook path, the Graph settings lines, the
-  restart and enabling a mailbox on the instance.
+  `instructions@collisionengineers.co.uk` and `desk@collisionengineers.co.uk`.
+  The scope's filter is exactly info@, engineers@, desk@ and instructions@;
+  the registration's other scope, `CS-Intake-EngDigital`, is engineers@ and
+  digital@. A second secret, `pegasus-test-instance (2026-11-03)`, expiring
+  3 November 2027, was added to the registration for the instance; the
+  orchestrator's secret is untouched.
+- Funnel on at about 11:10 UTC (R631): only
+  `https://cemattypc-1.tail432b53.ts.net:8443/hooks/microsoft-graph/mail` is
+  public, proxied to the run's Web; the validation handshake returned the
+  token with 200 and a malformed POST 202. Port 443 stays tailnet-only.
 
 ## Hosted test instance first run - 2 November 2026
 

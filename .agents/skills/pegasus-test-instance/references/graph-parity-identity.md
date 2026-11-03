@@ -30,10 +30,10 @@ subtract-before-add rule.
 
 The production Web and Worker reach Graph as Azure managed identities, which
 cannot issue tokens outside Azure; that is why the instance needs a
-registration with a secret at all. The secret value is not in
-`pegasusprodkv252ow37g`: the operator either reads it from where the
-orchestrator keeps it or adds a second secret, named for the instance, to the
-same registration. Either way the value goes only into the settings file.
+registration with a secret at all. The instance has its own secret on the
+registration, `pegasus-test-instance (2026-11-03)`, added with
+`az ad app credential reset --append` so the orchestrator's secret stays; the
+value went straight into the settings file and is recorded nowhere else.
 
 ## 2. The one missing role assignment
 
@@ -58,9 +58,15 @@ Test-ServicePrincipalAuthorization -Identity 5d37a155-2af8-4878-b96a-6faad520713
 
 A mailbox the filter covers lists `Mail.Read`, `Mail.ReadWrite` and
 `Mail.Send` with `InScope True` on `CollisionSpike-Intake-Prod`; one outside
-it lists nothing in scope. Read the filter first: on 3 November 2026 the
-scope covered `desk@` as well as `instructions@`, so desk@ is not the denied
-case. (`Get-ManagementRoleAssignment` has no `-App`
+it lists nothing in scope. On 3 November 2026 the filter was exactly the
+four approved mailboxes, info@, engineers@, desk@ and instructions@, so any
+of the four can be enabled on the instance with no Exchange change; a
+denied-mailbox check uses a staff mailbox.
+
+`Connect-ExchangeOnline` accepts the operator's `az` sign-in without a
+browser round trip:
+`az account get-access-token --resource https://outlook.office365.com`
+and `-AccessToken <token> -Organization collisionengineers.co.uk`. (`Get-ManagementRoleAssignment` has no `-App`
 parameter in ExchangeOnlineManagement 3.10; `Test-ServicePrincipalAuthorization`
 is the query.) Admitting another mailbox to the instance means widening
 `CollisionSpike-Intake-Prod` with `Set-ManagementScope`, which widens it for
