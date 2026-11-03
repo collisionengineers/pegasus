@@ -5,6 +5,24 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## First release rehearsal on a copy of production - 3 November 2026
+
+- The instance (run `83ec377d`) was stopped, checked out detached at the
+  release-readiness branch's tip `8cbc26146` (PR #1879), initialized, and
+  `Copy-ProductionDatabaseToRun.ps1 -Approve` ran under the operator's `az`
+  sign-in at 17:33 UTC with the operator's approval (#1864, R627): record
+  `state/production-copy-20261103T173340Z.json`, dacpac SHA-256
+  `b0458fc3…51e391`, migration head `20261103120000_ImpactsEnteredByHand`,
+  3 Cases, 4 mailbox rows deactivated, 4 subscription rows cleared, 0 Principal
+  API keys paused, 0 pending instruction tidies closed.
+- `Start` migrated the copy forward (head unchanged: the branch adds no
+  migration; production already holds the same head) and `Smoke` passed at
+  17:34 UTC: `Version 0.0.0-dev`, `SourceSha 8cbc26146`, administrator route
+  validated. The copied Cases are the operator's to walk on the instance.
+- What the first SqlPackage run needed: the tool's runtime 10.0.11 beside the
+  SDK, and `-I` on the run statements (fixed in `8cbc26146`); the first
+  attempt's extract and publish had succeeded before the statements failed.
+
 ## Branch and tag protection - 3 November 2026
 
 - Three rulesets created from the runbook's

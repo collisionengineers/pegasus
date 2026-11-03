@@ -234,8 +234,10 @@ tip, the branch about to land on `dev` (checked out detached at its SHA when
 the branch lives in another worktree) or `dev` itself; its record in
 [operations](../../../docs/operations.md) names the copy record, the Case
 count, the migration head before and after, and the walk's result (#1864).
-The first run of this script on a machine is itself a test of the SqlPackage
-route; read its output before trusting the copy.
+The first run on this machine (3 November 2026,
+[operations](../../../docs/operations.md)) proved the SqlPackage route; on
+another machine the first run is again a test of it, so read its output
+before trusting the copy.
 
 ## 8. The classifier agent, locally
 
