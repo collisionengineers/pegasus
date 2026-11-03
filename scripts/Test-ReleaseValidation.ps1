@@ -917,6 +917,14 @@ try {
     Assert-NoCall -Result $result -Case $case -Patterns $writes
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
 
+    # The promotion-only route: the exact SHA goes to main and dev in one push.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PromoteOnly', '-ApprovedReleaseSha', $releaseSha) -Estate (New-Estate -NewSha $releaseSha)
+    $case = 'Promotion only'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("main and dev read back $releaseSha")) $case 'did not read both refs back.' $result.Diagnostic
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $releaseSha -and (& git -C $fixture.Bare rev-parse dev).Trim() -eq $releaseSha) $case 'did not promote main and dev to the approved SHA.' $result.Diagnostic
+    Assert-True ($result.Calls.Count -eq 0) $case 'called a CLI.' $result.Diagnostic
+
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PromoteOnly', '-ApprovedReleaseSha', $releaseSha) -Estate (New-Estate -NewSha $releaseSha)
     $case = 'Promotion already done'
     Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
