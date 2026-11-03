@@ -18,20 +18,25 @@ public sealed class AssessmentReportRenderingTests
     /// part of the report. The damage carries the drawing its marks are
     /// printed on (28 September 2026). Version eight carries the FAO The
     /// Court and statement of truth switches (2 November 2026; R610, R611).
+    /// Version nine carries the impacts staff enter and the markers as
+    /// positions only, and no derived impact severity or location (v46,
+    /// 3 November 2026).
     /// </summary>
     [Fact]
-    public void TheSnapshotIsVersionEightAndCarriesOnlyWhatTheTemplatePrints()
+    public void TheSnapshotIsVersionNineAndCarriesOnlyWhatTheTemplatePrints()
     {
-        Assert.Equal("rendererref1-v8", AssessmentReportContract.TemplateVersion);
-        Assert.Equal("rendererref1-v8", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
+        Assert.Equal("rendererref1-v9", AssessmentReportContract.TemplateVersion);
+        Assert.Equal("rendererref1-v9", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
         Assert.Equal(
             [
                 "Registration", "Make", "Model", "Year", "Condition",
                 "MileageDescription", "MileageSource", "Vin", "Engine", "Fuel",
             ],
             Printed(typeof(ReportVehicle)));
-        Assert.Equal(["Impacts", "Unrelated", "Profile"], Printed(typeof(ReportDamage)));
-        Assert.Equal(["Codes", "Severity", "Disc"], Printed(typeof(ReportImpact)));
+        Assert.Equal(["Markers", "Impacts", "Unrelated", "Profile"], Printed(typeof(ReportDamage)));
+        Assert.Equal(["Severity", "Location"], Printed(typeof(ReportImpact)));
+        Assert.DoesNotContain("ImpactSeverity", Printed(typeof(AssessmentReportSnapshot)));
+        Assert.DoesNotContain("ImpactLocation", Printed(typeof(AssessmentReportSnapshot)));
         Assert.Equal(["ContractSum"], Printed(typeof(ReportSettlement)));
     }
 
@@ -600,7 +605,7 @@ public sealed class AssessmentReportRenderingTests
             ReportFor: ["Approved Principal", "1 Example Street"],
             Vehicle: new ReportVehicle("PK12 TMZ", "Ford", "Focus", "2012", "good", "80,000 miles", "online_data", "VIN", "1600", "Petrol"),
             Outcome: outcome, LegalStatus: "roadworthy", UnroadworthyReason: null,
-            ImpactSeverity: "moderate", ImpactLocation: "right_rear", AssessmentMethod: "image_based", LocationAddress: null,
+            AssessmentMethod: "image_based", LocationAddress: null,
             EngineerValue: 5_000m, RetailValue: 5_000m, TradeValue: 4_000m,
             SalvageCategory: outcome == AssessmentReportOutcome.TotalLoss ? "S" : null,
             SalvageValue: outcome == AssessmentReportOutcome.TotalLoss ? 500m : null,
@@ -642,7 +647,8 @@ public sealed class AssessmentReportRenderingTests
             "case", "Test evidence",
             ActorKind.Staff, "engineer-1", RecordedAtUtc, Quantity: 1);
 
-    internal static ReportDamage Damage() => new([new(["right_rear"], "moderate")], "Door scratch", DamagePlanGeometry.Car);
+    internal static ReportDamage Damage() => new(
+        [new DamageDisc(0.82, 0.84, 0.12)], [new ReportImpact("moderate", "right_rear")], "Door scratch", DamagePlanGeometry.Car);
 
     internal static ReportSettlement Settlement() => new();
 

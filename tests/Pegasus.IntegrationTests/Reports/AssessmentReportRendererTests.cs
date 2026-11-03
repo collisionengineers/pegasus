@@ -25,23 +25,22 @@ namespace Pegasus.IntegrationTests.Reports;
 public sealed partial class AssessmentReportRendererTests
 {
     /// <summary>
-    /// The damage diagram (28 September 2026): each damage prints as the one
+    /// The damage diagram (28 September 2026): each marker prints as the one
     /// yellow comic burst over its disc, as drawn however wide, unclipped and
-    /// unnumbered, whatever its severity.
+    /// unnumbered (v46: a marker is a position only).
     /// </summary>
     [Fact]
-    public void EachDamagePrintsAsTheOneUnclippedBurst()
+    public void EachMarkerPrintsAsTheOneUnclippedBurst()
     {
-        var wide = new ReportImpact(
-            ["left_side", "right_side"], "moderate", new DamageDisc(0.5, 0.5, DamageAreaGeometry.MaxRadius));
-        var light = new ReportImpact(["left_front"], "light");
-        var heavy = new ReportImpact(["right_rear"], "heavy");
+        var wide = new DamageDisc(0.5, 0.5, DamageAreaGeometry.MaxRadius);
+        var small = new DamageDisc(0.18, 0.2, 0.12);
+        var rear = new DamageDisc(0.82, 0.84, 0.12);
 
-        var svg = DamagePlanDrawing.Svg(DamagePlanGeometry.Car, [wide, light, heavy]);
+        var svg = DamagePlanDrawing.Svg(DamagePlanGeometry.Car, [wide, small, rear]);
 
-        foreach (var impact in new[] { wide, light, heavy })
+        foreach (var marker in new[] { wide, small, rear })
         {
-            var disc = DamagePlanGeometry.Disc(impact.Codes, impact.Disc)!;
+            var disc = DamagePlanGeometry.Disc(marker);
             Assert.Contains(
                 $"<path fill=\"#ffeb69\" fill-opacity=\"0.96\" stroke=\"#1d1d1d\" stroke-width=\"3.2\" stroke-linejoin=\"round\" d=\"{DamagePlanGeometry.BurstPath(disc)}\"/>",
                 svg,
@@ -65,7 +64,7 @@ public sealed partial class AssessmentReportRendererTests
     [InlineData(DamagePlanGeometry.Motorbike)]
     public void TheDamageDiagramIsTheVehiclesPlanTurnedOnItsSide(string profile)
     {
-        var svg = DamagePlanDrawing.Svg(profile, [new ReportImpact(["right_rear"], "moderate")]);
+        var svg = DamagePlanDrawing.Svg(profile, [new DamageDisc(0.82, 0.84, 0.12)]);
 
         // The plan is 240 wide and 434 tall; turned, it is 434 by 240.
         Assert.Equal("0 0 240 434", DamagePlanGeometry.ViewBox);
@@ -83,17 +82,16 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     /// <summary>
-    /// When no damage names a plan area the plan prints with no marks
-    /// (operator, 27 September 2026).
+    /// With no marker the plan prints with no marks (operator, 27 September
+    /// 2026), whatever impacts are entered.
     /// </summary>
     [Fact]
-    public void ADamageThatNamesNoPlanAreaLeavesThePlanUnmarked()
+    public void NoMarkerLeavesThePlanUnmarked()
     {
-        var svg = DamagePlanDrawing.Svg(DamagePlanGeometry.Van, [new ReportImpact(["underside"], "light")]);
+        var svg = DamagePlanDrawing.Svg(DamagePlanGeometry.Van, []);
 
         Assert.DoesNotContain(DamageBurst.Fill, svg, StringComparison.Ordinal);
         Assert.Contains(DamagePlanGeometry.FlatArtwork(DamagePlanGeometry.Van), svg, StringComparison.Ordinal);
-        Assert.Equal(svg, DamagePlanDrawing.Svg(DamagePlanGeometry.Van, []));
     }
 
     [Fact]
@@ -946,8 +944,8 @@ public sealed partial class AssessmentReportRendererTests
     /// <summary>
     /// The ready web fixture with images the page can actually print: the
     /// projection's snapshot, its photo and signature replaced by decodable
-    /// bytes under their own custody hashes, and two coded impacts so the
-    /// marked damage diagram is drawn.
+    /// bytes under their own custody hashes, and two markers and two impacts
+    /// so the marked damage diagram and Impact Magnitude's lines are drawn.
     /// </summary>
     internal static AssessmentReportSnapshot ReadySnapshot()
     {
@@ -959,11 +957,8 @@ public sealed partial class AssessmentReportRendererTests
         {
             Damage = snapshot.Damage with
             {
-                Impacts =
-                [
-                    new ReportImpact(["right_side", "right_rear"], "moderate", new DamageDisc(0.8, 0.72, 0.12)),
-                    new ReportImpact(["underside"], "light"),
-                ],
+                Markers = [new DamageDisc(0.8, 0.72, 0.12), new DamageDisc(0.5, 0.1, 0.12)],
+                Impacts = [new ReportImpact("moderate", "right_rear"), new ReportImpact("light", "underside")],
             },
             Photos =
             [

@@ -268,6 +268,24 @@ public sealed class AssessmentReportWordingTests
     }
 
     /// <summary>
+    /// Several impacts print one to a line in the order staff entered them
+    /// (v46 A2, operator, 3 November 2026); none prints the not-recorded mark.
+    /// </summary>
+    [Fact]
+    public void ImpactMagnitudePrintsOneImpactToALine()
+    {
+        Assert.Equal(
+            "Light — front\nModerate — right side\nModerate to heavy — rear",
+            AssessmentReportWording.ImpactMagnitude(
+            [
+                new ReportImpact("light", "front"),
+                new ReportImpact("moderate", "right_side"),
+                new ReportImpact("moderate_to_heavy", "rear"),
+            ]));
+        Assert.Equal(AssessmentReportWording.NotRecorded, AssessmentReportWording.ImpactMagnitude([]));
+    }
+
+    /// <summary>
     /// The severity prints the same way everywhere in one report: in small
     /// letters inside the sentence, and with its first letter a capital where
     /// it opens the Impact Magnitude cell. No word after the first is
@@ -277,11 +295,11 @@ public sealed class AssessmentReportWordingTests
     [InlineData("light", "right_rear", "Light — right rear")]
     [InlineData("light_to_moderate", "left_front", "Light to moderate — left front")]
     [InlineData("moderate_to_heavy", "underside", "Moderate to heavy — underside")]
-    [InlineData("heavy", "multiple", "Heavy — multiple")]
+    [InlineData("heavy", "mechanical", "Heavy — mechanical")]
     public void ImpactMagnitudeOpensWithTheSeverityAndNamesTheLocationInSmallLetters(
         string severity, string location, string printed)
     {
-        Assert.Equal(printed, AssessmentReportWording.ImpactMagnitude(severity, location));
+        Assert.Equal(printed, AssessmentReportWording.ImpactMagnitude([new ReportImpact(severity, location)]));
         Assert.Equal(
             AssessmentVocabulary.DamageSeverities[severity].Display,
             ReportWordingComposition.LeadingWords(severity));

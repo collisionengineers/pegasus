@@ -156,8 +156,11 @@ verbatim.
   in small letters: "The vehicle has suffered moderate collision/impact
   damage to the right rear." and "The vehicle is considered to be in below
   average condition for its age and type."
-- **Damage to several areas.** The sentence ends "to the following areas:"
-  and the areas follow, one to a line, in the order they were recorded.
+- **One sentence for each impact.** Nature of Incident is a separate sentence
+  for each impact naming a severity and a location, one to a line, in the
+  order staff entered them; with no such impact the block is not offered or
+  printed (3 November 2026, R644–R646, replacing the "following areas" list).
+  Impact Magnitude prints each impact on its own line the same way.
 - **Mileage.** The online data sentence is the template's. The sentences for
   owner, repairer, principal, average and a mileage still to be confirmed are
   the old manager's case page's, for example "The mileage was advised by the
@@ -642,7 +645,7 @@ Each fact is recorded in one section of the Case record
 | The Sign-off Engineer's name and signature on file | Accounts |
 | Registration, vehicle type, pre-incident condition, vehicle history check | Vehicle |
 | Inspection type; the inspection address for a physical location; the Inspection date, printed as the date the damage was assessed | Inspection details |
-| Impact location and severity derived from the damage record ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)); unrelated damage when its switch is on | Damage |
+| Unrelated damage when its switch is on; impacts are optional ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record), R646) | Damage |
 | The Engineer's Value with its retail and trade values ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)) | Valuation |
 | A Current repair spec with lines, a labour rate and a repairer VAT status the report can word ([Estimate VAT on the rendered report](#estimate-vat-on-the-rendered-report)) | Repair Spec |
 | Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage category and salvage value; on a contract repair the agreed contract sum | Decisions |

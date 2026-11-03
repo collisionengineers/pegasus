@@ -180,8 +180,6 @@ public static class AssessmentReportProjection
             Outcome: reportOutcome,
             LegalStatus: Field(fields, AssessmentVocabulary.LegalStatus)!,
             UnroadworthyReason: Field(fields, AssessmentVocabulary.UnroadworthyReason),
-            ImpactSeverity: Field(fields, AssessmentVocabulary.ImpactSeverity)!,
-            ImpactLocation: Field(fields, AssessmentVocabulary.ImpactLocation)!,
             AssessmentMethod: assessmentMethod!,
             LocationAddress: owned.InspectionAddress,
             EngineerValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueEngineer)) ?? 0m,
@@ -300,13 +298,22 @@ public static class AssessmentReportProjection
 
     private static ReportDamage BuildDamage(IReadOnlyDictionary<string, string?> fields)
     {
-        var impacts = AssessmentPolicy.ParseImpacts(Field(fields, AssessmentVocabulary.DamageImpacts))
-            .Select(impact => new ReportImpact(impact.Areas, impact.Severity, impact.Disc))
-            .ToArray();
         return new(
-            impacts,
+            AssessmentPolicy.ParseMarkers(Field(fields, AssessmentVocabulary.DamageMarkers)),
+            ReportImpacts(AssessmentPolicy.ParseImpacts(Field(fields, AssessmentVocabulary.Impacts))),
             Field(fields, AssessmentVocabulary.DamageUnrelated),
             DamagePlanGeometry.ProfileFor(Field(fields, AssessmentVocabulary.VehicleType)));
+    }
+
+    /// <summary>
+    /// The impacts the report prints: those naming both a severity and a
+    /// location, in the order staff entered them (v46 G2). The Damage
+    /// section's Incident narrative reads the same list.
+    /// </summary>
+    public static IReadOnlyList<ReportImpact> ReportImpacts(IReadOnlyList<AssessmentImpact> impacts)
+    {
+        ArgumentNullException.ThrowIfNull(impacts);
+        return [.. impacts.Where(impact => impact.IsComplete).Select(impact => new ReportImpact(impact.Severity, impact.Location))];
     }
 
     /// <summary>

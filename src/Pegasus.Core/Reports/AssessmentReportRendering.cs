@@ -14,8 +14,11 @@ public static class AssessmentReportContract
     /// damage carries the vehicle drawing its bursts are printed on. v8
     /// (2 November 2026): the content switches carry the court line and the
     /// statement of truth, and R&amp;I lines leave the work lists (R608–R610).
+    /// v9 (3 November 2026): the impacts are the ones staff enter and the
+    /// damage markers are positions only (v46), so the snapshot carries no
+    /// derived impact severity or location.
     /// </summary>
-    public const string TemplateVersion = "rendererref1-v8";
+    public const string TemplateVersion = "rendererref1-v9";
     public const string VatNumber = "262 0937 10";
     public const decimal FeeVatRate = 0.20m;
     public const string AccountName = "Collision Engineers Ltd";
@@ -185,20 +188,19 @@ public sealed record ReportVehicle(
     string? Fuel);
 
 /// <summary>
-/// One recorded damage as the report draws it: the area codes, its severity
-/// code, which shades its disc as the Case page shades it, and the disc the
-/// operator drew (unit-plan terms; null for a damage recorded by area alone,
-/// drawn from its codes).
+/// One impact the report prints (v46): the severity and location codes staff
+/// entered. Only an impact naming both is printed; its note is not.
 /// </summary>
-public sealed record ReportImpact(IReadOnlyList<string> Codes, string Severity, DamageDisc? Disc = null);
+public sealed record ReportImpact(string Severity, string Location);
 
 /// <summary>
-/// The damage the report prints: the recorded damages the diagram marks and
-/// the Nature of Incident block lists, the drawing they are marked on (a
-/// DamagePlanGeometry profile) and the unrelated damage its own block
-/// describes.
+/// The damage the report prints: the markers the diagram draws (unit-plan
+/// discs) on the drawing of the recorded vehicle (a DamagePlanGeometry
+/// profile), the impacts Impact Magnitude and Nature of Incident name, one to
+/// a line, and the unrelated damage its own block describes.
 /// </summary>
 public sealed record ReportDamage(
+    IReadOnlyList<DamageDisc> Markers,
     IReadOnlyList<ReportImpact> Impacts,
     string? Unrelated,
     string Profile);
@@ -494,8 +496,6 @@ public sealed record AssessmentReportSnapshot(
     AssessmentReportOutcome Outcome,
     string LegalStatus,
     string? UnroadworthyReason,
-    string ImpactSeverity,
-    string ImpactLocation,
     string AssessmentMethod,
     string? LocationAddress,
     decimal EngineerValue,
@@ -636,8 +636,6 @@ public sealed record AssessmentReportSnapshot(
         {
             throw new ReportRenderRejectedException("The accepted assessment method/location is incomplete.");
         }
-        AcceptedReportSource.Required(ImpactSeverity, nameof(ImpactSeverity));
-        AcceptedReportSource.Required(ImpactLocation, nameof(ImpactLocation));
         if (!PayloadVersion.Equals(AssessmentReportContract.TemplateVersion, StringComparison.Ordinal))
         {
             // Staff read this refusal: a report frozen before the layout

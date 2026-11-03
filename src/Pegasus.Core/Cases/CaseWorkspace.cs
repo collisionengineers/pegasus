@@ -229,8 +229,12 @@ public sealed record CaseWorkspaceVehicle(
     // inserted parameter would silently shift every value after it.
     string? Year = null);
 
+/// <summary>
+/// The Damage section's save: the markers drawn on the plan, and its fields,
+/// the impacts staff enter among them (v46).
+/// </summary>
 public sealed record CaseWorkspaceDamage(
-    IReadOnlyList<AssessmentImpact>? Impacts,
+    IReadOnlyList<DamageDisc>? Markers,
     IReadOnlyDictionary<string, string?>? AssessmentFields);
 
 /// <summary>
@@ -975,11 +979,11 @@ public static class CaseWorkspacePolicy
         AddAll(request.Settlement?.AssessmentFields, "Settlement");
         AddAll(request.Report?.AssessmentFields, "Report");
 
-        if (request.Damage is { } damage && damage.Impacts is not null)
+        if (request.Damage is { } damage && damage.Markers is not null)
         {
             Add(
-                AssessmentVocabulary.DamageImpacts,
-                AssessmentPolicy.SerializeImpacts(damage.Impacts));
+                AssessmentVocabulary.DamageMarkers,
+                AssessmentPolicy.SerializeMarkers(damage.Markers));
         }
 
         if (request.Inspection is { } inspection)
@@ -1122,7 +1126,7 @@ public static class CaseWorkspacePolicy
     public static IReadOnlySet<string> TypedPaths { get; } = new HashSet<string>(
         StringComparer.Ordinal)
     {
-        AssessmentVocabulary.DamageImpacts,
+        AssessmentVocabulary.DamageMarkers,
         AssessmentVocabulary.SettlementStoragePerDay,
         AssessmentVocabulary.CostRecoveryCharge,
         AssessmentVocabulary.ReportDate

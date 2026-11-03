@@ -656,7 +656,7 @@ internal sealed class CaseEditMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Returns the vocabularies the write tools accept: every assessment field path with its type, accepted codes, the format a structured value takes (damage.impacts), staff label and whether pegasus_assessment_update may write it (for example Roadworthiness is assessment.legal_status and the outcome is assessment.outcome); the estimate line types and evidence labels with their meanings; repairer VAT statuses and VAT categories; valuation sources; the shared image tags pegasus_document_action applies; the enabled staff by username, whose identifiers the assign actions take; and the eligible Sign-off Engineers by printed name.")]
+    [Description("Returns the vocabularies the write tools accept: every assessment field path with its type, accepted codes, the format a structured value takes (assessment.impacts, the impacts; damage.impacts, the damage markers), staff label and whether pegasus_assessment_update may write it (for example Roadworthiness is assessment.legal_status and the outcome is assessment.outcome); the estimate line types and evidence labels with their meanings; repairer VAT statuses and VAT categories; valuation sources; the shared image tags pegasus_document_action applies; the enabled staff by username, whose identifiers the assign actions take; and the eligible Sign-off Engineers by printed name.")]
     public async Task<VocabularyToolResult> GetVocabularyAsync(CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync("pegasus_vocabulary_get", cancellationToken);

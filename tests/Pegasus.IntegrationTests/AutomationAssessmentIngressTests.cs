@@ -281,7 +281,7 @@ public sealed class AutomationAssessmentIngressTests
     }
 
     [Fact]
-    public async Task AssessmentUpdateRejectsDirectWritesToDerivedImpactFields()
+    public async Task AssessmentUpdateRefusesTheRetiredDerivedImpactFields()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
@@ -297,13 +297,15 @@ public sealed class AutomationAssessmentIngressTests
                 expectedVersion = lease.CaseVersion,
                 editLeaseToken = lease.LeaseToken,
                 operationKey = "mcp:derived-impact-rejected",
-                reason = "Attempt a direct derived write.",
+                reason = "Attempt a write to a retired derived field.",
                 fields = new Dictionary<string, string?> { ["assessment.impact_location"] = "front" }
             }));
 
+        // v46: the derived impact location and severity are gone; the
+        // impacts are assessment.impacts, entered as staff enter them.
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = await ReadJsonRpcAsync(response);
-        Assert.Contains("derived from damage.impacts", document.RootElement.ToString(), StringComparison.Ordinal);
+        Assert.Contains("not part of the assessment vocabulary", document.RootElement.ToString(), StringComparison.Ordinal);
         Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy NOT IN (N'{PrincipalDefaultFeePolicy.RecorderId}', N'{VehicleConditionDefault.RecorderId}')"));
 
@@ -1926,6 +1928,63 @@ public sealed class AutomationAssessmentIngressTests
             $"SELECT RepairerVatStatus FROM CaseRepairSpecifications WHERE Id = '{estimateId}'"));
     }
 
+    /// <summary>
+    /// v46 item H: no new tool. pegasus_assessment_update writes the impacts
+    /// staff enter (severity, location and note) and the damage markers, as
+    /// the Case page's Damage section records them, and pegasus_vocabulary_get
+    /// gives each one's format and says both are writable.
+    /// </summary>
+    [Fact]
+    public async Task AssessmentUpdateWritesTheImpactsAndTheVocabularyGivesTheirFormat()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 50);
+        const string impacts =
+            "[{\"severity\":\"light\",\"location\":\"front\",\"note\":\"Bumper scuffed\"},"
+            + "{\"severity\":\"moderate_to_heavy\",\"location\":\"rear\",\"note\":\"\"}]";
+        const string markers = "[{\"x\":0.5,\"y\":0.92,\"r\":0.12}]";
+
+        using var response = await PostMcpAsync(client, token, ToolCallPayload(51,
+            "pegasus_assessment_update", new
+            {
+                caseId,
+                expectedVersion = lease.CaseVersion,
+                editLeaseToken = lease.LeaseToken,
+                operationKey = "mcp:impacts-by-hand",
+                reason = "Record the impacts.",
+                fields = new Dictionary<string, string?>
+                {
+                    [AssessmentVocabulary.Impacts] = impacts,
+                    [AssessmentVocabulary.DamageMarkers] = markers
+                }
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var database = await factory.DatabaseAsync;
+        Assert.Equal(impacts, await database.ScalarAsync<string>(
+            $"SELECT [Value] FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = N'{AssessmentVocabulary.Impacts}'"));
+        Assert.Equal(markers, await database.ScalarAsync<string>(
+            $"SELECT [Value] FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = N'{AssessmentVocabulary.DamageMarkers}'"));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath LIKE N'assessment.impact[_]%'"));
+
+        using var vocabulary = await PostMcpAsync(client, token, ToolCallPayload(52, "pegasus_vocabulary_get", new { }));
+        var fields = (await ReadStructuredContentAsync(vocabulary)).GetProperty("assessmentFields")
+            .EnumerateArray()
+            .ToDictionary(item => item.GetProperty("path").GetString()!, item => item);
+        foreach (var path in new[] { AssessmentVocabulary.Impacts, AssessmentVocabulary.DamageMarkers })
+        {
+            Assert.True(fields[path].GetProperty("writable").GetBoolean());
+            Assert.Equal(AssessmentVocabulary.Definitions[path].Format, fields[path].GetProperty("format").GetString());
+        }
+        Assert.False(fields.ContainsKey("assessment.impact_location"));
+        Assert.False(fields.ContainsKey("assessment.impact_severity"));
+    }
+
     /// <summary>The vocabulary lists the statuses a save accepts.</summary>
     [Fact]
     public async Task TheVocabularyListsOnlyTheChoosableRepairerVatStatuses()
@@ -2115,7 +2174,7 @@ public sealed class AutomationAssessmentIngressTests
             fields = new Dictionary<string, string?>
             {
                 ["vehicle.condition"] = "average",
-                [AssessmentVocabulary.DamageImpacts] = "[{\"areas\":[\"left_front\"],\"severity\":\"light\",\"note\":\"\"}]"
+                [AssessmentVocabulary.Impacts] = "[{\"severity\":\"light\",\"location\":\"left_front\",\"note\":\"\"}]"
             }
         })))
         {
