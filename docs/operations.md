@@ -5,6 +5,23 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Test instance Graph parity first run - 3 November 2026
+
+- The instance ran `5627a801f` (PR #1865 head; CI run 41624879453 green in
+  every lane) with `Features__LiveGraphMail` and `Features__PrincipalApi` on
+  from 11:17 UTC; Smoke passed. The first start, on `65806bf36`, failed at
+  host build: the Worker's Graph mail side composed the Web's staff send,
+  which needs data protection no Worker has; `5627a801f` composes the
+  staff-send store alone, as production's Worker needs.
+- desk@, engineers@, info@ and instructions@ were enabled on the instance,
+  Incoming and Outgoing. The Worker's subscription pass created four change
+  subscriptions, one per mailbox, under the Funnel URL: all Active, rows
+  timestamped 11:20 UTC, expiring 9 November, no maintenance failure. By
+  11:45 UTC the instance held 16 retained messages, 7 receipts and 2 Cases
+  from the shared incoming mail. No send was made (no recipient named).
+- One SQL deadlock at 11:40 UTC between two instruction analyses inserting
+  `RetainedInstructionAnalyses`; the victim was retried and one analysis stands.
+
 ## Test instance Graph identity admitted - 3 November 2026
 
 - The hosted test instance's Graph identity is the tenant's existing
