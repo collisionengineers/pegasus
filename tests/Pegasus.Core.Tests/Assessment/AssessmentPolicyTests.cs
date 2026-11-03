@@ -342,6 +342,38 @@ public sealed class AssessmentPolicyTests
         }
     }
 
+    /// <summary>
+    /// Skip impacts stands only while no impact row exists (v47 items B and D;
+    /// R649): a save leaving it ticked beside any row, complete or not, is
+    /// refused, and an unticked skip or a skip with no row stands.
+    /// </summary>
+    [Fact]
+    public void SkipImpactsIsRefusedBesideAnyImpactRow()
+    {
+        const string partial = "[{\"severity\":\"moderate\",\"location\":\"\",\"note\":\"\"}]";
+        const string complete = "[{\"severity\":\"moderate\",\"location\":\"rear\",\"note\":\"\"}]";
+        static Dictionary<string, string> Merged(string? impacts, string? skipped)
+        {
+            var merged = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (impacts is not null) merged[AssessmentVocabulary.Impacts] = impacts;
+            if (skipped is not null) merged[AssessmentVocabulary.ImpactsSkipped] = skipped;
+            return merged;
+        }
+
+        foreach (var impacts in new[] { partial, complete })
+        {
+            var refused = Assert.Throws<InvalidOperationException>(
+                () => AssessmentPolicy.RequireSkipOnlyWithoutImpacts(Merged(impacts, "true")));
+            Assert.Equal("Skip impacts can be ticked only while no impact is entered.", refused.Message);
+            AssessmentPolicy.RequireSkipOnlyWithoutImpacts(Merged(impacts, "false"));
+            AssessmentPolicy.RequireSkipOnlyWithoutImpacts(Merged(impacts, null));
+        }
+        AssessmentPolicy.RequireSkipOnlyWithoutImpacts(Merged(null, "true"));
+        AssessmentPolicy.RequireSkipOnlyWithoutImpacts(Merged("[]", "true"));
+        Assert.Equal(
+            AssessmentFieldType.Flag, AssessmentVocabulary.Definitions[AssessmentVocabulary.ImpactsSkipped].Type);
+    }
+
     [Fact]
     public void ImpactsAreCanonicalAndKeepTheirOrder()
     {

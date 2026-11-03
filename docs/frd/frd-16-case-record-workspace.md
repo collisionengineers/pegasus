@@ -556,10 +556,18 @@ one row each: Impact · Severity · Location · Note · × (Clear), with **Add
 impact** under them while editing and "No damage recorded." when there are
 none (3 November 2026, R642–R646). The rows stand in the same places in read
 and edit mode, values reading where controls edit; below 1100 px a row folds
-into a captioned card. The **Incident narrative** is read-only: it is the
-report's Nature of Incident wording, the Engineer's own from Report wording or
-else a sentence for each impact, one to a line, recomposed as the impacts are
-edited
+into a captioned card. With no row, **Skip impacts** stands beside Add impact
+while editing, and the empty line, Add impact and the tick sit on the facts'
+own left edge, the edge of the Unrelated damage and Incident narrative cells
+(v47, R647–R649). Ticking Skip impacts greys out Add impact and unticking it
+enables it again; adding a row hides the tick, and clearing the last row
+offers it again, unticked. While reading with no row, Skip impacts is a static
+tick under the empty line, ticked or not
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)).
+The **Incident narrative** is read-only: it is the report's Nature of Incident
+wording, the Engineer's own from Report wording or else a sentence for each
+impact, each its own line with a line's space between them (v47 item G),
+recomposed as the impacts are edited
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks)).
 The field set is owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record).

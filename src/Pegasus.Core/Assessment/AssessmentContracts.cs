@@ -63,6 +63,11 @@ public static class AssessmentVocabulary
     /// <summary>The impacts staff enter, severity, location and note (v46).</summary>
     public const string Impacts = "assessment.impacts";
     /// <summary>
+    /// Skip impacts (v47, operator, 3 November 2026): the deliberate choice to
+    /// send the report with no impact, offered only while no impact row exists.
+    /// </summary>
+    public const string ImpactsSkipped = "assessment.impacts_skipped";
+    /// <summary>
     /// The damage markers drawn on the plan for the report's picture, positions
     /// only (v46). The path keeps the name it had when a marker also carried
     /// its areas, severity and note, so a caller's path is unchanged.
@@ -186,6 +191,7 @@ public static class AssessmentVocabulary
         new(VehicleTaxExpiry, AssessmentFieldType.Date, 10),
         new(VehicleMotExpiry, AssessmentFieldType.Date, 10),
         new(Impacts, AssessmentFieldType.Json, 4000, Format: ImpactsFormat),
+        new(ImpactsSkipped, AssessmentFieldType.Flag, 5),
         new(DamageMarkers, AssessmentFieldType.Json, 4000, Format: DamageMarkersFormat),
         new(DamageUnrelated, AssessmentFieldType.Text, 2000),
         new(ValueRetail, AssessmentFieldType.Money, 20, MustBePositive: true),

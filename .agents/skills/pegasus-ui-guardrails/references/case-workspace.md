@@ -315,7 +315,10 @@ dragging). Each disc is drawn as the one yellow comic burst, unnumbered and uncl
 recorded Vehicle type's drawing (car, van or motorbike), alike on the page and the report. The
 impacts are entered by hand beside the plan, one row each (Impact · Severity · Location · Note · ×),
 read and edit sharing one geometry; do not reintroduce derived Impact location or severity cells,
-area chips, an area readout or a per-marker list.
+area chips, an area readout or a per-marker list. With no row, Skip impacts (v47, R647–R649)
+stands beside Add impact on the facts' own left edge and greys out Add impact while ticked; a row
+hides it, and while reading it is the static tick (`span.choice.is-static`). The Incident
+narrative is one `fv-line` block per sentence with a line's space (`1lh`) between them.
 
 Do not re-add the Files image strip to Damage.
 

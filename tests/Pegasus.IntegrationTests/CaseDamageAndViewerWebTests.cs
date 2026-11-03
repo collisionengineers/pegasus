@@ -103,11 +103,19 @@ public sealed class CaseDamageAndViewerWebTests
         Assert.DoesNotContain("<select", damage, StringComparison.Ordinal);
 
         // The narrative is the report's Nature of Incident: a sentence for
-        // each impact naming both a severity and a location, one to a line.
-        var narrative = damage[damage.IndexOf("data-damage-narrative>", StringComparison.Ordinal)..];
-        Assert.StartsWith("data-damage-narrative>The vehicle has suffered light collision/impact damage to the front.", narrative, StringComparison.Ordinal);
-        Assert.Contains("The vehicle has suffered moderate to heavy collision/impact damage to the rear.</div>", narrative, StringComparison.Ordinal);
-        Assert.DoesNotContain("damage to the .", narrative, StringComparison.Ordinal);
+        // each impact naming both a severity and a location, each its own
+        // line block, spaced apart by the stylesheet (v47).
+        Assert.Equal(
+            [
+                "The vehicle has suffered light collision/impact damage to the front.",
+                "The vehicle has suffered moderate to heavy collision/impact damage to the rear.",
+            ],
+            NarrativeLines(damage));
+        Assert.DoesNotContain("damage to the .", damage, StringComparison.Ordinal);
+        // The impacts block is the cell a readiness jump outlines; with rows
+        // there is no Skip impacts.
+        Assert.Contains($"data-impacts data-field=\"{AssessmentVocabulary.Impacts}\"", damage, StringComparison.Ordinal);
+        Assert.DoesNotContain("Skip impacts", damage, StringComparison.Ordinal);
 
         // Read mode: neither hidden JSON field the Save reads is rendered
         // while nothing edits, and neither are Clear markers and Add impact.
@@ -144,6 +152,39 @@ public sealed class CaseDamageAndViewerWebTests
         Assert.Empty(Rows(damage));
         Assert.Contains("data-impacts-empty>No damage recorded.</p>", damage, StringComparison.Ordinal);
         Assert.Contains("aria-hidden=\"true\" hidden=\"hidden\" data-impacts-head", damage, StringComparison.Ordinal);
+        Assert.Contains($"data-damage-narrative>{OperatorLabels.CaseWorkspace.AbsentValue}</div>", damage, StringComparison.Ordinal);
+        // Reading, Skip impacts is a static tick under the empty line, off (v47 C).
+        Assert.Matches(
+            "data-impacts-empty>No damage recorded\\.</p>\\s*<div class=\"impact-entry-foot impact-entry-foot--read\">\\s*<span></span>\\s*"
+            + "<span class=\"choice is-static impact-entry-skip\" data-on=\"false\">\\s*<span class=\"tick\">\\s*</span>\\s*<span>Skip impacts</span>",
+            damage);
+        Assert.DoesNotContain("type=\"checkbox\"", damage, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A Case saved with Skip impacts reads the static tick on (v47 C), and the
+    /// narrative stays not recorded: nothing prints for the skip.
+    /// </summary>
+    [Fact]
+    public async Task ASkippedCaseReadsSkipImpactsTicked()
+    {
+        var source = new DamageSource("[]", "[]", skipped: "true");
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => source.Substitute(services)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
+
+        var html = await GetHtmlAsync(client, $"/Cases/{source.CaseId:D}?section=damage");
+        var damage = Section(html, "section-damage-title");
+
+        Assert.Matches(
+            "<span class=\"choice is-static impact-entry-skip\" data-on=\"true\">\\s*<span class=\"tick\">\\s*<svg class=\"icon\" aria-hidden=\"true\"><use href=\"[^\"]*icon-check\" /></svg>",
+            damage);
         Assert.Contains($"data-damage-narrative>{OperatorLabels.CaseWorkspace.AbsentValue}</div>", damage, StringComparison.Ordinal);
     }
 
@@ -214,6 +255,16 @@ public sealed class CaseDamageAndViewerWebTests
             StringComparison.Ordinal);
         Assert.Contains("data-impacts-empty>No damage recorded.</p>", damage, StringComparison.Ordinal);
         Assert.Contains("<span>Add impact</span>", damage, StringComparison.Ordinal);
+        // v47 B: with no row, Skip impacts stands beside Add impact, unticked,
+        // posting "true" ahead of its hidden "false"; Add impact is live.
+        var skipName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ImpactsSkipped);
+        Assert.Matches(
+            $"<label class=\"choice impact-entry-skip\" data-field=\"{Regex.Escape(AssessmentVocabulary.ImpactsSkipped)}\" data-impacts-skip>\\s*"
+            + $"<input type=\"checkbox\" name=\"{Regex.Escape(skipName)}\" value=\"true\" form=\"case-edit-form\" />\\s*"
+            + $"<input type=\"hidden\" name=\"{Regex.Escape(skipName)}\" value=\"false\" form=\"case-edit-form\" />\\s*"
+            + "<span>Skip impacts</span>",
+            damage);
+        Assert.Contains("<button type=\"button\" class=\"btn impact-entry-add\" data-impacts-add>", damage, StringComparison.Ordinal);
         Assert.Contains("data-damage-clear-markers", damage, StringComparison.Ordinal);
         Assert.Contains("<span>Clear markers</span>", damage, StringComparison.Ordinal);
         Assert.Contains("class=\"dm-guides\"", damage, StringComparison.Ordinal);
@@ -303,6 +354,57 @@ public sealed class CaseDamageAndViewerWebTests
             edit);
     }
 
+    /// <summary>
+    /// While editing, a saved Skip impacts is ticked and greys out Add impact
+    /// (v47, round 2); a row hides the tick, which the page still carries so
+    /// clearing the last row can offer it again.
+    /// </summary>
+    [Fact]
+    public async Task WhileEditingSkipImpactsGreysOutAddImpactAndARowHidesIt()
+    {
+        var skippedStore = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            CaseState = CaseLifecycleState.ReportPreparation,
+        };
+        skippedStore.AssessmentFields[AssessmentVocabulary.ImpactsSkipped] = "true";
+        using (var workspace = await EnterEngineerEditModeAsync(skippedStore, services =>
+        {
+            Substitute<IGetAssessmentWorkspace>(services, skippedStore);
+        }))
+        {
+            var damage = Section(await workspace.GetWorkspaceAsync(), "section-damage-title");
+            Assert.Contains("<button type=\"button\" class=\"btn impact-entry-add\" disabled=\"disabled\" data-impacts-add>", damage, StringComparison.Ordinal);
+            Assert.Matches("data-impacts-skip>\\s*<input type=\"checkbox\" name=\"[^\"]+\" value=\"true\" form=\"case-edit-form\" checked=\"checked\" />", damage);
+        }
+
+        var rowStore = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            CaseState = CaseLifecycleState.ReportPreparation,
+        };
+        rowStore.AssessmentFields[AssessmentVocabulary.Impacts] = "[{\"severity\":\"moderate\",\"location\":\"\",\"note\":\"\"}]";
+        using (var workspace = await EnterEngineerEditModeAsync(rowStore, services =>
+        {
+            Substitute<IGetAssessmentWorkspace>(services, rowStore);
+        }))
+        {
+            var damage = Section(await workspace.GetWorkspaceAsync(), "section-damage-title");
+            Assert.Single(Rows(damage));
+            Assert.Contains("<label class=\"choice impact-entry-skip\" hidden=\"hidden\"", damage, StringComparison.Ordinal);
+            Assert.Contains("<button type=\"button\" class=\"btn impact-entry-add\" data-impacts-add>", damage, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>The Incident narrative's line blocks, in order.</summary>
+    private static string[] NarrativeLines(string damage)
+    {
+        var start = damage.IndexOf("data-damage-narrative>", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Incident narrative is not rendered.");
+        var end = damage.IndexOf("</div>", start, StringComparison.Ordinal);
+        return [.. Regex.Matches(damage[start..end], "<span class=\"fv-line\">([^<]*)</span>").Select(match => match.Groups[1].Value)];
+    }
+
     private static string DamageEditable(string damage)
     {
         var match = Regex.Match(damage, "data-damage-editable=\"(true|false)\"");
@@ -334,7 +436,7 @@ public sealed class CaseDamageAndViewerWebTests
     /// impacts, read without a lease so the Damage section renders its read
     /// view.
     /// </summary>
-    private sealed class DamageSource(string markers, string impacts, string? vehicleType = null) :
+    private sealed class DamageSource(string markers, string impacts, string? vehicleType = null, string? skipped = null) :
         IGetCaseEditBasis,
         IGetCasePageFrame,
         IGetAssessmentWorkspace,
@@ -375,7 +477,10 @@ public sealed class CaseDamageAndViewerWebTests
                     DateTimeOffset.UtcNow),
                 .. (vehicleType is null
                     ? Array.Empty<AssessmentFieldValue>()
-                    : [new(AssessmentVocabulary.VehicleType, vehicleType, ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow)])
+                    : [new(AssessmentVocabulary.VehicleType, vehicleType, ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow)]),
+                .. (skipped is null
+                    ? Array.Empty<AssessmentFieldValue>()
+                    : [new(AssessmentVocabulary.ImpactsSkipped, skipped, ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow)])
             ],
             [],
             new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null,
@@ -479,6 +584,64 @@ public sealed class CaseDamageAndViewerWebTests
         Assert.Equal([new DamageDisc(0.5, 0.53, 0.08)], damage.Markers);
         Assert.Equal(impacts, damage.AssessmentFields![AssessmentVocabulary.Impacts]);
         Assert.Equal("Old rear bumper scrape", damage.AssessmentFields![AssessmentVocabulary.DamageUnrelated]);
+    }
+
+    /// <summary>
+    /// The Skip impacts tick joins the Damage section of the one Case save: a
+    /// ticked box posts "true" ahead of its hidden "false" and the command
+    /// records true; an unticked one posts the "false" alone (v47 B).
+    /// </summary>
+    [Theory]
+    [InlineData(true, "true")]
+    [InlineData(false, "false")]
+    public async Task ASaveCarriesSkipImpactsToTheWorkspaceCommand(bool ticked, string recorded)
+    {
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            CaseState = CaseLifecycleState.ReportPreparation
+        };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ILeaseCaseForEdit>();
+                services.RemoveAll<ISaveCaseWorkspace>();
+                services.AddSingleton<IGetCaseEditBasis>(store);
+                SubstituteDetailsPageReaders(services, store);
+                services.AddSingleton<ILeaseCaseForEdit>(store);
+                Substitute<ICaseWorkflowQueries>(services, store);
+                services.AddSingleton<ISaveCaseWorkspace>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        var skipName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ImpactsSkipped);
+        List<KeyValuePair<string, string>> fields =
+        [
+            new("__RequestVerificationToken", AntiforgeryValue(initialHtml)),
+            new("id", store.CaseId.ToString("D")),
+            new("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+            new("operationKey", DetailsModelOperationKey),
+            new("editLeaseToken", store.LeaseToken),
+            new(CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.Impacts), "[]"),
+        ];
+        if (ticked)
+        {
+            fields.Add(new(skipName, "true"));
+        }
+        fields.Add(new(skipName, "false"));
+        using var form = new FormUrlEncodedContent(fields);
+        using var saveResponse = await client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save", form);
+        AssertPrg(saveResponse, store.CaseId);
+
+        var damage = Assert.Single(store.Saves).Damage;
+        Assert.NotNull(damage);
+        Assert.Equal(recorded, damage.AssessmentFields![AssessmentVocabulary.ImpactsSkipped]);
     }
 
 }

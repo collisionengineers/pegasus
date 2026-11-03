@@ -206,12 +206,13 @@ public static class CaseWorkspaceLabels
 
         /// <summary>
         /// The Damage section's fields: the impacts staff enter, posted as one
-        /// JSON value by the section's impact rows (v46), and the unrelated
-        /// damage.
+        /// JSON value by the section's impact rows (v46), Skip impacts (v47)
+        /// and the unrelated damage.
         /// </summary>
         public static IReadOnlyDictionary<string, string> Damage { get; } = new Dictionary<string, string>
         {
             [AssessmentVocabulary.Impacts] = "Impact",
+            [AssessmentVocabulary.ImpactsSkipped] = CaseWorkspaceLabels.Damage.SkipImpacts,
             [AssessmentVocabulary.DamageUnrelated] = "Unrelated damage",
         };
 
@@ -337,6 +338,9 @@ public static class CaseWorkspaceLabels
         public const string Note = "Note";
         public const string Clear = "Clear";
         public const string AddImpact = "Add impact";
+
+        /// <summary>The deliberate choice to send the report with no impact (v47, operator, 3 November 2026).</summary>
+        public const string SkipImpacts = "Skip impacts";
 
         /// <summary>A code word as the cell prints it: "not_fitted" reads "Not fitted".</summary>
         public static string CodeWord(string code)

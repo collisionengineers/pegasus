@@ -70,6 +70,46 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
         Assert.Null(cleared.Field(AssessmentVocabulary.DamageMarkers));
     }
 
+    /// <summary>
+    /// Skip impacts is recorded only while no impact row exists (v47 items B
+    /// and D; R649): a save that would leave it ticked beside a row, complete
+    /// or not, is refused and writes nothing; unticking it with the row saves.
+    /// </summary>
+    [Fact]
+    public async Task SkipImpactsIsRecordedOnlyWhileNoImpactRowExists()
+    {
+        await using var harness = await Harness.CreateAsync(shared);
+        var outcome = await harness.AcceptAsync("assessment-impacts-skipped");
+        var caseId = outcome.Identity.CaseId;
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, harness.AutomationActor, "skip-lease-1");
+        var skipped = await harness.SaveAssessment.ExecuteAsync(new(
+            caseId, lease.Version, harness.AutomationActor, "skip-save-1", "Skip impacts.", lease.Token,
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.ImpactsSkipped] = "true"
+            }), CancellationToken.None);
+        Assert.Equal("true", skipped.Field(AssessmentVocabulary.ImpactsSkipped)?.Value);
+
+        const string partial = "[{\"severity\":\"moderate\",\"location\":\"\",\"note\":\"\"}]";
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => harness.SaveAssessment.ExecuteAsync(new(
+            caseId, skipped.CaseVersion, harness.AutomationActor, "skip-save-2", "Add a row beside the skip.", lease.Token,
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.Impacts] = partial
+            }), CancellationToken.None));
+        Assert.Equal("Skip impacts can be ticked only while no impact is entered.", refused.Message);
+
+        var entered = await harness.SaveAssessment.ExecuteAsync(new(
+            caseId, skipped.CaseVersion, harness.AutomationActor, "skip-save-3", "Enter an impact.", lease.Token,
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.Impacts] = partial,
+                [AssessmentVocabulary.ImpactsSkipped] = "false"
+            }), CancellationToken.None);
+        Assert.Equal(partial, entered.Field(AssessmentVocabulary.Impacts)?.Value);
+        Assert.Equal("false", entered.Field(AssessmentVocabulary.ImpactsSkipped)?.Value);
+    }
+
     [Fact]
     public async Task AssessmentWorkspaceLoadsInAtMostFiveReaderCommands()
     {

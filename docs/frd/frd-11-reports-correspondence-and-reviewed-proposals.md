@@ -116,7 +116,10 @@ from the same owner: the Engineer's wording when written, else the composed
 sentence. It is available once the Engineer has written that wording or the
 damage record has a headline impact, in every lifecycle state and before a
 report can be projected, whether or not the report carries the block; Damage
-keeps no narrative of its own (operator, 24 September 2026).
+keeps no narrative of its own (operator, 24 September 2026). The printed
+Nature of Incident keeps one sentence to a line with no space between them
+(R645); the space between the Case page's sentences is the page's alone
+(v47 item G, R649).
 
 A block tracks the Case's own facts until the Engineer writes wording in its
 place. The Engineer may rename a block, move it, take it off the report, put
@@ -645,7 +648,7 @@ Each fact is recorded in one section of the Case record
 | The Sign-off Engineer's name and signature on file | Accounts |
 | Registration, vehicle type, pre-incident condition, vehicle history check | Vehicle |
 | Inspection type; the inspection address for a physical location; the Inspection date, printed as the date the damage was assessed | Inspection details |
-| Unrelated damage when its switch is on; impacts are optional ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record), R646) | Damage |
+| Unrelated damage when its switch is on; an impact naming a severity and a location, or Skip impacts ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record), R647–R649) | Damage |
 | The Engineer's Value with its retail and trade values ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)) | Valuation |
 | A Current repair spec with lines, a labour rate and a repairer VAT status the report can word ([Estimate VAT on the rendered report](#estimate-vat-on-the-rendered-report)) | Repair Spec |
 | Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage category and salvage value; on a contract repair the agreed contract sum | Decisions |

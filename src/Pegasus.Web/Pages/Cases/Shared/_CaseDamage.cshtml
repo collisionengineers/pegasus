@@ -10,9 +10,16 @@
     impacts: one row each, Impact · Severity · Location · Note · Clear, added
     with Add impact. Nothing is derived from the markers. The Incident
     narrative is the report's Nature of Incident: a sentence for each impact
-    naming a severity and a location, one to a line. Read and edit share one
-    geometry: the rows stand in the same places, values reading where controls
-    edit. The Case's images live only under Files.
+    naming a severity and a location, each its own line with a line's space
+    between them (v47). Read and edit share one geometry: the rows stand in
+    the same places, values reading where controls edit. The Case's images
+    live only under Files.
+
+    Skip impacts (v47, operator, 3 November 2026; R647–R649): the report needs
+    an impact or the deliberate skip. The tick stands beside Add impact while
+    no row exists, and ticking it greys out Add impact; a row hides it. While
+    reading with no row it is a static tick. With no row the empty state sits
+    on the facts' own left edge.
 *@
 @using System.Globalization
 @using System.Text.Json
@@ -46,6 +53,9 @@
         impacts = [];
     }
     var mayEditImpacts = editable && Model.CanEditAssessmentField(AssessmentVocabulary.Impacts);
+    var impactsSkipped = impacts.Count == 0
+        && Model.AssessmentEditorValue(AssessmentVocabulary.ImpactsSkipped) == "true";
+    var skipName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ImpactsSkipped);
     var damageFields = CaseWorkspaceLabels.Editors.Damage;
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "damage");
     var profile = DamagePlanGeometry.ProfileFor(Model.AssessmentEditorValue(AssessmentVocabulary.VehicleType));
@@ -103,7 +113,7 @@
                 }
             </div>
             <div class="damage-facts">
-                <div class="impact-entry" data-impacts>
+                <div class="impact-entry" data-impacts data-field="@AssessmentVocabulary.Impacts">
                     @if (mayEditImpacts)
                     {
                         <input type="hidden" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.Impacts)" form="case-edit-form" value="@rawImpacts" data-impacts-input />
@@ -122,9 +132,29 @@
                     {
                         <div class="impact-entry-foot">
                             <span></span>
-                            <button type="button" class="btn impact-entry-add" data-impacts-add><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg><span>@DamageLabels.AddImpact</span></button>
+                            <button type="button" class="btn impact-entry-add" disabled="@impactsSkipped" data-impacts-add><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg><span>@DamageLabels.AddImpact</span></button>
+                            <label class="choice impact-entry-skip" hidden="@(impacts.Count > 0)" data-field="@AssessmentVocabulary.ImpactsSkipped" data-impacts-skip>
+                                <input type="checkbox" name="@skipName" value="true" form="case-edit-form" checked="@impactsSkipped" />
+                                <input type="hidden" name="@skipName" value="false" form="case-edit-form" />
+                                <span>@DamageLabels.SkipImpacts</span>
+                            </label>
                         </div>
                         <template data-impacts-template>@{ await ImpactRow(new AssessmentImpact(string.Empty, string.Empty, string.Empty), true); }</template>
+                    }
+                    else if (impacts.Count == 0)
+                    {
+                        <div class="impact-entry-foot impact-entry-foot--read">
+                            <span></span>
+                            <span class="choice is-static impact-entry-skip" data-on="@(impactsSkipped ? "true" : "false")">
+                                <span class="tick">
+                                    @if (impactsSkipped)
+                                    {
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
+                                    }
+                                </span>
+                                <span>@DamageLabels.SkipImpacts</span>
+                            </span>
+                        </div>
                     }
                 </div>
                 <div class="fg g4 mt-2">
@@ -144,7 +174,7 @@
                             <input id="edit-@AssessmentVocabulary.DamageUnrelated" class="fi" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelated)" form="case-edit-form" value="@unrelated" maxlength="@AssessmentVocabulary.Definitions[AssessmentVocabulary.DamageUnrelated].MaximumLength" />
                         }
                     </div>
-                    <div class="fc ro span4"><span class="lbl">@EngineerLabels.IncidentNarrative</span><div class="fv derived @(Model.IncidentNarrative is null ? "empty" : null) @(Model.IncidentNarrative?.Contains('\n') == true ? "multi" : null)" data-damage-narrative>@(Model.IncidentNarrative ?? OperatorLabels.CaseWorkspace.AbsentValue)</div></div>
+                    <div class="fc ro span4"><span class="lbl">@EngineerLabels.IncidentNarrative</span><div class="fv derived @(Model.IncidentNarrative is null ? "empty" : null) @(Model.IncidentNarrative?.Contains('\n') == true ? "multi" : null)" data-damage-narrative>@if (Model.IncidentNarrative is { } narrative) { foreach (var line in narrative.Split('\n')) { <span class="fv-line">@line</span> } } else { @OperatorLabels.CaseWorkspace.AbsentValue }</div></div>
                 </div>
             </div>
         </div>
