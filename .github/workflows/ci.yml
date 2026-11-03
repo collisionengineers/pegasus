@@ -97,7 +97,7 @@ jobs:
     #
     # Windows, because the documentation link check resolves targets with
     # Test-Path, which is case-insensitive there and case-sensitive on Linux;
-    # moving it would quietly change the rule.
+    # moving it would quietly change the rule (R652).
     #
     # It follows `changes` so every lane reads one verdict order, but must not
     # inherit its verdict: without `!cancelled()`, a failed path detection would
@@ -141,7 +141,8 @@ jobs:
   infrastructure:
     # Local mode checks committed fail-closed invariants and compiles Bicep.
     # It does not authenticate, read Azure state, run azd or deploy anything.
-    # Linux, the platform the release deploys to (R504's measured run).
+    # Linux, the platform the release deploys to. R651's measured run
+    # (3 November 2026) was green at 90 s against 113-129 s on Windows.
     needs: [changes, invariants]
     if: needs.changes.outputs.infrastructure == 'true'
     runs-on: ubuntu-latest
@@ -190,7 +191,8 @@ jobs:
     # when PEGASUS_REFERENCE_PACK_ROOT is absent, so no filter is needed here
     # and the skips are visible in the run, not hidden by a filter.
     #
-    # Linux, the platform Web and Worker deploy to (R504's measured run).
+    # Linux, the platform Web and Worker deploy to. R651's measured run
+    # (3 November 2026) was green at 209 s against 246-308 s on Windows.
     needs: [changes, invariants]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
@@ -214,11 +216,12 @@ jobs:
     # whole classes across six runners. Allow setup/build plus the longest shard
     # and evidence upload: the 2026-09-09 run exhausted a 30-minute job budget.
     #
-    # Linux with a SQL Server container (R504's measured run). LocalDB exists
-    # only on Windows; the container is the runbook's Linux route, reached
-    # through the PEGASUS_TEST_SQL_* variables the harness already reads. The
-    # password is not a secret: the container listens on the runner's own
-    # loopback and is discarded with the job.
+    # Linux with a SQL Server container. LocalDB exists only on Windows; the
+    # container is the runbook's Linux route, reached through the
+    # PEGASUS_TEST_SQL_* variables the harness already reads. The password is
+    # not a secret: the container listens on the runner's own loopback and is
+    # discarded with the job. R651's measured run (3 November 2026) was green
+    # with shards of 576-726 s against 772-1477 s on Windows.
     needs: [changes, invariants]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest

@@ -409,8 +409,9 @@ whole-repository verification. Leave `parallelAlgorithm` at its default `conserv
 installs a fixed-thread synchronization context, and the web factory builds its
 host synchronously, which together deadlock.
 
-PR CI distributes whole integration-test classes across six Windows runners,
-with the same four-class concurrency cap on each runner. Case-page feature
+PR CI distributes whole integration-test classes across six Linux runners,
+each with its own SQL Server container and the same four-class concurrency
+cap (R651). Case-page feature
 tests use independent classes rather than one shared partial test class.
 Shared test support contains no tests or shared mutable fixtures. Each shard
 retains its enumerated and assigned test lists and results; the partition gate
