@@ -796,6 +796,57 @@ public sealed partial class QdosTriageIntegrationTests
     }
 
     /// <summary>
+    /// A staff forward is answered as though it had arrived in the mailbox
+    /// that forwarded it (operator, 3 November 2026): From is that mailbox,
+    /// and the reply still names the forwarded message it answers.
+    /// </summary>
+    [Fact]
+    public async Task AStaffForwardedTriageIsAnsweredFromTheMailboxThatForwardedIt()
+    {
+        const string forwarder = "triage-forwarder@collisionengineers.co.uk";
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var forwarderId = await SeedSendingMailboxAsync(factory, forwarder);
+        var fixture = await SeedMailboxTriageAsync(
+            factory,
+            senderAddress: forwarder,
+            replyToAddress: forwarder,
+            subject: "FW: Engineer Triage AB12CDE",
+            body: ForwardedTriageBody);
+
+        using (var page = await client.GetAsync($"/Cases/{fixture.TriageCaseId}"))
+        {
+            var html = await page.Content.ReadAsStringAsync();
+            Assert.Contains($"id=\"triage-reply-from\" value=\"{forwarder}\" readonly", html, StringComparison.Ordinal);
+        }
+        var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageCaseId}");
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["expectedVersion"] = fixture.Version.ToString(CultureInfo.InvariantCulture),
+            ["operationKey"] = operationKey,
+            ["to"] = "randerson@qdosassist.co.uk",
+            ["subject"] = "Re: Engineer Triage AB12CDE",
+            ["body"] = "Please supply the requested additional vehicle details."
+        });
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(forwarderId, command.ApprovedMailboxId);
+        Assert.Equal(StaffMailComposeMode.Reply, command.ComposeMode);
+        Assert.Equal(fixture.RetainedMessageId, command.OriginalMessage?.RetainedMessageId);
+    }
+
+    /// <summary>
     /// Issue 1042: a forward inside the Principal's own organisation is
     /// answered to the colleague who sent it, with the subject as it came.
     /// </summary>
@@ -1160,6 +1211,37 @@ public sealed partial class QdosTriageIntegrationTests
         AccidentCircumstances: null,
         DateOfIncident: null,
         InspectionAddress: null);
+
+    /// <summary>An Approved, activated Outgoing mailbox at <paramref name="address"/>: one that can send.</summary>
+    private static async Task<Guid> SeedSendingMailboxAsync(
+        WebApplicationFactory<Program> factory,
+        string address)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        if (await context.ApprovedMailboxes.SingleOrDefaultAsync(m => m.Address == address) is { } existing)
+        {
+            return existing.Id;
+        }
+        var id = Guid.NewGuid();
+        context.ApprovedMailboxes.Add(new()
+        {
+            Id = id,
+            Address = address,
+            State = "Approved",
+            AllowIncoming = false,
+            AllowOutgoing = true,
+            MailboxIdentity = $"forwarder-{id:N}",
+            InboxFolderIdentity = "inbox",
+            SentFolderIdentity = "sent-items",
+            MailboxGeneration = 1,
+            Version = 1,
+            ActivatedAtUtc = ChaserNowUtc
+        });
+        await context.SaveChangesAsync();
+        return id;
+    }
 
     private static async Task<Guid> GetMailboxIdAsync(
         WebApplicationFactory<Program> factory,

@@ -142,7 +142,7 @@ public sealed class ChaserModel(
         }
 
         var sender = Senders.Reply
-            ?? new CaseMailSender(Senders.Mailboxes.Single(mailbox => mailbox.Id == FromMailboxId), ReplyTo: null);
+            ?? Senders.Chosen(Senders.Mailboxes.Single(mailbox => mailbox.Id == FromMailboxId));
         try
         {
             StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
@@ -220,7 +220,7 @@ public sealed class ChaserModel(
         }
         if (string.IsNullOrWhiteSpace(Subject))
         {
-            Subject = Senders.Reply?.ReplyTo?.ReplySubject ?? facts.Subject();
+            Subject = Senders.ReplySubject ?? facts.Subject();
         }
         if (string.IsNullOrWhiteSpace(Body))
         {

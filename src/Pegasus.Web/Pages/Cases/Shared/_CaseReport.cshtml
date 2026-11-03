@@ -409,10 +409,12 @@
                         }
                     }
                     <span class="lg">@Words.ReviewedRecipients</span>
-                    @* Operator, 12 October 2026: the report is a reply to the
-                       instruction email from the mailbox it arrived in; with
-                       none to reply to, staff choose the Outgoing mailbox, the
-                       Principal's Send from chosen to start with. *@
+                    @* Operator, 12 October and 3 November 2026: the report
+                       answers the instruction email from the mailbox it
+                       arrived in, or a staff forward's from the mailbox that
+                       forwarded it; with none that can send, staff choose the
+                       Outgoing mailbox, the Principal's Send from chosen to
+                       start with. *@
                     <span class="lbl">@ReportLabels.From</span>
                     @if (Model.ReportSenders.Reply is { } reportReply)
                     {

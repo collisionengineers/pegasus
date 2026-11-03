@@ -1983,6 +1983,9 @@ public sealed partial class AssessmentReportDraftWebTests
     {
         public Task<CaseInstructionEmail?> GetAsync(Guid ownerCaseId, CancellationToken cancellationToken) =>
             Task.FromResult(ownerCaseId == caseId ? instruction : null);
+
+        public Task<string?> SendFromAsync(Guid ownerCaseId, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>(null);
     }
 
     private sealed class FixedMailboxes(ApprovedMailbox[] mailboxes) : IApprovedMailboxStore

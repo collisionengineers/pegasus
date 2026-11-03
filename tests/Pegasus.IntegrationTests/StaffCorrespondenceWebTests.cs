@@ -383,6 +383,65 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     /// <summary>
+    /// A staff forward is answered as though the original had arrived in the
+    /// mailbox that forwarded it (operator, 3 November 2026): Reply all leaves
+    /// that mailbox, goes to the original sender and the original's own Cc,
+    /// drops the forward's "FW:", and still names the message it answers.
+    /// </summary>
+    [Fact]
+    public async Task ReplyAllToAStaffForwardLeavesTheMailboxThatForwardedIt()
+    {
+        const string forwarder = "sc08-forwarder@collisionengineers.co.uk";
+        var send = new RecordingStaffMailSend { NextState = StaffMailState.Sent };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 FORWARD", "SC08-FORWARD-REPLY-ALL");
+        var forwarderId = await SeedSendableMailboxAsync(baseFactory, "sc08-forwarder", forwarder);
+        var seeded = await SeedRetainedCorrespondenceAsync(
+            baseFactory,
+            caseId,
+            sender: forwarder,
+            subject: "FW: Claim PK12TMZ",
+            body:
+                "Please see below.\n\n" +
+                "From: Robin Anderson <randerson@qdosassist.co.uk>\n" +
+                "Sent: 21 August 2026 11:18 PM\n" +
+                $"To: Forwarder <{forwarder}>\n" +
+                "Cc: Qdos NewClaims <NewClaims@qdosassist.co.uk>\n" +
+                "Subject: Claim PK12TMZ\n\n" +
+                "Please inspect the vehicle.");
+        using var factory = Configure(baseFactory, send);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var recordGet = await client.GetAsync($"/Inbox/{seeded.MessageId:D}");
+        var record = await recordGet.Content.ReadAsStringAsync();
+        var replyAll = Regex.Match(
+            record,
+            $"<a[^>]*href=\"(?<href>[^\"]*compose=reply-all[^\"]*)\"[^>]*>\\s*{Regex.Escape(OperatorLabels.StaffMail.ReplyAll)}\\s*</a>",
+            RegexOptions.CultureInvariant);
+        Assert.True(replyAll.Success, "The record's foot did not offer Reply all.");
+        using var composerGet = await client.GetAsync(WebUtility.HtmlDecode(replyAll.Groups["href"].Value));
+        var composer = await composerGet.Content.ReadAsStringAsync();
+        Assert.Equal("Re: Claim PK12TMZ", InputValue(composer, "CorrespondenceSubject"));
+
+        var form = RetainedReplyForm(
+            composer, InputValue(composer, "CorrespondenceOperationKey"), "Reviewed response.");
+        form["FixedCorrespondenceCaseReference"] = InputValue(composer, "FixedCorrespondenceCaseReference");
+        using var post = await client.PostAsync(
+            FormAction(composer, "ReplyAll"),
+            new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.Redirect, post.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(forwarderId, command.ApprovedMailboxId);
+        Assert.Equal(StaffMailComposeMode.ReplyAll, command.ComposeMode);
+        Assert.Equal(seeded.MessageId, command.OriginalMessage!.RetainedMessageId);
+        Assert.Equal(["randerson@qdosassist.co.uk"], command.To.Select(item => item.Address));
+        Assert.Equal(["NewClaims@qdosassist.co.uk"], command.Cc.Select(item => item.Address));
+    }
+
+    /// <summary>
     /// Reply all from the record (v41 I15, I17): the record's foot offers Reply
     /// all, following it opens the composer for the exact message and Case, its
     /// Send posts ReplyAll, and the record the send lands on reads the sent
@@ -1662,14 +1721,17 @@ public sealed class StaffCorrespondenceWebTests
         AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
 
     /// <summary>An Outgoing mailbox that can send, with no retained mail; its id.</summary>
-    private static async Task<Guid> SeedSendableMailboxAsync(IntakeWebApplicationFactory factory)
+    private static async Task<Guid> SeedSendableMailboxAsync(
+        IntakeWebApplicationFactory factory,
+        string graphId = "sc08-sender",
+        string address = "sc08-sender@collisionengineers.co.uk")
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
         var mailboxId = await TestMailboxId.EnsureApprovedAsync(
-            context, "sc08-sender", "sc08-sender@collisionengineers.co.uk", NowUtc.AddDays(-1));
+            context, graphId, address, NowUtc.AddDays(-1));
         await context.SaveChangesAsync();
         var mailbox = await context.ApprovedMailboxes.SingleAsync(item => item.Id == mailboxId);
         mailbox.AllowOutgoing = true;
@@ -1691,7 +1753,10 @@ public sealed class StaffCorrespondenceWebTests
 
     private static async Task<SeededCorrespondence> SeedRetainedCorrespondenceAsync(
         IntakeWebApplicationFactory factory,
-        Guid? caseId)
+        Guid? caseId,
+        string sender = "sender@example.invalid",
+        string subject = "Source subject",
+        string body = "Source body.")
     {
         const string mailboxGraphId = "sc08-sender";
         const string mailboxAddress = "sc08-sender@collisionengineers.co.uk";
@@ -1788,13 +1853,13 @@ public sealed class StaffCorrespondenceWebTests
                     conversationId,
                     internetMessageId,
                     [],
-                    "sender@example.invalid",
+                    sender,
                     "Sender Name",
                     [mailboxAddress, "other-to@example.invalid"],
                     ["copy@example.invalid", mailboxAddress, "other-to@example.invalid"],
-                    ["reply@example.invalid"],
-                    "Source subject",
-                    "Source body.",
+                    sender == "sender@example.invalid" ? new[] { "reply@example.invalid" } : new[] { sender },
+                    subject,
+                    body,
                     [],
                     IsRead: false),
                 NowUtc),

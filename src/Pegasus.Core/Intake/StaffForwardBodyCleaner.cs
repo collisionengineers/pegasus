@@ -131,6 +131,52 @@ public static partial class StaffForwardBodyCleaner
     }
 
     /// <summary>
+    /// The addresses on a forwarded body's own "To:" and "Cc:" lines: who the
+    /// original message was sent to and copied, so a staff forward is answered
+    /// as though the original had arrived directly (operator, 3 November
+    /// 2026). Empty when the body has no forwarded header; a part carrying no
+    /// address is skipped.
+    /// </summary>
+    public static (IReadOnlyList<string> To, IReadOnlyList<string> Cc) ForwardedRecipients(string body)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        var boundary = ForwardedHeaderRegex().Match(body);
+        if (!boundary.Success)
+        {
+            return ([], []);
+        }
+
+        return (
+            [.. HeaderAddresses(boundary.Groups["to"].Value)],
+            [.. boundary.Groups["cc"].Captures.SelectMany(capture => HeaderAddresses(capture.Value))]);
+    }
+
+    /// <summary>The addresses of one header line: "Name &lt;a@b&gt;" parts split on ";", bare parts on ";" or ",".</summary>
+    private static IEnumerable<string> HeaderAddresses(string line)
+    {
+        foreach (var segment in line.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var angled = AngledAddressRegex().Matches(segment);
+            if (angled.Count > 0)
+            {
+                foreach (Match match in angled)
+                {
+                    yield return match.Groups["address"].Value.Trim();
+                }
+                continue;
+            }
+            foreach (var part in segment.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var candidate = part.Trim('\'', '"');
+                if (BareAddressRegex().IsMatch(candidate))
+                {
+                    yield return candidate;
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Cuts the Principal's trailing signature footer — image placeholders,
     /// decorated contact links, the corporate disclaimer, membership and
     /// registered-office lines — from an already-cleaned display body. The
@@ -206,8 +252,8 @@ public static partial class StaffForwardBodyCleaner
     // be read at all; the block must still be an address header ending in
     // Subject:, so the boundary is no less specific than before.
     [GeneratedRegex(
-        "(?i)(?:\\A|[\r\n])From:[\t ]*(?<from>[^\r\n]+)[\r\n]+Sent:[^\r\n]*[\r\n]+To:[^\r\n]*"
-        + "(?:[\r\n]+(?:Cc|Bcc):[^\r\n]*)*[\r\n]+Subject:[^\r\n]*",
+        "(?i)(?:\\A|[\r\n])From:[\t ]*(?<from>[^\r\n]+)[\r\n]+Sent:[^\r\n]*[\r\n]+To:(?<to>[^\r\n]*)"
+        + "(?:[\r\n]+(?:Cc:(?<cc>[^\r\n]*)|Bcc:[^\r\n]*))*[\r\n]+Subject:[^\r\n]*",
         RegexOptions.CultureInvariant)]
     private static partial Regex ForwardedHeaderRegex();
 

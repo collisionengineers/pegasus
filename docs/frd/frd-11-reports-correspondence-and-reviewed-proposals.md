@@ -358,6 +358,12 @@ Outgoing mailbox as From, the Principal's Send from chosen to start with
 ([Report sending rules](#report-sending-rules)), and the report goes as a new
 message whose subject is "{REG} Report"
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+A Collision Engineers staff forward into instructions@ is answered as though
+it had arrived in the mailbox that forwarded it: the report leaves that
+mailbox while it can send, as a new message whose subject is "Re:" and the
+original's without the forward's "FW:", or else the mailbox staff choose,
+the Principal's Send from chosen to start with (operator, 3 November 2026;
+R651; [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 Either way the reviewed To and Cc are the only recipients: it is a Reply,
 never Reply all. A send the mailbox provider refuses is shown as a failed
 send.
@@ -409,7 +415,8 @@ Principal's report sending rules, in the order of Report Sending SOP rule R12.
 
 1. To is the Principal's fixed addresses when it has any, else the original
    instruction sender.
-2. Cc starts as the instruction's own Cc list, unless the Principal turns that
+2. Cc starts as the instruction's own Cc list (for a staff forward, the
+   original message's, read from its forwarded header; R651), unless the Principal turns that
    off, then the Principal's Cc addresses, then the Cc of each rule that holds.
 3. A Principal set to send only to its fixed addresses has no Cc at all.
 4. The addresses the Principal never copies, and the ones a rule removes, are
@@ -440,7 +447,8 @@ same click as Send report.
 - **Mode.** Where the report leaves from is **From and subject** above: a
   reply in the instruction's thread from the mailbox it arrived in while that
   mailbox can send, otherwise a new message from the Outgoing mailbox staff
-  choose, the Principal's Send from chosen to start with. An uploaded e-mail
+  choose, the Principal's Send from chosen to start with. A staff forward is
+  answered from the mailbox that forwarded it (R651). An uploaded e-mail
   sits in no mailbox, so it takes the new message route.
 - **Rule conditions.** A rule's conditions read the Case's Claim Source,
   Repairer, recorded outcome, Case type and the instruction's sender. A Case

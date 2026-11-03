@@ -225,6 +225,41 @@ public sealed class StaffForwardBodyCleanerTests
     }
 
     [Fact]
+    public void ReadsTheOriginalsRecipientsFromItsForwardedHeader()
+    {
+        var (to, cc) = StaffForwardBodyCleaner.ForwardedRecipients(CopiedForward);
+
+        Assert.Equal(["desk@collisionengineers.co.uk"], to);
+        Assert.Equal(["NewClaims@qdosassist.co.uk"], cc);
+    }
+
+    [Fact]
+    public void ReadsEveryCopiedAddressWhetherNamedOrBare()
+    {
+        var body =
+            "From: Robin Anderson <randerson@qdosassist.co.uk>\n" +
+            "Sent: 21 August 2026 11:18 PM\n" +
+            "To: desk@collisionengineers.co.uk\n" +
+            "Cc: Anderson, Robin <robin@qdosassist.co.uk>; claims@qdosassist.co.uk, team@qdosassist.co.uk\n" +
+            "Bcc: hidden@qdosassist.co.uk\n" +
+            "Subject: Claim\n\nBody";
+
+        var (to, cc) = StaffForwardBodyCleaner.ForwardedRecipients(body);
+
+        Assert.Equal(["desk@collisionengineers.co.uk"], to);
+        Assert.Equal(["robin@qdosassist.co.uk", "claims@qdosassist.co.uk", "team@qdosassist.co.uk"], cc);
+    }
+
+    [Fact]
+    public void ABodyWithNoForwardedHeaderHasNoOriginalRecipients()
+    {
+        var (to, cc) = StaffForwardBodyCleaner.ForwardedRecipients("Please find attached.");
+
+        Assert.Empty(to);
+        Assert.Empty(cc);
+    }
+
+    [Fact]
     public void ReadsTheSenderThroughBothCopiedRecipientLines()
     {
         var body = CopiedForward.Replace(

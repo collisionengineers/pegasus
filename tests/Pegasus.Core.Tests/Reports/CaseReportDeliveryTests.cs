@@ -1077,6 +1077,55 @@ public sealed class CaseReportDeliveryTests
     }
 
     /// <summary>
+    /// A staff forward into instructions@ is answered as though it had arrived
+    /// in the mailbox that forwarded it (operator, 3 November 2026): a new
+    /// message from desk@, still answering the instruction, its subject "Re:"
+    /// the original's without the forward's "FW:".
+    /// </summary>
+    [Fact]
+    public async Task SendAnswersAStaffForwardFromTheMailboxThatForwardedIt()
+    {
+        var send = new RecordingSend();
+        var instructions = Mailbox(address: "instructions@collisionengineers.co.uk");
+        var desk = Mailbox(id: Guid.NewGuid(), address: "desk@collisionengineers.co.uk");
+        var instruction = StaffForward(instructions.Id, desk.Address);
+
+        await Use(new FixedGenerations(Generation()), send, Senders(instruction, instructions, desk))
+            .ExecuteAsync(Request() with { FromMailboxId = null }, CancellationToken.None);
+
+        var mail = Assert.Single(send.Commands).Mail;
+        Assert.Equal(desk.Id, mail.ApprovedMailboxId);
+        Assert.Equal(StaffMailComposeMode.Reply, mail.ComposeMode);
+        Assert.Equal(instruction.Original, mail.OriginalMessage);
+        Assert.Equal("Re: New instruction DVR-31001", mail.Subject);
+    }
+
+    /// <summary>
+    /// When the mailbox that forwarded the instruction cannot send, staff
+    /// choose From; the report still answers the instruction.
+    /// </summary>
+    [Fact]
+    public async Task SendAnswersAStaffForwardFromTheChosenMailboxWhenTheForwarderCannotSend()
+    {
+        var send = new RecordingSend();
+        var instructions = Mailbox(address: "instructions@collisionengineers.co.uk");
+        var chosen = Mailbox(id: Guid.NewGuid(), address: "info@collisionengineers.co.uk");
+        var instruction = StaffForward(instructions.Id, "alex@collisionengineers.co.uk");
+        var senders = Senders(instruction, instructions, chosen);
+
+        await Assert.ThrowsAsync<CaseMailSenderRequiredException>(() => Use(
+                new FixedGenerations(Generation()), new RecordingSend(), senders)
+            .ExecuteAsync(Request() with { FromMailboxId = null }, CancellationToken.None));
+        await Use(new FixedGenerations(Generation()), send, senders)
+            .ExecuteAsync(Request() with { FromMailboxId = chosen.Id }, CancellationToken.None);
+
+        var mail = Assert.Single(send.Commands).Mail;
+        Assert.Equal(chosen.Id, mail.ApprovedMailboxId);
+        Assert.Equal(instruction.Original, mail.OriginalMessage);
+        Assert.Equal("Re: New instruction DVR-31001", mail.Subject);
+    }
+
+    /// <summary>
     /// With no instruction email to reply to and no From mailbox chosen,
     /// nothing is sent.
     /// </summary>
@@ -1126,6 +1175,14 @@ public sealed class CaseReportDeliveryTests
     private static CaseInstructionEmail InstructionEmail(Guid mailboxId) => new(
         Guid.NewGuid(), mailboxId, "immutable-1", "<instruction@principal.example>", "conversation-1",
         "New instruction DVR-31001", "instructor@principal.example", null);
+
+    /// <summary>
+    /// A Collision Engineers staff forward of the instruction from
+    /// <paramref name="forwarder"/>, retained in <paramref name="mailboxId"/>.
+    /// </summary>
+    private static CaseInstructionEmail StaffForward(Guid mailboxId, string forwarder) => new(
+        Guid.NewGuid(), mailboxId, "immutable-1", "<forward@collisionengineers.co.uk>", "conversation-1",
+        "FW: New instruction DVR-31001", forwarder, "instructor@principal.example");
 
     private static ActionActor Staff() => ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
 
@@ -1404,6 +1461,9 @@ public sealed class CaseReportDeliveryTests
     {
         public Task<CaseInstructionEmail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult(caseId == CaseId ? instruction : null);
+
+        public Task<string?> SendFromAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>(null);
     }
 
     private sealed class RecordingSend : IStaffReportSend
