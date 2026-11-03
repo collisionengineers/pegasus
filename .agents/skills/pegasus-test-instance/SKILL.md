@@ -10,7 +10,7 @@ Tailscale network. It is the `DevelopmentOffline` lifecycle the runbook owns
 ([local live-integration run](../../../docs/runbook.md#local-live-integration-run))
 with every opt-in on, so the procedure here is the order of the runbook's
 commands and the approvals between them. [ADR-0088](../../../docs/adr/0088-one-hosted-test-instance.md)
-and rulings R623 to R635 decided its shape; this skill invents none of it.
+and rulings R623 to R653 decided its shape; this skill invents none of it.
 
 What it is for (R624): the operator's and agents' QA walks, staff UAT rounds,
 and rehearsing a release (migrations included) on a copy of production.
@@ -18,7 +18,7 @@ and rehearsing a release (migrations included) on a copy of production.
 ## What never happens here
 
 - **Mail is real.** The instance has Graph parity with production on the
-  mailboxes the operator enables on it (R630, R632): a send leaves the
+  mailboxes the operator enables on it (R648, R650): a send leaves the
   production mailbox and reaches its recipients, the answered-instruction
   move happens in the shared mailbox, and both the instance and production
   ingest the same incoming mail while a mailbox is enabled on both. Send only
@@ -29,7 +29,7 @@ and rehearsing a release (migrations included) on a copy of production.
   create or run anything in Azure is a question to the operator first.
 - **Funnel for the Graph webhook path alone.** `tailscale serve` on 443 keeps
   the origin on the tailnet; `tailscale funnel` on 8443 exposes
-  `/hooks/microsoft-graph/mail` and nothing else (R631). Nothing else is
+  `/hooks/microsoft-graph/mail` and nothing else (R649). Nothing else is
   ever Funnelled.
 - **No public origin without password sign-in.** `Start` refuses it; the
   automatic offline sign-in would make every tailnet caller the Administrator.
@@ -104,7 +104,7 @@ them if it does not yet, and the run uses the folder mailbox adapters. The two
 Funnelled (section 3); without them the run polls and never subscribes. The
 Principal API issues its keys on the instance (Administration > Contacts);
 the MCP serves the local classifier and tailnet agents, with no connector
-redirect (R634). Never put `AutomationMcp__PublicOrigin` or
+redirect (R652). Never put `AutomationMcp__PublicOrigin` or
 `Glass__CallbackBaseUri` in the file: the lifecycle owns both and refuses
 them.
 
@@ -129,7 +129,7 @@ tailscale funnel status
 
 `+insecure` is needed because Kestrel presents the development certificate;
 the tailnet certificate is what the browser sees, so nothing is exported or
-trusted by hand. The second command is the one public path (R631): `funnel
+trusted by hand. The second command is the one public path (R649): `funnel
 status` must list `:8443` with that path alone, and
 `curl -sS -X POST 'https://<host>.<tailnet>.ts.net:8443/hooks/microsoft-graph/mail?validationToken=x'`
 must print `x`. Prove the proxy keeps the host:
@@ -217,9 +217,9 @@ pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -RunId <id>   # migrate
 The copy is a SqlPackage extract of production to a local `.dacpac` under the
 run's `state/`, published over the run database with users, logins, role
 memberships, permissions and database options left out, every approved
-mailbox deactivated (R627), the copied subscription rows cleared (R633), the
-copied Principal API keys paused (R634) and the copied pending
-answered-instruction tidies closed (R635), so the instance subscribes under
+mailbox deactivated (R627), the copied subscription rows cleared (R651), the
+copied Principal API keys paused (R652) and the copied pending
+answered-instruction tidies closed (R653), so the instance subscribes under
 its own webhook, authenticates no production key and moves only what its own
 sends answered. The record `state/production-copy-<utc>.json` holds the
 migration head, the Case count and the four counts. The

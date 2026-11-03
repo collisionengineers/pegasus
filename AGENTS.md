@@ -100,7 +100,7 @@ and the [verification procedure](docs/runbook.md).
   test mailbox or disposable Box subtree. The hosted test instance has full
   Graph parity on the production mailboxes the operator enables on it: read,
   send, the answered-instruction move and change subscriptions (ADR-0088 as
-  amended, R630, R632).
+  amended, R648, R650).
 - Use PowerShell 7 on Windows or Linux, one platform per evidence run. Paths and
   commands are repository-relative. Follow the existing [release skill](.agents/skills/pegasus-release/SKILL.md)
   for the authorized workstation and platform-matching artifacts; one approval

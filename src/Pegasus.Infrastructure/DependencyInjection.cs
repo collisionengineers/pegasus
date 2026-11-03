@@ -1101,7 +1101,7 @@ public static class DependencyInjection
     /// <c>Features:LiveGraphMail</c> composes exactly this and adds the
     /// subscriptions only when its webhook is configured, so the hosted test
     /// instance has Graph parity with production on the mailboxes the operator
-    /// enables on it (ADR-0088 as amended, R630, R632).
+    /// enables on it (ADR-0088 as amended, R648, R650).
     /// </summary>
     public static IServiceCollection AddGraphApprovedMail(
         this IServiceCollection services,
@@ -1193,7 +1193,7 @@ public static class DependencyInjection
     /// and staff send, independent of <see cref="AddProductionExternalAdapters"/>,
     /// which composes the Worker-only pollers over database-backed approved mailbox
     /// leases. The Production Web and a DevelopmentOffline Web that opts into
-    /// <c>Features:LiveGraphMail</c> both compose this (ADR-0088 as amended, R630).
+    /// <c>Features:LiveGraphMail</c> both compose this (ADR-0088 as amended, R648).
     /// </summary>
     public static IServiceCollection AddProductionApprovedMailboxResolver(
         this IServiceCollection services,
