@@ -1194,7 +1194,10 @@ Production has carried live Cases since 2 November 2026 (R603);
 [rollback step 3](#previous-artifact-rollback-web-and-worker) distinguishes
 compatible artifact rollback from roll-forward. `main` moves only after a
 release's full smoke has passed (R655), so a failed release leaves it at the
-SHA still serving; nothing in git is reset.
+SHA still serving; nothing in git is reset. The released SHA carries the tag
+`v<version>` (R661). A rollback redeploys the previous version's artifacts
+and moves neither `main` nor the tag: the record names the version the
+estate serves, and the next release steps above the tag.
 
 After a destructive migration begins, [ADR-0046](adr/0046-destructive-migration-runtime-shutdown.md)
 requires forward-only recovery. Do not use the previous-artifact route to revive
@@ -1222,12 +1225,12 @@ Read the current target and Worker activation before choosing any mutation.
    the retained release's template or settings differ from the deployed ones.
    Then deploy the retained package: `az webapp deploy --resource-group
    rg-pegasus-prod --name pegasus-prod-web-252ow37gij --src-path
-   ./artifacts/releases/release-<n>-<sha>/web.zip --type zip --clean true
+   ./artifacts/releases/release-<version>-<sha8>/web.zip --type zip --clean true
    --restart true`, and verify `/diagnostics/version` reports the retained
    source revision and version.
 2. Worker: `az functionapp deployment source config-zip --resource-group
    rg-pegasus-prod --name pegasus-prod-worker-252ow37gij --src
-   ./artifacts/releases/release-<n>-<sha>/worker.zip`.
+   ./artifacts/releases/release-<version>-<sha8>/worker.zip`.
 3. Database: establish the intended current schema with the normal migration
    mechanism. A schema change identifies its effect on the running and
    retained artifacts. Roll forward where a prior artifact is incompatible; do

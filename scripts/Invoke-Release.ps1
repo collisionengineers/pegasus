@@ -13,12 +13,19 @@ whether provisioning is needed, builds the exact-SHA artifacts in a detached
 worktree, validates them, and prints the one approval request.
 
 -Execute is the approved run. Its parameters are the words of the approval:
-the exact SHA, the manifest SHA-256, the route, whether to provision and, for
-a destructive route, the old serving Web source SHA. It reads the hosted test
-instance to prove it is serving the approved SHA, runs the one route to a
-passing full smoke, then promotes main to the SHA the estate now serves with
-a leased push (R655), copies the azd environment back to the primary checkout,
-retains the artifacts and prints the record skeleton for docs/operations.md.
+the exact SHA, the manifest SHA-256, the version, the route, whether to
+provision and, for a destructive route, the old serving Web source SHA. It
+reads the hosted test instance to prove it is serving the approved SHA, runs
+the one route to a passing full smoke, then promotes main to the SHA the
+estate now serves and tags it v<version> in one leased push (R655, R661),
+copies the azd environment back to the primary checkout, retains the
+artifacts and prints the record skeleton for docs/operations.md.
+
+Releases are Semantic Versions from 1.0.0 (R659). The live version is the
+highest v* tag on main; the read-only run proposes the next one from the
+range (R660) and builds it unless -Version says otherwise; the approved run
+refuses a version that is not one step above the live one, or not the one
+the manifest was built with.
 
 A destructive run that failed after containment is resumed with the same
 -Execute line: the script reads where it is (Web Stopped and the migration
@@ -29,11 +36,11 @@ bytes after SQL began (ADR-0046).
 pwsh ./scripts/Invoke-Release.ps1
 
 .EXAMPLE
-pwsh ./scripts/Invoke-Release.ps1 -Execute -ReleaseNumber 130 -Route Normal `
+pwsh ./scripts/Invoke-Release.ps1 -Execute -Version 1.1.0 -Route Normal `
   -ApprovedReleaseSha <sha> -ApprovedManifestSha256 <hash> -Provision
 
 .EXAMPLE
-pwsh ./scripts/Invoke-Release.ps1 -Execute -ReleaseNumber 130 -Route Destructive `
+pwsh ./scripts/Invoke-Release.ps1 -Execute -Version 1.1.0 -Route Destructive `
   -ApprovedReleaseSha <sha> -ApprovedManifestSha256 <hash> -ApprovedOldWebSourceSha <sha>
 
 .EXAMPLE
@@ -52,11 +59,6 @@ param(
     [Parameter(Mandatory, ParameterSetName = 'Execute')]
     [ValidateSet('Normal', 'Destructive')]
     [string] $Route,
-
-    # The release number the record will carry; names the retained folder.
-    [Parameter(Mandatory, ParameterSetName = 'Execute')]
-    [ValidateRange(1, 100000)]
-    [int] $ReleaseNumber,
 
     [Parameter(Mandatory, ParameterSetName = 'Execute')]
     [ValidatePattern('^[0-9a-fA-F]{64}$')]
@@ -87,8 +89,14 @@ param(
     [ValidatePattern('^[0-9a-f]{40}$')]
     [string] $ApprovedReleaseSha,
 
-    [ValidatePattern('^\d+\.\d+\.\d+-alpha\.\d+$')]
-    [string] $Version = '0.1.0-alpha.1',
+    # The Semantic Version the release carries (R659). The read-only run
+    # proposes one from the live tag and the range (R660) and builds it unless
+    # given here; the approved run names the one the approval granted, one
+    # step above the live version and the one the manifest was built with.
+    [Parameter(ParameterSetName = 'Prepare')]
+    [Parameter(Mandatory, ParameterSetName = 'Execute')]
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string] $Version,
 
     # The primary checkout. Git runs against it; the release worktree sits
     # beside it under ../pegasus-worktrees.
@@ -232,6 +240,76 @@ function Assert-TestInstanceServes {
         throw "The test instance at $testInstanceOrigin is serving $serving, not the candidate ${Sha}: move it to dev's tip (pegasus-test-instance skill, section 6) and run again."
     }
     Write-Host "Test instance: serving $Sha at $testInstanceOrigin"
+}
+
+# --- Version ---------------------------------------------------------------------
+
+function Get-LiveVersion {
+    # Releases are Semantic Versions (R659) and main carries each release's
+    # tag (R661), so the live version is the highest v<MAJOR.MINOR.PATCH> tag
+    # merged into origin/main. Null until the first one.
+    $versions = @(Invoke-Git -Arguments @('tag', '--list', 'v*', '--merged', 'origin/main') |
+        ForEach-Object { if ($_ -match '^v(\d+\.\d+\.\d+)$') { [version]$Matches[1] } })
+    if ($versions.Count -eq 0) { return $null }
+    return @($versions | Sort-Object -Descending)[0]
+}
+
+function Get-NextVersions {
+    param([Parameter(Mandatory)][version] $Live)
+    return [ordered]@{
+        PATCH = [version]::new($Live.Major, $Live.Minor, $Live.Build + 1)
+        MINOR = [version]::new($Live.Major, $Live.Minor + 1, 0)
+        MAJOR = [version]::new($Live.Major + 1, 0, 0)
+    }
+}
+
+function Assert-VersionStep {
+    # R659, R660: the first Semantic Version is 1.0.0; after it a release is
+    # exactly one step above the live version. Returns the step.
+    param([version] $Live, [Parameter(Mandatory)][string] $Candidate)
+    if ($null -eq $Live) {
+        if ($Candidate -ne '1.0.0') { throw "No v* tag on main: the first Semantic Version is 1.0.0, not $Candidate (R659)." }
+        return 'first'
+    }
+    $next = Get-NextVersions -Live $Live
+    foreach ($step in $next.Keys) { if ($next[$step] -eq [version]$Candidate) { return $step } }
+    throw "$Candidate is not one step above the live v${Live}: the next versions are $($next.PATCH) (PATCH), $($next.MINOR) (MINOR) or $($next.MAJOR) (MAJOR)."
+}
+
+function Get-ProposedVersion {
+    # R660: PATCH when every pull request in the range closes only type:bug
+    # issues, MAJOR when the route is destructive, MINOR otherwise. The route
+    # is classified after the preflight, so a range that adds a migration is
+    # proposed both ways. A proposal: the approval names the version.
+    param([version] $Live, [Parameter(Mandatory)][bool] $BugFixesOnly, [Parameter(Mandatory)][string] $BugFixesReason, [Parameter(Mandatory)][bool] $AddsMigration)
+    if ($null -eq $Live) {
+        return [pscustomobject]@{ Version = '1.0.0'; Step = 'first'; Reason = 'no v* tag on main, so the first Semantic Version is 1.0.0 (R659)'; Alternative = '' }
+    }
+    $next = Get-NextVersions -Live $Live
+    $step = if ($BugFixesOnly) { 'PATCH' } else { 'MINOR' }
+    $alternative = if ($AddsMigration) { "$($next.MAJOR) (MAJOR) if the migration is non-additive and the route destructive" } else { '' }
+    return [pscustomobject]@{ Version = [string]$next[$step]; Step = $step; Reason = $BugFixesReason; Alternative = $alternative }
+}
+
+function Get-RemoteTagSha {
+    # The commit a remote annotated tag points at; empty when it is absent.
+    param([Parameter(Mandatory)][string] $Name)
+    $lines = @(Invoke-Git -Arguments @('ls-remote', '--tags', 'origin', "refs/tags/$Name^{}") | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($lines.Count -eq 0) { return '' }
+    return ($lines[0] -split '\s+')[0]
+}
+
+function New-ReleaseTag {
+    # The release's annotated tag in the primary checkout (R661); an existing
+    # local tag must already point at the released SHA.
+    param([Parameter(Mandatory)][string] $Sha)
+    $name = "v$Version"
+    $existing = (& git -C $RepositoryRoot rev-parse --verify --quiet "refs/tags/$name^{commit}" 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -eq 0) {
+        if ($existing -cne $Sha) { throw "A local tag $name already points at $existing, not the released $Sha." }
+        return
+    }
+    Invoke-Git -Failure "Unable to create the tag $name." -Arguments @('tag', '-a', '-m', "Release $Version", $name, $Sha) | Out-Null
 }
 
 function Get-WebSite {
@@ -391,10 +469,14 @@ function Get-AzdEnvironmentHash {
 
 function Get-RetainedAzdEnvironmentHash {
     # The hash the previous release retained beside its artifacts; null when
-    # no release has retained one yet.
+    # no release has retained one yet. Folders are release-<version>-<sha8>
+    # from 1.0.0 (R659) and release-<n>-<sha8> before it; the newest Semantic
+    # Version comes first, then the highest counter.
     $retained = @(Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'artifacts/releases') -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -match '^release-\d+-[0-9a-f]{8}$' } |
-        Sort-Object { [int]($_.Name -split '-')[1] } -Descending)
+        Where-Object { $_.Name -match '^release-(\d+\.\d+\.\d+|\d+)-[0-9a-f]{8}$' } |
+        Sort-Object -Descending -Property @{ Expression = { ($_.Name -split '-')[1].Contains('.') } }, @{ Expression = {
+            $label = ($_.Name -split '-')[1]
+            if ($label.Contains('.')) { [version]$label } else { [version]::new(0, [int]$label) } } })
     foreach ($folder in $retained) {
         $file = Join-Path $folder.FullName 'azd-env.sha256'
         if (Test-Path -LiteralPath $file -PathType Leaf) {
@@ -648,14 +730,29 @@ function Invoke-Promotion {
     # SHA.
     #
     # Promotion only (-PromoteOnly): the exact SHA goes to main and dev in one
-    # atomic push; dev must still be at it. After the smoke (-AfterSmoke):
-    # main alone moves to the SHA the estate now serves (R655); dev must
-    # contain it, and may have moved on during the release.
+    # atomic push; dev must still be at it; no tag, nothing was deployed.
+    # After the smoke (-AfterSmoke): main alone moves to the SHA the estate
+    # now serves and the annotated tag v<version> goes with it in one atomic
+    # push (R655, R661); dev must contain it, and may have moved on during
+    # the release.
     param([Parameter(Mandatory)][string] $Sha, [switch] $AfterSmoke)
     Invoke-Git -Arguments @('fetch', 'origin', '--prune')
     $mainSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
     $devSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
+    $tagName = "v$Version"
     if ($mainSha -ceq $Sha) {
+        if ($AfterSmoke) {
+            # A resumed run after the promotion: the tag may still be owed.
+            $remoteTag = Get-RemoteTagSha -Name $tagName
+            if ($remoteTag -ceq $Sha) { Write-Host "origin/main and $tagName already read $Sha; promotion was done."; return }
+            if ($remoteTag) { throw "origin/main reads $Sha but $tagName points at $remoteTag." }
+            New-ReleaseTag -Sha $Sha
+            Invoke-Git -Failure "Push of the tag $tagName failed." -Arguments @('push', 'origin', "refs/tags/$tagName") | ForEach-Object { Write-Host $_ }
+            if ((Get-RemoteTagSha -Name $tagName) -cne $Sha) { throw "Remote read-back of $tagName does not equal the released SHA." }
+            Write-Host "$tagName reads back $Sha; main already read it."
+            $script:record['Source'] = "$Sha, promoted after the smoke; main and $tagName read it back"
+            return
+        }
         # A resumed run: dev may have moved on since the promotion.
         Write-Host "origin/main already reads $Sha; promotion was done (origin/dev is at $devSha)."
         return
@@ -665,13 +762,15 @@ function Invoke-Promotion {
     if ($AfterSmoke) {
         & git -C $RepositoryRoot merge-base --is-ancestor $Sha $devSha
         if ($LASTEXITCODE -ne 0) { throw "origin/dev at $devSha does not contain the released $Sha." }
+        New-ReleaseTag -Sha $Sha
         Invoke-Git -Failure 'Promotion of main failed; the estate serves the release and main does not record it yet.' -Arguments @(
-            'push', "--force-with-lease=refs/heads/main:$mainSha", 'origin', "${Sha}:refs/heads/main") | ForEach-Object { Write-Host $_ }
+            'push', '--atomic', "--force-with-lease=refs/heads/main:$mainSha", 'origin', "${Sha}:refs/heads/main", "refs/tags/$tagName") | ForEach-Object { Write-Host $_ }
         Invoke-Git -Arguments @('fetch', 'origin', '--prune')
         $promotedMain = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
         if ($promotedMain -cne $Sha) { throw 'Remote read-back of main does not equal the released SHA.' }
-        Write-Host "main reads back $Sha after the smoke."
-        $script:record['Source'] = "$Sha, promoted from $mainSha after the smoke; main reads it back"
+        if ((Get-RemoteTagSha -Name $tagName) -cne $Sha) { throw "Remote read-back of $tagName does not equal the released SHA." }
+        Write-Host "main and $tagName read back $Sha after the smoke."
+        $script:record['Source'] = "$Sha, promoted from $mainSha after the smoke; main and $tagName read it back"
         return
     }
     if ($devSha -cne $Sha) { throw "origin/dev is at $devSha, not the approved $Sha. Obtain a fresh approval for the current head." }
@@ -729,10 +828,25 @@ function Invoke-Preflight {
     Write-Host '--- Pull requests in the range ---'
     $pullNumbers = @(Invoke-Git -Arguments @('log', '--merges', '--format=%s', "$mainSha..$devSha") |
         ForEach-Object { if ($_ -match 'Merge pull request #(\d+)') { [int]$Matches[1] } } | Sort-Object -Unique)
+    # R660: what the pull requests close decides the proposed version step.
+    $bugFixesOnly = $pullNumbers.Count -gt 0
+    $bugFixesReason = if ($bugFixesOnly) { 'every pull request in the range closes only type:bug issues' } else { 'the range has no merged pull request' }
     foreach ($number in $pullNumbers) {
-        $json = (& gh pr view $number --repo $gitHubRepository --json 'number,title,state,statusCheckRollup' 2>&1) -join "`n"
+        $json = (& gh pr view $number --repo $gitHubRepository --json 'number,title,state,statusCheckRollup,closingIssuesReferences' 2>&1) -join "`n"
         if ($LASTEXITCODE -ne 0) { Write-Host "#$number : gh could not read it ($json)"; $notGreen++; continue }
         $pull = $json | ConvertFrom-Json
+        $closingProperty = $pull.PSObject.Properties['closingIssuesReferences']
+        $closing = @(if ($null -ne $closingProperty) { @($closingProperty.Value) | ForEach-Object { [int]$_.number } })
+        if ($closing.Count -eq 0 -and $bugFixesOnly) { $bugFixesOnly = $false; $bugFixesReason = "#$number closes no issue" }
+        foreach ($issue in $closing) {
+            $labelsJson = (& gh issue view $issue --repo $gitHubRepository --json 'labels' 2>&1) -join "`n"
+            if ($LASTEXITCODE -ne 0) { throw "gh could not read issue #${issue}: $labelsJson" }
+            $typeLabels = @(($labelsJson | ConvertFrom-Json).labels | ForEach-Object { [string]$_.name } | Where-Object { $_ -like 'type:*' })
+            if ($bugFixesOnly -and ($typeLabels -join ',') -cne 'type:bug') {
+                $bugFixesOnly = $false
+                $bugFixesReason = "#$number closes #$issue ($(if ($typeLabels.Count -gt 0) { $typeLabels -join ', ' } else { 'no type label' }))"
+            }
+        }
         $checks = @($pull.statusCheckRollup)
         # A check run carries a conclusion; a commit status carries a state.
         $failing = @($checks | Where-Object {
@@ -794,6 +908,34 @@ function Invoke-Preflight {
         Assert-TestInstanceServes -Sha $devSha
     }
 
+    # The live version is the tag on main (R659, R661); the proposal is a
+    # proposal, the approval names the version (R660).
+    Write-Host ''
+    Write-Host '--- Version ---'
+    $live = Get-LiveVersion
+    $reportedVersion = if ($null -ne $servingVersion) { [string]$servingVersion.version } else { '?' }
+    if ($null -eq $live) { Write-Host "Live version: none (no v* tag on main); the Web App reports $reportedVersion" }
+    else {
+        Write-Host "Live version: $live (tag v$live on main); the Web App reports $reportedVersion"
+        if ($reportedVersion -cne [string]$live) { Write-Host "Warning: the Web App reports $reportedVersion, not ${live}: a rollback leaves it so, and the next version steps above the tag." }
+    }
+    $buildVersion = ''
+    $proposal = $null
+    if ($deployable.Count -gt 0) {
+        $proposal = Get-ProposedVersion -Live $live -BugFixesOnly $bugFixesOnly -BugFixesReason $bugFixesReason -AddsMigration ($migrationFiles.Count -gt 0)
+        Write-Host "Proposed: $($proposal.Version) ($($proposal.Step): $($proposal.Reason))$(if ($proposal.Alternative) { "; or $($proposal.Alternative)" })"
+        if ($Version) {
+            $step = Assert-VersionStep -Live $live -Candidate $Version
+            Write-Host "Build version: $Version ($step, given)"
+            $buildVersion = $Version
+        }
+        else {
+            Write-Host "Build version: $($proposal.Version) (proposed; pass -Version to build another)"
+            $buildVersion = $proposal.Version
+        }
+    }
+    else { Write-Host 'Version: none; a promotion-only range deploys nothing and carries no tag.' }
+
     $envHash = Get-AzdEnvironmentHash -Root $RepositoryRoot
     $retained = Get-RetainedAzdEnvironmentHash
     $provisionNeeded = $provisionFiles.Count -gt 0 -or $null -eq $retained -or $retained.Hash -cne $envHash
@@ -806,7 +948,7 @@ function Invoke-Preflight {
     return [pscustomobject]@{
         MainSha = $mainSha; DevSha = $devSha; Route = $route; PromotionOnly = ($deployable.Count -eq 0)
         ProvisionNeeded = $provisionNeeded; ServingSha = $servingSha; Head = $head; CandidateIdentity = $candidateIdentity
-        ClassifierPresent = $classifierPresent
+        ClassifierPresent = $classifierPresent; LiveVersion = $live; BuildVersion = $buildVersion; Proposal = $proposal
     }
 }
 
@@ -844,6 +986,7 @@ function Invoke-Build {
     $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json -Depth 10
     return [pscustomobject]@{
         Root = $root
+        Version = $Version
         ManifestPath = $manifestPath
         ManifestSha256 = $manifestSha256
         MigrationIdentity = [string]$manifest.migrationIdentity
@@ -866,6 +1009,7 @@ function Write-ApprovalRequest {
     }
     Write-Host 'One message from the operator names all of these; it grants the Azure writes for exactly them and the promotion of main that follows the smoke:'
     Write-Host "  Release SHA        $($Preflight.DevSha) (from main $($Preflight.MainSha))"
+    Write-Host "  Version            $($Build.Version) (live $(if ($null -ne $Preflight.LiveVersion) { "v$($Preflight.LiveVersion)" } else { 'none' }); proposed $($Preflight.Proposal.Version), $($Preflight.Proposal.Step): $($Preflight.Proposal.Reason))"
     Write-Host "  Manifest SHA-256   $($Build.ManifestSha256)"
     $Build.Artifacts | ForEach-Object { Write-Host "  Artifact           $_" }
     Write-Host "  Migration          head $($Preflight.Head) -> $($Build.MigrationIdentity)"
@@ -875,8 +1019,8 @@ function Write-ApprovalRequest {
     Write-Host "  Old Web SHA        $($Preflight.ServingSha) (destructive route only; the approval names it and a window)"
     Write-Host ''
     $provisionArgument = if ($Preflight.ProvisionNeeded) { ' -Provision' } else { '' }
-    Write-Host "Normal route:      pwsh ./scripts/Invoke-Release.ps1 -Execute -ReleaseNumber <n> -Route Normal -ApprovedReleaseSha $($Preflight.DevSha) -ApprovedManifestSha256 $($Build.ManifestSha256)$provisionArgument"
-    Write-Host "Destructive route: pwsh ./scripts/Invoke-Release.ps1 -Execute -ReleaseNumber <n> -Route Destructive -ApprovedReleaseSha $($Preflight.DevSha) -ApprovedManifestSha256 $($Build.ManifestSha256) -ApprovedOldWebSourceSha $($Preflight.ServingSha)"
+    Write-Host "Normal route:      pwsh ./scripts/Invoke-Release.ps1 -Execute -Version $($Build.Version) -Route Normal -ApprovedReleaseSha $($Preflight.DevSha) -ApprovedManifestSha256 $($Build.ManifestSha256)$provisionArgument"
+    Write-Host "Destructive route: pwsh ./scripts/Invoke-Release.ps1 -Execute -Version $($Build.Version) -Route Destructive -ApprovedReleaseSha $($Preflight.DevSha) -ApprovedManifestSha256 $($Build.ManifestSha256) -ApprovedOldWebSourceSha $($Preflight.ServingSha)"
 }
 
 # --- Approved run ----------------------------------------------------------------
@@ -1027,22 +1171,22 @@ function Complete-Release {
         $file = Join-Path $environmentSource $name
         if (Test-Path -LiteralPath $file -PathType Leaf) { Copy-Item -LiteralPath $file -Destination (Join-Path $environmentTarget $name) -Force }
     }
-    $retained = Join-Path $RepositoryRoot "artifacts/releases/release-$ReleaseNumber-$($ApprovedReleaseSha.Substring(0, 8))"
+    $retained = Join-Path $RepositoryRoot "artifacts/releases/release-$Version-$($ApprovedReleaseSha.Substring(0, 8))"
     New-Item -ItemType Directory -Force -Path $retained | Out-Null
     Copy-Item -Recurse -Force -Path (Join-Path $Root "artifacts/releases/$Version/*") -Destination $retained
     # The hash of the environment as this release left it, after its own
     # azd env set and provision, so the next preflight compares like with like.
     Set-Content -LiteralPath (Join-Path $retained 'azd-env.sha256') -Value (Get-AzdEnvironmentHash -Root $RepositoryRoot) -Encoding ascii
     Invoke-Git -Failure 'Unable to remove the release worktree; remove it by hand.' -Arguments @('worktree', 'remove', '--force', $Root) | Out-Null
-    $script:record['Evidence'] = "artifacts/releases/release-$ReleaseNumber-$($ApprovedReleaseSha.Substring(0, 8))"
+    $script:record['Evidence'] = "artifacts/releases/release-$Version-$($ApprovedReleaseSha.Substring(0, 8))"
 }
 
 function Write-Record {
     Write-Host ''
     Write-Host "=== Record for docs/operations.md (at most 15 lines; owed items become issues) ==="
-    Write-Host "## Release $ReleaseNumber - $([DateTimeOffset]::UtcNow.ToString('d MMMM yyyy')) (deployment live)"
+    Write-Host "## Release $Version - $([DateTimeOffset]::UtcNow.ToString('d MMMM yyyy')) (deployment live)"
     Write-Host ''
-    Write-Host "Release $ReleaseNumber deployed <what>. $Route route; <migration or 'no migration'>; <outage or 'no outage'>."
+    Write-Host "Release $Version deployed <what>. $Route route; <migration or 'no migration'>; <outage or 'no outage'>."
     Write-Host ''
     Write-Host '| Observation | Value |'
     Write-Host '| --- | --- |'
@@ -1060,6 +1204,7 @@ switch ($PSCmdlet.ParameterSetName) {
             Write-ApprovalRequest -Preflight $preflight
             return
         }
+        $script:Version = $preflight.BuildVersion
         $build = Invoke-Build -Sha $preflight.DevSha
         Write-ApprovalRequest -Preflight $preflight -Build $build
     }
@@ -1072,19 +1217,32 @@ switch ($PSCmdlet.ParameterSetName) {
         if ([string]$account.subscription -ne $subscriptionId -or [string]$account.tenant -ne $tenantId) {
             throw "The Azure CLI account is $($account.subscription)/$($account.tenant), not the fixed target."
         }
+        # R659, R660: the approved version is one step above the live one, or
+        # 1.0.0 before any tag; a resumed run after the promotion finds its own
+        # tag live. Read before anything else.
+        Invoke-Git -Arguments @('fetch', 'origin', '--prune') | Out-Null
+        $liveVersion = Get-LiveVersion
+        if (@(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim() -ceq $ApprovedReleaseSha) {
+            if ($null -ne $liveVersion -and [string]$liveVersion -cne $Version) { throw "origin/main is at the released SHA and the live tag is v${liveVersion}, not v${Version}." }
+        }
+        else {
+            $step = Assert-VersionStep -Live $liveVersion -Candidate $Version
+            Write-Host "Version: $Version ($step above $(if ($null -ne $liveVersion) { "v$liveVersion" } else { 'no tag' }))."
+        }
         $root = Get-ReleaseRoot -Sha $ApprovedReleaseSha
         if (-not (Test-Path -LiteralPath $root)) { throw "No release worktree at ${root}: run the default (read-only) run first." }
         $head = (& git -C $root rev-parse HEAD).Trim()
         if ($LASTEXITCODE -ne 0 -or $head -cne $ApprovedReleaseSha) { throw "The release worktree at $root is not at the approved SHA." }
         if (@(& git -C $root status --porcelain).Count -ne 0) { throw "The release worktree at $root is not clean." }
         $script:manifestPath = Join-Path $root "artifacts/releases/$Version/release-manifest.json"
-        if (-not (Test-Path -LiteralPath $script:manifestPath -PathType Leaf)) { throw "No manifest at $script:manifestPath: run the default run first." }
+        if (-not (Test-Path -LiteralPath $script:manifestPath -PathType Leaf)) { throw "No manifest at ${script:manifestPath}: run the read-only run with -Version $Version first." }
         $actualManifestSha256 = (Get-FileHash -LiteralPath $script:manifestPath -Algorithm SHA256).Hash
         if (-not $actualManifestSha256.Equals($ApprovedManifestSha256, [StringComparison]::OrdinalIgnoreCase)) {
             throw 'The built manifest does not match the approved SHA-256.'
         }
         $manifest = Get-Content -Raw -LiteralPath $script:manifestPath | ConvertFrom-Json -Depth 10
         if ([string]$manifest.sourceRevision -cne $ApprovedReleaseSha) { throw 'The manifest sourceRevision is not the approved SHA.' }
+        if ([string]$manifest.releaseVersion -cne $Version) { throw "The manifest was built for version $($manifest.releaseVersion), not the approved $Version." }
         Invoke-ReleaseScript -Root $root -Name 'Test-AzureDeploymentPlan.ps1' -Failure 'Pre-deploy validation failed.' -Arguments @(
             '-Mode', 'PreDeploy', '-ManifestPath', $script:manifestPath, '-ManifestSha256', $ApprovedManifestSha256)
         $webPackagePath = Join-Path $root "artifacts/releases/$Version/web.zip"

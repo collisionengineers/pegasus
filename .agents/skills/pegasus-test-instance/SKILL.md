@@ -202,7 +202,8 @@ Ports and the public origin come from the manifest; `--initialize-development`
 migrates the existing database forward and keeps its data. Status prints
 `SourceSha`; the instance is current when it equals `git rev-parse origin/dev`,
 and the release preflight refuses a candidate the instance is not serving
-(R657). Going back to an older revision is not supported: migrations run
+(R657). Its `Version` reads `0.0.0-dev`, as in every build that is not a
+release (R659); the SHA is its identity. Going back to an older revision is not supported: migrations run
 forward only, and that needs a Reset and a re-seed the operator agrees to.
 
 ## 7. Rehearse a release on a copy of production

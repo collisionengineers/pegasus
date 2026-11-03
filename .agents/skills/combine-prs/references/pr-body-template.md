@@ -74,7 +74,7 @@ PRs the user asked to hold or that were excluded, and why. Write "None" if there
 
 Closing keywords do not fire on `<target>` (not the default branch); the
 Landing step closes each "yes" row with a comment citing the PR, this PR and
-the merge SHA. Write "None" if no PR links an issue.
+the merge SHA. Write "None" if no PR links an issue. The combined body keeps every member's `Closes #N` line: the release's version proposal reads them (R660), and a range closing only `type:bug` issues proposes a PATCH.
 
 ## Landing
 

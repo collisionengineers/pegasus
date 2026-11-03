@@ -7,7 +7,7 @@ public sealed class ReleaseNoteTests
 {
     private static readonly Guid AdministratorId = Guid.NewGuid();
     private static readonly Guid UserId = Guid.NewGuid();
-    private static readonly ApplicationBuild Build = new("0.1.0-alpha.1", new string('a', 40));
+    private static readonly ApplicationBuild Build = new("1.0.0", new string('a', 40));
     private static readonly TestClock Clock = new(new DateTimeOffset(2026, 9, 20, 12, 0, 0, TimeSpan.Zero));
 
     private static ActionActor Administrator() => ActionActor.Staff(AdministratorId, [StaffRole.Administrator]);
