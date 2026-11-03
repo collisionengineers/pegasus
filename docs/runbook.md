@@ -18,8 +18,9 @@ authorization comes from the operator; the primary agent owns verification.
 
 Read-only inventory is permitted. Writes require authorization covering the
 operation and targets. Use the current task grant; a past example, credential,
-or tool's availability is not permission. Current test data is disposable;
-this does not itself direct an agent to clear an environment.
+or tool's availability is not permission. Production has carried live Cases
+since 2 November 2026 (R603); nothing here directs an agent to clear an
+environment.
 
 ## Supported platform
 
@@ -1081,9 +1082,9 @@ LocalDB recovery does not prove Azure SQL point-in-time recovery, RPO, or RTO.
 
 Retain the previous immutable application artifact for an authorized rollback.
 Check it against the actual schema and current preservation requirements.
-Current disposable test data creates no cutover-based compatibility obligation;
+Production has carried live Cases since 2 November 2026 (R603);
 [rollback step 3](#previous-artifact-rollback-web-and-worker) distinguishes
-compatible artifact rollback from an authorized reset or roll-forward.
+compatible artifact rollback from roll-forward.
 
 After a destructive migration begins, [ADR-0046](adr/0046-destructive-migration-runtime-shutdown.md)
 requires forward-only recovery. Do not use the previous-artifact route to revive
@@ -1094,8 +1095,8 @@ owns the exact containment, migration, reactivation and smoke commands.
 #### Previous-artifact rollback (Web and Worker)
 
 Rolling production back to the previous release's artifacts is a production
-mutation under the live-operation approval matrix: obtain exact-target
-approval first. Select the retained previous release manifest and its verified
+mutation under [operational authority](#operational-authority): obtain
+exact-target approval first. Select the retained previous release manifest and its verified
 artifacts from the release workstation; match its hashes, source revision and
 version to the [retained release evidence](operations.md#retained-evidence-and-recovery-basis).
 Read the current target and Worker activation before choosing any mutation.
@@ -1118,12 +1119,12 @@ Read the current target and Worker activation before choosing any mutation.
    rg-pegasus-prod --name pegasus-prod-worker-252ow37gij --src
    ./artifacts/releases/release-<n>-<sha>/worker.zip`.
 3. Database: establish the intended current schema with the normal migration
-   mechanism. Current test data is disposable; no historical cutover milestone
-   imposes compatibility preservation. A schema change still identifies its
-   effect on the running and retained artifacts. Use an authorized reset or
-   roll-forward where a prior artifact is incompatible; do not call an
-   incompatible artifact rollback successful. Any real preservation requirement
-   must name the data/consumer and the recovery procedure.
+   mechanism. A schema change identifies its effect on the running and
+   retained artifacts. Roll forward where a prior artifact is incompatible; do
+   not call an incompatible artifact rollback successful. Data is recovered
+   from the restore point the release recorded before SQL (R605) with the
+   [point-in-time restore commands](#point-in-time-restore-commands), never by
+   a reset.
 4. Smoke: `Invoke-ProductionSmoke.ps1` with the previous release's exact
    source revision and version, and the current Worker activation value.
 5. Record the rollback and its reason in operations in the same task.
@@ -1137,12 +1138,11 @@ When data must be preserved, a production recovery exercise must:
 5. reconcile stable source, Outlook, Box, outbox, and external-operation identities without duplicating or resurrecting work;
 6. run health checks and the named real-caller smoke journey, then inspect correlated failure evidence;
 7. record achieved recovery point, restoration duration, missing data, limitations, and rollback result; and
-8. retain the failed restore target for diagnosis until a separately approved cutover or cleanup.
+8. retain the failed restore target for diagnosis until a separately approved cleanup.
 
 Stop after one failed recovery attempt and report the exact read-back. Do not
 improvise a second deployment with unreviewed inputs, schema down-migration,
-or deletion of source evidence/shared resources. An authorized disposable-data
-reset uses its own exact scope, not this data-preserving recovery procedure.
+or deletion of source evidence/shared resources.
 
 ### Explicit intake-data wipe
 
@@ -1172,8 +1172,8 @@ Confirm the requested restore time is at or after `earliestRestoreDate` and
 inside the short-term retention window before proceeding.
 
 **2. Restore into a new, isolated target (write — requires exact-target
-approval per [Live-operation approval matrix](runbook.md#operational-authority),
-row "Deploy, restore, fail over, or retire"; never overwrites `pegasus`):**
+approval per [operational authority](runbook.md#operational-authority);
+never overwrites `pegasus`):**
 
 ```powershell
 az sql db restore `

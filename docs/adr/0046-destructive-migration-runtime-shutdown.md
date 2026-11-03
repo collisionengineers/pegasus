@@ -19,9 +19,11 @@ tags: [deployment, schema, migrations, worker, outage]
 
 The Worker can start its timers before a migration reaches a column its new code
 reads. A bounded failure storm is not an acceptable deployment state simply
-because it self-corrects when SQL completes. Pre-release Pegasus has no current
+because it self-corrects when SQL completes. Pre-release Pegasus had no current
 consumer or retained-data requirement that calls for compatibility infrastructure,
-but a destructive migration still creates a rollback gap.
+but a destructive migration still creates a rollback gap. Amended 2 November
+2026 (R603, R605): production carries live Cases, and the gap is bounded by the
+restore point recorded before SQL, not by compatibility infrastructure.
 
 ## Decision
 
@@ -46,14 +48,15 @@ but the approved release.
 Once destructive SQL begins, recovery is forward-only. Old Worker bytes and the
 old Web revision must not resume against the changed or unknown schema. If the
 new release cannot be activated, the operation is an unfinished outage and is
-reported as such; it is not a successful deployment. After real release, an
-approved migration window is scheduled outside typical usage, with the concrete
-window recorded at that time rather than hardcoded here.
+reported as such; it is not a successful deployment. From cutover (2 November
+2026, R603, R605) the approval names a window outside typical usage, and the
+release records the database's `earliestRestoreDate` and a UTC restore point
+before SQL; no standing hours are written here.
 
 ## Consequences
 
-- ADR-0030 still permits the pre-cutover non-additive exemption, but no longer
-  accepts old-runtime faults as the release window for that exemption.
+- ADR-0030 permitted the pre-cutover non-additive exemption without
+  old-runtime faults as its release window; it expired at cutover (R603).
 - The release procedure owns exact commands and evidence; the runbook summarizes
   the operational guarantee rather than duplicating the recipe.
 - No per-tick schema readiness mechanism, alert suppression, deployment feature

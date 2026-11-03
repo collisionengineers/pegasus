@@ -208,6 +208,17 @@ reference (30 October 2026):
   `none` row for a table neither role touches). `RuntimePermissionRecordTests`
   proves a fresh database holds exactly the recorded rows, and the release's
   database bootstrap proves production does (R482).
+- Classification (2 November 2026, R605). A migration that only adds (a
+  table, a column with a default, an index) is additive and runs on the
+  normal release route before the packages. One that drops, renames, narrows
+  or rewrites is non-additive: it runs only on the contained destructive route
+  ([ADR-0046](adr/0046-destructive-migration-runtime-shutdown.md)), in an
+  operator-approved window outside typical usage, and the release records the
+  database's `earliestRestoreDate` and a UTC restore point before SQL. The
+  approval request names each non-additive operation, the capability it
+  affects and the forward-only recovery boundary; uncertainty is resolved
+  before approval. There are no expand/contract pairs
+  ([ADR-0002](adr/0002-dotnet-modular-monolith-on-azure.md), amended by R605).
 
 `Invoke-ProductionAdministratorBootstrap.ps1` runs only when a release changes
 administrator bootstrap behaviour or the approved task requires administrator
@@ -219,9 +230,8 @@ Before a destructive or bulk operation, enumerate exact targets, inspect the
 baseline read-only under the intended identity and role, and confirm that the
 current authorization covers the operation. Limited permissions are not proof
 that a database is empty. Where real data or consumers must be preserved,
-verify the recovery source and compatible artifact before acting. An explicitly
-authorized reset of disposable test data requires no invented preservation
-machinery. Stop if observed targets or consequences differ from the plan.
+verify the recovery source and compatible artifact before acting. Stop if
+observed targets or consequences differ from the plan.
 
 ## Verification and failure handling
 

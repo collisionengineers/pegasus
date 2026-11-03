@@ -59,17 +59,18 @@ is set only when an approval names a Web region other than the platform region.
   runtime grants and the head check, and the packages deploy as above.
 - **Destructive.** An explicitly approved short outage (ADR-0046): the
   classifier (R232), the Worker and the Web App are stopped and read back
-  before SQL; after SQL, recovery is forward only. The approval names the old
-  serving Web source SHA and the window; after real release the window is
-  outside typical usage, and this procedure invents no standing hours.
+  before SQL; the script records the database's `earliestRestoreDate` and a
+  UTC restore point before SQL; after SQL, recovery is forward only. The
+  approval names the old serving Web source SHA and the window, which is
+  outside typical usage (R605); this procedure invents no standing hours.
 
 The preflight prints the live head, the candidate's identity and the migration
-sources the range adds. The agent reads those sources and classifies: a change
-that only adds (a table, a column with a default, an index) is additive; one
-that drops, renames, narrows or rewrites is destructive, and the agent names
-each non-additive operation, the capability it affects and the forward-only
-recovery boundary in the approval request. Uncertainty is resolved before
-approval, never during the route.
+sources the range adds. The agent reads those sources and classifies them by
+the rule in [engineering](../../../docs/engineering.md#migrations) (R605):
+additive runs on the normal route; non-additive runs only on the destructive
+route, and the agent names each non-additive operation, the capability it
+affects and the forward-only recovery boundary in the approval request.
+Uncertainty is resolved before approval, never during the route.
 
 ## 1. The read-only run
 
@@ -124,8 +125,9 @@ The destructive route reads the Web App at the approved old SHA, sets every
 Disabled setting `true`, proves the disabled census, stages the approved
 `worker.zip` (staging is not activation), stops the classifier, the Worker and
 the Web App with a bounded read-back of each (`Stopped`, and `/health/live` not
-2xx), takes one fresh read-back immediately before the gate, runs the
-migration, the runtime grants and the head check, deploys `web.zip` to the
+2xx), takes one fresh read-back immediately before the gate, records the
+restore point, runs the migration, the runtime grants and the head check,
+deploys `web.zip` to the
 stopped site with `--restart false --track-status false`, provisions once with
 Web and Worker approved, starts the Web App and waits for the exact
 read-back, starts the Worker and the classifier if they are still stopped,
@@ -138,7 +140,9 @@ is and reported as it is. After SQL began, recovery is forward only: the same
 (Web `Stopped` before or after the migration, or already serving the release).
 It never contains twice, never starts a package before the new `web.zip` is on
 the stopped site and never starts old bytes. An unfinished destructive run is
-an outage, not a release.
+an outage, not a release. The recorded restore point is the input to the
+runbook's [point-in-time restore](../../../docs/runbook.md#point-in-time-restore-commands)
+when data must be recovered.
 
 ## 4. Judgement calls that stay with the agent
 
@@ -161,8 +165,8 @@ an outage, not a release.
 
 The script prints the record skeleton from what it observed. The record in
 `docs/operations.md` is at most 15 lines (R459): what was released, the route,
-the SHAs and hashes, the migration head, the deployment ids, the smoke time and
-what is owed. Owed items become GitHub issues, not sentences carried from
+the SHAs and hashes, the migration head, the restore point when a migration
+ran, the deployment ids, the smoke time and what is owed. Owed items become GitHub issues, not sentences carried from
 record to record. `docs/current-architecture.md` changes only when source
 structure changed. The exact artifacts are retained at
 `artifacts/releases/release-<n>-<sha8>` (ignored), beside the previous

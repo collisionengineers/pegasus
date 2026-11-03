@@ -31,8 +31,10 @@ Invoking this skill authorises:
 
 It does not authorise: pushing to or merging into the integration branch,
 closing the issue, force-pushing, touching other worktrees or branches,
-destructive migrations, or any write to a cloud, mailbox, storage or vendor
-system. Ask for each of those; an approval covers only the operation named.
+non-additive migrations (the class in
+[engineering](../../../docs/engineering.md#migrations)), or any write to a
+cloud, mailbox, storage or vendor system. Ask for each of those; an approval
+covers only the operation named.
 
 ## Tools
 

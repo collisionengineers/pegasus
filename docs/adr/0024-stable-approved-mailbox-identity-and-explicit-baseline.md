@@ -35,8 +35,9 @@ only for the mailbox, folder, and request shape that minted it, so it cannot be
 the durable identity of an inbound source, and preserving it across a re-enable
 couples Pegasus state to replaceable provider coordinates.
 
-Pegasus is not yet released and will not create a pre-launch mail backlog, so an
-administrator may switch an approved inbound mailbox on or off independently, and
+Mail received while a mailbox is disabled is outside intake by design
+(operator, 2 November 2026, R590), so an administrator may switch an approved
+inbound mailbox on or off independently, and
 every switch-on begins a fresh activation cycle at its recorded UTC time (§2).
 This decision concerns Pegasus operational data only; it never authorises
 clearing, moving, or otherwise mutating Outlook mailboxes or messages. Of the

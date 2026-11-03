@@ -15,17 +15,17 @@ tags: [deployment, schema, migrations, cutover]
 - Supersedes: ADR-0002 expand-and-contract schema clause, before cutover only
 
 
-## Current requirement amendments
-
-Development-data preservation and historical alpha cohort gates do not constrain the current disposable test estate; current validation follows engineering verification policy.
-
 ## Status
 
-Accepted, with the old-runtime fault window in obligation 1 partially superseded
-by ADR-0046. This ADR still supersedes the expand-and-contract requirement in
-ADR-0002 for releases made **before** the QDOS cutover, and only for that window.
-ADR-0002 remains accepted and its body is not edited; from cutover its clause
-governs again unchanged.
+Expired at cutover, 2 November 2026 (R603): this ADR has no further effect and
+needs no supersession (see Consequences). Its exemption covered releases made
+before that date, with the old-runtime fault window in obligation 1 partially
+superseded by ADR-0046. ADR-0002's expand-and-contract clause does not govern
+again unchanged: R605 amends it to the contained destructive route with a
+recorded restore point and an approved window, owned by
+[engineering](../engineering.md#migrations). Obligation 3's compatibility
+check was not run before cutover; under R605 no rollback across a
+non-additive migration is offered, so the check has no object.
 
 ## Context
 
@@ -34,9 +34,8 @@ that a release "must not require the old and new code to disagree about a
 destructive schema change during deployment or rollback". That rule exists to
 protect live case work across a rollback.
 
-Pegasus has not cut over. Step 7 of the ordered critical path in
-open decisions — all new QDOS instructions entering
-Pegasus — has not happened. Production has carried only alpha cases, and the
+Pegasus had not cut over: new QDOS instructions were not yet entering
+Pegasus. Production has carried only alpha cases, and the
 operator has twice approved a selective wipe of them, which is the recorded
 position that pre-cutover case data is disposable while identity, principal,
 mailbox cursor and the sequence tables are preserved so no reference is reused.
@@ -66,7 +65,7 @@ Three obligations attach, and they are the whole of the exemption:
 3. **Re-establish compatibility before cutover.** Ending the exemption at the
    cutover date does not repair a migration deployed before it. Schema
    compatibility between the live schema and the retained rollback artifact is
-   a prerequisite of step 7, checked at that point, not a rule that merely
+   a prerequisite of cutover, checked at that point, not a rule that merely
    starts applying to later releases.
 
 From cutover, ADR-0002's clause binds again with no exemption.
@@ -101,4 +100,3 @@ From cutover, ADR-0002's clause binds again with no exemption.
 
 - [ADR-0002](0002-dotnet-modular-monolith-on-azure.md) — the superseded clause
 - [`runbook.md` rollback step 3](../runbook.md#previous-artifact-rollback-web-and-worker)
-- `open-decisions.md` — the ordered critical path
