@@ -5,6 +5,60 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Test instance Graph parity first run - 3 November 2026
+
+- The instance ran `5627a801f` (PR #1865 head; CI run 41624879453 green in
+  every lane) with `Features__LiveGraphMail` and `Features__PrincipalApi` on
+  from 11:17 UTC; Smoke passed. The first start, on `65806bf36`, failed at
+  host build: the Worker's Graph mail side composed the Web's staff send,
+  which needs data protection no Worker has; `5627a801f` composes the
+  staff-send store alone, as production's Worker needs.
+- desk@, engineers@, info@ and instructions@ were enabled on the instance,
+  Incoming and Outgoing. The Worker's subscription pass created four change
+  subscriptions, one per mailbox, under the Funnel URL: all Active, rows
+  timestamped 11:20 UTC, expiring 9 November, no maintenance failure. By
+  11:45 UTC the instance held 16 retained messages, 7 receipts and 2 Cases
+  from the shared incoming mail. No send was made (no recipient named).
+- One SQL deadlock at 11:40 UTC between two instruction analyses inserting
+  `RetainedInstructionAnalyses`; the victim was retried and one analysis stands.
+
+## Test instance Graph identity admitted - 3 November 2026
+
+- The hosted test instance's Graph identity is the tenant's existing
+  `CollisionSpike Graph Intake` app registration, client id
+  `5d37a155-2af8-4878-b96a-6faad5207137` (ADR-0088 as amended, R648, R650).
+  Its Exchange RBAC grant on 3 November 2026 was `Application Mail.Read` and
+  `Application Mail.ReadWrite` on scope `CollisionSpike-Intake-Prod`; the
+  operator, as Microsoft 365 administrator, added `Application Mail.Send` on
+  the same scope at about 10:55 UTC. No new registration or scope.
+- `Test-ServicePrincipalAuthorization` afterwards lists all three roles
+  `InScope True` on `CollisionSpike-Intake-Prod` for both
+  `instructions@collisionengineers.co.uk` and `desk@collisionengineers.co.uk`.
+  The scope's filter is exactly info@, engineers@, desk@ and instructions@;
+  the registration's other scope, `CS-Intake-EngDigital`, is engineers@ and
+  digital@. A second secret, `pegasus-test-instance (2026-11-03)`, expiring
+  3 November 2027, was added to the registration for the instance; the
+  orchestrator's secret is untouched.
+- Funnel on at about 11:10 UTC (R649): only
+  `https://cemattypc-1.tail432b53.ts.net:8443/hooks/microsoft-graph/mail` is
+  public, proxied to the run's Web; the validation handshake returned the
+  token with 200 and a malformed POST 202. Port 443 stays tailnet-only.
+
+## Hosted test instance first run - 2 November 2026
+
+- The one hosted test instance (ADR-0088) first ran on the operator's WSL
+  machine `cemattypc-1` from PR #1865's head `bdd2f4770`, run id
+  `83ec377dd6f249d59c2e8ae8e96459c3`, Web on port 7139. Public origin
+  `https://cemattypc-1.tail432b53.ts.net` through `tailscale serve` inside
+  WSL (tailnet only; the operator's user set as the Tailscale operator); the
+  `/Cases` redirect lands on the `ts.net` host. Smoke passed.
+- Opt-ins on: vehicleLookup, boxCustody (local-test root `425169015650`),
+  glass, passwordSignIn. Off: graphMail, automationMcp, principalApi. No
+  read-only Graph identity exists yet, so the run uses the folder mailbox
+  adapters and reads no production mailbox.
+- The October run `9d112a34...` was Reset first: its database held the
+  pre-Baseline migration chain and could not migrate forward (R484).
+
 ## Cutover - 2 November 2026
 
 - The operator ruled 2 November 2026 the cutover date (R603): production

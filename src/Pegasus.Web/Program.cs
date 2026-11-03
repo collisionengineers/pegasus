@@ -138,12 +138,14 @@ var liveVehicleLookup = builder.Configuration.GetValue<bool>("Features:LiveVehic
 var liveBoxCustody = builder.Configuration.GetValue<bool>("Features:LiveBoxCustody");
 var liveGlass = builder.Configuration.GetValue<bool>("Features:LiveGlass");
 var passwordSignIn = builder.Configuration.GetValue<bool>("Features:PasswordSignIn");
+var liveGraphMail = builder.Configuration.GetValue<bool>(LocalGraphCredential.FeatureKey);
 foreach (var (featureKey, enabled) in new[]
 {
     ("Features:LiveVehicleLookup", liveVehicleLookup),
     ("Features:LiveBoxCustody", liveBoxCustody),
     ("Features:LiveGlass", liveGlass),
     ("Features:PasswordSignIn", passwordSignIn),
+    (LocalGraphCredential.FeatureKey, liveGraphMail),
 })
 {
     if (enabled && !developmentOfflineProfile)
@@ -783,18 +785,31 @@ builder.Services.AddScoped<IStaffMailAttachmentResolver, StaffMailAttachmentReso
 builder.Services.AddScoped<Pegasus.Web.Intake.StaffIntakeActions>();
 if (developmentOfflineProfile)
 {
-    builder.Services.AddScoped<Pegasus.Core.Operations.IStaffMailSend, UnavailableStaffMailSend>();
-    builder.Services.AddScoped<Pegasus.Core.Operations.IStaffReportSend, UnavailableStaffReportSend>();
     // The Web only records the request either way; the mode names which
     // adapter the offline Worker answers it with.
     builder.Services.AddSingleton(liveVehicleLookup
         ? VehicleLookupAvailability.ProductionLive
         : VehicleLookupAvailability.DevelopmentOfflineReplay);
-    builder.Services.AddSingleton<LocalApprovedMailboxIdentityResolver>();
-    builder.Services.AddSingleton<IResolveApprovedMailboxIdentity>(provider =>
-        provider.GetRequiredService<LocalApprovedMailboxIdentityResolver>());
-    builder.Services.AddSingleton<ICheckApprovedMailboxAccess>(provider =>
-        provider.GetRequiredService<LocalApprovedMailboxIdentityResolver>());
+    if (liveGraphMail)
+    {
+        // The hosted test instance (ADR-0088 as amended, R648) composes the Web's
+        // Graph mail side as Production does, over an app registration: the
+        // resolver, access check and search, and staff send from the production
+        // mailboxes the operator enables on it.
+        builder.Services.AddSingleton(LocalGraphCredential.Create(key => builder.Configuration[key]));
+        builder.Services.AddProductionApprovedMailboxResolver(builder.Configuration["Graph:BaseUri"]);
+    }
+    else
+    {
+        // The folder mailbox adapters: nothing sends.
+        builder.Services.AddScoped<Pegasus.Core.Operations.IStaffMailSend, UnavailableStaffMailSend>();
+        builder.Services.AddScoped<Pegasus.Core.Operations.IStaffReportSend, UnavailableStaffReportSend>();
+        builder.Services.AddSingleton<LocalApprovedMailboxIdentityResolver>();
+        builder.Services.AddSingleton<IResolveApprovedMailboxIdentity>(provider =>
+            provider.GetRequiredService<LocalApprovedMailboxIdentityResolver>());
+        builder.Services.AddSingleton<ICheckApprovedMailboxAccess>(provider =>
+            provider.GetRequiredService<LocalApprovedMailboxIdentityResolver>());
+    }
 }
 else
 {

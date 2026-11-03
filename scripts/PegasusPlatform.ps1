@@ -1070,22 +1070,24 @@ function Get-PegasusDatabaseConnectionString {
 # ---------------------------------------------------------------------------
 #
 # An operator-supplied, ignored KEY=VALUE file that opts a DevelopmentOffline
-# run into real vendor integrations (live DVLA/DVSA, Box custody, Glass's) and
-# password sign-in. Its values reach only the Web and Worker process
-# environments; the run manifest records the derived boolean flags and never
-# a value. The lifecycle owns the keys named in Get-PegasusReservedLocalSettingKeys.
+# run into real vendor integrations (live DVLA/DVSA, Box custody, Glass's,
+# Graph mail with parity) and password sign-in. Its values reach only the Web and
+# Worker process environments; the run manifest records the derived boolean
+# flags and never a value. The lifecycle owns the keys named in
+# Get-PegasusReservedLocalSettingKeys.
 
 $script:PegasusLocalSettingsFileName = 'local.settings.env'
 
 $script:PegasusLocalSettingsHostPrefixes = @{
-    Web = @('Features__', 'Box__', 'Glass__', 'GitHub__', 'DevelopmentOffline__', 'AutomationMcp__')
-    Worker = @('Features__', 'Box__', 'Dvla__', 'Dvsa__')
+    Web = @('Features__', 'Box__', 'Glass__', 'Graph__', 'GitHub__', 'DevelopmentOffline__', 'AutomationMcp__')
+    Worker = @('Features__', 'Box__', 'Dvla__', 'Dvsa__', 'Graph__')
 }
 
 $script:PegasusLiveIntegrationFlagKeys = [ordered]@{
     vehicleLookup = 'Features__LiveVehicleLookup'
     boxCustody = 'Features__LiveBoxCustody'
     glass = 'Features__LiveGlass'
+    graphMail = 'Features__LiveGraphMail'
     passwordSignIn = 'Features__PasswordSignIn'
     automationMcp = 'Features__AutomationMcp'
     principalApi = 'Features__PrincipalApi'
@@ -1120,6 +1122,7 @@ function Get-PegasusReservedLocalSettingKeys {
         'Features__LocalIntake',
         'Features__LocalDocumentCustody',
         'Glass__CallbackBaseUri',
+        'AutomationMcp__PublicOrigin',
         'PendingWorkRecoverySchedule',
         'IntakeStagedArtifactReconciliationSchedule',
         'SentEvidencePollSchedule'

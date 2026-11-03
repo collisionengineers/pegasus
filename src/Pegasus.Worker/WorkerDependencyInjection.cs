@@ -48,6 +48,7 @@ public static class WorkerDependencyInjection
         // naming the key rather than composing a second storage or vendor truth.
         var liveVehicleLookup = RequireOfflineFeature(configuration, developmentOffline, "Features:LiveVehicleLookup");
         var liveBoxCustody = RequireOfflineFeature(configuration, developmentOffline, "Features:LiveBoxCustody");
+        var liveGraphMail = RequireOfflineFeature(configuration, developmentOffline, LocalGraphCredential.FeatureKey);
         AzureDocumentIntelligenceOptions? ocrOptions = null;
         var ocrEndpointValue = configuration[WorkerAzureClientFactory.DocumentIntelligenceEndpointKey];
         if (!developmentOffline && !string.IsNullOrEmpty(ocrEndpointValue))
@@ -117,10 +118,29 @@ public static class WorkerDependencyInjection
 
         if (developmentOffline)
         {
-            services.AddLocalApprovedInbox(
-                _ => GetLocalApprovedInboxOptions(configuration, environment));
-            services.AddLocalApprovedSent(
-                _ => GetLocalApprovedSentOptions(configuration, environment));
+            if (liveGraphMail)
+            {
+                // The hosted test instance (ADR-0088 as amended, R648) composes
+                // Production's Graph mail side over an app registration: the
+                // pollers, the answered-instruction move and staff send. Change
+                // subscriptions are added only when the settings file names the
+                // Funnelled webhook and its client state (R649); without them the
+                // five-minute recovery poll alone carries mail.
+                services.AddSingleton(LocalGraphCredential.Create(key => configuration[key]));
+                services.AddGraphApprovedMail(
+                    GraphApprovedMailboxOptions.Create(configuration["Graph:BaseUri"]));
+                if (LocalGraphCredential.HasChangeNotifications(key => configuration[key]))
+                {
+                    services.AddSingleton<GraphMailboxChangeSubscriptions>();
+                }
+            }
+            else
+            {
+                services.AddLocalApprovedInbox(
+                    _ => GetLocalApprovedInboxOptions(configuration, environment));
+                services.AddLocalApprovedSent(
+                    _ => GetLocalApprovedSentOptions(configuration, environment));
+            }
             if (liveVehicleLookup)
             {
                 // Parsed eagerly, as Production does: a missing DVLA/DVSA key

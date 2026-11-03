@@ -267,16 +267,19 @@ what each row proves is owned by the
 The file is `artifacts/local-development/local.settings.env`: `KEY=VALUE`
 lines with double-underscore keys, `#` comments, mode `0600` on Linux. `Start`
 reads it on every attempt, splits it by host prefix (Web: `Features__`,
-`Box__`, `Glass__`, `GitHub__`, `DevelopmentOffline__`, `AutomationMcp__`;
-Worker: `Features__`, `Box__`, `Dvla__`, `Dvsa__`), refuses any key the run
-owns itself (`Runtime__Profile`, the connection string, URLs, storage,
-`Features__LocalIntake`, `Features__LocalDocumentCustody`,
-`Glass__CallbackBaseUri`, the mailbox roots and the timer schedules), and hands
-the values to the processes through their environment only. The manifest
+`Box__`, `Glass__`, `Graph__`, `GitHub__`, `DevelopmentOffline__`,
+`AutomationMcp__`; Worker: `Features__`, `Box__`, `Dvla__`, `Dvsa__`,
+`Graph__`), refuses any key the run owns itself (`Runtime__Profile`, the
+connection string, URLs, storage, `Features__LocalIntake`,
+`Features__LocalDocumentCustody`, `Glass__CallbackBaseUri`,
+`AutomationMcp__PublicOrigin`, the mailbox roots and the timer schedules), and
+hands the values to the processes through their environment only. The manifest
 records which integrations are on as booleans; no value reaches the manifest,
 a launcher script, a log or a command line. With `Features__LiveGlass=true`
-the lifecycle sets `Glass__CallbackBaseUri` to the run's own HTTPS origin, and
-with `Features__LiveBoxCustody=true` it omits `Features__LocalDocumentCustody`.
+the lifecycle sets `Glass__CallbackBaseUri`, and with
+`Features__AutomationMcp=true` `AutomationMcp__PublicOrigin`, to the origin a
+browser reaches the run at (below); with `Features__LiveBoxCustody=true` it
+omits `Features__LocalDocumentCustody`.
 
 ```powershell
 pwsh ./scripts/New-LocalLiveSettings.ps1 -BoxHoldingFolderId <id>
@@ -307,11 +310,73 @@ prints `LiveIntegrations` and Smoke records the same flags; neither probes a
 vendor. Glass's logins are per staff account ([ADR-0043](adr/0043-per-engineer-vendor-credential-protection.md))
 and are entered in Administration > Accounts on the local instance.
 
-From a Windows browser, `https://localhost:7139` reaches the WSL run through
-localhost forwarding; the WSL development certificate is not trusted there
-until exported (`dotnet dev-certs https --export-path <pfx> -p <password>`)
-and imported into the Windows trusted root store. The Glass's return needs
-that trust, because the provider navigates the same browser back.
+From a Windows browser on the same machine, `https://localhost:7139` reaches
+the WSL run through localhost forwarding; the WSL development certificate is
+not trusted there until exported (`dotnet dev-certs https --export-path <pfx>
+-p <password>`) and imported into the Windows trusted root store. The Glass's
+return needs that trust, because the provider navigates the same browser back.
+
+#### The hosted test instance (ADR-0088)
+
+The one hosted test instance is this run on an operator-owned Linux/WSL
+machine, reached over the operator's Tailscale network. `Start -PublicOrigin
+https://<host>.<tailnet>.ts.net` records the origin a browser reaches the run
+at; the lifecycle hands it to `Glass__CallbackBaseUri` and
+`AutomationMcp__PublicOrigin` while its own probes stay on loopback, and
+Status, Start and Smoke print it (`PublicOrigin`; Smoke records
+`PublicOriginProbed: false`, because the proxy is the operator's to check). A
+public origin requires `Features__PasswordSignIn=true`: without it every
+caller on that origin would be signed in as the Administrator, so `Start`
+refuses. Omitted on a restart, the recorded origin stands; `-PublicOrigin ''`
+clears it. In front of the run, `tailscale serve --bg --https=443
+https+insecure://localhost:7139` (the Windows host's Tailscale through WSL
+localhost forwarding, or Tailscale inside WSL) answers with the tailnet's
+certificate, so no development certificate is exported. Tailscale Funnel
+exposes one path alone, the Graph webhook, on its own port (R649):
+`tailscale funnel --bg --https=8443 --set-path /hooks/microsoft-graph/mail
+https+insecure://localhost:7139/hooks/microsoft-graph/mail`; port 443 stays
+tailnet-only. OpenIddict issues tokens for the host a request arrived on, so a
+classifier or connector uses the public origin for both the token endpoint and
+the MCP endpoint.
+
+The instance has Graph parity with production on the mailboxes the operator
+enables on it (R648, R650). `Features__LiveGraphMail=true` with
+`Graph__BaseUri`, `Graph__TenantId`, `Graph__ClientId` and
+`Graph__ClientSecret` in the settings file composes Production's Graph mail
+side (reads, staff and report send, the answered-instruction move) over an
+Entra app registration whose Exchange grant is `Application Mail.Read`,
+`Mail.ReadWrite` and `Mail.Send` on those mailboxes alone
+([admitting the identity](#runbook-admitting-the-test-instances-graph-identity)).
+With `Graph__ChangeNotificationUrl` (the Funnelled webhook path,
+`https://<host>.<tailnet>.ts.net:8443/hooks/microsoft-graph/mail`) and
+`Graph__ChangeNotificationClientState` also in the file, the Worker maintains
+the instance's own change subscriptions; without both, the five-minute
+recovery poll alone carries mail, and one without the other fails the start.
+The mailbox is then enabled in Administration > Mailboxes on the instance as
+any mailbox is; a send from it is a real e-mail from that production mailbox,
+and both the instance and production ingest the same incoming mail while it is
+enabled on both. A mailbox row added earlier under the local resolver holds a
+local identity and fails its access check: disable it and add the address
+again.
+
+To move the instance to a new source revision, `Stop` the run, check the
+revision out with a clean tree, run `Initialize-LocalDevelopment.ps1`, and
+`Start -RunId <run-id>` with the same ports; the manifest's source and
+artifact evidence follow the new build, `--initialize-development` migrates
+the existing database forward, and the Tailscale proxy keeps working because
+the port is unchanged. `Reset` removes the database with the run, so a
+long-lived instance keeps one run id; an older revision is not supported
+(migrations go forward only). For release rehearsal,
+`scripts/Copy-ProductionDatabaseToRun.ps1 -RunId <run-id>` replaces the
+Stopped run's database with a SqlPackage copy of production, deactivates
+every approved mailbox in the copy (R627), clears the copied subscription rows
+(R651), pauses the copied Principal API credentials (R652) and closes the
+copied pending answered-instruction tidies (R653); without `-Approve` it prints
+the source, target and statements and stops, and with it the extract is a live
+production read under the operator's own `az` sign-in. The procedure around
+these steps, the machine prerequisites and the classifier's local run are the
+[`pegasus-test-instance`](../.agents/skills/pegasus-test-instance/SKILL.md)
+skill.
 
 The seed script copies selected `.eml` files into `<run>/mailbox/inbox` and
 `*.sent.json` files into `<run>/mailbox/sent`, reading the supplied corpus
@@ -321,8 +386,9 @@ and photographs enter through the Upload page, which the verification walk
 drives when files are supplied.
 
 What the instance cannot prove, even with every opt-in on, is listed in the
-matrix: staff mail send and Graph mailbox behaviour (until a test mailbox is
-approved), OCR, and the problem-report sink.
+matrix: OCR and the problem-report sink. Staff send, Graph subscriptions and
+the answered-instruction move run on it with `Features__LiveGraphMail`, as a
+rehearsal; production remains their proof of record (R650).
 
 ### Isolated runs and failure controls
 
@@ -348,10 +414,11 @@ pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Stop -RunId <run-id>
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset -RunId <run-id>
 ```
 
-Stop retains the manifest and diagnostics. Reset first verifies that the
-manifest run ID, directory, database name, and every owned path agree; it then
-stops only matching child processes, drops only that LocalDB database, and
-removes only that run directory. If a log is still held, Reset retries for
+Stop retains the manifest, the database and diagnostics. Reset first verifies
+that the manifest run ID, directory, database name, and every owned path
+agree; it then stops only matching child processes, drops only that run's
+database (the LocalDB database, or the container and its data), and removes
+only that run directory. If a log is still held, Reset retries for
 about ten seconds, then names the held files. A malformed or ambiguous manifest refuses
 action. Never manually repurpose these commands to remove another run,
 `corpus/`, tracked reference files, or an Azure resource.
@@ -706,6 +773,45 @@ Exchange RBAC scope change that covers them for the Web identity's
 fails closed through intake policy; approval of a mailbox is not approval of
 all its senders. Operators do not edit SQL rows or raw environment settings to
 add an already-authorized mailbox.
+
+### Runbook: admitting the test instance's Graph identity
+
+The hosted test instance (ADR-0088 as amended) reaches the production
+mailboxes through its own Entra app registration, never through the Web or
+Worker managed identities, which exist only inside Azure. The grant gives it
+Graph parity with production on the mailboxes in its scope and nothing on any
+other (R648, R650).
+
+1. The identity is the tenant's existing **CollisionSpike Graph Intake**
+   app registration (client id `5d37a155-2af8-4878-b96a-6faad5207137`, no
+   API permissions, Exchange RBAC as its only grant). On 3 November 2026 it
+   held `Application Mail.Read` and `Application Mail.ReadWrite` on the
+   management scope `CollisionSpike-Intake-Prod`, which covers
+   `instructions@collisionengineers.co.uk`. No new registration or scope is
+   created. The operator obtains its secret from where the orchestrator keeps
+   it, or adds a second secret to the registration named for the instance;
+   the value goes only into the settings file.
+2. In Exchange Online PowerShell, add the one missing role,
+   `New-ManagementRoleAssignment -App 5d37a155-2af8-4878-b96a-6faad5207137
+   -Role 'Application Mail.Send' -CustomResourceScope 'CollisionSpike-Intake-Prod'`,
+   then read the scope's filter with `Get-ManagementScope` and prove the
+   grant with `Test-ServicePrincipalAuthorization` listing all three roles
+   in scope on a covered mailbox and nothing on one outside the filter, and
+   record both checks in [operations](operations.md). Done 3 November 2026. Admitting a further
+   mailbox widens `CollisionSpike-Intake-Prod` for every identity on it and
+   is its own approval.
+3. On the instance's machine, add `Features__LiveGraphMail=true`,
+   `Graph__BaseUri=https://graph.microsoft.com/v1.0/`, `Graph__TenantId`,
+   `Graph__ClientId` and `Graph__ClientSecret` to the owner-only
+   `artifacts/local-development/local.settings.env`; for change
+   subscriptions, Funnel the webhook path (the `tailscale funnel` command in
+   the hosted test instance section) and add `Graph__ChangeNotificationUrl`
+   and `Graph__ChangeNotificationClientState` (a value of at most 128
+   characters the operator chooses, different from production's). Restart the
+   run and enable the mailbox in Administration > Mailboxes on the instance
+   (step 3 of the procedure above). The instance's Worker then subscribes and
+   polls, and the Web sends from the mailbox; the production Worker's own
+   subscriptions and polling are unaffected.
 
 ### Disabling a mailbox
 
