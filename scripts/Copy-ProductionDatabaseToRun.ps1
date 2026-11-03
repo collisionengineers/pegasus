@@ -146,7 +146,9 @@ function Invoke-RunSql {
     if ($Query.Contains('"')) {
         throw 'Run SQL statements may not contain double quotes.'
     }
-    $script = 'exec 2>&1; /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b -l 30 -h -1 -W -d "' +
+    # -I: QUOTED_IDENTIFIER on. sqlcmd's default is off, and the copied schema's
+    # filtered indexes refuse an UPDATE under it (first run, 3 November 2026).
+    $script = 'exec 2>&1; /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b -I -l 30 -h -1 -W -d "' +
         $databaseName + '" -Q "SET NOCOUNT ON; ' + $Query + '"'
     $output = (& $docker exec $containerName bash -c $script 2>&1 | Out-String).Trim()
     if ($LASTEXITCODE -ne 0) {
