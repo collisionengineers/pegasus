@@ -148,8 +148,13 @@ CI checks that relative links resolve. The current operator task owns scope and 
 for delivery evidence, and name one verifier for heavy checks on this host.
 Historical tickets and retired plans are provenance only.
 
-Task work uses a worktree at `../pegasus-worktrees/<slug>` on branch
-`task/<slug>`, created from `origin/dev` with `--no-track`. A release build
-uses a detached worktree at `../pegasus-worktrees/release-<sha8>`.
+`main` is the live deployment: it moves only when a release's full smoke has
+passed, or by the promotion-only route for a range that deploys nothing
+(R636, R637). `dev` is what the hosted test instance runs; a change is vetted
+there and promoted to `main` (R636, R639). Task work uses a worktree at
+`../pegasus-worktrees/<slug>` on branch `task/<slug>`, created from
+`origin/dev` with `--no-track`; a change that depends on an open PR may branch
+from that PR's branch and target it (R640). A release build uses a detached
+worktree at `../pegasus-worktrees/release-<sha8>`.
 `.agents/skills/resolve-issue/scripts/cleanup_worktree.py` removes a task
 worktree once the PR head equals the worktree HEAD and the tree is clean.

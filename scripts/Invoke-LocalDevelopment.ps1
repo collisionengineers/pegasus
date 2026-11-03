@@ -1451,6 +1451,7 @@ function Test-RunStatus {
     return [pscustomobject][ordered]@{
         RunId = [string]$Manifest.runId
         State = [string]$Manifest.state
+        SourceSha = [string]$Manifest.sourceSha
         AzuriteProcess = $azuriteIdentity.Owned -and $azuriteIdentity.Exists
         AzuriteReady = $azuriteReady
         WebProcess = $webIdentity.Owned -and $webIdentity.Exists

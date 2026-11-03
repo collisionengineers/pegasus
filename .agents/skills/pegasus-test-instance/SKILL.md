@@ -65,7 +65,7 @@ nothing.
 
 ```powershell
 git clone git@github.com:collisionengineers/pegasus.git ~/pegasus && cd ~/pegasus
-git checkout <branch or sha>
+git checkout dev
 pwsh ./scripts/Invoke-Doctor.ps1 -Profile Offline
 pwsh ./scripts/Initialize-LocalDevelopment.ps1
 ```
@@ -185,20 +185,25 @@ says what each row proves; results land in
 `artifacts/local-verification/<run>/`. A browser walk from the Windows
 machine uses the Tailscale origin.
 
-## 6. Move to a new revision
+## 6. Follow dev
+
+The instance runs `dev` and nothing else (R636): after each merge into `dev`,
+the agent on the machine when asked, or the operator, moves it.
 
 ```powershell
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Stop -RunId <id>
-git fetch origin && git checkout <sha>          # clean tree
+git checkout dev && git pull --ff-only origin dev   # clean tree
 pwsh ./scripts/Initialize-LocalDevelopment.ps1
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -RunId <id>
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Smoke -RunId <id>
 ```
 
 Ports and the public origin come from the manifest; `--initialize-development`
-migrates the existing database forward and keeps its data. Going back to an
-older revision is not supported: migrations run forward only, and that needs
-a Reset and a re-seed the operator agrees to.
+migrates the existing database forward and keeps its data. Status prints
+`SourceSha`; the instance is current when it equals `git rev-parse origin/dev`,
+and the release preflight refuses a candidate the instance is not serving
+(R639). Going back to an older revision is not supported: migrations run
+forward only, and that needs a Reset and a re-seed the operator agrees to.
 
 ## 7. Rehearse a release on a copy of production
 
@@ -240,8 +245,9 @@ tailscale serve reset
 
 ## The record
 
-When the identity is admitted and when the instance first runs, write a
-dated record in [operations](../../../docs/operations.md): the machine, the
+When the identity is admitted, when the instance first runs and when it first
+runs from `dev`'s tip, write a dated record in
+[operations](../../../docs/operations.md): the machine, the
 public origin, the Funnel origin and path, the run id, the app registration
 (client id, scope, the roles including the added `Mail.Send`, the permitted
 and denied checks), and

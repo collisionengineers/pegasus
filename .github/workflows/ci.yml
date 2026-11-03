@@ -1,20 +1,22 @@
 name: repository-check
 
-# A push to dev deliberately runs nothing: the dev -> main pull request is where
-# the whole of dev is tested as one, and that run is the release-route evidence.
-# Adding dev here would buy a third full run of a tree two runs already covered.
+# dev is what the hosted test instance runs and what a release deploys, so a
+# push to dev runs the full lanes on the merged tree: that run is the
+# exact-head evidence the release preflight reads (R638). main receives the
+# same SHA once the release's smoke has passed (R637), so a push to main runs
+# the history guard alone; its lanes already ran on dev.
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, dev]
 
 permissions:
   contents: read
 
 # One live run per pull request: a newer head cancels the superseded run
 # instead of letting both finish (two ~15-minute runs started 2m15s apart on
-# task/eng-028-multi-estimate-editor both ran to completion). A push to main is
-# never cancelled — its run is the release-route evidence. DELIV-043.
+# task/eng-028-multi-estimate-editor both ran to completion). A push to dev or
+# main is never cancelled — the dev run is the release-route evidence. DELIV-043.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -58,6 +60,13 @@ jobs:
           # runs every lane.
           $all = $true
           $files = @()
+          if ('${{ github.event_name }}' -eq 'push' -and '${{ github.ref }}' -eq 'refs/heads/main') {
+            # main receives a SHA dev already ran (R637, R638): the guard above
+            # is this push's whole check.
+            foreach ($lane in 'code', 'infrastructure', 'classifier') { "$lane=false" >> $env:GITHUB_OUTPUT }
+            Write-Host 'Lanes: none (a push to main is guarded, not re-run; its lanes ran on dev).'
+            exit 0
+          }
           if ('${{ github.event_name }}' -eq 'pull_request') {
             $files = @(gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" --paginate --jq '.[].filename')
             if ($LASTEXITCODE -eq 0 -and $files.Count -eq [int]'${{ github.event.pull_request.changed_files }}') { $all = $false }

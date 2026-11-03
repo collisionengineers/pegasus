@@ -14,10 +14,11 @@ worktree, validates them, and prints the one approval request.
 
 -Execute is the approved run. Its parameters are the words of the approval:
 the exact SHA, the manifest SHA-256, the route, whether to provision and, for
-a destructive route, the old serving Web source SHA. It promotes dev to main
-with a leased atomic push, runs the one route to a passing full smoke, copies
-the azd environment back to the primary checkout, retains the artifacts and
-prints the record skeleton for docs/operations.md.
+a destructive route, the old serving Web source SHA. It reads the hosted test
+instance to prove it is serving the approved SHA, runs the one route to a
+passing full smoke, then promotes main to the SHA the estate now serves with
+a leased push (R637), copies the azd environment back to the primary checkout,
+retains the artifacts and prints the record skeleton for docs/operations.md.
 
 A destructive run that failed after containment is resumed with the same
 -Execute line: the script reads where it is (Web Stopped and the migration
@@ -111,6 +112,9 @@ $tenantId = '858cf5b3-aa0a-47a6-9b40-4851fd0afa94'
 $resourceGroup = 'rg-pegasus-prod'
 $webApp = 'pegasus-prod-web-252ow37gij'
 $webOrigin = 'https://pegasus-prod-web-252ow37gij.azurewebsites.net/'
+# The hosted test instance (ADR-0088) runs dev; a deployable candidate is the
+# SHA it is serving, read the way the Web App is (R639).
+$testInstanceOrigin = 'https://cemattypc-1.tail432b53.ts.net/'
 $workerApp = 'pegasus-prod-worker-252ow37gij'
 $classifierApp = 'pegasus-prod-classifier-252ow37gij'
 $keyVault = 'pegasusprodkv252ow37g'
@@ -210,10 +214,24 @@ function Test-WebAnswers {
 function Get-WebVersion {
     # The running bytes identify themselves at /diagnostics/version; null when
     # the site does not answer or answers something else.
-    $json = (& az rest --method get --url (Get-ProbeUri 'diagnostics/version') --skip-authorization-header --output json 2>$null) -join "`n"
+    param([string] $Origin = $webOrigin)
+    $json = (& az rest --method get --url ([uri]::new([uri]$Origin, 'diagnostics/version').AbsoluteUri) --skip-authorization-header --output json 2>$null) -join "`n"
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($json)) { return $null }
     try { return $json | ConvertFrom-Json }
     catch { return $null }
+}
+
+function Assert-TestInstanceServes {
+    # "Vetted on the test server" is the instance serving the candidate SHA
+    # (R639): read over the tailnet, never assumed. The operator's approval
+    # message stays the acceptance; this proves it saw the same bytes.
+    param([Parameter(Mandatory)][string] $Sha)
+    $version = Get-WebVersion -Origin $testInstanceOrigin
+    $serving = if ($null -ne $version) { [string]$version.sourceSha } else { '(not answering)' }
+    if ($serving -cne $Sha) {
+        throw "The test instance at $testInstanceOrigin is serving $serving, not the candidate ${Sha}: move it to dev's tip (pegasus-test-instance skill, section 6) and run again."
+    }
+    Write-Host "Test instance: serving $Sha at $testInstanceOrigin"
 }
 
 function Get-WebSite {
@@ -628,7 +646,12 @@ function Invoke-Promotion {
     # The lease is an equality guard, not permission to rewrite history. A
     # failure is never retried with rebase, reset, an unleased push or another
     # SHA.
-    param([Parameter(Mandatory)][string] $Sha)
+    #
+    # Promotion only (-PromoteOnly): the exact SHA goes to main and dev in one
+    # atomic push; dev must still be at it. After the smoke (-AfterSmoke):
+    # main alone moves to the SHA the estate now serves (R637); dev must
+    # contain it, and may have moved on during the release.
+    param([Parameter(Mandatory)][string] $Sha, [switch] $AfterSmoke)
     Invoke-Git -Arguments @('fetch', 'origin', '--prune')
     $mainSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
     $devSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
@@ -637,9 +660,21 @@ function Invoke-Promotion {
         Write-Host "origin/main already reads $Sha; promotion was done (origin/dev is at $devSha)."
         return
     }
-    if ($devSha -cne $Sha) { throw "origin/dev is at $devSha, not the approved $Sha. Obtain a fresh approval for the current head." }
     & git -C $RepositoryRoot merge-base --is-ancestor $mainSha $Sha
     if ($LASTEXITCODE -ne 0) { throw 'origin/main is not an ancestor of the approved SHA.' }
+    if ($AfterSmoke) {
+        & git -C $RepositoryRoot merge-base --is-ancestor $Sha $devSha
+        if ($LASTEXITCODE -ne 0) { throw "origin/dev at $devSha does not contain the released $Sha." }
+        Invoke-Git -Failure 'Promotion of main failed; the estate serves the release and main does not record it yet.' -Arguments @(
+            'push', "--force-with-lease=refs/heads/main:$mainSha", 'origin', "${Sha}:refs/heads/main") | ForEach-Object { Write-Host $_ }
+        Invoke-Git -Arguments @('fetch', 'origin', '--prune')
+        $promotedMain = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
+        if ($promotedMain -cne $Sha) { throw 'Remote read-back of main does not equal the released SHA.' }
+        Write-Host "main reads back $Sha after the smoke."
+        $script:record['Source'] = "$Sha, promoted from $mainSha after the smoke; main reads it back"
+        return
+    }
+    if ($devSha -cne $Sha) { throw "origin/dev is at $devSha, not the approved $Sha. Obtain a fresh approval for the current head." }
     Invoke-Git -Failure 'Atomic promotion failed.' -Arguments @(
         'push', '--atomic', "--force-with-lease=refs/heads/dev:$Sha", 'origin', "${Sha}:refs/heads/main", "${Sha}:refs/heads/dev") | ForEach-Object { Write-Host $_ }
     Invoke-Git -Arguments @('fetch', 'origin', '--prune')
@@ -648,6 +683,16 @@ function Invoke-Promotion {
     if ($promotedMain -cne $Sha -or $promotedDev -cne $Sha) { throw 'Remote read-back does not equal the approved release SHA.' }
     Write-Host "main and dev read back $Sha."
     $script:record['Source'] = "$Sha, promoted from $mainSha; main and dev read it back"
+}
+
+function Assert-DevStillAt {
+    # R567: the approval named dev's head; a moved head needs a fresh message.
+    param([Parameter(Mandatory)][string] $Sha)
+    Invoke-Git -Arguments @('fetch', 'origin', '--prune')
+    $mainSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
+    if ($mainSha -ceq $Sha) { return }
+    $devSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
+    if ($devSha -cne $Sha) { throw "origin/dev is at $devSha, not the approved $Sha. Obtain a fresh approval for the current head." }
 }
 
 # --- Default run: preflight, build, approval request -------------------------------
@@ -670,14 +715,20 @@ function Invoke-Preflight {
     Write-Host ''
     Invoke-Git -Arguments @('diff', '--stat', "$mainSha..$devSha") | ForEach-Object { Write-Host $_ }
 
-    # Every merged pull request in the range and its checks, read from GitHub:
-    # the dev to main run only starts at promotion, so this is the evidence
-    # available before it.
+    # The push-to-dev run on the candidate is its exact-head evidence (R638);
+    # the merged pull requests in the range and their checks are listed with it.
+    Write-Host ''
+    Write-Host '--- CI on the candidate ---'
+    $runsJson = (& gh run list --repo $gitHubRepository --workflow repository-check --branch dev --commit $devSha --json 'status,conclusion,url' 2>&1) -join "`n"
+    $devRun = $null
+    if ($LASTEXITCODE -eq 0) { try { $devRun = @($runsJson | ConvertFrom-Json) | Select-Object -First 1 } catch { $devRun = $null } }
+    if ($null -eq $devRun) { Write-Host "No repository-check run found for $devSha on dev: the approval must waive it or the candidate waits."; $notGreen = 1 }
+    elseif ([string]$devRun.conclusion -cne 'success') { Write-Host "The dev run for $devSha is $($devRun.status)/$($devRun.conclusion): $($devRun.url)"; $notGreen = 1 }
+    else { Write-Host "dev run for ${devSha}: success ($($devRun.url))"; $notGreen = 0 }
     Write-Host ''
     Write-Host '--- Pull requests in the range ---'
     $pullNumbers = @(Invoke-Git -Arguments @('log', '--merges', '--format=%s', "$mainSha..$devSha") |
         ForEach-Object { if ($_ -match 'Merge pull request #(\d+)') { [int]$Matches[1] } } | Sort-Object -Unique)
-    $notGreen = 0
     foreach ($number in $pullNumbers) {
         $json = (& gh pr view $number --repo $gitHubRepository --json 'number,title,state,statusCheckRollup' 2>&1) -join "`n"
         if ($LASTEXITCODE -ne 0) { Write-Host "#$number : gh could not read it ($json)"; $notGreen++; continue }
@@ -695,7 +746,7 @@ function Invoke-Preflight {
         if ($failing.Count -gt 0) { $notGreen++ }
         Write-Host ("#{0} {1}: {2} checks, {3} not successful" -f $pull.number, $pull.title, $checks.Count, $failing.Count)
     }
-    if ($notGreen -gt 0) { Write-Host "$notGreen pull request(s) are not green: the approval must waive each one by number or the candidate waits." }
+    if ($notGreen -gt 0) { Write-Host "$notGreen run(s) are not green: the approval must waive each one by number or the candidate waits." }
 
     # The candidate's kind: deployable files decide the route; infra files and
     # azd-environment drift decide whether provisioning is needed.
@@ -738,7 +789,10 @@ function Invoke-Preflight {
     }
     Write-Host "Route: $route"
     if ($deployable.Count -eq 0) { Write-Host 'No deployable path changed; promote the exact SHA and stop.' }
-    else { Write-Host "Deployable paths: $($deployable.Count)" }
+    else {
+        Write-Host "Deployable paths: $($deployable.Count)"
+        Assert-TestInstanceServes -Sha $devSha
+    }
 
     $envHash = Get-AzdEnvironmentHash -Root $RepositoryRoot
     $retained = Get-RetainedAzdEnvironmentHash
@@ -810,7 +864,7 @@ function Write-ApprovalRequest {
         Write-Host "Preflight only: the route is '$($Preflight.Route)', provision $(if ($Preflight.ProvisionNeeded) { 'needed' } else { 'not needed' }). Run without -PreflightOnly to build and print the request."
         return
     }
-    Write-Host 'One message from the operator names all of these; it grants the promotion push and the Azure writes for exactly them:'
+    Write-Host 'One message from the operator names all of these; it grants the Azure writes for exactly them and the promotion of main that follows the smoke:'
     Write-Host "  Release SHA        $($Preflight.DevSha) (from main $($Preflight.MainSha))"
     Write-Host "  Manifest SHA-256   $($Build.ManifestSha256)"
     $Build.Artifacts | ForEach-Object { Write-Host "  Artifact           $_" }
@@ -1037,9 +1091,13 @@ switch ($PSCmdlet.ParameterSetName) {
         $webPackageSha256 = [string]@($manifest.artifacts | Where-Object name -eq 'web.zip')[0].sha256
         $script:record['Packages'] = "manifest $($actualManifestSha256.ToUpperInvariant()); " + (@($manifest.artifacts | ForEach-Object { "$($_.name) $($_.sha256)" }) -join '; ')
 
+        # R567 and R639: the approval named dev's head, and the instance must
+        # be serving it; both are read before any write.
+        Assert-DevStillAt -Sha $ApprovedReleaseSha
+        Assert-TestInstanceServes -Sha $ApprovedReleaseSha
         if ($Route -eq 'Destructive') {
-            # The route's preconditions are read before the promotion push, so
-            # a refusal writes nothing anywhere.
+            # The route's preconditions are read before any write, so a
+            # refusal writes nothing anywhere.
             if ([string]::IsNullOrWhiteSpace($ApprovedOldWebSourceSha)) { throw 'The destructive route needs -ApprovedOldWebSourceSha, the exact old Web source SHA the approval named.' }
             $site = Get-WebSite
             if ([string]$site.state -ceq 'Running') {
@@ -1050,13 +1108,15 @@ switch ($PSCmdlet.ParameterSetName) {
                 }
             }
         }
-        Invoke-Promotion -Sha $ApprovedReleaseSha
         if ($Route -eq 'Normal') {
             Invoke-NormalRoute -Root $root -Manifest $manifest -WebPackagePath $webPackagePath -WebPackageSha256 $webPackageSha256
         }
         else {
             Invoke-DestructiveRoute -Root $root -Manifest $manifest -WebPackagePath $webPackagePath -WebPackageSha256 $webPackageSha256
         }
+        # main records what is live: it moves only now, after the full smoke
+        # (R637). A failed release has left it at the SHA still serving.
+        Invoke-Promotion -Sha $ApprovedReleaseSha -AfterSmoke
         Complete-Release -Root $root
         Write-Record
     }

@@ -41,6 +41,7 @@ writing a migration, operations owns the dated record.
 | Key Vault | `pegasusprodkv252ow37g` |
 | SQL | `pegasus-prod-sql-252ow37gij` / `pegasus` |
 | App Insights | `pegasus-prod-appi-252ow37gij` |
+| Test instance | `https://cemattypc-1.tail432b53.ts.net/` (ADR-0088; serves `dev`, read only) |
 
 The script carries these names; nothing is passed in. `PEGASUS_WEB_LOCATION`
 is set only when an approval names a Web region other than the platform region.
@@ -78,13 +79,16 @@ Uncertainty is resolved before approval, never during the route.
 pwsh ./scripts/Invoke-Release.ps1
 ```
 
-It fetches, checks `main` is an ancestor of `dev`, lists the range and the
-pull requests in it with their checks, reads the deployed state (Web state and
-stack, `/diagnostics/version`, Worker and classifier states, the schedule and
-Disabled settings), reads the live migration head, prints the route and
-whether provision is needed, then builds the artifacts in a detached worktree
-at `../pegasus-worktrees/release-<sha8>` and validates them. It writes
-nothing to GitHub or Azure. `-PreflightOnly` stops before the build.
+It fetches, checks `main` is an ancestor of `dev`, lists the range, the
+candidate's push-to-`dev` CI run (R638) and the pull requests in it with their
+checks, reads the deployed state (Web state and stack, `/diagnostics/version`,
+Worker and classifier states, the schedule and Disabled settings), reads the
+live migration head, prints the route and whether provision is needed, reads
+the test instance's `/diagnostics/version` over the tailnet and refuses a
+deployable candidate the instance is not serving (R639), then builds the
+artifacts in a detached worktree at `../pegasus-worktrees/release-<sha8>` and
+validates them. It writes nothing to GitHub or Azure. `-PreflightOnly` stops
+before the build.
 
 Read the report. A pull request that is not green is either waived by number
 in the approval or the candidate waits. A head that differs from the candidate
@@ -95,8 +99,8 @@ identity while the range adds no migration is a question, not a route.
 One message from the operator names the release SHA, the manifest SHA-256,
 the route, the targets, whether provision runs and, for a destructive route,
 the old Web source SHA and the window (operator, 30 October 2026). That
-message grants the promotion push and the Azure writes for exactly those
-values; nothing else is a grant. The script refuses if `origin/dev` moved
+message grants the Azure writes for exactly those values and the promotion
+of `main` that follows the smoke (R637); nothing else is a grant. The script refuses if `origin/dev` moved
 after the message, and a moved head needs a fresh message. The agent never
 retries a refused promotion with a rebase, a reset, an unleased push or a
 different SHA.
@@ -112,8 +116,11 @@ pwsh ./scripts/Invoke-Release.ps1 -PromoteOnly -ApprovedReleaseSha <sha>
 ```
 
 The script re-validates the worktree and the manifest against the approved
-values, promotes with one leased atomic push and reads both refs back, then
-runs the route to a passing full smoke.
+values, reads `dev` and the test instance again, runs the route to a passing
+full smoke, then promotes `main` alone to the released SHA with one leased
+push and reads it back (R637): `main` records what is live, so a failed
+release leaves it at the SHA still serving, with nothing in git to reset.
+`-PromoteOnly` keeps the atomic push of the SHA to `main` and `dev`.
 
 The normal route provisions when `-Provision` is given, deploys `web.zip`
 with a restart, waits for the site to read back `Running`, ready and at the
