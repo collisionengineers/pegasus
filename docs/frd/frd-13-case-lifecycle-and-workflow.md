@@ -384,9 +384,9 @@ chaser without implying it was sent or answered.
 chaser template ([FRD-17](frd-17-administration-workspace.md#e-mail-templates))
 and the Case's recorded addresses, and staff send it
 ([FRD-16](frd-16-case-record-workspace.md#actions-menu)): a reply to the
-Case's instruction email from the mailbox it arrived in, or a new message
-from the Outgoing mailbox staff choose when there is no usable instruction
-email
+Case's instruction email from the mailbox it arrived in (a staff forward
+from the mailbox that forwarded it, R651), or a new message from the
+Outgoing mailbox staff choose when there is no usable instruction email
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)). When that send's
 exact Sent evidence is observed and the Case is Not ready with a chase
 scheduled, Pegasus records the chase itself — channel E-mail, the addresses

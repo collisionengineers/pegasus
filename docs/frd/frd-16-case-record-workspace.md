@@ -384,9 +384,10 @@ Return to Engineer needs no session. The rules behind each action are in
 - **Send chaser**, on any open Case where staff mail is composed in
   (operator, 5 October 2026). It is a link, not a dialog, and needs no lease:
   it opens the chaser composer (`/Cases/{id}/Chaser`), a reply to the
-  Case's instruction email from the mailbox it arrived in, or, with no
-  usable instruction email, a new message from the Outgoing mailbox staff
-  choose as From (operator, 12 October 2026). To is addressed to the sender
+  Case's instruction email from the mailbox it arrived in (a staff forward
+  from the mailbox that forwarded it, R651), or, with no usable instruction
+  email, a new message from the Outgoing mailbox staff choose as From
+  (operator, 12 October 2026). To is addressed to the sender
   of the Case's instruction and the sender of each image-intake e-mail
   paired to the Case and the repairer's directory e-mail; Subject is "Re:"
   and the instruction's subject for a reply, or opens with the registration

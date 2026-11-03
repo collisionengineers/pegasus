@@ -238,8 +238,9 @@ from the Triage's registration and finding
 before Send. A Case chaser opened from the Case's Send chaser is a staff
 send with purpose `CaseChaser` on its own chaser composer
 (`/Cases/{id}/Chaser`): a reply to the Case's instruction email from the
-mailbox it arrived in, or, with no usable instruction email, a new message
-from the Outgoing mailbox staff choose as From (see From which mailbox). To
+mailbox it arrived in (a staff forward from the mailbox that forwarded it),
+or, with no usable instruction email, a new message from the Outgoing
+mailbox staff choose as From (see From which mailbox). To
 is the sender of the Case's instruction, the sender of each image-intake
 e-mail paired to the Case and the repairer's directory e-mail, each once;
 Subject is "Re:" and the instruction's subject for a reply, or opens with

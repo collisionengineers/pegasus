@@ -62,7 +62,15 @@ instructed in.
    instruction email, the retained message its origin receipt came from,
    from the mailbox it arrived in while that mailbox can send; otherwise a
    new message from the Outgoing mailbox the caller names. The reviewed
-   recipients stay the only recipients.
+   recipients stay the only recipients. *Amended 3 November 2026 (R651):*
+   one rule, `StaffMailAnswer` in the same file, decides which mailbox any
+   reply leaves, and a Collision Engineers staff forward is answered from
+   the mailbox that forwarded it. The send stays a reply to the forwarded
+   message, so everything linked to that message holds, and
+   `GraphStaffMailSender` creates it as a new message, since only the
+   holding mailbox can `createReply`. A forward still leaves the holding
+   mailbox. Decision 1 stands: the forward is recognised per message, not
+   by mailbox.
 4. Every Outgoing mailbox sends under one fixed limit,
    `ApprovedStaffSendMailbox.OutgoingEncodedMessageSizeLimit`
    (36,700,160 encoded bytes).
