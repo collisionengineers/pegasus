@@ -80,12 +80,12 @@ pwsh ./scripts/Invoke-Release.ps1
 ```
 
 It fetches, checks `main` is an ancestor of `dev`, lists the range, the
-candidate's push-to-`dev` CI run (R638) and the pull requests in it with their
+candidate's push-to-`dev` CI run (R656) and the pull requests in it with their
 checks, reads the deployed state (Web state and stack, `/diagnostics/version`,
 Worker and classifier states, the schedule and Disabled settings), reads the
 live migration head, prints the route and whether provision is needed, reads
 the test instance's `/diagnostics/version` over the tailnet and refuses a
-deployable candidate the instance is not serving (R639), then builds the
+deployable candidate the instance is not serving (R657), then builds the
 artifacts in a detached worktree at `../pegasus-worktrees/release-<sha8>` and
 validates them. It writes nothing to GitHub or Azure. `-PreflightOnly` stops
 before the build.
@@ -100,7 +100,7 @@ One message from the operator names the release SHA, the manifest SHA-256,
 the route, the targets, whether provision runs and, for a destructive route,
 the old Web source SHA and the window (operator, 30 October 2026). That
 message grants the Azure writes for exactly those values and the promotion
-of `main` that follows the smoke (R637); nothing else is a grant. The script refuses if `origin/dev` moved
+of `main` that follows the smoke (R655); nothing else is a grant. The script refuses if `origin/dev` moved
 after the message, and a moved head needs a fresh message. The agent never
 retries a refused promotion with a rebase, a reset, an unleased push or a
 different SHA.
@@ -118,7 +118,7 @@ pwsh ./scripts/Invoke-Release.ps1 -PromoteOnly -ApprovedReleaseSha <sha>
 The script re-validates the worktree and the manifest against the approved
 values, reads `dev` and the test instance again, runs the route to a passing
 full smoke, then promotes `main` alone to the released SHA with one leased
-push and reads it back (R637): `main` records what is live, so a failed
+push and reads it back (R655): `main` records what is live, so a failed
 release leaves it at the SHA still serving, with nothing in git to reset.
 `-PromoteOnly` keeps the atomic push of the SHA to `main` and `dev`.
 

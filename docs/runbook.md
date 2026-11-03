@@ -359,14 +359,14 @@ enabled on both. A mailbox row added earlier under the local resolver holds a
 local identity and fails its access check: disable it and add the address
 again.
 
-The instance runs `dev` (R636). To move it to `dev`'s tip, `Stop` the run,
+The instance runs `dev` (R654). To move it to `dev`'s tip, `Stop` the run,
 `git checkout dev && git pull --ff-only origin dev` with a clean tree, run
 `Initialize-LocalDevelopment.ps1`, and `Start -RunId <run-id>` with the same
 ports; the manifest's source and artifact evidence follow the new build,
 `--initialize-development` migrates the existing database forward, and the
 Tailscale proxy keeps working because the port is unchanged. Status prints
 `SourceSha` for the comparison with `origin/dev`, and the release preflight
-refuses a candidate the instance is not serving (R639). `Reset` removes the database with the run, so a
+refuses a candidate the instance is not serving (R657). `Reset` removes the database with the run, so a
 long-lived instance keeps one run id; an older revision is not supported
 (migrations go forward only). For release rehearsal,
 `scripts/Copy-ProductionDatabaseToRun.ps1 -RunId <run-id>` replaces the
@@ -1193,7 +1193,7 @@ Check it against the actual schema and current preservation requirements.
 Production has carried live Cases since 2 November 2026 (R603);
 [rollback step 3](#previous-artifact-rollback-web-and-worker) distinguishes
 compatible artifact rollback from roll-forward. `main` moves only after a
-release's full smoke has passed (R637), so a failed release leaves it at the
+release's full smoke has passed (R655), so a failed release leaves it at the
 SHA still serving; nothing in git is reset.
 
 After a destructive migration begins, [ADR-0046](adr/0046-destructive-migration-runtime-shutdown.md)

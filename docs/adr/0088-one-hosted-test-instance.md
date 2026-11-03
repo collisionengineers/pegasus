@@ -58,7 +58,7 @@ their Tailscale network, at no Azure cost (R623).
   local-test root, Glass's, and the classifier agent run locally in dry run
   first (R625). It runs `dev`, the branch a release is promoted from, so a
   change is vetted on it before `main` moves; the release preflight refuses
-  a candidate the instance is not serving (R636, R639).
+  a candidate the instance is not serving (R654, R657).
 - It has Graph parity with production on the production mailboxes the
   operator enables on it (R648, R650, superseding R626).
   `Features:LiveGraphMail` composes Production's Graph mail side (the mail

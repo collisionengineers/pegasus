@@ -185,7 +185,7 @@ function New-Estate {
         [bool] $ClassifierPresent = $true,
         [string] $ClassifierState = 'Running',
         [bool] $StickyServing = $false,
-        # What the hosted test instance serves; the candidate unless a case says otherwise (R639).
+        # What the hosted test instance serves; the candidate unless a case says otherwise (R657).
         [string] $InstanceSourceSha = '',
         [Parameter(Mandatory)][string] $NewSha
     )
@@ -229,7 +229,7 @@ if ($joined.Contains('bicep build')) { Get-Content -Raw -LiteralPath $env:PEGASU
 if ($joined.StartsWith('rest ')) {
     $url = Get-Argument '--url'
     if ($url.StartsWith('https://cemattypc-1.tail432b53.ts.net/')) {
-        # The test instance answers its version from its own state (R639).
+        # The test instance answers its version from its own state (R657).
         if ($url.EndsWith('/diagnostics/version')) { @{ sourceSha = $state.instance.sourceSha; version = $state.web.version } | ConvertTo-Json -Compress; exit 0 }
         [Console]::Error.WriteLine('Not found'); exit 1
     }
@@ -309,7 +309,7 @@ if ($joined.StartsWith('provision')) {
     Set-Content -LiteralPath (Join-Path $Directory 'gh.ps1') -Encoding ascii -Value @'
 param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
 Add-Content -LiteralPath $env:PEGASUS_TEST_AZ_ARGUMENTS_PATH -Value "gh $($Arguments -join ' ')"
-# One green push-to-dev run (R638), one green pull request.
+# One green push-to-dev run (R656), one green pull request.
 if ($Arguments[0] -eq 'run') { '[{"status":"completed","conclusion":"success","url":"https://example.test/runs/1"}]'; exit 0 }
 '{"number":1,"title":"fixture","state":"MERGED","statusCheckRollup":[{"name":"unit","conclusion":"SUCCESS"}]}'
 exit 0
@@ -780,7 +780,7 @@ try {
     Assert-True ($result.Output.Contains('Route: promotion-only')) $case 'did not classify a documentation-only range as promotion only.' $result.Diagnostic
     Assert-True ($result.Output.Contains("Migration head: $identity; candidate identity: $identity")) $case 'did not compare the head with the candidate identity.' $result.Diagnostic
     Assert-True ($result.Output.Contains('Provision: needed (no retained release')) $case 'did not say provision is needed without a retained baseline.' $result.Diagnostic
-    Assert-True ($result.Output.Contains("dev run for $($releaseSha): success")) $case 'did not read the push-to-dev run (R638).' $result.Diagnostic
+    Assert-True ($result.Output.Contains("dev run for $($releaseSha): success")) $case 'did not read the push-to-dev run (R656).' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns ($writes + @('az rest*cemattypc-1*'))
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
 
@@ -810,7 +810,7 @@ try {
     # The fresh destructive run: it reads the test instance, disables, stages,
     # stops in order, reads the containment back and reaches the migration
     # gate; the fixture bundle cannot run, so it stops there with nothing
-    # deployed or started, and main has not moved: it moves after the smoke (R637).
+    # deployed or started, and main has not moved: it moves after the smoke (R655).
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments ($executeDestructive + @('-ApprovedOldWebSourceSha', $oldWebSha)) `
         -Estate (New-Estate -NewSha $releaseSha) -MigrationHead 'old'
     $case = 'Destructive route, fresh run'
@@ -909,7 +909,7 @@ try {
     Assert-True ($result.Output.Contains('applying the additive migration first')) $case 'did not reach the migration.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns @('az webapp deploy*', 'az functionapp deployment source config-zip*', 'azd provision*', 'azd env set*')
 
-    # The instance is not serving the candidate: nothing is written (R639).
+    # The instance is not serving the candidate: nothing is written (R657).
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeNormal -Estate (New-Estate -NewSha $releaseSha -InstanceSourceSha ('d' * 40)) -MigrationHead $identity
     $case = 'Test instance serving another SHA'
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic

@@ -17,7 +17,7 @@ the exact SHA, the manifest SHA-256, the route, whether to provision and, for
 a destructive route, the old serving Web source SHA. It reads the hosted test
 instance to prove it is serving the approved SHA, runs the one route to a
 passing full smoke, then promotes main to the SHA the estate now serves with
-a leased push (R637), copies the azd environment back to the primary checkout,
+a leased push (R655), copies the azd environment back to the primary checkout,
 retains the artifacts and prints the record skeleton for docs/operations.md.
 
 A destructive run that failed after containment is resumed with the same
@@ -113,7 +113,7 @@ $resourceGroup = 'rg-pegasus-prod'
 $webApp = 'pegasus-prod-web-252ow37gij'
 $webOrigin = 'https://pegasus-prod-web-252ow37gij.azurewebsites.net/'
 # The hosted test instance (ADR-0088) runs dev; a deployable candidate is the
-# SHA it is serving, read the way the Web App is (R639).
+# SHA it is serving, read the way the Web App is (R657).
 $testInstanceOrigin = 'https://cemattypc-1.tail432b53.ts.net/'
 $workerApp = 'pegasus-prod-worker-252ow37gij'
 $classifierApp = 'pegasus-prod-classifier-252ow37gij'
@@ -223,7 +223,7 @@ function Get-WebVersion {
 
 function Assert-TestInstanceServes {
     # "Vetted on the test server" is the instance serving the candidate SHA
-    # (R639): read over the tailnet, never assumed. The operator's approval
+    # (R657): read over the tailnet, never assumed. The operator's approval
     # message stays the acceptance; this proves it saw the same bytes.
     param([Parameter(Mandatory)][string] $Sha)
     $version = Get-WebVersion -Origin $testInstanceOrigin
@@ -649,7 +649,7 @@ function Invoke-Promotion {
     #
     # Promotion only (-PromoteOnly): the exact SHA goes to main and dev in one
     # atomic push; dev must still be at it. After the smoke (-AfterSmoke):
-    # main alone moves to the SHA the estate now serves (R637); dev must
+    # main alone moves to the SHA the estate now serves (R655); dev must
     # contain it, and may have moved on during the release.
     param([Parameter(Mandatory)][string] $Sha, [switch] $AfterSmoke)
     Invoke-Git -Arguments @('fetch', 'origin', '--prune')
@@ -715,7 +715,7 @@ function Invoke-Preflight {
     Write-Host ''
     Invoke-Git -Arguments @('diff', '--stat', "$mainSha..$devSha") | ForEach-Object { Write-Host $_ }
 
-    # The push-to-dev run on the candidate is its exact-head evidence (R638);
+    # The push-to-dev run on the candidate is its exact-head evidence (R656);
     # the merged pull requests in the range and their checks are listed with it.
     Write-Host ''
     Write-Host '--- CI on the candidate ---'
@@ -1091,7 +1091,7 @@ switch ($PSCmdlet.ParameterSetName) {
         $webPackageSha256 = [string]@($manifest.artifacts | Where-Object name -eq 'web.zip')[0].sha256
         $script:record['Packages'] = "manifest $($actualManifestSha256.ToUpperInvariant()); " + (@($manifest.artifacts | ForEach-Object { "$($_.name) $($_.sha256)" }) -join '; ')
 
-        # R567 and R639: the approval named dev's head, and the instance must
+        # R567 and R657: the approval named dev's head, and the instance must
         # be serving it; both are read before any write.
         Assert-DevStillAt -Sha $ApprovedReleaseSha
         Assert-TestInstanceServes -Sha $ApprovedReleaseSha
@@ -1115,7 +1115,7 @@ switch ($PSCmdlet.ParameterSetName) {
             Invoke-DestructiveRoute -Root $root -Manifest $manifest -WebPackagePath $webPackagePath -WebPackageSha256 $webPackageSha256
         }
         # main records what is live: it moves only now, after the full smoke
-        # (R637). A failed release has left it at the SHA still serving.
+        # (R655). A failed release has left it at the SHA still serving.
         Invoke-Promotion -Sha $ApprovedReleaseSha -AfterSmoke
         Complete-Release -Root $root
         Write-Record
