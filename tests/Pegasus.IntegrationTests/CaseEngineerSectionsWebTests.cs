@@ -69,7 +69,7 @@ public sealed class CaseEngineerSectionsWebTests
         // in every state, as the issued report printed them; neither is a
         // recorded field.
         Assert.Contains(
-            $"data-damage-narrative>{ReportWordingComposition.NatureOfIncidentSentence("moderate", "right_rear", ["right_rear"])}</div>",
+            $"data-damage-narrative>{ReportWordingComposition.NatureOfIncidentSentence("moderate", "right_rear")}</div>",
             html,
             StringComparison.Ordinal);
         Assert.Contains(AssessmentReportContract.StatementOfTruth1, html, StringComparison.Ordinal);
@@ -232,8 +232,7 @@ public sealed class CaseEngineerSectionsWebTests
                 DateTimeOffset.UtcNow);
             return
             [
-                Field(AssessmentVocabulary.ImpactLocation, "right_rear"),
-                Field(AssessmentVocabulary.ImpactSeverity, "moderate"),
+                Field(AssessmentVocabulary.Impacts, "[{\"severity\":\"moderate\",\"location\":\"right_rear\",\"note\":\"\"}]"),
                 Field(AssessmentVocabulary.Outcome, "repairable"),
                 Field(AssessmentVocabulary.SalvageCategory, "S"),
                 Field(AssessmentVocabulary.SalvageValue, "750.00"),

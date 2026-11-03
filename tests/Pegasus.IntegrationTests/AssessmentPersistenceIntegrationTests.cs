@@ -35,32 +35,39 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task DamageImpactsPersistAndClearTheirCoreDerivedHeadlineRows()
+    public async Task ImpactsAndMarkersPersistAsEnteredAndNothingIsDerived()
     {
         await using var harness = await Harness.CreateAsync(shared);
-        var outcome = await harness.AcceptAsync("assessment-damage-derivation");
+        var outcome = await harness.AcceptAsync("assessment-impacts-by-hand");
         var caseId = outcome.Identity.CaseId;
         var lease = await harness.AcquireLeaseAsync(caseId, 0, harness.AutomationActor, "damage-lease-1");
         var saved = await harness.SaveAssessment.ExecuteAsync(new(
             caseId, lease.Version, harness.AutomationActor, "damage-save-1", "Record damage.", lease.Token,
             new Dictionary<string, string?>(StringComparer.Ordinal)
             {
-                [AssessmentVocabulary.DamageImpacts] = "[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"Bonnet\"},{\"areas\":[\"right_rear\"],\"severity\":\"heavy\",\"note\":\"Quarter\"}]"
+                [AssessmentVocabulary.Impacts] = "[{\"severity\":\"light\",\"location\":\"front\",\"note\":\"Bonnet\"},{\"severity\":\"heavy\",\"location\":\"right_rear\",\"note\":\"Quarter\"}]",
+                [AssessmentVocabulary.DamageMarkers] = "[{\"x\":0.5,\"y\":0.1,\"r\":0.12},{\"x\":0.82,\"y\":0.84,\"r\":0.12}]"
             }), CancellationToken.None);
 
-        Assert.Equal("multiple", saved.Field(AssessmentVocabulary.ImpactLocation)?.Value);
-        Assert.Equal("heavy", saved.Field(AssessmentVocabulary.ImpactSeverity)?.Value);
-        Assert.All(saved.Fields.Where(field => field.Path is AssessmentVocabulary.DamageImpacts or AssessmentVocabulary.ImpactLocation or AssessmentVocabulary.ImpactSeverity),
+        Assert.Equal(
+            "[{\"severity\":\"light\",\"location\":\"front\",\"note\":\"Bonnet\"},{\"severity\":\"heavy\",\"location\":\"right_rear\",\"note\":\"Quarter\"}]",
+            saved.Field(AssessmentVocabulary.Impacts)?.Value);
+        Assert.Equal("[{\"x\":0.5,\"y\":0.1,\"r\":0.12},{\"x\":0.82,\"y\":0.84,\"r\":0.12}]", saved.Field(AssessmentVocabulary.DamageMarkers)?.Value);
+        Assert.DoesNotContain(saved.Fields, field => field.Path.StartsWith("assessment.impact_", StringComparison.Ordinal));
+        Assert.All(saved.Fields.Where(field => field.Path is AssessmentVocabulary.Impacts or AssessmentVocabulary.DamageMarkers),
             field => Assert.Equal(ActorKind.Automation, field.RecordedByKind));
 
-        // The Automation lease stands after its save, so the same token clears the damage.
+        // The Automation lease stands after its save, so the same token clears them.
         var cleared = await harness.SaveAssessment.ExecuteAsync(new(
             caseId, saved.CaseVersion, harness.AutomationActor, "damage-save-2", "Clear damage.", lease.Token,
-            new Dictionary<string, string?>(StringComparer.Ordinal) { [AssessmentVocabulary.DamageImpacts] = null }), CancellationToken.None);
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.Impacts] = null,
+                [AssessmentVocabulary.DamageMarkers] = null
+            }), CancellationToken.None);
 
-        Assert.Null(cleared.Field(AssessmentVocabulary.DamageImpacts));
-        Assert.Null(cleared.Field(AssessmentVocabulary.ImpactLocation));
-        Assert.Null(cleared.Field(AssessmentVocabulary.ImpactSeverity));
+        Assert.Null(cleared.Field(AssessmentVocabulary.Impacts));
+        Assert.Null(cleared.Field(AssessmentVocabulary.DamageMarkers));
     }
 
     [Fact]
@@ -150,9 +157,10 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             caseId, lease.Version, harness.AutomationActor, "field-values-save", "Record damage.", lease.Token,
             new Dictionary<string, string?>(StringComparer.Ordinal)
             {
-                [AssessmentVocabulary.DamageImpacts] = "[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"Bonnet\"}]"
+                [AssessmentVocabulary.Impacts] = "[{\"severity\":\"light\",\"location\":\"front\",\"note\":\"Bonnet\"}]",
+                [AssessmentVocabulary.DamageMarkers] = "[{\"x\":0.5,\"y\":0.1,\"r\":0.12}]"
             }), CancellationToken.None);
-        string[] paths = [AssessmentVocabulary.DamageImpacts, AssessmentVocabulary.ImpactSeverity, AssessmentVocabulary.ReportDate];
+        string[] paths = [AssessmentVocabulary.Impacts, AssessmentVocabulary.DamageMarkers, AssessmentVocabulary.ReportDate];
         var source = new EfAssessmentWorkspaceSource(harness.Factory);
         var workspace = await source.GetAsync(caseId, CaseWorkSelector.Current);
         counter.Reset();
@@ -422,8 +430,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
         {
             [AssessmentVocabulary.VehicleType] = "car",
             [AssessmentVocabulary.VehicleCondition] = "good",
-            [AssessmentVocabulary.ImpactSeverity] = "moderate",
-            [AssessmentVocabulary.ImpactLocation] = "right_rear",
+            [AssessmentVocabulary.Impacts] = "[{\"severity\":\"moderate\",\"location\":\"right_rear\",\"note\":\"\"}]",
             [AssessmentVocabulary.ValueRetail] = "5000.00",
             [AssessmentVocabulary.ValueTrade] = "4000.00",
             [AssessmentVocabulary.ValueEngineer] = "5000.00",

@@ -546,20 +546,20 @@ field.
 Damage shows the **plan**: a top-down drawing of the recorded Vehicle type —
 the car, the van or the motorbike
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record))
-— with one yellow comic burst per recorded damage, and Underside, Interior
-and Mechanical chips. While editable, dashed band guides show the eight
-areas, pressing and dragging on the vehicle sizes a disc, dragging a burst
-moves it, the readout names the area under the pointer, and Reset returns
-the damage to the values held when the edit opened. A disc stays as it was
-drawn, names the areas it touches and is never wider than half the vehicle;
-its burst carries no number and may spill past the outline. Beside it sits
-the recorded-areas list, numbered in recorded order, with the areas,
-severity and note per damage, and the other
-damage facts; the list rows and the chips stand in the same places in read
-and edit mode, greyed when they cannot be edited. The **Incident narrative**
-is read-only: it is the report's Nature of Incident wording, the Engineer's
-own from Report wording or else the sentence composed from the recorded
-damage
+— with one yellow comic burst per damage marker. While editable, dashed band
+guides show on the plan, pressing and dragging on the vehicle sizes a marker,
+dragging a burst moves it, and **Clear markers** under the plan removes them
+all; there is no Reset, and dragging never removes a marker. A marker stays as
+it was drawn and is never wider than half the vehicle; its burst carries no
+number and may spill past the outline. Beside the plan stand the **impacts**,
+one row each: Impact · Severity · Location · Note · × (Clear), with **Add
+impact** under them while editing and "No damage recorded." when there are
+none (3 November 2026, R642–R646). The rows stand in the same places in read
+and edit mode, values reading where controls edit; below 1100 px a row folds
+into a captioned card. The **Incident narrative** is read-only: it is the
+report's Nature of Incident wording, the Engineer's own from Report wording or
+else a sentence for each impact, one to a line, recomposed as the impacts are
+edited
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks)).
 The field set is owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record).

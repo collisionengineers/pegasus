@@ -1,21 +1,18 @@
 @*
-    Damage (v28 P5): damage by area. The workbench is the top-down plan of
-    the recorded Vehicle type: the car, the van or the motorbike. While the
-    section edits, pressing and dragging on the vehicle sizes a disc and
-    dragging a disc moves it; each disc is one recorded damage naming the plan
-    areas it touches, with a severity and a note, and is drawn as the one
-    yellow comic burst (28 September 2026), unclipped and unnumbered, here and
-    on the report. Underside, Interior and Mechanical are chips, each recorded
-    alone. Impact location and severity derive from the damages. A drawn disc is
-    kept as drawn (ruled 23 September 2026), no wider than the vehicle; a
-    damage recorded by area alone is drawn with the disc its areas give
-    (DamageAreaGeometry). The page reads without
-    script: the discs, the list and the derived cells are rendered here from
-    the recorded impacts, and script keeps them in step while the section
-    edits; Reset returns to the values held when the edit opened. Read and
-    edit share one geometry: the list rows, the chips and the cells stand in
-    the same places, greyed where they cannot be edited. The Case's images
-    live only under Files.
+    Damage (v46, operator, 3 November 2026): impacts entered by hand and
+    damage markers for the report's picture only. The workbench is the
+    top-down plan of the recorded Vehicle type: the car, the van or the
+    motorbike. While the section edits, pressing and dragging on the vehicle
+    sizes a marker and dragging a marker moves it; Clear markers removes them
+    all. A marker is a position only, drawn as the one yellow comic burst
+    (28 September 2026), unclipped and unnumbered, here and on the report, and
+    kept as drawn, no wider than the vehicle. Beside the plan, staff enter the
+    impacts: one row each, Impact · Severity · Location · Note · Clear, added
+    with Add impact. Nothing is derived from the markers. The Incident
+    narrative is the report's Nature of Incident: a sentence for each impact
+    naming a severity and a location, one to a line. Read and edit share one
+    geometry: the rows stand in the same places, values reading where controls
+    edit. The Case's images live only under Files.
 *@
 @using System.Globalization
 @using System.Text.Json
@@ -28,7 +25,17 @@
 @{
     var details = Model.Case!;
     var editable = Model.SectionIsEditable("damage") && details.Data is not null;
-    var rawImpacts = Model.AssessmentEditorValue(AssessmentVocabulary.DamageImpacts) ?? "[]";
+    var rawMarkers = Model.AssessmentEditorValue(AssessmentVocabulary.DamageMarkers) ?? "[]";
+    IReadOnlyList<DamageDisc> markers;
+    try
+    {
+        markers = AssessmentPolicy.ParseMarkers(rawMarkers);
+    }
+    catch (Exception exception) when (exception is JsonException or ArgumentException)
+    {
+        markers = [];
+    }
+    var rawImpacts = Model.AssessmentEditorValue(AssessmentVocabulary.Impacts) ?? "[]";
     IReadOnlyList<AssessmentImpact> impacts;
     try
     {
@@ -38,26 +45,19 @@
     {
         impacts = [];
     }
+    var mayEditImpacts = editable && Model.CanEditAssessmentField(AssessmentVocabulary.Impacts);
     var damageFields = CaseWorkspaceLabels.Editors.Damage;
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "damage");
     var profile = DamagePlanGeometry.ProfileFor(Model.AssessmentEditorValue(AssessmentVocabulary.VehicleType));
-    // The derived cells are Core's own: the headline location (the area the
-    // touching bursts sit in, or Multiple when the damages stand apart) and
-    // the highest severity recorded, the words the report prints.
-    var headline = AssessmentPolicy.DeriveImpactValues(impacts);
-    var locationText = headline.Location is null ? OperatorLabels.CaseWorkspace.AbsentValue : DamageLabels.Location(headline.Location);
-    var severityText = headline.Severity is null ? OperatorLabels.CaseWorkspace.AbsentValue : DamageLabels.SeverityWord(headline.Severity);
 
-    string AreaNames(IReadOnlyList<string> codes) => string.Join(", ", codes.Select(DamageLabels.Location));
     string Svg(double value) => value.ToString("0.#", CultureInfo.InvariantCulture);
 }
 
 <section class="record-section record-section--nested panel @Model.CollapsedClass("case.damage") case-damage @(Model.IsEditing && !editable ? "is-locked" : null)" id="section-damage" data-section="damage" data-section-parent="vehicle" data-collapse="case.damage" aria-labelledby="section-damage-title"
-         data-damage-editor data-damage-editable="@(editable ? "true" : "false")" data-damage-impacts="@rawImpacts"
-         data-damage-areas="@DamageEditorTables.AreaTable" data-damage-severities="@DamageEditorTables.SeverityTable" data-damage-multiple="@DamageLabels.Multiple"
-         data-damage-absent="@OperatorLabels.CaseWorkspace.AbsentValue" data-damage-none="@DamageLabels.NoDamageRecorded"
-         data-damage-no-note="@DamageLabels.NoNote" data-damage-note-label="@DamageLabels.Note" data-damage-remove-label="@DamageLabels.Remove"
-         data-damage-grade-label="@DamageLabels.Severity">
+         data-damage-editor data-damage-editable="@(editable ? "true" : "false")" data-damage-markers="@rawMarkers"
+         data-damage-plan="@DamageEditorTables.PlanTable" data-damage-narrative-table="@DamageEditorTables.NarrativeTable"
+         data-damage-narrative-follows="@(Model.IncidentNarrativeFollowsImpacts ? "true" : "false")"
+         data-damage-absent="@OperatorLabels.CaseWorkspace.AbsentValue">
     <div class="panel-head">
         <h2 id="section-damage-title">@EngineerLabels.Damage</h2>
         <div class="panel-actions"><partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" /></div>
@@ -65,14 +65,14 @@
     <div class="panel-body stack">
         @if (editable)
         {
-            <input type="hidden" id="case-damage-impacts" name="damageImpacts" form="case-edit-form" value="@rawImpacts" data-damage-input />
+            <input type="hidden" id="case-damage-markers" name="damageMarkers" form="case-edit-form" value="@rawMarkers" data-damage-input />
         }
         <div class="damage-workbench">
             <div class="damage-view" data-damage-view>
                 <svg class="damage-diagram" viewBox="@DamagePlanGeometry.ViewBox" role="group" aria-label="@DamageLabels.DiagramLabel">
                     <text class="damage-diagram-label" x="120" y="8" text-anchor="middle">@DamageLabels.Front</text>
                     @Html.Raw(DamagePlanGeometry.Artwork(profile))
-                    @* Where a press starts a new damage: the drawing's own outline. *@
+                    @* Where a press starts a new marker: the drawing's own outline. *@
                     <g class="dv-hit" aria-hidden="true">
                         @foreach (var hitPath in DamagePlanGeometry.HitPaths(profile))
                         {
@@ -82,105 +82,51 @@
                     @if (editable)
                     {
                         <g class="dm-guides" aria-hidden="true"><path d="@DamagePlanGeometry.GuidesPath" /></g>
-                        @foreach (var area in AssessmentVocabulary.DamagePlanAreas)
-                        {
-                            var centre = DamageAreaGeometry.Centres[area];
-                            var centreX = DamagePlanGeometry.PlanLeft + centre.X * DamagePlanGeometry.PlanWidth;
-                            var centreY = DamagePlanGeometry.PlanTop + centre.Y * DamagePlanGeometry.PlanHeight;
-                            <g class="damage-plan-area" role="button" tabindex="0" data-damage-plan-area="@area" aria-label="@DamageLabels.Location(area)">
-                                <circle class="damage-plan-area-hit" cx="@Svg(centreX)" cy="@Svg(centreY)" r="12" />
-                            </g>
-                        }
                     }
-                    @* Each damage is its burst over an unpainted disc: the disc
-                       catches the press that moves it and is what the areas are
-                       read from; the burst may spill past the outline. *@
+                    @* Each marker is its burst over an unpainted disc: the disc
+                       catches the press that moves it; the burst may spill past
+                       the outline. *@
                     <g class="damage-marks" data-damage-marks aria-hidden="true">
-                        @for (var index = 0; index < impacts.Count; index++)
+                        @for (var index = 0; index < markers.Count; index++)
                         {
-                            var disc = DamagePlanGeometry.Disc(impacts[index]);
-                            if (disc is null)
-                            {
-                                continue;
-                            }
+                            var disc = DamagePlanGeometry.Disc(markers[index]);
                             <g class="dm" data-mark="@index"><circle class="area" cx="@Svg(disc.CentreX)" cy="@Svg(disc.CentreY)" r="@Svg(disc.Radius)" /><path class="burst" d="@DamagePlanGeometry.BurstPath(disc)" fill="@DamageBurst.Fill" fill-opacity="@DamageBurst.FillOpacity.ToString(CultureInfo.InvariantCulture)" stroke="@DamageBurst.Line" stroke-width="@Svg(DamageBurst.LineWidth)" stroke-linejoin="round" /></g>
                         }
                     </g>
                     <text class="damage-diagram-label" x="120" y="431" text-anchor="middle">@DamageLabels.Rear</text>
                 </svg>
-                <div class="dv-readout" data-damage-readout aria-live="polite"></div>
-                @* The chips stand in the same place in both modes: pressable while
-                   the section edits, a greyed reading of what is recorded otherwise.
-                   Reset shares their row, at its right (v36 f23). *@
-                <div class="damage-extra" aria-label="@DamageLabels.OtherAreas">
-                    @foreach (var extra in AssessmentVocabulary.DamageOtherAreas)
-                    {
-                        var recorded = impacts.Any(impact => impact.Areas.Contains(extra));
-                        if (editable)
-                        {
-                            <button type="button" class="btn btn--small @(recorded ? "is-damaged" : null)" data-damage-area="@extra" aria-pressed="@(recorded ? "true" : "false")">@DamageLabels.Location(extra)</button>
-                        }
-                        else
-                        {
-                            <span class="btn btn--small is-static @(recorded ? "is-damaged" : null)" data-damage-area="@extra">@DamageLabels.Location(extra)</span>
-                        }
-                    }
-                    @if (editable)
-                    {
-                        <button type="button" class="btn btn--small" data-damage-reset><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-undo")" /></svg><span>@DamageLabels.Reset</span></button>
-                    }
-                </div>
+                @if (editable)
+                {
+                    <div class="damage-extra">
+                        <button type="button" class="btn" data-damage-clear-markers><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg><span>@DamageLabels.ClearMarkers</span></button>
+                    </div>
+                }
             </div>
             <div class="damage-facts">
-                @* No count of recorded areas: the list under these says what is recorded (v36 item L, 9 October 2026). *@
-                <div class="fg g2">
-                    <div class="fc ro" data-field="@AssessmentVocabulary.ImpactLocation"><span class="lbl">@EngineerLabels.ImpactLocation</span><div class="fv derived" data-damage-location>@locationText</div></div>
-                    <div class="fc ro" data-field="@AssessmentVocabulary.ImpactSeverity"><span class="lbl">@EngineerLabels.ImpactSeverity</span><div class="fv derived" data-damage-severity>@severityText</div></div>
+                <div class="impact-entry" data-impacts>
+                    @if (mayEditImpacts)
+                    {
+                        <input type="hidden" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.Impacts)" form="case-edit-form" value="@rawImpacts" data-impacts-input />
+                    }
+                    <div class="impact-entry-head" aria-hidden="true" hidden="@(impacts.Count == 0)" data-impacts-head>
+                        <span></span><span class="lbl">@DamageLabels.Severity</span><span class="lbl">@DamageLabels.Location</span><span class="lbl">@DamageLabels.Note</span><span></span>
+                    </div>
+                    <div class="impact-entry-rows" data-impacts-rows>
+                        @foreach (var impact in impacts)
+                        {
+                            await ImpactRow(impact, mayEditImpacts);
+                        }
+                    </div>
+                    <p class="muted impact-entry-empty" hidden="@(impacts.Count > 0)" data-impacts-empty>@DamageLabels.NoDamageRecorded</p>
+                    @if (mayEditImpacts)
+                    {
+                        <div class="impact-entry-foot">
+                            <span></span>
+                            <button type="button" class="btn impact-entry-add" data-impacts-add><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg><span>@DamageLabels.AddImpact</span></button>
+                        </div>
+                        <template data-impacts-template>@{ await ImpactRow(new AssessmentImpact(string.Empty, string.Empty, string.Empty), true); }</template>
+                    }
                 </div>
-                <ul class="impact-list" data-damage-impact-list aria-label="@DamageLabels.RecordedAreas">
-                    @if (impacts.Count == 0)
-                    {
-                        <li class="muted" data-damage-empty>@DamageLabels.NoDamageRecorded</li>
-                    }
-                    @for (var index = 0; index < impacts.Count; index++)
-                    {
-                        var impact = impacts[index];
-                        <li class="impact-row" data-damage-row="@index">
-                            <span class="zc"><i class="zn">@(index + 1)</i>@AreaNames(impact.Areas)</span>
-                            <span class="fc @(editable ? null : "ro")">
-                                @if (editable)
-                                {
-                                    <label class="sr-only" for="damage-severity-@index">@DamageLabels.Severity</label>
-                                }
-                                <div class="fv">@DamageLabels.SeverityWord(impact.Severity)</div>
-                                @if (editable)
-                                {
-                                    <select id="damage-severity-@index" class="fi" data-damage-row-severity>
-                                        @foreach (var severity in AssessmentVocabulary.DamageSeverities.OrderBy(entry => entry.Value.Rank))
-                                        {
-                                            <option value="@severity.Key" selected="@(severity.Key == impact.Severity)">@severity.Value.Display</option>
-                                        }
-                                    </select>
-                                }
-                            </span>
-                            <span class="fc @(editable ? null : "ro")">
-                                @if (editable)
-                                {
-                                    <label class="sr-only" for="damage-note-@index">@DamageLabels.Note</label>
-                                }
-                                <div class="fv @(string.IsNullOrWhiteSpace(impact.Note) ? "empty" : null)">@(string.IsNullOrWhiteSpace(impact.Note) ? DamageLabels.NoNote : impact.Note)</div>
-                                @if (editable)
-                                {
-                                    <input id="damage-note-@index" class="fi" maxlength="200" value="@impact.Note" placeholder="@DamageLabels.Note" data-damage-row-note />
-                                }
-                            </span>
-                            @if (editable)
-                            {
-                                <button type="button" class="del" data-damage-row-remove aria-label="@DamageLabels.Remove @AreaNames(impact.Areas)">×</button>
-                            }
-                        </li>
-                    }
-                </ul>
                 <div class="fg g4 mt-2">
                     @{
                         var unrelated = Model.AssessmentEditorValue(AssessmentVocabulary.DamageUnrelated);
@@ -218,5 +164,50 @@
         {
             <span class="lbl">@text</span>
         }
+    }
+
+    // One impact: its value reads where its control edits, so read and edit
+    // share the row. Blank stays blank until chosen (v46 item L).
+    private async Task ImpactRow(AssessmentImpact impact, bool editable)
+    {
+        var severity = impact.Severity.Length == 0 ? string.Empty : DamageLabels.SeverityWord(impact.Severity);
+        var location = impact.Location.Length == 0 ? string.Empty : DamageLabels.LocationWord(impact.Location);
+        <div class="impact-entry-row" data-impact-row>
+            <span class="impact-entry-label">@DamageLabels.Impact</span>
+            <span class="fc @(editable ? null : "ro")" data-caption="@DamageLabels.Severity">
+                <div class="fv @(severity.Length == 0 ? "empty" : null)">@severity</div>
+                @if (editable)
+                {
+                    <select class="fi" aria-label="@DamageLabels.Severity" data-impact-severity>
+                        <option value=""></option>
+                        @foreach (var option in AssessmentVocabulary.DamageSeverities.OrderBy(entry => entry.Value.Rank))
+                        {
+                            <option value="@option.Key" selected="@(option.Key == impact.Severity)">@option.Value.Display</option>
+                        }
+                    </select>
+                }
+            </span>
+            <span class="fc @(editable ? null : "ro")" data-caption="@DamageLabels.Location">
+                <div class="fv @(location.Length == 0 ? "empty" : null)">@location</div>
+                @if (editable)
+                {
+                    <select class="fi" aria-label="@DamageLabels.Location" data-impact-location>
+                        <option value=""></option>
+                        @foreach (var code in AssessmentVocabulary.DamageAreaCodes)
+                        {
+                            <option value="@code" selected="@(code == impact.Location)">@AssessmentVocabulary.DamageAreas[code]</option>
+                        }
+                    </select>
+                }
+            </span>
+            <span class="fc @(editable ? null : "ro")" data-caption="@DamageLabels.Note">
+                <div class="fv @(impact.Note.Length == 0 ? "empty" : null)">@impact.Note</div>
+                @if (editable)
+                {
+                    <input class="fi" maxlength="200" aria-label="@DamageLabels.Note" value="@impact.Note" data-impact-note />
+                }
+            </span>
+            <button type="button" class="icon-button impact-entry-clear" aria-label="@DamageLabels.Clear" title="@DamageLabels.Clear" disabled="@(!editable)" data-impact-clear><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button>
+        </div>
     }
 }

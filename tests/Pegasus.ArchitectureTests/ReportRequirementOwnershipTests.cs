@@ -78,12 +78,6 @@ public sealed class ReportRequirementOwnershipTests
             {
                 writers.Add("its Case section");
             }
-            // AssessmentWriteSet derives these from the damage impacts.
-            if (AssessmentVocabulary.DerivedPaths.Contains(path)
-                && CaseWorkspaceLabels.Editors.HasStaffEditor(AssessmentVocabulary.DamageImpacts))
-            {
-                writers.Add("the damage derivation");
-            }
             // The DVLA/DVSA lookup records these.
             if (AssessmentVocabulary.LookupDerivedPaths.Contains(path))
             {
@@ -205,8 +199,7 @@ public sealed class ReportRequirementOwnershipTests
         var accepted = new List<string>();
         foreach (var path in AssessmentVocabulary.Definitions.Keys)
         {
-            if (AssessmentVocabulary.DerivedPaths.Contains(path)
-                || AssessmentVocabulary.LookupDerivedPaths.Contains(path))
+            if (AssessmentVocabulary.LookupDerivedPaths.Contains(path))
             {
                 continue;
             }
@@ -257,7 +250,6 @@ public sealed class ReportRequirementOwnershipTests
     [InlineData(AssessmentVocabulary.VehicleType, null, "vehicle")]
     [InlineData(AssessmentVocabulary.VehicleCondition, null, "vehicle")]
     [InlineData(AssessmentVocabulary.HistoryCheck, null, "vehicle")]
-    [InlineData(AssessmentVocabulary.ImpactSeverity, null, "damage")]
     [InlineData(AssessmentVocabulary.DamageUnrelated, null, "damage")]
     [InlineData(AssessmentVocabulary.AgreedFee, null, "report")]
     [InlineData(AssessmentVocabulary.ReportDate, null, "report")]
@@ -337,9 +329,6 @@ public sealed class ReportRequirementOwnershipTests
             [Named(AssessmentVocabulary.AgreedFee), Named(AssessmentVocabulary.ReportDate), Named(AssessmentVocabulary.ReportValuationCommentaryText)],
             [Named(AssessmentVocabulary.ReportDate), Named(AssessmentVocabulary.ReportValuationCommentaryText), Named(AssessmentVocabulary.AgreedFee)]);
         AssertPageOrder(
-            [Named(AssessmentVocabulary.ImpactSeverity), Named(AssessmentVocabulary.ImpactLocation), Named(AssessmentVocabulary.DamageUnrelated)],
-            [Named(AssessmentVocabulary.ImpactLocation), Named(AssessmentVocabulary.ImpactSeverity), Named(AssessmentVocabulary.DamageUnrelated)]);
-        AssertPageOrder(
             [Named(AssessmentVocabulary.Outcome), Named(AssessmentVocabulary.LegalStatus), Named(AssessmentVocabulary.UnroadworthyReason), Named(AssessmentVocabulary.SalvageCategory)],
             [Named(AssessmentVocabulary.Outcome), Named(AssessmentVocabulary.SalvageCategory), Named(AssessmentVocabulary.LegalStatus), Named(AssessmentVocabulary.UnroadworthyReason)]);
         AssertPageOrder(
@@ -376,7 +365,6 @@ public sealed class ReportRequirementOwnershipTests
         Assert.All(AssessmentVocabulary.LookupDerivedPaths, path =>
         {
             Assert.Contains(path, AssessmentVocabulary.Definitions);
-            Assert.DoesNotContain(path, AssessmentVocabulary.DerivedPaths);
             Assert.DoesNotContain(path, AssessmentVocabulary.CaseOwnedPaths);
             Assert.False(CaseWorkspaceLabels.Editors.HasStaffEditor(path));
             // MCP lets the path through, so Core's field save names the refusal.

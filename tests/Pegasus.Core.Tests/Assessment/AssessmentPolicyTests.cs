@@ -195,8 +195,7 @@ public sealed class AssessmentPolicyTests
     public void EveryEnumeratedCodeFromTheScreenRoundTrips()
     {
         foreach (var definition in AssessmentVocabulary.Definitions.Values
-            .Where(value => value.Type == AssessmentFieldType.Enumerated
-                && !AssessmentVocabulary.DerivedPaths.Contains(value.Path)))
+            .Where(value => value.Type == AssessmentFieldType.Enumerated))
         {
             foreach (var code in definition.Codes!)
             {
@@ -287,7 +286,6 @@ public sealed class AssessmentPolicyTests
         {
             var dateFields = AssessmentVocabulary.Definitions.Values
                 .Where(definition => definition.Type == AssessmentFieldType.Date
-                    && !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
                     && !AssessmentVocabulary.LookupDerivedPaths.Contains(definition.Path))
                 .ToArray();
             Assert.NotEmpty(dateFields);
@@ -319,8 +317,7 @@ public sealed class AssessmentPolicyTests
     public void EveryWritableVocabularyPathRoundTripsThroughItsCoreNormalizer()
     {
         foreach (var definition in AssessmentVocabulary.Definitions.Values
-            .Where(definition => !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
-                && !AssessmentVocabulary.LookupDerivedPaths.Contains(definition.Path)
+            .Where(definition => !AssessmentVocabulary.LookupDerivedPaths.Contains(definition.Path)
                 && !AssessmentVocabulary.GuideCardDerivedPaths.Contains(definition.Path)))
         {
             var value = definition.Type switch
@@ -333,7 +330,8 @@ public sealed class AssessmentPolicyTests
                 AssessmentFieldType.Money => "1.00",
                 AssessmentFieldType.Flag => "true",
                 AssessmentFieldType.Date => "2026-09-03",
-                AssessmentFieldType.Json => "[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"value\"}]",
+                AssessmentFieldType.Json when definition.Path == AssessmentVocabulary.DamageMarkers => "[{\"x\":0.5,\"y\":0.5,\"r\":0.1}]",
+                AssessmentFieldType.Json => "[{\"severity\":\"light\",\"location\":\"front\",\"note\":\"value\"}]",
                 _ => throw new ArgumentOutOfRangeException()
             };
 
@@ -345,152 +343,140 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void DamageImpactsAreCanonicalAndDeriveHeadlineValues()
+    public void ImpactsAreCanonicalAndKeepTheirOrder()
     {
-        // The areas of a disc are written in the vocabulary's order, whatever
-        // order the browser sent them in.
-        const string json = "[ { \"note\": \" Bonnet \" , \"severity\": \"light\", \"areas\": [\"front\"] }, { \"areas\": [\"left_rear\", \"rear\"], \"severity\": \"heavy\", \"note\": \"Quarter\" } ]";
+        // Members are written in one order and trimmed; the rows keep the
+        // order staff entered them in (v46).
+        const string json = "[ { \"note\": \" Bonnet \" , \"location\": \"front\", \"severity\": \"light\" }, { \"severity\": \"heavy\", \"location\": \"underside\", \"note\": \"\" } ]";
 
         var normalized = AssessmentPolicy.ValidateAndNormalize(
-            Request(new() { [AssessmentVocabulary.DamageImpacts] = json }));
+            Request(new() { [AssessmentVocabulary.Impacts] = json }));
 
-        Assert.Equal("[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"Bonnet\"},{\"areas\":[\"rear\",\"left_rear\"],\"severity\":\"heavy\",\"note\":\"Quarter\"}]", normalized.Fields[AssessmentVocabulary.DamageImpacts]);
-        // A front damage and a rear one stand apart: two groups read Multiple.
-        Assert.Equal(("multiple", "heavy"), AssessmentPolicy.DeriveImpactValues(normalized.Fields[AssessmentVocabulary.DamageImpacts]));
-        Assert.Equal(("underside", "heavy"), AssessmentPolicy.DeriveImpactValues("[{\"areas\":[\"underside\"],\"severity\":\"heavy\",\"note\":\"\"}]"));
-        // Two discs over the same area are one headline location.
-        Assert.Equal(("rear", "moderate"), AssessmentPolicy.DeriveImpactValues("[{\"areas\":[\"rear\"],\"severity\":\"light\",\"note\":\"\"},{\"areas\":[\"rear\"],\"severity\":\"moderate\",\"note\":\"\"}]"));
+        Assert.Equal(
+            "[{\"severity\":\"light\",\"location\":\"front\",\"note\":\"Bonnet\"},{\"severity\":\"heavy\",\"location\":\"underside\",\"note\":\"\"}]",
+            normalized.Fields[AssessmentVocabulary.Impacts]);
+        Assert.Equal(
+            [new AssessmentImpact("light", "front", "Bonnet"), new AssessmentImpact("heavy", "underside", string.Empty)],
+            AssessmentPolicy.ParseImpacts(normalized.Fields[AssessmentVocabulary.Impacts]));
     }
 
     [Fact]
-    public void TheDamageImpactsFormatNamesEveryCodeAndItsExampleIsAccepted()
+    public void AnIncompleteImpactIsKeptAndABlankOneIsDropped()
     {
-        var format = AssessmentVocabulary.Definitions[AssessmentVocabulary.DamageImpacts].Format;
+        // A row naming only some of its members is kept as entered; the
+        // report leaves it out (v46 G2). A row with nothing chosen or
+        // written is no impact.
+        var normalized = AssessmentPolicy.ValidateAndNormalize(Request(new()
+        {
+            [AssessmentVocabulary.Impacts] =
+                "[{\"severity\":\"moderate\",\"location\":\"\",\"note\":\"\"},{\"severity\":\"\",\"location\":\"\",\"note\":\" \"},{\"severity\":\"\",\"location\":\"rear\",\"note\":\"\"}]"
+        }));
+
+        var impacts = AssessmentPolicy.ParseImpacts(normalized.Fields[AssessmentVocabulary.Impacts]);
+        Assert.Equal([new AssessmentImpact("moderate", "", ""), new AssessmentImpact("", "rear", "")], impacts);
+        Assert.All(impacts, impact => Assert.False(impact.IsComplete));
+        Assert.True(new AssessmentImpact("moderate", "rear", "").IsComplete);
+    }
+
+    [Fact]
+    public void TheImpactsFormatNamesEveryCodeAndItsExampleIsAccepted()
+    {
+        var format = AssessmentVocabulary.Definitions[AssessmentVocabulary.Impacts].Format;
         Assert.NotNull(format);
-        foreach (var code in AssessmentVocabulary.DamageAreas.Keys.Concat(AssessmentVocabulary.DamageSeverities.Keys))
+        foreach (var code in AssessmentVocabulary.DamageAreaCodes.Concat(AssessmentVocabulary.DamageSeverities.Keys))
         {
             Assert.Contains(code, format, StringComparison.Ordinal);
         }
+        Assert.DoesNotContain("multiple", format, StringComparison.Ordinal);
         const string marker = "Example: ";
         var example = format[(format.IndexOf(marker, StringComparison.Ordinal) + marker.Length)..];
 
         var normalized = AssessmentPolicy.ValidateAndNormalize(
-            Request(new() { [AssessmentVocabulary.DamageImpacts] = example }));
+            Request(new() { [AssessmentVocabulary.Impacts] = example }));
 
-        Assert.Equal(example, normalized.Fields[AssessmentVocabulary.DamageImpacts]);
-    }
-
-    [Fact]
-    public void ADamageRecordedByAreaKeepsExactlyItsAreas()
-    {
-        // No disc: the areas are recorded as named, with nothing added around
-        // them (the 20 September completion rule is retired).
-        foreach (var json in new[]
-        {
-            "[{\"areas\":[\"front\",\"rear\"],\"severity\":\"light\",\"note\":\"\"}]",
-            "[{\"areas\":[\"front\",\"left_front\",\"left_side\"],\"severity\":\"light\",\"note\":\"\"}]"
-        })
-        {
-            var normalized = AssessmentPolicy.ValidateAndNormalize(
-                Request(new() { [AssessmentVocabulary.DamageImpacts] = json }));
-
-            Assert.Equal(json, normalized.Fields[AssessmentVocabulary.DamageImpacts]);
-        }
-    }
-
-    [Fact]
-    public void ADrawnDiscIsKeptAsDrawnAndNamesTheAreasItTouches()
-    {
-        // The operator's case (23 September 2026): a small disc on the centre
-        // line stays small and names the two sides it touches, whatever areas
-        // the browser sent with it; it never grows to cover the vehicle.
-        const string centre =
-            "[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":0.53,\"r\":0.08},\"severity\":\"light\",\"note\":\"\"}]";
-
-        var normalized = AssessmentPolicy.ValidateAndNormalize(
-            Request(new() { [AssessmentVocabulary.DamageImpacts] = centre }));
-
-        Assert.Equal(
-            "[{\"areas\":[\"left_side\",\"right_side\"],\"disc\":{\"x\":0.5,\"y\":0.53,\"r\":0.08},\"severity\":\"light\",\"note\":\"\"}]",
-            normalized.Fields[AssessmentVocabulary.DamageImpacts]);
-        var impact = Assert.Single(AssessmentPolicy.ParseImpacts(normalized.Fields[AssessmentVocabulary.DamageImpacts]));
-        Assert.Equal(new DamageDisc(0.5, 0.53, 0.08), impact.Disc);
-
-        // A disc inside one area names that area alone; the stored disc keeps
-        // four decimals.
-        var inside = AssessmentPolicy.ParseImpacts(
-            "[{\"areas\":[\"left_side\"],\"disc\":{\"x\":0.200004,\"y\":0.53,\"r\":0.08},\"severity\":\"light\",\"note\":\"\"}]");
-        Assert.Equal(["left_side"], Assert.Single(inside).Areas);
-        Assert.Equal(new DamageDisc(0.2, 0.53, 0.08), Assert.Single(inside).Disc);
-
-        // The widest disc the plan allows is recorded as drawn.
-        var widest = Assert.Single(AssessmentPolicy.ParseImpacts(
-            "[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":0.5,\"r\":0.5},\"severity\":\"heavy\",\"note\":\"\"}]"));
-        Assert.Equal(DamageAreaGeometry.MaxRadius, widest.Disc!.Radius);
-        Assert.Contains("left_side", widest.Areas);
-        Assert.Contains("right_side", widest.Areas);
-    }
-
-    [Fact]
-    public void PlanAreaTangencyIsNotPositiveCoverage()
-    {
-        var disc = new DamageDisc(
-            DamageAreaGeometry.LeftBand + DamageAreaGeometry.BaseRadius,
-            DamageAreaGeometry.FrontBand / 2,
-            DamageAreaGeometry.BaseRadius);
-
-        Assert.DoesNotContain(
-            "left_front",
-            DamageAreaGeometry.IntersectedPlanAreas(disc, 1, 1));
+        Assert.Equal(example, normalized.Fields[AssessmentVocabulary.Impacts]);
     }
 
     [Theory]
     [InlineData("not-json")]
     [InlineData("{}")]
-    [InlineData("[{\"areas\":[\"front\"],\"severity\":\"light\"}]")]
-    [InlineData("[{\"areas\":[\"unknown\"],\"severity\":\"light\",\"note\":\"x\"}]")]
-    [InlineData("[{\"areas\":[\"front\"],\"severity\":\"unknown\",\"note\":\"x\"}]")]
-    [InlineData("[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"x\",\"extra\":\"unexpected\"}]")]
-    [InlineData("[{\"areas\":[],\"severity\":\"light\",\"note\":\"x\"}]")]
-    [InlineData("[{\"areas\":[\"front\",\"front\"],\"severity\":\"light\",\"note\":\"x\"}]")]
-    [InlineData("[{\"areas\":[\"underside\",\"front\"],\"severity\":\"light\",\"note\":\"x\"}]")]
-    [InlineData("[{\"areas\":[\"underside\"],\"severity\":\"light\",\"note\":\"x\"},{\"areas\":[\"underside\"],\"severity\":\"heavy\",\"note\":\"y\"}]")]
-    [InlineData("[{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"x\"}]")]
-    [InlineData("[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":0.1,\"r\":0.6},\"severity\":\"light\",\"note\":\"x\"}]")]
-    [InlineData("[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":0.1,\"r\":0.01},\"severity\":\"light\",\"note\":\"x\"}]")]
-    [InlineData("[{\"areas\":[\"front\"],\"disc\":{\"x\":1.2,\"y\":0.1,\"r\":0.1},\"severity\":\"light\",\"note\":\"x\"}]")]
-    [InlineData("[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":-0.1,\"r\":0.1},\"severity\":\"light\",\"note\":\"x\"}]")]
-    [InlineData("[{\"areas\":[\"underside\"],\"disc\":{\"x\":0.5,\"y\":0.5,\"r\":0.1},\"severity\":\"light\",\"note\":\"x\"}]")]
-    [InlineData("[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":0.1,\"r\":0.1,\"z\":1},\"severity\":\"light\",\"note\":\"x\"}]")]
-    [InlineData("[{\"areas\":[\"front\"],\"disc\":{\"x\":\"0.5\",\"y\":0.1,\"r\":0.1},\"severity\":\"light\",\"note\":\"x\"}]")]
-    [InlineData("[{\"areas\":[\"front\"],\"disc\":[0.5,0.1,0.1],\"severity\":\"light\",\"note\":\"x\"}]")]
-    public void DamageImpactsFailClosed(string json)
+    [InlineData("[{\"severity\":\"light\",\"location\":\"front\"}]")]
+    [InlineData("[{\"severity\":\"light\",\"location\":\"front\",\"note\":\"x\",\"type\":\"collision\"}]")]
+    [InlineData("[{\"severity\":\"unknown\",\"location\":\"front\",\"note\":\"x\"}]")]
+    [InlineData("[{\"severity\":\"light\",\"location\":\"multiple\",\"note\":\"x\"}]")]
+    [InlineData("[{\"severity\":\"light\",\"location\":\"roof\",\"note\":\"x\"}]")]
+    [InlineData("[{\"severity\":1,\"location\":\"front\",\"note\":\"x\"}]")]
+    [InlineData("[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"x\"}]")]
+    public void ImpactsFailClosed(string json)
     {
         Assert.ThrowsAny<ArgumentException>(() => AssessmentPolicy.ValidateAndNormalize(
-            Request(new() { [AssessmentVocabulary.DamageImpacts] = json })));
+            Request(new() { [AssessmentVocabulary.Impacts] = json })));
     }
 
     [Fact]
-    public void DamageImpactNoteAndSerializedValueBoundsFailClosed()
+    public void ImpactNoteAndSerializedValueBoundsFailClosed()
     {
         var longNote = new string('x', 201);
         Assert.Throws<ArgumentException>(() => AssessmentPolicy.ValidateAndNormalize(Request(new()
         {
-            [AssessmentVocabulary.DamageImpacts] = $"[{{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"{longNote}\"}}]"
+            [AssessmentVocabulary.Impacts] = $"[{{\"severity\":\"light\",\"location\":\"front\",\"note\":\"{longNote}\"}}]"
         })));
+        Assert.Throws<ArgumentException>(() => AssessmentPolicy.ValidateAndNormalize(Request(new()
+        {
+            [AssessmentVocabulary.Impacts] = "[{\"severity\":\"light\",\"location\":\"front\",\"note\":\"a\\u0007b\"}]"
+        })));
+        var many = "[" + string.Join(",", Enumerable.Repeat("{\"severity\":\"light\",\"location\":\"front\",\"note\":\"" + new string('x', 150) + "\"}", 30)) + "]";
         Assert.Throws<ArgumentOutOfRangeException>(() => AssessmentPolicy.ValidateAndNormalize(Request(new()
         {
-            [AssessmentVocabulary.DamageImpacts] = "[" + new string(' ', 4001) + "]"
+            [AssessmentVocabulary.Impacts] = many
         })));
     }
 
-    [Theory]
-    [InlineData(AssessmentVocabulary.ImpactLocation)]
-    [InlineData(AssessmentVocabulary.ImpactSeverity)]
-    public void DerivedImpactFieldsCannotBeWrittenDirectly(string path)
+    [Fact]
+    public void AMarkerIsAPositionKeptAsDrawn()
     {
-        Assert.Throws<InvalidOperationException>(() => AssessmentPolicy.ValidateAndNormalize(
-            Request(new() { [path] = "front" })));
+        // A marker is a disc and nothing else (v46): it names no area, no
+        // severity and no note, and is kept at the precision it is stored at.
+        var normalized = AssessmentPolicy.ValidateAndNormalize(Request(new()
+        {
+            [AssessmentVocabulary.DamageMarkers] = "[{\"r\":0.123456,\"x\":0.500004,\"y\":0.92}]"
+        }));
+
+        Assert.Equal("[{\"x\":0.5,\"y\":0.92,\"r\":0.1235}]", normalized.Fields[AssessmentVocabulary.DamageMarkers]);
+        Assert.Equal([new DamageDisc(0.5, 0.92, 0.1235)], AssessmentPolicy.ParseMarkers(normalized.Fields[AssessmentVocabulary.DamageMarkers]));
+        Assert.Equal("[]", AssessmentPolicy.SerializeMarkers([]));
+    }
+
+    [Fact]
+    public void TheMarkersFormatsExampleIsAccepted()
+    {
+        var format = AssessmentVocabulary.Definitions[AssessmentVocabulary.DamageMarkers].Format;
+        Assert.NotNull(format);
+        const string marker = "Example: ";
+        var example = format[(format.IndexOf(marker, StringComparison.Ordinal) + marker.Length)..];
+
+        var normalized = AssessmentPolicy.ValidateAndNormalize(
+            Request(new() { [AssessmentVocabulary.DamageMarkers] = example }));
+
+        Assert.Equal(example, normalized.Fields[AssessmentVocabulary.DamageMarkers]);
+    }
+
+    [Theory]
+    [InlineData("not-json")]
+    [InlineData("{}")]
+    [InlineData("[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"x\"}]")]
+    [InlineData("[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":0.1,\"r\":0.1},\"severity\":\"light\",\"note\":\"x\"}]")]
+    [InlineData("[{\"x\":0.5,\"y\":0.1,\"r\":0.6}]")]
+    [InlineData("[{\"x\":0.5,\"y\":0.1,\"r\":0.01}]")]
+    [InlineData("[{\"x\":1.2,\"y\":0.1,\"r\":0.1}]")]
+    [InlineData("[{\"x\":0.5,\"y\":-0.1,\"r\":0.1}]")]
+    [InlineData("[{\"x\":0.5,\"y\":0.1,\"r\":0.1,\"z\":1}]")]
+    [InlineData("[{\"x\":\"0.5\",\"y\":0.1,\"r\":0.1}]")]
+    [InlineData("[[0.5,0.1,0.1]]")]
+    public void MarkersFailClosed(string json)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => AssessmentPolicy.ValidateAndNormalize(
+            Request(new() { [AssessmentVocabulary.DamageMarkers] = json })));
     }
 
     [Fact]
@@ -554,186 +540,21 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void TheDamageAreasAreTheEightPlanAreasAndTheThreeOthers()
+    public void AnImpactsLocationIsOneOfTheElevenAreasAndNeverMultiple()
     {
-        Assert.Equal(8, AssessmentVocabulary.DamagePlanAreas.Count);
-        Assert.Equal(3, AssessmentVocabulary.DamageOtherAreas.Count);
+        // v46 item B: the eight areas of the plan and the three it cannot
+        // show; each impact is its own row, so nothing reads Multiple.
         Assert.Equal(
-            AssessmentVocabulary.DamagePlanAreas.Concat(AssessmentVocabulary.DamageOtherAreas).Order(StringComparer.Ordinal),
+            ["front", "left_front", "right_front", "left_side", "right_side", "rear",
+             "left_rear", "right_rear", "underside", "interior", "mechanical"],
+            AssessmentVocabulary.DamageAreaCodes);
+        Assert.Equal(
+            AssessmentVocabulary.DamageAreaCodes.Order(StringComparer.Ordinal),
             AssessmentVocabulary.DamageAreas.Keys.Order(StringComparer.Ordinal));
-        Assert.Equal(
-            [.. AssessmentVocabulary.DamagePlanAreas, .. AssessmentVocabulary.DamageOtherAreas, "multiple"],
-            AssessmentVocabulary.Definitions[AssessmentVocabulary.ImpactLocation].Codes!);
         Assert.Equal("LH Rear", AssessmentVocabulary.DamageAreas["left_rear"]);
-        Assert.True(AssessmentVocabulary.DamageAreaOrder("front") < AssessmentVocabulary.DamageAreaOrder("underside"));
-        Assert.Equal(AssessmentVocabulary.DamagePlanAreas.Count + 3, AssessmentVocabulary.DamageAreaOrder("unknown"));
-
-        // Every plan area has a centre on the unit plan.
-        Assert.Equal(AssessmentVocabulary.DamagePlanAreas.Order(StringComparer.Ordinal), DamageAreaGeometry.Centres.Keys.Order(StringComparer.Ordinal));
-
-        // A one-area disc sits on the area's centre; a wider disc grows to
-        // reach every area it names; the other areas draw nothing.
-        var one = DamageAreaGeometry.RenderDisc(["front"], 100, 200)!;
-        Assert.Equal((50d, 20d, 12d), (one.CentreX, one.CentreY, one.Radius));
-        var two = DamageAreaGeometry.RenderDisc(["rear", "left_rear"], 100, 200)!;
-        Assert.True(two.Radius > one.Radius);
-        Assert.True(two.CentreX < 50);
-        Assert.Null(DamageAreaGeometry.RenderDisc(["underside"], 100, 200));
+        Assert.False(AssessmentVocabulary.Definitions.ContainsKey("assessment.impact_location"));
+        Assert.False(AssessmentVocabulary.Definitions.ContainsKey("assessment.impact_severity"));
     }
-
-    [Fact]
-    public void AreaDiscsReachTheirAreasAndAreNeverWiderThanTheVehicle()
-    {
-        // On the workspace plan (the canonical shape) a disc drawn for two
-        // neighbouring areas reaches both of their centres.
-        const double width = 156;
-        const double height = 394;
-        Assert.Equal(height / width, DamageAreaGeometry.CanonicalHeight / DamageAreaGeometry.CanonicalWidth, 10);
-        foreach (var areas in new[]
-        {
-            new[] { "front", "left_front" },
-            new[] { "rear", "left_rear" },
-            new[] { "left_side", "left_rear" },
-            new[] { "right_front", "right_side" }
-        })
-        {
-            var disc = DamageAreaGeometry.RenderDisc(areas, width, height)!;
-            foreach (var area in areas)
-            {
-                var centre = DamageAreaGeometry.Centres[area];
-                Assert.True(
-                    Math.Sqrt(Math.Pow(centre.X * width - disc.CentreX, 2) + Math.Pow(centre.Y * height - disc.CentreY, 2)) <= disc.Radius,
-                    $"The rendered disc for {string.Join('+', areas)} does not reach {area}.");
-            }
-        }
-
-        // However many areas a damage names, its disc is never wider than
-        // the vehicle, at the workspace's scale or the report's.
-        foreach (var (renderWidth, renderHeight) in new[] { (156d, 394d), (124d, 364d) })
-        {
-            var all = DamageAreaGeometry.RenderDisc(AssessmentVocabulary.DamagePlanAreas, renderWidth, renderHeight)!;
-            Assert.True(all.Radius <= DamageAreaGeometry.MaxRadius * renderWidth + 1e-9);
-        }
-
-        // A drawn disc renders as drawn, its radius scaled by the width.
-        var drawn = DamageAreaGeometry.RenderDisc(["left_side", "right_side"], 100, 200, new DamageDisc(0.5, 0.53, 0.08))!;
-        Assert.Equal(50d, drawn.CentreX, 9);
-        Assert.Equal(106d, drawn.CentreY, 9);
-        Assert.Equal(8d, drawn.Radius, 9);
-    }
-
-    [Fact]
-    public void OverlappingDiscsAreIndependentEntries()
-    {
-        // Two discs may cover the same area: each stays its own damage with
-        // its own severity and note. Their discs touch (the front disc and
-        // the wider one its two areas give), so they are one group whose two
-        // centres sit one in Front and one in RH Front: the tie goes to the
-        // record's order, Front (operator, 2 November 2026).
-        const string json =
-            "[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"Small\"},"
-            + "{\"areas\":[\"front\",\"right_front\"],\"severity\":\"heavy\",\"note\":\"Wide\"}]";
-
-        var normalized = AssessmentPolicy.ValidateAndNormalize(
-            Request(new() { [AssessmentVocabulary.DamageImpacts] = json }));
-
-        Assert.Equal(json, normalized.Fields[AssessmentVocabulary.DamageImpacts]);
-        Assert.Equal(
-            ("front", "heavy"),
-            AssessmentPolicy.DeriveImpactValues(normalized.Fields[AssessmentVocabulary.DamageImpacts]));
-
-        var alone = AssessmentPolicy.DeriveImpactValues(
-            "[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"Small\"}]");
-        Assert.Equal(("front", "light"), alone);
-    }
-
-    /// <summary>
-    /// The headline location (operator, 2 November 2026): bursts whose discs
-    /// touch are one damage reading as the area most of their centres sit
-    /// in; damages standing apart read Multiple.
-    /// </summary>
-    [Fact]
-    public void TouchingBurstsDeriveOneAreaAndSeparateOnesMultiple()
-    {
-        // One wide burst straddling Front and LH Front, pressed in LH Front.
-        Assert.Equal(("left_front", "moderate"), AssessmentPolicy.DeriveImpactValues(
-            Impacts(("moderate", new DamageDisc(0.3, 0.15, 0.2)))));
-
-        // Three touching bursts along the Front/RH Front line: two centres
-        // in Front, one in RH Front.
-        Assert.Equal(("front", "heavy"), AssessmentPolicy.DeriveImpactValues(
-            Impacts(
-                ("light", new DamageDisc(0.5, 0.1, 0.1)),
-                ("heavy", new DamageDisc(0.6, 0.15, 0.1)),
-                ("light", new DamageDisc(0.7, 0.2, 0.1)))));
-
-        // A chain: the first and the last do not touch, the middle one joins them.
-        Assert.Equal(("rear", "light"), AssessmentPolicy.DeriveImpactValues(
-            Impacts(
-                ("light", new DamageDisc(0.45, 0.85, 0.08)),
-                ("light", new DamageDisc(0.6, 0.85, 0.08)),
-                ("light", new DamageDisc(0.75, 0.85, 0.08)))));
-
-        // A tie between two areas goes to the record's order: Front before RH Front.
-        Assert.Equal(("front", "light"), AssessmentPolicy.DeriveImpactValues(
-            Impacts(
-                ("light", new DamageDisc(0.7, 0.1, 0.1)),
-                ("light", new DamageDisc(0.6, 0.1, 0.1)))));
-
-        // Two bursts standing apart are Multiple, and so is a plan damage
-        // beside an Underside one.
-        Assert.Equal(("multiple", "light"), AssessmentPolicy.DeriveImpactValues(
-            Impacts(
-                ("light", new DamageDisc(0.5, 0.1, 0.1)),
-                ("light", new DamageDisc(0.5, 0.9, 0.1)))));
-        Assert.Equal(("multiple", "heavy"), AssessmentPolicy.DeriveImpactValues(
-            "[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":0.1,\"r\":0.1},\"severity\":\"light\",\"note\":\"\"},"
-            + "{\"areas\":[\"underside\"],\"severity\":\"heavy\",\"note\":\"\"}]"));
-        Assert.Equal(("multiple", "heavy"), AssessmentPolicy.DeriveImpactValues(
-            "[{\"areas\":[\"interior\"],\"severity\":\"light\",\"note\":\"\"},"
-            + "{\"areas\":[\"underside\"],\"severity\":\"heavy\",\"note\":\"\"}]"));
-
-        // A damage recorded by area alone is judged by the disc its areas
-        // give: LH Side and RH Side together sit on the plan's middle, which
-        // reads RH Side.
-        Assert.Equal(("right_side", "light"), AssessmentPolicy.DeriveImpactValues(
-            "[{\"areas\":[\"left_side\",\"right_side\"],\"severity\":\"light\",\"note\":\"\"}]"));
-    }
-
-    [Fact]
-    public void ACentreSitsInOneAreaAndTangentDiscsTouch()
-    {
-        // The band tests are the Case page's readout's: strictly inside a
-        // band is the row or column, on the band line is the centre row or
-        // column, and the centre column of the side row splits at the middle.
-        Assert.Equal("front", DamageAreaGeometry.AreaAt(new(0.5, 0.1)));
-        Assert.Equal("left_front", DamageAreaGeometry.AreaAt(new(0.1, 0.1)));
-        Assert.Equal("right_front", DamageAreaGeometry.AreaAt(new(0.9, 0.1)));
-        Assert.Equal("left_side", DamageAreaGeometry.AreaAt(new(0.1, 0.5)));
-        Assert.Equal("left_side", DamageAreaGeometry.AreaAt(new(0.49, 0.5)));
-        Assert.Equal("right_side", DamageAreaGeometry.AreaAt(new(0.5, 0.5)));
-        Assert.Equal("right_side", DamageAreaGeometry.AreaAt(new(0.9, 0.5)));
-        Assert.Equal("rear", DamageAreaGeometry.AreaAt(new(0.5, 0.9)));
-        Assert.Equal("left_rear", DamageAreaGeometry.AreaAt(new(0.1, 0.9)));
-        Assert.Equal("right_rear", DamageAreaGeometry.AreaAt(new(0.9, 0.9)));
-        Assert.Equal("front", DamageAreaGeometry.AreaAt(new(DamageAreaGeometry.LeftBand, 0.1)));
-        Assert.Equal("left_side", DamageAreaGeometry.AreaAt(new(0.1, DamageAreaGeometry.FrontBand)));
-        Assert.Equal("left_side", DamageAreaGeometry.AreaAt(new(0.1, DamageAreaGeometry.RearBand)));
-
-        // Touching is measured on the canonical plan, so the same unit gap
-        // is further apart down the plan than across it.
-        Assert.True(DamageAreaGeometry.Touch(new(0.2, 0.5, 0.1), new(0.4, 0.5, 0.1)));
-        Assert.False(DamageAreaGeometry.Touch(new(0.2, 0.5, 0.1), new(0.401, 0.5, 0.1)));
-        Assert.False(DamageAreaGeometry.Touch(new(0.5, 0.3, 0.1), new(0.5, 0.5, 0.1)));
-        Assert.True(DamageAreaGeometry.Touch(new(0.5, 0.3, 0.1), new(0.5, 0.37, 0.1)));
-    }
-
-    private static string Impacts(params (string Severity, DamageDisc Disc)[] damages) =>
-        "[" + string.Join(",", damages.Select(damage =>
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"{{\"areas\":[\"front\"],\"disc\":{{\"x\":{damage.Disc.CentreX},\"y\":{damage.Disc.CentreY},\"r\":{damage.Disc.Radius}}},\"severity\":\"{damage.Severity}\",\"note\":\"\"}}")))
-        + "]";
 
     [Fact]
     public void SaveBoundCoversTheWholeVocabulary()

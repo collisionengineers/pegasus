@@ -214,10 +214,11 @@ page shows a colleague's request in the **Request to edit** dialog: the
 requester's name and Accept and Deny only, with no close control (R557,
 30 October 2026). Damage uses the
 **plan** only: a top-down drawing of the recorded vehicle (car, van or
-motorbike), one yellow comic burst per recorded damage sized and placed by
+motorbike), one yellow comic burst per damage marker sized and placed by
 dragging and kept as drawn (no wider than half the vehicle, unnumbered and
-unclipped, one look for every severity), and a recorded-areas list numbered
-in recorded order. Images open in a
+unclipped), Clear markers under it while editing, and beside it the impacts
+staff enter, one row each: Impact · Severity · Location · Note · ×, with Add
+impact (v46, 3 November 2026, R642–R646). Images open in a
 full-screen **viewer** (title, tag, position, Rotate, Zoom, Download, Pop
 out, In report while editing, and a filmstrip with excluded images greyed);
 crop happens on the viewer stage itself (drag, handles, move, Aspect, Rotate
@@ -596,7 +597,7 @@ sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`.
 | `operations` | `loader` | `465B8F3CB2BF55A7E24020ED0DBBB8889B459067F0726CA9823096D966CEF049` | Running jobs |
 | `admin` | `layout-grid` | `4E1BD5FDEDB37C02C0F269937F3F3FC692DC4EE269DB0DD217BCCDE2281785F0` | Rail: Administration |
 | `search` | `search` | `952DB09E029919CD450AD0FEB8CC55F5BAACD91D807C976A7A0E28A9575E893F` | Utility search; palette; Search buttons; DVLA & MOT lookup |
-| `plus` | `plus` | `C73FC35CF2FB795464D0C22E80F1813767F46CC8B90E318A4EA48407C50632E1` | Add, Create, New estimate |
+| `plus` | `plus` | `C73FC35CF2FB795464D0C22E80F1813767F46CC8B90E318A4EA48407C50632E1` | Add, Create, New estimate, Add impact |
 | `refresh` | `refresh-cw` | `3C170FEBF30E95F23CEFEC720790C6054E0E008079F6B07E6C40D8F8D6BEFE65` | The one Refresh control (`Shared/_RefreshButton`) |
 | `chevron-right` | `chevron-right` | `9E0C76988880A796061C1B7C22AABF234E0DDD486F5FE590B2EFBE378168C616` | Row affordance, stepper |
 | `chevron-left` | `chevron-left` | `15600F6026449B1774765FC1D3FEB031B138A5BBBBDCAE093BBF74916FC9FC1C` | Back, pagination |
@@ -614,7 +615,7 @@ sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`.
 | `link` | `link` | `419DB6E93B579C03EB3E8FFD3498C344C54DA7938C6F8EFB11C69BDE4C012AAC` | Case link |
 | `edit` | `pencil` | `08192262945F01FEBD377BF1787E4E4D419BB648BF7B752C5591CB82D0D0017F` | Edit Case, inline edit |
 | `save` | `save` | `0B1F6DF1117FFB3E57BBA5988DD06ED944BCCE696F5391A7B94729E3BE90006C` | Save |
-| `close` | `x` | `EEAAD857AC2A8C02C12BACD1232559E6190E739218BA0CA3457861C8B250F5A5` | Dialog close, tab close, remove |
+| `close` | `x` | `EEAAD857AC2A8C02C12BACD1232559E6190E739218BA0CA3457861C8B250F5A5` | Dialog close, tab close, remove; Damage: clear an impact row, Clear markers |
 | `hold` | `pause` | `43EDFC801EEACF83F9FEE24E626EEF5CBECB912DF129A5F29169D9AF623D2839` | Place on Hold, Held |
 | `play` | `play` | `64A039BF1E3597839C384747686ABC3C47E23270CD65AD964A545061049B01D4` | Release Hold, Start automation, Retry this work |
 | `report`, `document` | `file-text` | `C75ABDDDD4E58A169641EC70691CC9A80BE27C6930BE2C7B39CCD7786B2E9EB6` | Report, instruction evidence |
@@ -665,7 +666,7 @@ symbols: the fifty-three above plus these twenty-two.
 | — | `scroll-text` | `9AD7578BF07319745EE8D157FDE09551A4AD21445317910C61AA569A2BB550F5` | Administration nav and hub: Logs |
 | — | `square` | `7FA36224EAE826CF7CE1320F27BB389EF13B3FA5D359948A7A78720FEF80E8ED` | Case record: an unticked item; image tile: In report, off |
 | — | `square-check` | `05FC6728D20C44ACD31C6226C6B99396AD5B490B89460D8E018CC004655A7F41` | Image tile: In report, on; Case Tasks (Actions item, empty list; [v41 K1](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
-| — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified and Triage Reopen; Damage Reset; restore composed wording |
+| — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified and Triage Reopen; restore composed wording |
 | — | `tag` | `DD7CD667273A81E81C0901A77A43153FC8A1C8FC51FDFB98F5CFDF2AB7AC4596` | Image tile: Tag |
 | — | `file-image` | `DAE10E1CDF7EE095323DC27D60CF5A113ADB9830B2A02A2A90BF11FAEEED3808` | Image tile: Print on its own page (Full page) |
 | — | `mail-open` | `02B6080FE619C000EA414770A608F38F623664387E60F227B185C134641C1A10` | Administration nav and hub: E-mail templates |
@@ -951,7 +952,7 @@ deleted in wave 5.
 | `damage-diagram`, `dv-hit`, `dm`, `dm-guides` | The vehicle's drawing and the outline a press must start on, one burst per recorded damage over its unpainted disc (kept as drawn, unclipped), and the dashed band guides shown while editing |
 | `valuation-card` | One valuation entry: source, date, time, guide month, retail, trade (and the mileage an Engineer's Value or AI entry carries) |
 | `outcome-option` | Settlement outcome choice |
-| `derived` | A value derived, never entered: impact location and severity, equity, the Incident narrative and the statement of truth read from their report owners, and a permitted ratio line where one is shown |
+| `derived` | A value derived, never entered: equity, the Incident narrative and the statement of truth read from their report owners, and a permitted ratio line where one is shown |
 | `report-image`, `cropper` | Image preparation on the Files tiles: In report on or off, the Overview and Close-up their tags decide, the report order, non-destructive crop |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
 | `blocker-list`, `blocker`, `blocker-name` | Outstanding requirements, and the report blockers in the aside's Report not ready card, whose `blocker-name` is the requirement as its link to the section that clears it; the Engineer blocker is the one exception and links the ribbon's Assign Engineer action, not a section (operator, 22 October 2026) |

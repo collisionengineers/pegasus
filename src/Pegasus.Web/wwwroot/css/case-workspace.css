@@ -172,38 +172,51 @@ span.blocker-name{cursor:default;text-decoration:none}
 #section-damage .dv-hit path{fill:none;stroke:none;pointer-events:none}
 #section-damage[data-damage-editable="true"] svg.damage-diagram{cursor:crosshair;touch-action:none}
 #section-damage .dm-guides path{fill:none;stroke:var(--navy);stroke-width:.6;stroke-dasharray:3 3;opacity:.45;pointer-events:none}
-#section-damage .damage-plan-area{color:var(--navy);cursor:pointer}
-#section-damage .damage-plan-area-hit{fill:none;stroke:transparent;stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
-#section-damage .damage-plan-area:focus .damage-plan-area-hit{stroke:currentColor;stroke-dasharray:2 2}
 #section-damage .damage-marks .dm{pointer-events:none}
 #section-damage[data-damage-editable="true"] .damage-marks .dm{pointer-events:auto;cursor:grab}
 #section-damage .damage-marks .dm .area{fill:transparent;stroke:none}
 #section-damage .damage-marks .dm.is-hover .burst{stroke:var(--navy)}
-#section-damage [data-damage-reset]{display:flex;margin:6px auto 0}
-#section-damage .dv-readout{min-height:18px;margin-top:6px;text-align:center;font-size:12px;font-weight:600;color:var(--navy)}
+/* Clear markers stands under the plan while the section edits (v46 J). */
 #section-damage .damage-extra{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:8px}
-#section-damage .damage-extra .btn.is-damaged{border-color:var(--red);background:var(--red);color:#fff}
-/* Read mode: the same chips, greyed and inert; a recorded one keeps its fill. */
-#section-damage .damage-extra .btn.is-static{cursor:default;pointer-events:none;border-color:var(--line);background:var(--surface-2);color:var(--muted)}
-#section-damage .damage-extra .btn.is-static.is-damaged{border-color:var(--red);background:var(--red);color:#fff}
-#section-damage .impact-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
-#section-damage .impact-list .muted{font-size:12.5px}
-#section-damage .impact-row{display:grid;grid-template-columns:1fr 150px 1fr 30px;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:var(--radius);background:#fff}
-#section-damage .impact-row.is-hover{border-color:var(--navy)}
-#section-damage .impact-row .zc{font:600 11px var(--mono);color:var(--ink);display:inline-flex;align-items:center;min-width:0}
-#section-damage .impact-row .zn{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--ink);color:#fff;font:700 10px/1 var(--font);margin-right:6px;flex:none}
-#section-damage .impact-row .fc{margin:0;min-width:0}
-#section-damage .impact-row .fv,#section-damage .impact-row .fi{min-height:32px;padding:4px 8px}
-#section-damage .impact-row .del{border:0;background:none;color:var(--quiet);font-size:16px;padding:0;cursor:pointer;display:none}
-#section-damage .impact-row .del:hover{color:var(--red)}
-.case-record.is-editing #section-damage[data-damage-editable="true"] .impact-row .del{display:block}
+/* ---- Damage: the impacts staff enter (v46) -------------------------------- */
+/* One line per impact: Impact · Severity · Location · Note · ×. Read and edit
+   share the geometry; the × keeps its column while reading, so editing moves
+   nothing. Below 1100px a row folds into a captioned two-column card. */
+#section-damage .impact-entry{display:grid;gap:6px}
+#section-damage .impact-entry-head[hidden],#section-damage .impact-entry-empty[hidden]{display:none}
+#section-damage .impact-entry-head,#section-damage .impact-entry-row,#section-damage .impact-entry-foot{display:grid;grid-template-columns:52px minmax(162px,1fr) minmax(110px,.9fr) minmax(0,2fr) var(--control);gap:6px;align-items:center}
+#section-damage .impact-entry-head .lbl,#section-damage .impact-entry-row .fc::before{display:block;font-size:10.5px;color:var(--quiet);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-left:9px;white-space:nowrap}
+#section-damage .impact-entry-row .fc::before{display:none}
+#section-damage .impact-entry-rows{display:grid;gap:6px}
+#section-damage .impact-entry-label{font-weight:700;color:var(--ink)}
+#section-damage .impact-entry-row .fc{margin:0;min-width:0}
+#section-damage .impact-entry-row .fc:not([data-caption="Note"]) .fv{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#section-damage .impact-entry-row .fi{min-width:0;width:100%}
+.is-editing #section-damage .impact-entry-row .fc:not(.ro) .fv{display:none}
+#section-damage .impact-entry-clear{min-width:var(--control);min-height:var(--control);visibility:hidden;justify-self:center;color:var(--quiet)}
+#section-damage .impact-entry-clear:hover{color:var(--danger);background:var(--danger-bg)}
+#section-damage .impact-entry-empty{margin:0 0 0 58px;font-size:12.5px}
+#section-damage .impact-entry-foot{display:none;margin-top:2px}
+#section-damage .impact-entry-add{grid-column:2/4;justify-self:start}
+.case-record.is-editing #section-damage[data-damage-editable="true"] .impact-entry-clear{visibility:visible}
+.case-record.is-editing #section-damage[data-damage-editable="true"] .impact-entry-foot{display:grid}
+@media(max-width:1100px){
+  #section-damage .impact-entry-head{display:none}
+  #section-damage .impact-entry-row{grid-template-columns:repeat(2,minmax(0,1fr));padding:8px;border:1px solid var(--line);border-radius:var(--radius)}
+  #section-damage .impact-entry-label{grid-row:1;grid-column:1}
+  #section-damage .impact-entry-clear{grid-row:1;grid-column:2;justify-self:end}
+  #section-damage .impact-entry-row .fc[data-caption="Note"]{grid-column:1/-1}
+  #section-damage .impact-entry-row .fc::before{content:attr(data-caption);display:block;margin-bottom:3px}
+  #section-damage .impact-entry-empty{margin-left:0}
+  .case-record.is-editing #section-damage[data-damage-editable="true"] .impact-entry-foot{display:block}
+}
 #section-damage .thumbs.evidence{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
 #section-damage .thumbs.evidence .th{position:relative;display:flex;align-items:flex-end;aspect-ratio:4/3;border:1px solid var(--line);border-radius:3px;overflow:hidden;padding:5px;background:var(--surface-3);color:#fff;font:600 9.5px var(--mono);text-shadow:0 1px 2px rgba(0,0,0,.5);text-decoration:none;cursor:zoom-in}
 #section-damage .thumbs.evidence .th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 #section-damage .thumbs.evidence .th-name{position:relative;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 @media(max-width:1180px){#section-damage .thumbs.evidence{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:900px){#section-damage .damage-workbench{grid-template-columns:1fr}#section-damage .damage-view{max-width:320px}}
-@media(max-width:760px){#section-damage .impact-row{grid-template-columns:1fr 1fr}#section-damage .thumbs.evidence{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:760px){#section-damage .thumbs.evidence{grid-template-columns:repeat(3,1fr)}}
 
 
 /* ==== valuation ==== */
@@ -788,9 +801,6 @@ body.case-images-window{margin:0;background:var(--surface-2)}
 @media (max-width:1440px){.case-record .workspace-aside{align-items:start}.case-record .workspace-aside>.report-not-ready{grid-column:1/-1}}
 /* f08 · aside card heads share the section head height. */
 .case-record .workspace-aside>.panel>.panel-head{min-height:51px}
-/* f23 · Reset sits with the area chips under the plan. */
-#section-damage .damage-extra{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-#section-damage .damage-extra [data-damage-reset]{margin-left:auto}
 /* f25 · Get valuation: a small button centred at the card's foot. */
 .valuation-card-foot{display:flex;justify-content:center;margin-top:8px}
 /* f26 · an unconnected card states the approved sentence as one quiet line, not a notice box. */

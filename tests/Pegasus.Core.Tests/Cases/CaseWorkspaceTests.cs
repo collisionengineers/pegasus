@@ -307,27 +307,30 @@ public sealed class CaseWorkspaceTests
             {
                 Damage = new(null, new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
-                    [AssessmentVocabulary.DamageImpacts] = "[]"
+                    [AssessmentVocabulary.DamageMarkers] = "[]"
                 })
             })));
     }
 
     [Fact]
-    public void TheDamageSectionWritesItsImpactsAndTheDerivedHeadlineIsLeftToTheStore()
+    public void TheDamageSectionWritesItsMarkersAndTheImpactsStaffEntered()
     {
         var request = CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
         {
-            Damage = new([new(["left_front"], "light", "Scuffed")], null)
+            Damage = new(
+                [new DamageDisc(0.18, 0.2, 0.12)],
+                new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [AssessmentVocabulary.Impacts] = "[{\"severity\":\"light\",\"location\":\"left_front\",\"note\":\"Scuffed\"}]"
+                })
         }));
 
         var fields = CaseWorkspacePolicy.AssessmentFields(request);
+        Assert.Equal("[{\"x\":0.18,\"y\":0.2,\"r\":0.12}]", fields[AssessmentVocabulary.DamageMarkers]);
         Assert.Equal(
-            "[{\"areas\":[\"left_front\"],\"severity\":\"light\",\"note\":\"Scuffed\"}]",
-            fields[AssessmentVocabulary.DamageImpacts]);
-        Assert.DoesNotContain(AssessmentVocabulary.ImpactLocation, fields.Keys);
-        Assert.Equal(
-            ("left_front", "light"),
-            AssessmentPolicy.DeriveImpactValues(fields[AssessmentVocabulary.DamageImpacts]));
+            "[{\"severity\":\"light\",\"location\":\"left_front\",\"note\":\"Scuffed\"}]",
+            fields[AssessmentVocabulary.Impacts]);
+        Assert.DoesNotContain("assessment.impact_location", fields.Keys);
     }
 
     [Fact]

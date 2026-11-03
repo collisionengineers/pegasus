@@ -26,14 +26,15 @@ public enum AssessmentFieldType
 }
 
 /// <summary>
-/// One recorded damage (v28 P5): the areas it covers in the vocabulary's
-/// order, a severity and a note. A damage drawn on the plan keeps its
-/// <paramref name="Disc"/> as drawn (unit-plan terms, see
-/// <see cref="DamageAreaGeometry"/>) and names exactly the plan areas that
-/// disc touches (ruled 23 September 2026). A damage recorded by area alone,
-/// and Underside, Interior and Mechanical, each recorded alone, have no disc.
+/// One impact as staff enter it on the Damage section (v46, operator,
+/// 3 November 2026): a severity, a location and a free-text note, each blank
+/// until chosen. An impact names both a severity and a location before the
+/// report prints it (<see cref="IsComplete"/>); the note never prints.
 /// </summary>
-public sealed record AssessmentImpact(IReadOnlyList<string> Areas, string Severity, string Note, DamageDisc? Disc = null);
+public sealed record AssessmentImpact(string Severity, string Location, string Note)
+{
+    public bool IsComplete => Severity.Length > 0 && Location.Length > 0;
+}
 
 /// <summary>
 /// One assessment field. <paramref name="Format"/> describes the value a
@@ -59,9 +60,14 @@ public static class AssessmentVocabulary
     public const string VehicleBody = "vehicle.body";
     public const string VehicleTaxExpiry = "vehicle.tax_expiry";
     public const string VehicleMotExpiry = "vehicle.mot_expiry";
-    public const string ImpactSeverity = "assessment.impact_severity";
-    public const string ImpactLocation = "assessment.impact_location";
-    public const string DamageImpacts = "damage.impacts";
+    /// <summary>The impacts staff enter, severity, location and note (v46).</summary>
+    public const string Impacts = "assessment.impacts";
+    /// <summary>
+    /// The damage markers drawn on the plan for the report's picture, positions
+    /// only (v46). The path keeps the name it had when a marker also carried
+    /// its areas, severity and note, so a caller's path is unchanged.
+    /// </summary>
+    public const string DamageMarkers = "damage.impacts";
     public const string DamageUnrelated = "damage.unrelated";
     public const string ValueRetail = "assessment.values.retail";
     public const string ValueTrade = "assessment.values.trade";
@@ -112,38 +118,21 @@ public static class AssessmentVocabulary
     public const string OriginalReportOutcome = "original_report.outcome";
 
     /// <summary>
-    /// Every accepted damage zone with its display label and the headline
-    /// impact location it rolls up to. This table is the one owner of that
-    /// parent map: a broad region is its own headline, a detailed region
-    /// carries its parent's headline, and the four wheels roll up to
-    /// <c>wheel</c>. A broad impact recorded before the detailed diagram
-    /// existed stays a broad fact and is never split into detailed regions.
+    /// The locations an impact names, in the order the Case page lists them:
+    /// the eight areas of the plan and the three it cannot show (v46 item B,
+    /// operator, 3 November 2026). There is no "multiple": each impact is its
+    /// own row.
     /// </summary>
-    /// <summary>
-    /// The eight areas of the plan (v28 P5): front, the sides and the rear,
-    /// each split left, centre and right. A disc drawn on the vehicle records
-    /// the areas under it.
-    /// </summary>
-    public static IReadOnlyList<string> DamagePlanAreas { get; } =
+    public static IReadOnlyList<string> DamageAreaCodes { get; } =
     [
-        "front", "left_front", "right_front", "left_side",
-        "right_side", "rear", "left_rear", "right_rear"
+        "front", "left_front", "right_front", "left_side", "right_side", "rear",
+        "left_rear", "right_rear", "underside", "interior", "mechanical"
     ];
 
-    /// <summary>The three areas the plan cannot show, each recorded alone.</summary>
-    public static IReadOnlyList<string> DamageOtherAreas { get; } = ["underside", "interior", "mechanical"];
-
     /// <summary>
-    /// The impact location derived when the damages stand apart: more than
-    /// one group of touching bursts, or a plan damage beside an Underside,
-    /// Interior or Mechanical one (operator, 2 November 2026).
-    /// </summary>
-    public const string SeveralAreas = "multiple";
-
-    /// <summary>
-    /// Every recordable area with its name, as the record and the Case page's
-    /// cells show it. The report names an area in its own words
-    /// (<see cref="Pegasus.Core.Reports.ReportWordingComposition.LeadingWords"/>).
+    /// Every location with its name, as the Case page shows it. The report
+    /// names a location in its own words
+    /// (<see cref="Pegasus.Core.Reports.ReportWordingComposition.Words"/>).
     /// </summary>
     public static IReadOnlyDictionary<string, string> DamageAreas { get; } =
         new Dictionary<string, string>(StringComparer.Ordinal)
@@ -154,15 +143,7 @@ public static class AssessmentVocabulary
             ["underside"] = "Underside", ["interior"] = "Interior", ["mechanical"] = "Mechanical"
         };
 
-    private static readonly string[] DamageAreaSequence = [.. DamagePlanAreas, .. DamageOtherAreas];
-
-    /// <summary>An area's position in the record's order; an unknown code sorts last.</summary>
-    public static int DamageAreaOrder(string code)
-    {
-        var index = Array.IndexOf(DamageAreaSequence, code);
-        return index < 0 ? DamageAreaSequence.Length : index;
-    }
-
+    /// <summary>Every severity with its name; <c>Rank</c> is the order the Case page lists them in.</summary>
     public static IReadOnlyDictionary<string, (string Display, int Rank)> DamageSeverities { get; } =
         new Dictionary<string, (string, int)>(StringComparer.Ordinal)
         {
@@ -171,17 +152,22 @@ public static class AssessmentVocabulary
             ["heavy"] = ("Heavy", 4)
         };
 
-    /// <summary>The value <see cref="DamageImpacts"/> accepts, as its reader enforces it.</summary>
-    public static string DamageImpactsFormat { get; } =
-        "A JSON array of impacts, each an object with exactly these members: "
-        + "\"areas\", an array of unique area codes ("
-        + string.Join(", ", DamagePlanAreas) + "; or one of "
-        + string.Join(", ", DamageOtherAreas) + ", alone and recorded once); "
-        + "\"severity\", one of " + string.Join(", ", DamageSeverities.Keys) + "; "
-        + "\"note\", a string of up to 200 characters, empty when there is nothing to add; "
-        + "and optionally \"disc\", a position drawn on the plan as {\"x\",\"y\",\"r\"} "
-        + "with x and y from 0 to 1 and r from 0.0641 to 0.5, whose plan areas replace the areas given. "
-        + "Example: [{\"areas\":[\"left_front\"],\"severity\":\"light\",\"note\":\"\"}]";
+    /// <summary>The value <see cref="Impacts"/> accepts, as its reader enforces it.</summary>
+    public static string ImpactsFormat { get; } =
+        "A JSON array of impacts in the order the report prints them, each an object with exactly these members: "
+        + "\"severity\", one of " + string.Join(", ", DamageSeverities.Keys) + ", or empty; "
+        + "\"location\", one of " + string.Join(", ", DamageAreaCodes) + ", or empty; "
+        + "\"note\", a string of up to 200 characters, empty when there is nothing to add. "
+        + "An impact the report prints names both a severity and a location; the note does not print. "
+        + "An impact with all three empty is dropped. "
+        + "Example: [{\"severity\":\"moderate\",\"location\":\"rear\",\"note\":\"\"}]";
+
+    /// <summary>The value <see cref="DamageMarkers"/> accepts, as its reader enforces it.</summary>
+    public static string DamageMarkersFormat { get; } =
+        "A JSON array of the damage markers drawn on the plan for the report's picture, each an object "
+        + "with exactly the numeric members \"x\", \"y\" and \"r\": x and y from 0 to 1 across and down the plan, "
+        + "r from 0.0641 to 0.5 of its width. A marker records a position only; the impacts are assessment.impacts. "
+        + "Example: [{\"x\":0.5,\"y\":0.92,\"r\":0.12}]";
 
 
     private static readonly AssessmentFieldDefinition[] DefinitionList =
@@ -199,11 +185,8 @@ public static class AssessmentVocabulary
         new(VehicleBody, AssessmentFieldType.Text, 100),
         new(VehicleTaxExpiry, AssessmentFieldType.Date, 10),
         new(VehicleMotExpiry, AssessmentFieldType.Date, 10),
-        new(ImpactSeverity, AssessmentFieldType.Enumerated, 20,
-            Codes: DamageSeverities.Keys.ToArray()),
-        new(ImpactLocation, AssessmentFieldType.Enumerated, 20,
-            Codes: [.. DamagePlanAreas, .. DamageOtherAreas, SeveralAreas]),
-        new(DamageImpacts, AssessmentFieldType.Json, 4000, Format: DamageImpactsFormat),
+        new(Impacts, AssessmentFieldType.Json, 4000, Format: ImpactsFormat),
+        new(DamageMarkers, AssessmentFieldType.Json, 4000, Format: DamageMarkersFormat),
         new(DamageUnrelated, AssessmentFieldType.Text, 2000),
         new(ValueRetail, AssessmentFieldType.Money, 20, MustBePositive: true),
         new(ValueTrade, AssessmentFieldType.Money, 20, MustBePositive: true),
@@ -251,13 +234,6 @@ public static class AssessmentVocabulary
 
     public static IReadOnlyDictionary<string, AssessmentFieldDefinition> Definitions { get; } =
         DefinitionList.ToDictionary(definition => definition.Path, StringComparer.Ordinal);
-
-    /// <summary>Derived from damage.impacts by the save's write set (AssessmentWriteSet); a field save never writes one.</summary>
-    public static IReadOnlySet<string> DerivedPaths { get; } = new HashSet<string>(StringComparer.Ordinal)
-    {
-        ImpactLocation,
-        ImpactSeverity
-    };
 
     /// <summary>
     /// The report's Retail and Trade values: the chosen guide card's figures

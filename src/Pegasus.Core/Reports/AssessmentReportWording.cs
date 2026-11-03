@@ -218,13 +218,24 @@ public static class AssessmentReportWording
             new("Odometer", Recorded(vehicle.MileageDescription)),
             new("Engine / Fuel", EngineAndFuel(vehicle)),
             new("Pre-Incident Condition", ReportWordingComposition.LeadingWords(vehicle.Condition)),
-            new("Impact Magnitude", ImpactMagnitude(snapshot.ImpactSeverity, snapshot.ImpactLocation)),
+            new("Impact Magnitude", ImpactMagnitude(snapshot.Damage.Impacts)),
         ];
     }
 
-    /// <summary>"Moderate — right rear": the severity opens the cell and the location follows in small letters.</summary>
-    public static string ImpactMagnitude(string impactSeverity, string impactLocation) =>
-        $"{ReportWordingComposition.LeadingWords(impactSeverity)} — {ReportWordingComposition.Words(impactLocation)}";
+    /// <summary>
+    /// "Moderate — right rear": the severity opens a line and the location
+    /// follows in small letters, one impact to a line in the order staff
+    /// entered them (v46 A2, operator, 3 November 2026). No impact prints
+    /// <see cref="NotRecorded"/>.
+    /// </summary>
+    public static string ImpactMagnitude(IReadOnlyList<ReportImpact> impacts)
+    {
+        ArgumentNullException.ThrowIfNull(impacts);
+        return impacts.Count == 0
+            ? NotRecorded
+            : string.Join("\n", impacts.Select(impact =>
+                $"{ReportWordingComposition.LeadingWords(impact.Severity)} — {ReportWordingComposition.Words(impact.Location)}"));
+    }
 
     /// <summary>
     /// The engine size as the template prints it: a plain number of cubic

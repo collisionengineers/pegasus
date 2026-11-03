@@ -771,8 +771,7 @@ public sealed partial class AssessmentReportDraftWebTests
         {
             Field(AssessmentVocabulary.VehicleType, "car"),
             Field(AssessmentVocabulary.VehicleCondition, "good"),
-            Field(AssessmentVocabulary.ImpactSeverity, "moderate"),
-            Field(AssessmentVocabulary.ImpactLocation, "right_rear"),
+            Field(AssessmentVocabulary.Impacts, "[{\"severity\":\"moderate\",\"location\":\"right_rear\",\"note\":\"\"}]"),
             Field(AssessmentVocabulary.ValueRetail, "5000.00"),
             Field(AssessmentVocabulary.ValueTrade, "4000.00"),
             Field(AssessmentVocabulary.ValueEngineer, "5000.00"),
