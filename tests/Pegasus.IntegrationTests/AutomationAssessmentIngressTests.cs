@@ -1985,6 +1985,70 @@ public sealed class AutomationAssessmentIngressTests
         Assert.False(fields.ContainsKey("assessment.impact_severity"));
     }
 
+    /// <summary>
+    /// v47 item D: pegasus_assessment_update writes Skip impacts as staff
+    /// record it, the vocabulary says it is writable, and a skip left beside
+    /// an impact row is refused as it is for staff (R649), writing nothing.
+    /// </summary>
+    [Fact]
+    public async Task AssessmentUpdateWritesSkipImpactsAndRefusesItBesideAnImpact()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 60);
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(61,
+            "pegasus_assessment_update", new
+            {
+                caseId,
+                expectedVersion = lease.CaseVersion,
+                editLeaseToken = lease.LeaseToken,
+                operationKey = "mcp:impacts-skipped",
+                reason = "No impact to record.",
+                fields = new Dictionary<string, string?> { [AssessmentVocabulary.ImpactsSkipped] = "true" }
+            })))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal(lease.CaseVersion + 1, structured.GetProperty("caseVersion").GetInt64());
+        }
+        var database = await factory.DatabaseAsync;
+        Assert.Equal("true", await database.ScalarAsync<string>(
+            $"SELECT [Value] FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = N'{AssessmentVocabulary.ImpactsSkipped}'"));
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(62,
+            "pegasus_assessment_update", new
+            {
+                caseId,
+                expectedVersion = lease.CaseVersion + 1,
+                editLeaseToken = lease.LeaseToken,
+                operationKey = "mcp:impact-beside-skip",
+                reason = "Record an impact beside the skip.",
+                fields = new Dictionary<string, string?>
+                {
+                    [AssessmentVocabulary.Impacts] = "[{\"severity\":\"light\",\"location\":\"front\",\"note\":\"\"}]"
+                }
+            })))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var document = await ReadJsonRpcAsync(response);
+            Assert.Contains(
+                "Skip impacts can be ticked only while no impact is entered.",
+                document.RootElement.ToString(),
+                StringComparison.Ordinal);
+        }
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = N'{AssessmentVocabulary.Impacts}'"));
+
+        using var vocabulary = await PostMcpAsync(client, token, ToolCallPayload(63, "pegasus_vocabulary_get", new { }));
+        var skip = (await ReadStructuredContentAsync(vocabulary)).GetProperty("assessmentFields")
+            .EnumerateArray()
+            .Single(item => item.GetProperty("path").GetString() == AssessmentVocabulary.ImpactsSkipped);
+        Assert.True(skip.GetProperty("writable").GetBoolean());
+    }
+
     /// <summary>The vocabulary lists the statuses a save accepts.</summary>
     [Fact]
     public async Task TheVocabularyListsOnlyTheChoosableRepairerVatStatuses()

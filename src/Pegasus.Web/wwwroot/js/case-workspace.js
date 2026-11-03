@@ -2425,7 +2425,10 @@
 // removes one. Beside the plan, the impact rows are one view of the impacts
 // JSON: Add impact adds a blank row, a row's × (Clear) removes it, and every
 // change writes the rows back and recomposes the Incident narrative from
-// Core's sentence and words. The page renders all of it server-side; this
+// Core's sentence and words, one line to a sentence. Skip impacts (v47) stands
+// beside Add impact while no row exists: ticking it greys out Add impact, a
+// row hides it and clearing the last row offers it again, unticked. The page
+// renders all of it server-side; this
 // keeps it in step while the section edits. Outside a session nothing is live
 // (D21: absent, not disabled).
 (function () {
@@ -2644,6 +2647,8 @@
         var empty = root.querySelector('[data-impacts-empty]');
         var template = root.querySelector('[data-impacts-template]');
         var add = root.querySelector('[data-impacts-add]');
+        var skip = root.querySelector('[data-impacts-skip]');
+        var skipInput = skip ? skip.querySelector('input[type="checkbox"]') : null;
         var narrative = editor.querySelector('[data-damage-narrative]');
         var follows = editor.getAttribute('data-damage-narrative-follows') === 'true';
         var absent = editor.getAttribute('data-damage-absent') || '';
@@ -2677,7 +2682,15 @@
                     .split('{severity}').join(words.severities[impact.severity])
                     .split('{location}').join(words.locations[impact.location]);
             }).join('\n');
-            narrative.textContent = text || absent;
+            narrative.textContent = text ? '' : absent;
+            if (text) {
+                text.split('\n').forEach(function (sentence) {
+                    var line = document.createElement('span');
+                    line.className = 'fv-line';
+                    line.textContent = sentence;
+                    narrative.appendChild(line);
+                });
+            }
             narrative.classList.toggle('empty', !text);
             narrative.classList.toggle('multi', text.indexOf('\n') >= 0);
         }
@@ -2690,7 +2703,23 @@
             var count = list.length;
             if (head) { head.hidden = count === 0; }
             if (empty) { empty.hidden = count > 0; }
+            offerSkip(count === 0);
             recompose(list);
+        }
+        // Skip impacts is offered only while no row exists, and is never left
+        // ticked beside one.
+        function offerSkip(offered) {
+            if (!skip) {
+                return;
+            }
+            skip.hidden = !offered;
+            if (!offered && skipInput) { skipInput.checked = false; }
+            if (add) { add.disabled = !!(skipInput && skipInput.checked); }
+        }
+        if (skipInput && add) {
+            skipInput.addEventListener('change', function () {
+                add.disabled = skipInput.checked;
+            });
         }
         if (add && template) {
             add.addEventListener('click', function () {
@@ -2698,6 +2727,7 @@
                 rows.appendChild(row);
                 if (head) { head.hidden = false; }
                 if (empty) { empty.hidden = true; }
+                offerSkip(false);
                 var first = row.querySelector('select');
                 if (first) { first.focus(); }
             });

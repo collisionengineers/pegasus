@@ -165,11 +165,13 @@ public sealed class AssessmentReportProjectionTests
         Assert.False(AssessmentReportProjection.Project(unsigned).IsReady);
         Assert.Equal(composed, ReportWordingComposition.NatureOfIncidentOf(unsigned));
 
-        // No impact and no wording of the Engineer's: no narrative, and the
-        // report is still ready and offers no Nature of Incident (v46 G).
+        // No impact and no wording of the Engineer's: no narrative. The report
+        // names Impacts until Skip impacts is ticked, and a skipped Case offers
+        // no Nature of Incident (v46 G; v47, R647–R649).
         var noImpact = WithImpacts(input, null);
         Assert.Null(ReportWordingComposition.NatureOfIncidentOf(noImpact));
-        var projected = AssessmentReportProjection.Project(noImpact);
+        AssertNotReady(AssessmentReportProjection.Project(noImpact), "Impacts");
+        var projected = AssessmentReportProjection.Project(WithSkip(noImpact, "true"));
         Assert.True(projected.IsReady);
         Assert.DoesNotContain(projected.Snapshot!.PrintedWording, block => block.Key == ReportWordingComposition.NatureOfIncident);
     }
@@ -214,6 +216,81 @@ public sealed class AssessmentReportProjectionTests
 
         Assert.Equal([new DamageDisc(0.86, 0.86, 0.1)], snapshot.Damage.Markers);
     }
+
+    /// <summary>
+    /// The report needs an impact or the deliberate Skip impacts (v47 item A,
+    /// operator, 3 November 2026; R647–R649). A row missing its severity or
+    /// location is not an impact, and an unticked skip is no skip.
+    /// </summary>
+    [Fact]
+    public void TheReportNeedsAnImpactOrADeliberateSkip()
+    {
+        Assert.True(AssessmentReportProjection.Project(ReadyInput()).IsReady);
+
+        var noImpact = WithImpacts(ReadyInput(), null);
+        var reason = AssertNotReady(AssessmentReportProjection.Project(noImpact), "Impacts");
+        Assert.Equal("Assessment record", reason.Source);
+        Assert.Equal("No impact is entered.", reason.WhyOutstanding);
+        Assert.Equal("Enter an impact, or tick Skip impacts, on the Damage section.", reason.HowToResolve);
+        Assert.Equal(AssessmentVocabulary.Impacts, reason.Field);
+
+        AssertNotReady(
+            AssessmentReportProjection.Project(WithImpacts(
+                ReadyInput(), "[{\"severity\":\"moderate\",\"location\":\"\",\"note\":\"Not yet placed\"}]")),
+            "Impacts");
+        AssertNotReady(AssessmentReportProjection.Project(WithSkip(noImpact, "false")), "Impacts");
+        Assert.True(AssessmentReportProjection.Project(WithSkip(noImpact, "true")).IsReady);
+    }
+
+    /// <summary>
+    /// The damage markers are always required (operator, 3 November 2026;
+    /// R650): a Case with none names Damage markers whether or not Skip
+    /// impacts is ticked, and markers beside a skip are a ready Case.
+    /// </summary>
+    [Fact]
+    public void TheReportAlwaysNeedsADamageMarker()
+    {
+        var noMarkers = WithMarkers(ReadyInput(), null);
+        var reason = AssertNotReady(AssessmentReportProjection.Project(noMarkers), "Damage markers");
+        Assert.Equal("Assessment record", reason.Source);
+        Assert.Equal("No damage marker is drawn.", reason.WhyOutstanding);
+        Assert.Equal("Draw a marker on the plan on the Damage section.", reason.HowToResolve);
+        Assert.Equal(AssessmentVocabulary.DamageMarkers, reason.Field);
+        AssertNotReady(AssessmentReportProjection.Project(WithMarkers(ReadyInput(), "[]")), "Damage markers");
+
+        var skippedWithoutMarkers = WithSkip(WithImpacts(noMarkers, null), "true");
+        var skippedReason = AssertNotReady(AssessmentReportProjection.Project(skippedWithoutMarkers), "Damage markers");
+        Assert.Equal(AssessmentVocabulary.DamageMarkers, skippedReason.Field);
+
+        var skippedWithMarkers = WithSkip(WithImpacts(ReadyInput(), null), "true");
+        Assert.True(AssessmentReportProjection.Project(skippedWithMarkers).IsReady);
+    }
+
+    private static AssessmentReportProjectionInput WithMarkers(AssessmentReportProjectionInput input, string? markers) =>
+        input with
+        {
+            Assessment = input.Assessment with
+            {
+                Fields =
+                [
+                    .. input.Assessment.Fields.Where(field => field.Path != AssessmentVocabulary.DamageMarkers),
+                    .. markers is null ? Array.Empty<AssessmentFieldValue>() : [Field(AssessmentVocabulary.DamageMarkers, markers)],
+                ]
+            }
+        };
+
+    private static AssessmentReportProjectionInput WithSkip(AssessmentReportProjectionInput input, string skipped) =>
+        input with
+        {
+            Assessment = input.Assessment with
+            {
+                Fields =
+                [
+                    .. input.Assessment.Fields.Where(field => field.Path != AssessmentVocabulary.ImpactsSkipped),
+                    Field(AssessmentVocabulary.ImpactsSkipped, skipped),
+                ]
+            }
+        };
 
     private static AssessmentReportProjectionInput WithImpacts(AssessmentReportProjectionInput input, string? impacts) =>
         input with

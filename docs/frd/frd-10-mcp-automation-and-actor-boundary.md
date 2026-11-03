@@ -203,7 +203,10 @@ Case-owned facts and the facts the DVLA/DVSA lookup alone records (engine,
 fuel, colour, tax and MOT expiry) are refused. The impacts staff enter
 (`assessment.impacts`) and the damage markers (`damage.impacts`) are written
 through `pegasus_assessment_update` like any staff field; there is no impact
-tool of its own (3 November 2026, R646). `pegasus_vocabulary_get` lists every
+tool of its own (3 November 2026, R646). Skip impacts
+(`assessment.impacts_skipped`) is written the same way, and a write that would
+leave it ticked beside an impact row is refused as it is for staff (v47 item
+D, R649). `pegasus_vocabulary_get` lists every
 assessment field path with its type, accepted codes, the format a structured
 value takes (`assessment.impacts` and `damage.impacts`), staff label and whether the tool may write it, with the
 estimate line types and evidence labels, the repairer VAT statuses and VAT

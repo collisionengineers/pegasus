@@ -127,8 +127,22 @@ by its own ×, which removes it. A new row starts with nothing chosen. A row
 naming both a severity and a location is an impact the report prints; a row
 missing either is kept as entered but not printed, and a row with nothing
 chosen or written is not kept. The impacts are `assessment.impacts`, one JSON
-value staff and the Automation Actor write alike. Impacts are optional: none
-blocks the report.
+value staff and the Automation Actor write alike.
+
+The report needs an impact or a deliberate **Skip impacts** (operator,
+3 November 2026, R647–R649, replacing R646's "impacts are optional";
+[v47 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v47-impact-skip/v47_planning)). The Incident narrative is not required, but leaving it
+out is a choice: until a row names both a severity and a location, or Skip
+impacts is recorded, readiness names **Impacts** ("No impact is entered.").
+A row missing its severity or location is not an impact. Skip impacts is
+`assessment.impacts_skipped` (`true` or `false`), offered only while no impact
+row exists; a save that would leave it ticked beside any row, complete or not,
+is refused with "Skip impacts can be ticked only while no impact is entered.",
+for staff and the Automation Actor alike. A skipped Case prints no Nature of
+Incident and its Impact Magnitude reads `—`; the skip itself prints nothing,
+does not by itself make a sent report out of date, and is recorded in the
+assessment history like any field. Existing Cases are not backfilled: each
+needs an impact or the skip before its next report.
 
 The **damage markers** are the report's picture and nothing else. A marker is
 a disc on the plan — its centre and its radius, no smaller than the plan's
@@ -137,7 +151,10 @@ smallest disc and no wider than half the vehicle — kept as drawn
 location or severity is derived from the markers. While the Damage section
 edits, pressing and dragging on the vehicle draws a marker and dragging one
 moves it; dragging never removes a marker, and **Clear markers** removes them
-all. There is no Reset.
+all. There is no Reset. The report always needs at least one marker, whether
+or not Skip impacts is ticked (operator, 3 November 2026, R650): until one is
+drawn, readiness names **Damage markers** ("No damage marker is drawn.").
+Markers beside a ticked Skip impacts are a complete damage record.
 
 The plan is the recorded Vehicle type's drawing: a van is drawn as the van, a
 motorcycle or scooter as the motorbike, and anything else, or no type, as the
