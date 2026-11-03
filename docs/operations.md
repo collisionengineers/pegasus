@@ -5,6 +5,19 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Branch and tag protection - 3 November 2026
+
+- Three rulesets created from the runbook's
+  [specification](runbook.md#branch-and-tag-protection) (R667, PR #1879) and
+  read back `active` at 17:15 UTC: `dev` (id 26469537, branch: a pull request
+  and the eleven `repository-check` jobs; no deletion or force push), `main`
+  (id 26469538, branch: update, deletion and force push only by the bypass
+  actor) and `release tags` (id 26469540, tag `v*`: creation, update, deletion
+  and force push only by the bypass actor). The one bypass actor is the
+  repository-admin role, the operator's account the release pushes from.
+  `gh api repos/collisionengineers/pegasus/branches/{dev,main}` read
+  `protected: true`.
+
 ## Test instance Graph parity first run - 3 November 2026
 
 - The instance ran `5627a801f` (PR #1865 head; CI run 41624879453 green in

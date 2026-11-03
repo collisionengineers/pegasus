@@ -143,7 +143,11 @@ localhost, stop and say so: the Web would need a forwarded-headers branch for
 the offline profile, which is a code change, not a configuration one.
 
 Staff accounts for a UAT round are created in Administration > Accounts on
-the instance; Glass's logins are per account (ADR-0043) and entered there.
+the instance; Glass's logins are per account (ADR-0043) and entered there. The
+round itself (#1863) runs on the date the operator sets: the pack's
+`environment.md`, kept outside the repository, names the instance's public
+origin, and the round's results file is recorded in operations as the first
+operator acceptance.
 
 ## 4. Mail from the production mailboxes, with parity
 
@@ -225,9 +229,13 @@ its own webhook, authenticates no production key and moves only what its own
 sends answered. The record `state/production-copy-<utc>.json` holds the
 migration head, the Case count and the four counts. The
 rehearsal is then the next Start: the checked-out revision's migrations run
-against production's schema and data. The first run of this script on a
-machine is itself a test of the SqlPackage route; read its output before
-trusting the copy.
+against production's schema and data. The rehearsal runs at the candidate's
+tip, the branch about to land on `dev` (checked out detached at its SHA when
+the branch lives in another worktree) or `dev` itself; its record in
+[operations](../../../docs/operations.md) names the copy record, the Case
+count, the migration head before and after, and the walk's result (#1864).
+The first run of this script on a machine is itself a test of the SqlPackage
+route; read its output before trusting the copy.
 
 ## 8. The classifier agent, locally
 

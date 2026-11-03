@@ -420,7 +420,9 @@ every approved mailbox in the copy (R627), clears the copied subscription rows
 (R654), pauses the copied Principal API credentials (R655) and closes the
 copied pending answered-instruction tidies (R656); without `-Approve` it prints
 the source, target and statements and stops, and with it the extract is a live
-production read under the operator's own `az` sign-in. The procedure around
+production read under the operator's own `az` sign-in. The rehearsal runs at
+the candidate's tip, and its record in operations names the copy record, the
+migration head before and after and the walk's result. The procedure around
 these steps, the machine prerequisites and the classifier's local run are the
 [`pegasus-test-instance`](../.agents/skills/pegasus-test-instance/SKILL.md)
 skill.
