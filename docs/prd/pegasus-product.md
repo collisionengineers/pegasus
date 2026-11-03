@@ -120,7 +120,9 @@ Case that later matches a Case still merges into it, per the paragraph above.
 
 Automated mailbox ingestion and processing operate continuously. Staff use is
 primarily during business hours; the application remains available outside them
-except planned maintenance. This does not establish an additional uptime SLA.
+except planned maintenance, which is a release's restart or a destructive
+route's approved window (R605, R666; 3 November 2026). This does not establish
+an additional uptime SLA.
 
 Use the lowest practical Azure tiers that support required development and
 integration testing. There is no fixed monthly budget or absolute monthly

@@ -55,7 +55,9 @@ is set only when an approval names a Web region other than the platform region.
 - **Normal.** A deployable change whose migration identity equals the live
   head. Packages deploy; provision runs only when the preflight says it is
   needed (an `infra/` or `azure.yaml` change, or an azd environment that
-  differs from the one the previous release retained).
+  differs from the one the previous release retained). It runs when its
+  candidate has passed on the test instance, at any hour: the restart is the
+  outage, and there is no window and no staff notice (R666).
 - **Normal after an additive migration.** The migration runs first, with the
   runtime grants and the head check, and the packages deploy as above.
 - **Destructive.** An explicitly approved short outage (ADR-0046): the
@@ -109,9 +111,13 @@ validates them. It writes nothing to GitHub or Azure. `-PreflightOnly` stops
 before the build; `-Version <v>` builds another version than the proposal,
 the MAJOR when the agent classifies the range's migration as non-additive.
 
-Read the report. A pull request that is not green is either waived by number
-in the approval or the candidate waits. A head that differs from the candidate
-identity while the range adds no migration is a question, not a route.
+Read the report. A candidate whose push-to-`dev` run or any pull request in
+the range is not green waits; nothing is waived, and `-Execute` refuses it
+(R667). The `--- Protection ---` section reads the repository's rulesets back
+([runbook](../../../docs/runbook.md#branch-and-tag-protection)); `dev` and
+`main` each carry an active one, and a missing one is a question before the
+approval. A head that differs from the candidate identity while the range adds
+no migration is a question, not a route.
 
 ## 2. The one approval
 
@@ -199,7 +205,9 @@ ran, the deployment ids, the smoke time and what is owed. Owed items become GitH
 record to record. `docs/current-architecture.md` changes only when source
 structure changed. The exact artifacts are retained at
 `artifacts/releases/release-<version>-<sha8>` (ignored), beside the previous
-releases', and the worktree is removed.
+releases', and the worktree is removed. The folder is a convenience: the tag
+`v<version>` is the recoverable source, and a rollback without the folder
+rebuilds it from the tag (R668).
 
 Rollback is the runbook's [production recovery](../../../docs/runbook.md#production-recovery);
 [troubleshooting](references/troubleshooting.md) names the symptoms seen so far.

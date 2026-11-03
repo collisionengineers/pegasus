@@ -194,6 +194,9 @@ function New-Estate {
         # The one pull request's closing issue and its labels (R663).
         [bool] $PullClosesIssue = $true,
         [string[]] $IssueLabels = @('type:feature'),
+        # The push-to-dev run's conclusion (R659) and the rulesets gh reads back (R667).
+        [string] $DevRunConclusion = 'success',
+        [string[]] $Rulesets = @('dev', 'main', 'release tags'),
         [Parameter(Mandatory)][string] $NewSha
     )
     return [ordered]@{
@@ -201,6 +204,8 @@ function New-Estate {
         instance = [ordered]@{ sourceSha = $(if ($InstanceSourceSha) { $InstanceSourceSha } else { $NewSha }) }
         pullClosesIssue = $PullClosesIssue
         issueLabels = @($IssueLabels)
+        devRunConclusion = $DevRunConclusion
+        rulesets = @($Rulesets)
         worker = [ordered]@{ state = $WorkerState; disabled = $WorkerDisabled }
         classifier = [ordered]@{ present = $ClassifierPresent; state = $ClassifierState }
         newSha = $NewSha
@@ -321,9 +326,14 @@ if ($joined.StartsWith('provision')) {
 param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
 Add-Content -LiteralPath $env:PEGASUS_TEST_AZ_ARGUMENTS_PATH -Value "gh $($Arguments -join ' ')"
 $state = Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_RELEASE_STATE_PATH | ConvertFrom-Json
-# One green push-to-dev run (R659), one green pull request closing issue 7
-# when the estate says so, whose labels the estate holds (R663).
-if ($Arguments[0] -eq 'run') { '[{"status":"completed","conclusion":"success","url":"https://example.test/runs/1"}]'; exit 0 }
+# The push-to-dev run with the estate's conclusion (R659), the rulesets the
+# estate names (R667), one green pull request closing issue 7 when the estate
+# says so, whose labels the estate holds (R663).
+if ($Arguments[0] -eq 'run') { "[{`"status`":`"completed`",`"conclusion`":`"$($state.devRunConclusion)`",`"url`":`"https://example.test/runs/1`"}]"; exit 0 }
+if ($Arguments[0] -eq 'api') {
+    @(@($state.rulesets) | ForEach-Object { @{ name = $_; target = $(if ($_ -like '*tags*') { 'tag' } else { 'branch' }); enforcement = 'active' } }) | ConvertTo-Json -Compress -AsArray -Depth 3
+    exit 0
+}
 if ($Arguments[0] -eq 'issue') { @{ labels = @(@($state.issueLabels) | ForEach-Object { @{ name = $_ } }) } | ConvertTo-Json -Compress -Depth 4; exit 0 }
 $closing = if ($state.pullClosesIssue) { '[{"number":7}]' } else { '[]' }
 "{`"number`":1,`"title`":`"fixture`",`"state`":`"MERGED`",`"statusCheckRollup`":[{`"name`":`"unit`",`"conclusion`":`"SUCCESS`"}],`"closingIssuesReferences`":$closing}"
@@ -798,8 +808,18 @@ try {
     Assert-True ($result.Output.Contains("Migration head: $identity; candidate identity: $identity")) $case 'did not compare the head with the candidate identity.' $result.Diagnostic
     Assert-True ($result.Output.Contains('Provision: needed (no retained release')) $case 'did not say provision is needed without a retained baseline.' $result.Diagnostic
     Assert-True ($result.Output.Contains("dev run for $($releaseSha): success")) $case 'did not read the push-to-dev run (R659).' $result.Diagnostic
+    Assert-True ($result.Output.Contains('ruleset dev: branch, active') -and $result.Output.Contains('ruleset main: branch, active') -and $result.Output.Contains('ruleset release tags: tag, active')) $case 'did not read the rulesets back (R667).' $result.Diagnostic
+    Assert-True (-not $result.Output.Contains('has no active ruleset')) $case 'warned about a ruleset the estate holds.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns ($writes + @('az rest*cemattypc-1*'))
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
+
+    # R667: a missing ruleset is a warning in the read-only run, which still writes nothing.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $releaseSha -WebVersion '0.1.0-alpha.1' -Rulesets @('dev')) -MigrationHead $identity
+    $case = 'Preflight without a ruleset on main'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass: the preflight warns and writes nothing.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Warning: main has no active ruleset named main (R667)')) $case 'did not warn about the missing ruleset.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('ruleset dev: branch, active')) $case 'did not read the dev ruleset back.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns $writes
 
     # main carries the first Semantic Version's tag (R662, R664): every
     # release after it is one step above the tag.
@@ -957,6 +977,15 @@ try {
     $case = 'Test instance serving another SHA'
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
     Assert-True ($result.Output.Contains("The test instance at https://cemattypc-1.tail432b53.ts.net/ is serving $('d' * 40), not the candidate $releaseSha")) $case 'did not name both SHAs.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns $writes
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
+
+    # R667: a candidate whose push-to-dev run is not green is refused before
+    # any write; nothing is waived.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeNormal -Estate (New-Estate -NewSha $releaseSha -DevRunConclusion 'failure') -MigrationHead $identity
+    $case = 'Candidate without a green dev run'
+    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('the candidate waits; nothing is waived (R667)')) $case 'did not refuse the non-green candidate.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns $writes
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
 

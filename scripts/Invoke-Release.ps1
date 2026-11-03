@@ -796,32 +796,33 @@ function Assert-DevStillAt {
 
 # --- Default run: preflight, build, approval request -------------------------------
 
-function Invoke-Preflight {
-    Write-Host '=== Preflight (read-only) ==='
-    Invoke-Git -Arguments @('fetch', 'origin', '--prune')
-    $mainSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
-    $devSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
-    & git -C $RepositoryRoot merge-base --is-ancestor $mainSha $devSha
-    if ($LASTEXITCODE -ne 0) { throw 'origin/main is not an ancestor of origin/dev.' }
-    Write-Host "origin/main $mainSha"
-    Write-Host "origin/dev  $devSha"
-    if ($mainSha -ceq $devSha) {
-        Write-Host 'main already equals dev: nothing to release.'
-        return $null
+function Read-Protection {
+    # R667: dev and main carry rulesets whose specification is the runbook's
+    # "Branch and tag protection". The preflight reads them back and warns;
+    # it never writes one.
+    $json = (& gh api "repos/$gitHubRepository/rulesets" 2>&1) -join "`n"
+    $rulesets = @()
+    if ($LASTEXITCODE -eq 0) { try { $rulesets = @($json | ConvertFrom-Json) } catch { $rulesets = @() } }
+    if ($rulesets.Count -eq 0) { Write-Host "Warning: no ruleset read back from $gitHubRepository (R667)." }
+    foreach ($ruleset in $rulesets) { Write-Host "ruleset $($ruleset.name): $($ruleset.target), $($ruleset.enforcement)" }
+    foreach ($name in 'dev', 'main') {
+        if (@($rulesets | Where-Object { [string]$_.name -ceq $name -and [string]$_.enforcement -ceq 'active' }).Count -eq 0) {
+            Write-Host "Warning: $name has no active ruleset named $name (R667)."
+        }
     }
-    Write-Host ''
-    Invoke-Git -Arguments @('log', '--oneline', '--decorate', "$mainSha..$devSha") | ForEach-Object { Write-Host $_ }
-    Write-Host ''
-    Invoke-Git -Arguments @('diff', '--stat', "$mainSha..$devSha") | ForEach-Object { Write-Host $_ }
+}
 
+function Read-CandidateChecks {
     # The push-to-dev run on the candidate is its exact-head evidence (R659);
-    # the merged pull requests in the range and their checks are listed with it.
-    Write-Host ''
-    Write-Host '--- CI on the candidate ---'
+    # the merged pull requests in the range and their checks are listed with
+    # it, and what they close decides the proposed version step (R663). A run
+    # that is not green is counted and never waived (R667): the read-only run
+    # reports it and the approved run refuses before any write.
+    param([Parameter(Mandatory)][string] $MainSha, [Parameter(Mandatory)][string] $DevSha)
     $runsJson = (& gh run list --repo $gitHubRepository --workflow repository-check --branch dev --commit $devSha --json 'status,conclusion,url' 2>&1) -join "`n"
     $devRun = $null
     if ($LASTEXITCODE -eq 0) { try { $devRun = @($runsJson | ConvertFrom-Json) | Select-Object -First 1 } catch { $devRun = $null } }
-    if ($null -eq $devRun) { Write-Host "No repository-check run found for $devSha on dev: the approval must waive it or the candidate waits."; $notGreen = 1 }
+    if ($null -eq $devRun) { Write-Host "No repository-check run found for $devSha on dev: the candidate waits (R667)."; $notGreen = 1 }
     elseif ([string]$devRun.conclusion -cne 'success') { Write-Host "The dev run for $devSha is $($devRun.status)/$($devRun.conclusion): $($devRun.url)"; $notGreen = 1 }
     else { Write-Host "dev run for ${devSha}: success ($($devRun.url))"; $notGreen = 0 }
     Write-Host ''
@@ -860,7 +861,36 @@ function Invoke-Preflight {
         if ($failing.Count -gt 0) { $notGreen++ }
         Write-Host ("#{0} {1}: {2} checks, {3} not successful" -f $pull.number, $pull.title, $checks.Count, $failing.Count)
     }
-    if ($notGreen -gt 0) { Write-Host "$notGreen run(s) are not green: the approval must waive each one by number or the candidate waits." }
+    if ($notGreen -gt 0) { Write-Host "$notGreen run(s) are not green: the candidate waits; nothing is waived (R667)." }
+    return [pscustomobject]@{ NotGreen = $notGreen; BugFixesOnly = $bugFixesOnly; BugFixesReason = $bugFixesReason }
+}
+
+function Invoke-Preflight {
+    Write-Host '=== Preflight (read-only) ==='
+    Invoke-Git -Arguments @('fetch', 'origin', '--prune')
+    $mainSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
+    $devSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
+    & git -C $RepositoryRoot merge-base --is-ancestor $mainSha $devSha
+    if ($LASTEXITCODE -ne 0) { throw 'origin/main is not an ancestor of origin/dev.' }
+    Write-Host "origin/main $mainSha"
+    Write-Host "origin/dev  $devSha"
+    if ($mainSha -ceq $devSha) {
+        Write-Host 'main already equals dev: nothing to release.'
+        return $null
+    }
+    Write-Host ''
+    Invoke-Git -Arguments @('log', '--oneline', '--decorate', "$mainSha..$devSha") | ForEach-Object { Write-Host $_ }
+    Write-Host ''
+    Invoke-Git -Arguments @('diff', '--stat', "$mainSha..$devSha") | ForEach-Object { Write-Host $_ }
+
+    Write-Host ''
+    Write-Host '--- Protection ---'
+    Read-Protection
+    Write-Host ''
+    Write-Host '--- CI on the candidate ---'
+    $checks = Read-CandidateChecks -MainSha $mainSha -DevSha $devSha
+    $bugFixesOnly = $checks.BugFixesOnly
+    $bugFixesReason = $checks.BugFixesReason
 
     # The candidate's kind: deployable files decide the route; infra files and
     # azd-environment drift decide whether provisioning is needed.
@@ -948,7 +978,7 @@ function Invoke-Preflight {
     return [pscustomobject]@{
         MainSha = $mainSha; DevSha = $devSha; Route = $route; PromotionOnly = ($deployable.Count -eq 0)
         ProvisionNeeded = $provisionNeeded; ServingSha = $servingSha; Head = $head; CandidateIdentity = $candidateIdentity
-        ClassifierPresent = $classifierPresent; LiveVersion = $live; BuildVersion = $buildVersion; Proposal = $proposal
+        ClassifierPresent = $classifierPresent; LiveVersion = $live; BuildVersion = $buildVersion; Proposal = $proposal; NotGreen = $checks.NotGreen
     }
 }
 
@@ -1253,6 +1283,11 @@ switch ($PSCmdlet.ParameterSetName) {
         # be serving it; both are read before any write.
         Assert-DevStillAt -Sha $ApprovedReleaseSha
         Assert-TestInstanceServes -Sha $ApprovedReleaseSha
+        # R659, R667: the candidate's push-to-dev run and every pull request in
+        # the range are read again here; one that is not green is a refusal,
+        # never a waiver.
+        $checks = Read-CandidateChecks -MainSha (@(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()) -DevSha $ApprovedReleaseSha
+        if ($checks.NotGreen -gt 0) { throw "$($checks.NotGreen) run(s) on the candidate are not green: the candidate waits; nothing is waived (R667)." }
         if ($Route -eq 'Destructive') {
             # The route's preconditions are read before any write, so a
             # refusal writes nothing anywhere.

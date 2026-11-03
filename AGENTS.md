@@ -154,7 +154,10 @@ passed, or by the promotion-only route for a range that deploys nothing
 approval and tagged `v<version>` on the released SHA (R662 to R664); a fix
 ships as a PATCH of `dev`'s tip, and there is no hotfix branch (R665). `dev`
 is what the hosted test instance runs; a change is vetted there and promoted
-to `main` (R657, R660). Task work uses a worktree at
+to `main` (R657, R660). Rulesets make `dev` take only green pull requests and
+`main` only the release's push; their one bypass is the operator's account,
+so the rule below that agents never push either branch is procedural (R667).
+Task work uses a worktree at
 `../pegasus-worktrees/<slug>` on branch `task/<slug>`, created from
 `origin/dev` with `--no-track`; a change that depends on an open PR may branch
 from that PR's branch and target it (R661). A release build uses a detached

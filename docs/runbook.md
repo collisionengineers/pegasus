@@ -22,6 +22,51 @@ or tool's availability is not permission. Production has carried live Cases
 since 2 November 2026 (R603); nothing here directs an agent to clear an
 environment.
 
+### Branch and tag protection
+
+Three repository rulesets guard the process branches (R667, 3 November 2026):
+`dev` requires a pull request and the green `repository-check` jobs; `main`
+and the `v*` tags accept no push except from a bypass actor. The one bypass
+actor is the repository-admin role, the operator's account the release pushes
+from, so the rule in `AGENTS.md` that agents never push `dev` or `main` stays
+a procedural one: a ruleset cannot tell an agent from the operator at the same
+keyboard. The rulesets live in GitHub, not in the repository; this section is
+their specification, so a lost one is recreated from it with
+`gh api -X POST repos/collisionengineers/pegasus/rulesets --input <file>`.
+The release preflight reads them back (`--- Protection ---`) and warns when
+`dev` or `main` has no active ruleset of that name; by hand:
+`gh api repos/collisionengineers/pegasus/rulesets --jq '.[] | [.name, .target, .enforcement] | @tsv'`.
+A skipped lane counts as a passed check, so a documentation-only pull request
+is not blocked.
+
+```json
+{ "name": "dev", "target": "branch", "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/heads/dev"], "exclude": [] } },
+  "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
+  "rules": [
+    { "type": "deletion" }, { "type": "non_fast_forward" },
+    { "type": "pull_request", "parameters": { "required_approving_review_count": 0, "dismiss_stale_reviews_on_push": false, "require_code_owner_review": false, "require_last_push_approval": false, "required_review_thread_resolution": false } },
+    { "type": "required_status_checks", "parameters": { "strict_required_status_checks_policy": false, "required_status_checks": [
+      { "context": "changes" }, { "context": "invariants" }, { "context": "unit" }, { "context": "infrastructure" }, { "context": "classifier" },
+      { "context": "sql-integration (1)" }, { "context": "sql-integration (2)" }, { "context": "sql-integration (3)" },
+      { "context": "sql-integration (4)" }, { "context": "sql-integration (5)" }, { "context": "sql-integration (6)" },
+      { "context": "sql-integration-coverage" } ] } } ] }
+```
+
+```json
+{ "name": "main", "target": "branch", "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/heads/main"], "exclude": [] } },
+  "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
+  "rules": [ { "type": "deletion" }, { "type": "non_fast_forward" }, { "type": "update" } ] }
+```
+
+```json
+{ "name": "release tags", "target": "tag", "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/tags/v*"], "exclude": [] } },
+  "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
+  "rules": [ { "type": "creation" }, { "type": "deletion" }, { "type": "non_fast_forward" }, { "type": "update" } ] }
+```
+
 ## Supported platform
 
 Repository development supports Windows with PowerShell 7 and Linux with
@@ -1209,9 +1254,17 @@ owns the exact containment, migration, reactivation and smoke commands.
 
 Rolling production back to the previous release's artifacts is a production
 mutation under [operational authority](#operational-authority): obtain
-exact-target approval first. Select the retained previous release manifest and its verified
-artifacts from the release workstation; match its hashes, source revision and
-version to the [retained release evidence](operations.md#retained-evidence-and-recovery-basis).
+exact-target approval first. Select the retained previous release's folder
+`artifacts/releases/release-<version>-<sha8>` on the release workstation when
+it holds one; match its hashes, source revision and version to the
+[retained release evidence](operations.md#retained-evidence-and-recovery-basis).
+When the workstation does not hold it, rebuild it from the tag (R668):
+`git worktree add --detach ../pegasus-worktrees/release-<sha8> v<version>`,
+then `pwsh ../pegasus-worktrees/release-<sha8>/scripts/Build-ReleaseArtifacts.ps1
+-Version <version> -SourceRevision <sha>`. A rebuilt package's hashes differ
+from the record's; what must match is the informational version
+`<version>+<sha>`, which the build script checks. Nothing is copied off the
+workstation.
 Read the current target and Worker activation before choosing any mutation.
 
 1. Web: run `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreProvision
