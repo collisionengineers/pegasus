@@ -1318,17 +1318,18 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
-    /// A received message whose mailbox can send offers Reply on its row and on
-    /// its record (v42 I); the row's other action is Dismiss. A message in a
-    /// mailbox that cannot send offers Dismiss alone, and no Reply on its record.
+    /// A received message offers Reply on its row and on its record (v42 I)
+    /// whenever a mailbox can send, the one it arrived in or another, since
+    /// staff choose From (operator, 4 November 2026; R655); the row's other
+    /// action is Dismiss. While no mailbox can send, a row offers Dismiss
+    /// alone and its record no Reply.
     /// </summary>
     [Fact]
-    public async Task AMessageInASendingMailboxOffersReplyOnItsRowAndRecord()
+    public async Task AMessageOffersReplyOnItsRowAndRecordWhenAnyMailboxCanSend()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var sendingId = Assert.Single(await SeedAsync(baseFactory, FirstMailboxId, FirstMailboxAddress, count: 1));
         var receivingId = Assert.Single(await SeedAsync(baseFactory, SecondMailboxId, SecondMailboxAddress, count: 1));
-        await MakeSendReadyAsync(baseFactory, FirstMailboxId);
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -1338,6 +1339,15 @@ public sealed class MailWorkspaceWebTests
             }));
         using var client = IntakeWebDriver.CreateClient(factory);
 
+        var unsent = await GetHtmlAsync(client, $"/Inbox?selected={sendingId:D}");
+        var unsentRow = MailRow(unsent, receivingId);
+        Assert.Contains("handler=Dismiss", unsentRow, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-mail-row-reply", unsentRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-mail-row-reply", MailRow(unsent, sendingId), StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "compose=reply", await GetHtmlAsync(client, $"/Inbox/{receivingId:D}"), StringComparison.Ordinal);
+
+        await MakeSendReadyAsync(baseFactory, FirstMailboxId);
         var html = await GetHtmlAsync(client, $"/Inbox?selected={sendingId:D}");
 
         var sendingRow = MailRow(html, sendingId);
@@ -1347,13 +1357,13 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("compose=reply", sendingRow, StringComparison.Ordinal);
         var receivingRow = MailRow(html, receivingId);
         Assert.Contains("handler=Dismiss", receivingRow, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("data-mail-row-reply", receivingRow, StringComparison.Ordinal);
+        Assert.Contains("data-mail-row-reply", receivingRow, StringComparison.Ordinal);
 
         var sending = await GetHtmlAsync(client, $"/Inbox/{sendingId:D}");
         Assert.Contains("compose=reply", sending, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.StaffMail.Reply}</span>", sending, StringComparison.Ordinal);
         var receiving = await GetHtmlAsync(client, $"/Inbox/{receivingId:D}");
-        Assert.DoesNotContain("compose=reply", receiving, StringComparison.Ordinal);
+        Assert.Contains("compose=reply", receiving, StringComparison.Ordinal);
     }
 
     /// <summary>Without staff mail the record offers no Reply, even for a mailbox that can send.</summary>

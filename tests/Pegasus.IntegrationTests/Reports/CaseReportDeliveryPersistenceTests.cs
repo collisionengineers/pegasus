@@ -419,9 +419,10 @@ public sealed class CaseReportDeliveryPersistenceTests
     }
 
     /// <summary>
-    /// With a retained instruction the report replies in its thread, from the
-    /// mailbox that holds it, under its subject, to the plan's recipients;
-    /// the operation the send prepares names the message it answers.
+    /// With a retained instruction and no From chosen, the report replies in
+    /// its thread from the mailbox that holds it, the default (R655), under
+    /// its subject, to the plan's recipients; the operation the send prepares
+    /// names the message it answers.
     /// </summary>
     [Fact]
     public async Task AReportRepliesInTheInstructionsThreadFromTheMailboxThatHoldsIt()
@@ -429,7 +430,7 @@ public sealed class CaseReportDeliveryPersistenceTests
         await using var harness = await Harness.CreateAsync();
         var messageId = await harness.SeedRetainedInstructionAsync(cc: ["copy@principal.example"]);
 
-        var command = await harness.SendAsync(harness.Request() with { ReviewedRecipients = null });
+        var command = await harness.SendAsync(harness.Request() with { ReviewedRecipients = null, FromMailboxId = null });
 
         Assert.Equal(StaffMailComposeMode.Reply, command.Mail.ComposeMode);
         Assert.Equal(InstructionMailboxId, command.Mail.ApprovedMailboxId);

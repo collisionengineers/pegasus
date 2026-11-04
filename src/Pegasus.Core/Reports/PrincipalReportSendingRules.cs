@@ -173,7 +173,7 @@ public sealed class ReportSendingRulesException(
 /// holds or stops the delivery, and what staff must do after sending. Every
 /// Principal has them; one the SOP does not name has <see cref="Default"/>.
 /// </summary>
-/// <param name="SendFromMailbox">The Outgoing mailbox the send form chooses for a new message when there is no instruction e-mail to reply from; staff may change it, and a reply always leaves from the mailbox the instruction arrived in.</param>
+/// <param name="SendFromMailbox">The Outgoing mailbox a send starts on when no mailbox the instruction e-mail arrived in can send it; staff may change it, as they may any From (R655).</param>
 /// <param name="SendTo">Fixed To addresses, which replace the original sender. Empty means the original instruction sender.</param>
 /// <param name="SendToOnly">Only <paramref name="SendTo"/>, with no Cc at all.</param>
 /// <param name="ReplyAll">Keep the instruction's own Cc addresses.</param>

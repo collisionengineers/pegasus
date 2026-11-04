@@ -5,7 +5,6 @@
     ViewData["Title"] = CaseWorkspaceLabels.Frame.SendChaser;
     var unresolvedOperation = Model.Operation?.State is Pegasus.Core.Operations.StaffMailState.Submitted
         or Pegasus.Core.Operations.StaffMailState.Unknown;
-    var reply = Model.Senders.Reply;
 }
 
 <div class="mail-compose-standalone">
@@ -51,7 +50,7 @@
                 </section>
             }
 
-            @if (Model.StaffMailAvailable && (reply is not null || Model.Senders.Mailboxes.Count > 0))
+            @if (Model.StaffMailAvailable && Model.Senders.Mailboxes.Count > 0)
             {
                 <form method="post" asp-page-handler="Send" asp-route-id="@Model.Id" class="mail-compose-form">
                     <input type="hidden" asp-for="OperationKey" />
@@ -59,23 +58,15 @@
                     <div class="mail-compose-form-fields">
                         <div class="mail-compose-addresses">
                             <div class="field mail-compose-from">
-                                @if (reply is not null)
-                                {
-                                    <label>From</label>
-                                    <input value="@reply.Mailbox.Address" readonly aria-label="From" />
-                                }
-                                else
-                                {
-                                    <label asp-for="FromMailboxId">From</label>
-                                    <select asp-for="FromMailboxId" data-dialog-initial-focus>
-                                        <option value=""></option>
-                                        @foreach (var mailbox in Model.Senders.Mailboxes)
-                                        {
-                                            <option value="@mailbox.Id" selected="@(Model.FromMailboxId == mailbox.Id)">@mailbox.Address</option>
-                                        }
-                                    </select>
-                                    <span asp-validation-for="FromMailboxId"></span>
-                                }
+                                <label asp-for="FromMailboxId">From</label>
+                                <select asp-for="FromMailboxId" data-dialog-initial-focus>
+                                    <option value=""></option>
+                                    @foreach (var mailbox in Model.Senders.Mailboxes)
+                                    {
+                                        <option value="@mailbox.Id" selected="@(Model.FromMailboxId == mailbox.Id)">@mailbox.Address</option>
+                                    }
+                                </select>
+                                <span asp-validation-for="FromMailboxId"></span>
                             </div>
                             <div class="field mail-compose-to">
                                 <label asp-for="To">To</label>

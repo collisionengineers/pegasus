@@ -108,9 +108,9 @@ public sealed class UnidentifiedRecordWebTests
 
     /// <summary>
     /// Operator, 12 October 2026: material that came in an e-mail offers Reply
-    /// to that e-mail once the item is closed, when the mailbox it arrived in
-    /// can send. While it is open, Request again is that same reply, so Reply
-    /// is not offered beside it.
+    /// to that e-mail once the item is closed, when a mailbox can send (R655).
+    /// While it is open, Request again is that same reply, so Reply is not
+    /// offered beside it.
     /// </summary>
     [Fact]
     public async Task AClosedItemFromAnEmailOffersReplyWhereAnOpenOneOffersRequestAgain()
@@ -139,9 +139,9 @@ public sealed class UnidentifiedRecordWebTests
         Assert.DoesNotContain("data-unidentified-action=\"request-again\"", record, StringComparison.Ordinal);
     }
 
-    /// <summary>A closed item whose e-mail arrived in a mailbox that cannot send offers no Reply.</summary>
+    /// <summary>A closed item offers no Reply while no mailbox can send, the one its e-mail arrived in included.</summary>
     [Fact]
-    public async Task AClosedItemWhoseMailboxCannotSendOffersNoReply()
+    public async Task AClosedItemOffersNoReplyWhileNoMailboxCanSend()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
