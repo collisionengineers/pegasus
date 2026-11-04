@@ -5,7 +5,9 @@
 ## Short version
 
 - A Case gets one reference once Pegasus knows the Principal and the Case
-  type for certain. That reference never changes and is never reused.
+  type for certain. That reference never changes and is never reused,
+  except that every existing Case took the temporary `-p` suffix once
+  (operator, 4 November 2026, [R656](../rulings.md)).
 - References look like `QDOS26001`. An Audit Case's reference starts with
   `a.` and a Triage Case's with `t.`.
 - There are four Case types: Inspection, Audit, Inspection + Audit, and
@@ -88,6 +90,20 @@ reference of an Inspection + Audit Case belongs to the same Case: it
 consumes no number and is not a second Case/PO. The assessment outcome never
 changes a reference.
 
+**Temporary `-p` suffix.** So that no Pegasus reference collides with an
+old-system case number, every Case/PO minted while the Administrator's switch
+**Add -p to new Case/PO** is on ends in `-p`, after its prefix and number or
+registration: `QDOS26158-p`, `a.QDOS26158-p`, `t.QDOS26158-p`, `AB12CDE-p`,
+`AB12CDE.2-p`. The Audit reference of an Inspection + Audit Case follows its
+Case/PO, `a.QDOS26157-p`. Switched off, a new Case/PO is minted without it
+and every Case that carries it keeps it. The switch shipped on, and every
+existing Case/PO and Audit reference took the suffix once, its Box folders
+renamed to match; history, issued reports and sent mail keep the reference
+they recorded. A one-off's repeat counts a suffixed reference like the bare
+one. The setting is temporary
+([FRD-17](frd-17-administration-workspace.md#workflow-configuration);
+operator, 4 November 2026, [R656](../rulings.md)).
+
 **Standalone Audit.** Another firm has already inspected the vehicle. Their
 Engineer's original report should arrive with the instruction. Pegasus creates
 the `a.` Case once the Principal and identity gates pass, with or without that
@@ -141,7 +157,8 @@ Inspection report has been sent
   ([FRD-05](frd-05-documents-extraction-and-custody.md#custody-and-derived-reads)).
 
 A Case has at most one Audit; a second Create audit is refused. The Case/PO
-and the Audit reference never change and are never reused. Case lists,
+and the Audit reference never change, but for the one-off `-p` rewrite
+(R656), and are never reused. Case lists,
 queues and intake matching read the Inspection's values. Once the Audit
 exists, Search lists the Case under both references
 ([FRD-15](frd-15-work-centre-queues-and-search.md#search)).
