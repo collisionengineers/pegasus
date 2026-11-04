@@ -157,8 +157,9 @@ links Case details, Claim, Original report on Audit Cases, Inspection details,
 Vehicle (with Damage and Valuation inside), Repair Spec, Decisions, Report,
 Files and Notes. Each is a foldable panel whose head carries its own Edit
 (entering the one page-wide edit session), one availability label when the
-state does not allow editing, and the fold chevron. The aside holds Figures
-and Next action and folds into a two-up strip above the sections below 1441px.
+state does not allow editing, and the fold chevron. The aside holds Figures,
+on the Audit view the Original report card, and Next action, and folds into a
+two-up strip above the sections below 1441px.
 Next action is one step, drawn in full with a full-width control when it is
 a requirement or a blocker, and a stale generation's warning notice sits at
 its top. Everything outstanding is the **Report not ready** card below it,
@@ -178,6 +179,16 @@ with the Case's state chip as the ribbon draws it. The current view reads plain
 (`aria-current="page"`) and the other is a link; the Audit view is the
 default. Before the Audit exists, and on a standalone Audit or a Triage Case,
 there is no card. The ribbon keeps the Case/PO and gains no Audit reference.
+
+On the Audit view of an Inspection + Audit Case, an **Original report** card
+follows Figures, in Figures' own shape (`dl.figures`): "Repair cost inc VAT"
+as the big figure, "Salvage value" only on a Total loss, and "Engineer's
+Value" with the basis guide's word in brackets, "£5,000.00 (Cazana)"; the
+absent glyph until an Inspection report exists; one more cell of the strip
+below 1441px (v48, 4 November 2026, R665, R666). The Send report dialog is
+the composer pattern (`dialog--send`, 880px): the Case viewer opens over it
+from a Files row and Escape closes the viewer first, so the dialog's `inert`
+spares the viewer's host (v48 item F).
 
 While a Triage Case is linked to the Case, a **Linked cases** card follows
 Views and precedes Figures, in the same context-card pattern: one `next-row`
@@ -941,14 +952,15 @@ deleted in wave 5.
 | `sticky-block` (`[data-sticky-block]`) | The record's sticky block under the utility bar, measured at runtime into `--sticky-h` |
 | `ribbon`, `ribbon-facts`, `ribbon-item`, `ribbon-ref`, `ribbon-registration`, `ribbon-value`, `ribbon-chips`, `ribbon-actions` | The 56px identity ribbon: the reference as the page's `h1` (`ribbon-value`) under "Case workspace", Registration, Claimant, Principal, Engineer; state, Case type and colleague-editing chips; then the edit controls and the one **Actions** menu |
 | `section-row`, `section-nav`, `section-link`, `section-tools` | The 40px section row: section links (the one in view carries `aria-current`) and Refresh |
-| `workspace`, `workspace-aside` | The record grid: sections beside a 285px aside (the Views card once an Audit exists, Figures, Next action, Report not ready) that folds above the sections below 1441px |
+| `workspace`, `workspace-aside` | The record grid: sections beside a 285px aside (the Views card once an Audit exists, Figures, the Original report card on the Audit view, Next action, Report not ready) that folds above the sections below 1441px |
 | `context-card` (`[data-case-views]`), `next-row` | The Views card: one row per view, the current one plain with `aria-current="page"`, the other a link |
 | `record-section`, `panel[data-collapse]`, `panel-collapse`, `is-collapsed`, `is-editing`, `is-locked` | One section panel, foldable and remembered per browser; the record's edit and read-only states |
 | `fg`, `fc`, `fv`, `fi`, `ro` | One-look cells: the same cells in both modes; the value (`fv`) is a greyed box that becomes its white control (`fi`) while editing; `ro` marks a cell rendered without a control, whose greyed value stays while the rest edits; no padlock |
 | `src-tag` and its `--lookup`, `--ai`, `--warn` tones | The source tag: one word in the cell's label line saying where a value came from ([source tags](README.md#source-tags)); the same pill names other short origins (AI, Manual, Amended) |
 | `menu`, `menu-body`, `menu-sep` | A `details` menu (the Actions menu, head menus); one open at a time |
 | `gated`, `avail` | The dashed availability label, stated once per section head |
-| `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its bursts, and the aside figures |
+| `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its bursts, and the aside figures (the Figures card and the Original report card, `[data-original-report]`) |
+| `dialog--send`, `send-files`, `send-file`, `send-file-open`, `send-file-rename`, `recip-box` | The Send report composer (v48): the `mail-compose-dialog` at 880px, its Files rows (tick, glyph, the name as the viewer link, kind and size, Rename with the stem beside a fixed `.pdf` and Reset) and the To/Cc boxes each with their × |
 | `damage-diagram`, `dv-hit`, `dm`, `dm-guides` | The vehicle's drawing and the outline a press must start on, one burst per recorded damage over its unpainted disc (kept as drawn, unclipped), and the dashed band guides shown while editing |
 | `valuation-card` | One valuation entry: source, date, time, guide month, retail, trade (and the mileage an Engineer's Value or AI entry carries) |
 | `outcome-option` | Settlement outcome choice |
@@ -974,6 +986,7 @@ deleted in wave 5.
 | Class | Role |
 | --- | --- |
 | `dialog-backdrop`, `dialog`, `dialog-head`, `dialog-body`, `dialog-foot` | Modal dialog ([contract](README.md#keyboard-and-dialog-contract)) |
+| `mail-compose-dialog`, `mail-compose-body`, `mail-compose-form`, `mail-compose-form-fields`, `mail-compose-addresses`, `mail-compose-subject`, `mail-compose-message`, `mail-compose-attachments`, `mail-compose-footer` | The composer dialog (the Triage reply, the Send chaser page and the Send report dialog): a grid whose fields scroll and whose footer is pinned; From, To and Cc in two columns, then Subject, Message and the attachments |
 | `command-dialog` | Command palette |
 | `toast-region`, `toast` | Toasts |
 

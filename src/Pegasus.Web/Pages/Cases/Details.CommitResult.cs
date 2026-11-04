@@ -122,6 +122,11 @@ public sealed partial class DetailsModel
                 : null;
             var generation = reads.Start(token =>
                 reportGenerations.GetCurrentAsync(actor, id, work, token));
+            // The aside is redrawn from this answer, so the Original report
+            // card's source is read here too (v48), on the Audit view only.
+            var otherGeneration = DrawsOriginalReport
+                ? reads.Start(token => reportGenerations.GetCurrentAsync(actor, id, CaseWorkSelector.Primary, token))
+                : null;
             var caseAiJobs = reads.Start(token => aiJobs.ListOpenForSubjectAsync(id, token));
             var holder = activeLease is { } lease && !viewerHoldsLease
                 ? reads.Start(token => describeEditAuthorityHolder.ExecuteAsync(
@@ -162,6 +167,8 @@ public sealed partial class DetailsModel
                 SelectedSignOffEngineerId = readinessResult.Signatory?.StaffId;
             }
             CurrentReportGeneration = await generation;
+            OtherReportGeneration = otherGeneration is null ? null : await otherGeneration;
+            OriginalReport = await ReadOriginalReportAsync(id, cancellationToken);
             AiDrafts = AiDraftPolicy.Drafts(await caseAiJobs, Case.Data.RequiredAiDraftTargetDays);
             if (activeLease is not null)
             {

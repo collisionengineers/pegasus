@@ -14,7 +14,8 @@ namespace Pegasus.Infrastructure.Assessment;
 /// word coordinates: words are grouped into visual rows by baseline, each
 /// numeric value row is paired with the single description row within a
 /// tolerance far smaller than the row pitch, and any ambiguity rejects the
-/// whole import.
+/// whole import. A line value's "*" mark is dropped whether it prints as
+/// its own word or joined to the value ("3.0*", R659).
 ///
 /// Fail-closed verification: the document prints its own section totals
 /// (labour and paint "Total Work Units", the parts "Sub Total", the extras
@@ -639,7 +640,7 @@ internal static class AudatexEstimatePdfParser
                 return false;
             }
 
-            var amount = ParseAmount(words[0].Text)
+            var amount = ParseLineValue(words[0].Text)
                 ?? throw new EstimateParseRejectedException(
                     "An amount in the estimate could not be read, so nothing was imported.");
             if (bare is not null)
@@ -685,7 +686,7 @@ internal static class AudatexEstimatePdfParser
                 }
                 if (valueZoneX is { } valueX && word.X >= valueX)
                 {
-                    inlineValue = ParseAmount(word.Text)
+                    inlineValue = ParseLineValue(word.Text)
                         ?? throw new EstimateParseRejectedException(
                             "An amount in the estimate could not be read, so nothing was imported.");
                     continue;
@@ -844,6 +845,14 @@ internal static class AudatexEstimatePdfParser
             _ when description.Contains("PREPARATION", StringComparison.OrdinalIgnoreCase) => "paint_prep",
             _ => "paint_repair",
         };
+
+        /// <summary>
+        /// A line's printed value, which may carry its "*" mark joined to it
+        /// ("3.0*") rather than as a separate word; the mark is dropped
+        /// either way (R659).
+        /// </summary>
+        private static decimal? ParseLineValue(string text) =>
+            ParseAmount(text.Length > 1 && text.EndsWith('*') ? text[..^1] : text);
 
         /// <summary>
         /// Reads a printed amount ("16.2", "£1,843.49") strictly; anything

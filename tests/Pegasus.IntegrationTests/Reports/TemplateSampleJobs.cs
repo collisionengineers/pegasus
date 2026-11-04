@@ -36,8 +36,9 @@ internal sealed record TemplateSample(
 /// mapped onto report snapshots. The costs are built as a repair
 /// specification and passed through <see cref="ReportRepairCosts.For"/>, as a
 /// Case's are. The sample photographs are not in the repository, so the
-/// photographs are drawn here: a Close-up for page 1, then an Overview and
-/// five supporting images, which fill one image page as the samples do. The
+/// photographs are drawn here: an Overview for page 1, which the image page
+/// prints again, a Close-up and four supporting images, which fill one image
+/// page as the samples do. The
 /// signature is the template's own.
 /// </summary>
 internal static class TemplateSampleJobs
@@ -208,9 +209,10 @@ internal static class TemplateSampleJobs
         ActorKind.Staff, "engineer-1", RecordedAtUtc);
 
     /// <summary>
-    /// Seven drawn landscape photographs in the sizes a telephone takes
-    /// them: the Close-up, the Overview, and five supporting images in order,
-    /// so the six image-page images fill the template's one image page.
+    /// Six drawn landscape photographs in the sizes a telephone takes them:
+    /// the Close-up, the Overview, and four supporting images in order. The
+    /// Overview prints on page 1 and again on the image page (R660), so the
+    /// six fill the template's one image page.
     /// </summary>
     private static ReportImageEvidence[] Photographs()
     {
@@ -222,7 +224,6 @@ internal static class TemplateSampleJobs
             (CaseAssetReportRole.Supporting, 2, 1600, 1200),
             (CaseAssetReportRole.Supporting, 3, 1600, 1200),
             (CaseAssetReportRole.Supporting, 4, 2000, 1125),
-            (CaseAssetReportRole.Supporting, 5, 1600, 1200),
         ];
         return [.. plan.Select((photo, index) =>
         {

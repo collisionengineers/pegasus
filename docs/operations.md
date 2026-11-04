@@ -291,6 +291,104 @@ named below, and one read-only count of 22 October 2026 posted on
 | [Release 117](https://github.com/collisionengineers/pegasus/blob/5a7c2b75c5d52c8d73a70e684073bf87369beec7/docs/operations.md#release-117---21-october-2026-deployment-live), Query Store row | Statement: "the one Case on the estate means the registration lookup (PR 1440) and the Open tasks statement (PR 1454) were not exercised, as Release 115's record anticipated". The wipe records give the Case count at four times: 1 Case at the 19 October wipe with mail cutoff 08:31:22Z (`CaseSequences` 104), 4 Cases with 54 documents at 13:29Z (108), 1 Case with 12 documents at 13:36Z (109) and, on 21 October, 2 Cases with 28 documents at 10:24Z (111). Release 117's containment read found 2 `CaseRepairSpecifications` rows at 09:23:34Z. The counts between those times are not recorded. The retained after snapshot (`artifacts/performance/query-store-release-115-after-20261021T0941Z.csv`, 48 h, 357 statements) reads: the Open tasks statement without `ActionHistory` (PR 1454) 1,003 executions, average 289.87 microseconds, total 290,742 microseconds; the candidate-page read that compares `VehicleLookupRequests.Registration` with `NormalizedRegistration` (PR 1440) 2,812 executions, average 144.52 microseconds, total 406,403 microseconds. The file holds no `INSERT` into `VehicleLookupRequests`. Executions count runs and do not show how many rows the tables held. For the earlier Open tasks text, [Release 115](https://github.com/collisionengineers/pegasus/blob/5a7c2b75c5d52c8d73a70e684073bf87369beec7/docs/operations.md#release-115---19-october-2026-deployment-live) names a baseline of 485 executions at 31.1 ms; the retained Release 114 after snapshot (`query-store-release-114-after-20261019T0739Z.csv`, 24 h to 07:39Z on 19 October) reads 459 executions, average 112.17 microseconds, total 51,487 microseconds. |
 | [Reference-data load (REF-04)](https://github.com/collisionengineers/pegasus/blob/5a7c2b75c5d52c8d73a70e684073bf87369beec7/docs/operations.md#reference-data-load-ref-04---17-october-2026-production-applied), read-back row | Statement: "`ActionHistory` rows of batch `ref04:prod-20261017`: 329 `contact_created`, 39 `contact_saved` and 1328 `inspection_location_created`, 1696 in all", with "`OrganizationAdministrationOperations` holds 1696 `ref04` rows", read at 20:07:31Z on 17 October. A read-only count at 06:11:57Z on 22 October returned 0 `ActionHistory` rows where `CorrelationId` starts `ref04:prod-20261017:` and 1,696 `OrganizationAdministrationOperations` rows where `OperationKey` starts `ref04:prod-20261017:`. The 17 October `ActionHistory` count no longer reproduces; the operations table still holds 1,696 rows for the batch. The wipe skill lists `ActionHistory` among the tables a wipe clears and the wipe script's preserve list names `OrganizationAdministrationOperations`. The wipes this file records after that read are the three of 19 October and the one of 21 October. |
 
+## Release 141 - 4 November 2026 (deployment live)
+
+Release 141 deployed PR 1899 (#1897): the Sent-evidence poll moves its cursor only at a page boundary and replays an item Graph presents again by identity rather than position, so a busy mailbox's Sent poll no longer stalls with `invalid_sent_source_item`; a poll with a failed mailbox is logged at Warning. The range also carried PR 1880 (CI test lanes on Linux, R657/R658), which deploys no code. Normal route; no migration; no provision; no outage, under the operator's grant of 4 November 2026 ("approved", to the read-only run's request); the PR's CI covered the merge tree, which equals the PR head's.
+
+| Observation | Value |
+| --- | --- |
+| Source | `8da7957cead9dc3c50ff30f3845b0d9ecceeb322`, promoted from `ff91df4b899d5af3452bbf4057d2a9e7106b47e0` with SHA, manifest and route as the read-only run reported them; `main` and `dev` read it back |
+| Packages | manifest `6B42EB4C781F40FBA6C1B4578C909C83829DC80172D090BD56F2E4A378720A6D`; `web.zip` `5B88B6A73C5A9114AE4DC3A5906910E0F667597D20CEA9D787227190FDF056C5`; `worker.zip` `84E1546EF3863EB8F698D692DCC68EE186A805232E359BB9B5164DD50F646986`; `classifier.zip` `7B044DC65D86A9CE7949E1E261416A58D1C7576EEE1E335C81BF27E9784D799A`; `efbundle.exe` `F38AFDE0018397474EA3F3309E3F27A7DF7E0AD29F9BF567332E2541DF021FB4` |
+| Migration | none; head `20261104120000_CaseReferenceSuffix` unchanged |
+| Deployment | provision not run (no infra change, azd environment equal to Release 140's); Web OneDeploy `64965eb4-1cc3-4549-87f2-d0cd68fb8dc0` succeeded 12:48:12Z, the site read back Running, ready and at the SHA on attempt 1; Worker `config-zip` `c5a430f1-dd20-47b3-b50b-fe81fe795b68`; classifier `bbea7d87-a2a7-4251-95e5-946c8970de1f`, `Running` |
+| Smoke | passed at 12:56:26Z; package SHA equals `web.zip`; intake liveness last poll 12:55:00Z, subscription expires 2026-11-05 14:00Z |
+| Sent poll | desk@ `LastCompletedAtUtc` 12:57:00Z with no failure code, the first completion since 3 November 20:14Z; the first run under the release recorded six items at 12:54:06Z (one Unmatched, five quarantined re-presentations) and replayed the rest at their new positions. a.QDOS26157-p's 11:11:04Z send had been observed at 12:40:03Z, before the deployment, once Graph's live page shifted. QDOS26159-p's 12:07:49Z send (`51ac6fca…`) stayed Submitted because the stored position cursor had skipped its item: with the operator's approval, desk@'s `Cursor` was set NULL at 13:02:57Z (one row, between runs), the poll re-read from the activation boundary, observed the send at 13:03:06Z and completed at 13:03:20Z. Both Cases read Report sent |
+| Owed | none |
+
+## Release 140 - 4 November 2026 (deployment live, destructive migration)
+
+Release 140 deployed PR 1893 alone: the temporary **Add -p to new Case/PO** switch, shipped on, which ends every newly minted Case/PO in `-p`; every existing Case/PO and Audit reference was rewritten once and their Box folders renamed (R656). Destructive route with one destructive migration and a short outage, under the operator's grant of 4 November 2026 ("approved, now"); the PR's CI covered the merge tree, which equals the PR head's.
+
+| Observation | Value |
+| --- | --- |
+| Source | `ff91df4b899d5af3452bbf4057d2a9e7106b47e0`, promoted from `75152f80c6969eb42ceed628be15c7d91af77e0d`, with SHA, manifest, route and old Web SHA as the read-only run reported them; `main` and `dev` read it back |
+| Packages | manifest `BA1E53C94637A7E66499A8861904A26AB7659AD7A914E126AF3B57C1E1F8C3DD`; `web.zip` `A1855C361D8C8DF57091AB2694E8B41227F701D0E728FDAEF2CBDCB76533C3B1`; `worker.zip` `A421F945759BCE8C7870576FFD379180631413D83A8E20E09BDDD51C1661F825`; `classifier.zip` `5D1C73B6C9C2199E51291A0FD3732874589B6FA09EE86B25D58ABAC0E1AB6716`; `efbundle.exe` `C8EECD608484B9431B8E22121D9BC83103723AB5D6FD90A9B215EA47C0F611A9` |
+| Migration | `20261104120000_CaseReferenceSuffix`, applied with the classifier, Worker and Web read back Stopped and unserved: it appends `-p` to `Cases.Reference` and `AuditReference` and to the matching `StaffNotifications` reference and reply link; forward only. Bootstrap census 698/490; head read back at the new id. 3 Cases on the estate, all rewritten |
+| Deployment | Worker staged `470db9a7-45b4-4f69-8a52-a9397a764a27` before SQL; Web OneDeploy `0b011175-e2e5-4418-9fe0-7a8128dcc7a5` onto the stopped site at 10:37:09Z, read back Running at the SHA on attempt 1; classifier `f313f6ec-7b8e-41b3-a089-a91f6b094ca6`, again `9a8da9af-284b-45cb-875b-5b0a1a3dbaa9` on the resumed run |
+| Provision | skipped as unchanged with the Worker Disabled settings left `true` (#1857), so the first smoke failed; `azd provision --no-state` set them `false` and the same `-Execute` line resumed |
+| Smoke | passed at 10:48:31Z; package SHA equals `web.zip`; intake liveness last poll 10:45:00Z, subscription expires 2026-11-05 14:00Z |
+| Box rename | the staged Worker ran the one-off pass before SQL and recorded 0 renamed (#1895); with the operator's approval that `ActionHistory` row was deleted and the Worker stopped and started 11:03:37–11:03:55Z (`az functionapp restart` did not recycle it); 11:04:10Z "3 Box folders renamed for 3 Cases", confirmed in Box by the operator |
+| Owed | #1857 (provision skip), #1895 (rename pass ordering) |
+
+## Release 139 - 4 November 2026 (deployment live)
+
+Release 139 deployed PR 1883 alone: From is a default on every send, changeable to any send-ready Outgoing mailbox, preselected on the mailbox the message arrived in (for an instructions@ staff forward, the forwarding mailbox), else the Principal's Send from; Forward keeps the holding mailbox (R655). Normal route; no migration; no outage, under the operator's grant of 4 November 2026 ("PR now green, proceed on to merge to dev and release"); the PR's CI covered the merge tree, which equals the PR head's, so dev→main CI was skipped as the operator directed.
+
+| Observation | Value |
+| --- | --- |
+| Source | `75152f80c6969eb42ceed628be15c7d91af77e0d`, promoted from `ac836fef5d80ce1b772428171b693162edcc8103`, with SHA, manifest and route as the read-only run reported them; `main` and `dev` read it back |
+| Packages | manifest `CD5365B2648EBA127952DA402991759503B6B2213E31C4A5F104C4DD3202699C`; `web.zip` `A301714CB5C4419D2E94AC7C23EE30E6934EE3FF6E200DEA765A2CE928DC6368`; `worker.zip` `49106136022E9A98205B8BCB2DC3109AFF85DDBD85831E023B0D8DA063B5F7BE`; `classifier.zip` `07E7CFCF6FFA9581BE95635AF907D3ED4B104CF35F9E1BB7C64034E61D2A4D05` |
+| Migration | none (head `20261103120000_ImpactsEnteredByHand`); provision not run (no infra change, azd environment unchanged) |
+| Deployment | Web OneDeploy `a8a1d9d4-1ef3-44f0-a621-9dd4253f9d2d` at 09:10:39Z, read back Running at the SHA on attempt 1; Worker and classifier `config-zip` `5ed42343-e314-42bb-81cf-ae921f2cc6ad` and `6d7083cd-60c8-4799-9b46-59c4bf97dc6f` |
+| Smoke | passed at 09:19:25Z; package SHA equals `web.zip`; intake liveness last poll 09:10:00Z, subscription expires 2026-11-05 14:00Z; no send was made |
+| Evidence | `artifacts/releases/release-139-75152f80`, logs `artifacts/release-139/` |
+| Owed | none; #1881 is superseded by R655 |
+
+## Release 138 - 3 November 2026 (deployment live)
+
+Release 138 deployed PR 1878 alone: a Collision Engineers staff forward held in instructions@ is answered from the mailbox that forwarded it, or from the mailbox staff choose with the Principal's Send from first (R651–R654), with the Fable review's forwarded-recipient parse fix. Normal route; no migration; no outage, under the operator's grant of 3 November 2026 ("authority to deploy this granted and approved within this prompt now"); the PR's CI covered the merge tree, which equals the PR head's.
+
+| Observation | Value |
+| --- | --- |
+| Source | `ac836fef5d80ce1b772428171b693162edcc8103`, promoted from `7a6a43b92f6db1c22a759d0b58932753c4649183`, with SHA, manifest and route as the read-only run reported them; `main` and `dev` read it back |
+| Packages | manifest `046EB12EAFFA3302D65DCC76C3CE4B19A2501964DDD3380BFB9F2FD2CB53BBA7`; `web.zip` `8D787D87FF7D7B1041A6B800728486DE7693EC2953F71DEA8772A68D056F1F23`; `worker.zip` `2D8877A053FB88559AAB3553C49C1C2ACCB2356BE359BA2362F26389C356F03A`; `classifier.zip` `CEF9EB0C0274C8F441285352CAED59CA56580A32295FA1B2329026B90ADFD009` |
+| Migration | none (head `20261103120000_ImpactsEnteredByHand`); provision not run (no infra change, azd environment unchanged) |
+| Deployment | Web OneDeploy `dfca3d40-1eaf-4bb7-9307-77861b36d350` at 18:58:10Z, read back Running at the SHA on attempt 1; Worker and classifier `config-zip` `9a4cab54-62c9-4f0c-a623-c7c633fbed12` and `df77d675-6d89-4a94-8163-6705b6c7975a` |
+| Smoke | passed at 19:04:46Z; package SHA equals `web.zip`; intake liveness last poll 18:55:00Z, subscription expires 2026-11-05 14:00Z; no send was made (operator: desk@ is send-ready, "dont send anything") |
+| Evidence | `artifacts/releases/release-138-ac836fef`, logs `artifacts/release-138/` |
+| Owed | #1881 (the store and engine accept a cross-mailbox Reply for any message, not only an instructions@ staff forward) |
+
+## Release 137 - 3 November 2026 (deployment live)
+
+Release 137 deployed PR 1874 alone: v47, where the report needs at least one damage marker (R650) and an impact or a deliberate Skip impacts (R647–R649), and the Case page's Incident narrative spaces its sentences. Normal route; no migration; no outage, under the operator's grant of 3 November 2026 ("Deploy auth granted now"); the PR's CI covered the merge tree, which equals the PR head's, so dev→main CI was skipped as the operator directed.
+
+| Observation | Value |
+| --- | --- |
+| Source | `7a6a43b92f6db1c22a759d0b58932753c4649183`, promoted from `7231a4b375c46d2a00aa700bdf1dc2f80c3aa453`, with SHA, manifest and route as the read-only run reported them; `main` and `dev` read it back |
+| Packages | manifest `6F58C82E8FA5CBD78B8A6A5424D552360477F2BACB43FAABCE1BEBD2F4CEBBC0`; `web.zip` `452C96FFAE7B02153DC1633A92A503CC0CE3794D43E7889D5AC12511863FA7C8`; `worker.zip` `955EA262A52A1EEA73FCA949C507EC0B205E18C76F2587FEE58330DD9D576F67`; `classifier.zip` `93832031AA201FF284471C937CFEEC08526E689AC6D2D45C53EDED665C53A3CE` |
+| Migration | none (head `20261103120000_ImpactsEnteredByHand`); provision not run (no infra change, azd environment unchanged) |
+| Deployment | Web OneDeploy `c41250e2-a0a8-4213-8226-45f2ee05a701` at 14:40:29Z, read back Running at the SHA on attempt 1; Worker and classifier `config-zip` `3433fc72-7379-486d-b57c-4a7b58cf6f83` and `390c1c9a-61ba-41f3-b4a6-46e7bd561e65` |
+| Smoke | passed at 14:47:44Z; package SHA equals `web.zip`; intake liveness last poll 14:45:03Z, subscription expires 2026-11-05 14:00Z; `/diagnostics/version` and the served Damage script and styles carry the release |
+| Evidence | `artifacts/releases/release-137-7a6a43b9`, logs `artifacts/release-137/` |
+| Owed | #1876 (live walk of the v47 Damage journey) |
+
+## Release 136 - 3 November 2026 (deployment live, destructive migration)
+
+Release 136 deployed PR 1869 alone: the v46 impact entry, where staff enter each impact by hand (severity, location, note) and the damage markers are the report's picture only, superseding R639 (R642–R646). Destructive route with one destructive migration and a short outage, under the operator's grant of 3 November 2026 ("approved. proceed immediately"); the PR's CI covered the merge tree, which equals the PR head's.
+
+| Observation | Value |
+| --- | --- |
+| Source | `7231a4b375c46d2a00aa700bdf1dc2f80c3aa453`, promoted from `fb4c5e741436ebfdb90da74bea4aef76056e29b2`, with SHA, manifest, route and old Web SHA as the read-only run reported them; `main` and `dev` read it back |
+| Packages | manifest `08BAB3B06767E4017B1119B03921D59682CA691E1E0F7D19B2D572B7B53D6DD2`; `web.zip` `BCDB7A4DCCF6C9C2666FE33DE0C33A362863DCC26005CBF847C97D82076A669C`; `worker.zip` `77745822B66640C0CB9B4BC18EFDBBF314CACC54FD0F55ACDDE89D5D0A9282A9`; `classifier.zip` `A2728734CCA4A669192651AFE95E408154655FBFF130631A3420111683C9513B`; `efbundle.exe` `7ACFCDE6DBCC3BB9185AA06C8AD686AB3AB52B791A98CDF323EE10534F7FA0D4` |
+| Migration | `20261103120000_ImpactsEnteredByHand`, applied with the classifier, Worker and Web read back Stopped and unserved: it rewrites each `damage.impacts` value to marker discs and deletes the `assessment.impact_location` and `assessment.impact_severity` rows; forward only. Bootstrap census 698/490; head read back at the new id |
+| Deployment | Worker staged `05b053cf-6987-40a4-9aeb-93c99eac2776` before SQL; Web OneDeploy `deba14e9-5a2c-4bcb-b7b5-c46bd7bf99e4` onto the stopped site at 11:50:32Z, Web read back Running at the SHA on attempt 1; classifier `config-zip` `ad56fdee-8436-468b-906f-360b4f19a842`, again `c2f4e571-89ae-4291-bb36-1a0c9aa96138` on the resumed run |
+| Provision | the route's `azd provision` again skipped as unchanged and left the five Worker Disabled settings `true` (#1857), so the first full smoke failed; `azd provision --no-state` at 11:56–11:58Z set them `false`, and the same `-Execute` line resumed at the activated stage |
+| Smoke | passed at 12:01:41Z; package SHA equals `web.zip`; intake liveness last poll 12:00:00Z, subscription expires 2026-11-05 14:00Z |
+| Owed | #1857 (provision skip), #1870 (live check of the impact entry) |
+
+## Release 135 - 2 November 2026 (deployment live)
+
+Release 135 deployed combine PR 1866 (PRs 1859, 1853, 1855, 1860, 1862, 1861): the Release 134 record; a manual Case's instruction clearing when its last required item lands (R630, R631); the v44 Inbox message settings with the Case / PO picker in the link dialogs (R632–R637); Get valuation choosing its card (R638); touching damage bursts as one impact location (R639); and the v45 Report wording holding every report content choice (R640, R641). Normal route, no migration, no provision; no outage.
+
+| Observation | Value |
+| --- | --- |
+| Source | `fb4c5e741436ebfdb90da74bea4aef76056e29b2`, promoted from `f6de68d1ad0578c4b3f4d80ff96ef65a575e68f7` under the operator's grant of 2 November 2026 ("the deploy is approved and auth'd"), with SHA, manifest and route as the read-only run reported them; `main` and `dev` read it back |
+| Packages | manifest `4E73CD38ED6AEC155BCF96B3C2424DF54542257C8ECCE811D5FAF3047E11D685`; `web.zip` `BA080ADAB7EB3C56A3806240175167711D4AD7A51E59E0EBEA20B2469AAC4735`; `worker.zip` `4F6CF643C2679A85790B804407AC75A3CFDE8CFCC4E6654CEA5207217F0D6568`; `classifier.zip` `7CC105C352617E86EDB356A10BCFE408C731714EA8686287A7A7662F62EB925C`; `efbundle.exe` `B1641252EAA70AFF894F112DA0D4BB63E06535C4E01F916BFB01427BEF23FD0A` |
+| Migration | none; head `20261102154620_RemoveCaseContactAndClientNotes` |
+| Deployment | Web OneDeploy `e236c78d-69f6-436a-a1c3-c40e0cf4b37b` at 22:35:31Z, read back Running at the SHA on attempt 1; Worker `config-zip` `31b8154d-cfa1-4b61-9201-31abcd171288`; classifier `config-zip` `cd0873ce-dd9d-4a21-8d9c-c0c9c7abb639` |
+| Smoke | passed at 22:41:56Z; package SHA equals `web.zip`; intake liveness last poll 22:40:03Z, subscription expires 2026-11-05 14:00Z |
+| Owed | #1867 (live checks of the changed journeys) |
+
 ## Release 134 - 2 November 2026 (deployment live, destructive migration)
 
 Release 134 deployed combine PR 1856 (PRs 1843, 1854, 1840): the Release 133 record; the a.QDOS26157 report findings (R607–R616); and the v43 Case details, which bring the Claim source card and the Principal notes panel and remove the Case contact and Notes from client (R617–R622). Destructive route with one destructive migration and a short outage, under the operator's grant of 2 November 2026 ("deploy authorized and approved"); no restore point was recorded (operator: "not needed this time").

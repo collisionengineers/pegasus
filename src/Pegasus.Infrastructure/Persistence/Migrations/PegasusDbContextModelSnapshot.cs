@@ -1389,6 +1389,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<int>("Ordinal")
                         .HasColumnType("int");
 
+                    b.Property<string>("SeriesIdentity")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
                     b.Property<string>("SourceOccurrenceIdentity")
                         .IsRequired()
                         .HasMaxLength(512)
@@ -1398,6 +1402,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CaseId", "Ordinal")
                         .IsUnique();
+
+                    b.HasIndex("CaseId", "SeriesIdentity");
 
                     b.HasIndex("CaseId", "SourceOccurrenceIdentity")
                         .IsUnique();

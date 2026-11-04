@@ -11,6 +11,11 @@ internal sealed class CaseDocumentEntity
 
     // The Box folder the document is filed in (CaseCustodyFolders).
     public string CustodyFolder { get; set; } = CaseCustodyFolders.Case;
+
+    // The series a regenerated document belongs to: a later document of the
+    // same series in the same folder is filed as a new version of its Box file
+    // (CaseArtifactCustodyRequest.SeriesIdentity). Null outside any series.
+    public string? SeriesIdentity { get; set; }
 }
 
 internal sealed class DocumentVersionEntity

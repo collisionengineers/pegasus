@@ -12,7 +12,9 @@
 - Generating a report is not approving, sending or receiving it. Each is a
   separate recorded event.
 - An issued report is immutable. A correction is a new version; the old one
-  is kept.
+  is kept. In Box a regenerated report is the next version of the same file,
+  and the old one stays an earlier version of it (operator, 4 November 2026;
+  R664).
 - Report sent is the Case's last stage. It does not close the Case.
 
 ## Purpose
@@ -320,10 +322,13 @@ version, hash and length, and re-checks just before the mail is submitted that
 every one is still a confirmed artifact, byte for byte.
 
 **One step (operator, 6 October 2026).** A report is sent in one step. The
-Report section's delivery form holds From, the recipients, the documents to
-attach, the report's name and the covering message, and its one **Send
-report** sends them. There is no separate preparation and no second confirmation. The
-staff-send operation is the record of what was sent. The form stays offered
+Report section's **Send report** opens the delivery composer, a dialog that
+holds From, the recipients, the subject, the covering message and the
+documents to attach, each under its name, and its one **Send report** sends
+them (operator, 4 November 2026, R665;
+[FRD-16](frd-16-case-record-workspace.md#assessment)). There is no separate
+preparation and no second confirmation. The
+staff-send operation is the record of what was sent. The composer stays offered
 after a send, whatever its outcome, so the same report can be sent again.
 The Automation Actor sends a report through the same command with
 `pegasus_report_send`, choosing what the form holds; its send records the
@@ -334,7 +339,14 @@ Automation actor as the sender (operator, 7 October 2026;
 people who read it — the Case's reference, the vehicle's registration and the
 outcome — and one dot is added for each report of this Case already sent, so
 a re-issue is distinguishable at a glance. Companion documents keep the names
-custody gave them. The delivery carries one covering message, which starts as
+custody gave them. That is each document's policy name, and the composer's
+Files rows start on it; staff may rename any of the generation's documents
+for the send, the report included, the stem alone, since every delivered
+document ends in `.pdf`, and Reset restores the policy name. A rename holds
+for that send only: the next send starts on the policy name again. The
+Case's filed estimates attach under the names they were filed with and are
+not renamed (operator, 4 November 2026, R665, R671, R672). The delivery
+carries one covering message, which starts as
 the Case report delivery template
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) rendered for
 this Case. Its built-in body is the Report Sending SOP wording: it greets with
@@ -349,8 +361,11 @@ actually left the approved mailbox.
 
 **From and subject (operator, 12 October 2026).** The report goes out as a
 reply to the Case's instruction email, the retained mailbox message the
-Case's origin receipt came from; its subject is "Re:" and the
-instruction's subject. The form's From is a choice of every send-ready
+Case's origin receipt came from; its subject starts as "Re:" and the
+instruction's subject. The composer's Subject field is prefilled with that
+derived subject and staff may change it; what they submit is sent, trimmed,
+at most 500 characters as the Triage composer's Subject is, and a field left
+blank sends the derived subject (operator, 4 November 2026, R667, R670). The form's From is a choice of every send-ready
 Outgoing mailbox, starting on the approved mailbox the instruction arrived in
 while that mailbox is Outgoing and can send; staff may change it, and a
 report from another mailbox still answers the instruction, as a new message
@@ -445,8 +460,8 @@ Every Principal has report sending rules (set on the Principal contact, see
 [FRD-17](frd-17-administration-workspace.md); Report Sending SOP v8, 15
 October 2026). One Core plan reads them with the Case's facts. The page makes
 the plan when it loads, and Send report makes it again with staff's answers
-and follows it. Everything below is answered on the one delivery form, in the
-same click as Send report.
+and follows it. Everything below is answered in the one Send report dialog, in the
+same click as Send report (operator, 4 November 2026, R665).
 
 - **Mode.** Where the report leaves from is **From and subject** above: a
   reply to the instruction from the Outgoing mailbox staff choose, in its
@@ -562,6 +577,12 @@ report as stored. Nobody presses Generate report again. The Worker leaves
 alone a report generated, or a file recorded, in the last three minutes, so
 it never competes with the request still producing it.
 
+**A regeneration in Box.** A regenerated report, fee note or image pack of
+the same work, and a regenerated Repair Spec of the same estimate, goes into
+Box as the next version of the earlier file and keeps its first name
+(operator, 4 November 2026; R664). The rule and its limits are in
+[FRD-05](frd-05-documents-extraction-and-custody.md).
+
 **Retry.** A retry asks what was filed before it draws anything. It never
 draws again a file that is already held. A file that is filed is recorded as
 stored. A file still being filed, or one that failed, is recorded as that.
@@ -584,9 +605,11 @@ The report prints its images two to a row, each unframed at the column's
 full width and its own shape, the rows flowing onto the next page and never
 split (operator, 8 October 2026), in the order the Engineer set (operator,
 27 September 2026). The Overview prints
-on page 1 only, beside the marked damage diagram, and Full page has no effect
-on it. The Close-up leads the image pages (operator, 7 October 2026). An
-image flagged Full page prints on a page of its own (v28 P41). An image
+on page 1, beside the marked damage diagram (operator, 7 October 2026), and
+again first on the image pages, followed by the Close-up, so a report whose
+one image is its Overview prints it twice (operator, 4 November 2026; R660).
+An image flagged Full page prints on a page of its own (v28 P41); on the
+Overview that flag applies to its image-page copy, never to page 1 (R660). An image
 prints whole after the Engineer's own crop and rotation, so nothing of it
 is trimmed (operator, 7 October 2026). Every image
 the Engineer includes prints, whatever their number or source file size,
@@ -708,7 +731,9 @@ specs and frozen versions are rewritten to Registered (operator, 27 September
 
 An issued report has an immutable file and version identity and hash. A
 correction or addendum creates a new reasoned version and keeps every
-earlier file, fact, actor, time and source. It never silently overwrites the
+earlier file, fact, actor, time and source. An earlier file is kept as an
+earlier version of the same Box file, within the Box plan's version limit
+(operator, 4 November 2026; R664). It never silently overwrites the
 issued report. Later report changes follow
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions) and keep the
 correction history.

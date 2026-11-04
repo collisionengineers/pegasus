@@ -226,9 +226,13 @@ preview, a download or system work does not count
 A retained vehicle image either shows a readable registration that matches
 an existing eligible Case, in which case every image in its group attaches
 to that Case as evidence, or it shows a readable registration that matches
-no Case, in which case it starts an Image-initiated Case. A multi-file image
-submission from manual upload or the eligible mailbox route below is one
-evidence group, not independent images. A damage close-up with no visible
+no Case, in which case it starts an Image-initiated Case. A vehicle-capture
+document ([FRD-02 EXT-17](frd-02-intake-and-source-identity.md)) is the
+exception: its photographs are images for an existing Case, so with no Case
+holding its printed registration nothing registers and the e-mail waits in
+No Case Found (operator, 2 November 2026, [R585](../rulings.md)). A
+multi-file image submission from manual upload or the eligible mailbox
+route below is one evidence group, not independent images. A damage close-up with no visible
 plate must not detach from the overview image submitted with it. The group,
 never an individual image, is what reaches an association, a registration,
 or an Unidentified outcome.

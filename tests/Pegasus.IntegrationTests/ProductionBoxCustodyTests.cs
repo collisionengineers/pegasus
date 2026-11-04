@@ -716,6 +716,46 @@ public sealed class ProductionBoxCustodyTests
     }
 
     /// <summary>
+    /// A regenerated document over 50 MB goes in as the next version of its
+    /// series' file through that file's own upload session, whose commit names
+    /// the file's etag; no second file is made (operator, 4 November 2026).
+    /// </summary>
+    [Fact]
+    public async Task ANextVersionOverFiftyMegabytesIsUploadedInPartsToTheSeriesFile()
+    {
+        var box = new StatefulBox();
+        var caseId = Guid.NewGuid();
+        var custody = new BoxCaseCustody(new EmptyArtifactStore(), CreateClient(box));
+        var root = await custody.CreateCaseRootAsync(
+            caseId, "QDOS31001", "0123456789ABCDEFGHJKMNPQRS", "case-root", default);
+        var documents = new BoxDocumentContentStore(CreateClient(box));
+        var earlier = "earlier report"u8.ToArray();
+        var first = await documents.StoreVersionAsync(
+            Address(caseId, root.RemoteId, 2, 1, "large.pdf"), earlier, Sha256(earlier), default);
+        var bytes = OverTheSinglePartLimit();
+        using var stream = new MemoryStream(bytes, writable: false);
+        var before = box.Requests.Count;
+
+        var next = await documents.StoreVerifiedStreamAsync(
+            Address(caseId, root.RemoteId, 3, 1, "large.pdf") with { SeriesBoxFileId = first.RemoteId },
+            stream,
+            bytes.Length,
+            Sha256(bytes),
+            default);
+
+        var requests = box.Requests.Skip(before).ToArray();
+        Assert.Equal(DocumentContentWriteDisposition.Created, next.Disposition);
+        Assert.Equal(first.RemoteId, next.RemoteId);
+        Assert.Equal(1, requests.Count(request => request == $"POST /api/2.0/files/{first.RemoteId}/upload_sessions"));
+        Assert.DoesNotContain("POST /api/2.0/files/upload_sessions", requests);
+        Assert.DoesNotContain(requests, IsUpload);
+        Assert.Equal(1, requests.Count(IsCommit));
+        Assert.Equal("1", Assert.Single(box.VersionCommitIfMatches));
+        Assert.Equal(Sha256(bytes), Sha256(box.ContentAt("QDOS31001/002 large.pdf")));
+        Assert.False(box.PathExists("QDOS31001/003 large.pdf"));
+    }
+
+    /// <summary>
     /// Up to and including the limit, a file is still one direct upload, from
     /// memory or from a stream.
     /// </summary>
@@ -1609,6 +1649,59 @@ public sealed class ProductionBoxCustodyTests
             }).ToArray());
     }
 
+    /// <summary>
+    /// A Case the <c>-p</c> migration rewrote keeps its Box folders by id; the
+    /// Worker's pass renames the Case folder and its Audit folder to the new
+    /// reference, after which the folder proves as the Case's own again, and
+    /// a second pass renames nothing (operator, 4 November 2026; R656).
+    /// </summary>
+    [Fact]
+    public async Task TheSuffixPassRenamesTheCaseAndAuditFoldersOnce()
+    {
+        var box = new StatefulBox();
+        var client = CreateClient(box);
+        var custody = new BoxCaseCustody(new EmptyArtifactStore(), client);
+        var caseId = Guid.Parse("4f1d2c3b-5a69-4788-9aab-bccddeeff001");
+        var root = await custody.CreateCaseRootAsync(
+            caseId, "QDOS26157", "0123456789ABCDEFGHJKMNPQRS", "case-create", default);
+        var auditFolderId = await custody.CreateAuditReferenceFolderAsync(
+            root, "a.QDOS26157", "123456789ABCDEFGHJKMNPQRS0", "audit-create", default);
+        var folders = new SuffixedCaseFolders(
+            caseId, "QDOS26157-p", root.RemoteId, "a.QDOS26157-p", auditFolderId);
+
+        Assert.Equal(2, await CaseReferenceSuffixBoxRename.RenameAsync(client, folders, default));
+
+        Assert.True(box.PathExists("QDOS26157-p/a.QDOS26157-p"));
+        Assert.False(box.PathExists("QDOS26157"));
+        var renamed = await new BoxCaseCustody(new EmptyArtifactStore(), client)
+            .GetExistingCaseRootAsync(caseId, "QDOS26157-p", root.RemoteId, default);
+        Assert.Equal(root.RemoteId, renamed.RemoteId);
+        var renames = box.RenameCount;
+        Assert.Equal(0, await CaseReferenceSuffixBoxRename.RenameAsync(client, folders, default));
+        Assert.Equal(renames, box.RenameCount);
+    }
+
+    /// <summary>A folder holding neither the old nor the new reference is refused and left as it is.</summary>
+    [Fact]
+    public async Task TheSuffixPassLeavesAFolderOfAnotherName()
+    {
+        var box = new StatefulBox();
+        var client = CreateClient(box);
+        var custody = new BoxCaseCustody(new EmptyArtifactStore(), client);
+        var caseId = Guid.Parse("4f1d2c3b-5a69-4788-9aab-bccddeeff002");
+        var root = await custody.CreateCaseRootAsync(
+            caseId, "QDOS26158", "0123456789ABCDEFGHJKMNPQRS", "case-create", default);
+        var renames = box.RenameCount;
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => CaseReferenceSuffixBoxRename.RenameAsync(
+            client,
+            new SuffixedCaseFolders(caseId, "QDOS26157-p", root.RemoteId, null, null),
+            default));
+
+        Assert.True(box.PathExists("QDOS26158"));
+        Assert.Equal(renames, box.RenameCount);
+    }
+
     private static BoxCaseCustody Create(DelegateHandler handler, IIntakeArtifactStore? artifactStore = null) => new(
         artifactStore ?? new EmptyArtifactStore(),
         CreateClient(handler));
@@ -1844,7 +1937,11 @@ public sealed class ProductionBoxCustodyTests
             string ParentId,
             string Name,
             byte[] Content,
-            List<(string PartId, long Offset, int Size, string Sha1)> Parts);
+            List<(string PartId, long Offset, int Size, string Sha1)> Parts,
+            string? VersionOfFileId = null);
+
+        /// <summary>The <c>If-Match</c> each next-version commit carried, in order.</summary>
+        public List<string?> VersionCommitIfMatches { get; } = [];
 
         public bool AllowDeletes { get; set; }
         public int RenameCount { get; private set; }
@@ -1914,6 +2011,26 @@ public sealed class ProductionBoxCustodyTests
             if (path.StartsWith(UploadSessions, StringComparison.Ordinal))
             {
                 return HandleUploadSession(request, path);
+            }
+            if (request.Method == HttpMethod.Post
+                && path.StartsWith("/api/2.0/files/", StringComparison.Ordinal)
+                && path.EndsWith("/upload_sessions", StringComparison.Ordinal))
+            {
+                // An existing file's next version: Box's session for it.
+                Assert.Equal("upload.box.com", request.RequestUri.Host);
+                var fileId = path["/api/2.0/files/".Length..^"/upload_sessions".Length];
+                var file = nodes[fileId];
+                using var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                var size = body.RootElement.GetProperty("file_size").GetInt64();
+                var id = $"session-{++sequence}";
+                sessions[id] = new(file.ParentId!, file.Name, new byte[size], [], fileId);
+                return Answer(HttpStatusCode.Created, new
+                {
+                    id,
+                    type = "upload_session",
+                    part_size = PartSize,
+                    total_parts = (size + PartSize - 1) / PartSize
+                });
             }
             if (request.Method == HttpMethod.Get && path.StartsWith("/2.0/folders/", StringComparison.Ordinal)
                 && path.EndsWith("/items", StringComparison.Ordinal))
@@ -2162,10 +2279,18 @@ public sealed class ProductionBoxCustodyTests
                         Headers = { RetryAfter = new RetryConditionHeaderValue(TimeSpan.Zero) }
                     };
                 }
-                Occupy("at-commit", session.ParentId, session.Name);
-                if (Find(session.ParentId, session.Name) is not null)
+                if (session.VersionOfFileId is null)
                 {
-                    return Conflict("item_name_in_use");
+                    Occupy("at-commit", session.ParentId, session.Name);
+                    if (Find(session.ParentId, session.Name) is not null)
+                    {
+                        return Conflict("item_name_in_use");
+                    }
+                }
+                else
+                {
+                    VersionCommitIfMatches.Add(
+                        request.Headers.TryGetValues("If-Match", out var ifMatch) ? ifMatch.Single() : null);
                 }
                 using var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 var listed = body.RootElement.GetProperty("parts").EnumerateArray()
@@ -2179,7 +2304,17 @@ public sealed class ProductionBoxCustodyTests
                 {
                     return new(HttpStatusCode.BadRequest) { Content = new StringContent("parts or digest differ") };
                 }
-                var created = Add("file", session.ParentId, session.Name, session.Content);
+                Node created;
+                if (session.VersionOfFileId is { } versionOf)
+                {
+                    created = nodes[versionOf];
+                    created.Content = session.Content;
+                    MutationCount++;
+                }
+                else
+                {
+                    created = Add("file", session.ParentId, session.Name, session.Content);
+                }
                 sessions.Remove(sessionId);
                 return Answer(HttpStatusCode.Created, new
                 {

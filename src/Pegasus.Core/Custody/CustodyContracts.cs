@@ -709,6 +709,13 @@ public enum CaseCustodyFolder { Case, Audit }
 /// (<see cref="IIntakeQuarantineArtifactStore.TryAdopt"/>); otherwise
 /// it stores the bytes itself.
 /// </param>
+/// <param name="SeriesIdentity">
+/// The document a regenerated file replaces, when there is one. A later file
+/// of the same series, in the same Case folder, goes into Box as a new version
+/// of the series' Box file instead of as a file of its own, and that file
+/// keeps its name (operator, 4 November 2026). Null for a file that never
+/// replaces another.
+/// </param>
 public sealed record CaseArtifactCustodyRequest(
     ActionActor Actor, Guid? CaseId, Guid? IntakeReceiptId, string OccurrenceIdentity,
     string OperationKey, string FileName, string MediaType, long ContentLength,
@@ -718,7 +725,8 @@ public sealed record CaseArtifactCustodyRequest(
     long? ExpectedCaseVersion = null,
     bool IsAutomaticIntakeEvidencePromotion = false,
     CaseCustodyFolder Folder = CaseCustodyFolder.Case,
-    string? RetainedStorageKey = null);
+    string? RetainedStorageKey = null,
+    string? SeriesIdentity = null);
 public sealed record CaseArtifactCustodyResult(
     CaseArtifactCustodyDisposition Disposition, Guid? DocumentId, Guid? VersionId, Guid? OccurrenceId,
     string? BoxFileId, string? BoxVersionId, string? Sha256, long? ContentLength,

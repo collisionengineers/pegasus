@@ -99,6 +99,7 @@ internal static class AutomationToolScopes
             "pegasus_mail_open_query",
             "pegasus_mail_link_destinations",
             "pegasus_mail_link_case",
+            "pegasus_mail_attachment_text",
             "pegasus_mail_mailbox_search",
             "pegasus_old_system_folder_search"
         ]),

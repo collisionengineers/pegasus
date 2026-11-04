@@ -526,8 +526,9 @@ whole-repository verification. Leave `parallelAlgorithm` at its default `conserv
 installs a fixed-thread synchronization context, and the web factory builds its
 host synchronously, which together deadlock.
 
-PR CI distributes whole integration-test classes across six Windows runners,
-with the same four-class concurrency cap on each runner. Case-page feature
+PR CI distributes whole integration-test classes across six Linux runners,
+each with its own SQL Server container and the same four-class concurrency
+cap (R657). Case-page feature
 tests use independent classes rather than one shared partial test class.
 Shared test support contains no tests or shared mutable fixtures. Each shard
 retains its enumerated and assigned test lists and results; the partition gate
@@ -590,10 +591,10 @@ $env:PEGASUS_TEST_SQL_PASSWORD = '<password>'
 Leaving `PEGASUS_TEST_SQL_DATASOURCE` unset keeps the LocalDB default, so the
 Windows command is unchanged. Without it on Linux, exclude the lane with
 `--filter "Category!=Corpus&Category!=SqlServer"` and record that the lane did
-not run. The template database never engages when
-`PEGASUS_TEST_SQL_DATASOURCE` is set: its guard tests skip themselves there,
-and an unverified template is worse than
-the slower migrate-per-test path the container falls back to.
+not run. The template database is built, backed up and restored on the
+container exactly as on LocalDB, and `LocalDbTemplateDatabaseTests` guards it
+there too; only the sweep of stale backup files, which reads the server's data
+directory from the test process, does nothing against a container.
 
 These commands prove compilation and the tests actually selected and executed.
 SQL traits included in that run are not separately omitted evidence. Record

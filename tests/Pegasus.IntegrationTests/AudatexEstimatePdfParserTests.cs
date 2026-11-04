@@ -272,6 +272,18 @@ public sealed class AudatexEstimatePdfParserTests
     }
 
     [Fact]
+    public void AValuesAsteriskJoinedToItReadsAsTheSameValue()
+    {
+        // "12.0*" printed as one word imports as "12.0" with a separate "*" (R659).
+        var joined = Parse(AudatexEstimateFixture.Build(joinedAsterisk: true));
+        var apart = Parse(AudatexEstimateFixture.Build());
+
+        Assert.Equal(1.2m, joined.Lines[1].WorkUnits);
+        Assert.Equal(apart.Lines.Select(line => line.WorkUnits), joined.Lines.Select(line => line.WorkUnits));
+        Assert.Equal(apart.SourceTotals, joined.SourceTotals);
+    }
+
+    [Fact]
     public void RejectsAValueThatCannotBeMatchedToItsLine()
     {
         // A second amount for the same line has no valueless line to pair with.

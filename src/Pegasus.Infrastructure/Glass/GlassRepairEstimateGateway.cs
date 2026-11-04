@@ -123,6 +123,13 @@ public sealed partial class GlassRepairEstimateGateway(
     /// <summary>The embedded calculation sheet's custody occurrence on the Case.</summary>
     public static string PdfOccurrenceIdentity(Guid sessionId) => $"glass-estimate:{sessionId:D}:pdf";
 
+    /// <summary>
+    /// The series one kind of file of one Glass's estimate belongs to. A later
+    /// session on the same estimate files its file as the next Box version of
+    /// the earlier one (operator, 4 November 2026).
+    /// </summary>
+    public static string SeriesIdentity(string ereId, string part) => $"glass-estimate:{ereId}:{part}";
+
     /// <summary>How long a just-created vehicle waits before its identity is read once more.</summary>
     private static readonly TimeSpan VehicleReread = TimeSpan.FromMilliseconds(500);
 
@@ -1133,6 +1140,7 @@ public sealed partial class GlassRepairEstimateGateway(
                 $"glass-estimate-{ereId}.xml",
                 "application/xml",
                 exported,
+                SeriesIdentity(ereId, "xml"),
                 cancellationToken));
             if (export.CalculationSheet is { } sheet)
             {
@@ -1144,6 +1152,7 @@ public sealed partial class GlassRepairEstimateGateway(
                     sheet.FileName,
                     "application/pdf",
                     sheet.Content.ToArray(),
+                    SeriesIdentity(ereId, "pdf"),
                     cancellationToken));
             }
         }
@@ -1192,6 +1201,7 @@ public sealed partial class GlassRepairEstimateGateway(
                 $"glass-estimate-{ereId}-rejected.xml",
                 "application/xml",
                 exported,
+                SeriesIdentity(ereId, "rejected-xml"),
                 cancellationToken));
         }
         catch (Exception failure) when (!cancellationToken.IsCancellationRequested)
@@ -1387,6 +1397,7 @@ public sealed partial class GlassRepairEstimateGateway(
         string fileName,
         string mediaType,
         byte[] content,
+        string seriesIdentity,
         CancellationToken cancellationToken)
     {
         await using var stream = new MemoryStream(content, writable: false);
@@ -1402,7 +1413,8 @@ public sealed partial class GlassRepairEstimateGateway(
                 content.LongLength,
                 Convert.ToHexStringLower(SHA256.HashData(content)),
                 stream,
-                SemanticRole: DocumentSemanticRole.Estimate),
+                SemanticRole: DocumentSemanticRole.Estimate,
+                SeriesIdentity: seriesIdentity),
             cancellationToken);
         return Artifact.From(retained, fileName, mediaType, content.LongLength);
     }

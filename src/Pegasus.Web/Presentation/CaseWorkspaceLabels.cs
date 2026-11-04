@@ -1221,6 +1221,27 @@ public static class CaseWorkspaceLabels
         public const string AttachImages = "Images";
         public const string FileName = "File name";
         public const string Message = "Message";
+
+        // v48 (operator, 4 November 2026): the Send report composer dialog.
+        public const string Subject = "Subject";
+        public const string Files = "Files";
+        public const string Rename = "Rename";
+        public const string Reset = "Reset";
+        public const string Cancel = "Cancel";
+        public const string RemoveRecipient = "Remove recipient";
+        public const string To = "To";
+        public const string Cc = "Cc";
+        public const string CloseDialog = "Close dialog";
+
+        /// <summary>The dialog's eyebrow: the report's reference.</summary>
+        public static string Eyebrow(string reference) => $"Report · {reference}";
+
+        /// <summary>A Files row's kind and size: "Report · 1.2 MB".</summary>
+        public static string KindAndSize(string kind, long? bytes) =>
+            bytes is { } length ? $"{kind} · {OperatorLabels.FileSize(length)}" : kind;
+
+        /// <summary>The other work's document kind: "Inspection · Report".</summary>
+        public static string OtherWorkKind(string work, string kind) => $"{work} · {kind}";
     }
 
     /// <summary>

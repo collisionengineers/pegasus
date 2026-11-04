@@ -634,6 +634,13 @@ public static class DocumentContentCachePublisherExtensions
                 : content.ToArray();
 }
 
+/// <param name="BoxFileId">The Box file this version is filed as; set once it is filed.</param>
+/// <param name="BoxVersionId">The Box version this version is filed as; set once it is filed.</param>
+/// <param name="SeriesBoxFileId">
+/// For a version not yet filed: the Box file of the earlier document it
+/// replaces. The version goes into Box as that file's next version, keeping
+/// its name; null files it as a file of its own.
+/// </param>
 public sealed record ManagedDocumentContentAddress(
     Guid CaseId,
     string CaseReference,
@@ -646,7 +653,8 @@ public sealed record ManagedDocumentContentAddress(
     string FileName,
     string MediaType,
     string? BoxFileId = null,
-    string? BoxVersionId = null);
+    string? BoxVersionId = null,
+    string? SeriesBoxFileId = null);
 
 public enum DocumentContentWriteDisposition
 {

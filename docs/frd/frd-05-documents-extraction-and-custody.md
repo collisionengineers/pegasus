@@ -293,7 +293,10 @@ behind `pegasus_old_system_folder_search`, for the Pre-Pegasus case lookup
 ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction),
 [FRD-10](frd-10-mcp-automation-and-actor-boundary.md#tool-inventory)). It
 returns names and identities; nothing below that folder is read as content,
-written, moved or filed (operator, 30 October 2026, R561).
+written, moved or filed (operator, 30 October 2026, R561). Those folders are
+named by the firm's own Case reference, and a reference-shaped search term
+matches a folder name only as a whole token (operator, 2 November 2026,
+R592).
 
 An inline image preview is served through this same cached content path,
 never as an audited download. Every read re-verifies the source content hash
@@ -349,6 +352,24 @@ accepts the file that holds it only when it is a file of the same length, in
 that folder, with the same bytes.
 A file over 50 MB is uploaded to Box in parts (operator ruling of 15 October
 2026).
+
+**Regenerated documents are Box versions.** A regenerated document replaces
+its earlier one as the next version of the same Box file, which keeps its
+first name, and every earlier version stays viewable in Box (operator, 4
+November 2026; R664). The documents that do so are those of one series in
+one Case folder: a work's report, its fee note and its image pack; its
+Repair Spec for one estimate; one source's Glass's or Brego valuation report
+for one registration; and one Glass's estimate's XML export, calculation-sheet
+PDF and rejected XML. Each regeneration is still its own document version in
+Pegasus, holding its own Box version. Earlier versions are kept within the
+Box plan's own version limit. The file is read first: a current version that
+already holds the same bytes is the earlier attempt's, so nothing is
+uploaded again. The upload names the file's etag; a version Box took in
+between is read and compared once more, and then the document stays pending
+for reconciliation. A series file no longer live in the folder, or a
+regeneration filed after a newer one of its series, is filed as a file of its
+own. Files filed before 4 November 2026 stay as they are.
+
 Box does not report a file's type, so the type is not compared. A not-found,
 trashed or outside-root answer to any of these reads drops what was
 remembered. Folder create, rename and delete, and file delete, still check the

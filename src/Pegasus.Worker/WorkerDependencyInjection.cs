@@ -106,6 +106,11 @@ public static class WorkerDependencyInjection
                     // the whole worker process whenever the platform handed over an
                     // unresolved Key Vault reference.
                     _ => CreateBoxCustodyOptions(configuration, approvedBoxRoot)));
+        if (!composesLocalArtifactRoot)
+        {
+            // Box folders follow the Case/PO's temporary -p suffix (R656).
+            services.AddCaseReferenceSuffixBoxRename();
+        }
         // The shared use cases include the paged queries the Web serves; this
         // host serves none, and says so if one is ever asked for.
         services.AddSingleton<Pegasus.Core.ICursorProtector, Pegasus.Infrastructure.Support.UnavailableCursorProtector>();

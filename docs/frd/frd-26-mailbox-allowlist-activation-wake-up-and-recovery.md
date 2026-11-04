@@ -43,7 +43,11 @@ scope. Each mailbox holds its own lease and its own cursor, so one mailbox's
 failure or backlog never affects another.
 
 An approved mailbox is **Incoming**, **Outgoing** or both, and nothing else
-(operator, 12 October 2026). Incoming: Pegasus reads its Inbox into intake.
+(operator, 12 October 2026). Incoming: Pegasus reads its Inbox into intake,
+except the Inbox copy of the mailbox's own reply: a message whose sender is
+the receiving mailbox itself is not handed to intake, its Sent copy is the
+record, and a staff forward from one approved mailbox into another is
+unaffected (operator, 2 November 2026, R582, R587).
 Outgoing: staff mail is sent as it
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence))
 and its Sent Items are read as the evidence of what left. There is no

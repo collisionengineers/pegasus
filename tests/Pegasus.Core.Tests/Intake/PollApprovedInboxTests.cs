@@ -532,6 +532,83 @@ public sealed class PollApprovedInboxTests
         Assert.Empty(harness.PollStore.Releases);
     }
 
+    /// <summary>
+    /// The Inbox copy of the mailbox's own reply (staff put the mailbox in To or
+    /// Cc of its own answer) is not intake: the Sent copy is the record
+    /// (operator, 2 November 2026, R582, R587). It is neither passed on nor
+    /// retained, and the cursor moves past it like a pre-boundary message.
+    /// </summary>
+    [Fact]
+    public async Task TheMailboxesOwnReplyCopyIsNotPassedOnAndTheCursorMovesPastIt()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Enqueue(
+            FirstMailbox.GraphMailboxId,
+            DisplayableMessage(
+                "a-1",
+                "cursor-a1",
+                Metadata(
+                    subject: "RE: Engineer Triage - Our Claim Reference 50247/1, Vehicle Registration, PN12VRD",
+                    toAddresses: ["randerson@qdosassist.co.uk", FirstMailbox.Address],
+                    senderAddress: "A@CollisionEngineers.co.uk")));
+        harness.Source.Enqueue(
+            FirstMailbox.GraphMailboxId,
+            DisplayableMessage("a-2", "cursor-a2", Metadata(internetMessageIdentity: "<other@example.invalid>")));
+
+        var handled = await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Equal(2, handled);
+        Assert.Equal(["a-2"], harness.Retained.Retained.Select(item => item.ImmutableMessageId));
+        Assert.Equal("cursor-a2", harness.PollStore.Cursors["mailbox-a"]);
+        Assert.Empty(harness.PollStore.Quarantines);
+        Assert.Empty(harness.PollStore.Releases);
+    }
+
+    /// <summary>
+    /// The rule keys on the receiving mailbox alone (R587): a message one approved
+    /// mailbox sends into another, the staff forward of R586, is still intake.
+    /// </summary>
+    [Fact]
+    public async Task AMessageFromOneApprovedMailboxIntoAnotherIsStillIntake()
+    {
+        var harness = new Harness(SecondMailbox);
+        harness.Source.Enqueue(
+            SecondMailbox.GraphMailboxId,
+            DisplayableMessage(
+                "b-1",
+                "cursor-b1",
+                Metadata(toAddresses: [SecondMailbox.Address], senderAddress: FirstMailbox.Address)));
+
+        var handled = await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Equal(1, handled);
+        Assert.Equal(["b-1"], harness.Retained.Retained.Select(item => item.ImmutableMessageId));
+        Assert.Equal("cursor-b1", harness.PollStore.Cursors["mailbox-b"]);
+    }
+
+    [Fact]
+    public async Task ANotifiedOwnReplyCopyIsNotPassedOnAndTheNotificationCompletes()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Notified = DisplayableMessage(
+            "notified",
+            "not-a-scan-cursor",
+            Metadata(toAddresses: [FirstMailbox.Address], senderAddress: FirstMailbox.Address));
+
+        var handled = await harness.Poll().ExecuteNotificationAsync(
+            FirstMailbox.ApprovedMailboxId,
+            FirstMailbox.Generation,
+            "notified",
+            WorkerActor(),
+            CancellationToken.None);
+
+        Assert.Equal(0, handled);
+        Assert.Empty(harness.Retained.Retained);
+        Assert.Equal([FirstMailbox.ApprovedMailboxId], harness.PollStore.CompletedNotifications);
+        Assert.Empty(harness.PollStore.Quarantines);
+        Assert.Empty(harness.PollStore.Releases);
+    }
+
     [Fact]
     public async Task ADeltaPageWhoseEveryMessageIsAlreadyRetainedStillCompletesAtItsCursor()
     {
@@ -833,13 +910,14 @@ public sealed class PollApprovedInboxTests
         string? subject = "An instruction",
         IReadOnlyList<string>? toAddresses = null,
         string? internetMessageIdentity = "<message-1@example.invalid>",
-        IReadOnlyList<string>? replyToAddresses = null) =>
+        IReadOnlyList<string>? replyToAddresses = null,
+        string? senderAddress = "sender@example.invalid") =>
         new(
             "inbox-a",
             "conversation-1",
             internetMessageIdentity,
             [],
-            "sender@example.invalid",
+            senderAddress,
             "A Sender",
             toAddresses ?? ["intake@collisionengineers.co.uk"],
             [],

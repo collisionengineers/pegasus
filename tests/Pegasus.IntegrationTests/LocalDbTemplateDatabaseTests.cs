@@ -15,7 +15,7 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class LocalDbTemplateDatabaseTests
 {
-    [LocalDbTemplateFact]
+    [Fact]
     public async Task RestoringTheTemplateMatchesMigratingTheDatabase()
     {
         await using var restored = await LocalDbTestDatabase.CreateAsync();
@@ -43,7 +43,7 @@ public sealed class LocalDbTemplateDatabaseTests
         Assert.Equal(await ReadStructureAsync(migrated), await ReadStructureAsync(restored));
     }
 
-    [LocalDbTemplateFact]
+    [Fact]
     public async Task TheTemplateIsBuiltOncePerProcessAndEveryDatabaseIsItsOwn()
     {
         await using var first = await LocalDbTestDatabase.CreateAsync();
@@ -109,7 +109,7 @@ public sealed class LocalDbTemplateDatabaseTests
                 """));
     }
 
-    [LocalDbTemplateFact]
+    [Fact]
     public async Task AnUnmigratedDatabaseIsNeverServedFromTheTemplate()
     {
         await using var empty = await LocalDbTestDatabase.CreateAsync(migrate: false);
@@ -119,7 +119,7 @@ public sealed class LocalDbTemplateDatabaseTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'__EFMigrationsHistory'"));
     }
 
-    [LocalDbTemplateFact]
+    [Fact]
     public async Task TheAbandonedDatabaseSweepLeavesALiveDatabaseAlone()
     {
         // The sweep drops databases by name against a shared LocalDB instance,
@@ -258,28 +258,4 @@ public sealed class LocalDbTemplateDatabaseTests
             GROUP BY SCHEMA_NAME(t.schema_id), t.name
             """)
     ];
-}
-
-/// <summary>
-/// A fact that only runs where the template database is expected to work.
-/// </summary>
-/// <remarks>
-/// The template uses server-side <c>BACKUP</c> and <c>RESTORE</c>, which the
-/// LocalDB instance the Windows suite uses always permits. No CI job runs the
-/// <c>PEGASUS_TEST_SQL_DATASOURCE</c> path, so nothing proves the template
-/// there — and for exactly that reason
-/// <see cref="LocalDbTemplateDatabase"/> never engages against an external
-/// server: it migrates per test instead, which these guards would otherwise
-/// flag as a silent fallback.
-/// </remarks>
-internal sealed class LocalDbTemplateFactAttribute : FactAttribute
-{
-    public LocalDbTemplateFactAttribute()
-    {
-        if (LocalDbTestDatabase.UsesExternalDataSource)
-        {
-            Skip = "PEGASUS_TEST_SQL_DATASOURCE points these tests at an external SQL Server, " +
-                "where the template is disabled until a job proves the backup path.";
-        }
-    }
 }

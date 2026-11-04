@@ -666,6 +666,35 @@ public sealed class WorkerCompositionTests
     }
 
     /// <summary>
+    /// The Worker renames the Box folders of the Cases the temporary <c>-p</c>
+    /// suffix rewrote (R656); the offline profile files to a local folder
+    /// keyed by Case id and has no Box folder to rename.
+    /// </summary>
+    [Theory]
+    [InlineData("Production", true)]
+    [InlineData("DevelopmentOffline", false)]
+    public void TheSuffixBoxRenameRunsWhereBoxCustodyIsComposed(string profile, bool composed)
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var services = CreateWorkerServices(
+                CreateConfiguration(profile, root), new TestHostEnvironment(root));
+
+            Assert.Equal(
+                composed,
+                services.Any(descriptor =>
+                    descriptor.ServiceType == typeof(IHostedService)
+                    && descriptor.ImplementationType?.FullName
+                        == "Pegasus.Infrastructure.Custody.CaseReferenceSuffixBoxRename"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// The Worker files intake evidence to Box, so in production it publishes
     /// each filed file's read-cache copy while it holds the bytes. The offline
     /// profile has no content cache and composes the null publisher.

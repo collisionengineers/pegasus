@@ -850,8 +850,11 @@
     // or an action dialog opened from a sibling settings dialog) leaves the
     // dialog beneath it open but unresponsive to Escape/Tab until the one on
     // top closes.
+    // The Case viewer's host is spared too: a document opened from inside a
+    // dialog (the Send report composer's Files rows, v48) shows over it and
+    // must stay reachable.
     function inertOutside(dialog) {
-        return window.pegasusUi.inertOutside(dialog, '[data-dialog]');
+        return window.pegasusUi.inertOutside(dialog, '[data-dialog], [data-case-viewer-host]');
     }
 
     var dialogOpeners = {};
@@ -1007,6 +1010,11 @@
                 // trap Tab; a dialog further down waits until it is on top
                 // again.
                 if (openDialogStack[openDialogStack.length - 1] !== dialog) {
+                    return;
+                }
+                // The Case viewer over a dialog owns the keys while it shows
+                // (v48 item F): Escape closes the viewer first, then the dialog.
+                if (document.body.classList.contains('has-viewer')) {
                     return;
                 }
                 if (event.key === 'Escape') {
