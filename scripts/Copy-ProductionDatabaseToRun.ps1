@@ -88,12 +88,12 @@ $stamp = [DateTimeOffset]::UtcNow.ToString('yyyyMMddTHHmmssZ')
 $dacpacPath = Join-Path $runRoot "state/pegasus-production-$stamp.dacpac"
 $recordPath = Join-Path $runRoot "state/production-copy-$stamp.json"
 $deactivateStatement = 'UPDATE dbo.ApprovedMailboxes SET ActivatedAtUtc = NULL WHERE ActivatedAtUtc IS NOT NULL;'
-# R654: a copied subscription row would make the instance renew production's
+# R658: a copied subscription row would make the instance renew production's
 # subscription instead of creating its own under its own webhook.
 $clearSubscriptionsStatement = 'DELETE FROM dbo.ApprovedMailboxSubscriptions;'
-# R655: production's Principal API keys must not authenticate against the instance.
+# R659: production's Principal API keys must not authenticate against the instance.
 $pauseCredentialsStatement = "UPDATE dbo.PrincipalApiCredentials SET State = 'Paused', PausedAtUtc = SYSUTCDATETIME(), Version = Version + 1 WHERE State = 'Active';"
-# R656: the answered-instruction tidy does not check activation, so the copied
+# R660: the answered-instruction tidy does not check activation, so the copied
 # pending tidies are closed here; the instance then moves only the instructions
 # its own sends answered.
 $closeTidiesStatement = "UPDATE dbo.StaffMailSendOperations SET InstructionMoveState = 'Failed', InstructionMoveFailureCode = 'production_copy' WHERE InstructionMoveState IS NULL AND Purpose = 'CaseReport' AND State = 'Sent';"
@@ -218,8 +218,8 @@ try {
     # 3. Deactivate every approved mailbox (R627): the copy carries production's
     #    activated rows, and the test Worker must poll nothing until an
     #    Administrator enables a mailbox on the instance. Then clear the copied
-    #    subscriptions (R654), pause the copied Principal API keys (R655) and
-    #    close the copied pending instruction tidies (R656).
+    #    subscriptions (R658), pause the copied Principal API keys (R659) and
+    #    close the copied pending instruction tidies (R660).
     $deactivated = Invoke-RunSql -Query ($deactivateStatement + ' SELECT @@ROWCOUNT;')
     $subscriptionsCleared = Invoke-RunSql -Query ($clearSubscriptionsStatement + ' SELECT @@ROWCOUNT;')
     $credentialsPaused = Invoke-RunSql -Query ($pauseCredentialsStatement + ' SELECT @@ROWCOUNT;')

@@ -26,7 +26,7 @@ Release 124 are one line each in [operations history](operations-history.md).
 ## Branch and tag protection - 3 November 2026
 
 - Three rulesets created from the runbook's
-  [specification](runbook.md#branch-and-tag-protection) (R667, PR #1879) and
+  [specification](runbook.md#branch-and-tag-protection) (R671, PR #1879) and
   read back `active` at 17:15 UTC: `dev` (id 26469537, branch: a pull request
   and the eleven `repository-check` jobs; no deletion or force push), `main`
   (id 26469538, branch: update, deletion and force push only by the bypass
@@ -57,7 +57,7 @@ Release 124 are one line each in [operations history](operations-history.md).
 
 - The hosted test instance's Graph identity is the tenant's existing
   `CollisionSpike Graph Intake` app registration, client id
-  `5d37a155-2af8-4878-b96a-6faad5207137` (ADR-0088 as amended, R651, R653).
+  `5d37a155-2af8-4878-b96a-6faad5207137` (ADR-0088 as amended, R655, R657).
   Its Exchange RBAC grant on 3 November 2026 was `Application Mail.Read` and
   `Application Mail.ReadWrite` on scope `CollisionSpike-Intake-Prod`; the
   operator, as Microsoft 365 administrator, added `Application Mail.Send` on
@@ -70,7 +70,7 @@ Release 124 are one line each in [operations history](operations-history.md).
   digital@. A second secret, `pegasus-test-instance (2026-11-03)`, expiring
   3 November 2027, was added to the registration for the instance; the
   orchestrator's secret is untouched.
-- Funnel on at about 11:10 UTC (R652): only
+- Funnel on at about 11:10 UTC (R656): only
   `https://cemattypc-1.tail432b53.ts.net:8443/hooks/microsoft-graph/mail` is
   public, proxied to the run's Web; the validation handshake returned the
   token with 200 and a malformed POST 202. Port 443 stays tailnet-only.

@@ -11,8 +11,8 @@ Authority order is defined once in the
 
 Integrate reviewed work into `dev`. A push to `dev` runs the full CI lanes on
 the merged tree: that run is the exact-head evidence for the test instance and
-the release, and a push to `main` runs the history guard alone (R659). A
-release's version is named at release and tagged on `main` (R662, R664);
+the release, and a push to `main` runs the history guard alone (R663). A
+release's version is named at release and tagged on `main` (R666, R668);
 no pull request bumps a version in source. The primary agent records the candidate SHA and assigns one owner for heavy
 verification on the host.
 CI routing and required jobs are defined in `.github/workflows/ci.yml`; exact-head

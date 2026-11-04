@@ -11,7 +11,7 @@ namespace Pegasus.Infrastructure.Email;
 /// mail permission: Exchange RBAC grants it <c>Application Mail.Read</c>,
 /// <c>Mail.ReadWrite</c> and <c>Mail.Send</c> on the approved mailboxes alone, so
 /// the instance has Graph parity with production on those mailboxes and reaches
-/// no other (R651, R653). The keys are parsed at host build, as every other live
+/// no other (R655, R657). The keys are parsed at host build, as every other live
 /// opt-in is, so a missing one fails the start naming the key rather than the
 /// first poll.
 /// </summary>
@@ -47,7 +47,7 @@ public static class LocalGraphCredential
     /// maintenance pass has no provider to call; with one, the start fails naming
     /// the other, rather than every five-minute pass failing before the inbox
     /// poll. The URL is the Funnelled webhook path on the instance's public host
-    /// (R652), which Microsoft Graph must reach from the internet.
+    /// (R656), which Microsoft Graph must reach from the internet.
     /// </summary>
     public static bool HasChangeNotifications(Func<string, string?> read)
     {

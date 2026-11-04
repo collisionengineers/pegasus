@@ -50,7 +50,7 @@ and where it went (a new issue, a question to the operator, out of scope).
 populates `closingIssuesReferences`, which `combine-prs` reads at landing to
 close the issue with a comment. On a non-default base branch the keyword
 does not close the issue by itself, and that is intended. The release's
-version proposal reads the same field (R663): a range whose pull requests
+version proposal reads the same field (R667): a range whose pull requests
 close only `type:bug` issues proposes a PATCH, anything else a MINOR, so the
 `Closes` line and the issue's `type:*` label are what make a fix a PATCH.
 

@@ -57,7 +57,7 @@ is set only when an approval names a Web region other than the platform region.
   needed (an `infra/` or `azure.yaml` change, or an azd environment that
   differs from the one the previous release retained). It runs when its
   candidate has passed on the test instance, at any hour: the restart is the
-  outage, and there is no window and no staff notice (R666).
+  outage, and there is no window and no staff notice (R670).
 - **Normal after an additive migration.** The migration runs first, with the
   runtime grants and the head check, and the packages deploy as above.
 - **Destructive.** An explicitly approved short outage (ADR-0046): the
@@ -77,18 +77,18 @@ Uncertainty is resolved before approval, never during the route.
 
 ## Version
 
-Releases are Semantic Versions from 1.0.0 (R662): `MAJOR.MINOR.PATCH` with no
+Releases are Semantic Versions from 1.0.0 (R666): `MAJOR.MINOR.PATCH` with no
 suffix, because the running build reports `<version>+<sha>` and the `+`
 separates the two. The live version is the highest `v*` tag on `main`; the
 released SHA gets its annotated tag `v<version>` in the promotion push after
-the smoke (R664). Nothing in source carries a release version:
+the smoke (R668). Nothing in source carries a release version:
 `Directory.Build.props` stamps `0.0.0-dev` into every build that is not a
 release, the test instance included. The read-only run proposes the next
-version (R663): PATCH when every pull request in the range closes only
+version (R667): PATCH when every pull request in the range closes only
 `type:bug` issues, MAJOR when the route is destructive, MINOR otherwise. The
 approval names the version it grants; the script refuses one that is not one
 step above the live version, or not the one the manifest was built with. A
-fix is a PATCH of `dev`'s tip; there is no hotfix branch from `main` (R665).
+fix is a PATCH of `dev`'s tip; there is no hotfix branch from `main` (R669).
 The version replaces the release counter: the record is "Release 1.0.0" and
 the retained folder `release-<version>-<sha8>`.
 
@@ -99,13 +99,13 @@ pwsh ./scripts/Invoke-Release.ps1
 ```
 
 It fetches, checks `main` is an ancestor of `dev`, lists the range, the
-candidate's push-to-`dev` CI run (R659) and the pull requests in it with their
+candidate's push-to-`dev` CI run (R663) and the pull requests in it with their
 checks, reads the deployed state (Web state and stack, `/diagnostics/version`,
 Worker and classifier states, the schedule and Disabled settings), reads the
 live migration head, prints the route and whether provision is needed, reads
 the test instance's `/diagnostics/version` over the tailnet and refuses a
-deployable candidate the instance is not serving (R660), prints the live
-version and the proposed next one (R663), then builds the artifacts at that
+deployable candidate the instance is not serving (R664), prints the live
+version and the proposed next one (R667), then builds the artifacts at that
 version in a detached worktree at `../pegasus-worktrees/release-<sha8>` and
 validates them. It writes nothing to GitHub or Azure. `-PreflightOnly` stops
 before the build; `-Version <v>` builds another version than the proposal,
@@ -113,7 +113,7 @@ the MAJOR when the agent classifies the range's migration as non-additive.
 
 Read the report. A candidate whose push-to-`dev` run or any pull request in
 the range is not green waits; nothing is waived, and `-Execute` refuses it
-(R667). The `--- Protection ---` section reads the repository's rulesets back
+(R671). The `--- Protection ---` section reads the repository's rulesets back
 ([runbook](../../../docs/runbook.md#branch-and-tag-protection)); `dev` and
 `main` each carry an active one, and a missing one is a question before the
 approval. A head that differs from the candidate identity while the range adds
@@ -122,10 +122,10 @@ no migration is a question, not a route.
 ## 2. The one approval
 
 One message from the operator names the release SHA, the manifest SHA-256,
-the version (R663), the route, the targets, whether provision runs and, for a
+the version (R667), the route, the targets, whether provision runs and, for a
 destructive route, the old Web source SHA and the window (operator, 30
 October 2026). That message grants the Azure writes for exactly those values
-and the promotion and tag of `main` that follow the smoke (R658, R664);
+and the promotion and tag of `main` that follow the smoke (R662, R668);
 nothing else is a grant. The script refuses if `origin/dev` moved
 after the message, and a moved head needs a fresh message. The agent never
 retries a refused promotion with a rebase, a reset, an unleased push or a
@@ -145,8 +145,8 @@ The script checks the version is one step above the live tag and the one
 the manifest was built with, re-validates the worktree and the manifest
 against the approved values, reads `dev` and the test instance again, runs
 the route to a passing full smoke, then promotes `main` to the released SHA
-and tags it `v<version>` in one leased push and reads both back (R658,
-R664): `main` records what is live, so a failed release leaves it at the SHA
+and tags it `v<version>` in one leased push and reads both back (R662,
+R668): `main` records what is live, so a failed release leaves it at the SHA
 still serving, with nothing in git to reset. `-PromoteOnly` keeps the atomic
 push of the SHA to `main` and `dev`, with no tag: nothing was deployed.
 
@@ -207,7 +207,7 @@ structure changed. The exact artifacts are retained at
 `artifacts/releases/release-<version>-<sha8>` (ignored), beside the previous
 releases', and the worktree is removed. The folder is a convenience: the tag
 `v<version>` is the recoverable source, and a rollback without the folder
-rebuilds it from the tag (R668).
+rebuilds it from the tag (R672).
 
 Rollback is the runbook's [production recovery](../../../docs/runbook.md#production-recovery);
 [troubleshooting](references/troubleshooting.md) names the symptoms seen so far.
