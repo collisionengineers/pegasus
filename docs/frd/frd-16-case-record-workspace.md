@@ -24,7 +24,8 @@
   file drop. The imported spec is the one in use at once.
 - Once an Inspection + Audit Case has its Audit, a Views card heads the
   aside. The Audit view is the default; the Inspection view edits the
-  Inspection's own values and report.
+  Inspection's own values and report. The Audit view's aside also carries an
+  Original report card after Figures: the Inspection report as generated.
 
 ## Purpose
 
@@ -88,7 +89,9 @@ date) and, once a report has been sent, when and from which mailbox. There is
 no workflow strip and no lifecycle panel; Return to Review, Unlink report
 evidence and Archive are items of the one Actions menu.
 
-An aside beside the sections holds **Figures** (three figures), **Next
+An aside beside the sections holds **Figures** (three figures), on the Audit
+view of an Inspection + Audit Case **Original report**
+([Inspection and Audit views](#inspection-and-audit-views)), **Next
 action** and, while anything is outstanding, **Report not ready** (operator,
 8 October 2026). Next action holds the AI drafts ready on the Case with their
 per-kind action and one step: the first outstanding Case requirement while
@@ -177,7 +180,11 @@ Views and precedes Figures: one row per linked Triage, its `t.` Case/PO as a
 link, its state and its current finding; there is no card while nothing is
 linked (operator, 7 October 2026;
 [FRD-03](frd-03-triage.md#triage-findings-on-the-linked-case)).
-Below 1441px the aside folds into a strip above the sections.
+On the Audit view, an **Original report** card follows Figures
+([Inspection and Audit views](#inspection-and-audit-views); operator,
+4 November 2026, R659, R660).
+Below 1441px the aside folds into a strip above the sections, the Original
+report card one more cell of it.
 
 Actions post in place and the record's parts refresh without navigation.
 An action, Refresh or a link away waits for a change not yet sent to land
@@ -282,6 +289,21 @@ views of the same record: the **Audit** view and the **Inspection** view.
 Every other Case, including one whose Audit is not yet created, a standalone
 Audit and a Triage Case, has one view and no Views card; a `view` value in
 its address is ignored.
+
+**The Original report card** follows Figures in the Audit view's aside, and
+only there: not on the Inspection view, a standalone Audit, a Triage Case, or
+before the Audit exists (operator, 4 November 2026, R659, R660;
+[v48 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v48-send-dialog-original-report/v48_planning)).
+Headed "Original report", it reads the Inspection report as generated, the
+newest Inspection generation's frozen snapshot, never the Inspection work's
+live values, and draws its figures as Figures draws its own: "Repair cost inc
+VAT", the report's printed total; "Salvage value", only when that report's
+outcome was a Total loss; and "Engineer's Value", the value the report
+printed, followed in brackets by the guide its basis card came from
+("£5,000.00 (Cazana)") when the value was calculated from a card, nothing for
+a typed value. Until an Inspection report exists every figure is the absent
+glyph. No new breakpoint: below 1441px the card is one more cell of the
+aside's strip.
 
 **The Views card** heads the aside, above Figures, and exists only once the
 Audit exists. It holds two rows: "Inspection · {Case/PO}" with a
@@ -721,7 +743,9 @@ A recorded choice (outcome, category, roadworthiness) reads as the
 greyed value box and edits as a select whose empty option is Not recorded
 (operator, 9 October 2026; the v28 radio group is gone). There is no figures
 strip: the aside's Figures card is the home of the repair cost, the Engineer's
-Value and their ratio (operator, 9 October 2026). The field meanings are owned by
+Value and their ratio (operator, 9 October 2026), and on the Audit view the
+Original report card beside it holds the Inspection report's own figures
+([Inspection and Audit views](#inspection-and-audit-views)). The field meanings are owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement).
 
 ### Report
@@ -1104,21 +1128,38 @@ not yet hold it, in or out of edit mode as Generate report is. Generate report
 makes the separate fee note with the report (operator, 7 October 2026), and
 once the separate fee note is confirmed the report card offers Open fee note
 beside Open report (issue 912).
-The delivery form shows From, a choice of Outgoing mailbox starting on the
-mailbox the Case's instruction email arrived in, else on the Principal's
-Send from (operator, 12 October 2026; 4 November 2026, R655;
-[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)).
-It offers the Case's known addresses on every recipient field
-(v28 P21), the documents to attach (v28 P22), with Report and Fee note ticked,
-and states the name the report will be attached under (v28 P23) and the
-covering message it will carry, in an editable box pre-filled from the Case
-report delivery template, before Send report is pressed.
+The delivery form is the **Send report** dialog (operator, 4 November 2026,
+R659, R662;
+[v48 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v48-send-dialog-original-report/v48_planning)).
+While the Case is in the viewer's edit session and the report is stored, the
+section head offers Send report as its primary beside Generate report, and
+the aside's Send report step opens the same dialog; reading offers neither,
+and the step is the jump to the section. The section keeps its preview card,
+and under it an "Already sent on 3 Oct 2026 14:02 to a@x, b@y" line when a
+report of this work has already been sent, reading and editing alike; it
+repeats no delivery cells. The dialog is a composer in the Triage composer's
+shape, 880px wide: its head names the report ("Report · a.{Case/PO}" on the
+Audit view, "Report · {Case/PO}" otherwise), its body holds From, a choice of
+Outgoing mailbox starting on the mailbox the Case's instruction email arrived
+in, else on the Principal's Send from (operator, 12 October 2026; 4 November
+2026, R655;
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)),
+the To and Cc boxes with the Case's known addresses offered on every one
+(v28 P21), Subject prefilled with the derived subject for staff to change
+(R661), the covering message in an editable box pre-filled from the Case
+report delivery template, and **Files**, one row per document the send can
+carry, each with its include tick (v28 P22; Report and Fee note ticked), its
+name, its kind and size, and Rename; a row's name opens the document in the
+Case viewer over the dialog, and Escape closes the viewer first. Every To or
+Cc box after the first To has its × and can be removed; Add To recipient and
+Add Cc recipient add a removable box (R663). Its foot holds Cancel and the
+one Send report. A refused send returns to the page with the dialog open on
+its notice; an accepted send closes it as the page refreshes.
 
-The form also shows what the Principal's report sending rules decided
+The dialog also shows what the Principal's report sending rules decided
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)):
 
-- an "Already sent on 3 Oct 2026 14:02 to a@x, b@y" line when a report of this
-  work has already been sent;
+- the Already sent line, when a report of this work has already been sent;
 - the From choice, starting on the mailbox the instruction email arrived
   in; with no usable instruction email, on the Principal's Send from (R655);
 - a notice when a rule stops the delivery, with an Override reason box for
@@ -1127,22 +1168,20 @@ The form also shows what the Principal's report sending rules decided
 - a Yes or No question for each undecided rule condition, each required;
 - To and Cc seeded from the plan, with one line naming what set the Cc and what
   was removed;
-- the documents to attach, with required companions always attached and
-  marked "(required for this Principal)". A required companion that is not generated
-  says so and withholds Send report, and its Generate is in the More menu. The
-  filed estimates the rules attach, and any warning, appear as hints;
-- the file name, a read-only "After sending" list of what staff still owe, and
+- the Files rows, with required companions always ticked and
+  marked "(required for this Principal)", the other work's report and its
+  documents as rows, off, once the Audit exists, and the filed estimates the
+  rules attach as rows, on, under their filed names with no Rename (R665). A
+  required companion that is not generated says so and withholds Send report,
+  and its Generate is in the More menu. Any warning appears as a hint;
+- a read-only "After sending" list of what staff still owe, and
   a Done tick for each hold.
 
 The Yes and No answers show their labels, and a hold's Done tick sits on the
 hold's own line (v41 K2, operator, 15 and 19 October 2026,
 [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
-Reading a Case whose report was sent, To and Cc show the recipients of the
-report last sent, each Not recorded when there are none (v41 K5, operator,
-15 and 19 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
-
-The layout of this form is as built and awaits its design sign-off.
+The v41 K5 read-mode cells (From, To, Cc, Attach, File name, Message, greyed)
+are retired: reading shows the Already sent line alone (v48 item G, R659).
 
 Report-draft generation and preview sit
 on the Report section

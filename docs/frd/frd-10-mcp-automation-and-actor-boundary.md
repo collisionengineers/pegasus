@@ -322,7 +322,11 @@ submission is not part of it.
   the work's current confirmed generation, the reviewed To and Cc (omitted,
   the Principal's suggested recipients), the companion documents chosen
   (omitted, every confirmed document the generation holds, the fee note
-  included) and the covering message as written. It is a reply to the
+  included), `subject` (omitted, the derived subject; at most 500 characters)
+  and `attachmentNames`, names for the generation's documents by kind, each
+  ending in `.pdf` (omitted, their delivery names; filed estimates keep their
+  filed names), as the Case page's composer takes them (operator, 4 November
+  2026, R661, R664, R665), and the covering message as written. It is a reply to the
   Case's instruction e-mail; `fromMailbox` names the Outgoing mailbox it
   leaves from, and omitted, the same default as the Case page applies: the
   mailbox the instruction arrived in, or for a staff forward held in
@@ -331,7 +335,8 @@ submission is not part of it.
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
   On a Case that has its Audit, `otherReport` adds the other work's current
   confirmed report to the same email, with `otherAttach` choosing its
-  documents as `attach` does. It holds the Case's lease for its one send
+  documents as `attach` does and `otherAttachmentNames` naming them as
+  `attachmentNames` does. It holds the Case's lease for its one send
   unless a lease token is presented.
 - `pegasus_mail_send` is the staff mail send with a `mode`: `chaser` is the
   Case's **Send chaser**, recorded as the Case's chaser; `reply`, `reply_all`

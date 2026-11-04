@@ -320,10 +320,13 @@ version, hash and length, and re-checks just before the mail is submitted that
 every one is still a confirmed artifact, byte for byte.
 
 **One step (operator, 6 October 2026).** A report is sent in one step. The
-Report section's delivery form holds From, the recipients, the documents to
-attach, the report's name and the covering message, and its one **Send
-report** sends them. There is no separate preparation and no second confirmation. The
-staff-send operation is the record of what was sent. The form stays offered
+Report section's **Send report** opens the delivery composer, a dialog that
+holds From, the recipients, the subject, the covering message and the
+documents to attach, each under its name, and its one **Send report** sends
+them (operator, 4 November 2026, R659;
+[FRD-16](frd-16-case-record-workspace.md#assessment)). There is no separate
+preparation and no second confirmation. The
+staff-send operation is the record of what was sent. The composer stays offered
 after a send, whatever its outcome, so the same report can be sent again.
 The Automation Actor sends a report through the same command with
 `pegasus_report_send`, choosing what the form holds; its send records the
@@ -334,7 +337,14 @@ Automation actor as the sender (operator, 7 October 2026;
 people who read it — the Case's reference, the vehicle's registration and the
 outcome — and one dot is added for each report of this Case already sent, so
 a re-issue is distinguishable at a glance. Companion documents keep the names
-custody gave them. The delivery carries one covering message, which starts as
+custody gave them. That is each document's policy name, and the composer's
+Files rows start on it; staff may rename any of the generation's documents
+for the send, the report included, the stem alone, since every delivered
+document ends in `.pdf`, and Reset restores the policy name. A rename holds
+for that send only: the next send starts on the policy name again. The
+Case's filed estimates attach under the names they were filed with and are
+not renamed (operator, 4 November 2026, R659, R665, R666). The delivery
+carries one covering message, which starts as
 the Case report delivery template
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) rendered for
 this Case. Its built-in body is the Report Sending SOP wording: it greets with
@@ -349,8 +359,11 @@ actually left the approved mailbox.
 
 **From and subject (operator, 12 October 2026).** The report goes out as a
 reply to the Case's instruction email, the retained mailbox message the
-Case's origin receipt came from; its subject is "Re:" and the
-instruction's subject. The form's From is a choice of every send-ready
+Case's origin receipt came from; its subject starts as "Re:" and the
+instruction's subject. The composer's Subject field is prefilled with that
+derived subject and staff may change it; what they submit is sent, trimmed,
+at most 500 characters as the Triage composer's Subject is, and a field left
+blank sends the derived subject (operator, 4 November 2026, R661, R664). The form's From is a choice of every send-ready
 Outgoing mailbox, starting on the approved mailbox the instruction arrived in
 while that mailbox is Outgoing and can send; staff may change it, and a
 report from another mailbox still answers the instruction, as a new message
@@ -445,8 +458,8 @@ Every Principal has report sending rules (set on the Principal contact, see
 [FRD-17](frd-17-administration-workspace.md); Report Sending SOP v8, 15
 October 2026). One Core plan reads them with the Case's facts. The page makes
 the plan when it loads, and Send report makes it again with staff's answers
-and follows it. Everything below is answered on the one delivery form, in the
-same click as Send report.
+and follows it. Everything below is answered in the one Send report dialog, in the
+same click as Send report (operator, 4 November 2026, R659).
 
 - **Mode.** Where the report leaves from is **From and subject** above: a
   reply to the instruction from the Outgoing mailbox staff choose, in its

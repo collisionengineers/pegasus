@@ -157,8 +157,9 @@ opens the message record's Reply. Forward appears only when the mailbox the
 email arrived in can send; Reply and Reply all appear while any Outgoing
 mailbox can (4 November 2026, R655). Send chaser is on the Case record
 ([FRD-16](frd-16-case-record-workspace.md#actions-menu)) and Send report on
-the Case's Report section
-([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)). There is
+the Case's Report section, which opens the report composer dialog while the
+Case is being edited (operator, 4 November 2026, R659, R662;
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)). There is
 no Compose: Pegasus starts no new correspondence that is not a reply, a
 forward, a chaser or a report (operator, 12 October 2026). The controls
 exist only when the outbound capability is composed into the application.
@@ -221,7 +222,13 @@ a staff member's own address or any mailbox outside the allowlist.
 35 MB, 36,700,160 encoded bytes (operator, 12 October 2026); there is no
 per-mailbox limit.
 
-**What the composer carries.** To, Subject, Message, Case / PO and From.
+**What the composer carries.** To, Subject, Message, Case / PO and From. The
+report composer carries From, To and Cc (each box after the first To
+removable), Subject prefilled with the derived subject, Message, and Files,
+one row per document with its include tick, its name as its preview and
+Rename for the generation's own documents (operator, 4 November 2026, R659,
+R661, R663;
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)).
 A reply opened on an AI draft (**Reply with AI draft**,
 [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list))
 opens with the draft as its Message and one line above it, marked AI, saying
