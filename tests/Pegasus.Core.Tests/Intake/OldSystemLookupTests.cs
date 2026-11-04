@@ -173,7 +173,8 @@ public sealed class OldSystemLookupTests
         {
             Terms.Add((term, maximumItems));
             return Task.FromResult(new OldSystemCaseFolderSearchResult(
-                Hits.Select((name, index) => new OldSystemCaseFolder(index.ToString(), name, null)).ToArray(),
+                Hits.Select((name, index) => new OldSystemCaseFolder(
+                    index.ToString(System.Globalization.CultureInfo.InvariantCulture), name, null)).ToArray(),
                 IsTruncated));
         }
     }
