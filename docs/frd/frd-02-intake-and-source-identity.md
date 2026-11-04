@@ -84,7 +84,7 @@ staff forward of it, and it waits in No Case Found with its photographs,
 where Link to case and Register images stay staff's and the classifier agent
 may set Pre-Pegasus case ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction));
 the rule is the capture document's, not a sender's (operator, 2 and
-4 November 2026, [R585](../rulings.md), R669, R670). On
+4 November 2026, [R585](../rulings.md), R662, R663). On
 the Case the photographs join, the reading fills the make, model, mileage and
 accident date only where the Case holds none, and the VIN only where the
 work holds none; nothing already recorded is replaced (operator, 12 October
