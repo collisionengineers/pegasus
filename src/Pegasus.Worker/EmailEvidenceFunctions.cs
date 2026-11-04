@@ -23,8 +23,11 @@ public sealed partial class SentEvidencePollFunction(
             maximumItemsPerPage: 50,
             WorkerActor,
             cancellationToken);
+        // A mailbox that failed is a Warning so it reaches App Insights; the
+        // Worker's Information lines do not (#1897).
         LogPollOutcome(
             logger,
+            result.FirstFailure is null ? LogLevel.Information : LogLevel.Warning,
             result.MailboxesAttempted,
             result.MailboxesFailed,
             result.PagesRead,
@@ -34,10 +37,10 @@ public sealed partial class SentEvidencePollFunction(
     }
 
     [LoggerMessage(
-        Level = LogLevel.Information,
         Message = "Polled {MailboxCount} approved Sent mailboxes ({FailureCount} failed), read {PageCount} pages, handled {ItemCount} immutable items, and retained {ReportEvidenceCount} report evidence items. First failure: {FirstFailure}. No outbound email was sent and no receipt or delivery was claimed.")]
     private static partial void LogPollOutcome(
         ILogger logger,
+        LogLevel level,
         int mailboxCount,
         int failureCount,
         int pageCount,

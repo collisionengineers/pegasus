@@ -676,6 +676,74 @@ public sealed class PollSentEvidenceTests
     }
 
     /// <summary>
+    /// The durable cursor moves only at a page boundary (#1897): a run that
+    /// fails on the second item of its page completes nothing, and the next
+    /// run reads the whole page again, replaying the first item's outcome by
+    /// operation key before it handles the second.
+    /// </summary>
+    [Fact]
+    public async Task AFailureMidPageReleasesWithoutACursorAndTheNextRunReadsThePageAgain()
+    {
+        var lease = Lease();
+        var operationId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        var caseId = Guid.NewGuid();
+        var hash = new string('E', 64);
+        var operation = new StaffMailOperation(
+            operationId, StaffMailState.Submitted, StaffMailAttemptStage.ObserveSent, 5,
+            NowUtc.AddMinutes(-5), NowUtc.AddMinutes(-2), null, null,
+            lease.ApprovedMailboxId, lease.Generation, new string('C', 64), null, null,
+            StaffMailPurpose.CaseReport, generationId, 1, null);
+        var staffStore = new ObservationStore(new StaffMailExecution(
+            Guid.NewGuid().ToString("D"), operation, "draft",
+            [new(Guid.NewGuid(), Guid.NewGuid(), hash, 10, "report.pdf", "application/pdf")],
+            StaffMailPurpose.CaseReport, generationId, 1, caseId))
+        {
+            FailingTransitions = 1
+        };
+        var messageId = $"<{StaffMailCorrelationHeaders.MessageId(operationId)}>";
+        var first = Item("page-first", "sent-items", "cursor-first", [], []);
+        var template = Item("page-second", "sent-items", "cursor-page", [], []);
+        var second = template with
+        {
+            Provenance = template.Provenance! with
+            {
+                InternetMessageIdentity = messageId,
+                StaffMailOperationId = StaffMailCorrelationHeaders.TryReadOperationId(messageId),
+                AttachmentSha256 = [hash]
+            }
+        };
+        var pollStore = new RecordingPollStore(lease, lease);
+        var poll = CreateUseCase(
+            pollStore,
+            new SequencedSource(
+                new ApprovedSentPage([first, second], "cursor-page", false),
+                new ApprovedSentPage([first, second], "cursor-page", false)),
+            new ResponsePort(), new ReportPort(), autoLinkPort: AutoLinkPort.Linked(),
+            staffMailStore: staffStore);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => poll.ExecuteAsync(1, 10, ActionActor.SystemWorker("test"), CancellationToken.None));
+
+        Assert.Equal(
+            SentEvidencePollOutcomeKind.Unmatched,
+            Assert.Single(pollStore.OutcomeAttempts).Kind);
+        Assert.Single(pollStore.Releases);
+        Assert.Empty(pollStore.Completions);
+
+        await poll.ExecuteAsync(1, 10, ActionActor.SystemWorker("test"), CancellationToken.None);
+
+        Assert.Equal(
+            2,
+            pollStore.OutcomeAttempts.Count(outcome => outcome.Item.SourceOccurrenceIdentity == "page-first"));
+        Assert.Equal(2, pollStore.UniqueOutcomes.Count);
+        Assert.Equal(
+            SentEvidencePollOutcomeKind.ReportEvidenceAutoLinked,
+            Assert.Single(pollStore.OutcomeAttempts, outcome => outcome.Item.SourceOccurrenceIdentity == "page-second").Kind);
+        Assert.Equal("cursor-page", Assert.Single(pollStore.Completions).Cursor);
+    }
+
+    /// <summary>
     /// A send that carried both works' reports (operator, 12 October 2026)
     /// names both generations to the auto-link, so the one Sent item proves
     /// both works.
