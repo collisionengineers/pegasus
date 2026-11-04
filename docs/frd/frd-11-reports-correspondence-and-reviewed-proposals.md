@@ -14,7 +14,7 @@
 - An issued report is immutable. A correction is a new version; the old one
   is kept. In Box a regenerated report is the next version of the same file,
   and the old one stays an earlier version of it (operator, 4 November 2026;
-  R656).
+  R664).
 - Report sent is the Case's last stage. It does not close the Case.
 
 ## Purpose
@@ -567,7 +567,7 @@ it never competes with the request still producing it.
 **A regeneration in Box.** A regenerated report, fee note or image pack of
 the same work, and a regenerated Repair Spec of the same estimate, goes into
 Box as the next version of the earlier file and keeps its first name
-(operator, 4 November 2026; R656). The rule and its limits are in
+(operator, 4 November 2026; R664). The rule and its limits are in
 [FRD-05](frd-05-documents-extraction-and-custody.md).
 
 **Retry.** A retry asks what was filed before it draws anything. It never
@@ -718,7 +718,7 @@ An issued report has an immutable file and version identity and hash. A
 correction or addendum creates a new reasoned version and keeps every
 earlier file, fact, actor, time and source. An earlier file is kept as an
 earlier version of the same Box file, within the Box plan's version limit
-(operator, 4 November 2026; R656). It never silently overwrites the
+(operator, 4 November 2026; R664). It never silently overwrites the
 issued report. Later report changes follow
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions) and keep the
 correction history.

@@ -353,7 +353,7 @@ A file over 50 MB is uploaded to Box in parts (operator ruling of 15 October
 **Regenerated documents are Box versions.** A regenerated document replaces
 its earlier one as the next version of the same Box file, which keeps its
 first name, and every earlier version stays viewable in Box (operator, 4
-November 2026; R656). The documents that do so are those of one series in
+November 2026; R664). The documents that do so are those of one series in
 one Case folder: a work's report, its fee note and its image pack; its
 Repair Spec for one estimate; one source's Glass's or Brego valuation report
 for one registration; and one Glass's estimate's XML export, calculation-sheet
