@@ -356,7 +356,6 @@ public sealed class PollSentEvidence(
                 {
                     var handled = await HandleItemAsync(lease, item, actor, cancellationToken);
                     itemsHandled++;
-                    cursor = item.NextCursor;
                     if (handled.ReportEvidenceRetained)
                     {
                         reportEvidence++;
@@ -380,6 +379,9 @@ public sealed class PollSentEvidence(
                     }
                 }
 
+                // The durable cursor moves only at a page boundary: a run that
+                // fails re-reads its page, and the outcomes already recorded
+                // replay by operation key (#1897).
                 cursor = page.NextCursor;
                 if (!page.HasMore)
                 {
@@ -510,10 +512,10 @@ public sealed class PollSentEvidence(
         }
 
         // Every Sent item the approved mailbox holds is the Sent Items scope's
-        // row (FRD-20), written before the outcome so a refused write leaves the
-        // cursor unadvanced and the item is read again. Retention is a no-op
-        // for the same Sent item already held; one whose identities contradict
-        // the held row is quarantined rather than holding the cursor.
+        // row (FRD-20), written before the outcome so a refused write records
+        // no outcome and the item is read again. Retention is a no-op for the
+        // same Sent item already held; one whose identities contradict the
+        // held row is quarantined rather than holding the poll.
         try
         {
             await retainedMessages.RetainAsync(
@@ -733,9 +735,9 @@ public sealed class PollSentEvidence(
                 : SentEvidencePollOutcomeKind.Ambiguous;
         }
 
-        // The send is observed before the outcome moves the cursor past the
-        // item, so an observation that fails is retried with the item rather
-        // than lost; the retention and link above replay by operation key.
+        // The send is observed before the outcome records the item, so an
+        // observation that fails is retried with the item rather than lost;
+        // the retention and link above replay by operation key.
         if (staffExecution is not null && staffExecution.Operation.State is not StaffMailState.Sent)
         {
             await staffMailSendStore!.TransitionObservedSentAsync(

@@ -354,6 +354,10 @@ document never moves a Case by itself.
 - A matched send whose observation fails: the poll records no outcome for the
   item, so the next poll reads it again and the send does not stay Submitted
   (QDOS26099, 12 October 2026).
+- A Sent item the provider presents again at another position in its page:
+  the recorded outcome replays as a no-op, and the mailbox's cursor moves
+  only at a page boundary, so a run that fails re-reads its page and the poll
+  is not held on the item (a.QDOS26157, 4 November 2026).
 - The answered instruction cannot be moved (permission refused, Graph error):
   three attempts, each in Case history, then it stays where it is.
 
