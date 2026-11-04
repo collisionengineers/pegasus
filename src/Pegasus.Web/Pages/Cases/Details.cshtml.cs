@@ -678,10 +678,10 @@ public sealed partial class DetailsModel(
     public IReadOnlyList<ReportRecipientCandidate> ReportAddressBook { get; private set; } = [];
 
     /// <summary>
-    /// Who the report leaves as: a reply to the instruction email from the
-    /// mailbox it arrived in, or the Outgoing mailboxes staff choose from.
+    /// Who the report leaves as: the Outgoing mailboxes staff choose from,
+    /// starting on the default sender (R655).
     /// </summary>
-    public CaseMailSenderOptions ReportSenders { get; private set; } = new(null, []);
+    public CaseMailSenderOptions ReportSenders { get; private set; } = CaseMailSenderOptions.None;
 
     /// <summary>What the Case's report has already been sent (v28 P23).</summary>
     public CaseReportSendHistory ReportSendHistory { get; private set; } = CaseReportSendHistory.None;

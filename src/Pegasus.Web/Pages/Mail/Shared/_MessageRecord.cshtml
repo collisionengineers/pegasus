@@ -277,11 +277,14 @@
                    asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                    asp-route-compose="reply-all" data-mail-dialog-link>@OperatorLabels.StaffMail.ReplyAll</a>
             }
-            <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
-               asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
-               asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-               asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
-               asp-route-compose="forward" data-mail-dialog-link>@OperatorLabels.StaffMail.Forward</a>
+            @if (Model.CanForward)
+            {
+                <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
+                   asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+                   asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                   asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                   asp-route-compose="forward" data-mail-dialog-link>@OperatorLabels.StaffMail.Forward</a>
+            }
         }
 
         @if (Model.IsQueryResponseSource)

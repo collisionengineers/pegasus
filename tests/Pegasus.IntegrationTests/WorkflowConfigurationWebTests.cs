@@ -97,6 +97,42 @@ public sealed partial class WorkflowConfigurationWebTests
     }
 
     /// <summary>
+    /// The temporary Case/PO suffix switch saves with the workflow settings
+    /// and the page shows it as stored (operator, 4 November 2026; R656). The
+    /// suite's databases start with it off.
+    /// </summary>
+    [Fact]
+    public async Task TheCaseReferenceSuffixSwitchSavesWithTheWorkflowSettings()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var html = await GetPageAsync(client);
+        Assert.Contains("Add -p to new Case/PO", html, StringComparison.Ordinal);
+        Assert.DoesNotMatch("name=\"CaseReferenceSuffix\"[^>]*checked", html);
+
+        var fields = new Dictionary<string, string>
+        {
+            ["WorkflowExpectedVersion"] = Field(html, "WorkflowExpectedVersion"),
+            ["WorkflowOperationKey"] = Field(html, "WorkflowOperationKey"),
+            ["__RequestVerificationToken"] = Field(html, "__RequestVerificationToken"),
+            ["RequireInstructions"] = "true", ["RequireImages"] = "true",
+            ["ChaseIntervalDays"] = Field(html, "ChaseIntervalDays"),
+            ["UnidentifiedTargetDays"] = Field(html, "UnidentifiedTargetDays"),
+            ["TriageTargetDays"] = Field(html, "TriageTargetDays"),
+            ["HeldTargetDays"] = Field(html, "HeldTargetDays"),
+            ["ReviewTargetDays"] = Field(html, "ReviewTargetDays"),
+            ["AiDraftTargetDays"] = Field(html, "AiDraftTargetDays"),
+            ["CaseReferenceSuffix"] = "true"
+        };
+        using var saved = await client.PostAsync(Route + "?handler=SaveWorkflow", new FormUrlEncodedContent(fields));
+        Assert.True(
+            saved.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {saved.StatusCode}. {await ValidationMessagesAsync(saved)}");
+
+        Assert.Matches("name=\"CaseReferenceSuffix\"[^>]*checked", await GetPageAsync(client));
+    }
+
+    /// <summary>
     /// Configuration (13 September): the page renders the workflow's six
     /// editable settings and carries versioned form metadata directly on load.
     /// </summary>

@@ -113,7 +113,7 @@ public static partial class StaffForwardBodyCleaner
     /// paint, instead of showing the forwarding desk until intake
     /// processing writes the authoritative route decision (MAIL-009).
     /// Fails closed: a body with no forwarded header, or a From: line
-    /// carrying no address, yields null rather than a guess.
+    /// carrying no address or more than one, yields null rather than a guess.
     /// </summary>
     public static string? ForwardedSenderAddress(string body)
     {
@@ -124,10 +124,43 @@ public static partial class StaffForwardBodyCleaner
             return null;
         }
 
-        var from = boundary.Groups["from"].Value;
-        var angled = AngledAddressRegex().Match(from);
-        var candidate = (angled.Success ? angled.Groups["address"].Value : from).Trim();
-        return BareAddressRegex().IsMatch(candidate) ? candidate : null;
+        var addresses = HeaderAddresses(boundary.Groups["from"].Value);
+        return addresses.Count == 1 ? addresses[0] : null;
+    }
+
+    /// <summary>
+    /// The addresses on a forwarded body's own "To:" and "Cc:" lines: who the
+    /// original message was sent to and copied, so a staff forward is answered
+    /// as though the original had arrived directly (operator, 3 November
+    /// 2026). Empty when the body has no forwarded header; a part carrying no
+    /// address is skipped.
+    /// </summary>
+    public static (IReadOnlyList<string> To, IReadOnlyList<string> Cc) ForwardedRecipients(string body)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        var boundary = ForwardedHeaderRegex().Match(body);
+        if (!boundary.Success)
+        {
+            return ([], []);
+        }
+
+        return (
+            HeaderAddresses(boundary.Groups["to"].Value),
+            HeaderAddresses(string.Join(' ', boundary.Groups["cc"].Captures.Select(capture => capture.Value))));
+    }
+
+    /// <summary>
+    /// The distinct addresses on one header line, in first-seen order. It
+    /// reads address tokens, not angle-bracket contents, so Outlook's
+    /// text-body form "Name &lt;a@b&lt;mailto:a@b&gt;&gt;" yields a@b once,
+    /// and a line separated by ";" or "," yields each address.
+    /// </summary>
+    public static IReadOnlyList<string> HeaderAddresses(string line)
+    {
+        ArgumentNullException.ThrowIfNull(line);
+        return [.. AddressTokenRegex().Matches(line)
+            .Select(match => match.Groups["address"].Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
     }
 
     /// <summary>
@@ -206,23 +239,20 @@ public static partial class StaffForwardBodyCleaner
     // be read at all; the block must still be an address header ending in
     // Subject:, so the boundary is no less specific than before.
     [GeneratedRegex(
-        "(?i)(?:\\A|[\r\n])From:[\t ]*(?<from>[^\r\n]+)[\r\n]+Sent:[^\r\n]*[\r\n]+To:[^\r\n]*"
-        + "(?:[\r\n]+(?:Cc|Bcc):[^\r\n]*)*[\r\n]+Subject:[^\r\n]*",
+        "(?i)(?:\\A|[\r\n])From:[\t ]*(?<from>[^\r\n]+)[\r\n]+Sent:[^\r\n]*[\r\n]+To:(?<to>[^\r\n]*)"
+        + "(?:[\r\n]+(?:Cc:(?<cc>[^\r\n]*)|Bcc:[^\r\n]*))*[\r\n]+Subject:[^\r\n]*",
         RegexOptions.CultureInvariant)]
     private static partial Regex ForwardedHeaderRegex();
 
     [GeneratedRegex("\\n{3,}", RegexOptions.CultureInvariant)]
     private static partial Regex BlankRunRegex();
 
-    // "Display Name <address@example.com>" — the shape Outlook writes on a
-    // forwarded From: line when the sender has a display name.
-    [GeneratedRegex("<(?<address>[^<>\\s]+@[^<>\\s]+)>", RegexOptions.CultureInvariant)]
-    private static partial Regex AngledAddressRegex();
-
+    // One address token wherever it sits on a header line: bare, inside
+    // "<…>", or after Outlook's "mailto:".
     [GeneratedRegex(
-        "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+        "(?i)(?<![a-z0-9._%+-])(?<address>[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,})(?![a-z0-9._%+-])",
         RegexOptions.CultureInvariant)]
-    private static partial Regex BareAddressRegex();
+    private static partial Regex AddressTokenRegex();
 
     // The measured footer boundary markers (MAIL-007): a line that is an
     // image placeholder, carries a decorated contact link, or opens the

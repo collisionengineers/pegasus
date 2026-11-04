@@ -97,7 +97,7 @@ jobs:
     #
     # Windows, because the documentation link check resolves targets with
     # Test-Path, which is case-insensitive there and case-sensitive on Linux;
-    # moving it would quietly change the rule (R652).
+    # moving it would quietly change the rule (R658).
     #
     # It follows `changes` so every lane reads one verdict order, but must not
     # inherit its verdict: without `!cancelled()`, a failed path detection would
@@ -141,7 +141,7 @@ jobs:
   infrastructure:
     # Local mode checks committed fail-closed invariants and compiles Bicep.
     # It does not authenticate, read Azure state, run azd or deploy anything.
-    # Linux, the platform the release deploys to. R651's measured run
+    # Linux, the platform the release deploys to. R657's measured run
     # (3 November 2026) was green at 90 s against 113-129 s on Windows.
     needs: [changes, invariants]
     if: needs.changes.outputs.infrastructure == 'true'
@@ -191,7 +191,7 @@ jobs:
     # when PEGASUS_REFERENCE_PACK_ROOT is absent, so no filter is needed here
     # and the skips are visible in the run, not hidden by a filter.
     #
-    # Linux, the platform Web and Worker deploy to. R651's measured run
+    # Linux, the platform Web and Worker deploy to. R657's measured run
     # (3 November 2026) was green at 209 s against 246-308 s on Windows.
     needs: [changes, invariants]
     if: needs.changes.outputs.code == 'true'
@@ -220,7 +220,7 @@ jobs:
     # container is the runbook's Linux route, reached through the
     # PEGASUS_TEST_SQL_* variables the harness already reads. The password is
     # not a secret: the container listens on the runner's own loopback and is
-    # discarded with the job. R651's measured run (3 November 2026) was green
+    # discarded with the job. R657's measured run (3 November 2026) was green
     # with shards of 576-726 s against 772-1477 s on Windows.
     needs: [changes, invariants]
     if: needs.changes.outputs.code == 'true'

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -60,7 +61,7 @@ internal static class AdministrationPolicyModelConfiguration
             entity.HasData(new ApprovedMailboxEntity
             {
                 Id = InitialInstructionsMailboxId,
-                Address = "instructions@collisionengineers.co.uk",
+                Address = PrincipalMailRoutePolicy.StaffForwardMailboxAddress,
                 AllowIncoming = true,
                 State = ApprovedMailboxState.Approved.ToString(),
                 MailboxGeneration = 1,

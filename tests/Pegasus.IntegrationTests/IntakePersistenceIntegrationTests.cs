@@ -654,6 +654,7 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
             if (migrate)
             {
                 await database.MigrateAsync();
+                await database.SetCaseReferenceSuffixAsync(enabled: false);
                 database.SchemaOrigin = LocalDbSchemaOrigin.Migrated;
             }
 
@@ -722,6 +723,22 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
             ? result
             : (T)Convert.ChangeType(value, typeof(T), CultureInfo.InvariantCulture);
     }
+
+    /// <summary>
+    /// The temporary Case/PO suffix switch (R656). Production ships it on, but
+    /// the suite's databases start with it off, and so the template does
+    /// too: the references the suite asserts are the permanent form, and only
+    /// the suffix's own tests switch it on.
+    /// </summary>
+    public Task SetCaseReferenceSuffixAsync(bool enabled) =>
+        ExecuteAsync(
+            $"""
+            MERGE [SendToAiControl] AS [target]
+            USING (SELECT N'{SendToAiControlEntity.CaseReferenceSuffixId}' AS [Id]) AS [source]
+            ON [target].[Id] = [source].[Id]
+            WHEN MATCHED THEN UPDATE SET [Enabled] = {(enabled ? 1 : 0)}
+            WHEN NOT MATCHED THEN INSERT ([Id], [Enabled], [Version]) VALUES ([source].[Id], {(enabled ? 1 : 0)}, 0);
+            """);
 
     public async Task ExecuteAsync(string commandText)
     {

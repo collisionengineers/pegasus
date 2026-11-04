@@ -631,6 +631,20 @@ public sealed class ReportDispatchPolicyTests
         Assert.Null(plan.Stop);
     }
 
+    /// <summary>
+    /// A staff forward is answered as though the original had arrived
+    /// directly (operator, 3 November 2026): the subject drops the forward's "FW:".
+    /// </summary>
+    [Fact]
+    public void AnAnswerToAStaffForwardDropsTheForwardPrefix()
+    {
+        var plan = Plan(
+            Rules(),
+            instruction: Instruction(subject: "FW: Claim AB12 CDE") with { SenderAddress = "desk@collisionengineers.co.uk" });
+
+        Assert.Equal("Re: Claim AB12 CDE", plan.Subject);
+    }
+
     [Theory]
     [InlineData("Re: Claim AB12 CDE", "Re: Claim AB12 CDE")]
     [InlineData("RE: Claim", "RE: Claim")]
@@ -1189,7 +1203,7 @@ public sealed class ReportDispatchPolicyTests
         IReadOnlyList<string>? cc = null,
         string? subject = "Claim AB12 CDE") => new(
         RetainedId, MailboxId, "engineers@collisionengineers.example", "immutable-1",
-        "<instruction@insurer.example>", "conversation-1", sender, cc ?? [], subject);
+        "<instruction@insurer.example>", "conversation-1", sender, cc ?? [], subject, SenderAddress: null);
 
     private static ReportDispatchFacts Facts(
         PrincipalReportSendingRules rules,

@@ -46,7 +46,11 @@ public sealed class TriageCaseView(TriageDetail triage)
     /// </summary>
     public bool OutcomeReplySent => TriageLifecycleRules.OutcomeReplySent(Triage);
 
-    public ApprovedMailbox? ReplyMailbox { get; set; }
+    /// <summary>Which mailboxes the reply may leave from, and the default (<see cref="StaffMailAnswer"/>).</summary>
+    public StaffMailAnswer ReplyAnswer { get; set; } = StaffMailAnswer.None;
+
+    /// <summary>The From staff chose in a refused send, chosen again on its redisplay.</summary>
+    public Guid? ReplyFromMailboxId { get; set; }
 
     public string ReplyOperationKey { get; set; } = string.Empty;
 
@@ -63,8 +67,8 @@ public sealed class TriageCaseView(TriageDetail triage)
 
     public bool IsOutcomeReply => ReplyPurpose == StaffMailPurpose.TriageOutcomeReply;
 
-    /// <summary>A reply can be sent: the Triage came by e-mail and its approved mailbox may send.</summary>
-    public bool CanSendReply => RetainedMail is not null && ReplyMailbox is not null;
+    /// <summary>A reply can be sent: the Triage came by e-mail and a mailbox may answer it.</summary>
+    public bool CanSendReply => RetainedMail is not null && ReplyAnswer.CanSend;
 
     /// <summary>
     /// Reply with finding is offered: the Triage is Completed, a reply can be
@@ -610,6 +614,7 @@ public sealed partial class DetailsModel
         string? subject,
         string? body,
         List<string>? selectedAttachments,
+        Guid? fromMailboxId,
         [FromServices] TriageCasePorts ports,
         CancellationToken cancellationToken)
     {
@@ -642,7 +647,7 @@ public sealed partial class DetailsModel
 
         // A refused send redisplays what the operator typed, never the
         // template again.
-        var draft = new TriageReplyDraft(to, cc, subject, body, selectedAttachments ?? []);
+        var draft = new TriageReplyDraft(to, cc, subject, body, selectedAttachments ?? [], fromMailboxId);
 
         // A reply answers the mailbox request a Triage Case was opened from.
         if (triage.Record.Origin is not { } origin
@@ -684,16 +689,22 @@ public sealed partial class DetailsModel
             return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
         }
 
-        var mailbox = await ports.ApprovedMailboxes.GetSenderAsync(
-            detail.Summary.MailboxId,
-            cancellationToken);
+        var answer = (await Pegasus.Web.Pages.Mail.MessageModel.CorrespondenceSendersAsync(
+            detail, ports.ApprovedMailboxes, cancellationToken)).Reply;
+        var mailbox = answer.Sender(fromMailboxId);
         // A refusal before the send redraws with what this request has read.
-        var resolved = new TriageResolvedReply(detail, mailbox);
-        if (mailbox is null)
+        var resolved = new TriageResolvedReply(detail, answer);
+        if (!answer.CanSend)
         {
             ModelState.AddModelError(
                 string.Empty,
                 "No approved mailbox with staff send capability is available for this origin.");
+            return await ReloadTriageCaseAsync(
+                id, actionActor, ports, draft, cancellationToken, resolved);
+        }
+        if (mailbox is null)
+        {
+            ModelState.AddModelError(nameof(fromMailboxId), new CaseMailSenderRequiredException().Message);
             return await ReloadTriageCaseAsync(
                 id, actionActor, ports, draft, cancellationToken, resolved);
         }
@@ -809,7 +820,8 @@ public sealed partial class DetailsModel
         string? Cc,
         string? Subject,
         string? Body,
-        IReadOnlyList<string> Attachments);
+        IReadOnlyList<string> Attachments,
+        Guid? FromMailboxId);
 
     /// <summary>The page again after a refused send, with the composer open on what was posted.</summary>
     private async Task<IActionResult> ReloadTriageCaseAsync(
@@ -831,16 +843,17 @@ public sealed partial class DetailsModel
         view.ReplySubject = draft.Subject;
         view.ReplyBody = draft.Body;
         view.SelectedAttachments = draft.Attachments;
+        view.ReplyFromMailboxId = draft.FromMailboxId;
         view.ReplyRefused = true;
         view.ComposerOpensOnLoad = view.OffersComposer;
         return Page();
     }
 
     /// <summary>
-    /// The origin message and its sending mailbox (none when it cannot send)
-    /// a refused reply already read, which its redisplay does not read again.
+    /// The origin message and who answers it a refused reply already read,
+    /// which its redisplay does not read again.
     /// </summary>
-    private sealed record TriageResolvedReply(RetainedMailDetail Detail, ApprovedMailbox? Mailbox);
+    private sealed record TriageResolvedReply(RetainedMailDetail Detail, StaffMailAnswer Answer);
 
     private async Task<bool> LoadTriageCaseAsync(
         Guid id,
@@ -950,11 +963,17 @@ public sealed partial class DetailsModel
                 view.ReplyOperationBlocked = IsActiveTriageMailOperation(view.ReplyOperation);
                 view.ReplyOperationKey = NewRetainedTriageOperationKey(retainedMail.Summary.Id);
 
-                view.ReplyMailbox = resolvedReply is not null
-                    ? resolvedReply.Mailbox
-                    : await ports.ApprovedMailboxes.GetSenderAsync(
-                        retainedMail.Summary.MailboxId,
-                        cancellationToken);
+                view.ReplyAnswer = resolvedReply is not null
+                    ? resolvedReply.Answer
+                    : (await Pegasus.Web.Pages.Mail.MessageModel.CorrespondenceSendersAsync(
+                        retainedMail, ports.ApprovedMailboxes, cancellationToken)).Reply;
+                // With no default mailbox that can send, staff start on the
+                // Principal's Send from (operator, 3 November 2026).
+                if (ports.CaseInstructions is { } caseInstructions)
+                {
+                    view.ReplyAnswer = await view.ReplyAnswer.OrSendFromAsync(
+                        caseInstructions, triage.Record.CaseId, cancellationToken);
+                }
 
                 var replyRecipients = TriageReplyRecipients(retainedMail);
                 view.ReplyTo = string.Join("; ", replyRecipients.Select(r => r.Address));
@@ -1298,30 +1317,21 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The reply answers the message's Reply-To, or From without one; a
-    /// Collision Engineers staff forward is answered to its proven original
-    /// sender instead of the forwarding desk (FRD-21 Reply targets).
+    /// Collision Engineers staff forward, whichever mailbox holds it, is
+    /// answered to its proven original sender instead of the forwarding desk
+    /// (FRD-21 Reply targets, issue 1042).
     /// </summary>
     internal static StaffMailRecipient[] TriageReplyRecipients(RetainedMailDetail detail) =>
-        StaffForwardOriginalSender(detail.Summary) is { } originalSender
-            ? ParseTriageRecipients(originalSender)
-            : ParseTriageRecipients(detail.ReplyToAddresses);
-
-    private static string? StaffForwardOriginalSender(RetainedMailSummary summary) =>
         PrincipalMailRoutePolicy.StaffForwardOriginalSender(
-            summary.SenderAddress,
-            summary.EffectiveSenderAddress);
+            detail.Summary.SenderAddress, detail.Summary.EffectiveSenderAddress) is { } originalSender
+            ? ParseTriageRecipients(originalSender)
+            : Pegasus.Web.Pages.Mail.MessageModel.ReplyRecipients(detail).To
+                .Where(item => IsTriageMailboxAddress(item.Address))
+                .ToArray();
 
     private static StaffMailRecipient[] ParseTriageRecipients(string? value) =>
         (value ?? string.Empty)
             .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(address => new StaffMailRecipient(address.Trim(), DisplayName: null))
-            .Where(item => IsTriageMailboxAddress(item.Address))
-            .DistinctBy(item => item.Address, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-    private static StaffMailRecipient[] ParseTriageRecipients(IReadOnlyList<string>? values) =>
-        (values ?? [])
-            .SelectMany(val => (val ?? string.Empty).Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Select(address => new StaffMailRecipient(address.Trim(), DisplayName: null))
             .Where(item => IsTriageMailboxAddress(item.Address))
             .DistinctBy(item => item.Address, StringComparer.OrdinalIgnoreCase)

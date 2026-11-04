@@ -328,5 +328,5 @@ public sealed class CaseReportDeliveryNamingTests
             ? null
             : new ReportInstructionMessage(
                 Guid.NewGuid(), Guid.NewGuid(), "info@collisionengineers.example", "immutable-1", null, null,
-                originalInstructionSender, instructionCc ?? [], "Instruction"));
+                originalInstructionSender, instructionCc ?? [], "Instruction", SenderAddress: null));
 }

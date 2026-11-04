@@ -10,10 +10,11 @@ namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
 /// The Case ribbon's Send chaser (operator, 12 October 2026): a reply to the
-/// Case's instruction email from the mailbox it arrived in; with no
-/// instruction email to reply to, staff choose the Outgoing mailbox and the
-/// chaser is a new message. It opens addressed, titled and worded from the
-/// Case; staff change any of it before sending.
+/// Case's instruction email; with no instruction email to reply to, a new
+/// message. It opens addressed, titled and worded from the Case, its From on
+/// the default sender (<see cref="ResolveCaseMailSender"/>: the mailbox the
+/// instruction arrived in, else the Principal's Send from; R654, R655); staff
+/// change any of it before sending.
 /// </summary>
 public sealed class ChaserModel(
     IStaffMailSend staffMailSend,
@@ -61,7 +62,7 @@ public sealed class ChaserModel(
 
     public CaseHeader? Case { get; private set; }
 
-    public CaseMailSenderOptions Senders { get; private set; } = new(null, []);
+    public CaseMailSenderOptions Senders { get; private set; } = CaseMailSenderOptions.None;
 
     public StaffMailOperation? Operation { get; private set; }
 
@@ -80,6 +81,8 @@ public sealed class ChaserModel(
         }
 
         ExpectedContextVersion = Case!.Workflow.Version;
+        // From starts on the default sender.
+        FromMailboxId ??= Senders.Default?.Mailbox.Id;
         AvailableAttachments = await attachmentResolver.ListCaseAsync(actor, Id, cancellationToken);
         if (OperationId is { } operationId)
         {
@@ -118,7 +121,8 @@ public sealed class ChaserModel(
         {
             ModelState.AddModelError(nameof(Body), "A message is required.");
         }
-        if (Senders.Reply is null && !Senders.Mailboxes.Any(mailbox => mailbox.Id == FromMailboxId))
+        var sender = Senders.Sender(FromMailboxId);
+        if (sender is null)
         {
             ModelState.AddModelError(nameof(FromMailboxId), new CaseMailSenderRequiredException().Message);
         }
@@ -136,13 +140,11 @@ public sealed class ChaserModel(
             ModelState.AddModelError(nameof(SelectedAttachments), selectionError);
         }
 
-        if (!ModelState.IsValid)
+        if (!ModelState.IsValid || sender is null)
         {
             return Page();
         }
 
-        var sender = Senders.Reply
-            ?? new CaseMailSender(Senders.Mailboxes.Single(mailbox => mailbox.Id == FromMailboxId), ReplyTo: null);
         try
         {
             StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
@@ -220,7 +222,7 @@ public sealed class ChaserModel(
         }
         if (string.IsNullOrWhiteSpace(Subject))
         {
-            Subject = Senders.Reply?.ReplyTo?.ReplySubject ?? facts.Subject();
+            Subject = Senders.ReplySubject ?? facts.Subject();
         }
         if (string.IsNullOrWhiteSpace(Body))
         {

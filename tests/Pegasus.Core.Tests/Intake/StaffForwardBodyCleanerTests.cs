@@ -225,6 +225,90 @@ public sealed class StaffForwardBodyCleanerTests
     }
 
     [Fact]
+    public void ReadsTheOriginalsRecipientsFromItsForwardedHeader()
+    {
+        var (to, cc) = StaffForwardBodyCleaner.ForwardedRecipients(CopiedForward);
+
+        Assert.Equal(["desk@collisionengineers.co.uk"], to);
+        Assert.Equal(["NewClaims@qdosassist.co.uk"], cc);
+    }
+
+    [Fact]
+    public void ReadsEveryCopiedAddressWhetherNamedOrBare()
+    {
+        var body =
+            "From: Robin Anderson <randerson@qdosassist.co.uk>\n" +
+            "Sent: 21 August 2026 11:18 PM\n" +
+            "To: desk@collisionengineers.co.uk\n" +
+            "Cc: Anderson, Robin <robin@qdosassist.co.uk>; claims@qdosassist.co.uk, team@qdosassist.co.uk\n" +
+            "Bcc: hidden@qdosassist.co.uk\n" +
+            "Subject: Claim\n\nBody";
+
+        var (to, cc) = StaffForwardBodyCleaner.ForwardedRecipients(body);
+
+        Assert.Equal(["desk@collisionengineers.co.uk"], to);
+        Assert.Equal(["robin@qdosassist.co.uk", "claims@qdosassist.co.uk", "team@qdosassist.co.uk"], cc);
+    }
+
+    /// <summary>
+    /// Outlook's text/plain forward writes a recipient as
+    /// "Name &lt;addr&lt;mailto:addr&gt;&gt;"; each address is read once, as
+    /// itself, never as "mailto:addr". Expected addresses are "|"-separated.
+    /// </summary>
+    [Theory]
+    [InlineData("a",
+        "To: Engineers <engineers@collisionengineers.co.uk<mailto:engineers@collisionengineers.co.uk>>", "",
+        "engineers@collisionengineers.co.uk", "")]
+    [InlineData("b",
+        "To: desk@collisionengineers.co.uk", "Cc: Qdos NewClaims <NewClaims@qdosassist.co.uk<mailto:NewClaims@qdosassist.co.uk>>",
+        "desk@collisionengineers.co.uk", "NewClaims@qdosassist.co.uk")]
+    [InlineData("c",
+        "To: a@qdosassist.co.uk; Claims Team <c@qdosassist.co.uk>, e@qdosassist.co.uk", "",
+        "a@qdosassist.co.uk|c@qdosassist.co.uk|e@qdosassist.co.uk", "")]
+    [InlineData("d",
+        "To: desk@collisionengineers.co.uk; Desk <DESK@collisionengineers.co.uk>", "Cc: claims@qdosassist.co.uk",
+        "desk@collisionengineers.co.uk", "claims@qdosassist.co.uk")]
+    public void ReadsEachRecipientAddressOnceWhateverItsForm(
+        string row, string toLine, string ccLine, string expectedTo, string expectedCc)
+    {
+        Assert.NotEmpty(row);
+        var body =
+            "From: Robin Anderson <randerson@qdosassist.co.uk>\n" +
+            "Sent: 21 August 2026 11:18 PM\n" +
+            toLine + "\n" +
+            (ccLine.Length == 0 ? string.Empty : ccLine + "\n") +
+            "Subject: Claim\n\nBody";
+
+        var (to, cc) = StaffForwardBodyCleaner.ForwardedRecipients(body);
+
+        Assert.Equal(expectedTo.Split('|', StringSplitOptions.RemoveEmptyEntries), to);
+        Assert.Equal(expectedCc.Split('|', StringSplitOptions.RemoveEmptyEntries), cc);
+    }
+
+    [Fact]
+    public void ReadsTheSenderFromOutlooksMailtoForm()
+    {
+        var body =
+            "From: Robin Anderson <randerson@qdosassist.co.uk<mailto:randerson@qdosassist.co.uk>>\n" +
+            "Sent: 21 August 2026 11:18 PM\n" +
+            "To: desk@collisionengineers.co.uk\n" +
+            "Subject: Claim\n\nBody";
+
+        Assert.Equal(
+            "randerson@qdosassist.co.uk",
+            StaffForwardBodyCleaner.ForwardedSenderAddress(body));
+    }
+
+    [Fact]
+    public void ABodyWithNoForwardedHeaderHasNoOriginalRecipients()
+    {
+        var (to, cc) = StaffForwardBodyCleaner.ForwardedRecipients("Please find attached.");
+
+        Assert.Empty(to);
+        Assert.Empty(cc);
+    }
+
+    [Fact]
     public void ReadsTheSenderThroughBothCopiedRecipientLines()
     {
         var body = CopiedForward.Replace(

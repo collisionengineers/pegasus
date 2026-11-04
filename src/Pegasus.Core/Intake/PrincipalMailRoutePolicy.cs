@@ -15,6 +15,13 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
     private const string StaffTransportDomain = "collisionengineers.co.uk";
 
     /// <summary>
+    /// The approved mailbox staff forward Principal mail into from desk@,
+    /// info@ and engineers@ (R586); a staff forward it holds is answered as
+    /// though the original had arrived directly (R651, R652).
+    /// </summary>
+    public const string StaffForwardMailboxAddress = "instructions@" + StaffTransportDomain;
+
+    /// <summary>
     /// Exact direct sender identities from the supplied reference and original
     /// instructions. An identity containing @ is one mailbox, never its domain.
     /// This is the one runtime list of the direct routes, also read by customer
