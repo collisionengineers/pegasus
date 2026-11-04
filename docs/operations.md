@@ -57,6 +57,15 @@ Release 124 are one line each in [operations history](operations-history.md).
   `gh api repos/collisionengineers/pegasus/branches/{dev,main}` read
   `protected: true`.
 
+## Test instance production extracts removed - 4 November 2026
+
+- The two SqlPackage extracts of production that the 3 November copy left
+  under the instance's run `state/` (`pegasus-production-20261103T172851Z`
+  from the first, failed attempt and `pegasus-production-20261103T173340Z`
+  from the copy the instance runs on) were removed from the host on
+  4 November 2026 (R694); the copy record keeps the second's SHA-256. The
+  copy script now removes its extract itself once published.
+
 ## Test instance Graph parity first run - 3 November 2026
 
 - The instance ran `5627a801f` (PR #1865 head; CI run 41624879453 green in

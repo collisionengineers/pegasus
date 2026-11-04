@@ -15,9 +15,15 @@
     Stopped; its database container is started for the publish and stopped
     again, and the run manifest is not touched.
 
-    Linux only: the hosted test instance runs on the container engine, and the
-    post-copy statements run inside the container with sqlcmd reading the sa
-    password from the container's own environment. SqlPackage's publish has no
+    The hosted test instance's host only (R692): the copy refuses any other
+    machine before printing its plan, and the run must be the instance's (its
+    manifest records the instance's public origin). The extract is removed
+    once published, whether or not the publish succeeded, so the run database
+    is the only copy of production on the machine; the record keeps the
+    extract's size and SHA-256. Linux only: the hosted test instance runs on
+    the container engine, and the post-copy statements run inside the
+    container with sqlcmd reading the sa password from the container's own
+    environment. SqlPackage's publish has no
     such route, so the run's sa password is on that one host command line;
     anyone who can query the container runtime can read it anyway (runbook,
     "Local database").
@@ -60,6 +66,7 @@ $excludedObjectTypes = 'Users;Logins;RoleMembership;Permissions'
 if ((Get-PegasusDatabaseEngineKind) -ne 'DockerSqlServer') {
     throw 'This copy supports the Linux container engine the hosted test instance runs on (ADR-0088).'
 }
+Assert-PegasusTestInstanceHost -Operation 'The production copy'
 
 $runRoot = Join-Path (Join-Path $repositoryRoot 'artifacts/local-development') $RunId
 $manifestPath = Join-Path $runRoot 'run-manifest.json'
@@ -75,6 +82,10 @@ if ([string]$manifest.state -ne 'Stopped') {
 }
 if (-not $manifest.resources.database.created) {
     throw "Run '$RunId' has no database yet; Start it once so the lifecycle owns one, then Stop it."
+}
+$runOrigin = $manifest.runtime.PSObject.Properties['publicOrigin']
+if ($null -eq $runOrigin -or -not (Test-PegasusTestInstanceOrigin -Origin ([string]$runOrigin.Value))) {
+    throw "Run '$RunId' is not the hosted test instance's run: its manifest records no public origin of $(Get-PegasusTestInstanceOrigin). Production is copied only into the instance (ADR-0088)."
 }
 
 $databaseName = [string]$manifest.resources.database.databaseName
@@ -99,7 +110,7 @@ $pauseCredentialsStatement = "UPDATE dbo.PrincipalApiCredentials SET State = 'Pa
 $closeTidiesStatement = "UPDATE dbo.StaffMailSendOperations SET InstructionMoveState = 'Failed', InstructionMoveFailureCode = 'production_copy' WHERE InstructionMoveState IS NULL AND Purpose = 'CaseReport' AND State = 'Sent';"
 
 Write-Host "Source:   $sqlServer / $sqlDatabase (read-only extract under your az sign-in)"
-Write-Host "Dacpac:   $dacpacPath"
+Write-Host "Dacpac:   $dacpacPath (removed once published; the run database is the only copy)"
 Write-Host "Target:   container $containerName, database $databaseName (replaced)"
 Write-Host "Then:     $deactivateStatement"
 Write-Host "          $clearSubscriptionsStatement"
@@ -168,6 +179,16 @@ function Wait-RunDatabase {
     throw "The run database container '$containerName' did not become ready."
 }
 
+# The extract is production's data in one file; it lives only between the
+# extract and the publish, and is removed on any exit.
+function Remove-Extract {
+    if ([System.IO.File]::Exists($dacpacPath)) {
+        [System.IO.File]::Delete($dacpacPath)
+        Write-Host "Removed the extract $dacpacPath."
+    }
+}
+
+try {
 # 1. Extract production, read only, to the local file. The connection carries
 #    no secret: Active Directory Default takes the operator's az sign-in.
 [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($dacpacPath)) | Out-Null
@@ -191,7 +212,8 @@ finally {
     Remove-Item Env:AZURE_TOKEN_CREDENTIALS -ErrorAction SilentlyContinue
 }
 $dacpacSha256 = (Get-FileHash -LiteralPath $dacpacPath -Algorithm SHA256).Hash.ToLowerInvariant()
-Write-Host "Extracted $([System.IO.FileInfo]::new($dacpacPath).Length) bytes, SHA-256 $dacpacSha256."
+$dacpacBytes = [System.IO.FileInfo]::new($dacpacPath).Length
+Write-Host "Extracted $dacpacBytes bytes, SHA-256 $dacpacSha256."
 
 # 2. Publish over the run database. CreateNewDatabase replaces the existing
 #    run database, so no separate DROP is needed and the run keeps its name.
@@ -230,13 +252,17 @@ try {
 finally {
     Stop-PegasusDatabaseInstance -InstanceName $databaseName -Command $docker -ContainerName $containerName -RunId $RunId
 }
+}
+finally {
+    Remove-Extract
+}
 
 $record = [ordered]@{
     kind = 'Pegasus.LocalDevelopment.ProductionCopy'
     runId = $RunId
     copiedUtc = [DateTimeOffset]::UtcNow.ToString('O')
     source = [ordered]@{ server = $sqlServer; database = $sqlDatabase; account = [string]$accountInfo.user.name }
-    dacpac = [ordered]@{ path = $dacpacPath; sha256 = $dacpacSha256 }
+    dacpac = [ordered]@{ sha256 = $dacpacSha256; bytes = [int64]$dacpacBytes; retained = $false }
     excludedObjectTypes = $excludedObjectTypes
     migrationHead = $migrationHead
     caseCount = [int]$caseCount

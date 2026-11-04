@@ -45,6 +45,24 @@ finally {
     Remove-Item -LiteralPath $identityProbe -Recurse -Force
 }
 
+# The hosted test instance's host (ADR-0088, R692): the origin is fixed, and
+# only the Tailscale node that owns its name is the host.
+if ((Get-PegasusTestInstanceOrigin) -cne 'https://cemattypc-1.tail432b53.ts.net/') {
+    throw 'The hosted test instance origin must be the one ADR-0088 records, with one trailing slash.'
+}
+foreach ($accepted in @('https://cemattypc-1.tail432b53.ts.net', 'https://cemattypc-1.tail432b53.ts.net/', 'HTTPS://CEMATTYPC-1.tail432b53.ts.net/')) {
+    if (-not (Test-PegasusTestInstanceOrigin -Origin $accepted)) { throw "The instance origin '$accepted' must be accepted." }
+}
+foreach ($refused in @('', 'https://other.tail432b53.ts.net/', 'https://cemattypc-1.tail432b53.ts.net:8443/', 'http://cemattypc-1.tail432b53.ts.net/', 'https://localhost:7139/')) {
+    if (Test-PegasusTestInstanceOrigin -Origin $refused) { throw "The origin '$refused' is not the instance's and must be refused." }
+}
+foreach ($owner in @('cemattypc-1.tail432b53.ts.net.', 'cemattypc-1.tail432b53.ts.net', 'CEMATTYPC-1.tail432b53.ts.net.')) {
+    if (-not (Test-PegasusTestInstanceHost -NodeName $owner)) { throw "The Tailscale node '$owner' owns the instance origin and must be the host." }
+}
+foreach ($other in @('', 'cemattypc.tail432b53.ts.net.', 'cemattypc-1.other.ts.net.', 'cemattypc-1')) {
+    if (Test-PegasusTestInstanceHost -NodeName $other) { throw "The Tailscale node '$other' does not own the instance origin and must not be the host." }
+}
+
 $platformResolver = ${function:Get-PegasusPlatform}
 try {
     foreach ($hostKind in @('Windows', 'Linux')) {

@@ -194,8 +194,10 @@ function New-Estate {
         # The one pull request's closing issue and its labels (R685).
         [bool] $PullClosesIssue = $true,
         [string[]] $IssueLabels = @('type:feature'),
-        # The push-to-dev run's conclusion (R681) and the rulesets gh reads back (R689).
+        # The push-to-dev run's conclusion (R681), whether the pull request reports
+        # any check, and the rulesets gh reads back (R689).
         [string] $DevRunConclusion = 'success',
+        [bool] $PullHasChecks = $true,
         [string[]] $Rulesets = @('dev', 'main', 'release tags'),
         [Parameter(Mandatory)][string] $NewSha
     )
@@ -203,6 +205,7 @@ function New-Estate {
         web = [ordered]@{ state = $WebState; serving = $WebServing; sourceSha = $WebSourceSha; deployedSha = $WebSourceSha; version = $WebVersion; releaseVersion = $releaseVersion; stickyServing = $StickyServing }
         instance = [ordered]@{ sourceSha = $(if ($InstanceSourceSha) { $InstanceSourceSha } else { $NewSha }) }
         pullClosesIssue = $PullClosesIssue
+        pullHasChecks = $PullHasChecks
         issueLabels = @($IssueLabels)
         devRunConclusion = $DevRunConclusion
         rulesets = @($Rulesets)
@@ -335,8 +338,11 @@ if ($Arguments[0] -eq 'api') {
     exit 0
 }
 if ($Arguments[0] -eq 'issue') { @{ labels = @(@($state.issueLabels) | ForEach-Object { @{ name = $_ } }) } | ConvertTo-Json -Compress -Depth 4; exit 0 }
-$closing = if ($state.pullClosesIssue) { '[{"number":7}]' } else { '[]' }
-"{`"number`":1,`"title`":`"fixture`",`"state`":`"MERGED`",`"statusCheckRollup`":[{`"name`":`"unit`",`"conclusion`":`"SUCCESS`"}],`"closingIssuesReferences`":$closing}"
+# A pull request into dev carries no linked closing reference (GitHub links
+# them on the default branch alone); its body says what it closes.
+$body = if ($state.pullClosesIssue) { 'Summary. Closes #7' } else { 'Summary.' }
+$checks = if ($state.pullHasChecks) { '[{"name":"unit","conclusion":"SUCCESS"}]' } else { '[]' }
+"{`"number`":1,`"title`":`"fixture`",`"state`":`"MERGED`",`"body`":`"$body`",`"statusCheckRollup`":$checks,`"closingIssuesReferences`":[]}"
 exit 0
 '@
 }
@@ -360,6 +366,16 @@ function New-FixtureRepository {
     # have left output under the reference-data loader).
     New-Item -ItemType Directory -Force -Path (Join-Path $seed 'scripts') | Out-Null
     Copy-Item -Path (Join-Path $repositoryRoot 'scripts/*.ps1') -Destination (Join-Path $seed 'scripts')
+    # The full smoke's SQL and HTTP reads have no fake, so the fixture's copy of
+    # the smoke script answers the full smoke from the case (pass) and hands
+    # everything else, the Worker-only and classifier reads included, to the
+    # real script; the post-smoke promotion is then exercised end to end.
+    Set-Content -LiteralPath (Join-Path $seed 'scripts/Invoke-ProductionSmoke.ps1') -Encoding ascii -Value @'
+param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
+if ($env:PEGASUS_TEST_FULL_SMOKE -eq 'pass' -and $Arguments -contains '-BaseUri') { Write-Host 'fixture: full smoke passed'; exit 0 }
+& $env:PEGASUS_TEST_REAL_SMOKE_PATH @Arguments
+exit $LASTEXITCODE
+'@
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'azure.yaml') -Destination (Join-Path $seed 'azure.yaml')
     New-Item -ItemType Directory -Force -Path (Join-Path $seed 'src/Pegasus.Web') | Out-Null
     Set-Content -LiteralPath (Join-Path $seed 'src/Pegasus.Web/placeholder.txt') -Value 'fixture' -Encoding ascii
@@ -381,6 +397,12 @@ function New-FixtureRepository {
     & git clone --quiet $bare $work
     & git -C $work checkout --quiet dev
     if ($LASTEXITCODE -ne 0) { throw 'Unable to build the fixture repository.' }
+    # The release script tags in this checkout as the operator's identity does
+    # (R686); the fixture's identity stands in for it.
+    & git -C $work config user.name 'fixture'
+    & git -C $work config user.email 'fixture@example.test'
+    & git -C $work config commit.gpgsign false
+    & git -C $work config tag.gpgsign false
     # The ignored azd environment the script hashes and copies.
     $environmentDirectory = Join-Path $work '.azure/pegasus-prod'
     New-Item -ItemType Directory -Force -Path $environmentDirectory | Out-Null
@@ -446,7 +468,10 @@ function Invoke-ReleaseCase {
         [Parameter(Mandatory)][string] $WorkRoot,
         [Parameter(Mandatory)][string[]] $Arguments,
         [Parameter(Mandatory)][System.Collections.IDictionary] $Estate,
-        [string] $MigrationHead = ''
+        [string] $MigrationHead = '',
+        # 'pass' makes the fixture's full smoke pass; otherwise the real smoke
+        # runs and stops at its run-from-package read.
+        [string] $FullSmoke = ''
     )
     $script:caseIndex++
     $caseRoot = Join-Path $root ("case-{0:D3}" -f $script:caseIndex)
@@ -469,6 +494,8 @@ function Invoke-ReleaseCase {
     $env:PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH = $templatePath
     $env:PEGASUS_TEST_AZ_SETTING_NAMES = ($expectedSettingNames -join ',')
     $env:PEGASUS_TEST_MIGRATION_HEAD = $MigrationHead
+    $env:PEGASUS_TEST_REAL_SMOKE_PATH = $productionSmoke
+    $env:PEGASUS_TEST_FULL_SMOKE = $FullSmoke
     try {
         $output = @(& pwsh -NoLogo -NoProfile -File $releaseScript @Arguments -RepositoryRoot $WorkRoot -PollSeconds 0 2>&1 | ForEach-Object { "$_" })
         $exitCode = $LASTEXITCODE
@@ -476,7 +503,8 @@ function Invoke-ReleaseCase {
     finally {
         $env:PATH = $savedPath
         foreach ($name in 'PEGASUS_TEST_AZ_ARGUMENTS_PATH', 'PEGASUS_TEST_RELEASE_STATE_PATH', 'PEGASUS_TEST_AZD_VALUES_PATH',
-            'PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH', 'PEGASUS_TEST_AZ_SETTING_NAMES', 'PEGASUS_TEST_MIGRATION_HEAD') {
+            'PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH', 'PEGASUS_TEST_AZ_SETTING_NAMES', 'PEGASUS_TEST_MIGRATION_HEAD',
+            'PEGASUS_TEST_REAL_SMOKE_PATH', 'PEGASUS_TEST_FULL_SMOKE') {
             Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue
         }
     }
@@ -1033,6 +1061,41 @@ try {
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns $writes
 
+    # A resumed run after dev moved on: the Web App is Stopped part way through
+    # the approved SHA, which dev still contains, so the run continues; the
+    # test instance was proved before the first write and is not read again.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments ($executeDestructive + @('-ApprovedOldWebSourceSha', $oldWebSha)) `
+        -Estate (New-Estate -NewSha $releaseSha -WebState 'Stopped' -WebServing $false -WorkerState 'Stopped' -WorkerDisabled 'true' -ClassifierState 'Stopped' -InstanceSourceSha $movedSha) -MigrationHead $identity
+    $case = 'Destructive route resumed after dev moved'
+    Assert-True ($result.ExitCode -ne 0) $case 'should stop at the full smoke run-from-package read.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("origin/dev has moved on to $movedSha and still contains the approved $releaseSha")) $case 'did not accept dev containing the SHA.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("continuing from 'deploy-web'")) $case 'did not resume at the Web deploy.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns @('az rest*cemattypc-1*')
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'promoted main before the smoke passed.' $result.Diagnostic
+
+    # The smoke passes: main moves to the released SHA and the tag goes with
+    # it in one push, after the smoke and not before (R680, R686); dev is not
+    # pushed. Last of the cases on this worktree, because a completed release
+    # removes it; dev is put back at the approved SHA first, and main and the
+    # tag are put back after for the proposal cases.
+    & git -C $fixture.Bare update-ref refs/heads/dev $releaseSha
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to put the fixture dev branch back.' }
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeNormal -Estate (New-Estate -NewSha $releaseSha) -MigrationHead $identity -FullSmoke 'pass'
+    $case = 'Normal route, smoke passed, promoted after the smoke'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('fixture: full smoke passed')) $case 'did not run the full smoke.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("main and v$releaseVersion read back $releaseSha after the smoke")) $case 'did not promote and tag after the smoke.' $result.Diagnostic
+    Assert-True ($result.Output.IndexOf('fixture: full smoke passed') -lt $result.Output.IndexOf("read back $releaseSha after the smoke")) $case 'promoted before the smoke.' $result.Diagnostic
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $releaseSha) $case 'did not move main to the released SHA.' $result.Diagnostic
+    Assert-True ((& git -C $fixture.Bare rev-parse "v$releaseVersion^{commit}").Trim() -eq $releaseSha) $case 'did not tag the released SHA.' $result.Diagnostic
+    Assert-True ((& git -C $fixture.Bare cat-file -t "v$releaseVersion").Trim() -eq 'tag') $case 'the tag is not annotated.' $result.Diagnostic
+    Assert-True ((& git -C $fixture.Bare rev-parse dev).Trim() -eq $releaseSha) $case 'moved dev.' $result.Diagnostic
+    Assert-Order -Result $result -Case $case -Patterns @('az webapp deploy*--restart true*', 'az functionapp deployment source config-zip*--name pegasus-prod-worker-252ow37gij*')
+    & git -C $fixture.Bare update-ref refs/heads/main $fixture.MainSha
+    & git -C $fixture.Bare update-ref -d "refs/tags/v$releaseVersion"
+    & git -C $fixture.Work tag -d "v$releaseVersion" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to put the fixture refs back after the promotion.' }
+
     # --- The version proposal (R684, R685) on a deployable range ---------------
     # dev gains a merged pull request that changes src/; main stays tagged
     # v1.0.0. The proposal reads what the pull request closes and the issue's
@@ -1066,6 +1129,12 @@ try {
     Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
     Assert-True ($result.Output.Contains('Proposed: 1.1.0 (MINOR: #1 closes no issue)')) $case 'did not propose a MINOR step.' $result.Diagnostic
 
+    # R689: a pull request that reports no check at all is not green.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -PullHasChecks $false) -MigrationHead $identity
+    $case = 'Preflight with a pull request reporting no check'
+    Assert-True ($result.Output.Contains('#1 fixture: 0 checks, 0 not successful (no check reported: not green)')) $case 'did not count the check-less pull request.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('1 run(s) are not green: the candidate waits; nothing is waived (R689)')) $case 'did not report the candidate as waiting.' $result.Diagnostic
+
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly', '-Version', '2.0.0') -Estate (New-Estate -NewSha $proposalSha) -MigrationHead $identity
     $case = 'Preflight with a given version'
     Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
@@ -1076,7 +1145,8 @@ try {
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
     Assert-True ($result.Output.Contains("1.2.0 is not one step above the live v$liveVersion")) $case 'did not refuse the version.' $result.Diagnostic
 
-    & git -C $fixture.Work worktree remove --force $worktree
+    # A completed release removes its worktree itself (Complete-Release).
+    if (Test-Path -LiteralPath $worktree) { & git -C $fixture.Work worktree remove --force $worktree }
 
     Write-Output "Release validation behaviour tests passed ($script:caseIndex isolated runs)."
 }

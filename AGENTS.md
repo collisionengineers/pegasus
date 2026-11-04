@@ -101,7 +101,9 @@ and the [verification procedure](docs/runbook.md).
   Graph parity on its own mailbox, `pegasustest@collisionengineers.co.uk`,
   and on a production mailbox only while the operator enables it there:
   read, send, the answered-instruction move and change subscriptions
-  (ADR-0088 as amended, R673, R675, R691).
+  (ADR-0088 as amended, R673, R675, R691). The instance runs on one machine
+  and its procedure stops on any other (R692); its data is not disposable,
+  so a Reset of its run needs the operator's word (R694).
 - Use PowerShell 7 on Windows or Linux, one platform per evidence run. Paths and
   commands are repository-relative. Follow the existing [release skill](.agents/skills/pegasus-release/SKILL.md)
   for the authorized workstation and platform-matching artifacts; one approval
@@ -154,8 +156,9 @@ passed, or by the promotion-only route for a range that deploys nothing
 (R679, R680). A release is a Semantic Version from 1.0.0, named in the
 approval and tagged `v<version>` on the released SHA (R684 to R686); a fix
 ships as a PATCH of `dev`'s tip, and there is no hotfix branch (R687). `dev`
-is what the hosted test instance runs; a change is vetted there and promoted
-to `main` (R679, R682). Rulesets make `dev` take only green pull requests and
+is what the hosted test instance runs by default; the operator may point it
+at a branch or pull request, and it is back on `dev`'s tip before a release
+(R679, R682, R693); a change is vetted there and promoted to `main`. Rulesets make `dev` take only green pull requests and
 `main` only the release's push; their one bypass is the operator's account,
 so the rule below that agents never push either branch is procedural (R689).
 Task work uses a worktree at

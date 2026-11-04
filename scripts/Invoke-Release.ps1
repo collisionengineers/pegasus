@@ -120,9 +120,6 @@ $tenantId = '858cf5b3-aa0a-47a6-9b40-4851fd0afa94'
 $resourceGroup = 'rg-pegasus-prod'
 $webApp = 'pegasus-prod-web-252ow37gij'
 $webOrigin = 'https://pegasus-prod-web-252ow37gij.azurewebsites.net/'
-# The hosted test instance (ADR-0088) runs dev; a deployable candidate is the
-# SHA it is serving, read the way the Web App is (R682).
-$testInstanceOrigin = 'https://cemattypc-1.tail432b53.ts.net/'
 $workerApp = 'pegasus-prod-worker-252ow37gij'
 $classifierApp = 'pegasus-prod-classifier-252ow37gij'
 $keyVault = 'pegasusprodkv252ow37g'
@@ -132,6 +129,10 @@ $gitHubRepository = 'collisionengineers/pegasus'
 $RepositoryRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 . (Join-Path $RepositoryRoot 'scripts/PegasusPlatform.ps1')
 $migrationBundle = Get-PegasusMigrationBundle
+# The hosted test instance (ADR-0088) runs dev; a deployable candidate is the
+# SHA it is serving, read the way the Web App is (R682). The origin is the
+# platform script's, the one the instance's own lifecycle refuses to leave.
+$testInstanceOrigin = Get-PegasusTestInstanceOrigin
 
 # A path under src/, infra/ or the solution's dependency files is a deployable
 # change; anything else (documentation, tests, skills, release tooling) alone
@@ -736,7 +737,7 @@ function Invoke-Promotion {
     # push (R680, R686); dev must contain it, and may have moved on during
     # the release.
     param([Parameter(Mandatory)][string] $Sha, [switch] $AfterSmoke)
-    Invoke-Git -Arguments @('fetch', 'origin', '--prune')
+    Invoke-Git -Arguments @('fetch', 'origin', '--prune') | Out-Null
     $mainSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
     $devSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
     $tagName = "v$Version"
@@ -765,7 +766,7 @@ function Invoke-Promotion {
         New-ReleaseTag -Sha $Sha
         Invoke-Git -Failure 'Promotion of main failed; the estate serves the release and main does not record it yet.' -Arguments @(
             'push', '--atomic', "--force-with-lease=refs/heads/main:$mainSha", 'origin', "${Sha}:refs/heads/main", "refs/tags/$tagName") | ForEach-Object { Write-Host $_ }
-        Invoke-Git -Arguments @('fetch', 'origin', '--prune')
+        Invoke-Git -Arguments @('fetch', 'origin', '--prune') | Out-Null
         $promotedMain = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
         if ($promotedMain -cne $Sha) { throw 'Remote read-back of main does not equal the released SHA.' }
         if ((Get-RemoteTagSha -Name $tagName) -cne $Sha) { throw "Remote read-back of $tagName does not equal the released SHA." }
@@ -776,7 +777,7 @@ function Invoke-Promotion {
     if ($devSha -cne $Sha) { throw "origin/dev is at $devSha, not the approved $Sha. Obtain a fresh approval for the current head." }
     Invoke-Git -Failure 'Atomic promotion failed.' -Arguments @(
         'push', '--atomic', "--force-with-lease=refs/heads/dev:$Sha", 'origin', "${Sha}:refs/heads/main", "${Sha}:refs/heads/dev") | ForEach-Object { Write-Host $_ }
-    Invoke-Git -Arguments @('fetch', 'origin', '--prune')
+    Invoke-Git -Arguments @('fetch', 'origin', '--prune') | Out-Null
     $promotedMain = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
     $promotedDev = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
     if ($promotedMain -cne $Sha -or $promotedDev -cne $Sha) { throw 'Remote read-back does not equal the approved release SHA.' }
@@ -786,12 +787,35 @@ function Invoke-Promotion {
 
 function Assert-DevStillAt {
     # R567: the approval named dev's head; a moved head needs a fresh message.
-    param([Parameter(Mandatory)][string] $Sha)
-    Invoke-Git -Arguments @('fetch', 'origin', '--prune')
+    # A resumed run is the exception: the estate is part way through the
+    # approved SHA, dev may have taken a later merge meanwhile (the rulesets
+    # allow it), and the only way forward is the same SHA, so dev need only
+    # still contain it.
+    param([Parameter(Mandatory)][string] $Sha, [switch] $Resumed)
+    Invoke-Git -Arguments @('fetch', 'origin', '--prune') | Out-Null
     $mainSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
     if ($mainSha -ceq $Sha) { return }
     $devSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
-    if ($devSha -cne $Sha) { throw "origin/dev is at $devSha, not the approved $Sha. Obtain a fresh approval for the current head." }
+    if ($devSha -ceq $Sha) { return }
+    if ($Resumed) {
+        & git -C $RepositoryRoot merge-base --is-ancestor $Sha $devSha
+        if ($LASTEXITCODE -ne 0) { throw "origin/dev at $devSha does not contain the approved $Sha; the resumed release cannot be promoted." }
+        Write-Host "Resuming: origin/dev has moved on to $devSha and still contains the approved $Sha."
+        return
+    }
+    throw "origin/dev is at $devSha, not the approved $Sha. Obtain a fresh approval for the current head."
+}
+
+function Test-ReleaseResumed {
+    # Where the estate is, read the way the routes read it: a run is resumed
+    # when the Web App is Stopped (the destructive route's containment) or
+    # already serves the approved SHA (the packages went on, the smoke or the
+    # promotion did not finish). A fresh run finds the old release serving.
+    param([Parameter(Mandatory)][string] $Sha)
+    $site = Get-WebSite
+    if ([string]$site.state -ceq 'Stopped') { return $true }
+    $version = Get-WebVersion
+    return ($null -ne $version -and [string]$version.sourceSha -ceq $Sha)
 }
 
 # --- Default run: preflight, build, approval request -------------------------------
@@ -830,14 +854,23 @@ function Read-CandidateChecks {
     $pullNumbers = @(Invoke-Git -Arguments @('log', '--merges', '--format=%s', "$mainSha..$devSha") |
         ForEach-Object { if ($_ -match 'Merge pull request #(\d+)') { [int]$Matches[1] } } | Sort-Object -Unique)
     # R685: what the pull requests close decides the proposed version step.
+    # GitHub links a closing reference only on a pull request into the default
+    # branch, and these target dev, so the body's own "Closes #N" lines are
+    # read as well as any linked reference (R470).
     $bugFixesOnly = $pullNumbers.Count -gt 0
     $bugFixesReason = if ($bugFixesOnly) { 'every pull request in the range closes only type:bug issues' } else { 'the range has no merged pull request' }
     foreach ($number in $pullNumbers) {
-        $json = (& gh pr view $number --repo $gitHubRepository --json 'number,title,state,statusCheckRollup,closingIssuesReferences' 2>&1) -join "`n"
+        $json = (& gh pr view $number --repo $gitHubRepository --json 'number,title,state,body,statusCheckRollup,closingIssuesReferences' 2>&1) -join "`n"
         if ($LASTEXITCODE -ne 0) { Write-Host "#$number : gh could not read it ($json)"; $notGreen++; continue }
         $pull = $json | ConvertFrom-Json
         $closingProperty = $pull.PSObject.Properties['closingIssuesReferences']
         $closing = @(if ($null -ne $closingProperty) { @($closingProperty.Value) | ForEach-Object { [int]$_.number } })
+        $bodyProperty = $pull.PSObject.Properties['body']
+        if ($null -ne $bodyProperty -and -not [string]::IsNullOrWhiteSpace([string]$bodyProperty.Value)) {
+            $closing += @([regex]::Matches([string]$bodyProperty.Value, '(?i)\b(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s*:?\s+#(\d+)\b') |
+                ForEach-Object { [int]$_.Groups[1].Value })
+        }
+        $closing = @($closing | Sort-Object -Unique)
         if ($closing.Count -eq 0 -and $bugFixesOnly) { $bugFixesOnly = $false; $bugFixesReason = "#$number closes no issue" }
         foreach ($issue in $closing) {
             $labelsJson = (& gh issue view $issue --repo $gitHubRepository --json 'labels' 2>&1) -join "`n"
@@ -858,8 +891,10 @@ function Read-CandidateChecks {
             }
             $verdict -notin @('SUCCESS', 'SKIPPED', 'NEUTRAL')
         })
-        if ($failing.Count -gt 0) { $notGreen++ }
-        Write-Host ("#{0} {1}: {2} checks, {3} not successful" -f $pull.number, $pull.title, $checks.Count, $failing.Count)
+        # A pull request that reports no check at all (merged past the ruleset
+        # by the bypass actor, or before it existed) is not green either.
+        if ($checks.Count -eq 0 -or $failing.Count -gt 0) { $notGreen++ }
+        Write-Host ("#{0} {1}: {2} checks, {3} not successful{4}" -f $pull.number, $pull.title, $checks.Count, $failing.Count, $(if ($checks.Count -eq 0) { ' (no check reported: not green)' } else { '' }))
     }
     if ($notGreen -gt 0) { Write-Host "$notGreen run(s) are not green: the candidate waits; nothing is waived (R689)." }
     return [pscustomobject]@{ NotGreen = $notGreen; BugFixesOnly = $bugFixesOnly; BugFixesReason = $bugFixesReason }
@@ -867,7 +902,7 @@ function Read-CandidateChecks {
 
 function Invoke-Preflight {
     Write-Host '=== Preflight (read-only) ==='
-    Invoke-Git -Arguments @('fetch', 'origin', '--prune')
+    Invoke-Git -Arguments @('fetch', 'origin', '--prune') | Out-Null
     $mainSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
     $devSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
     & git -C $RepositoryRoot merge-base --is-ancestor $mainSha $devSha
@@ -1280,9 +1315,15 @@ switch ($PSCmdlet.ParameterSetName) {
         $script:record['Packages'] = "manifest $($actualManifestSha256.ToUpperInvariant()); " + (@($manifest.artifacts | ForEach-Object { "$($_.name) $($_.sha256)" }) -join '; ')
 
         # R567 and R682: the approval named dev's head, and the instance must
-        # be serving it; both are read before any write.
-        Assert-DevStillAt -Sha $ApprovedReleaseSha
-        Assert-TestInstanceServes -Sha $ApprovedReleaseSha
+        # be serving it; both are read before any write. A resumed run (the
+        # Web App Stopped by the destructive route, or already serving the
+        # release) proved both before its first write; dev may have taken a
+        # later merge since and the instance may have moved to it, so the
+        # resumed run requires only that dev still contains the approved SHA.
+        $resumed = Test-ReleaseResumed -Sha $ApprovedReleaseSha
+        Assert-DevStillAt -Sha $ApprovedReleaseSha -Resumed:$resumed
+        if ($resumed) { Write-Host "Resuming: the estate is part way through $ApprovedReleaseSha; the test instance was read before the first write and is not read again." }
+        else { Assert-TestInstanceServes -Sha $ApprovedReleaseSha }
         # R681, R689: the candidate's push-to-dev run and every pull request in
         # the range are read again here; one that is not green is a refusal,
         # never a waiver.

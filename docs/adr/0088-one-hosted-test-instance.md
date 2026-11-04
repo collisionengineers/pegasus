@@ -19,7 +19,11 @@ answered-instruction move and change subscriptions, in place of R626's
 read-only grant; see Decision. Amended 4 November 2026 (R691): the
 instance's own mailbox is `pegasustest@collisionengineers.co.uk`, a shared
 mailbox for the test environment alone; a production mailbox is enabled on
-it only when the operator says so.
+it only when the operator says so. Amended 4 November 2026 (R692 to R694):
+the instance has one host and its tooling refuses any other machine; it
+runs `dev` by default and a branch or pull request head when the operator
+names it; its data is not disposable, so a Reset needs the operator's word
+and no production extract is kept as a file.
 
 Accepted on the operator's rulings of 2 November 2026 (R623 to R628). It
 supersedes one clause of [ADR-0014](0014-local-to-production-deployment.md),
@@ -51,17 +55,24 @@ their Tailscale network, at no Azure cost (R623).
 
 - Pegasus has three runtime homes: local development, one hosted test
   instance, and production. The hosted test instance is a `DevelopmentOffline`
-  run of the local lifecycle on an operator-owned Linux/WSL machine, reached
+  run of the local lifecycle on one operator-owned Linux/WSL machine, reached
   over the operator's Tailscale network through `tailscale serve` at the
   public origin the run records (`-PublicOrigin`), with password sign-in.
-  Nothing in Azure is created for it, and a step that would cost Azure money
-  is a question to the operator first (R623).
+  The origin names the host: `scripts/PegasusPlatform.ps1` holds it, and
+  `Start -PublicOrigin`, a restart of the run with its recorded origin and
+  the production copy refuse any machine other than the Tailscale node that
+  owns it (R692); moving the instance changes the constant, the Tailscale
+  name and the operations record together. Nothing in Azure is created for
+  it, and a step that would cost Azure money is a question to the operator
+  first (R623).
 - It serves the operator's and agents' QA walks, staff UAT rounds and
   release rehearsal (R624), with live DVLA/DVSA, Box custody under the
   local-test root, Glass's, and the classifier agent run locally in dry run
   first (R625). It runs `dev`, the branch a release is promoted from, so a
-  change is vetted on it before `main` moves; the release preflight refuses
-  a candidate the instance is not serving (R679, R682).
+  change is vetted on it before `main` moves, and a branch or pull request
+  head when the operator names one (R693); the release preflight refuses a
+  candidate the instance is not serving (R679, R682), so it is back on
+  `dev`'s tip before a release.
 - It has Graph parity with production on its own shared mailbox,
   `pegasustest@collisionengineers.co.uk`, created for the test environment
   alone and never approved on production (R691), and on a production
@@ -88,9 +99,17 @@ their Tailscale network, at no Azure cost (R623).
   with every approved mailbox deactivated on import (R627), the copied
   subscription rows cleared (R676), the copied Principal API credentials
   paused (R677) and the copied pending answered-instruction tidies closed
-  (R678); each copy is a live production read the operator approves. The Box
-  custody fence keeps the instance on the local-test root whatever the copied
-  rows say.
+  (R678); each copy is a live production read the operator approves, into
+  the instance's run on its host alone, and the extract is removed once
+  published (R694). The Box custody fence keeps the instance on the
+  local-test root whatever the copied rows say.
+- The instance's data is not disposable (R694): staff UAT Cases, the mail
+  `pegasustest@` brings in and a production copy are people's data. `Stop`
+  keeps everything; `Reset` of the instance's run, or of any run holding a
+  production copy, needs the operator's word for that run (`-Approve`) and
+  refuses without it. Migrations go forward only, so a branch that adds a
+  migration is served only when the operator accepts that the return to
+  `dev` waits for the branch to land or needs a Reset.
 - The Principal API and the Automation MCP run on the instance, tailnet-only:
   Principal keys are issued on the instance, the MCP uses development keys and
   the instance's own client secret, and no connector redirect exists (R677).
@@ -111,7 +130,8 @@ their Tailscale network, at no Azure cost (R623).
   lines in FRD-21 and FRD-26 stand, because production remains the proof of
   record (R675).
 - The procedure is the [`pegasus-test-instance`](../../.agents/skills/pegasus-test-instance/SKILL.md)
-  skill. Its tooling is the lifecycle's `-PublicOrigin`, the
+  skill. Its tooling is the lifecycle's `-PublicOrigin` and Reset's
+  `-Approve`, the host gate in `scripts/PegasusPlatform.ps1`, the
   `Features:LiveGraphMail` opt-in with the two webhook keys, Funnel on the
   webhook path, and `scripts/Copy-ProductionDatabaseToRun.ps1`.
 - The fences are no longer in the grant. They are the test mailbox being
@@ -125,5 +145,5 @@ their Tailscale network, at no Azure cost (R623).
 
 - Superseded clause: [ADR-0014](0014-local-to-production-deployment.md).
 - Workstations: [ADR-0039](0039-windows-and-linux-release-workstations.md).
-- Rulings: R623 to R629, R673 to R678 and R691 in [rulings](../rulings.md).
+- Rulings: R623 to R629, R673 to R678 and R691 to R694 in [rulings](../rulings.md).
 - Procedure: [runbook, local live-integration run](../runbook.md#local-live-integration-run).

@@ -23,7 +23,12 @@ param(
     # every caller in as the Administrator. Valid only with Start; omitted on a
     # restart, the recorded value stands.
     [ValidatePattern('^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/?$')]
-    [string]$PublicOrigin
+    [string]$PublicOrigin,
+    # The operator's word for a Reset of the hosted test instance's run (one
+    # with a public origin) or of a run holding a production copy: Reset
+    # removes the database, migrations go forward only, and the data is
+    # people's. Valid only with Reset.
+    [switch]$Approve
 )
 
 $ErrorActionPreference = 'Stop'
@@ -1572,6 +1577,13 @@ function Start-LocalRun {
         if (-not (Test-PublicOrigin -Origin $PublicOrigin)) {
             throw "-PublicOrigin must be an absolute https origin with no path, and not loopback: $PublicOrigin"
         }
+        # One hosted test instance (ADR-0088): the only public origin is its
+        # own, and only its host serves it (R692). A run on another machine
+        # stays on loopback.
+        if (-not (Test-PegasusTestInstanceOrigin -Origin $PublicOrigin)) {
+            throw "-PublicOrigin accepts only the hosted test instance's origin $(Get-PegasusTestInstanceOrigin) (ADR-0088, R692); a run anywhere else is reached on its own loopback origin."
+        }
+        Assert-PegasusTestInstanceHost -Operation 'A run with the public origin'
         if (-not $liveIntegrations.passwordSignIn) {
             throw $publicOriginNeedsPasswordSignIn
         }
@@ -1608,8 +1620,13 @@ function Start-LocalRun {
                 Set-ManifestRuntimeValue -Manifest $manifest -Name 'publicOrigin' -Value $(
                     if ([string]::IsNullOrWhiteSpace($PublicOrigin)) { $null } else { $PublicOrigin })
             }
-            if ($null -ne (Get-RunPublicOrigin -Manifest $manifest) -and -not $liveIntegrations.passwordSignIn) {
-                throw $publicOriginNeedsPasswordSignIn
+            if ($null -ne (Get-RunPublicOrigin -Manifest $manifest)) {
+                # The recorded origin is the instance's; a restart elsewhere
+                # (a copied run root on another machine) is refused (R692).
+                Assert-PegasusTestInstanceHost -Operation "Restarting run '$RunId' with its public origin"
+                if (-not $liveIntegrations.passwordSignIn) {
+                    throw $publicOriginNeedsPasswordSignIn
+                }
             }
             # A restart runs whatever Initialize last built, so the manifest's
             # source and artifact evidence follow the marker; the smoke that
@@ -1902,6 +1919,9 @@ if ($Action -ne 'Start' -and $PSBoundParameters.ContainsKey('WebPort')) {
 if ($Action -ne 'Start' -and $PSBoundParameters.ContainsKey('PublicOrigin')) {
     throw '-PublicOrigin is valid only with -Action Start.'
 }
+if ($Action -ne 'Reset' -and $Approve) {
+    throw '-Approve is valid only with -Action Reset.'
+}
 
 $mutex = $null
 try {
@@ -1959,6 +1979,24 @@ try {
             $manifest = Resolve-OwnedManifest -RequestedRunId $RunId
             $paths = Get-RunPaths -Id ([string]$manifest.runId)
             Assert-NoReparsePoints -RunRoot $paths.RunRoot
+            # The hosted test instance's run and any run holding a production
+            # copy carry data that is not disposable: Reset needs the
+            # operator's word, given as -Approve, and says first what it
+            # removes. Nothing is changed before this check.
+            $hostedOrigin = Get-RunPublicOrigin -Manifest $manifest
+            $productionCopies = @(
+                if ([System.IO.Directory]::Exists([string]$manifest.resources.paths.state)) {
+                    [System.IO.Directory]::GetFiles([string]$manifest.resources.paths.state, 'production-copy-*.json') |
+                        ForEach-Object { [System.IO.Path]::GetFileName($_) } | Sort-Object
+                }
+            )
+            if (($null -ne $hostedOrigin -or $productionCopies.Count -gt 0) -and -not $Approve) {
+                $what = @(
+                    if ($null -ne $hostedOrigin) { "the hosted test instance's run (public origin $hostedOrigin)" }
+                    if ($productionCopies.Count -gt 0) { "a run holding $($productionCopies.Count) production copy record(s): $($productionCopies -join ', ')" }
+                ) -join ' and '
+                throw "Run '$($manifest.runId)' is $what. Reset removes its database and everything under $($paths.RunRoot), and migrations go forward only, so nothing brings that data back. Nothing was changed. Stop the run instead to keep it, or re-run with -Approve after the operator's word for this exact run."
+            }
             $tools = Get-ControlToolPaths
             $ownedPids = @(
                 foreach ($role in @('worker', 'web', 'azurite')) {

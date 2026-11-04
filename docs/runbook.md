@@ -37,7 +37,12 @@ The release preflight reads them back (`--- Protection ---`) and warns when
 `dev` or `main` has no active ruleset of that name; by hand:
 `gh api repos/collisionengineers/pegasus/rulesets --jq '.[] | [.name, .target, .enforcement] | @tsv'`.
 A skipped lane counts as a passed check, so a documentation-only pull request
-is not blocked.
+is not blocked. The SQL lane is required through its one aggregate check,
+`sql-integration-result`, never through the shard names: a path-skipped
+matrix reports a single skipped `sql-integration` and no `sql-integration (N)`,
+so a required shard name waits for ever on a documentation-only pull request.
+(The ruleset created on 3 November 2026 named the six shards; it is updated to
+this specification with `gh api -X PUT repos/collisionengineers/pegasus/rulesets/26469537 --input <file>`.)
 
 ```json
 { "name": "dev", "target": "branch", "enforcement": "active",
@@ -48,9 +53,7 @@ is not blocked.
     { "type": "pull_request", "parameters": { "required_approving_review_count": 0, "dismiss_stale_reviews_on_push": false, "require_code_owner_review": false, "require_last_push_approval": false, "required_review_thread_resolution": false } },
     { "type": "required_status_checks", "parameters": { "strict_required_status_checks_policy": false, "required_status_checks": [
       { "context": "changes" }, { "context": "invariants" }, { "context": "unit" }, { "context": "infrastructure" }, { "context": "classifier" },
-      { "context": "sql-integration (1)" }, { "context": "sql-integration (2)" }, { "context": "sql-integration (3)" },
-      { "context": "sql-integration (4)" }, { "context": "sql-integration (5)" }, { "context": "sql-integration (6)" },
-      { "context": "sql-integration-coverage" } ] } } ] }
+      { "context": "sql-integration-result" } ] } } ] }
 ```
 
 ```json
@@ -363,10 +366,14 @@ return needs that trust, because the provider navigates the same browser back.
 
 #### The hosted test instance (ADR-0088)
 
-The one hosted test instance is this run on an operator-owned Linux/WSL
+The one hosted test instance is this run on one operator-owned Linux/WSL
 machine, reached over the operator's Tailscale network. `Start -PublicOrigin
-https://<host>.<tailnet>.ts.net` records the origin a browser reaches the run
-at; the lifecycle hands it to `Glass__CallbackBaseUri` and
+https://cemattypc-1.tail432b53.ts.net` records the origin a browser reaches
+the run at; it is the only origin accepted, `scripts/PegasusPlatform.ps1`
+holds it, and Start, a restart of the run with its recorded origin and the
+production copy refuse any machine other than the Tailscale node that owns
+it (`tailscale status --json`, `Self.DNSName`; R692). The lifecycle hands
+the origin to `Glass__CallbackBaseUri` and
 `AutomationMcp__PublicOrigin` while its own probes stay on loopback, and
 Status, Start and Smoke print it (`PublicOrigin`; Smoke records
 `PublicOriginProbed: false`, because the proxy is the operator's to check). A
@@ -404,25 +411,34 @@ enabled on both. A mailbox row added earlier under the local resolver holds a
 local identity and fails its access check: disable it and add the address
 again.
 
-The instance runs `dev` (R679). To move it to `dev`'s tip, `Stop` the run,
-`git checkout dev && git pull --ff-only origin dev` with a clean tree, run
-`Initialize-LocalDevelopment.ps1`, and `Start -RunId <run-id>` with the same
-ports; the manifest's source and artifact evidence follow the new build,
-`--initialize-development` migrates the existing database forward, and the
-Tailscale proxy keeps working because the port is unchanged. Status prints
-`SourceSha` for the comparison with `origin/dev`, and the release preflight
-refuses a candidate the instance is not serving (R682). `Reset` removes the database with the run, so a
-long-lived instance keeps one run id; an older revision is not supported
-(migrations go forward only). For release rehearsal,
-`scripts/Copy-ProductionDatabaseToRun.ps1 -RunId <run-id>` replaces the
-Stopped run's database with a SqlPackage copy of production, deactivates
-every approved mailbox in the copy (R627), clears the copied subscription rows
-(R676), pauses the copied Principal API credentials (R677) and closes the
-copied pending answered-instruction tidies (R678); without `-Approve` it prints
-the source, target and statements and stops, and with it the extract is a live
-production read under the operator's own `az` sign-in. The rehearsal runs at
-the candidate's tip, and its record in operations names the copy record, the
-migration head before and after and the walk's result. The procedure around
+The instance runs `dev` by default (R679) and a branch or pull request head
+when the operator names it (R693). To move it, `Stop` the run, check out the
+revision with a clean tree (`git checkout dev && git pull --ff-only origin
+dev`, or `git fetch origin pull/<n>/head && git checkout --detach
+FETCH_HEAD`), run `Initialize-LocalDevelopment.ps1`, and `Start -RunId
+<run-id>` with the same ports; the manifest's source and artifact evidence
+follow the new build, `--initialize-development` migrates the existing
+database forward, and the Tailscale proxy keeps working because the port is
+unchanged. Status prints `SourceSha` for the comparison with `origin/dev` or
+the named head, and the release preflight refuses a candidate the instance is
+not serving (R682), so it is back on `dev`'s tip before a release. Migrations
+go forward only: a head that adds a migration is served only when the
+operator accepts that the return to `dev` waits for it to land or needs a
+`Reset`. `Reset` removes the database with the run, so a long-lived instance
+keeps one run id; for the instance's run, or any run whose `state/` holds a
+production copy record, `Reset` needs `-Approve` after the operator's word
+and refuses without it, saying what it would remove (R694). For release
+rehearsal, `scripts/Copy-ProductionDatabaseToRun.ps1 -RunId <run-id>`
+replaces the Stopped run's database with a SqlPackage copy of production,
+deactivates every approved mailbox in the copy (R627), clears the copied
+subscription rows (R676), pauses the copied Principal API credentials (R677)
+and closes the copied pending answered-instruction tidies (R678); without
+`-Approve` it prints the source, target and statements and stops, and with it
+the extract is a live production read under the operator's own `az` sign-in,
+into the instance's run on its host alone, and the extract is removed once
+published so the run database is the only copy on the machine (R694). The
+rehearsal runs at the candidate's tip, and its record in operations names the
+copy record, the migration head before and after and the walk's result. The procedure around
 these steps, the machine prerequisites and the classifier's local run are the
 [`pegasus-test-instance`](../.agents/skills/pegasus-test-instance/SKILL.md)
 skill.
@@ -1269,10 +1285,14 @@ it holds one; match its hashes, source revision and version to the
 When the workstation does not hold it, rebuild it from the tag (R690):
 `git worktree add --detach ../pegasus-worktrees/release-<sha8> v<version>`,
 then `pwsh ../pegasus-worktrees/release-<sha8>/scripts/Build-ReleaseArtifacts.ps1
--Version <version> -SourceRevision <sha>`. A rebuilt package's hashes differ
-from the record's; what must match is the informational version
-`<version>+<sha>`, which the build script checks. Nothing is copied off the
-workstation.
+-Version <version> -SourceRevision <sha>`. The rebuild writes
+`../pegasus-worktrees/release-<sha8>/artifacts/releases/<version>/` with its
+`release-manifest.json`; the steps below then read the packages and the
+manifest from that folder in place of the retained one. A rebuilt package's
+hashes differ from the record's; what must match is the informational
+version `<version>+<sha>`, which the build script checks. Nothing is copied
+off the workstation. A release before 1.0.0 ("Release N") carries no tag, so
+rolling back to one needs its retained folder.
 Read the current target and Worker activation before choosing any mutation.
 
 1. Web: run `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreProvision

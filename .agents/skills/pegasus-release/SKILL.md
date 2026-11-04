@@ -41,7 +41,7 @@ writing a migration, operations owns the dated record.
 | Key Vault | `pegasusprodkv252ow37g` |
 | SQL | `pegasus-prod-sql-252ow37gij` / `pegasus` |
 | App Insights | `pegasus-prod-appi-252ow37gij` |
-| Test instance | `https://cemattypc-1.tail432b53.ts.net/` (ADR-0088; serves `dev`, read only) |
+| Test instance | `https://cemattypc-1.tail432b53.ts.net/` (ADR-0088; serves `dev` by default, or a branch the operator named, R693; read only here, and it must be serving the candidate, R682) |
 
 The script carries these names; nothing is passed in. `PEGASUS_WEB_LOCATION`
 is set only when an approval names a Web region other than the platform region.
