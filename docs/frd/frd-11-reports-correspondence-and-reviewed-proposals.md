@@ -323,7 +323,7 @@ every one is still a confirmed artifact, byte for byte.
 Report section's **Send report** opens the delivery composer, a dialog that
 holds From, the recipients, the subject, the covering message and the
 documents to attach, each under its name, and its one **Send report** sends
-them (operator, 4 November 2026, R659;
+them (operator, 4 November 2026, R665;
 [FRD-16](frd-16-case-record-workspace.md#assessment)). There is no separate
 preparation and no second confirmation. The
 staff-send operation is the record of what was sent. The composer stays offered
@@ -343,7 +343,7 @@ for the send, the report included, the stem alone, since every delivered
 document ends in `.pdf`, and Reset restores the policy name. A rename holds
 for that send only: the next send starts on the policy name again. The
 Case's filed estimates attach under the names they were filed with and are
-not renamed (operator, 4 November 2026, R659, R665, R666). The delivery
+not renamed (operator, 4 November 2026, R665, R671, R672). The delivery
 carries one covering message, which starts as
 the Case report delivery template
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) rendered for
@@ -363,7 +363,7 @@ Case's origin receipt came from; its subject starts as "Re:" and the
 instruction's subject. The composer's Subject field is prefilled with that
 derived subject and staff may change it; what they submit is sent, trimmed,
 at most 500 characters as the Triage composer's Subject is, and a field left
-blank sends the derived subject (operator, 4 November 2026, R661, R664). The form's From is a choice of every send-ready
+blank sends the derived subject (operator, 4 November 2026, R667, R670). The form's From is a choice of every send-ready
 Outgoing mailbox, starting on the approved mailbox the instruction arrived in
 while that mailbox is Outgoing and can send; staff may change it, and a
 report from another mailbox still answers the instruction, as a new message
@@ -459,7 +459,7 @@ Every Principal has report sending rules (set on the Principal contact, see
 October 2026). One Core plan reads them with the Case's facts. The page makes
 the plan when it loads, and Send report makes it again with staff's answers
 and follows it. Everything below is answered in the one Send report dialog, in the
-same click as Send report (operator, 4 November 2026, R659).
+same click as Send report (operator, 4 November 2026, R665).
 
 - **Mode.** Where the report leaves from is **From and subject** above: a
   reply to the instruction from the Outgoing mailbox staff choose, in its

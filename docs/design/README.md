@@ -185,7 +185,7 @@ follows Figures, in Figures' own shape (`dl.figures`): "Repair cost inc VAT"
 as the big figure, "Salvage value" only on a Total loss, and "Engineer's
 Value" with the basis guide's word in brackets, "£5,000.00 (Cazana)"; the
 absent glyph until an Inspection report exists; one more cell of the strip
-below 1441px (v48, 4 November 2026, R659, R660). The Send report dialog is
+below 1441px (v48, 4 November 2026, R665, R666). The Send report dialog is
 the composer pattern (`dialog--send`, 880px): the Case viewer opens over it
 from a Files row and Escape closes the viewer first, so the dialog's `inert`
 spares the viewer's host (v48 item F).

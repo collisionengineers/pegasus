@@ -326,7 +326,7 @@ submission is not part of it.
   and `attachmentNames`, names for the generation's documents by kind, each
   ending in `.pdf` (omitted, their delivery names; filed estimates keep their
   filed names), as the Case page's composer takes them (operator, 4 November
-  2026, R661, R664, R665), and the covering message as written. It is a reply to the
+  2026, R667, R670, R671), and the covering message as written. It is a reply to the
   Case's instruction e-mail; `fromMailbox` names the Outgoing mailbox it
   leaves from, and omitted, the same default as the Case page applies: the
   mailbox the instruction arrived in, or for a staff forward held in

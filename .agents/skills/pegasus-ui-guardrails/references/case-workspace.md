@@ -69,11 +69,11 @@ An Inspection + Audit Case whose Audit has been created has two views of one rec
   the accepted send (Submitted), not at the observed Sent item (operator, 12 October 2026).
 - Report in the Audit view shows the Audit report alone (operator, 2 October 2026); the Views
   card is the route to the Inspection report, and the aside's Original report card after
-  Figures holds the Inspection report's own figures as generated (v48, R660). Only the Send
+  Figures holds the Inspection report's own figures as generated (v48, R666). Only the Send
   report dialog names the other work's report: Files rows (`data-report-attach-other`) whose
   first tick is that report under its delivery file name, unticked, then its own documents,
   each "Inspection · {kind}"; reading shows no delivery cells (operator, 12 October 2026;
-  v48, R659). The delivery form is that dialog, opened from the section head's Send report
+  v48, R665). The delivery form is that dialog, opened from the section head's Send report
   primary and the aside's Send report step while editing with the report stored
   (`data-dialog-open="case-send-report-dialog"`); a refused send returns with
   `?dialog=send-report`. In the Inspection view the card is the Inspection
@@ -350,7 +350,7 @@ Viewer controls must not overlap the image stage. Keep the crop toolbar coherent
 
 The context aside contains the Views card (only once an Audit exists), the Linked cases card (only
 while a Triage Case is linked; operator, 7 October 2026), then Figures, the Original report card
-(only on the Audit view of an Inspection + Audit Case; v48, R659, R660), Next action and Report
+(only on the Audit view of an Inspection + Audit Case; v48, R665, R666), Next action and Report
 not ready. The Original report card never reuses the standalone Audit section's
 `section-original-report` id.
 
