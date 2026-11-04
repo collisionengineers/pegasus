@@ -11,6 +11,9 @@ export interface ClassificationResult {
   category: string | null;
   reason: string;
   caseType: string | null;
+  /** The pipeline's predicates, with which matched; absent on a list row. */
+  predicates?: { key: string; matched: boolean; detail: string }[];
+  isReplyContext?: boolean;
 }
 
 /** The versioned classification decision, as get and correct_classification return it. */
@@ -22,7 +25,10 @@ export interface MailClassification {
 
 export interface MailSummary {
   id: string;
+  mailboxAddress: string;
   senderAddress: string | null;
+  /** The original sender behind a staff forward; the sender itself otherwise. */
+  effectiveSenderAddress: string | null;
   senderDisplayName: string | null;
   subject: string | null;
   receivedAtUtc: string;
@@ -45,6 +51,8 @@ export interface MailDetail {
   bodyPlainText: string | null;
   attachments: { fileName: string; mediaType: string; contentLength: number }[];
   thread: { senderAddress: string | null; subject: string | null; receivedAtUtc: string }[];
+  /** The pipeline's route decision: accepted, no_match and the like. */
+  routeDisposition: string | null;
   classification: MailClassification | null;
   intakeVersion: number | null;
   canLinkCase: boolean;
@@ -60,6 +68,16 @@ export interface LinkDestination {
   triageState: string | null;
   isTriageCase: boolean;
   version: number;
+}
+
+/** One attachment's extracted text, as pegasus_mail_attachment_text returns it. */
+export interface MailAttachmentText {
+  messageId: string;
+  attachmentOrdinal: number;
+  fileName: string;
+  mediaType: string;
+  text: string | null;
+  isTruncated: boolean;
 }
 
 export interface OldSystemFolderSearch {
@@ -159,6 +177,11 @@ export class PegasusMail {
 
   openQuery(args: { messageId: string; operationKey: string }): Promise<{ queryId: string }> {
     return this.call("pegasus_mail_open_query", args);
+  }
+
+  /** The text the intake reader extracted from one attachment, bounded; never the bytes. */
+  attachmentText(messageId: string, attachmentOrdinal: number, maximumCharacters: number): Promise<MailAttachmentText> {
+    return this.call("pegasus_mail_attachment_text", { messageId, attachmentOrdinal, maximumCharacters });
   }
 
   /** The read-only old-system folder search (R561): names and identities only. */
