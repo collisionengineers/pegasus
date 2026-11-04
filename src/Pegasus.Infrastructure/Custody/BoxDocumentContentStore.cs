@@ -152,6 +152,18 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                 content,
                 address.MediaType,
                 cancellationToken),
+            async (folder, seriesFileId) =>
+            {
+                await using var stream = new MemoryStream(content.ToArray(), writable: false);
+                return await client.UploadNextVersionVerifiedAsync(
+                    folder,
+                    seriesFileId,
+                    stream,
+                    content.Length,
+                    address.MediaType,
+                    normalizedHash,
+                    cancellationToken);
+            },
             cancellationToken);
     }
 
@@ -206,6 +218,14 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                 address.MediaType,
                 normalizedSha256,
                 cancellationToken),
+            (folder, seriesFileId) => client.UploadNextVersionVerifiedAsync(
+                folder,
+                seriesFileId,
+                verified,
+                contentLength,
+                address.MediaType,
+                normalizedSha256,
+                cancellationToken),
             cancellationToken);
     }
 
@@ -214,6 +234,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         long contentLength,
         string normalizedHash,
         Func<BoxContentClient.ProvedFolder, Task<BoxContentClient.BoxUpload>> createAsync,
+        Func<BoxContentClient.ProvedFolder, string, Task<BoxContentClient.BoxUpload?>> nextVersionAsync,
         CancellationToken cancellationToken)
     {
         var caseFolder = address.CaseRootRemoteId!;
@@ -246,10 +267,26 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         // says so, having compared its content with this content.
         // Inside a batch the first write proves the folder and the rest share
         // that proof (FRD-05); outside one every write proves it.
+        // A document that replaces an earlier one of its series goes in as
+        // the next version of that one's Box file, keeping its name (operator,
+        // 4 November 2026). A series file no longer live in the folder leaves
+        // the document to be filed as a file of its own. A new version is never
+        // rolled back: removing it would need Box to drop the file's current
+        // version, so it is not remembered as a created file.
         var folder = await ProveFolderAsync(caseFolder, cancellationToken);
         BoxContentClient.BoxUpload upload;
         try
         {
+            if (address.SeriesBoxFileId is { Length: > 0 } seriesFileId
+                && await nextVersionAsync(folder, seriesFileId) is { } next)
+            {
+                var nextVersionId = next.File.VersionId
+                    ?? throw new InvalidDataException("Box omitted the series file version identity.");
+                return new(
+                    next.Created ? DocumentContentWriteDisposition.Created : DocumentContentWriteDisposition.Replay,
+                    next.File.Id,
+                    nextVersionId);
+            }
             upload = await createAsync(folder);
         }
         catch (Exception exception) when (BoxContentClient.IsFenceFailure(exception))

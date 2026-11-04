@@ -356,7 +356,13 @@ public sealed class FileGuideValuationReport(ICaseArtifactCustody custody, IExtr
                 Convert.ToHexStringLower(SHA256.HashData(content)),
                 stream,
                 SemanticRole: DocumentSemanticRole.ValuationEvidence,
-                Source: DocumentSource.Generated),
+                Source: DocumentSource.Generated,
+                // One file per source and registration: a later report from the
+                // same provider for the same vehicle is its next Box version
+                // (operator, 4 November 2026).
+                SeriesIdentity: string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"guide-valuation-report:{request.Source}:{plate}")),
             cancellationToken);
     }
 

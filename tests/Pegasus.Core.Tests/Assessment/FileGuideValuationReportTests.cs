@@ -39,6 +39,8 @@ public sealed class FileGuideValuationReportTests
         Assert.Null(retained.ExpectedCaseVersion);
         Assert.Equal("guide-valuation-report:Glasses:glass-stock:33636950", retained.OperationKey);
         Assert.Equal(retained.OperationKey, retained.OccurrenceIdentity);
+        // One Box file per source and registration (operator, 4 November 2026).
+        Assert.Equal("guide-valuation-report:Glasses:KY12CAB", retained.SeriesIdentity);
         Assert.Equal(Pdf.LongLength, retained.ContentLength);
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(Pdf)), retained.Sha256);
         Assert.Equal(Pdf, custody.Contents.Single());
