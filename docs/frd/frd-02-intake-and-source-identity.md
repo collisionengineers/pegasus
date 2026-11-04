@@ -75,9 +75,16 @@ vehicle images from the PDF itself. Its photographs are the JPEGs on its
 ([FRD-19](frd-19-image-led-intake-and-pairing.md) Photograph selection); the
 letterhead logo and page icons are not photographs, and a repeated
 photograph is kept once. The
-printed registration, not a plate read, pairs the photographs with a
-matching Case or registers their Image intake
-([FRD-19](frd-19-image-led-intake-and-pairing.md#image-initiated-case-projection)). On
+printed registration, not a plate read, pairs the photographs with the Case
+holding that registration
+([FRD-19](frd-19-image-led-intake-and-pairing.md#image-initiated-case-projection)).
+A capture is images for an existing Case, never new work: with no Case
+holding the printed registration nothing registers, for the e-mail or for a
+staff forward of it, and it waits in No Case Found with its photographs,
+where Link to case and Register images stay staff's and the classifier agent
+may set Pre-Pegasus case ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction));
+the rule is the capture document's, not a sender's (operator, 2 and
+4 November 2026, [R585](../rulings.md), R669, R670). On
 the Case the photographs join, the reading fills the make, model, mileage and
 accident date only where the Case holds none, and the VIN only where the
 work holds none; nothing already recorded is replaced (operator, 12 October

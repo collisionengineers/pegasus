@@ -150,7 +150,8 @@ public sealed class ImageIntakeAutomation(
         if (await PrintedRegistrationAsync(receipt, cancellationToken) is { } printed)
         {
             // A capture PDF prints the vehicle's registration; its photographs
-            // pair on that, never on plate reads (FRD-02 EXT-17).
+            // pair on that, never on plate reads (FRD-02 EXT-17), and with no
+            // Case holding it nothing registers (R585).
             return await TryRegisterAndAssociateAsync(
                 receipt,
                 printed,
@@ -790,6 +791,17 @@ public sealed class ImageIntakeAutomation(
             return new(receipt, AwaitingStaffDecision: true);
         }
 
+        if (isPrinted)
+        {
+            // A vehicle-capture document is images for an existing Case, never
+            // new work: with no Case holding its printed registration the
+            // e-mail stays No Case Found with its photographs, for staff to
+            // link or register and for the classifier agent to read; no Image
+            // Intake is made for it, nor for a staff forward of it (operator,
+            // 2 November 2026, R585; FRD-02 EXT-17).
+            return new(receipt);
+        }
+
         var origin = await originResolver.ResolveOriginAsync(receipt.Id, cancellationToken);
         if (origin is null)
         {
@@ -802,9 +814,7 @@ public sealed class ImageIntakeAutomation(
                 read,
                 actor,
                 $"image-intake-register:{receipt.Id:N}",
-                isPrinted
-                    ? "Automatic registration from the registration printed on the capture document."
-                    : "Automatic registration from a confident vehicle-registration read on the retained image evidence."),
+                "Automatic registration from a confident vehicle-registration read on the retained image evidence."),
             cancellationToken);
         await ConfirmUsedSuggestionsAsync(
             suggestions,
