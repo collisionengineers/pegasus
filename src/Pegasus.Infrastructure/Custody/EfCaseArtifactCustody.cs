@@ -147,7 +147,8 @@ internal sealed class EfCaseArtifactCustody(
         CaseDocumentEntity? Document,
         DocumentVersionEntity? Version,
         DocumentOccurrenceEntity? Occurrence,
-        CaseArtifactCustodyResult? ImmediateResult);
+        CaseArtifactCustodyResult? ImmediateResult,
+        string? SeriesBoxFileId = null);
 
     private async Task<CaseArtifactCustodyResult> RetainCaseAsync(
         Guid caseId,
@@ -196,7 +197,8 @@ internal sealed class EfCaseArtifactCustody(
             version.FileName,
             version.MediaType,
             version.BoxFileId,
-            version.BoxVersionId);
+            version.BoxVersionId,
+            recorded.SeriesBoxFileId);
         content.Position = 0;
         DocumentContentWriteResult write;
         try
@@ -318,7 +320,10 @@ internal sealed class EfCaseArtifactCustody(
             CaseId = caseId,
             Ordinal = await EfDocumentCustodyStore.NextDocumentOrdinalAsync(db, caseId, cancellationToken),
             SourceOccurrenceIdentity = request.OccurrenceIdentity,
-            CustodyFolder = CaseCustodyFolders.ToCode(request.Folder)
+            CustodyFolder = CaseCustodyFolders.ToCode(request.Folder),
+            SeriesIdentity = string.IsNullOrWhiteSpace(request.SeriesIdentity)
+                ? null
+                : request.SeriesIdentity.Trim()
         } : await db.Set<CaseDocumentEntity>().SingleAsync(
             value => value.Id == existing.Version.DocumentId, cancellationToken);
         var version = existing?.Version ?? new DocumentVersionEntity
@@ -373,8 +378,46 @@ internal sealed class EfCaseArtifactCustody(
             version.PendingContentStorageKey = pendingContentStorageKey;
             await db.SaveChangesAsync(cancellationToken);
         }
+        var seriesBoxFileId = await SeriesBoxFileIdAsync(db, document, version, cancellationToken);
         await CommitAsync(initialWriteTransaction, cancellationToken);
-        return new(caseEntity, document, version, occurrence, null);
+        return new(caseEntity, document, version, occurrence, null, seriesBoxFileId);
+    }
+
+    /// <summary>
+    /// The Box file a document of a series is filed into as its next version:
+    /// that of the newest filed version of another document of the same
+    /// series in the same Case folder (operator, 4 November 2026). Null when
+    /// the document is in no series or none of it is filed yet, and null when
+    /// the newest filed one was recorded after this version, so a file filed
+    /// late never becomes the current version over a newer one.
+    /// </summary>
+    internal static async Task<string?> SeriesBoxFileIdAsync(
+        PegasusDbContext db,
+        CaseDocumentEntity document,
+        DocumentVersionEntity version,
+        CancellationToken cancellationToken)
+    {
+        if (document.SeriesIdentity is null)
+        {
+            return null;
+        }
+        var newest = await (
+            from other in db.Set<CaseDocumentEntity>().AsNoTracking()
+            join filed in db.Set<DocumentVersionEntity>().AsNoTracking()
+                on other.Id equals filed.DocumentId
+            where other.CaseId == document.CaseId
+                && other.SeriesIdentity == document.SeriesIdentity
+                && other.CustodyFolder == document.CustodyFolder
+                && other.Id != document.Id
+                && filed.CustodyStatus == DocumentCustodyStatus.Confirmed
+                && filed.BoxFileId != null
+                && !filed.IsLogicallyRemoved
+            orderby filed.CreatedAtUtc descending, filed.Id descending
+            select new { filed.BoxFileId, filed.CreatedAtUtc })
+            .FirstOrDefaultAsync(cancellationToken);
+        return newest is not null && newest.CreatedAtUtc <= version.CreatedAtUtc
+            ? newest.BoxFileId
+            : null;
     }
 
     private static Task CommitAsync(
@@ -1270,7 +1313,9 @@ public sealed partial class ReconcilePendingArtifactCustody
                     candidate.Version.FileName,
                     candidate.Version.MediaType,
                     candidate.Version.BoxFileId,
-                    candidate.Version.BoxVersionId);
+                    candidate.Version.BoxVersionId,
+                    await EfCaseArtifactCustody.SeriesBoxFileIdAsync(
+                        db, candidate.Document, candidate.Version, cancellationToken));
                 var write = await contentStore.StoreVersionAsync(
                     address, bytes, candidate.Version.Sha256, cancellationToken);
                 if (contentStore is BoxDocumentContentStore

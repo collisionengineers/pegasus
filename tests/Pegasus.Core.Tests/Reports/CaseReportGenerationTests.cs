@@ -652,6 +652,13 @@ public sealed class CaseReportGenerationTests
             GenerateCaseReport.OccurrenceIdentityOf(store.GenerationId, CaseReportArtifactKind.FeeNote),
             custody.LastRequest!.OccurrenceIdentity);
         Assert.Equal("operation-1", custody.LastRequest.OperationKey);
+        // The series is the work and the kind, never the generation, so the
+        // next generation's fee note is the next Box version of this one
+        // (operator, 4 November 2026).
+        Assert.StartsWith("case-report:", custody.LastRequest.SeriesIdentity, StringComparison.Ordinal);
+        Assert.EndsWith(":FeeNote", custody.LastRequest.SeriesIdentity, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            store.GenerationId.ToString("D"), custody.LastRequest.SeriesIdentity!, StringComparison.Ordinal);
         Assert.Single(store.Confirmations);
         Assert.Empty(store.Outcomes);
     }

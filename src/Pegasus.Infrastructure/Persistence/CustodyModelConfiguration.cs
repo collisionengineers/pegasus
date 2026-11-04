@@ -20,6 +20,8 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.Ordinal).IsRequired();
             entity.HasIndex(value => new { value.CaseId, value.SourceOccurrenceIdentity }).IsUnique();
             entity.HasIndex(value => new { value.CaseId, value.Ordinal }).IsUnique();
+            entity.Property(value => value.SeriesIdentity).HasMaxLength(512);
+            entity.HasIndex(value => new { value.CaseId, value.SeriesIdentity });
             entity.HasOne<CaseEntity>().WithMany().HasForeignKey(value => value.CaseId).OnDelete(DeleteBehavior.Restrict);
         });
 

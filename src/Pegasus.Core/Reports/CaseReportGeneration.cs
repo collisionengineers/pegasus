@@ -983,7 +983,8 @@ public sealed class GenerateCaseReport(
                 // The Audit work's report is filed in the a. folder.
                 Folder: generation.WorkKind == CaseWorkKind.Audit
                     ? CaseCustodyFolder.Audit
-                    : CaseCustodyFolder.Case),
+                    : CaseCustodyFolder.Case,
+                SeriesIdentity: SeriesIdentityOf(generation, artifactKind)),
             cancellationToken).ConfigureAwait(false);
 
         if (retained.Disposition == CaseArtifactCustodyDisposition.Confirmed)
@@ -1086,6 +1087,20 @@ public sealed class GenerateCaseReport(
     /// </summary>
     public static string OccurrenceIdentityOf(Guid generationId, CaseReportArtifactKind kind) =>
         $"case-report:{generationId:D}:{kind}";
+
+    /// <summary>
+    /// The series a generated artifact replaces earlier ones in: the same kind
+    /// for the same work, and for a repair specification the same estimate.
+    /// A regeneration is filed in Box as a new version of the series' file
+    /// (operator, 4 November 2026).
+    /// </summary>
+    public static string SeriesIdentityOf(CaseReportGenerationRecord generation, CaseReportArtifactKind kind)
+    {
+        ArgumentNullException.ThrowIfNull(generation);
+        return kind == CaseReportArtifactKind.RepairSpecification
+            ? $"case-report:{generation.WorkId:D}:{kind}:{generation.Snapshot.CurrentEstimateId:D}"
+            : $"case-report:{generation.WorkId:D}:{kind}";
+    }
 
     private Task<CaseReportGenerationRecord> ConfirmAsync(
         GenerateCaseReportRequest request,
