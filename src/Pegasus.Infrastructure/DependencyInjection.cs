@@ -145,6 +145,8 @@ public static class DependencyInjection
         services.AddScoped<DismissRetainedMail>();
         services.AddScoped<RestoreRetainedMail>();
         services.AddScoped<GetRetainedMailFreshness>();
+        services.AddScoped<IIntakeSearchDocumentReader, EfIntakeSearchDocumentReader>();
+        services.AddScoped<GetRetainedMailAttachmentText>();
         // The read-only old-system lookups (R561): Unavailable until a host
         // composes the Graph and Box adapters, and the MCP tools say so.
         services.TryAddSingleton<IApprovedMailboxSearchSource, UnavailableApprovedMailboxSearchSource>();

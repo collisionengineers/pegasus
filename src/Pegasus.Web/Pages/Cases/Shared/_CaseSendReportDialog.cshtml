@@ -1,0 +1,399 @@
+@*
+    Send report (v48; operator, 4 November 2026): the delivery form as a
+    composer dialog in the Triage composer's shape. It holds the one
+    form[data-send-report] with every field the inline form posted, plus the
+    Subject staff may edit (item C) and one Files row per attachment, each
+    openable in the Case viewer and, for the generation's own documents,
+    renameable for this send (items D, E). The Principal's rule blocks keep
+    their words and their rule. Rendered in [data-case-dialogs] only while
+    the page offers Send report (Model.CanSendReport) and this response read
+    what it draws (Model.ReportDeliveryRead); a commit's answer does not, and
+    the script carries the dialog it has across that swap (data-dialog-carry).
+    A refused send lands with the dialog open on its notice (item N).
+*@
+@using System.Globalization
+@using Pegasus.Core.Reports
+@using Pegasus.Web.Pages.Cases
+@using Pegasus.Web.Presentation
+@using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
+@using ReportLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery
+@using Words = Pegasus.Web.Presentation.CaseWorkspaceLabels.Report
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    var details = Model.Case!;
+    var workflow = details.Workflow;
+    var caseId = workflow.CaseId;
+    var generation = Model.CurrentReportGeneration!;
+    var auditView = !Model.IsInspectionView && Model.Works is { HasAudit: true };
+    // The eyebrow names the report the send carries, as the preview card does.
+    var reference = auditView ? Model.AuditReportReference : workflow.Identity.Reference;
+    var plan = Model.DeliveryDispatchPlan;
+    var suggestedRecipients = plan is { } dispatchPlan
+        ? CaseReportDeliveryPolicy.SuggestedReview(dispatchPlan)
+        : new ReportRecipientReview([], []);
+    var lastSent = Model.ReportSendHistory.LastSentAtUtc is { } sentAt
+        ? Pegasus.Core.LondonCalendar.TimeAt(sentAt).ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture)
+        : null;
+    var lastRecipients = string.Join(", ", (Model.ReportSendHistory.LastTo ?? []).Concat(Model.ReportSendHistory.LastCc ?? []));
+    var missingCompanion = plan is { MissingCompanions.Count: > 0 };
+    // Once the Audit exists, the other work's report and its documents are
+    // rows of the same send, off until ticked (operator, 12 October 2026).
+    var otherReport = Model.OtherReportSendable ? Model.OtherReportGeneration : null;
+    var otherWork = Model.IsInspectionView ? Frame.AuditView : Frame.InspectionView;
+    static string KindLabel(CaseReportArtifactKind kind) => kind switch
+    {
+        CaseReportArtifactKind.FeeNote => ReportLabels.AttachFeeNote,
+        CaseReportArtifactKind.RepairSpecification => ReportLabels.AttachRepairSpec,
+        CaseReportArtifactKind.ImagePack => ReportLabels.AttachImages,
+        _ => ReportLabels.AttachReport,
+    };
+    static IEnumerable<CaseReportArtifactRecord> Confirmed(CaseReportGenerationRecord record) =>
+        new[]
+        {
+            CaseReportArtifactKind.AssessmentReport,
+            CaseReportArtifactKind.FeeNote,
+            CaseReportArtifactKind.RepairSpecification,
+            CaseReportArtifactKind.ImagePack,
+        }
+        .Select(kind => record.Artifacts.FirstOrDefault(artifact =>
+            artifact.Kind == kind && artifact.Status == CaseReportArtifactStatus.Confirmed))
+        .OfType<CaseReportArtifactRecord>();
+    string ArtifactHref(CaseReportGenerationRecord record, CaseReportArtifactRecord artifact) => Url.Page(
+        "/Cases/Details",
+        "GeneratedArtifact",
+        new { id = caseId, generationId = record.Id, artifactId = artifact.Id, view = Model.ViewRoute })!;
+    static string Stem(string name) =>
+        name.EndsWith(CaseReportDeliveryNaming.Extension, StringComparison.OrdinalIgnoreCase)
+            ? name[..^CaseReportDeliveryNaming.Extension.Length]
+            : name;
+}
+<div id="case-send-report-dialog" class="dialog-backdrop" data-dialog="case-send-report-dialog" data-dialog-carry
+     data-dialog-open-on-load="@(Model.OpenDialog == "send-report" ? "true" : null)" hidden>
+    <section class="dialog mail-compose-dialog dialog--send" role="dialog" aria-modal="true" aria-labelledby="case-send-report-dialog-title">
+        <header class="dialog-head">
+            <div>
+                <p class="eyebrow">@ReportLabels.Eyebrow(reference ?? workflow.Identity.Reference)</p>
+                <h2 id="case-send-report-dialog-title" tabindex="-1">@ReportLabels.SendReport</h2>
+            </div>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="@ReportLabels.CloseDialog">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+            </button>
+        </header>
+        <div class="dialog-body mail-compose-body">
+            <form method="post" asp-page="/Cases/Details" asp-page-handler="SendReport"
+                  asp-route-id="@caseId" asp-route-section="report" class="mail-compose-form" data-send-report>
+                <input type="hidden" name="operationKey" value="@Model.SendReportOperationKey" />
+                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
+                <input type="hidden" name="generationId" value="@generation.Id" />
+                <input type="hidden" name="expectedGenerationVersion" value="@generation.Version" />
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
+                <input type="hidden" name="dispatchFingerprint" value="@Model.DeliveryRecipientSuggestions?.Fingerprint" />
+                <div class="mail-compose-form-fields">
+                    @if (lastSent is not null)
+                    {
+                        @* The Sent item already proves a report left for this
+                           work: say when and to whom before another is sent. *@
+                        <p class="muted" data-report-already-sent>@ReportLabels.AlreadySent(lastSent, lastRecipients)</p>
+                    }
+                    @if (plan is not null)
+                    {
+                        @if (plan.Stop is { } stopText)
+                        {
+                            <div class="notice notice--warning" role="status" data-report-stop>
+                                <span><strong>@(ReportLabels.Stopped).</strong> @stopText</span>
+                            </div>
+                        }
+                        @if (plan.Stop is not null || plan.StopPossible)
+                        {
+                            @* A rule's Stop refuses the send unless casework staff
+                               say why they override it. A Stop that only an answer
+                               below can decide is offered its reason box too, since
+                               the same click answers and sends. *@
+                            <div class="field">
+                                <label for="report-stop-override">@ReportLabels.OverrideReason</label>
+                                <input id="report-stop-override" name="stopOverrideReason" type="text" required="@(plan.Stop is not null)" data-report-stop-override />
+                            </div>
+                        }
+                        @foreach (var missing in plan.MissingCompanions)
+                        {
+                            <div class="notice notice--warning" role="status" data-report-missing-companion="@missing">
+                                <span>@ReportLabels.MissingCompanion(CaseReportDeliveryPolicy.CompanionWords(missing))</span>
+                            </div>
+                        }
+                    }
+                    <span class="lg">@Words.ReviewedRecipients</span>
+                    <div class="mail-compose-addresses">
+                        @* Operator, 4 November 2026 (R655): staff choose From
+                           among the Outgoing mailboxes, starting on the default:
+                           the mailbox the instruction email arrived in (for a
+                           staff forward held in instructions@, the mailbox that
+                           forwarded it), else the Principal's Send from. *@
+                        <div class="field mail-compose-from">
+                            <label for="report-from">@ReportLabels.From</label>
+                            <select id="report-from" name="fromMailboxId" required data-report-from>
+                                <option value=""></option>
+                                @foreach (var mailbox in Model.ReportSenders.Mailboxes)
+                                {
+                                    <option value="@mailbox.Id" selected="@(mailbox.Id == Model.ReportSenders.Default?.Mailbox.Id)">@mailbox.Address</option>
+                                }
+                            </select>
+                        </div>
+                        @* Every To or Cc box after the first To has its ×
+                           (item O; operator, 4 November 2026): a send needs a
+                           To, so the one remaining To box keeps none. *@
+                        <div class="field mail-compose-to">
+                            <span class="lbl" id="report-recipient-to-label">@ReportLabels.To</span>
+                            <div id="report-recipient-to" class="stack" data-report-recipients="toRecipients" data-report-recipients-keep-one>
+                                @foreach (var recipient in suggestedRecipients.To.DefaultIfEmpty(string.Empty))
+                                {
+                                    <span class="recip-box">
+                                        <input name="toRecipients" type="email" value="@recipient" autocomplete="email" list="report-address-book" aria-label="Report recipient" />
+                                        <button type="button" class="btn btn--small btn--icon" data-remove-report-recipient aria-label="@ReportLabels.RemoveRecipient">
+                                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+                                        </button>
+                                    </span>
+                                }
+                            </div>
+                            <button type="button" class="btn btn--small" data-add-report-recipient="report-recipient-to" data-report-recipient-name="toRecipients">@Words.AddTo</button>
+                        </div>
+                        <div class="field mail-compose-cc">
+                            <span class="lbl" id="report-recipient-cc-label">@ReportLabels.Cc</span>
+                            <div id="report-recipient-cc" class="stack" data-report-recipients="ccRecipients">
+                                @foreach (var recipient in suggestedRecipients.Cc.DefaultIfEmpty(string.Empty))
+                                {
+                                    <span class="recip-box">
+                                        <input name="ccRecipients" type="email" value="@recipient" autocomplete="email" list="report-address-book" aria-label="Report copy recipient" />
+                                        <button type="button" class="btn btn--small btn--icon" data-remove-report-recipient aria-label="@ReportLabels.RemoveRecipient">
+                                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+                                        </button>
+                                    </span>
+                                }
+                            </div>
+                            <button type="button" class="btn btn--small" data-add-report-recipient="report-recipient-cc" data-report-recipient-name="ccRecipients">@Words.AddCc</button>
+                        </div>
+                    </div>
+                    @* P21: the addresses this Case already knows, offered by the
+                       browser's own picker on every recipient field. *@
+                    @if (Model.ReportAddressBook.Count > 0)
+                    {
+                        <datalist id="report-address-book" data-report-address-book>
+                            @foreach (var candidate in Model.ReportAddressBook)
+                            {
+                                <option value="@candidate.Address" label="@candidate.Source"></option>
+                            }
+                        </datalist>
+                    }
+                    @if (plan is not null)
+                    {
+                        var ccHint = ReportLabels.CcHint(
+                            plan.Cc.Select(copy => copy.Source),
+                            plan.Removed.Select(removal => ReportLabels.Removal(removal.Address, removal.Reason)));
+                        if (ccHint.Length > 0)
+                        {
+                            <span class="muted" data-report-cc-hint>@ccHint</span>
+                        }
+                    }
+                    @* Item C (operator, 4 November 2026): the subject the send
+                       derives, for staff to change; what is posted is sent. *@
+                    <div class="field mail-compose-subject">
+                        <label for="report-subject">@ReportLabels.Subject</label>
+                        <input id="report-subject" name="subject" type="text" value="@Model.ReportDeliverySubject" required
+                               maxlength="@CaseReportDeliveryPolicy.MaximumSubjectLength" data-report-subject />
+                    </div>
+                    @* P23: the message is the Case report delivery template
+                       rendered for this Case; staff edit it here, and Send
+                       report sends what is submitted. *@
+                    <div class="field mail-compose-message">
+                        <label for="report-message">@ReportLabels.Message</label>
+                        <textarea id="report-message" name="coveringMessage" rows="9" required
+                                  maxlength="@Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength"
+                                  data-report-message>@Model.ReportDeliveryMessage</textarea>
+                    </div>
+                    @* Items D and E: one row per attachment. The include tick
+                       follows P22's Attach rules (the report, and a companion
+                       the Principal requires, always on; the fee note on; the
+                       rest off; the other work's report off; a filed estimate
+                       on, posting nothing). The name opens the file in the
+                       Case viewer; Rename gives this send the name typed, .pdf
+                       kept, and Reset the policy name; a filed estimate keeps
+                       its filed name. *@
+                    <fieldset class="field mail-compose-attachments" data-report-files>
+                        <legend>@ReportLabels.Files</legend>
+                        <div class="send-files">
+                            @foreach (var artifact in Confirmed(generation))
+                            {
+                                var kind = artifact.Kind;
+                                var attachId = "report-attach-" + kind.ToString().ToLowerInvariant();
+                                var companionRequired = plan?.RequiredCompanions.Contains(kind) == true;
+                                var always = kind == CaseReportArtifactKind.AssessmentReport || companionRequired;
+                                var name = kind == CaseReportArtifactKind.AssessmentReport
+                                    ? Model.ReportDeliveryFileName
+                                    : artifact.FileName ?? string.Empty;
+                                var label = KindLabel(kind) + (companionRequired ? " " + ReportLabels.RequiredForPrincipal : string.Empty);
+                                <div class="send-file" data-send-file="@kind" data-default-name="@name">
+                                    <span class="send-file-tick">
+                                        @if (always)
+                                        {
+                                            @* The report, and a companion the Principal requires, is
+                                               always attached: a value, not a disabled control (v36 item Z). *@
+                                            <span class="choice is-static" data-report-attach-choice="@kind" data-on="true"><span class="tick"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg></span></span>
+                                            <input type="hidden" name="attach" value="@kind" />
+                                        }
+                                        else
+                                        {
+                                            <label class="choice" for="@attachId">
+                                                <input type="checkbox" id="@attachId" name="attach" value="@kind"
+                                                       checked="@(kind == CaseReportArtifactKind.FeeNote)"
+                                                       data-report-attach-choice="@kind" aria-label="@label" />
+                                            </label>
+                                        }
+                                    </span>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-text")" /></svg>
+                                    <div class="send-file-name">
+                                        <a class="send-file-open" href="@ArtifactHref(generation, artifact)" target="_blank" rel="noopener"
+                                           data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-file-name="@name" data-no-inplace><b data-send-file-label>@name</b></a>
+                                        <span class="send-file-rename" data-send-file-rename hidden>
+                                            <input type="text" value="@Stem(name)" maxlength="120" aria-label="@ReportLabels.FileName" data-send-file-stem />
+                                            <span class="mono">@CaseReportDeliveryNaming.Extension</span>
+                                            <button type="button" class="btn btn--small" data-send-file-reset>@ReportLabels.Reset</button>
+                                        </span>
+                                        <small>@ReportLabels.KindAndSize(label, artifact.ContentLength)</small>
+                                    </div>
+                                    <span class="send-file-actions">
+                                        <button type="button" class="btn btn--small btn--icon" data-rename-file title="@ReportLabels.Rename" aria-label="@ReportLabels.Rename @name">
+                                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-pencil")" /></svg>
+                                        </button>
+                                    </span>
+                                    <input type="hidden" name="fileName-@kind" value="" data-send-file-name />
+                                </div>
+                            }
+                            @if (plan is not null)
+                            {
+                                @foreach (var estimate in plan.FiledEstimates)
+                                {
+                                    <div class="send-file" data-send-file="estimate" data-report-filed-estimate>
+                                        <span class="send-file-tick">
+                                            <span class="choice is-static" data-on="true"><span class="tick"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg></span></span>
+                                        </span>
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-text")" /></svg>
+                                        <div class="send-file-name">
+                                            <b data-send-file-label>@estimate.FileName</b>
+                                            <small>@ReportLabels.KindAndSize(ReportLabels.FiledEstimate, estimate.ContentLength)</small>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                            @if (otherReport is not null)
+                            {
+                                <input type="hidden" name="secondExpectedGenerationVersion" value="@otherReport.Version" />
+                                @foreach (var artifact in Confirmed(otherReport))
+                                {
+                                    var kind = artifact.Kind;
+                                    var isReport = kind == CaseReportArtifactKind.AssessmentReport;
+                                    var otherId = isReport ? "report-attach-other" : "report-attach-other-" + kind.ToString().ToLowerInvariant();
+                                    var name = isReport ? Model.OtherReportDeliveryFileName! : artifact.FileName ?? string.Empty;
+                                    var label = ReportLabels.OtherWorkKind(otherWork, KindLabel(kind));
+                                    <div class="send-file" data-send-file="second-@kind" data-default-name="@name" data-report-attach-other>
+                                        <span class="send-file-tick">
+                                            <label class="choice" for="@otherId">
+                                                @if (isReport)
+                                                {
+                                                    <input type="checkbox" id="@otherId" name="secondGenerationId" value="@otherReport.Id"
+                                                           data-report-attach-other-report aria-label="@label" />
+                                                }
+                                                else
+                                                {
+                                                    <input type="checkbox" id="@otherId" name="secondAttach" value="@kind"
+                                                           data-report-attach-other-choice="@kind" aria-label="@label" />
+                                                }
+                                            </label>
+                                        </span>
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-text")" /></svg>
+                                        <div class="send-file-name">
+                                            <a class="send-file-open" href="@ArtifactHref(otherReport, artifact)" target="_blank" rel="noopener"
+                                               data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-file-name="@name" data-no-inplace><b data-send-file-label>@name</b></a>
+                                            <span class="send-file-rename" data-send-file-rename hidden>
+                                                <input type="text" value="@Stem(name)" maxlength="120" aria-label="@ReportLabels.FileName" data-send-file-stem />
+                                                <span class="mono">@CaseReportDeliveryNaming.Extension</span>
+                                                <button type="button" class="btn btn--small" data-send-file-reset>@ReportLabels.Reset</button>
+                                            </span>
+                                            <small>@ReportLabels.KindAndSize(label, artifact.ContentLength)</small>
+                                        </div>
+                                        <span class="send-file-actions">
+                                            <button type="button" class="btn btn--small btn--icon" data-rename-file title="@ReportLabels.Rename" aria-label="@ReportLabels.Rename @name">
+                                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-pencil")" /></svg>
+                                            </button>
+                                        </span>
+                                        <input type="hidden" name="secondFileName-@kind" value="" data-send-file-name />
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </fieldset>
+                    @if (plan is not null)
+                    {
+                        @if (plan.Undecided.Count > 0)
+                        {
+                            <span class="lg">@ReportLabels.Questions</span>
+                            @foreach (var question in plan.Undecided)
+                            {
+                                var decisionName = $"decision-{question.RuleIndex}-{question.ConditionIndex}";
+                                <div class="cluster" data-report-question>
+                                    <span>@question.Question</span>
+                                    <label class="choice"><input type="radio" name="@decisionName" value="true" required /><span>@ReportLabels.Yes</span></label>
+                                    <label class="choice"><input type="radio" name="@decisionName" value="false" required /><span>@ReportLabels.No</span></label>
+                                </div>
+                            }
+                        }
+                        @foreach (var warning in plan.Warnings)
+                        {
+                            <span class="muted" data-report-warning>@warning</span>
+                        }
+                        @if (plan.AfterSendTasks.Count > 0)
+                        {
+                            <span class="lbl">@ReportLabels.AfterSending</span>
+                            <div class="stack" data-report-after-sending>
+                                @foreach (var task in plan.AfterSendTasks)
+                                {
+                                    <div class="fv">@task</div>
+                                }
+                            </div>
+                        }
+                        @* Each hold the Principal's rules set is ticked off as
+                           done; Core refuses the send otherwise. A hold that
+                           only an answer above can decide has its tick too,
+                           not required. *@
+                        @foreach (var hold in plan.Holds)
+                        {
+                            <div class="cluster" data-report-hold-row>
+                                <span>@hold</span>
+                                <label class="choice"><input type="checkbox" name="holdsDone" value="@hold" required data-report-hold /><span>@ReportLabels.HoldDone</span></label>
+                            </div>
+                        }
+                        @foreach (var hold in plan.PossibleHolds)
+                        {
+                            <div class="cluster" data-report-hold-row>
+                                <span>@hold</span>
+                                <label class="choice"><input type="checkbox" name="holdsDone" value="@hold" data-report-hold /><span>@ReportLabels.HoldDone</span></label>
+                            </div>
+                        }
+                    }
+                </div>
+                <footer class="mail-compose-footer">
+                    <button type="button" class="btn" data-dialog-close>@ReportLabels.Cancel</button>
+                    @if (!missingCompanion)
+                    {
+                        @* A required companion that is not generated withholds
+                           Send: the notice above says which, and its Generate
+                           offer is in the section's menu. *@
+                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--primary">
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
+                            <span>@ReportLabels.SendReport</span>
+                        </button>
+                    }
+                </footer>
+            </form>
+        </div>
+    </section>
+</div>

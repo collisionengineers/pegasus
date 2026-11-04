@@ -724,6 +724,128 @@ public sealed class CaseArtifactCustodyRecoveryTests
     }
 
     /// <summary>
+    /// A regenerated document names its series, and custody files it into the
+    /// Box file of the newest filed document of that series in the Case, inline
+    /// and on reconciliation alike. Another series, or none, is a file of its
+    /// own, and a version filed late never becomes the current version over a
+    /// newer one of its series (operator, 4 November 2026).
+    /// </summary>
+    [Fact]
+    public async Task ARegeneratedDocumentIsFiledIntoItsSeriesBoxFile()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.ArtifactSeries", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            await using var scope = database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var intake = scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>();
+            var quarantine = scope.ServiceProvider.GetRequiredService<IIntakeQuarantineArtifactStore>();
+            var store = new SeriesRecordingContentStore();
+            var custody = new EfCaseArtifactCustody(factory, store, quarantine, TimeProvider.System);
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            const string Series = "case-report:work:AssessmentReport";
+            CaseArtifactCustodyRequest Request(string key, string? series)
+            {
+                var content = Encoding.UTF8.GetBytes($"report {key}");
+                return new(
+                    actor, caseId, null, key, $"operation:{key}", "report.pdf", "application/pdf",
+                    content.LongLength, Convert.ToHexStringLower(SHA256.HashData(content)),
+                    new MemoryStream(content, writable: false), SeriesIdentity: series);
+            }
+
+            var first = await custody.RetainAsync(Request("first", Series), default);
+            var second = await custody.RetainAsync(Request("second", Series), default);
+            await custody.RetainAsync(Request("fee-note", "case-report:work:FeeNote"), default);
+            await custody.RetainAsync(Request("unrelated", null), default);
+
+            Assert.Null(store.Addresses[0].SeriesBoxFileId);
+            Assert.Equal(first.BoxFileId, store.Addresses[1].SeriesBoxFileId);
+            Assert.Equal(first.BoxFileId, second.BoxFileId);
+            Assert.NotEqual(first.BoxVersionId, second.BoxVersionId);
+            Assert.Null(store.Addresses[2].SeriesBoxFileId);
+            Assert.Null(store.Addresses[3].SeriesBoxFileId);
+
+            // Box is unreachable for the third; the fourth files at once; the
+            // third is then filed by reconciliation as a file of its own.
+            store.FailNext = 1;
+            await Assert.ThrowsAsync<IOException>(() => custody.RetainAsync(Request("third", Series), default));
+            var fourth = await custody.RetainAsync(Request("fourth", Series), default);
+            Assert.Equal(first.BoxFileId, store.Addresses[^1].SeriesBoxFileId);
+            Assert.Equal(first.BoxFileId, fourth.BoxFileId);
+
+            var reconciled = await new ReconcilePendingArtifactCustody(
+                factory, store, intake, PastInlineFilingGrace()).ExecuteAsync(10, default);
+
+            Assert.Equal(1, reconciled.Confirmed);
+            Assert.Null(store.Addresses[^1].SeriesBoxFileId);
+
+            // A pending filing whose series has no newer filed version goes
+            // into the series file when reconciliation files it.
+            store.FailNext = 1;
+            await Assert.ThrowsAsync<IOException>(() => custody.RetainAsync(Request("fifth", Series), default));
+            reconciled = await new ReconcilePendingArtifactCustody(
+                factory, store, intake, PastInlineFilingGrace()).ExecuteAsync(10, default);
+
+            Assert.Equal(1, reconciled.Confirmed);
+            Assert.Equal(first.BoxFileId, store.Addresses[^1].SeriesBoxFileId);
+            await using var db = await database.CreateContextAsync();
+            Assert.Equal(
+                5,
+                await db.Set<CaseDocumentEntity>().CountAsync(document => document.SeriesIdentity == Series));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A content store that answers every write with Box identities: the
+    /// series file when the address names one, otherwise a file of the
+    /// version's own. <see cref="FailNext"/> writes fail first.
+    /// </summary>
+    private sealed class SeriesRecordingContentStore : IDocumentContentStore
+    {
+        public List<ManagedDocumentContentAddress> Addresses { get; } = [];
+
+        public int FailNext { get; set; }
+
+        private DocumentContentWriteResult Write(ManagedDocumentContentAddress address)
+        {
+            Addresses.Add(address);
+            if (FailNext > 0)
+            {
+                FailNext--;
+                throw new IOException("Injected write failure.");
+            }
+            return new(
+                DocumentContentWriteDisposition.Created,
+                address.SeriesBoxFileId ?? $"box-file-{address.VersionId:N}",
+                $"box-version-{address.VersionId:N}");
+        }
+
+        public Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address, ReadOnlyMemory<byte> content,
+            string expectedSha256, CancellationToken cancellationToken) =>
+            Task.FromResult(Write(address));
+
+        public Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address, Stream content, long contentLength,
+            string expectedSha256, CancellationToken cancellationToken) =>
+            Task.FromResult(Write(address));
+
+        public Task StoreAsync(Guid caseId, string caseReference, Guid versionId, ReadOnlyMemory<byte> content, string expectedSha256, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Stream> OpenReadAsync(Guid caseId, string caseReference, Guid versionId, string expectedSha256, long expectedLength, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task DeleteAsync(Guid caseId, string caseReference, Guid versionId, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    /// <summary>
     /// Only an automatic intake promotion has a transport fault named for Core's
     /// retry. A member of staff's write sees the raw fault, and its version is
     /// recorded Pending all the same.

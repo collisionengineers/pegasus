@@ -860,6 +860,180 @@ internal sealed partial class BoxContentClient(
     }
 
     /// <summary>
+    /// Uploads verified content as the next version of
+    /// <paramref name="fileId"/>, a file directly in the proved
+    /// <paramref name="folder"/>, keeping the file's name (operator,
+    /// 4 November 2026). The caller's guarantees are those of
+    /// <see cref="UploadVerifiedAsync"/>.
+    /// </summary>
+    /// <remarks>
+    /// The file is read first. When its current version already holds these
+    /// bytes, this content was filed by an attempt whose answer was lost, and
+    /// that version is the answer (<see cref="BoxUpload.Created"/> false).
+    /// Otherwise the upload names the file's etag, so a version Box took in
+    /// between is a 412: the file is read again and compared once more, and a
+    /// second 412 is a 409 failure, which leaves the document pending for
+    /// reconciliation. Null means the file is no longer a live file in the
+    /// folder, and the caller files the content as a file of its own.
+    /// </remarks>
+    internal async Task<BoxUpload?> UploadNextVersionVerifiedAsync(
+        ProvedFolder folder,
+        string fileId,
+        Stream content,
+        long contentLength,
+        string mediaType,
+        string normalizedHash,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileId);
+        var startPosition = content.Position;
+        try
+        {
+            for (var attempt = 1; ; attempt++)
+            {
+                var current = await ReadFileInFolderAsync(folder, fileId, cancellationToken);
+                if (current is null)
+                {
+                    return null;
+                }
+                if (await HoldsContentAsync(current, folder, contentLength, normalizedHash, cancellationToken))
+                {
+                    return new(current, Created: false);
+                }
+                content.Position = startPosition;
+                using var response = contentLength > SinglePartUploadLimit
+                    ? await UploadSessionAsync(
+                        new Uri(options.UploadUri, $"files/{Uri.EscapeDataString(current.Id)}/upload_sessions"),
+                        new { file_size = contentLength },
+                        current.ETag,
+                        contentLength,
+                        PartsOf(content),
+                        cancellationToken)
+                    : await UploadVersionInOneRequestAsync(
+                        current,
+                        new StreamContent(new BoundedReadStream(content, contentLength))
+                        {
+                            Headers = { ContentLength = contentLength }
+                        },
+                        mediaType,
+                        cancellationToken);
+                if (response.StatusCode == HttpStatusCode.PreconditionFailed)
+                {
+                    if (attempt == 1)
+                    {
+                        continue;
+                    }
+                    throw new HttpRequestException(
+                        "Box took another version of the series file during the upload; retry reconciliation later.",
+                        null,
+                        HttpStatusCode.Conflict);
+                }
+                return new(await ReadUploadedFileAsync(response, folder, cancellationToken), Created: true);
+            }
+        }
+        finally
+        {
+            content.Position = startPosition;
+        }
+    }
+
+    /// <summary>
+    /// The file, when it is a live file directly in the proved folder: one
+    /// read, because the folder's own place under the root is already proved.
+    /// Null when Box has no such file, it is in the trash, or it sits anywhere
+    /// else.
+    /// </summary>
+    private async Task<BoxItem?> ReadFileInFolderAsync(
+        ProvedFolder folder,
+        string fileId,
+        CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(
+            HttpMethod.Get,
+            new Uri(options.BaseUri,
+                $"files/{Uri.EscapeDataString(fileId)}?fields=id,name,type,etag,file_version,size,parent,trashed_at"),
+            null,
+            cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+        using var document = await ReadSuccessJsonAsync(response, cancellationToken);
+        var file = ParseItem(document.RootElement);
+        if (IsTrashed(document.RootElement)
+            || !string.Equals(file.Type, "file", StringComparison.Ordinal)
+            || !string.Equals(file.ParentId, folder.Id, StringComparison.Ordinal))
+        {
+            return null;
+        }
+        if (string.IsNullOrWhiteSpace(file.VersionId))
+        {
+            throw new InvalidDataException("Box omitted the series file version identity.");
+        }
+        return file;
+    }
+
+    /// <summary>
+    /// Whether the file's current version is exactly this content: the same
+    /// length, then the same SHA-256 over its downloaded bytes.
+    /// </summary>
+    private async Task<bool> HoldsContentAsync(
+        BoxItem file,
+        ProvedFolder folder,
+        long contentLength,
+        string normalizedHash,
+        CancellationToken cancellationToken)
+    {
+        if (file.Size != contentLength)
+        {
+            return false;
+        }
+        await using var retained = await OpenVersionReadAsync(
+            file.Id, file.VersionId!, contentLength, cancellationToken, folder);
+        try
+        {
+            await VerifyExactContentAsync(retained, contentLength, normalizedHash, cancellationToken);
+            return true;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The direct upload of a new version: one multipart request carrying the
+    /// file's own name, so the name stays, and the file's etag. Sending the
+    /// request disposes the content.
+    /// </summary>
+    private Task<HttpResponseMessage> UploadVersionInOneRequestAsync(
+        BoxItem current,
+        HttpContent file,
+        string mediaType,
+        CancellationToken cancellationToken)
+    {
+        var multipart = new MultipartFormDataContent();
+        multipart.Add(JsonContent.Create(new { name = current.Name }), "attributes");
+        file.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
+        multipart.Add(file, "file", current.Name);
+        return SendAsync(
+            HttpMethod.Post,
+            new Uri(options.UploadUri,
+                $"files/{Uri.EscapeDataString(current.Id)}/content?fields=id,name,type,etag,file_version,parent,sha1"),
+            multipart,
+            cancellationToken,
+            message => IfMatch(message, current.ETag));
+    }
+
+    private static void IfMatch(HttpRequestMessage message, string? etag)
+    {
+        if (!string.IsNullOrWhiteSpace(etag))
+        {
+            message.Headers.TryAddWithoutValidation("If-Match", etag);
+        }
+    }
+
+    /// <summary>
     /// The file Box says already holds an upload's name: a file, not a folder,
     /// with a version identity, and this content's parent and length. Its type
     /// is compared only if Box sends one, and Box does not
@@ -984,17 +1158,36 @@ internal sealed partial class BoxContentClient(
     /// Box's failure. A session that exists and is not committed is aborted
     /// before its answer or its failure leaves (operator, 16 October 2026).
     /// </remarks>
-    private async Task<HttpResponseMessage> UploadInPartsAsync(
+    private Task<HttpResponseMessage> UploadInPartsAsync(
         ProvedFolder folder,
         string name,
         long contentLength,
         Func<long, int, CancellationToken, ValueTask<UploadPart>> readPart,
+        CancellationToken cancellationToken) =>
+        UploadSessionAsync(
+            new Uri(options.UploadUri, "files/upload_sessions"),
+            new { folder_id = folder.Id, file_name = name, file_size = contentLength },
+            etag: null,
+            contentLength,
+            readPart,
+            cancellationToken);
+
+    /// <summary>
+    /// The upload session itself, created at <paramref name="sessionsUri"/>:
+    /// Box's address for a new file's session or for an existing file's next
+    /// version. A next version's commit names the file's
+    /// <paramref name="etag"/>, so a version Box took in between is a 412.
+    /// </summary>
+    private async Task<HttpResponseMessage> UploadSessionAsync(
+        Uri sessionsUri,
+        object sessionRequest,
+        string? etag,
+        long contentLength,
+        Func<long, int, CancellationToken, ValueTask<UploadPart>> readPart,
         CancellationToken cancellationToken)
     {
-        using var request = JsonContent.Create(
-            new { folder_id = folder.Id, file_name = name, file_size = contentLength });
-        var created = await SendAsync(
-            HttpMethod.Post, new Uri(options.UploadUri, "files/upload_sessions"), request, cancellationToken);
+        using var request = JsonContent.Create(sessionRequest, sessionRequest.GetType());
+        var created = await SendAsync(HttpMethod.Post, sessionsUri, request, cancellationToken);
         if (!created.IsSuccessStatusCode)
         {
             // No session exists: a name Box already holds, or Box's failure.
@@ -1027,7 +1220,7 @@ internal sealed partial class BoxContentClient(
             var parts = await SendPartsAsync(
                 sessionUri, contentLength, partSize, readPart, whole, partHash, cancellationToken);
             commit = await CommitUploadSessionAsync(
-                new Uri(options.UploadUri, session + "/commit"), parts, Digest(whole), cancellationToken);
+                new Uri(options.UploadUri, session + "/commit"), parts, Digest(whole), etag, cancellationToken);
             return commit;
         }
         finally
@@ -1195,6 +1388,7 @@ internal sealed partial class BoxContentClient(
         Uri commitUri,
         IReadOnlyList<JsonElement> parts,
         string digest,
+        string? etag,
         CancellationToken cancellationToken)
     {
         for (var attempt = 1; ; attempt++)
@@ -1205,7 +1399,11 @@ internal sealed partial class BoxContentClient(
                 commitUri,
                 content,
                 cancellationToken,
-                message => message.Headers.TryAddWithoutValidation("Digest", digest));
+                message =>
+                {
+                    message.Headers.TryAddWithoutValidation("Digest", digest);
+                    IfMatch(message, etag);
+                });
             if (response.StatusCode != HttpStatusCode.Accepted)
             {
                 return response;

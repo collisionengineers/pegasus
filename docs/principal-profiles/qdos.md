@@ -208,9 +208,9 @@ QDOS grammar (policy):
 - **Subject facts last**: settled facts in the Principal's own subject grammar
   rank below every document: `Our Ref`, `RTA on DD_MM_YYYY` or `PL on
   DD_MM_YYYY`, the titled client name, the vehicle description, and the
-  `Vehicle Registration` label. The registration rule accepts both recorded
-  spacings (`Vehicle Registration YD14VGJ` and `Vehicle Registration :
-  VO75DFJ`) and validates the captured value as a UK registration; the
+  `Vehicle Registration` label. The registration rule accepts all three
+  recorded spacings (`Vehicle Registration YD14VGJ`, `Vehicle Registration :
+  VO75DFJ` and `Vehicle Registration, PN12VRD`) and validates the captured value as a UK registration; the
   vehicle-description rule is held off that label, which it used to read as
   the description `Registration : VO75DFJ`. A `Vehicle:` value shaped like a
   registration is the registration and any other value is the vehicle

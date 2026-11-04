@@ -505,7 +505,9 @@ public sealed class PollApprovedInbox(
         {
             var message = await inboxSource.ReadNotifiedAsync(lease, immutableMessageId, cancellationToken);
             var notificationHandled = false;
-            if (message is not null && message.ReceivedAtUtc >= EffectiveStartBoundary(lease))
+            if (message is not null
+                && message.ReceivedAtUtc >= EffectiveStartBoundary(lease)
+                && !IsOwnReplyCopy(lease, message))
             {
                 try
                 {
@@ -717,7 +719,7 @@ public sealed class PollApprovedInbox(
         var handledMessages = 0;
         foreach (var message in page.Messages)
         {
-            if (message.ReceivedAtUtc < EffectiveStartBoundary(lease))
+            if (message.ReceivedAtUtc < EffectiveStartBoundary(lease) || IsOwnReplyCopy(lease, message))
             {
                 await pollStore.AdvanceAsync(
                     lease.ApprovedMailboxId,
@@ -1029,6 +1031,18 @@ public sealed class PollApprovedInbox(
                 "The approved inbox page cursor does not identify the state after its final message.");
         }
     }
+
+    /// <summary>
+    /// The Inbox copy of the mailbox's own reply: a message whose sender is the
+    /// receiving approved mailbox itself, as when staff put desk@ in To or Cc
+    /// of desk@'s answer. It is not handed to intake; the Sent copy is the
+    /// record (operator, 2 November 2026, R582, R587). The rule keys on the
+    /// receiving mailbox alone, so a staff forward from one approved mailbox
+    /// into another is unaffected (R586).
+    /// </summary>
+    private static bool IsOwnReplyCopy(ApprovedInboxPollLease lease, ApprovedInboxMessage message) =>
+        message.RetainedMetadata?.SenderAddress is { } sender
+        && string.Equals(sender.Trim(), lease.MailboxAddress.Trim(), StringComparison.OrdinalIgnoreCase);
 
     private static PreparedMessage PrepareMessage(
         ApprovedInboxPollLease lease,

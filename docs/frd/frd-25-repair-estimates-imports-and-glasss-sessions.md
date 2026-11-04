@@ -555,7 +555,9 @@ estimate's parts total reads a few pence below the document's (32p on the
 one known 5 % case). The footer must reproduce the document's own
 arithmetic, `Sub Total × (1 − deduction) + Sundry = Total Parts`, or the
 import is refused like any other section that does not add up; an older
-report that prints no footer imports as before.
+report that prints no footer imports as before. A value whose `*` mark
+prints joined to it (`3.0*`) reads as the same value as one printed apart
+from it (operator, 4 November 2026; R659).
 
 Readable embedded text is required. An unusable font map, a scan-like page
 or a parser failure gives an explicit refusal, never an OCR request

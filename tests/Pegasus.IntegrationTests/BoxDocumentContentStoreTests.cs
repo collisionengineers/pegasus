@@ -1095,6 +1095,151 @@ public sealed class BoxDocumentContentStoreTests
         return box.RequestCount - before;
     }
 
+    /// <summary>
+    /// A regenerated document goes into Box as the next version of its
+    /// series' file: the same file, a new version, the first file's name kept
+    /// and no file of its own, and the earlier version still reads as it was
+    /// (operator, 4 November 2026). The upload names the file's etag.
+    /// </summary>
+    [Fact]
+    public async Task ARegenerationIsTheNextVersionOfItsSeriesFileAndKeepsItsName()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var earlier = Encoding.UTF8.GetBytes("the first report");
+        var later = Encoding.UTF8.GetBytes("the regenerated report");
+        var first = await store.StoreVersionAsync(
+            Address(2, "report.pdf"), earlier, Sha256(earlier), CancellationToken.None);
+        var nextAddress = SeriesAddress(3, "report.pdf", first.RemoteId!);
+
+        var next = await store.StoreVersionAsync(nextAddress, later, Sha256(later), CancellationToken.None);
+
+        Assert.Equal(DocumentContentWriteDisposition.Created, next.Disposition);
+        Assert.Equal(first.RemoteId, next.RemoteId);
+        Assert.NotEqual(first.BoxVersionId, next.BoxVersionId);
+        Assert.True(box.PathExists($"{CaseReference}/002 report.pdf"));
+        Assert.False(box.PathExists($"{CaseReference}/003 report.pdf"));
+        var upload = Assert.Single(box.VersionUploads);
+        Assert.Equal("1", upload.IfMatch);
+        Assert.Equal("002 report.pdf", upload.Name);
+        await using (var read = await store.OpenReadVersionAsync(
+            Persisted(Address(2, "report.pdf"), first), Sha256(earlier), earlier.Length, CancellationToken.None))
+        {
+            Assert.Equal(earlier, await ReadAllAsync(read));
+        }
+        await using (var read = await store.OpenReadVersionAsync(
+            Persisted(nextAddress, next), Sha256(later), later.Length, CancellationToken.None))
+        {
+            Assert.Equal(later, await ReadAllAsync(read));
+        }
+    }
+
+    /// <summary>
+    /// A next version Box took whose answer was lost is found on the retry as
+    /// the file's current version holding these bytes, so it is a replay and
+    /// Box is not given the same version twice. From a stream as from memory.
+    /// </summary>
+    [Fact]
+    public async Task ANextVersionWhoseAnswerWasLostIsAReplayNotAThirdVersion()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var earlier = Encoding.UTF8.GetBytes("the first estimate");
+        var later = Encoding.UTF8.GetBytes("the reopened estimate");
+        var first = await store.StoreVersionAsync(
+            Address(2, "estimate.xml"), earlier, Sha256(earlier), CancellationToken.None);
+        var nextAddress = SeriesAddress(3, "estimate.xml", first.RemoteId!);
+        box.LoseNextVersionUploadResponse = true;
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => store.StoreVersionAsync(
+            nextAddress, later, Sha256(later), CancellationToken.None));
+        using var stream = new MemoryStream(later, writable: false);
+        var replay = await store.StoreVerifiedStreamAsync(
+            nextAddress, stream, later.Length, Sha256(later), CancellationToken.None);
+
+        Assert.Equal(DocumentContentWriteDisposition.Replay, replay.Disposition);
+        Assert.Equal(first.RemoteId, replay.RemoteId);
+        Assert.Equal(1, box.VersionUploadCount);
+        Assert.Equal(0L, stream.Position);
+    }
+
+    /// <summary>
+    /// A version Box took between the read and the upload makes the upload a
+    /// 412. The file is read again and the upload made once more; a second
+    /// 412 is a 409 failure, which leaves the document pending.
+    /// </summary>
+    [Fact]
+    public async Task AVersionTakenMeanwhileIsReadAgainOnceAndThenLeftPending()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var earlier = Encoding.UTF8.GetBytes("the first valuation");
+        var first = await store.StoreVersionAsync(
+            Address(2, "valuation.pdf"), earlier, Sha256(earlier), CancellationToken.None);
+        var later = Encoding.UTF8.GetBytes("the later valuation");
+        box.AdvanceBeforeNextVersionUploads = 1;
+
+        var next = await store.StoreVersionAsync(
+            SeriesAddress(3, "valuation.pdf", first.RemoteId!), later, Sha256(later), CancellationToken.None);
+
+        Assert.Equal(DocumentContentWriteDisposition.Created, next.Disposition);
+        Assert.Collection(
+            box.VersionUploads,
+            upload => Assert.Equal("1", upload.IfMatch),
+            upload => Assert.Equal("2", upload.IfMatch));
+
+        var last = Encoding.UTF8.GetBytes("the last valuation");
+        box.AdvanceBeforeNextVersionUploads = 2;
+        var refused = await Assert.ThrowsAsync<HttpRequestException>(() => store.StoreVersionAsync(
+            SeriesAddress(4, "valuation.pdf", first.RemoteId!), last, Sha256(last), CancellationToken.None));
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal(4, box.VersionUploadCount);
+    }
+
+    /// <summary>
+    /// A series file that is gone or in the trash leaves the regenerated
+    /// document to be filed as a file of its own, as before.
+    /// </summary>
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("trashed")]
+    public async Task ASeriesFileNoLongerLiveInTheFolderLeavesTheDocumentAFileOfItsOwn(string state)
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var earlier = Encoding.UTF8.GetBytes("the first image pack");
+        var first = await store.StoreVersionAsync(
+            Address(2, "images.pdf"), earlier, Sha256(earlier), CancellationToken.None);
+        var seriesFileId = state == "missing" ? "file-gone" : first.RemoteId!;
+        if (state == "trashed")
+        {
+            box.SetTrashed(first.RemoteId!, trashed: true);
+        }
+        var later = Encoding.UTF8.GetBytes("the regenerated image pack");
+
+        var next = await store.StoreVersionAsync(
+            SeriesAddress(3, "images.pdf", seriesFileId), later, Sha256(later), CancellationToken.None);
+
+        Assert.Equal(DocumentContentWriteDisposition.Created, next.Disposition);
+        Assert.NotEqual(first.RemoteId, next.RemoteId);
+        Assert.True(box.PathExists($"{CaseReference}/003 images.pdf"));
+        Assert.Equal(0, box.VersionUploadCount);
+    }
+
+    private static ManagedDocumentContentAddress SeriesAddress(int ordinal, string fileName, string seriesFileId) =>
+        Address(ordinal, fileName) with
+        {
+            OccurrenceId = Guid.NewGuid(),
+            DocumentId = Guid.NewGuid(),
+            VersionId = Guid.NewGuid(),
+            SeriesBoxFileId = seriesFileId
+        };
+
     private static BoxDocumentContentStore CreateStore(InMemoryBox box, TimeProvider? clock = null)
     {
         var time = clock ?? TimeProvider.System;
@@ -1175,6 +1320,7 @@ public sealed class BoxDocumentContentStoreTests
         private readonly Dictionary<string, byte[]> fileBytes = new(StringComparer.Ordinal);
         private readonly Dictionary<string, string> currentVersions = new(StringComparer.Ordinal);
         private readonly Dictionary<(string FileId, string VersionId), byte[]> versionBytes = [];
+        private readonly Dictionary<string, int> etags = new(StringComparer.Ordinal);
         private readonly Lock gate = new();
         private int nextId;
 
@@ -1191,6 +1337,23 @@ public sealed class BoxDocumentContentStoreTests
         /// </summary>
         public int RequestCount { get; private set; }
         public string? LoseNextUploadResponseForName { get; set; }
+
+        /// <summary>Every upload of an existing file's next version.</summary>
+        public int VersionUploadCount { get; private set; }
+
+        /// <summary>The <c>If-Match</c> and <c>name</c> each next-version upload carried, in order.</summary>
+        public List<(string? IfMatch, string? Name)> VersionUploads { get; } = [];
+
+        /// <summary>When set, the next next-version upload is taken but its answer is lost.</summary>
+        public bool LoseNextVersionUploadResponse { get; set; }
+
+        /// <summary>
+        /// How many of the next next-version uploads find that Box took another
+        /// version first: one is added, and the upload is answered 412.
+        /// </summary>
+        public int AdvanceBeforeNextVersionUploads { get; set; }
+
+        private string EtagOf(string id) => etags.GetValueOrDefault(id, 1).ToString(CultureInfo.InvariantCulture);
 
         /// <summary>When set, the next upload is refused with a 409 carrying this Box error code.</summary>
         public string? NextUploadConflictCode { get; set; }
@@ -1328,13 +1491,15 @@ public sealed class BoxDocumentContentStoreTests
             versionBytes[(fileId, currentVersions[fileId])] = fileBytes[fileId];
         }
 
-        public string AddVersion(string path, byte[] content)
+        public string AddVersion(string path, byte[] content) => AddVersionOf(RequireByPath(path), content);
+
+        private string AddVersionOf(string fileId, byte[] content)
         {
-            var fileId = RequireByPath(path);
             var versionId = $"version-{fileId}-{versionBytes.Keys.Count(key => key.FileId == fileId) + 1}";
             fileBytes[fileId] = content;
             currentVersions[fileId] = versionId;
             versionBytes[(fileId, versionId)] = content;
+            etags[fileId] = etags.GetValueOrDefault(fileId, 1) + 1;
             return versionId;
         }
 
@@ -1426,7 +1591,7 @@ public sealed class BoxDocumentContentStoreTests
                     id = node.Id,
                     name = node.Name,
                     type = node.Type,
-                    etag = "1",
+                    etag = EtagOf(node.Id),
                     file_version = node.Type == "file" ? new { id = currentVersions[node.Id] } : null,
                     size = node.Type == "file" ? fileBytes[node.Id].LongLength : (long?)null,
                     content_type = node.MediaType,
@@ -1442,6 +1607,61 @@ public sealed class BoxDocumentContentStoreTests
                 var parentId = body.RootElement.GetProperty("parent").GetProperty("id").GetString()!;
                 var id = AddFolder(parentId, name);
                 return Json(JsonSerializer.Serialize(new { id, name, type = "folder", etag = "1" }));
+            }
+
+            if (request.Method == HttpMethod.Post
+                && path.StartsWith("/api/2.0/files/", StringComparison.Ordinal)
+                && path.EndsWith("/content", StringComparison.Ordinal)
+                && path != "/api/2.0/files/content")
+            {
+                var id = path["/api/2.0/files/".Length..^"/content".Length];
+                if (!nodes.TryGetValue(id, out var node))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.NotFound);
+                }
+                var multipart = Assert.IsType<MultipartFormDataContent>(request.Content);
+                using var attributes = JsonDocument.Parse(ReadString(multipart.First(part =>
+                    part.Headers.ContentDisposition?.Name?.Trim('"') == "attributes")));
+                var ifMatch = request.Headers.TryGetValues("If-Match", out var values) ? values.Single() : null;
+                VersionUploadCount++;
+                VersionUploads.Add((ifMatch,
+                    attributes.RootElement.TryGetProperty("name", out var name) ? name.GetString() : null));
+                if (AdvanceBeforeNextVersionUploads > 0)
+                {
+                    AdvanceBeforeNextVersionUploads--;
+                    AddVersionOf(id, Encoding.UTF8.GetBytes($"another version {etags.GetValueOrDefault(id, 1)}"));
+                }
+                if (ifMatch is not null && ifMatch != EtagOf(id))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.PreconditionFailed);
+                }
+                var bytes = multipart.First(part =>
+                        part.Headers.ContentDisposition?.Name?.Trim('"') == "file")
+                    .ReadAsByteArrayAsync().GetAwaiter().GetResult();
+                var versionId = AddVersionOf(id, bytes);
+                if (LoseNextVersionUploadResponse)
+                {
+                    LoseNextVersionUploadResponse = false;
+                    return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+                    {
+                        Content = new StringContent("lost version upload response")
+                    };
+                }
+                return Json(JsonSerializer.Serialize(new
+                {
+                    entries = new[]
+                    {
+                        new
+                        {
+                            id,
+                            name = node.Name,
+                            type = "file",
+                            etag = EtagOf(id),
+                            file_version = new { id = versionId },
+                            parent = new { id = node.ParentId }
+                        }
+                    }
+                }));
             }
 
             if (request.Method == HttpMethod.Post && path == "/api/2.0/files/content")

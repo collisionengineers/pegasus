@@ -27,7 +27,7 @@ public sealed partial class AutomationToolScopeTableTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(71, registered.Length);
+        Assert.Equal(72, registered.Length);
         Assert.Equal(registered, AutomationToolScopes.Tools.Order(StringComparer.Ordinal).ToArray());
     }
 
@@ -55,7 +55,7 @@ public sealed partial class AutomationToolScopeTableTests
         }
 
         // The nine Triage writes share one gate, which takes the tool's name.
-        Assert.Equal(71 - 9, gated);
+        Assert.Equal(72 - 9, gated);
     }
 
     [Fact]
@@ -64,6 +64,7 @@ public sealed partial class AutomationToolScopeTableTests
         string[] mailTools =
         [
             "pegasus_mail_action",
+            "pegasus_mail_attachment_text",
             "pegasus_mail_correct_classification",
             "pegasus_mail_get",
             "pegasus_mail_link_case",
@@ -79,7 +80,7 @@ public sealed partial class AutomationToolScopeTableTests
         Assert.Contains("pegasus_edit_begin", casesAndDocuments);
         Assert.Contains("pegasus_edit_begin", Listed(AutomationMcp.IntakeScope));
         Assert.Equal(10, Listed(AutomationMcp.AssessmentScope).Length);
-        Assert.Equal(71, Listed([.. AutomationMcp.Scopes]).Length);
+        Assert.Equal(72, Listed([.. AutomationMcp.Scopes]).Length);
         Assert.Empty(Listed());
     }
 

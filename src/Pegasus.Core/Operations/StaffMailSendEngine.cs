@@ -135,7 +135,8 @@ public sealed class StaffReportSend(
         var mailSecond = command.Mail.SecondReport;
         var second = command.SecondReport;
         // The mail carries each report's attachments in turn, and each report
-        // leads its own: the renamed delivery file is that report's first.
+        // leads its own; any of them may travel under a delivery name
+        // (v48 item E), the same bytes under a .pdf name.
         IReadOnlyList<StaffMailAttachment> frozen = second is null
             ? command.Report.Artifacts
             : [.. command.Report.Artifacts, .. second.Artifacts];
@@ -144,7 +145,7 @@ public sealed class StaffReportSend(
             || (second is null) != (mailSecond is null)
             || (second is not null
                 && !DescribesTheMail(second, command.Mail, mailSecond!.ContextId, mailSecond.ExpectedContextVersion))
-            || !AttachmentsMatch(frozen, command.Mail.Attachments, command.Report.Artifacts.Count))
+            || !AttachmentsMatch(frozen, command.Mail.Attachments))
         {
             throw new ArgumentException("The report readiness and staff mail command do not describe the same frozen send.", nameof(command));
         }
@@ -170,16 +171,13 @@ public sealed class StaffReportSend(
 
     private static bool AttachmentsMatch(
         IReadOnlyList<StaffMailAttachment> frozen,
-        IReadOnlyList<StaffMailAttachment> prepared,
-        int secondReportIndex)
+        IReadOnlyList<StaffMailAttachment> prepared)
     {
         return frozen.Count == prepared.Count
-            && frozen.Select((attachment, index) => (attachment, index))
-                .Zip(prepared).All(pair =>
-                pair.First.attachment with { FileName = pair.Second.FileName } == pair.Second
-                && (string.Equals(pair.First.attachment.FileName, pair.Second.FileName, StringComparison.Ordinal)
-                    || ((pair.First.index == 0 || pair.First.index == secondReportIndex)
-                        && pair.Second.FileName is { Length: > 4 } deliveryFileName
+            && frozen.Zip(prepared).All(pair =>
+                pair.First with { FileName = pair.Second.FileName } == pair.Second
+                && (string.Equals(pair.First.FileName, pair.Second.FileName, StringComparison.Ordinal)
+                    || (pair.Second.FileName is { Length: > 4 } deliveryFileName
                         && deliveryFileName.EndsWith(".pdf", StringComparison.Ordinal)
                         && !string.IsNullOrWhiteSpace(
                             deliveryFileName[..^".pdf".Length]))));

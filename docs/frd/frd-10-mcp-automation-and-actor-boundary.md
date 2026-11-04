@@ -322,7 +322,11 @@ submission is not part of it.
   the work's current confirmed generation, the reviewed To and Cc (omitted,
   the Principal's suggested recipients), the companion documents chosen
   (omitted, every confirmed document the generation holds, the fee note
-  included) and the covering message as written. It is a reply to the
+  included), `subject` (omitted, the derived subject; at most 500 characters)
+  and `attachmentNames`, names for the generation's documents by kind, each
+  ending in `.pdf` (omitted, their delivery names; filed estimates keep their
+  filed names), as the Case page's composer takes them (operator, 4 November
+  2026, R667, R670, R671), and the covering message as written. It is a reply to the
   Case's instruction e-mail; `fromMailbox` names the Outgoing mailbox it
   leaves from, and omitted, the same default as the Case page applies: the
   mailbox the instruction arrived in, or for a staff forward held in
@@ -331,7 +335,8 @@ submission is not part of it.
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
   On a Case that has its Audit, `otherReport` adds the other work's current
   confirmed report to the same email, with `otherAttach` choosing its
-  documents as `attach` does. It holds the Case's lease for its one send
+  documents as `attach` does and `otherAttachmentNames` naming them as
+  `attachmentNames` does. It holds the Case's lease for its one send
   unless a lease token is presented.
 - `pegasus_mail_send` is the staff mail send with a `mode`: `chaser` is the
   Case's **Send chaser**, recorded as the Case's chaser; `reply`, `reply_all`
@@ -474,6 +479,13 @@ replays by its operation key.
 - `pegasus_mail_action` with `dismiss` or `restore` changes the message's
   Pegasus scope only
   ([FRD-20](frd-20-mailbox-workspace.md#dismiss)).
+- `pegasus_mail_attachment_text` returns the text the intake reader already
+  extracted from one attachment of a retained message (a PDF's text layer or
+  a Word document's text), named by its position in `pegasus_mail_get`'s
+  attachment list and cut at the caller's cap; it returns no bytes and
+  writes nothing. It exists so the classifier agent can read an instruction
+  letter or an estimate it would otherwise judge by file name (4 November
+  2026, #1891).
 - `pegasus_mail_mailbox_search` and `pegasus_old_system_folder_search` are
   the Actor's two read-only lookups outside Pegasus's retained records
   (operator, 30 October 2026, R561): the first searches one or every
@@ -482,6 +494,9 @@ replays by its operation key.
   nothing; the second searches folder names below the old system's Box
   folder and returns names and identities only
   ([FRD-05](frd-05-documents-extraction-and-custody.md#custody-and-derived-reads)).
+  The old-system folders are named by the firm's own Case reference, so a
+  reference-shaped term keeps only the folders that name it as a whole token
+  (operator, 2 November 2026, R592).
   Each takes a term of 1 to 200 characters and at most 100 items, the
   bounds of the staff Deleted Items search they replace, and reports a
   source that refused, throttled, failed or is not composed as
@@ -632,7 +647,8 @@ its one command when none is given.
 | `automation.mail` | `pegasus_mail_open_query` | Open a query on a linked message whose report is sent | key only |
 | `automation.mail` | `pegasus_mail_action` | `dismiss` or `restore` in Pegasus | key |
 | `automation.mail` | `pegasus_mail_mailbox_search` | Read-only: message headers (subject, sender, received time, preview) matching a term in one or every approved mailbox; a mailbox the tenant has not admitted reports unavailable (R561) | none |
-| `automation.mail` | `pegasus_old_system_folder_search` | Read-only: folder names and identities matching a term below the old system's Box folder; unavailable until that folder is configured (R561) | none |
+| `automation.mail` | `pegasus_mail_attachment_text` | Read-only: the text the intake reader extracted from one attachment of a retained message, by the attachment's position, cut at the caller's cap (at most 20,000 characters); null when the reader produced none; never the bytes (#1891) | none |
+| `automation.mail` | `pegasus_old_system_folder_search` | Read-only: folder names and identities matching a term below the old system's Box folder; a reference-shaped term matches a folder name only as a whole token (R592); unavailable until that folder is configured (R561) | none |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does | one-command lease |
 | `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `markQueryDone` and `aiJobId`), `forward`, `triage_reply` | Case or Triage version and key |

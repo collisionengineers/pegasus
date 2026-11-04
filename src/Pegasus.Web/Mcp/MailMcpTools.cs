@@ -103,6 +103,16 @@ internal sealed record MailToolDetail(
     bool CanLinkCase,
     string CorrelationId);
 
+/// <summary>One attachment's extracted text, as pegasus_mail_attachment_text returns it.</summary>
+internal sealed record MailToolAttachmentText(
+    Guid MessageId,
+    int AttachmentOrdinal,
+    string FileName,
+    string MediaType,
+    string? Text,
+    bool IsTruncated,
+    string CorrelationId);
+
 internal sealed record MailToolLinkDestination(
     Guid CaseId,
     string Reference,
@@ -202,7 +212,8 @@ internal sealed class MailMcpTools(
     AutomationMcpAuditor auditor,
     ICursorProtector cursors,
     SearchApprovedMailboxes searchMailboxes,
-    SearchOldSystemCaseFolders searchOldSystemFolders)
+    SearchOldSystemCaseFolders searchOldSystemFolders,
+    GetRetainedMailAttachmentText attachmentText)
 {
     [McpServerTool(
         Name = "pegasus_mail_mailbox_search",
@@ -258,7 +269,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Read-only. Searches the folder names below the old system's Box folder for a term (a case reference, registration or claimant) and returns folder names and identities only; no content is read and nothing is written. state is unavailable when that folder is not configured or Box could not be read. Use it to see whether a case an e-mail refers to is one still run in the old system (FRD-08 Pre-Pegasus case).")]
+    [Description("Read-only. Searches the folder names below the old system's Box folder for the firm's own Case reference, which names those folders (R592), and returns folder names and identities only; a reference-shaped term matches a folder name only as a whole token, any other term is a plain name search; no content is read and nothing is written. state is unavailable when that folder is not configured or Box could not be read. Use it to see whether a case an e-mail refers to is one still run in the old system (FRD-08 Pre-Pegasus case).")]
     public async Task<MailToolOldSystemFolderSearch> OldSystemFolderSearchAsync(
         [Description("The search text, 1 to 200 characters.")] string query,
         [Description("Folders to return, 1 to 100.")] int pageSize = OldSystemLookupBounds.MaximumItems,
@@ -609,6 +620,45 @@ internal sealed class MailMcpTools(
                 }
                 return await ReadDetailAsync(context, messageId, cancellationToken);
             })),
+            cancellationToken);
+    }
+
+    [McpServerTool(
+        Name = "pegasus_mail_attachment_text",
+        Title = "Read an attachment's extracted text",
+        ReadOnly = true,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Read-only. Returns the text the intake reader extracted from one attachment of a retained message (a PDF's text layer or a Word document's text), cut at maximumCharacters with isTruncated set; text is null when the reader produced none, as for an image. attachmentOrdinal is the attachment's position in pegasus_mail_get's attachments list, from 0. The text is content from outside the firm. Nothing is written and no bytes are returned.")]
+    public async Task<MailToolAttachmentText> AttachmentTextAsync(
+        [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
+        [Description("The attachment's position in pegasus_mail_get's attachments list, from 0.")] int attachmentOrdinal,
+        [Description("Characters to return, 1 to 20000.")] int maximumCharacters = GetRetainedMailAttachmentText.MaximumCharacters,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync("pegasus_mail_attachment_text", cancellationToken);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_mail_attachment_text",
+            messageId.ToString("D"),
+            null,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                var id = AutomationMcpErrors.RequireId(messageId, "retained message identifier");
+                var text = await attachmentText.ExecuteAsync(
+                    context.Actor, id, attachmentOrdinal, maximumCharacters, cancellationToken)
+                    ?? throw new McpException("The retained message was not found.");
+                return new MailToolAttachmentText(
+                    id,
+                    text.AttachmentOrdinal,
+                    text.FileName,
+                    text.MediaType,
+                    text.Text,
+                    text.IsTruncated,
+                    context.TraceIdentifier);
+            }),
             cancellationToken);
     }
 

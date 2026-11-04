@@ -1197,11 +1197,37 @@ public sealed class AutomaticImageIntakeTests
             new(Guid.NewGuid(), "QDS26003", 2, "AB12CDEX", DateTimeOffset.UnixEpoch)
         ];
 
-        await harness.ApplyAsync();
+        var outcome = await harness.ApplyAsync();
 
         Assert.Empty(harness.AssociationStore.Requests);
-        Assert.Equal("AB12CDE", Assert.Single(harness.Register.Requests).NormalizedVehicleRegistration);
+        Assert.Empty(harness.Register.Requests);
+        Assert.False(outcome.AssociatedCase);
         Assert.Equal(0, harness.Engine.Calls);
+    }
+
+    /// <summary>
+    /// A vehicle-capture document is images for an existing Case, never new
+    /// work (operator, 2 November 2026, R585): with no Case holding its printed
+    /// registration nothing registers, the e-mail stays No Case Found with its
+    /// photographs, and no plate read is attempted. A staff forward of the same
+    /// document takes this same path, so a second Image Intake for the
+    /// registration cannot arise from it.
+    /// </summary>
+    [Fact]
+    public async Task ACapturePdfWhosePrintedRegistrationMatchesNoCaseRegistersNothing()
+    {
+        var harness = CaptureHarness("LS74JYY");
+        harness.Engine.Enqueue(Suggested("LS74JYY", 0.99));
+        harness.CaseCandidates.Candidates = [];
+
+        var outcome = await harness.ApplyAsync();
+
+        Assert.Empty(harness.Register.Requests);
+        Assert.Empty(harness.AssociationStore.Requests);
+        Assert.False(outcome.AssociatedCase);
+        Assert.Null(outcome.UnidentifiedGroup);
+        Assert.Equal(0, harness.Engine.Calls);
+        Assert.Empty(harness.SuggestionStore.Records);
     }
 
     private static Harness CaptureHarness(string printedRegistration) =>

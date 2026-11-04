@@ -1168,8 +1168,9 @@ public sealed class QdosInstructionExtractionPolicyTests
     }
 
     // The Triage subject template is the only QDOS shape whose registration
-    // exists nowhere but the subject, and QDOS writes it in two spacings.
-    // Both are real corpus subjects.
+    // exists nowhere but the subject, and QDOS writes it in three spacings.
+    // All three are real subjects; the comma form arrived at desk@ on
+    // 1 November 2026.
     [Theory]
     [InlineData(
         "Engineer Triage - Our Claim Reference 46384/1 , Vehicle Registration YD14VGJ",
@@ -1177,7 +1178,10 @@ public sealed class QdosInstructionExtractionPolicyTests
     [InlineData(
         "Engineer Triage - Our Claim Reference : 46246/1 - Vehicle Registration : VO75DFJ",
         "VO75DFJ")]
-    public void TheSubjectRegistrationLabelIsReadInEitherRecordedSpacing(
+    [InlineData(
+        "Engineer Triage - Our Claim Reference 50247/1, Vehicle Registration, PN12VRD",
+        "PN12VRD")]
+    public void TheSubjectRegistrationLabelIsReadInAnyRecordedSpacing(
         string subject,
         string expected)
     {
