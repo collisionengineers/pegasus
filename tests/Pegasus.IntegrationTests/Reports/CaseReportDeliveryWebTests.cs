@@ -892,6 +892,9 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("dispatchFingerprint", "STALE")));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        // The refusal lands back on the Report section with the dialog asked
+        // to open on its notice (v48 item N).
+        Assert.Contains("dialog=send-report", response.Headers.Location!.OriginalString, StringComparison.Ordinal);
         var reloaded = WebUtility.HtmlDecode(await GetHtmlAsync(client, response.Headers.Location!.OriginalString!));
         Assert.Contains(CaseReportDeliveryPolicy.DispatchChanged, reloaded, StringComparison.Ordinal);
     }
@@ -1028,12 +1031,13 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>
-    /// Reading a Case whose report was sent (v41 K5, 15 October 2026): the
-    /// delivery cells' To and Cc read the last send's recipients, each apart,
-    /// and a cell the send left empty reads Not recorded.
+    /// Reading a Case whose report was sent (v48 items G and N; operator,
+    /// 4 November 2026): the section says when and to whom the report was
+    /// already sent under its preview card, repeats no delivery cells, and
+    /// offers no Send report: the dialog exists only while editing.
     /// </summary>
     [Fact]
-    public async Task ReadModeShowsTheLastSentReportsToAndCc()
+    public async Task ReadModeStatesTheLastSendUnderThePreviewCardAndOffersNoSend()
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
@@ -1052,16 +1056,162 @@ public sealed partial class AssessmentReportDraftWebTests
 
         var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
 
-        var read = Regex.Match(html, "<div class=\"recip-form\" data-send-report-read>.*?data-report-file-name", RegexOptions.Singleline);
-        Assert.True(read.Success, "Read mode must draw the delivery cells.");
+        var section = ReportSection(html);
         Assert.Contains(
-            "<div class=\"fc ro\"><span class=\"lbl\">To</span><div class=\"fv\" data-report-last-to>handler@principal.example, claims@principal.example</div></div>",
-            read.Value,
+            "<p class=\"muted\" data-report-already-sent>Already sent on 3 Oct 2026 14:02 to handler@principal.example, claims@principal.example.</p>",
+            section,
             StringComparison.Ordinal);
-        Assert.Contains(
-            $"<div class=\"fc ro\"><span class=\"lbl\">Cc</span><div class=\"fv empty\" data-report-last-cc>{Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.AbsentValue}</div></div>",
-            read.Value,
-            StringComparison.Ordinal);
+        Assert.True(
+            section.IndexOf("data-report-preview-card", StringComparison.Ordinal)
+                < section.IndexOf("data-report-already-sent", StringComparison.Ordinal),
+            "The Already sent line follows the preview card.");
+        Assert.DoesNotContain("data-send-report-read", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-last-to", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-send-report", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("case-send-report-dialog", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-send-open", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>The Report section's markup, head to foot.</summary>
+    private static string ReportSection(string html)
+    {
+        var start = html.IndexOf("id=\"section-report\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Report section is not rendered.");
+        var end = html.IndexOf("id=\"section-", start + 1, StringComparison.Ordinal);
+        return end < 0 ? html[start..] : html[start..end];
+    }
+
+    /// <summary>The Send report dialog's markup, backdrop to its close.</summary>
+    private static string SendDialog(string html)
+    {
+        var start = html.IndexOf("id=\"case-send-report-dialog\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Send report dialog is not rendered.");
+        var end = html.IndexOf("</form>", start, StringComparison.Ordinal);
+        return html[start..end];
+    }
+
+    /// <summary>
+    /// v48 (operator, 4 November 2026): while editing with the report stored,
+    /// the section head offers Send report, which opens the composer dialog
+    /// among the Case dialogs; the section itself holds no form. The dialog's
+    /// one form posts SendReport with every hidden field, From, To and Cc
+    /// boxes each with their ×, the Subject prefilled with the derived
+    /// subject, the Message, and one Files row per confirmed document with
+    /// its include tick, the name as a viewer link, Rename and the hidden
+    /// name field that posts a rename.
+    /// </summary>
+    [Fact]
+    public async Task TheSendReportDialogHoldsTheComposerWithSubjectAndFilesRows()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generation = new FakeCurrentGeneration(
+            caseId,
+            feeNoteStatus: CaseReportArtifactStatus.Confirmed,
+            repairSpecStatus: CaseReportArtifactStatus.Confirmed);
+        using var factory = WithCurrentGeneration(baseFactory, caseId, generation);
+        using var client = Client(factory);
+
+        var html = WebUtility.HtmlDecode(await EnterEditModeAsync(client, caseId));
+
+        var section = ReportSection(html);
+        Assert.Contains("data-dialog-open=\"case-send-report-dialog\" data-report-send-open", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-send-report", section, StringComparison.Ordinal);
+        var dialogsAt = html.IndexOf("<div data-case-dialogs>", StringComparison.Ordinal);
+        Assert.True(html.IndexOf("id=\"case-send-report-dialog\"", StringComparison.Ordinal) > dialogsAt, "The dialog is a Case dialog.");
+
+        var dialog = SendDialog(html);
+        Assert.Contains("class=\"dialog mail-compose-dialog dialog--send\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-carry", dialog, StringComparison.Ordinal);
+        Assert.Contains("handler=SendReport", dialog, StringComparison.Ordinal);
+        foreach (var name in new[] { "operationKey", "editLeaseToken", "expectedCaseVersion", "generationId", "expectedGenerationVersion", "view", "dispatchFingerprint" })
+        {
+            Assert.Contains($"<input type=\"hidden\" name=\"{name}\"", dialog, StringComparison.Ordinal);
+        }
+        Assert.Contains("name=\"fromMailboxId\"", dialog, StringComparison.Ordinal);
+        Assert.Matches("<span class=\"recip-box\">\\s*<input name=\"toRecipients\"[^>]*>\\s*<button type=\"button\" class=\"btn btn--small btn--icon\" data-remove-report-recipient", dialog);
+        Assert.Matches("<span class=\"recip-box\">\\s*<input name=\"ccRecipients\"[^>]*>\\s*<button type=\"button\" class=\"btn btn--small btn--icon\" data-remove-report-recipient", dialog);
+        var subject = InputTag(dialog, "data-report-subject");
+        Assert.Contains("name=\"subject\"", subject, StringComparison.Ordinal);
+        Assert.Contains($"maxlength=\"{CaseReportDeliveryPolicy.MaximumSubjectLength}\"", subject, StringComparison.Ordinal);
+        Assert.Matches("value=\"[^\"]+\"", subject);
+        Assert.Contains("name=\"coveringMessage\"", dialog, StringComparison.Ordinal);
+
+        // The Files rows: the report, always on, under its delivery name; the
+        // fee note on; the Repair Spec off; each a viewer link with Rename.
+        Assert.Equal(
+            [nameof(CaseReportArtifactKind.AssessmentReport), nameof(CaseReportArtifactKind.FeeNote), nameof(CaseReportArtifactKind.RepairSpecification)],
+            Regex.Matches(dialog, "data-send-file=\"([A-Za-z]+)\"").Select(match => match.Groups[1].Value).ToArray());
+        var reportRow = FileRow(dialog, CaseReportArtifactKind.AssessmentReport);
+        Assert.Contains($"data-default-name=\"{generation.Record.Snapshot.CaseReference}", reportRow, StringComparison.Ordinal);
+        Assert.Contains("<input type=\"hidden\" name=\"attach\" value=\"AssessmentReport\" />", reportRow, StringComparison.Ordinal);
+        Assert.Contains("data-document-preview", reportRow, StringComparison.Ordinal);
+        Assert.Contains("data-rename-file", reportRow, StringComparison.Ordinal);
+        Assert.Contains("<input type=\"hidden\" name=\"fileName-AssessmentReport\" value=\"\" data-send-file-name />", reportRow, StringComparison.Ordinal);
+        Assert.Contains("checked=\"checked\"", FileRow(dialog, CaseReportArtifactKind.FeeNote), StringComparison.Ordinal);
+        Assert.Contains("name=\"fileName-FeeNote\"", FileRow(dialog, CaseReportArtifactKind.FeeNote), StringComparison.Ordinal);
+        Assert.DoesNotContain("checked", InputTag(FileRow(dialog, CaseReportArtifactKind.RepairSpecification), "data-report-attach-choice=\"RepairSpecification\""), StringComparison.Ordinal);
+        Assert.Contains("data-dialog-close", dialog, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(html, "handler=SendReport"));
+    }
+
+    private static string FileRow(string dialog, CaseReportArtifactKind kind)
+    {
+        var start = dialog.IndexOf($"data-send-file=\"{kind}\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, $"No Files row for {kind}.");
+        var end = dialog.IndexOf("data-send-file=\"", start + 1, StringComparison.Ordinal);
+        return end < 0 ? dialog[start..] : dialog[start..end];
+    }
+
+    /// <summary>
+    /// v48 items C and E: the subject and the names staff gave the documents
+    /// reach the send as posted, the other work's names with its report.
+    /// </summary>
+    [Fact]
+    public async Task SendReportCarriesTheSubjectAndTheNamesStaffGave()
+    {
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        var caseId = Guid.NewGuid();
+        var otherGenerationId = Guid.NewGuid();
+        var send = new RecordingSendReport(StaffMailState.Submitted);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            sendReport: send);
+        using var client = Client(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SendReport&section=report",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "0"),
+                ("generationId", Guid.NewGuid().ToString("D")),
+                ("expectedGenerationVersion", "13"),
+                ("coveringMessage", "Both reports attached."),
+                ("toRecipients", "reviewed@recipient.example"),
+                ("subject", " Our report on PK12 TMZ "),
+                ("fileName-AssessmentReport", ""),
+                ("fileName-FeeNote", "Fee note for PK12 TMZ.pdf"),
+                ("secondGenerationId", otherGenerationId.ToString("D")),
+                ("secondExpectedGenerationVersion", "4"),
+                ("secondFileName-AssessmentReport", "Inspection report.pdf")));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var request = Assert.Single(send.Requests);
+        Assert.Equal(" Our report on PK12 TMZ ", request.Subject);
+        // The report's empty name posts nothing: it keeps its policy name.
+        Assert.Equal("Fee note for PK12 TMZ.pdf", request.AttachmentNames![CaseReportArtifactKind.FeeNote]);
+        Assert.Single(request.AttachmentNames);
+        var second = Assert.IsType<SecondCaseReport>(request.SecondReport);
+        Assert.Equal("Inspection report.pdf", second.AttachmentNames![CaseReportArtifactKind.AssessmentReport]);
+        Assert.Single(second.AttachmentNames);
     }
 
     /// <summary>
@@ -1119,7 +1269,11 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Matches("data-report-stop>\\s*<span><strong>Stopped\\.</strong> Do not send reports for this Claim Source\\.</span>", form);
         Assert.Contains("required", InputTag(form, "data-report-stop-override"), StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-question", form, StringComparison.Ordinal);
-        Assert.Contains("data-report-filed-estimates>PK12TMZ estimate.pdf</div>", form, StringComparison.Ordinal);
+        // The filed estimate is a Files row, on, with no Rename (v48 item E:
+        // a filed estimate keeps its filed name).
+        var estimateRow = Regex.Match(form, "<div class=\"send-file\" data-send-file=\"estimate\" data-report-filed-estimate>[\\s\\S]*?<b data-send-file-label>PK12TMZ estimate\\.pdf</b>[\\s\\S]*?</div>\\s*</div>");
+        Assert.True(estimateRow.Success, "The filed estimate is a Files row.");
+        Assert.DoesNotContain("data-rename-file", estimateRow.Value, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-warning", form, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-after-sending", form, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-hold", form, StringComparison.Ordinal);

@@ -507,3 +507,9 @@
         </section>
     </div>
 }
+
+@* Send report (v48): the composer dialog, while the page offers the send and this response read what it draws. *@
+@if (Model.CanSendReport && Model.ReportDeliveryRead)
+{
+    <partial name="Cases/Shared/_CaseSendReportDialog" model="Model" />
+}

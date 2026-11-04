@@ -1393,7 +1393,12 @@ public sealed partial class DetailsModel(
             ? CaseReportSendHistory.None
             : await otherHistory;
         ReportDeliveryMessage = await RenderReportDeliveryMessageAsync(actor, cancellationToken);
-        OpenDialog = EstimateDialogOf(dialog);
+        ApplyReportDeliverySubject();
+        OriginalReport = await ReadOriginalReportAsync(id, cancellationToken);
+        // A refused send lands back here with the dialog open on its notice
+        // (v48 item N), only where the page offers the send.
+        OpenDialog = EstimateDialogOf(dialog)
+            ?? (CanSendReport && string.Equals(dialog, "send-report", StringComparison.Ordinal) ? "send-report" : null);
     }
 
     /// <summary>
@@ -3208,6 +3213,7 @@ public sealed partial class DetailsModel(
         string? dispatchFingerprint,
         string? stopOverrideReason,
         string[]? holdsDone,
+        string? subject,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -3227,7 +3233,7 @@ public sealed partial class DetailsModel(
         catch (ArgumentException)
         {
             TempData["CaseError"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.MessageRefused;
-            return RedirectToReport(id);
+            return RedirectToReport(id, reopenSend: true);
         }
 
         StaffMailOperation operation;
@@ -3251,12 +3257,17 @@ public sealed partial class DetailsModel(
                     // its report, with the documents of it ticked.
                     secondGenerationId is { } secondId && secondExpectedGenerationVersion is { } secondVersion
                         ? new(secondId, secondVersion,
-                            [CaseReportArtifactKind.AssessmentReport, .. (secondAttach ?? [])])
+                            [CaseReportArtifactKind.AssessmentReport, .. (secondAttach ?? [])],
+                            PostedAttachmentNames("secondFileName"))
                         : null,
                     DispatchFingerprint: dispatchFingerprint,
                     Decisions: PostedReportDecisions(),
                     AcknowledgedHolds: holdsDone ?? [],
-                    StopOverrideReason: stopOverrideReason),
+                    StopOverrideReason: stopOverrideReason,
+                    // The subject and the documents' names as staff left them
+                    // in the composer (v48 items C and E).
+                    Subject: subject,
+                    AttachmentNames: PostedAttachmentNames("fileName")),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -3270,7 +3281,7 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = MutationRefusalMessage(
                 exception,
                 "The report was not sent. Retry the operation.");
-            return RedirectToReport(id);
+            return RedirectToReport(id, reopenSend: true);
         }
 
         ClearLeaseState();
@@ -3384,9 +3395,35 @@ public sealed partial class DetailsModel(
         WorkSelector == CaseWorkSelector.Primary
         && await getCaseHasAuditWork.ExecuteAsync(id, cancellationToken);
 
-    /// <summary>Back to the Report section, in the view the request came from.</summary>
-    private RedirectToPageResult RedirectToReport(Guid id) =>
-        RedirectToPage("/Cases/Details", new { id, section = "report", view = ReturnView });
+    /// <summary>
+    /// Back to the Report section, in the view the request came from; a
+    /// refused send reopens the Send report dialog on its notice (v48 item N).
+    /// </summary>
+    private RedirectToPageResult RedirectToReport(Guid id, bool reopenSend = false) =>
+        RedirectToPage("/Cases/Details", new { id, section = "report", view = ReturnView, dialog = reopenSend ? "send-report" : null });
+
+    /// <summary>
+    /// The names staff gave the send's documents (v48 item E): one hidden
+    /// <c>{prefix}-{kind}</c> field per Files row, empty while the row keeps
+    /// its policy name. Null when no row was renamed.
+    /// </summary>
+    private Dictionary<CaseReportArtifactKind, string>? PostedAttachmentNames(string prefix)
+    {
+        Dictionary<CaseReportArtifactKind, string>? names = null;
+        foreach (var key in Request.Form.Keys)
+        {
+            var parts = key.Split('-');
+            if (parts.Length == 2
+                && parts[0] == prefix
+                && Enum.TryParse<CaseReportArtifactKind>(parts[1], ignoreCase: false, out var kind)
+                && Request.Form[key].ToString() is { Length: > 0 } name
+                && !string.IsNullOrWhiteSpace(name))
+            {
+                (names ??= [])[kind] = name;
+            }
+        }
+        return names;
+    }
 
     private static DateOnly? ParseGuideMonth(string? value)
     {

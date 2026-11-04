@@ -135,6 +135,30 @@
             </dl>
         </div>
     </section>
+    @* Original report (v48 items I–M; operator, 4 November 2026): on the
+       Audit view of an Inspection + Audit Case, the Inspection report as
+       generated: its printed repair cost, its salvage value when it was a
+       Total loss, and the Engineer's Value it printed with the guide its
+       basis card came from (none for a typed value). Every figure is the
+       absent glyph until an Inspection report exists. The id of the
+       standalone Audit's Original report section is never reused here. *@
+    @if (Model.DrawsOriginalReport)
+    {
+        var original = Model.OriginalReport;
+        <section class="panel context-card" data-original-report>
+            <div class="panel-head"><h2>@Frame.OriginalReport</h2></div>
+            <div class="panel-body">
+                <dl class="figures">
+                    <div class="figure figure--big"><dt>@Frame.RepairCostIncVat</dt><dd class="mono @(original is null ? "absent" : null)" data-original-repair-cost>@(original is { } o1 ? FormatMoney(o1.RepairCostIncVat) : "—")</dd></div>
+                    @if (original is { SalvageValue: { } salvage })
+                    {
+                        <div class="figure"><dt>@CaseWorkspaceLabels.Settlement.SalvageValue</dt><dd class="mono" data-original-salvage-value>@FormatMoney(salvage)</dd></div>
+                    }
+                    <div class="figure"><dt>@Frame.EngineersValue</dt><dd class="mono @(original is null ? "absent" : null)" data-original-engineers-value>@(original is { } o2 ? FormatMoney(o2.EngineerValue) + (o2.Guide is { } guide ? $" ({guide})" : string.Empty) : "—")</dd></div>
+                </dl>
+            </div>
+        </section>
+    }
     @* The card is drawn only when it holds something: a step, an AI
        draft, the cancellation notice, the stale notice or an open task.
        With nothing left to do it is absent (operator, 19 October 2026). *@
@@ -312,7 +336,16 @@
                     {
                         <div class="next-step" data-next-step>
                             <strong data-next-label>@nextRow.Label</strong>
-                            <a class="@StepButton" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@nextRow.SectionKey" asp-route-view="@Model.ViewRoute" asp-fragment="section-@nextRow.SectionKey" data-section-jump="@nextRow.SectionKey">@SectionLabel(nextRow.SectionKey)</a>
+                            @if (nextRow.SectionKey == "report" && Model.CanSendReport)
+                            {
+                                @* The Send report step opens the dialog while
+                                   editing (v48 item A); reading keeps the jump. *@
+                                <button type="button" class="@StepButton" data-dialog-open="case-send-report-dialog" data-next-send-report>@SectionLabel(nextRow.SectionKey)</button>
+                            }
+                            else
+                            {
+                                <a class="@StepButton" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@nextRow.SectionKey" asp-route-view="@Model.ViewRoute" asp-fragment="section-@nextRow.SectionKey" data-section-jump="@nextRow.SectionKey">@SectionLabel(nextRow.SectionKey)</a>
+                            }
                         </div>
                     }
                 }

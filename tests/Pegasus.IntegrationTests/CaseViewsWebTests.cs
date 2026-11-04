@@ -322,29 +322,37 @@ public sealed class CaseViewsWebTests
         var auditReport = Section(auditHtml, "section-report-title");
         Assert.Contains($"<span class=\"mono\" data-report-reference>{AuditReference} · </span>", auditReport, StringComparison.Ordinal);
         Assert.DoesNotContain(sentLine, auditReport, StringComparison.Ordinal);
-        AssertOffersOnlyTheOtherReportsChoice(auditReport, reports.Inspection!);
+        // The send is the Send report dialog among the Case dialogs (v48);
+        // the section offers it from its head and holds no form.
+        var auditSend = SendDialog(auditHtml);
+        AssertOffersOnlyTheOtherReportsChoice(auditSend, reports.Inspection!);
         Assert.Contains($"{AuditReference} · </span>", ReportStatus(auditReport), StringComparison.Ordinal);
-        Assert.Contains("data-send-report", auditReport, StringComparison.Ordinal);
+        Assert.Contains("data-report-send-open", auditReport, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-send-report", auditReport, StringComparison.Ordinal);
+        Assert.Contains("data-send-report", auditSend, StringComparison.Ordinal);
+        Assert.Contains($"<p class=\"eyebrow\">Report · {AuditReference}</p>", auditSend, StringComparison.Ordinal);
         // The delivery message is the Case report delivery template (Report
         // Sending SOP wording), rendered for staff to edit before Send report.
         Assert.Matches(
             "<textarea[^>]*name=\"coveringMessage\"[^>]*data-report-message>[^<]*Please see attached report and fee note\\.[^<]*Kind Regards</textarea>",
-            auditReport);
-        Assert.Contains(reports.Audit!.Id.ToString("D"), auditReport, StringComparison.Ordinal);
+            auditSend);
+        Assert.Contains($"<input type=\"hidden\" name=\"generationId\" value=\"{reports.Audit!.Id:D}\" />", auditSend, StringComparison.Ordinal);
 
         var inspectionHtml = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));
         var inspectionReport = Section(inspectionHtml, "section-report-title");
+        var inspectionSend = SendDialog(inspectionHtml);
         // The sent report reads as its generation, as the Audit's does.
         Assert.DoesNotContain(sentLine, ReportStatus(inspectionReport), StringComparison.Ordinal);
         Assert.Contains("data-report-filing", ReportStatus(inspectionReport), StringComparison.Ordinal);
-        Assert.Contains(reports.Inspection!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
-        AssertOffersOnlyTheOtherReportsChoice(inspectionReport, reports.Audit!);
+        Assert.Contains($"<input type=\"hidden\" name=\"generationId\" value=\"{reports.Inspection!.Id:D}\" />", inspectionSend, StringComparison.Ordinal);
+        AssertOffersOnlyTheOtherReportsChoice(inspectionSend, reports.Audit!);
         Assert.DoesNotContain("data-report-reference", inspectionReport, StringComparison.Ordinal);
-        Assert.Contains("data-send-report", inspectionReport, StringComparison.Ordinal);
+        Assert.Contains($"<p class=\"eyebrow\">Report · {Reference}</p>", inspectionSend, StringComparison.Ordinal);
+        Assert.Contains("data-report-send-open", inspectionReport, StringComparison.Ordinal);
         Assert.Equal(
             auditReport.Contains("data-report-menu", StringComparison.Ordinal),
             inspectionReport.Contains("data-report-menu", StringComparison.Ordinal));
-        Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" />", inspectionReport, StringComparison.Ordinal);
+        Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" />", inspectionSend, StringComparison.Ordinal);
         Assert.Contains(CaseWorkSelector.Primary, reports.CurrentReads);
     }
 
@@ -522,11 +530,13 @@ public sealed class CaseViewsWebTests
 
         var inspectionHtml = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));
         var inspectionReport = Section(inspectionHtml, "section-report-title");
+        var inspectionSend = SendDialog(inspectionHtml);
         Assert.DoesNotContain(OperatorLabels.CaseStage(CaseLifecycleState.ReportSent), ReportStatus(inspectionReport), StringComparison.Ordinal);
-        Assert.Contains("data-send-report", inspectionReport, StringComparison.Ordinal);
-        Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" />", inspectionReport, StringComparison.Ordinal);
-        Assert.Contains(reports.Inspection!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
-        AssertOffersOnlyTheOtherReportsChoice(inspectionReport, reports.Audit!);
+        Assert.Contains("data-report-send-open", inspectionReport, StringComparison.Ordinal);
+        Assert.Contains("data-send-report", inspectionSend, StringComparison.Ordinal);
+        Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" />", inspectionSend, StringComparison.Ordinal);
+        Assert.Contains($"<input type=\"hidden\" name=\"generationId\" value=\"{reports.Inspection!.Id:D}\" />", inspectionSend, StringComparison.Ordinal);
+        AssertOffersOnlyTheOtherReportsChoice(inspectionSend, reports.Audit!);
         Assert.DoesNotContain("data-report-reference", inspectionReport, StringComparison.Ordinal);
         Assert.Contains(CaseWorkSelector.Primary, reports.CurrentReads);
     }
@@ -1197,19 +1207,176 @@ public sealed class CaseViewsWebTests
     /// Inspection's for the primary one. Only the reads the Case page makes
     /// are answered.
     /// </summary>
-    // The other work's report is in the send form only: an unticked choice
-    // naming its generation, with its version beside it.
-    private static void AssertOffersOnlyTheOtherReportsChoice(string report, CaseReportGenerationRecord other)
+    // The other work's report is in the send dialog only: an unticked Files
+    // row naming its generation, with its version beside it (v48 item D).
+    private static void AssertOffersOnlyTheOtherReportsChoice(string send, CaseReportGenerationRecord other)
     {
         var id = other.Id.ToString("D");
         Assert.Matches(
-            $"<input type=\"checkbox\" id=\"report-attach-other\" name=\"secondGenerationId\" value=\"{id}\"\\s+data-report-attach-other-report />",
-            report);
+            $"<input type=\"checkbox\" id=\"report-attach-other\" name=\"secondGenerationId\" value=\"{id}\"\\s+data-report-attach-other-report[^>]*/>",
+            send);
+        Assert.DoesNotMatch(
+            $"<input type=\"checkbox\" id=\"report-attach-other\"[^>]*checked",
+            send);
         Assert.Contains(
             $"<input type=\"hidden\" name=\"secondExpectedGenerationVersion\" value=\"{other.Version}\" />",
-            report,
+            send,
             StringComparison.Ordinal);
-        Assert.Single(Regex.Matches(report, Regex.Escape(id)));
+        Assert.Single(Regex.Matches(send, $"name=\"secondGenerationId\" value=\"{Regex.Escape(id)}\""));
+    }
+
+    /// <summary>The Send report dialog's markup (v48), backdrop to its form's close.</summary>
+    private static string SendDialog(string html)
+    {
+        var start = html.IndexOf("id=\"case-send-report-dialog\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Send report dialog is not rendered.");
+        var end = html.IndexOf("</form>", start, StringComparison.Ordinal);
+        return html[start..end];
+    }
+
+    /// <summary>
+    /// The Original report card (v48 items I–M; operator, 4 November 2026):
+    /// on the Audit view of an Inspection + Audit Case, after Figures, the
+    /// Inspection report as generated: its printed repair cost, its salvage
+    /// value as it was a Total loss, and its Engineer's Value with the guide
+    /// its basis card came from, money as Figures draws it. The card reads
+    /// the primary work's applied valuations and cards once each, and the
+    /// Inspection view draws no card.
+    /// </summary>
+    [Fact]
+    public async Task TheAuditViewDrawsTheInspectionReportsFiguresAsTheOriginalReportCard()
+    {
+        var store = AuditedCase();
+        var reports = new ReportsPerWork(store.CaseId);
+        var inspection = reports.Inspection!;
+        var appliedId = Guid.NewGuid();
+        var guideId = Guid.NewGuid();
+        reports.Inspection = inspection with
+        {
+            Snapshot = inspection.Snapshot with
+            {
+                EngineerValue = 5000m,
+                AppliedValuationId = appliedId,
+                Report = inspection.Snapshot.Report with
+                {
+                    Outcome = AssessmentReportOutcome.TotalLoss,
+                    SalvageCategory = "S",
+                    SalvageValue = 1250m
+                }
+            }
+        };
+        var valuations = new ValuationLists(store.CaseId, appliedId, guideId, Pegasus.Core.Assessment.ValuationSource.Cazana);
+        using var host = new ReadingHost(store, services =>
+        {
+            Substitute<ICaseReportGenerationStore>(services, reports);
+            Substitute<Pegasus.Core.Assessment.IListAppliedValuations>(services, valuations);
+            Substitute<Pegasus.Core.Assessment.IListCaseValuations>(services, valuations);
+        });
+
+        var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
+
+        var cardAt = html.IndexOf("<section class=\"panel context-card\" data-original-report>", StringComparison.Ordinal);
+        Assert.True(cardAt > html.IndexOf("data-figures>", StringComparison.Ordinal), "Original report must follow Figures.");
+        var card = html[cardAt..html.IndexOf("</section>", cardAt, StringComparison.Ordinal)];
+        Assert.Contains($"<h2>{Frame.OriginalReport}</h2>", card, StringComparison.Ordinal);
+        var gross = string.Create(CultureInfo.GetCultureInfo("en-GB"), $"£{inspection.Snapshot.Costs.Printed.Gross:N2}");
+        Assert.Contains($"<dt>{Frame.RepairCostIncVat}</dt><dd class=\"mono\" data-original-repair-cost>{gross}</dd>", card, StringComparison.Ordinal);
+        Assert.Contains($"<dt>{CaseWorkspaceLabels.Settlement.SalvageValue}</dt><dd class=\"mono\" data-original-salvage-value>£1,250.00</dd>", card, StringComparison.Ordinal);
+        Assert.Contains($"<dt>{Frame.EngineersValue}</dt><dd class=\"mono\" data-original-engineers-value>£5,000.00 (Cazana)</dd>", card, StringComparison.Ordinal);
+        Assert.Equal([CaseWorkSelector.Primary], valuations.AppliedReads);
+        Assert.Equal([CaseWorkSelector.Primary], valuations.CardReads);
+        Assert.DoesNotContain("id=\"section-original-report\"", html, StringComparison.Ordinal);
+
+        var inspectionHtml = await host.ReadAsync($"/Cases/{store.CaseId:D}?view=inspection");
+        Assert.DoesNotContain("data-original-report", inspectionHtml, StringComparison.Ordinal);
+        Assert.Equal([CaseWorkSelector.Primary], valuations.AppliedReads);
+    }
+
+    /// <summary>
+    /// The card's rows follow the report: a Repairable Inspection report has
+    /// no Salvage value row, and a typed Engineer's Value names no guide;
+    /// before any Inspection report exists the card draws the absent glyph.
+    /// A Case without its Audit has no card and reads no valuation.
+    /// </summary>
+    [Fact]
+    public async Task TheOriginalReportCardFollowsTheReportItReads()
+    {
+        var store = AuditedCase();
+        var reports = new ReportsPerWork(store.CaseId);
+        reports.Inspection = reports.Inspection! with
+        {
+            Snapshot = reports.Inspection!.Snapshot with { EngineerValue = 4200m, AppliedValuationId = null }
+        };
+        var valuations = new ValuationLists(store.CaseId, Guid.NewGuid(), Guid.NewGuid(), Pegasus.Core.Assessment.ValuationSource.Glasses);
+        using (var host = new ReadingHost(store, services =>
+        {
+            Substitute<ICaseReportGenerationStore>(services, reports);
+            Substitute<Pegasus.Core.Assessment.IListAppliedValuations>(services, valuations);
+            Substitute<Pegasus.Core.Assessment.IListCaseValuations>(services, valuations);
+        }))
+        {
+            var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
+            var cardAt = html.IndexOf("data-original-report>", StringComparison.Ordinal);
+            Assert.True(cardAt >= 0, "The Audit view draws the Original report card.");
+            var card = html[cardAt..html.IndexOf("</section>", cardAt, StringComparison.Ordinal)];
+            Assert.DoesNotContain("data-original-salvage-value", card, StringComparison.Ordinal);
+            Assert.Contains("data-original-engineers-value>£4,200.00</dd>", card, StringComparison.Ordinal);
+            // A typed value names no calculation row, so nothing is read for it.
+            Assert.Empty(valuations.AppliedReads);
+
+            reports.Inspection = null;
+            var without = await host.ReadAsync($"/Cases/{store.CaseId:D}");
+            var absentAt = without.IndexOf("data-original-report>", StringComparison.Ordinal);
+            Assert.True(absentAt >= 0, "The card is drawn before an Inspection report exists.");
+            var absent = without[absentAt..without.IndexOf("</section>", absentAt, StringComparison.Ordinal)];
+            Assert.Contains("<dd class=\"mono absent\" data-original-repair-cost>—</dd>", absent, StringComparison.Ordinal);
+            Assert.Contains("<dd class=\"mono absent\" data-original-engineers-value>—</dd>", absent, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-original-salvage-value", absent, StringComparison.Ordinal);
+        }
+
+        var single = new RecordingCaseDetailsStore { SummaryCaseType = CaseType.InspectionAndAudit };
+        var singleValuations = new ValuationLists(single.CaseId, Guid.NewGuid(), Guid.NewGuid(), Pegasus.Core.Assessment.ValuationSource.Glasses);
+        using var singleHost = new ReadingHost(single, services =>
+        {
+            Substitute<Pegasus.Core.Assessment.IListAppliedValuations>(services, singleValuations);
+            Substitute<Pegasus.Core.Assessment.IListCaseValuations>(services, singleValuations);
+        });
+        Assert.DoesNotContain("data-original-report", await singleHost.ReadAsync($"/Cases/{single.CaseId:D}"), StringComparison.Ordinal);
+        Assert.Empty(singleValuations.AppliedReads);
+        Assert.Empty(singleValuations.CardReads);
+    }
+
+    /// <summary>
+    /// The primary work's one applied valuation and the guide card it was
+    /// calculated from, answering only the reads the card makes.
+    /// </summary>
+    private sealed class ValuationLists(Guid caseId, Guid appliedId, Guid guideId, Pegasus.Core.Assessment.ValuationSource source)
+        : Pegasus.Core.Assessment.IListAppliedValuations, Pegasus.Core.Assessment.IListCaseValuations
+    {
+        public List<CaseWorkSelector> AppliedReads { get; } = [];
+
+        public List<CaseWorkSelector> CardReads { get; } = [];
+
+        Task<IReadOnlyList<Pegasus.Core.Assessment.AppliedValuation>> Pegasus.Core.Assessment.IListAppliedValuations.ExecuteAsync(
+            Guid forCase, CaseWorkSelector work, CancellationToken cancellationToken)
+        {
+            AppliedReads.Add(work);
+            var calculation = new Pegasus.Core.Assessment.ValuationCalculation(5000m, false, 0m, 5000m, null, 0m, [], 0m, 0m, 5000m);
+            return Task.FromResult<IReadOnlyList<Pegasus.Core.Assessment.AppliedValuation>>(
+            [
+                new(appliedId, caseId, 3, guideId, InspectionSentAtUtc, calculation, 5000m, "test", InspectionSentAtUtc, "Applied.", "test")
+            ]);
+        }
+
+        Task<IReadOnlyList<Pegasus.Core.Assessment.CaseValuation>> Pegasus.Core.Assessment.IListCaseValuations.ExecuteAsync(
+            Guid forCase, CaseWorkSelector work, CancellationToken cancellationToken)
+        {
+            CardReads.Add(work);
+            return Task.FromResult<IReadOnlyList<Pegasus.Core.Assessment.CaseValuation>>(
+            [
+                new(guideId, caseId, new(source, new DateOnly(2031, 5, 1), new TimeOnly(9, 0), null, 5000m, 4500m), "test", InspectionSentAtUtc)
+            ]);
+        }
     }
 
     /// <summary>
