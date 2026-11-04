@@ -12,10 +12,9 @@ namespace Pegasus.IntegrationTests;
 /// </summary>
 public sealed class CorpusTraitContractTests
 {
-    // LocalDbTemplateFact gates on an external SQL data source rather than on
-    // corpus evidence: it must stay in the ordinary lane.
+    // Every discovery attribute this assembly declares is a corpus gate.
     private static readonly IReadOnlySet<string> Exempt =
-        new HashSet<string>(StringComparer.Ordinal) { "LocalDbTemplateFactAttribute" };
+        new HashSet<string>(StringComparer.Ordinal);
 
     // Named, not counted: renaming a gate away would otherwise leave the rule
     // below passing over nothing.
