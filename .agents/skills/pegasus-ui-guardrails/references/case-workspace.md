@@ -14,7 +14,7 @@ Its stable frame is:
 2. sticky 56px Case ribbon;
 3. sticky 40px section row;
 4. Case sections;
-5. Figures + Next action + Report not ready context aside.
+5. Figures (+ Original report on the Audit view) + Next action + Report not ready context aside.
 
 The ribbon owns:
 
@@ -68,10 +68,15 @@ An Inspection + Audit Case whose Audit has been created has two views of one rec
   control (`data-dialog-open` or the `.menu-gated` span with its reason). Send report ends at
   the accepted send (Submitted), not at the observed Sent item (operator, 12 October 2026).
 - Report in the Audit view shows the Audit report alone (operator, 2 October 2026); the Views
-  card is the route to the Inspection report. Only the delivery form names the other work's
-  report: a second `.cluster` in the Attach row (`data-report-attach-other`) whose first tick is
-  that report under its delivery file name, unticked, then its own document ticks with the
-  existing labels; read mode shows the same cells greyed (operator, 12 October 2026). In the Inspection view the card is the Inspection
+  card is the route to the Inspection report, and the aside's Original report card after
+  Figures holds the Inspection report's own figures as generated (v48, R666). Only the Send
+  report dialog names the other work's report: Files rows (`data-report-attach-other`) whose
+  first tick is that report under its delivery file name, unticked, then its own documents,
+  each "Inspection · {kind}"; reading shows no delivery cells (operator, 12 October 2026;
+  v48, R665). The delivery form is that dialog, opened from the section head's Send report
+  primary and the aside's Send report step while editing with the report stored
+  (`data-dialog-open="case-send-report-dialog"`); a refused send returns with
+  `?dialog=send-report`. In the Inspection view the card is the Inspection
   report with its Generate and Send report controls, before and after it is sent
   (operator, 1 and 2 October 2026), and the Actions menu's Mark report sent takes its evidence;
   every form carries `view=inspection` and acts on the Inspection's own work, never on the
@@ -344,8 +349,10 @@ Viewer controls must not overlap the image stage. Keep the crop toolbar coherent
 ## Aside
 
 The context aside contains the Views card (only once an Audit exists), the Linked cases card (only
-while a Triage Case is linked; operator, 7 October 2026), then Figures, Next action and Report not
-ready.
+while a Triage Case is linked; operator, 7 October 2026), then Figures, the Original report card
+(only on the Audit view of an Inspection + Audit Case; v48, R665, R666), Next action and Report
+not ready. The Original report card never reuses the standalone Audit section's
+`section-original-report` id.
 
 Next action is one step (operator, 8 October 2026): the first outstanding Case requirement, else
 the state's step, else the report's first blocker, drawn in full with one full-width control. Do not

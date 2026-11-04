@@ -1,5 +1,6 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
@@ -181,6 +182,93 @@ public sealed partial class DetailsModel
         : null;
 
     /// <summary>
+    /// Whether the viewed work's report can be sent: a confirmed generation
+    /// with its confirmed report. A delivery may attach a subset of the
+    /// generation's documents (v28 P22), so this needs no other artifact.
+    /// </summary>
+    public bool ReportSendable =>
+        CurrentReportGeneration is { State: CaseReportGenerationState.Confirmed } generation
+        && generation.Artifacts.Any(artifact => artifact.Kind == CaseReportArtifactKind.AssessmentReport
+            && artifact.Status == CaseReportArtifactStatus.Confirmed);
+
+    /// <summary>
+    /// Whether this page offers Send report: the Report section is in the
+    /// viewer's edit session and the report is sendable (v48 items A and H;
+    /// operator, 4 November 2026). The section head's Send report, the aside's
+    /// Send report step and the dialog itself all read this one answer.
+    /// </summary>
+    public bool CanSendReport => SectionIsEditable("report") && ReportSendable;
+
+    /// <summary>
+    /// The subject the Send report dialog's Subject field starts on (v48 item
+    /// C; operator, 4 November 2026): the one the send derives, read from the
+    /// same policy, so staff edit what would otherwise be sent. Empty while
+    /// the dialog is not offered.
+    /// </summary>
+    public string ReportDeliverySubject { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// Whether this response read what the Send report dialog draws (the
+    /// Principal's plan, the senders, the subject and the message): the page
+    /// and the section responses do; a commit's answer does not, and the
+    /// script keeps the dialog it has across that swap.
+    /// </summary>
+    public bool ReportDeliveryRead { get; private set; }
+
+    /// <summary>
+    /// The Original report card's figures (v48 items I–L; operator,
+    /// 4 November 2026): the Inspection report as generated, read from the
+    /// newest Inspection generation's frozen snapshot on the Audit view of an
+    /// Inspection + Audit Case; null where the card is not drawn or no
+    /// Inspection report exists yet.
+    /// </summary>
+    public OriginalReportFigures? OriginalReport { get; private set; }
+
+    /// <summary>Whether the aside draws the Original report card: the Audit view once the Audit exists.</summary>
+    public bool DrawsOriginalReport => !IsInspectionView && Works is { HasAudit: true };
+
+    private void ApplyReportDeliverySubject()
+    {
+        ReportDeliveryRead = true;
+        ReportDeliverySubject = CanSendReport && DeliveryRecipientSuggestions is { } facts
+            ? CaseReportDeliveryPolicy.DerivedSubject(ReportSenders.ReplyTo, facts)
+            : string.Empty;
+    }
+
+    /// <summary>
+    /// The card's figures from the Inspection report's snapshot, with the
+    /// guide the Engineer's Value came from: the snapshot names the
+    /// calculation row, that row its basis card, and the card its source. A
+    /// typed value names no row and gets no guide. Two reads, on the Audit
+    /// view only, and only once an Inspection report exists.
+    /// </summary>
+    private async Task<OriginalReportFigures?> ReadOriginalReportAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (!DrawsOriginalReport || OtherReportGeneration is not { } inspection)
+        {
+            return null;
+        }
+        var snapshot = inspection.Snapshot;
+        string? guide = null;
+        if (snapshot.AppliedValuationId is { } appliedId)
+        {
+            var applied = (await listAppliedValuations.ExecuteAsync(id, CaseWorkSelector.Primary, cancellationToken))
+                .FirstOrDefault(row => row.Id == appliedId);
+            if (applied is not null)
+            {
+                var card = (await listCaseValuations.ExecuteAsync(id, CaseWorkSelector.Primary, cancellationToken))
+                    .FirstOrDefault(valuation => valuation.ValuationId == applied.GuideValuationId);
+                guide = card is null ? null : CaseWorkspaceLabels.Valuation.SourceLabel(card.Details.Source);
+            }
+        }
+        return new(
+            snapshot.Costs.Printed.Gross,
+            snapshot.Report.Outcome == AssessmentReportOutcome.TotalLoss ? snapshot.Report.SalvageValue : null,
+            snapshot.EngineerValue,
+            guide);
+    }
+
+    /// <summary>
     /// The Case report delivery template rendered for this Case, for staff to
     /// review and edit before Send report (FRD-11): what the form's
     /// message box is pre-filled with. Empty while the form is not offered.
@@ -252,3 +340,14 @@ public sealed partial class DetailsModel
     private static string TitleOf(string kind, string? registration) =>
         string.IsNullOrWhiteSpace(registration) ? $"{kind} Report" : $"{kind} Report — {registration}";
 }
+
+/// <summary>
+/// The Original report card (v48): the Inspection report's printed repair
+/// cost, its salvage value when that report was a Total loss, and the
+/// Engineer's Value it printed with the guide its basis card came from.
+/// </summary>
+public sealed record OriginalReportFigures(
+    decimal RepairCostIncVat,
+    decimal? SalvageValue,
+    decimal EngineerValue,
+    string? Guide);

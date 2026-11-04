@@ -622,8 +622,8 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 @media(max-width:760px){#section-settlement .metric-strip{grid-template-columns:repeat(2,1fr)}#section-settlement .metric:nth-child(-n+2){border-bottom:1px solid var(--line)}}
 
 /* ---- Report (v26): preview card, generation, recipients, image strip -------- */
-#section-report .panel-actions .choice,#section-report .recip-form .choice{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;white-space:nowrap}
-#section-report .panel-actions .choice input,#section-report .recip-form .choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
+#section-report .panel-actions .choice,.dialog--send .choice{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;white-space:nowrap}
+#section-report .panel-actions .choice input,.dialog--send .choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
 #section-report .pv{display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;flex-wrap:wrap}
 #section-report .pv-thumb{width:56px;height:76px;border-radius:2px;background:#fdfcfa;border:1px solid #e4dfd8;position:relative;flex-shrink:0}
 #section-report .pv-thumb::before{content:"";position:absolute;inset:7px 7px auto;height:6px;background:var(--red)}
@@ -636,11 +636,39 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 #section-report .detail-list>div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px;font-size:12.5px;margin:0}
 #section-report .detail-list dt{color:var(--quiet);font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;align-self:center}
 #section-report .detail-list dd{margin:0;min-width:0;overflow-wrap:anywhere}
-#section-report .recip-form{display:grid;gap:8px;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px}
-#section-report .recip-form .lg,#section-report .recip-form .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
-#section-report .recip-form .stack{gap:4px}
-#section-report .recip-form input:not([type=checkbox]):not([type=radio]),#section-report .recip-form select{min-height:var(--control);padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;width:100%;background:#fff}
-#section-report .recip-form .btn{justify-self:start}
+/* ---- Send report (v48): the composer dialog, 880px, in the Triage composer's grid ---- */
+.dialog.mail-compose-dialog.dialog--send{width:min(880px,calc(100vw - 32px));height:min(760px,calc(100vh - 40px))}
+.dialog--send .lg,.dialog--send .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
+.dialog--send .stack{display:grid;gap:4px}
+.dialog--send .mail-compose-form-fields>.cluster{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12.5px}
+.dialog--send .mail-compose-form-fields .fv{font-size:12.5px}
+.dialog--send input:not([type=checkbox]):not([type=radio]),.dialog--send select{min-height:var(--control);padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;width:100%;background:#fff}
+.dialog--send .field>.btn{justify-self:start;align-self:start;margin-top:4px}
+/* One box per address with its × (item O). */
+.dialog--send .recip-box{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px;align-items:center}
+.dialog--send .recip-box .btn--icon{min-width:28px;height:28px;padding:4px}
+.dialog--send .recip-box .btn--icon[hidden]{display:none}
+/* The Files rows (items D and E): tick · glyph · name and kind · Rename. */
+.dialog--send .mail-compose-attachments{max-height:none;overflow:visible}
+.dialog--send .mail-compose-attachments>legend{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em;padding:0;margin:0 0 6px}
+.dialog--send .send-files{display:grid;gap:6px}
+.dialog--send .send-file{display:grid;grid-template-columns:auto 20px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 9px;border:1px solid var(--line);border-radius:var(--radius);font-size:12px}
+.dialog--send .send-file>.icon{width:20px;height:20px;color:var(--quiet)}
+.dialog--send .send-file-tick{display:inline-flex;align-items:center;min-width:15px}
+.dialog--send .send-file-tick .choice.is-static .tick{display:inline-flex;width:15px;height:15px;align-items:center;justify-content:center;border:1px solid var(--line-strong);border-radius:3px;background:#fff;color:var(--red)}
+.dialog--send .send-file-tick .choice.is-static .tick .icon{width:12px;height:12px}
+.dialog--send .send-file-name{display:grid;gap:2px;min-width:0}
+.dialog--send .send-file-name b,.dialog--send .send-file-open{font-weight:650;color:inherit;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.dialog--send .send-file-open:hover b{text-decoration:underline}
+.dialog--send .send-file-open[hidden]{display:none}
+.dialog--send .send-file-name small{color:var(--muted);font-size:11px}
+.dialog--send .send-file-rename{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center}
+.dialog--send .send-file-rename[hidden]{display:none}
+.dialog--send .send-file-rename .mono{font-size:12px;color:var(--muted)}
+.dialog--send .send-file-actions .btn--icon{min-width:28px;height:28px;padding:4px}
+/* The viewer over the dialog (item F): the shared [tabindex]:focus-visible
+   rule's z-index must not drop a focused viewer beneath the dialog backdrop. */
+.case-viewer[tabindex]:focus-visible{z-index:1200}
 #section-report .thumbs{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
 #section-report .th{aspect-ratio:4/3;border-radius:3px;position:relative;cursor:zoom-in;overflow:hidden;border:1px solid var(--line);display:flex;align-items:flex-end;padding:5px;font:600 9.5px var(--mono);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);background:var(--surface-3);text-decoration:none}
 #section-report .th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}

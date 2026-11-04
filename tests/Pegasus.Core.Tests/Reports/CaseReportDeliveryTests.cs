@@ -858,6 +858,118 @@ public sealed class CaseReportDeliveryTests
         Assert.Equal("Edited by staff.\n\nKind regards", Assert.Single(send.Commands).Mail.Body);
     }
 
+    /// <summary>
+    /// Operator, 4 November 2026 (v48 item C): the Subject field prefills with
+    /// the derived subject and staff may change it; what they submit is sent,
+    /// a blank one falling back to the derived subject, and one past 500
+    /// characters refused before anything is sent.
+    /// </summary>
+    [Fact]
+    public async Task SendCarriesTheSubjectStaffEditedElseTheDerivedOne()
+    {
+        var send = new RecordingSend();
+        var instruction = InstructionEmail(MailboxId);
+        var sendReport = Use(new FixedGenerations(Generation()), send, Senders(instruction, Mailbox()));
+
+        await sendReport.ExecuteAsync(Request() with { Subject = " Our report on PK12 TMZ " }, CancellationToken.None);
+        await sendReport.ExecuteAsync(Request() with { Subject = "  " }, CancellationToken.None);
+
+        Assert.Equal(
+            ["Our report on PK12 TMZ", "Re: New instruction DVR-31001"],
+            send.Commands.Select(command => command.Mail.Subject).ToArray());
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => sendReport.ExecuteAsync(
+            Request() with { Subject = new string('s', CaseReportDeliveryPolicy.MaximumSubjectLength + 1) },
+            CancellationToken.None));
+        Assert.Equal(2, send.Commands.Count);
+    }
+
+    /// <summary>
+    /// Operator, 4 November 2026 (v48 item E): each document of the send may
+    /// go under the name staff gave it, the report included, while a kind
+    /// staff did not name keeps its policy name; the readiness check still
+    /// names the custody files. A name that does not end in .pdf is refused.
+    /// </summary>
+    [Fact]
+    public async Task SendNamesEachDocumentAsStaffNamedIt()
+    {
+        var send = new RecordingSend();
+        var generation = Generation(
+            CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote, CaseReportArtifactKind.ImagePack);
+        var sendReport = Use(new FixedGenerations(generation), send);
+
+        await sendReport.ExecuteAsync(
+            Request() with
+            {
+                Attach = [CaseReportArtifactKind.FeeNote, CaseReportArtifactKind.ImagePack],
+                AttachmentNames = new Dictionary<CaseReportArtifactKind, string>
+                {
+                    [CaseReportArtifactKind.AssessmentReport] = "PK12 TMZ report.pdf",
+                    [CaseReportArtifactKind.ImagePack] = "PK12 TMZ photos.pdf",
+                }
+            },
+            CancellationToken.None);
+
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(
+            ["PK12 TMZ report.pdf", FeeAttachment.FileName, "PK12 TMZ photos.pdf"],
+            command.Mail.Attachments.Select(attachment => attachment.FileName).ToArray());
+        Assert.Equal(
+            command.Mail.Attachments.Select(attachment => attachment.Sha256),
+            command.Report.Artifacts.Select(attachment => attachment.Sha256));
+        Assert.Equal(
+            [ReportAttachment.FileName, FeeAttachment.FileName, ImagePackAttachment.FileName],
+            command.Report.Artifacts.Select(attachment => attachment.FileName).ToArray());
+
+        await Assert.ThrowsAsync<ArgumentException>(() => sendReport.ExecuteAsync(
+            Request() with
+            {
+                AttachmentNames = new Dictionary<CaseReportArtifactKind, string>
+                {
+                    [CaseReportArtifactKind.AssessmentReport] = "PK12 TMZ report",
+                }
+            },
+            CancellationToken.None));
+        Assert.Single(send.Commands);
+    }
+
+    /// <summary>The other work's documents take staff's names the same way (v48 item E).</summary>
+    [Fact]
+    public async Task SendNamesTheOtherWorksDocumentsAsStaffNamedThem()
+    {
+        var audit = Generation(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote);
+        var inspection = OtherGeneration();
+        var generations = new GenerationsById(audit, inspection);
+        var send = new RecordingSend();
+        var sendReport = new SendCaseReport(
+            generations,
+            new SendsByWork(new(0, null), new(1, new DateOnly(2026, 9, 1))),
+            new FixedSuggestions(Facts()),
+            Senders(null, Mailbox()),
+            send,
+            new FixedTime());
+
+        await sendReport.ExecuteAsync(
+            Request() with
+            {
+                AttachmentNames = new Dictionary<CaseReportArtifactKind, string>
+                {
+                    [CaseReportArtifactKind.FeeNote] = "Audit fee.pdf",
+                },
+                SecondReport = new(
+                    inspection.Id, inspection.Version, [CaseReportArtifactKind.AssessmentReport],
+                    new Dictionary<CaseReportArtifactKind, string>
+                    {
+                        [CaseReportArtifactKind.AssessmentReport] = "Inspection report.pdf",
+                    })
+            },
+            CancellationToken.None);
+
+        Assert.Equal(
+            ["DVR-31001 PK12 TMZ Repairable report.pdf", "Audit fee.pdf", "Inspection report.pdf"],
+            Assert.Single(send.Commands).Mail.Attachments.Select(attachment => attachment.FileName).ToArray());
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("  \r\n ")]
