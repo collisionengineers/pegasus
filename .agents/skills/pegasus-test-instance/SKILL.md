@@ -1,6 +1,6 @@
 ---
 name: pegasus-test-instance
-description: Stand up, reach, update, seed, copy production data into and stop the one hosted Pegasus test instance (ADR-0088) - the DevelopmentOffline lifecycle on the operator's Linux/WSL machine, reached over Tailscale, with live DVLA/DVSA, Box under the local-test root, Glass's, Graph parity on the production mailboxes the operator enables on it (read, send, move, subscriptions), the Principal API and the Automation MCP, and the classifier agent in dry run. Use whenever the operator mentions the test instance, a test version, test server, dev server, staging, UAT environment, the WSL box, a Tailscale URL, release rehearsal on a copy of production, or wants Pegasus running anywhere that is not production, even if they never say "test instance". Not for production releases (pegasus-release), intake wipes (pegasus-wipe-intake-data), or a plain Offline run on a developer's own machine.
+description: Stand up, reach, update, seed, copy production data into and stop the one hosted Pegasus test instance (ADR-0088) - the DevelopmentOffline lifecycle on the operator's Linux/WSL machine, reached over Tailscale, with live DVLA/DVSA, Box under the local-test root, Glass's, Graph parity on its own mailbox pegasustest@ and on the production mailboxes the operator enables on it (read, send, move, subscriptions), the Principal API and the Automation MCP, and the classifier agent in dry run. Use whenever the operator mentions the test instance, a test version, test server, dev server, staging, UAT environment, the WSL box, a Tailscale URL, release rehearsal on a copy of production, or wants Pegasus running anywhere that is not production, even if they never say "test instance". Not for production releases (pegasus-release), intake wipes (pegasus-wipe-intake-data), or a plain Offline run on a developer's own machine.
 ---
 
 # The hosted Pegasus test instance
@@ -17,13 +17,16 @@ and rehearsing a release (migrations included) on a copy of production.
 
 ## What never happens here
 
-- **Mail is real.** The instance has Graph parity with production on the
-  mailboxes the operator enables on it (R655, R657): a send leaves the
-  production mailbox and reaches its recipients, the answered-instruction
-  move happens in the shared mailbox, and both the instance and production
-  ingest the same incoming mail while a mailbox is enabled on both. Send only
-  to addresses the operator names, and enable a production mailbox on the
-  instance for the window the operator names.
+- **Mail is real.** The instance's mailbox is
+  `pegasustest@collisionengineers.co.uk`, a shared mailbox for the test
+  environment alone, never approved on production (R673), and the instance
+  has Graph parity with production on it and on any production mailbox the
+  operator enables on the instance (R655, R657): a send leaves the mailbox
+  and reaches its recipients, the answered-instruction move happens in that
+  mailbox, and both the instance and production ingest the same incoming
+  mail while a production mailbox is enabled on both. Send only to addresses
+  the operator names, and enable a production mailbox on the instance for
+  the window the operator names.
 - **No Azure spend.** Key Vault secret reads, Graph calls and the SqlPackage
   extract to a local file are the only Azure touches (R623). A step that would
   create or run anything in Azure is a question to the operator first.
@@ -46,8 +49,8 @@ and rehearsing a release (migrations included) on a copy of production.
 | Graph identity | a Microsoft 365 administrator (the operator) | the existing `CollisionSpike Graph Intake` registration and scope `CollisionSpike-Intake-Prod`; adds the one role it lacks (`Application Mail.Send`) and the secret; recorded in operations |
 | `tailscale funnel` of the webhook path | the operator | the one public path on the machine |
 | `Copy-ProductionDatabaseToRun.ps1 -Approve` | the operator's word per copy | a live read of production SQL |
-| Enabling a mailbox on the instance | the operator | names which production mailbox the instance reads from, sends from and subscribes to, and for how long |
-| A send from the instance | the operator names the recipient | a real e-mail from a production mailbox |
+| Enabling a production mailbox on the instance | the operator | names which production mailbox the instance also reads from, sends from and subscribes to, and for how long; `pegasustest@` is the instance's own (R673) |
+| A send from the instance | the operator names the recipient | a real e-mail from `pegasustest@` or an enabled production mailbox |
 | Anthropic key for the classifier | the operator supplies it | metered spend, not Azure |
 
 Everything else (Initialize, Start, Status, Smoke, Stop, seeding from the
@@ -149,7 +152,7 @@ round itself (#1863) runs on the date the operator sets: the pack's
 origin, and the round's results file is recorded in operations as the first
 operator acceptance.
 
-## 4. Mail from the production mailboxes, with parity
+## 4. Mail, with parity
 
 Follow the runbook's
 [admitting the test instance's Graph identity](../../../docs/runbook.md#runbook-admitting-the-test-instances-graph-identity)
@@ -157,9 +160,10 @@ with the Exchange and Funnel commands in
 [references/graph-parity-identity.md](references/graph-parity-identity.md).
 The operator runs the tenant steps; the agent prepares the exact commands and
 the operations record. Then add the Graph lines to the settings file, restart
-the run (`Stop`, then `Start -RunId <id>`), and enable the mailbox in
-Administration > Mailboxes on the instance, Incoming and Outgoing as
-production has it. The Worker log
+the run (`Stop`, then `Start -RunId <id>`), and add
+`pegasustest@collisionengineers.co.uk` in Administration > Mailboxes on the
+instance, Incoming and Outgoing (R673); a production mailbox the operator
+enables is added the same way, as production has it. The Worker log
 (`artifacts/local-development/<run>/logs/worker-*.stdout.log`) shows the
 instance's own subscription being created within five minutes, the poll, and
 a wake on new mail:
@@ -227,7 +231,9 @@ copied Principal API keys paused (R659) and the copied pending
 answered-instruction tidies closed (R660), so the instance subscribes under
 its own webhook, authenticates no production key and moves only what its own
 sends answered. The record `state/production-copy-<utc>.json` holds the
-migration head, the Case count and the four counts. The
+migration head, the Case count and the four counts. The copy carries
+production's mailbox rows and not the instance's, so `pegasustest@` is added
+again in Administration > Mailboxes after the next Start (R673). The
 rehearsal is then the next Start: the checked-out revision's migrations run
 against production's schema and data. The rehearsal runs at the candidate's
 tip, the branch about to land on `dev` (checked out detached at its SHA when

@@ -1,6 +1,7 @@
 # The test instance's Graph identity
 
-The instance has Graph parity with production on the production mailboxes
+The instance has Graph parity with production on its own shared mailbox,
+`pegasustest@collisionengineers.co.uk` (R673), and on the production mailboxes
 the operator enables on it: read, send, the answered-instruction move and
 change subscriptions (R655, R657). The hosts compose Production's Graph mail
 side under `Features:LiveGraphMail`, and the identity they present holds the
@@ -24,9 +25,11 @@ in its manifest and one client secret (expiry 26 June 2027). Checked on
 `Application Mail.ReadWrite` on the management scope
 `CollisionSpike-Intake-Prod`, which covers
 `instructions@collisionengineers.co.uk` (`InScope True`); a second scope,
-`CS-Intake-EngDigital`, does not. The instance reuses this registration and
-this scope. No new registration and no new scope is created, by the
-subtract-before-add rule.
+`CS-Intake-EngDigital`, does not. On 4 November 2026 the filter was widened
+with `Set-ManagementScope` to admit the test mailbox
+`pegasustest@collisionengineers.co.uk` (R673). The instance reuses this
+registration and this scope. No new registration and no new scope is
+created, by the subtract-before-add rule.
 
 The production Web and Worker reach Graph as Azure managed identities, which
 cannot issue tokens outside Azure; that is why the instance needs a
@@ -58,10 +61,18 @@ Test-ServicePrincipalAuthorization -Identity 5d37a155-2af8-4878-b96a-6faad520713
 
 A mailbox the filter covers lists `Mail.Read`, `Mail.ReadWrite` and
 `Mail.Send` with `InScope True` on `CollisionSpike-Intake-Prod`; one outside
-it lists nothing in scope. On 3 November 2026 the filter was exactly the
-four approved mailboxes, info@, engineers@, desk@ and instructions@, so any
-of the four can be enabled on the instance with no Exchange change; a
-denied-mailbox check uses a staff mailbox.
+it lists nothing in scope. Since 4 November 2026 the filter is the four approved
+production mailboxes, info@, engineers@, desk@ and instructions@, and the
+test mailbox pegasustest@ (R673), so any of the five can be enabled on the
+instance with no Exchange change; a denied-mailbox check uses digital@, which
+only the registration's other scope covers. The test mailbox was admitted
+by widening the filter in place:
+
+```powershell
+$filter = (Get-ManagementScope CollisionSpike-Intake-Prod).RecipientFilter
+Set-ManagementScope -Identity CollisionSpike-Intake-Prod `
+    -RecipientRestrictionFilter "($filter) -or (PrimarySmtpAddress -eq 'pegasustest@collisionengineers.co.uk')"
+```
 
 `Connect-ExchangeOnline` accepts the operator's `az` sign-in without a
 browser round trip:
@@ -117,7 +128,8 @@ received before the activation time is never re-ingested, by design.
 
 - Reads the Inbox and Sent Items of the mailboxes in scope (`Mail.Read`).
 - Sends staff and report mail from them (`Mail.Send`): every send is a real
-  e-mail from a production mailbox to its recipients.
+  e-mail from the test mailbox or an enabled production mailbox to its
+  recipients.
 - Moves the answered instruction to Deleted Items once a report send on the
   instance is confirmed (`Mail.ReadWrite`): a real move in the shared mailbox.
 - Creates and renews its own change subscriptions on the scope's Inboxes

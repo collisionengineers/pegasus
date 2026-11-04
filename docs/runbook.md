@@ -829,7 +829,9 @@ The hosted test instance (ADR-0088 as amended) reaches the production
 mailboxes through its own Entra app registration, never through the Web or
 Worker managed identities, which exist only inside Azure. The grant gives it
 Graph parity with production on the mailboxes in its scope and nothing on any
-other (R655, R657).
+other (R655, R657). The instance's own mailbox is
+`pegasustest@collisionengineers.co.uk` (R673); a production mailbox is in the
+instance's use only while the operator enables it there.
 
 1. The identity is the tenant's existing **CollisionSpike Graph Intake**
    app registration (client id `5d37a155-2af8-4878-b96a-6faad5207137`, no
@@ -846,7 +848,9 @@ other (R655, R657).
    then read the scope's filter with `Get-ManagementScope` and prove the
    grant with `Test-ServicePrincipalAuthorization` listing all three roles
    in scope on a covered mailbox and nothing on one outside the filter, and
-   record both checks in [operations](operations.md). Done 3 November 2026. Admitting a further
+   record both checks in [operations](operations.md). Done 3 November 2026;
+   the test mailbox `pegasustest@` was admitted by widening the filter on
+   4 November 2026 (R673). Admitting a further
    mailbox widens `CollisionSpike-Intake-Prod` for every identity on it and
    is its own approval.
 3. On the instance's machine, add `Features__LiveGraphMail=true`,
@@ -857,8 +861,9 @@ other (R655, R657).
    the hosted test instance section) and add `Graph__ChangeNotificationUrl`
    and `Graph__ChangeNotificationClientState` (a value of at most 128
    characters the operator chooses, different from production's). Restart the
-   run and enable the mailbox in Administration > Mailboxes on the instance
-   (step 3 of the procedure above). The instance's Worker then subscribes and
+   run and add `pegasustest@`, and any production mailbox the operator
+   enables, in Administration > Mailboxes on the instance (step 3 of the
+   procedure above). The instance's Worker then subscribes and
    polls, and the Web sends from the mailbox; the production Worker's own
    subscriptions and polling are unaffected.
 

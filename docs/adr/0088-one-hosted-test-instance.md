@@ -16,7 +16,10 @@ tags: [environment, test-instance, linux, tailscale, graph]
 Amended 3 November 2026 (R655 to R660): the instance has full Graph parity
 with production on the mailboxes the operator enables on it, read, send, the
 answered-instruction move and change subscriptions, in place of R626's
-read-only grant; see Decision.
+read-only grant; see Decision. Amended 4 November 2026 (R673): the
+instance's own mailbox is `pegasustest@collisionengineers.co.uk`, a shared
+mailbox for the test environment alone; a production mailbox is enabled on
+it only when the operator says so.
 
 Accepted on the operator's rulings of 2 November 2026 (R623 to R628). It
 supersedes one clause of [ADR-0014](0014-local-to-production-deployment.md),
@@ -59,17 +62,21 @@ their Tailscale network, at no Azure cost (R623).
   first (R625). It runs `dev`, the branch a release is promoted from, so a
   change is vetted on it before `main` moves; the release preflight refuses
   a candidate the instance is not serving (R661, R664).
-- It has Graph parity with production on the production mailboxes the
-  operator enables on it (R655, R657, superseding R626).
+- It has Graph parity with production on its own shared mailbox,
+  `pegasustest@collisionengineers.co.uk`, created for the test environment
+  alone and never approved on production (R673), and on a production
+  mailbox only while the operator enables it on the instance (R655, R657,
+  superseding R626).
   `Features:LiveGraphMail` composes Production's Graph mail side (the mail
   client, the Inbox and Sent sources and their pollers, the mailbox resolver
   and search, staff and report send, and the answered-instruction move) over
   the tenant's existing `CollisionSpike Graph Intake` app registration, whose
   Exchange RBAC grant becomes `Application Mail.Read`, `Mail.ReadWrite` and
-  `Mail.Send` on its existing scope `CollisionSpike-Intake-Prod` alone. A
-  send from the instance is a real e-mail from that mailbox, and both the
-  instance and production ingest the same incoming mail while a mailbox is
-  enabled on both.
+  `Mail.Send` on its existing scope `CollisionSpike-Intake-Prod` alone,
+  widened to the test mailbox on 4 November 2026. A send from the instance
+  is a real e-mail from that mailbox, and both the instance and production
+  ingest the same incoming mail while a production mailbox is enabled on
+  both.
 - Change subscriptions are the instance's own, never production's: a Graph
   subscription is bound to the notification URL it was created with. Graph
   reaches the instance only through Tailscale Funnel on port 8443 for the one
@@ -107,8 +114,9 @@ their Tailscale network, at no Azure cost (R623).
   skill. Its tooling is the lifecycle's `-PublicOrigin`, the
   `Features:LiveGraphMail` opt-in with the two webhook keys, Funnel on the
   webhook path, and `scripts/Copy-ProductionDatabaseToRun.ps1`.
-- The fences are no longer in the grant. They are the operator enabling each
-  mailbox on the instance, the copy's deactivation and closures, the scope
+- The fences are no longer in the grant. They are the test mailbox being
+  the instance's own, the operator enabling any production mailbox on the
+  instance, the copy's deactivation and closures, the scope
   that admits only the named mailboxes, and Funnel limited to one path. The
   app registration, its scope, the permitted and denied checks and the Funnel
   origin are recorded in [operations](../operations.md) when they exist.
@@ -117,5 +125,5 @@ their Tailscale network, at no Azure cost (R623).
 
 - Superseded clause: [ADR-0014](0014-local-to-production-deployment.md).
 - Workstations: [ADR-0039](0039-windows-and-linux-release-workstations.md).
-- Rulings: R623 to R629 and R655 to R660 in [rulings](../rulings.md).
+- Rulings: R623 to R629, R655 to R660 and R673 in [rulings](../rulings.md).
 - Procedure: [runbook, local live-integration run](../runbook.md#local-live-integration-run).

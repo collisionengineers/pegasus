@@ -5,6 +5,27 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Test instance mailbox - 4 November 2026
+
+- The operator created the shared mailbox `pegasustest@collisionengineers.co.uk`
+  at 08:39 UTC for the test environment alone (R673); it is never approved on
+  production. At 08:50 UTC the agent, under the operator's `az` sign-in, widened
+  the management scope `CollisionSpike-Intake-Prod` with `Set-ManagementScope`
+  to add `PrimarySmtpAddress -eq 'pegasustest@collisionengineers.co.uk'` to its
+  filter; the four production addresses are unchanged.
+- `Test-ServicePrincipalAuthorization` for `5d37a155-2af8-4878-b96a-6faad5207137`
+  afterwards lists `Application Mail.Read`, `Mail.ReadWrite` and `Mail.Send`
+  `InScope True` on `CollisionSpike-Intake-Prod` for pegasustest@ and for
+  instructions@; for digital@ the three read `InScope False` on that scope
+  (its only grant is `CS-Intake-EngDigital`).
+- The instance (run `83ec377d`, serving `8cbc26146`) approved pegasustest@ in
+  Administration > Mailboxes, Incoming and Outgoing, at 08:52 UTC; the Web's
+  access check read the Inbox and Sent Items, and the Worker's next pass
+  created the instance's own change subscription at 08:55 UTC, Active,
+  expiring 10 November, no failure code. No send was made (no recipient
+  named). desk@ (Outgoing) and instructions@ were already re-approved on the
+  instance by the operator; instructions@ holds no subscription row.
+
 ## First release rehearsal on a copy of production - 3 November 2026
 
 - The instance (run `83ec377d`) was stopped, checked out detached at the
