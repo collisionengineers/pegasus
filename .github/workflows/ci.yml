@@ -97,7 +97,7 @@ jobs:
     #
     # Windows, because the documentation link check resolves targets with
     # Test-Path, which is case-insensitive there and case-sensitive on Linux;
-    # moving it would quietly change the rule.
+    # moving it would quietly change the rule (R658).
     #
     # It follows `changes` so every lane reads one verdict order, but must not
     # inherit its verdict: without `!cancelled()`, a failed path detection would
@@ -141,9 +141,11 @@ jobs:
   infrastructure:
     # Local mode checks committed fail-closed invariants and compiles Bicep.
     # It does not authenticate, read Azure state, run azd or deploy anything.
+    # Linux, the platform the release deploys to. R657's measured run
+    # (3 November 2026) was green at 90 s against 113-129 s on Windows.
     needs: [changes, invariants]
     if: needs.changes.outputs.infrastructure == 'true'
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -188,9 +190,12 @@ jobs:
     # read the private reference pack and skip themselves with a stated reason
     # when PEGASUS_REFERENCE_PACK_ROOT is absent, so no filter is needed here
     # and the skips are visible in the run, not hidden by a filter.
+    #
+    # Linux, the platform Web and Worker deploy to. R657's measured run
+    # (3 November 2026) was green at 209 s against 246-308 s on Windows.
     needs: [changes, invariants]
     if: needs.changes.outputs.code == 'true'
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
@@ -210,9 +215,16 @@ jobs:
     # tests/Pegasus.IntegrationTests/xunit.runner.json, and the shards divide
     # whole classes across six runners. Allow setup/build plus the longest shard
     # and evidence upload: the 2026-09-09 run exhausted a 30-minute job budget.
+    #
+    # Linux with a SQL Server container. LocalDB exists only on Windows; the
+    # container is the runbook's Linux route, reached through the
+    # PEGASUS_TEST_SQL_* variables the harness already reads. The password is
+    # not a secret: the container listens on the runner's own loopback and is
+    # discarded with the job. R657's measured run (3 November 2026) was green
+    # with shards of 576-726 s against 772-1477 s on Windows.
     needs: [changes, invariants]
     if: needs.changes.outputs.code == 'true'
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       # One shard's failure must not hide another shard's coverage report.
@@ -221,6 +233,27 @@ jobs:
         # The shard count is set here; the partition verification and the
         # duration refresh below name the same number.
         shard: [1, 2, 3, 4, 5, 6]
+    services:
+      mssql:
+        # The digest scripts/PegasusPlatform.ps1 pins for local development.
+        image: mcr.microsoft.com/mssql/server@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: Pegasus-Test-${{ github.run_id }}
+        ports:
+          - 1433:1433
+        # The shell inside the container expands the password; the runner
+        # passes the string through as it is.
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P $MSSQL_SA_PASSWORD -C -b -l 5 -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 12
+    env:
+      PEGASUS_TEST_SQL_DATASOURCE: 127.0.0.1,1433
+      PEGASUS_TEST_SQL_USER: sa
+      PEGASUS_TEST_SQL_PASSWORD: Pegasus-Test-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/dotnet-build

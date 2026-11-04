@@ -281,8 +281,14 @@ internal sealed class LocalCaseCustody(
         {
             throw new InvalidDataException("The case custody root metadata is incomplete.");
         }
+        // A root recorded before its Case took the temporary -p suffix (R656)
+        // still belongs to it; local custody keys the folder by Case id.
         if (metadata.CaseId != root.CaseId
-            || !string.Equals(metadata.Reference, root.Reference, StringComparison.Ordinal))
+            || !(string.Equals(metadata.Reference, root.Reference, StringComparison.Ordinal)
+                || string.Equals(
+                    metadata.Reference,
+                    Pegasus.Core.Cases.CaseReferenceFormat.WithoutSuffix(root.Reference),
+                    StringComparison.Ordinal)))
         {
             throw new UnauthorizedAccessException("The custody root does not belong to the requested case.");
         }
