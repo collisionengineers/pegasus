@@ -9,10 +9,10 @@ public sealed class ReportOutcomesTests
     private static readonly DateTimeOffset To = new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
 
     /// <summary>
-    /// Item O: each report counts once under the outcome it was frozen with,
-    /// so the counts add up to Reports produced; an Audit report agrees or
-    /// differs with the reviewed report's recorded outcome, and one whose
-    /// original is not recorded is neither.
+    /// Item O (R673): each report first sent counts once under the outcome
+    /// frozen in the report that send carried, so the counts add up to Reports
+    /// sent; an Audit report agrees or differs with the reviewed report's
+    /// recorded outcome, and one whose original is not recorded is neither.
     /// </summary>
     [Fact]
     public async Task CountsReportsByOutcomeAndAuditsByAgreement()

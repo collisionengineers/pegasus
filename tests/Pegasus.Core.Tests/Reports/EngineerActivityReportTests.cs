@@ -16,7 +16,7 @@ public sealed class EngineerActivityReportTests
         var goneId = Guid.NewGuid();
         var queries = new Counts([
             new(goneId, 4, 1),
-            new(knownId, 2, 7, 2, TimeSpan.FromHours(6))]);
+            new(knownId, 3, 7, 2, TimeSpan.FromHours(6), Resends: 5)]);
         var useCase = new GetEngineerActivityReport(queries, new Accounts(knownId, "engineer.one"));
 
         var report = await useCase.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None);
@@ -25,16 +25,20 @@ public sealed class EngineerActivityReportTests
         Assert.Equal((From, To), queries.Request);
         Assert.Collection(
             report.Rows,
-            row => Assert.Equal(
-                new EngineerActivityRow(knownId, "engineer.one", 2, 7, 2, TimeSpan.FromHours(6)),
-                row),
+            row =>
+            {
+                Assert.Equal(new EngineerActivityRow(knownId, "engineer.one", 3, 7, 2, TimeSpan.FromHours(6), 5), row);
+                // A report counts once in Reports sent; its re-sends are counted on their own.
+                Assert.Equal((1, 2, 5), (row.InspectionReportsSent, row.AuditReportsSent, row.Resends));
+            },
             row => Assert.Equal(new EngineerActivityRow(goneId, ActorDisplayNames.FormerStaff, 4, 1), row));
     }
 
     /// <summary>
     /// Item J: Automation's sends are a row of their own, named as every
-    /// surface names Automation, so the report's Reports sent is every send.
-    /// Person narrows to one staff member and the Automation row leaves.
+    /// surface names Automation, so the report's Reports sent and Re-sends
+    /// cover every send (R673). Person narrows to one staff member and the
+    /// Automation row leaves.
     /// </summary>
     [Fact]
     public async Task AutomationIsItsOwnRowAndPersonNarrowsToOneStaffMember()
@@ -42,13 +46,14 @@ public sealed class EngineerActivityReportTests
         var engineerId = Guid.NewGuid();
         var useCase = new GetEngineerActivityReport(
             new Counts([
-                new(engineerId, 5, 2),
-                new(Guid.Empty, 3, 0, AuditReportsSent: 1) { SenderKind = ActorKind.Automation }]),
+                new(engineerId, 5, 2, Resends: 2),
+                new(Guid.Empty, 3, 0, AuditReportsSent: 1, Resends: 1) { SenderKind = ActorKind.Automation }]),
             new Accounts(engineerId, "engineer.one"));
 
         var report = await useCase.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None);
 
         Assert.Equal(8, report.Rows.Sum(row => row.ReportsSent));
+        Assert.Equal(3, report.Rows.Sum(row => row.Resends));
         var automation = Assert.Single(report.Rows, row => row.SenderKind == ActorKind.Automation);
         Assert.Equal(ActorDisplayNames.Automation, automation.DisplayName);
         Assert.Equal([engineerId], report.People.Select(row => row.EngineerId));
@@ -96,6 +101,7 @@ public sealed class EngineerActivityReportTests
             [new(id, -1, 0)],
             [new(id, 1, 1, AuditReportsSent: 2)],
             [new(id, 1, 1, AverageReceivedToSent: TimeSpan.FromHours(-1))],
+            [new(id, 1, 1, Resends: -1)],
             [new(Guid.Empty, 1, 0)],
             [new(id, 1, 0) { SenderKind = ActorKind.Automation }],
             [new(Guid.Empty, 1, 1) { SenderKind = ActorKind.Automation }],

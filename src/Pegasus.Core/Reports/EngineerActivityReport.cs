@@ -5,20 +5,23 @@ namespace Pegasus.Core.Reports;
 
 /// <summary>
 /// The Engineer Report (MI-01; FRD-17 § Management Reports): per recorded
-/// send actor and period, reports sent and queries received. A report is
-/// credited to the recorded actor of its case-linked Sent evidence: a staff
-/// member by account, and every other kind of sender (Automation) as one row
-/// of its own, so the reports sent agree with Reports by Principal. A query
-/// is credited to the assigned Engineer of its associated case (operator
-/// decision D12). Those are separate dimensions. Both are counted by the time
-/// the mail was sent or received, in the half-open period <c>[from, to)</c>.
+/// sender and period, reports sent, re-sends and queries received. A send is
+/// credited to its recorded sender: a staff member by account, and every
+/// other kind of sender (Automation) as one row of its own, so the reports
+/// sent agree with Reports by Principal. A report counts once, on its first
+/// send, and every later send of it is a re-send (<see cref="ReportSendPolicy"/>,
+/// R673). A query is credited to the assigned Engineer of its associated case
+/// (operator decision D12). Those are separate dimensions. Both are counted
+/// by the time the mail was sent or received, in the half-open period
+/// <c>[from, to)</c>.
 /// </summary>
 public sealed record EngineerActivityCounts(
     Guid EngineerId,
     int ReportsSent,
     int QueriesReceived,
     int AuditReportsSent = 0,
-    TimeSpan? AverageReceivedToSent = null)
+    TimeSpan? AverageReceivedToSent = null,
+    int Resends = 0)
 {
     /// <summary>
     /// The sender's kind. A <see cref="ActorKind.Staff"/> row names its
@@ -43,18 +46,24 @@ public interface IEngineerActivityQueries
         CancellationToken cancellationToken);
 }
 
+/// <param name="ReportsSent">Reports first sent, each once (<see cref="ReportSendPolicy"/>).</param>
 /// <param name="QueriesReceived">Mail classified as a query; disputes and amendment requests included.</param>
 /// <param name="AuditReportsSent">Audit reports sent (<c>CaseWorkPolicy.IsAuditReport</c>: a standalone Audit Case's or an Inspection + Audit Case's Audit); part of <paramref name="ReportsSent"/> (MI-01's Audit uplift).</param>
-/// <param name="AverageReceivedToSent">Instruction received to report sent, averaged over the sends with a known origin; an Audit work's report counts from the Audit's creation.</param>
+/// <param name="AverageReceivedToSent">Instruction received to a report's first send, averaged over those with a known origin; an Audit work's report counts from the Audit's creation (<see cref="ReportSendPolicy.TurnaroundStart"/>).</param>
+/// <param name="Resends">Later sends of reports already sent, counted on their own.</param>
 public sealed record EngineerActivityRow(
     Guid EngineerId,
     string DisplayName,
     int ReportsSent,
     int QueriesReceived,
     int AuditReportsSent = 0,
-    TimeSpan? AverageReceivedToSent = null)
+    TimeSpan? AverageReceivedToSent = null,
+    int Resends = 0)
 {
     public ActorKind SenderKind { get; init; } = ActorKind.Staff;
+
+    /// <summary>Inspection reports sent: the rest of <see cref="ReportsSent"/>.</summary>
+    public int InspectionReportsSent => ReportsSent - AuditReportsSent;
 }
 
 public sealed record EngineerActivityReport(
@@ -117,6 +126,7 @@ public sealed class GetEngineerActivityReport(
             || item.QueriesReceived < 0
             || item.AuditReportsSent < 0
             || item.AuditReportsSent > item.ReportsSent
+            || item.Resends < 0
             || item.AverageReceivedToSent < TimeSpan.Zero))
         {
             throw new InvalidDataException("The Engineer activity query returned an invalid row.");
@@ -137,7 +147,8 @@ public sealed class GetEngineerActivityReport(
                 item.ReportsSent,
                 item.QueriesReceived,
                 item.AuditReportsSent,
-                item.AverageReceivedToSent)
+                item.AverageReceivedToSent,
+                item.Resends)
             {
                 SenderKind = item.SenderKind
             })

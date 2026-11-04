@@ -19,7 +19,7 @@ public sealed record WorkbookColumn(string Title, WorkbookColumnKind Kind);
 
 /// <summary>
 /// The one naming of a Management Reports column split by work: the measure's
-/// own label with the work it counts, e.g. "Reports produced · Inspection".
+/// own label with the work it counts, e.g. "Reports sent · Inspection".
 /// </summary>
 public static class ReportColumnTitles
 {
@@ -46,15 +46,11 @@ public static class AdministrationReportHeadings
     public const string Person = "Person";
     public const string QueriesReceived = "Queries received";
     public const string ReportsSent = "Reports sent";
-    public const string AuditReportsSent = "Audit reports sent";
+    public const string Resends = "Re-sends";
     public const string ReceivedToSent = "Received to sent";
     public const string Principal = "Principal";
-    public const string ReportsProduced = "Reports produced";
     public const string AgreedFees = "Agreed fees";
     public const string Month = "Month";
-    public const string FeeNotesProduced = "Fee notes produced";
-    public const string TimeToProduce = "Time to produce";
-    public const string TimeToReady = "Time to ready";
     public const string TimeToSend = "Time to send";
     public const string CurrentlyHeld = "Currently held";
     public const string OldestHeldSince = "Oldest held since";
@@ -106,14 +102,15 @@ public static class AdministrationReportTables
             [
                 new(AdministrationReportHeadings.Person, WorkbookColumnKind.Text),
                 new(AdministrationReportHeadings.QueriesReceived, WorkbookColumnKind.Count),
-                new(AdministrationReportHeadings.ReportsSent, WorkbookColumnKind.Count),
-                new(AdministrationReportHeadings.AuditReportsSent, WorkbookColumnKind.Count),
+                .. Split(AdministrationReportHeadings.ReportsSent, WorkbookColumnKind.Count),
+                new(AdministrationReportHeadings.Resends, WorkbookColumnKind.Count),
                 new(AdministrationReportHeadings.ReceivedToSent, WorkbookColumnKind.Text)
             ],
             report.Rows.Select(row => (IReadOnlyList<object?>)
             [
                 row.DisplayName, row.QueriesReceived,
-                row.ReportsSent, row.AuditReportsSent, Turnaround(row.AverageReceivedToSent, labels)
+                row.ReportsSent, row.InspectionReportsSent, row.AuditReportsSent,
+                row.Resends, Turnaround(row.AverageReceivedToSent, labels)
             ]).ToArray(),
             Totals: true);
     }
@@ -125,23 +122,22 @@ public static class AdministrationReportTables
             AdministrationReportHeadings.ReportsByPrincipal,
             [
                 new(AdministrationReportHeadings.Principal, WorkbookColumnKind.Text),
-                .. Split(AdministrationReportHeadings.ReportsProduced, WorkbookColumnKind.Count),
                 .. Split(AdministrationReportHeadings.ReportsSent, WorkbookColumnKind.Count),
+                .. Split(AdministrationReportHeadings.Resends, WorkbookColumnKind.Count),
                 .. Split(AdministrationReportHeadings.AgreedFees, WorkbookColumnKind.Money)
             ],
-            report.Rows
-                .Where(row => row.ReportsProduced > 0 || row.Sent > 0)
+            PrincipalRows(report)
                 .Select(row => (IReadOnlyList<object?>)
                 [
                     row.PrincipalCode,
-                    row.ReportsProduced, row.InspectionReportsProduced, row.AuditReportsProduced,
                     row.Sent, row.InspectionSent, row.AuditSent,
+                    row.Resends, row.InspectionResends, row.AuditResends,
                     row.AgreedFeeTotal, row.InspectionAgreedFeeTotal, row.AuditAgreedFeeTotal
                 ]).ToArray(),
             Totals: true);
     }
 
-    /// <summary>The period's times; the held figures are now, so they are Queues'.</summary>
+    /// <summary>The period's time to send; the held figures are now, so they are Queues'.</summary>
     public static WorkbookSheet Turnaround(PrincipalReportActivityReport report, IAdministrationReportLabels labels)
     {
         ArgumentNullException.ThrowIfNull(report);
@@ -150,16 +146,12 @@ public static class AdministrationReportTables
             AdministrationReportHeadings.Turnaround,
             [
                 new(AdministrationReportHeadings.Principal, WorkbookColumnKind.Text),
-                new(AdministrationReportHeadings.TimeToProduce, WorkbookColumnKind.Text),
-                new(AdministrationReportHeadings.TimeToReady, WorkbookColumnKind.Text),
                 new(AdministrationReportHeadings.TimeToSend, WorkbookColumnKind.Text)
             ],
             TurnaroundRows(report)
                 .Select(row => (IReadOnlyList<object?>)
                 [
                     row.PrincipalCode,
-                    Turnaround(row.AverageReceivedToGeneration, labels),
-                    Turnaround(row.AverageReceivedToReady, labels),
                     Turnaround(row.AverageReceivedToSent, labels)
                 ]).ToArray(),
             Totals: false);
@@ -173,17 +165,15 @@ public static class AdministrationReportTables
             [
                 new(AdministrationReportHeadings.Month, WorkbookColumnKind.Text),
                 new(AdministrationReportHeadings.Principal, WorkbookColumnKind.Text),
-                .. Split(AdministrationReportHeadings.ReportsProduced, WorkbookColumnKind.Count),
-                .. Split(AdministrationReportHeadings.FeeNotesProduced, WorkbookColumnKind.Count),
                 .. Split(AdministrationReportHeadings.ReportsSent, WorkbookColumnKind.Count),
+                .. Split(AdministrationReportHeadings.Resends, WorkbookColumnKind.Count),
                 .. Split(AdministrationReportHeadings.AgreedFees, WorkbookColumnKind.Money)
             ],
             monthly.Select(row => (IReadOnlyList<object?>)
             [
                 row.MonthLabel, row.PrincipalCode,
-                row.ReportsGenerated, row.InspectionReportsGenerated, row.AuditReportsGenerated,
-                row.FeeNotesGenerated, row.InspectionFeeNotesGenerated, row.AuditFeeNotesGenerated,
                 row.Sent, row.InspectionSent, row.AuditSent,
+                row.Resends, row.InspectionResends, row.AuditResends,
                 row.AgreedFeeTotal, row.InspectionAgreedFeeTotal, row.AuditAgreedFeeTotal
             ]).ToArray(),
             Totals: true);
@@ -231,11 +221,13 @@ public static class AdministrationReportTables
             Totals: true);
     }
 
-    /// <summary>Turnaround's rows: a Principal with any time in the period.</summary>
+    /// <summary>Reports by Principal's rows: a Principal with a report sent or a re-send in the period.</summary>
+    public static IEnumerable<PrincipalReportActivity> PrincipalRows(PrincipalReportActivityReport report) =>
+        report.Rows.Where(row => row.Sent > 0 || row.Resends > 0);
+
+    /// <summary>Turnaround's rows: a Principal with a time to send in the period.</summary>
     public static IEnumerable<PrincipalReportActivity> TurnaroundRows(PrincipalReportActivityReport report) =>
-        report.Rows.Where(row => row.AverageReceivedToGeneration.HasValue
-            || row.AverageReceivedToReady.HasValue
-            || row.AverageReceivedToSent.HasValue);
+        report.Rows.Where(row => row.AverageReceivedToSent.HasValue);
 
     /// <summary>Queues' rows: a Principal with a held Case or an open Triage now.</summary>
     public static IEnumerable<PrincipalReportActivity> QueueRows(PrincipalReportActivityReport report) =>
@@ -268,30 +260,27 @@ public static class AdministrationReportTables
 }
 
 /// <summary>
-/// One Principal's report activity in one London month (MI-02's periods,
-/// feeding invoice generation): what was produced, what was sent, and the
-/// agreed fees on the Cases whose reports were produced that month.
+/// One Principal's reports in one London month (MI-02's periods, feeding
+/// invoice generation): the reports first sent that month, the re-sends, and
+/// the agreed fees frozen in the reports those first sends carried
+/// (<see cref="ReportSendPolicy"/>, R673).
 /// </summary>
 public sealed record MonthlyReportActivity(
     Guid PrincipalId,
     string PrincipalCode,
     int Year,
     int Month,
-    int ReportsGenerated,
-    int FeeNotesGenerated,
     int Sent,
+    int Resends,
     decimal AgreedFeeTotal,
-    int AuditReportsGenerated = 0,
     int AuditSent = 0,
-    decimal AuditAgreedFeeTotal = 0,
-    int AuditFeeNotesGenerated = 0)
+    int AuditResends = 0,
+    decimal AuditAgreedFeeTotal = 0)
 {
     // MI-02: each total splits into Inspection and Audit reports.
-    public int InspectionReportsGenerated => ReportsGenerated - AuditReportsGenerated;
-
-    public int InspectionFeeNotesGenerated => FeeNotesGenerated - AuditFeeNotesGenerated;
-
     public int InspectionSent => Sent - AuditSent;
+
+    public int InspectionResends => Resends - AuditResends;
 
     public decimal InspectionAgreedFeeTotal => AgreedFeeTotal - AuditAgreedFeeTotal;
 
@@ -340,17 +329,14 @@ public sealed class GetMonthlyReportActivity(IMonthlyReportActivityQueries queri
         || string.IsNullOrWhiteSpace(row.PrincipalCode)
         || row.Year is < 1 or > 9999
         || row.Month is < 1 or > 12
-        || row.ReportsGenerated < 0
-        || row.FeeNotesGenerated < 0
         || row.Sent < 0
+        || row.Resends < 0
         || row.AgreedFeeTotal < 0
         // MI-02's Audit share is part of each total.
-        || row.AuditReportsGenerated < 0
-        || row.AuditReportsGenerated > row.ReportsGenerated
-        || row.AuditFeeNotesGenerated < 0
-        || row.AuditFeeNotesGenerated > row.FeeNotesGenerated
         || row.AuditSent < 0
         || row.AuditSent > row.Sent
+        || row.AuditResends < 0
+        || row.AuditResends > row.Resends
         || row.AuditAgreedFeeTotal < 0
         || row.AuditAgreedFeeTotal > row.AgreedFeeTotal;
 }

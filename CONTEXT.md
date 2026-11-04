@@ -146,6 +146,14 @@ _Avoid_: First sent to Engineer (the per-Case event), reports sent
 The Work Centre metric for instructed Cases created within the Europe/London day or Monday-based week, including Cases later completed or given a cancellation/rejection disposition and excluding Image intakes, Triage Cases and `Unidentified`.
 _Avoid_: In today, Due today, received today
 
+**Reports sent**:
+The count of reports first sent, on the Work Centre and in Management Reports alike: each report once, at the first Pegasus report e-mail that carried it. An Inspection + Audit Case's Inspection report and Audit report are two reports, even when one e-mail carried both. Generating a report is never counted ([R673](docs/rulings.md), [FRD-17](docs/frd/frd-17-administration-workspace.md#management-reports)).
+_Avoid_: Reports produced, Cases sent, report e-mails, Report sent (the Case stage)
+
+**Re-send**:
+Any later send of a report already sent. It is counted on its own and never as another report sent ([R673](docs/rulings.md)).
+_Avoid_: Second report, duplicate
+
 **Not ready**:
 A created Case state for an instructed Case whose ordinary business details, required source images, or other progression requirements remain incomplete. Image quality and coverage assessments are advisory and never make a Case `Not ready`; pre-Case Image intake is not a Case state.
 _Avoid_: Unidentified

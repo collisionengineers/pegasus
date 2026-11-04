@@ -19,25 +19,34 @@ public enum CaseListFacts
     Assessment = 2,
     ReportFigures = 4,
     Sends = 8,
-    Activity = 16
+    Activity = 16,
+
+    /// <summary>The agreed fee frozen in the report each report's first send carried, read with <see cref="Sends"/>.</summary>
+    SentFees = 32
 }
 
 /// <summary>
-/// One work's facts (MI-04): its recorded findings for the paths asked for,
-/// the agreed fee frozen in its first confirmed report (the fee MI-02 adds up),
-/// the repair cost and signatory of its latest confirmed report, and its first
-/// report send.
+/// One work's facts (MI-04): its own accepted case-data values and recorded
+/// findings for the fields and paths asked for, the repair cost and
+/// signatory of its latest confirmed report, and its report's sends
+/// (<see cref="ReportSendPolicy"/>, R673): the first, who made it and the
+/// agreed fee frozen in the report it carried (the fee MI-02 adds up), and
+/// how many re-sends followed.
 /// </summary>
 public sealed record CaseListWorkFacts(
     IReadOnlyDictionary<string, string> Assessment,
-    decimal? FirstReportAgreedFee = null,
+    decimal? SentReportAgreedFee = null,
     decimal? LatestReportRepairCost = null,
     Guid? LatestReportSignatoryId = null,
     DateTimeOffset? FirstSentAtUtc = null,
     ActorKind? FirstSentByKind = null,
-    string? FirstSentBySubjectId = null)
+    string? FirstSentBySubjectId = null,
+    int Resends = 0)
 {
     public static CaseListWorkFacts Empty { get; } = new(new Dictionary<string, string>());
+
+    /// <summary>The accepted value of each case-data field asked for, from this work's own copy; Create audit gives the Audit its copy.</summary>
+    public IReadOnlyDictionary<string, string> ClaimData { get; init; } = new Dictionary<string, string>();
 }
 
 /// <summary>The Case's activity counts. Queries are mail classified as a query linked to the Case, disputes and amendment requests included.</summary>
@@ -57,8 +66,7 @@ public sealed record CaseListActivity(
 /// <summary>
 /// One Case as the adapter reads it. <see cref="Primary"/> is the Case's own
 /// work; <see cref="AuditWork"/> is an Inspection + Audit Case's Audit once it
-/// has been created. <see cref="ClaimData"/> holds the accepted value of each
-/// case-data field asked for.
+/// has been created.
 /// </summary>
 public sealed record CaseListRecord(
     Guid CaseId,
@@ -71,7 +79,6 @@ public sealed record CaseListRecord(
     TriageState? TriageState,
     Guid? AssignedEngineerId,
     Guid? SignOffEngineerId,
-    IReadOnlyDictionary<string, string> ClaimData,
     CaseListWorkFacts Primary,
     CaseListWorkFacts? AuditWork,
     CaseListActivity Activity)
@@ -80,13 +87,29 @@ public sealed record CaseListRecord(
     public bool HasOpenQuery { get; init; }
 }
 
-/// <summary>A record with its people named: the row the columns read.</summary>
+/// <summary>
+/// One report's row, the row the columns read (MI-04; R673): the Case's
+/// record, which report the row is (<see cref="CaseListSide.Inspection"/> or
+/// <see cref="CaseListSide.Audit"/>; <see cref="CaseListSide.Case"/> on a
+/// Triage Case's one row, which has no report), that report's work, null for
+/// an Inspection + Audit Case's Audit before Create audit, and the people
+/// named.
+/// </summary>
 public sealed record CaseListRow(
     CaseListRecord Record,
+    CaseListSide Report,
+    CaseListWorkFacts? Work,
     string? AssignedEngineer,
     string? SignOffEngineer,
-    string? InspectionSentBy,
-    string? AuditSentBy);
+    string? SentBy)
+{
+    /// <summary>
+    /// Whether this is the row of the Case's own work, which carries the
+    /// Case-wide counts. An Inspection + Audit Case's Audit row reads them as
+    /// not applicable, so a total counts each Case once.
+    /// </summary>
+    public bool IsCaseRow => Report != CaseListSide.Audit || Record.Type != CaseType.InspectionAndAudit;
+}
 
 /// <summary>
 /// The Case list's filter. Both dates null is All time; otherwise both are
@@ -120,7 +143,7 @@ public interface ICaseListLabels
     string SalvageCategory(string code);
 }
 
-/// <summary>Which side of a Case a column describes.</summary>
+/// <summary>Which report a row is: the Inspection's, the Audit's, or none on a Triage Case's row.</summary>
 public enum CaseListSide
 {
     Case,
@@ -129,10 +152,10 @@ public enum CaseListSide
 }
 
 /// <summary>
-/// The Case list's rules (MI-04). A column that does not apply to the Case's
-/// type reads <see cref="NotApplicable"/>; one that applies with nothing
-/// recorded yet is blank. A failed or invalid read is never a cell: the whole
-/// list is unavailable.
+/// The Case list's rules (MI-04). A column that does not apply to the row's
+/// report or the Case's type reads <see cref="NotApplicable"/>; one that
+/// applies with nothing recorded yet is blank. A failed or invalid read is
+/// never a cell: the whole list is unavailable.
 /// </summary>
 public static class CaseListPolicy
 {
@@ -143,6 +166,20 @@ public static class CaseListPolicy
     /// <summary>The salvage code that records no category, in words that cannot be mistaken for <see cref="NotApplicable"/>.</summary>
     public const string NotCategorised = "Not categorised";
 
+    /// <summary>The report a row is, in the Case-type words: Inspection or Audit; not applicable on a Triage Case's row.</summary>
+    public static string ReportName(CaseListRow row, ICaseListLabels labels)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        ArgumentNullException.ThrowIfNull(labels);
+        return row.Report switch
+        {
+            CaseListSide.Inspection => labels.CaseType(CaseType.Inspection),
+            CaseListSide.Audit => labels.CaseType(CaseType.Audit),
+            _ => NotApplicable
+        };
+    }
+
+    /// <summary>Whether a Case has the report of a side: an Inspection + Audit Case has both.</summary>
     public static bool Applies(CaseListSide side, CaseType type) => side switch
     {
         CaseListSide.Case => true,
@@ -278,12 +315,19 @@ public sealed record CaseListResult(
     IReadOnlyList<CaseListRow> Rows);
 
 /// <summary>
-/// MI-04: one row per Case received in the period (or ever), open and closed,
-/// with the columns the Administrator chose. Triage Cases are included only
-/// when asked for.
+/// MI-04: one row per report of each Case received in the period (or ever),
+/// open and closed, with the columns the Administrator chose (R673). An
+/// Inspection + Audit Case has two rows, its Inspection's then its Audit's;
+/// every other Case has one. Triage Cases are included only when asked for.
 /// </summary>
 public sealed class GetCaseList(ICaseListQueries queries, IStaffAccountQueries staffAccounts)
 {
+    /// <summary>The reports a Case can have, in its rows' order.</summary>
+    private static readonly CaseListSide[] ReportSides = [CaseListSide.Inspection, CaseListSide.Audit];
+
+    /// <summary>A Triage Case's one row, which has no report.</summary>
+    private static readonly CaseListSide[] TriageSides = [CaseListSide.Case];
+
     public async Task<CaseListResult> ExecuteAsync(CaseListRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -322,27 +366,43 @@ public sealed class GetCaseList(ICaseListQueries queries, IStaffAccountQueries s
         var rows = records
             .OrderByDescending(record => record.ReceivedDate)
             .ThenBy(record => record.Reference, StringComparer.OrdinalIgnoreCase)
-            .Select(record => new CaseListRow(
-                record,
-                Staff(record.AssignedEngineerId, names),
-                Staff(SignOffEngineerId(record, profiles), names),
-                SentBy(CaseListPolicy.Work(record, CaseListSide.Inspection), names),
-                SentBy(record.Type == CaseType.Triage ? null : CaseListPolicy.Work(record, CaseListSide.Audit), names)))
+            .SelectMany(record => Sides(record).Select(side =>
+            {
+                var work = side == CaseListSide.Case ? record.Primary : CaseListPolicy.Work(record, side);
+                return new CaseListRow(
+                    record,
+                    side,
+                    work,
+                    Staff(record.AssignedEngineerId, names),
+                    Staff(SignOffEngineerId(record, work, profiles), names),
+                    side == CaseListSide.Case ? null : SentBy(work, names));
+            }))
             .ToArray();
         return new(request.ReceivedFrom, request.ReceivedTo, columns, rows);
     }
 
+    /// <summary>A Case's rows: one for each report its type has, the Inspection's first; a Triage Case's one row.</summary>
+    private static IEnumerable<CaseListSide> Sides(CaseListRecord record) =>
+        record.Type == CaseType.Triage
+            ? TriageSides
+            : ReportSides.Where(side => CaseListPolicy.Applies(side, record.Type));
+
     /// <summary>
-    /// The signatory: the one frozen in the Case's latest confirmed report,
-    /// else the one the Case would sign with now
-    /// (<see cref="CaseSignOffEngineerResolver"/>).
+    /// The signatory of a row's report: the one frozen in that report's latest
+    /// confirmed generation, else the one the Case would sign with now
+    /// (<see cref="CaseSignOffEngineerResolver"/>). An Audit row before Create
+    /// audit has no report yet, so no signatory.
     /// </summary>
-    private static Guid? SignOffEngineerId(CaseListRecord record, IReadOnlyList<SignOffEngineerProfile> profiles) =>
-        (record.AuditWork ?? record.Primary).LatestReportSignatoryId
-            ?? record.Primary.LatestReportSignatoryId
-            ?? (record.Type == CaseType.Triage
-                ? null
-                : CaseSignOffEngineerResolver.Resolve(record.SignOffEngineerId, record.AssignedEngineerId, profiles)?.StaffId);
+    private static Guid? SignOffEngineerId(
+        CaseListRecord record,
+        CaseListWorkFacts? work,
+        IReadOnlyList<SignOffEngineerProfile> profiles) =>
+        work is null
+            ? null
+            : work.LatestReportSignatoryId
+                ?? (record.Type == CaseType.Triage
+                    ? null
+                    : CaseSignOffEngineerResolver.Resolve(record.SignOffEngineerId, record.AssignedEngineerId, profiles)?.StaffId);
 
     private static IEnumerable<Guid> StaffIds(CaseListRecord record)
     {
@@ -373,7 +433,6 @@ public sealed class GetCaseList(ICaseListQueries queries, IStaffAccountQueries s
         record.CaseId == Guid.Empty
         || string.IsNullOrWhiteSpace(record.Reference)
         || string.IsNullOrWhiteSpace(record.PrincipalCode)
-        || record.ClaimData is null
         || record.Primary is null
         || record.Activity is null
         || (record.Type == CaseType.Triage
