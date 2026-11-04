@@ -199,11 +199,16 @@ one staff can change or clear on its section (operator, 24 September 2026).
 A value it writes is the Case's value, shown with its AI source tag until
 staff change it; there is no per-field review (operator, 25 September 2026).
 A system fill never overwrites it, as it never overwrites a staff value.
-Case-owned facts, fields derived from damage entries and the facts the
-DVLA/DVSA lookup alone records (engine, fuel, colour, tax and MOT expiry) are
-refused. `pegasus_vocabulary_get` lists every assessment field path with its
-type, accepted codes, the format a structured value takes (the damage entries
-of `damage.impacts`), staff label and whether the tool may write it, with the
+Case-owned facts and the facts the DVLA/DVSA lookup alone records (engine,
+fuel, colour, tax and MOT expiry) are refused. The impacts staff enter
+(`assessment.impacts`) and the damage markers (`damage.impacts`) are written
+through `pegasus_assessment_update` like any staff field; there is no impact
+tool of its own (3 November 2026, R646). Skip impacts
+(`assessment.impacts_skipped`) is written the same way, and a write that would
+leave it ticked beside an impact row is refused as it is for staff (v47 item
+D, R649). `pegasus_vocabulary_get` lists every
+assessment field path with its type, accepted codes, the format a structured
+value takes (`assessment.impacts` and `damage.impacts`), staff label and whether the tool may write it, with the
 estimate line types and evidence labels, the repairer VAT statuses and VAT
 categories, the valuation sources and the shared image tags. It also lists
 the enabled staff by id and username, whose ids the assign actions take, and
@@ -318,20 +323,25 @@ submission is not part of it.
   the Principal's suggested recipients), the companion documents chosen
   (omitted, every confirmed document the generation holds, the fee note
   included) and the covering message as written. It is a reply to the
-  Case's instruction e-mail from the mailbox it arrived in; `fromMailbox`
-  names the Outgoing mailbox only for a Case with no instruction e-mail to
-  reply to, which sends a new message
+  Case's instruction e-mail; `fromMailbox` names the Outgoing mailbox it
+  leaves from, and omitted, the same default as the Case page applies: the
+  mailbox the instruction arrived in, or for a staff forward held in
+  instructions@ the mailbox that forwarded it (R651, R652), else the
+  Principal's Send from (4 November 2026, R655)
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
   On a Case that has its Audit, `otherReport` adds the other work's current
   confirmed report to the same email, with `otherAttach` choosing its
   documents as `attach` does. It holds the Case's lease for its one send
   unless a lease token is presented.
 - `pegasus_mail_send` is the staff mail send with a `mode`: `chaser` is the
-  Case's **Send chaser**, recorded as the Case's chaser, with `fromMailbox`
-  naming the Outgoing mailbox only when there is no instruction reply to
-  make; `reply`, `reply_all` and `forward` answer one retained
-  message from the approved mailbox that holds it, with the recipients the
-  message page gives them; `triage_reply` is the Triage Case's reply to its
+  Case's **Send chaser**, recorded as the Case's chaser; `reply`, `reply_all`
+  and `forward` answer one retained message, with the recipients the message
+  page gives them; `forward` leaves the approved mailbox that holds it.
+  `fromMailbox` names the Outgoing mailbox every other send leaves from, and
+  omitted, the staff screen's default applies: the mailbox the message
+  answered arrived in, or for a staff forward held in instructions@ the
+  mailbox that forwarded it (R651, R652), else the Principal's Send from
+  (4 November 2026, R655); `triage_reply` is the Triage Case's reply to its
   origin e-mail, the chaser until the outcome is recorded and the outcome
   reply once Completed ([FRD-03](frd-03-triage.md)). `reply` and
   `reply_all` take `markQueryDone`, the composer's Mark query done tick
@@ -664,9 +674,9 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
 - A reply or reply all takes no recipients of its own; a chaser or forward
   without a To recipient, or with an address that is not a plain e-mail
   address, is refused and nothing is sent.
-- A chaser or report send for a Case with no instruction e-mail to reply
-  to, without `fromMailbox`, is refused; `fromMailbox` beside an
-  instruction reply is refused rather than ignored.
+- A send with no default sender, without `fromMailbox`, is refused; a
+  `fromMailbox` that is not a send-ready Outgoing mailbox, or one on a
+  `forward`, is refused rather than ignored (4 November 2026, R655).
 - Mail is filed against an instruction Case; a Triage Case is answered only
   with `triage_reply`, and a cancelled Triage takes no reply.
 - `pegasus_intake_action accept` is refused while the item's inspection

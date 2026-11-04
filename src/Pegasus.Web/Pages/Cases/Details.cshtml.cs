@@ -678,10 +678,10 @@ public sealed partial class DetailsModel(
     public IReadOnlyList<ReportRecipientCandidate> ReportAddressBook { get; private set; } = [];
 
     /// <summary>
-    /// Who the report leaves as: a reply to the instruction email from the
-    /// mailbox it arrived in, or the Outgoing mailboxes staff choose from.
+    /// Who the report leaves as: the Outgoing mailboxes staff choose from,
+    /// starting on the default sender (R655).
     /// </summary>
-    public CaseMailSenderOptions ReportSenders { get; private set; } = new(null, []);
+    public CaseMailSenderOptions ReportSenders { get; private set; } = CaseMailSenderOptions.None;
 
     /// <summary>What the Case's report has already been sent (v28 P23).</summary>
     public CaseReportSendHistory ReportSendHistory { get; private set; } = CaseReportSendHistory.None;
@@ -699,6 +699,13 @@ public sealed partial class DetailsModel(
     /// 2026), in every state the workspace loads. Null while there is none.
     /// </summary>
     public string? IncidentNarrative { get; private set; }
+
+    /// <summary>
+    /// Whether the Incident narrative is the sentences the impacts compose, so
+    /// the Damage section recomposes it while its impacts are edited; false
+    /// when the Engineer has written their own Nature of Incident wording.
+    /// </summary>
+    public bool IncidentNarrativeFollowsImpacts { get; private set; } = true;
 
     /// <summary>
     /// The accepted statement of truth in its printed parts, from Core, shown
@@ -1315,6 +1322,7 @@ public sealed partial class DetailsModel(
         if (inputs is not null)
         {
             IncidentNarrative = ReportWordingComposition.NatureOfIncidentOf(inputs.Projection);
+            IncidentNarrativeFollowsImpacts = !ReportWordingComposition.NatureOfIncidentIsWorded(inputs.Projection);
             StatementParts = AssessmentReportContract.StatementPartsOf(inputs.Projection);
             if (AssessmentCanOpen)
             {
@@ -2234,7 +2242,7 @@ public sealed partial class DetailsModel(
         DateOnly? reportDate,
         AssetPreparationEditForm[]? preparationEdits,
         ReportWordingEditForm[]? wordingEdits,
-        string? damageImpacts,
+        string? damageMarkers,
         string? repairerName,
         string? repairerAddress,
         Guid? repairerDirectoryId,
@@ -2336,7 +2344,7 @@ public sealed partial class DetailsModel(
                 var wordingSubmitted = wordingEdits is { Length: > 0 };
                 var damageFields = assessmentFields.Where(field => EditorLabels.Damage.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
-                var damageSubmitted = Posted(nameof(damageImpacts)) || damageFields.Count > 0;
+                var damageSubmitted = Posted(nameof(damageMarkers)) || damageFields.Count > 0;
                 // The vehicle's identity (VIN, type, body) and its transmission are
                 // edited wherever the Vehicle section edits, like its registration —
                 // not an Engineer field.
@@ -2505,9 +2513,9 @@ public sealed partial class DetailsModel(
                         vehicleIdentityFields[path] = vehicleFinding;
                     }
                 }
-                var impacts = !Posted(nameof(damageImpacts))
+                var markers = !Posted(nameof(damageMarkers))
                     ? null
-                    : AssessmentPolicy.ParseImpacts(damageImpacts);
+                    : AssessmentPolicy.ParseMarkers(damageMarkers);
                 var recordedDate = DateOnly.TryParseExact(Recorded(AssessmentVocabulary.ReportDate), "yyyy-MM-dd",
                     CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : (DateOnly?)null;
                 // The guide source cards have no Save of their own (23 September
@@ -2565,7 +2573,7 @@ public sealed partial class DetailsModel(
                                 persisted?.VehicleMileageDisplayUnit),
                             vehicleIdentityFields.Count > 0 ? vehicleIdentityFields : null,
                             Submitted(nameof(vehicleYear), vehicleYear, Accepted(data.Vehicle.Year)?.Value)),
-                        Damage = !damageSubmitted ? null : new(impacts, damageFields),
+                        Damage = !damageSubmitted ? null : new(markers, damageFields),
                         ImagePreparation = !preparationSubmitted ? null : new(
                             [.. preparationEdits!.Select(edit => edit.ToRequest())]),
                         Settlement = settlementFields.Count == 0 ? null : new(settlementFields),

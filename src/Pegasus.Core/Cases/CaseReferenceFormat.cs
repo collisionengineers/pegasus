@@ -21,6 +21,30 @@ public static class CaseReferenceFormat
     public const char RepeatSeparator = '.';
 
     /// <summary>
+    /// Ends every Case/PO minted while the Administrator's switch is on, so a
+    /// Pegasus reference never collides with an old-system case number:
+    /// <c>a.QDOS26158-p</c>. Temporary; existing Cases were rewritten to
+    /// carry it when it shipped, on (operator, 4 November 2026; R656).
+    /// </summary>
+    public const string ReferenceSuffix = "-p";
+
+    /// <summary>A finished Case/PO, with <see cref="ReferenceSuffix"/> when the switch is on.</summary>
+    public static string WithSuffix(string reference, bool suffixed)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reference);
+        return suffixed ? reference + ReferenceSuffix : reference;
+    }
+
+    /// <summary>A Case/PO without its <see cref="ReferenceSuffix"/>, if it has one.</summary>
+    public static string WithoutSuffix(string reference)
+    {
+        ArgumentNullException.ThrowIfNull(reference);
+        return reference.EndsWith(ReferenceSuffix, StringComparison.Ordinal)
+            ? reference[..^ReferenceSuffix.Length]
+            : reference;
+    }
+
+    /// <summary>
     /// A one-off Case's Case/PO: the normalised registration alone for the
     /// first one-off of that vehicle, <c>{registration}.{repeat}</c> after.
     /// The registration is already normalised to upper-case letters and
@@ -49,7 +73,8 @@ public static class CaseReferenceFormat
     /// <summary>
     /// The repeat number the next one-off of this registration takes, given
     /// every Case reference already held: one more than the highest taken,
-    /// where the bare registration counts as 1. The highest is used, not a
+    /// where the bare registration counts as 1, with or without its
+    /// <see cref="ReferenceSuffix"/>. The highest is used, not a
     /// count, so a gap can never hand out a reference twice. A one-off Audit's
     /// <c>a.</c> reference takes its repeat from the same count, so
     /// <c>a.AB12CDE</c> and a later <c>AB12CDE.2</c> never share a base
@@ -65,9 +90,10 @@ public static class CaseReferenceFormat
         var prefix = normalisedRegistration + RepeatSeparator;
         foreach (var held in existingReferences)
         {
-            var reference = held.StartsWith(AuditPrefix, StringComparison.Ordinal)
-                ? held[AuditPrefix.Length..]
-                : held;
+            var unsuffixed = WithoutSuffix(held);
+            var reference = unsuffixed.StartsWith(AuditPrefix, StringComparison.Ordinal)
+                ? unsuffixed[AuditPrefix.Length..]
+                : unsuffixed;
             if (string.Equals(reference, normalisedRegistration, StringComparison.Ordinal))
             {
                 highest = Math.Max(highest, 1);

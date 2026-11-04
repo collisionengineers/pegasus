@@ -46,12 +46,9 @@ public sealed class AssessmentReportProjectionTests
                 "PK12TMZ", "Ford", "Focus", "2012", "good", "80,000 miles", "online_data",
                 "VIN12345", "1600", "Petrol"),
             snapshot.Vehicle);
-        var impact = Assert.Single(snapshot.Damage.Impacts);
-        Assert.Equal(["right_rear"], impact.Codes);
-        // Each damage keeps its own severity, which shades its disc.
-        Assert.Equal("moderate", impact.Severity);
-        // The disc the operator drew travels to the report as drawn.
-        Assert.Equal(new DamageDisc(0.86, 0.86, 0.1), impact.Disc);
+        // The impacts staff entered, and the marker as drawn (v46).
+        Assert.Equal(new ReportImpact("moderate", "right_rear"), Assert.Single(snapshot.Damage.Impacts));
+        Assert.Equal(new DamageDisc(0.86, 0.86, 0.1), Assert.Single(snapshot.Damage.Markers));
         Assert.Equal("Door scratch", snapshot.Damage.Unrelated);
         Assert.Equal(DamagePlanGeometry.Car, snapshot.Damage.Profile);
         // Only a contract repair carries an agreed sum.
@@ -139,9 +136,9 @@ public sealed class AssessmentReportProjectionTests
 
     /// <summary>
     /// The Damage section's Incident narrative is the Nature of Incident block
-    /// the report prints (operator, 24 September 2026): the sentence composed
-    /// from the headline impact, or the Engineer's own wording, whether or not
-    /// the report can yet be projected.
+    /// the report prints (operator, 24 September 2026): the sentences composed
+    /// from the impacts staff entered, or the Engineer's own wording, whether
+    /// or not the report can yet be projected.
     /// </summary>
     [Fact]
     public void TheIncidentNarrativeIsTheNatureOfIncidentBlockTheReportPrints()
@@ -160,59 +157,153 @@ public sealed class AssessmentReportProjectionTests
         };
         Assert.Equal(worded, ReportWordingComposition.NatureOfIncidentOf(engineerWording));
         Assert.Equal(worded, PrintedNatureOfIncident(engineerWording));
+        Assert.False(ReportWordingComposition.NatureOfIncidentIsWorded(input));
+        Assert.True(ReportWordingComposition.NatureOfIncidentIsWorded(engineerWording));
 
         // A Case the report cannot yet be projected for reads the same narrative.
         var unsigned = input with { Signatory = null };
         Assert.False(AssessmentReportProjection.Project(unsigned).IsReady);
         Assert.Equal(composed, ReportWordingComposition.NatureOfIncidentOf(unsigned));
 
-        // No headline impact and no wording of the Engineer's: no narrative.
-        var noImpact = input with
+        // No impact and no wording of the Engineer's: no narrative. The report
+        // names Impacts until Skip impacts is ticked, and a skipped Case offers
+        // no Nature of Incident (v46 G; v47, R647–R649).
+        var noImpact = WithImpacts(input, null);
+        Assert.Null(ReportWordingComposition.NatureOfIncidentOf(noImpact));
+        AssertNotReady(AssessmentReportProjection.Project(noImpact), "Impacts");
+        var projected = AssessmentReportProjection.Project(WithSkip(noImpact, "true"));
+        Assert.True(projected.IsReady);
+        Assert.DoesNotContain(projected.Snapshot!.PrintedWording, block => block.Key == ReportWordingComposition.NatureOfIncident);
+    }
+
+    /// <summary>
+    /// Several impacts read the same on the Damage section and on the report:
+    /// a separate sentence for each, one to a line, in the order staff entered
+    /// them (v46 A and A2, operator, 3 November 2026). An impact missing its
+    /// severity or its location is left out (v46 G2), and its note never
+    /// prints. Impact Magnitude names the same impacts.
+    /// </summary>
+    [Fact]
+    public void EachImpactIsItsOwnSentenceOnTheCaseAndOnTheReport()
+    {
+        const string composed =
+            "The vehicle has suffered light collision/impact damage to the front.\n"
+            + "The vehicle has suffered heavy collision/impact damage to the right rear.";
+        var input = WithImpacts(
+            ReadyInput(),
+            "[{\"severity\":\"light\",\"location\":\"front\",\"note\":\"Bonnet\"},"
+            + "{\"severity\":\"moderate\",\"location\":\"\",\"note\":\"Not yet placed\"},"
+            + "{\"severity\":\"heavy\",\"location\":\"right_rear\",\"note\":\"Quarter\"}]");
+
+        Assert.Equal(composed, ReportWordingComposition.NatureOfIncidentOf(input));
+        Assert.Equal(composed, PrintedNatureOfIncident(input));
+        Assert.Equal(composed, ReportWordingComposition.NatureOfIncidentOf(input with { Signatory = null }));
+        var snapshot = AssessmentReportProjection.Project(input).Snapshot!;
+        Assert.Equal([new ReportImpact("light", "front"), new ReportImpact("heavy", "right_rear")], snapshot.Damage.Impacts);
+        Assert.Equal(
+            "Light — front\nHeavy — right rear",
+            AssessmentReportWording.VehicleDetails(snapshot).Single(row => row.Label == "Impact Magnitude").Value);
+    }
+
+    /// <summary>
+    /// The markers are the report's picture only: they reach the snapshot as
+    /// discs and name no impact (v46).
+    /// </summary>
+    [Fact]
+    public void TheMarkersReachTheReportAsDiscs()
+    {
+        var snapshot = AssessmentReportProjection.Project(ReadyInput()).Snapshot!;
+
+        Assert.Equal([new DamageDisc(0.86, 0.86, 0.1)], snapshot.Damage.Markers);
+    }
+
+    /// <summary>
+    /// The report needs an impact or the deliberate Skip impacts (v47 item A,
+    /// operator, 3 November 2026; R647–R649). A row missing its severity or
+    /// location is not an impact, and an unticked skip is no skip.
+    /// </summary>
+    [Fact]
+    public void TheReportNeedsAnImpactOrADeliberateSkip()
+    {
+        Assert.True(AssessmentReportProjection.Project(ReadyInput()).IsReady);
+
+        var noImpact = WithImpacts(ReadyInput(), null);
+        var reason = AssertNotReady(AssessmentReportProjection.Project(noImpact), "Impacts");
+        Assert.Equal("Assessment record", reason.Source);
+        Assert.Equal("No impact is entered.", reason.WhyOutstanding);
+        Assert.Equal("Enter an impact, or tick Skip impacts, on the Damage section.", reason.HowToResolve);
+        Assert.Equal(AssessmentVocabulary.Impacts, reason.Field);
+
+        AssertNotReady(
+            AssessmentReportProjection.Project(WithImpacts(
+                ReadyInput(), "[{\"severity\":\"moderate\",\"location\":\"\",\"note\":\"Not yet placed\"}]")),
+            "Impacts");
+        AssertNotReady(AssessmentReportProjection.Project(WithSkip(noImpact, "false")), "Impacts");
+        Assert.True(AssessmentReportProjection.Project(WithSkip(noImpact, "true")).IsReady);
+    }
+
+    /// <summary>
+    /// The damage markers are always required (operator, 3 November 2026;
+    /// R650): a Case with none names Damage markers whether or not Skip
+    /// impacts is ticked, and markers beside a skip are a ready Case.
+    /// </summary>
+    [Fact]
+    public void TheReportAlwaysNeedsADamageMarker()
+    {
+        var noMarkers = WithMarkers(ReadyInput(), null);
+        var reason = AssertNotReady(AssessmentReportProjection.Project(noMarkers), "Damage markers");
+        Assert.Equal("Assessment record", reason.Source);
+        Assert.Equal("No damage marker is drawn.", reason.WhyOutstanding);
+        Assert.Equal("Draw a marker on the plan on the Damage section.", reason.HowToResolve);
+        Assert.Equal(AssessmentVocabulary.DamageMarkers, reason.Field);
+        AssertNotReady(AssessmentReportProjection.Project(WithMarkers(ReadyInput(), "[]")), "Damage markers");
+
+        var skippedWithoutMarkers = WithSkip(WithImpacts(noMarkers, null), "true");
+        var skippedReason = AssertNotReady(AssessmentReportProjection.Project(skippedWithoutMarkers), "Damage markers");
+        Assert.Equal(AssessmentVocabulary.DamageMarkers, skippedReason.Field);
+
+        var skippedWithMarkers = WithSkip(WithImpacts(ReadyInput(), null), "true");
+        Assert.True(AssessmentReportProjection.Project(skippedWithMarkers).IsReady);
+    }
+
+    private static AssessmentReportProjectionInput WithMarkers(AssessmentReportProjectionInput input, string? markers) =>
+        input with
         {
             Assessment = input.Assessment with
             {
                 Fields =
                 [
-                    .. input.Assessment.Fields.Where(field =>
-                        field.Path is not (AssessmentVocabulary.ImpactSeverity or AssessmentVocabulary.ImpactLocation))
+                    .. input.Assessment.Fields.Where(field => field.Path != AssessmentVocabulary.DamageMarkers),
+                    .. markers is null ? Array.Empty<AssessmentFieldValue>() : [Field(AssessmentVocabulary.DamageMarkers, markers)],
                 ]
             }
         };
-        Assert.Null(ReportWordingComposition.NatureOfIncidentOf(noImpact));
-    }
 
-    /// <summary>
-    /// Damage to several areas reads the same on the Damage section and on the
-    /// report: the manager's case page's sentence
-    /// (pegasus_case_dashboard_2026-09-15.html, lines 1161 to 1163), with the
-    /// areas the recorded damages name.
-    /// </summary>
-    [Fact]
-    public void DamageToSeveralAreasReadsTheSameOnTheCaseAndOnTheReport()
-    {
-        const string composed =
-            "The vehicle has suffered heavy collision/impact damage to the following areas:"
-            + "\n— Front"
-            + "\n— Right rear";
-        var ready = ReadyInput();
-        AssessmentFieldValue[] fields =
-        [
-            .. ready.Assessment.Fields.Where(field => field.Path is not (
-                AssessmentVocabulary.ImpactSeverity
-                or AssessmentVocabulary.ImpactLocation
-                or AssessmentVocabulary.DamageImpacts)),
-            Field(AssessmentVocabulary.ImpactSeverity, "heavy"),
-            Field(AssessmentVocabulary.ImpactLocation, "multiple"),
-            Field(
-                AssessmentVocabulary.DamageImpacts,
-                "[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"Bonnet\"},{\"areas\":[\"right_rear\"],\"severity\":\"heavy\",\"note\":\"Quarter\"}]"),
-        ];
-        var input = ready with { Assessment = ready.Assessment with { Fields = fields } };
+    private static AssessmentReportProjectionInput WithSkip(AssessmentReportProjectionInput input, string skipped) =>
+        input with
+        {
+            Assessment = input.Assessment with
+            {
+                Fields =
+                [
+                    .. input.Assessment.Fields.Where(field => field.Path != AssessmentVocabulary.ImpactsSkipped),
+                    Field(AssessmentVocabulary.ImpactsSkipped, skipped),
+                ]
+            }
+        };
 
-        Assert.Equal(composed, ReportWordingComposition.NatureOfIncidentOf(input));
-        Assert.Equal(composed, PrintedNatureOfIncident(input));
-        Assert.Equal(composed, ReportWordingComposition.NatureOfIncidentOf(input with { Signatory = null }));
-    }
+    private static AssessmentReportProjectionInput WithImpacts(AssessmentReportProjectionInput input, string? impacts) =>
+        input with
+        {
+            Assessment = input.Assessment with
+            {
+                Fields =
+                [
+                    .. input.Assessment.Fields.Where(field => field.Path != AssessmentVocabulary.Impacts),
+                    .. impacts is null ? Array.Empty<AssessmentFieldValue>() : [Field(AssessmentVocabulary.Impacts, impacts)],
+                ]
+            }
+        };
 
     /// <summary>
     /// A Case with no mileage prints the template's word for it
@@ -997,9 +1088,8 @@ public sealed class AssessmentReportProjectionTests
             Field(AssessmentVocabulary.VehicleBody, "Hatchback"),
             Field(AssessmentVocabulary.VehicleTaxExpiry, "2027-01-02"),
             Field(AssessmentVocabulary.VehicleMotExpiry, "2027-03-04"),
-            Field(AssessmentVocabulary.ImpactSeverity, "moderate"),
-            Field(AssessmentVocabulary.ImpactLocation, "right_rear"),
-            Field(AssessmentVocabulary.DamageImpacts, "[{\"areas\":[\"right_rear\"],\"disc\":{\"x\":0.86,\"y\":0.86,\"r\":0.1},\"severity\":\"moderate\",\"note\":\"Quarter panel\"}]"),
+            Field(AssessmentVocabulary.Impacts, "[{\"severity\":\"moderate\",\"location\":\"right_rear\",\"note\":\"Quarter panel\"}]"),
+            Field(AssessmentVocabulary.DamageMarkers, "[{\"x\":0.86,\"y\":0.86,\"r\":0.1}]"),
             Field(AssessmentVocabulary.DamageUnrelated, "Door scratch"),
             Field(AssessmentVocabulary.ValueRetail, "5000.00"),
             Field(AssessmentVocabulary.ValueTrade, "4000.00"),

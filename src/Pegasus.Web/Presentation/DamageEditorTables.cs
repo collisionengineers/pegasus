@@ -1,29 +1,21 @@
 using System.Text.Json;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Reports;
 
 namespace Pegasus.Web.Presentation;
 
 /// <summary>
-/// The Damage editor's vocabulary and plan as the JSON the browser reads. Both
+/// The Damage editor's plan and words as the JSON the browser reads. Both
 /// depend only on constants, so each is serialised once, not on every render.
 /// </summary>
 public static class DamageEditorTables
 {
-    // The vocabulary and the plan the editor works with, handed to script once
-    // so the browser holds no second copy of the areas, the bands, the disc
-    // limits or the severity table.
-    public static readonly string AreaTable = JsonSerializer.Serialize(new
+    // The plan the marker editor works with, handed to script once so the
+    // browser holds no second copy of the body box, the disc limits or the
+    // burst.
+    public static readonly string PlanTable = JsonSerializer.Serialize(new
     {
-        plan = AssessmentVocabulary.DamagePlanAreas,
-        other = AssessmentVocabulary.DamageOtherAreas,
-        names = AssessmentVocabulary.DamageAreas,
-        centres = DamageAreaGeometry.Centres.ToDictionary(
-            entry => entry.Key,
-            entry => new { x = entry.Value.X, y = entry.Value.Y }),
         box = new { x = DamagePlanGeometry.PlanLeft, y = DamagePlanGeometry.PlanTop, w = DamagePlanGeometry.PlanWidth, h = DamagePlanGeometry.PlanHeight },
-        bands = new { front = DamageAreaGeometry.FrontBand, rear = DamageAreaGeometry.RearBand, left = DamageAreaGeometry.LeftBand, right = DamageAreaGeometry.RightBand },
-        radius = DamageAreaGeometry.BaseRadius,
-        margin = DamageAreaGeometry.Margin,
         minRadius = DamageAreaGeometry.MinRadius,
         maxRadius = DamageAreaGeometry.MaxRadius,
         burst = new
@@ -41,7 +33,13 @@ public static class DamageEditorTables
         }
     });
 
-    public static readonly string SeverityTable = JsonSerializer.Serialize(AssessmentVocabulary.DamageSeverities
-        .OrderBy(entry => entry.Value.Rank)
-        .Select(entry => new { k = entry.Key, n = entry.Value.Display }));
+    // The Incident narrative the impact rows compose while the section edits:
+    // Core's Nature of Incident sentence and the words it fills in, so the
+    // browser writes no wording of its own.
+    public static readonly string NarrativeTable = JsonSerializer.Serialize(new
+    {
+        sentence = ReportWordingComposition.NatureOfIncidentPattern,
+        severities = AssessmentVocabulary.DamageSeverities.Keys.ToDictionary(code => code, ReportWordingComposition.Words),
+        locations = AssessmentVocabulary.DamageAreaCodes.ToDictionary(code => code, ReportWordingComposition.Words)
+    });
 }

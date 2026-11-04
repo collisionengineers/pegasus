@@ -255,7 +255,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         var crop = new CaseAssetCrop(.1m, .2m, .5m, .6m);
         var request = Request(harness, initial.Version, lease.Token, "save-workspace-crop") with
         {
-            Damage = new([new(["left_front"], "light", "Scuffed")], null),
+            Damage = new([new DamageDisc(0.18, 0.2, 0.12)], null),
             ImagePreparation = new([new(occurrenceId, 99, null, CaseAssetRotation.Clockwise90, crop)])
         };
         await Assert.ThrowsAsync<CaseAssetPreparationVersionConflictException>(() => harness.WorkspaceStore.SaveAsync(request, default));
@@ -266,7 +266,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
             ImagePreparation = new([new(occurrenceId, 0, null, CaseAssetRotation.Clockwise90, crop)])
         }, default);
         Assert.Equal(initial.Version + 1, saved.Version);
-        Assert.Equal("left_front", saved.Assessment.Field(AssessmentVocabulary.ImpactLocation)?.Value);
+        Assert.Equal("[{\"x\":0.18,\"y\":0.2,\"r\":0.12}]", saved.Assessment.Field(AssessmentVocabulary.DamageMarkers)?.Value);
         var preparation = Assert.Single(await new EfCaseAssetPreparationStore(harness.Factory).ListForCaseAsync(harness.CaseId, default));
         Assert.Equal(crop, preparation.Crop);
         Assert.Equal(CaseAssetRotation.Clockwise90, preparation.Rotation);
@@ -303,7 +303,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
                         [AssessmentVocabulary.VehicleCondition] = "good",
                         [AssessmentVocabulary.HistoryCheck] = "History clear"
                     }),
-                Damage = new([new(["left_front"], "light", "Scuffed")], new Dictionary<string, string?>(StringComparer.Ordinal)
+                Damage = new([new DamageDisc(0.18, 0.2, 0.12)], new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
                     [AssessmentVocabulary.DamageUnrelated] = "Old rear bumper scrape",
                 }),
@@ -338,11 +338,11 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         Assert.Equal("History clear", result.Assessment.Field(AssessmentVocabulary.HistoryCheck)?.Value);
         Assert.Equal("20.00", result.Assessment.Field(AssessmentVocabulary.SettlementStoragePerDay)?.Value);
         Assert.Equal("120.00", result.Assessment.Field(AssessmentVocabulary.CostRecoveryCharge)?.Value);
-        // The headline impact location is derived from the impacts, never
-        // written directly.
+        // The markers are kept as drawn and nothing is derived from them (v46).
         Assert.Equal(
-            "left_front",
-            result.Assessment.Fields.Single(field => field.Path == AssessmentVocabulary.ImpactLocation).Value);
+            "[{\"x\":0.18,\"y\":0.2,\"r\":0.12}]",
+            result.Assessment.Fields.Single(field => field.Path == AssessmentVocabulary.DamageMarkers).Value);
+        Assert.DoesNotContain(result.Assessment.Fields, field => field.Path.StartsWith("assessment.impact_", StringComparison.Ordinal));
         Assert.Equal("Old rear bumper scrape", result.Assessment.Field(AssessmentVocabulary.DamageUnrelated)?.Value);
     }
 
@@ -964,7 +964,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
                 Request(harness, initial.Version + 5, lease.Token, "workspace-stale") with
                 {
                     Overview = Overview("Never written"),
-                    Damage = new([new(["front"], "heavy", "Never written")], null)
+                    Damage = new([new DamageDisc(0.5, 0.1, 0.12)], null)
                 },
                 CancellationToken.None));
 
@@ -1238,11 +1238,11 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         var saved = await harness.WorkspaceStore.SaveAsync(
             Request(harness, initial.Version, lease.Token, "workspace-lapsed-holder") with
             {
-                Damage = new([new(["left_front"], "light", "Scuffed")], null)
+                Damage = new([new DamageDisc(0.18, 0.2, 0.12)], null)
             },
             CancellationToken.None);
         Assert.Equal(initial.Version + 1, saved.Version);
-        Assert.Equal("left_front", saved.Assessment.Field(AssessmentVocabulary.ImpactLocation)?.Value);
+        Assert.Equal("[{\"x\":0.18,\"y\":0.2,\"r\":0.12}]", saved.Assessment.Field(AssessmentVocabulary.DamageMarkers)?.Value);
 
         var again = await harness.AcquireLeaseAsync(saved.Version, harness.StaffActor, "lease-lapsed-holder-again");
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(6));
@@ -1255,7 +1255,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
             harness.WorkspaceStore.SaveAsync(
                 Request(harness, saved.Version, again.Token, "workspace-lapsed-after-colleague") with
                 {
-                    Damage = new([new(["front"], "heavy", "Never written")], null)
+                    Damage = new([new DamageDisc(0.5, 0.1, 0.12)], null)
                 },
                 CancellationToken.None));
 

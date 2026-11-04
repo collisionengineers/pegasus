@@ -78,12 +78,6 @@ public sealed class ReportRequirementOwnershipTests
             {
                 writers.Add("its Case section");
             }
-            // AssessmentWriteSet derives these from the damage impacts.
-            if (AssessmentVocabulary.DerivedPaths.Contains(path)
-                && CaseWorkspaceLabels.Editors.HasStaffEditor(AssessmentVocabulary.DamageImpacts))
-            {
-                writers.Add("the damage derivation");
-            }
             // The DVLA/DVSA lookup records these.
             if (AssessmentVocabulary.LookupDerivedPaths.Contains(path))
             {
@@ -205,8 +199,7 @@ public sealed class ReportRequirementOwnershipTests
         var accepted = new List<string>();
         foreach (var path in AssessmentVocabulary.Definitions.Keys)
         {
-            if (AssessmentVocabulary.DerivedPaths.Contains(path)
-                || AssessmentVocabulary.LookupDerivedPaths.Contains(path))
+            if (AssessmentVocabulary.LookupDerivedPaths.Contains(path))
             {
                 continue;
             }
@@ -236,12 +229,13 @@ public sealed class ReportRequirementOwnershipTests
         // facts gone since 9 October 2026), 1 Valuation (the Engineer's Value:
         // Retail and Trade follow the chosen guide card since 8 October 2026),
         // 4 original report, 9 Report (FAO The Court and Include statement of
-        // truth since 2 November 2026; R610, R611), 1 Damage (the unrelated
-        // damage) and 4 Vehicle editors, the vehicle history and condition,
+        // truth since 2 November 2026; R610, R611), 3 Damage (the impacts staff
+        // enter since 3 November 2026, R646, Skip impacts since v47, R649, and the
+        // unrelated damage) and 4 Vehicle editors, the vehicle history and condition,
         // and the 4 typed Case-save paths (the mileage source pick gone since
         // 12 October 2026). A new editor changes this count on purpose: it
         // widens what automation may write.
-        Assert.Equal(32, accepted.Count);
+        Assert.Equal(34, accepted.Count);
     }
 
     [Theory]
@@ -257,7 +251,6 @@ public sealed class ReportRequirementOwnershipTests
     [InlineData(AssessmentVocabulary.VehicleType, null, "vehicle")]
     [InlineData(AssessmentVocabulary.VehicleCondition, null, "vehicle")]
     [InlineData(AssessmentVocabulary.HistoryCheck, null, "vehicle")]
-    [InlineData(AssessmentVocabulary.ImpactSeverity, null, "damage")]
     [InlineData(AssessmentVocabulary.DamageUnrelated, null, "damage")]
     [InlineData(AssessmentVocabulary.AgreedFee, null, "report")]
     [InlineData(AssessmentVocabulary.ReportDate, null, "report")]
@@ -337,9 +330,6 @@ public sealed class ReportRequirementOwnershipTests
             [Named(AssessmentVocabulary.AgreedFee), Named(AssessmentVocabulary.ReportDate), Named(AssessmentVocabulary.ReportValuationCommentaryText)],
             [Named(AssessmentVocabulary.ReportDate), Named(AssessmentVocabulary.ReportValuationCommentaryText), Named(AssessmentVocabulary.AgreedFee)]);
         AssertPageOrder(
-            [Named(AssessmentVocabulary.ImpactSeverity), Named(AssessmentVocabulary.ImpactLocation), Named(AssessmentVocabulary.DamageUnrelated)],
-            [Named(AssessmentVocabulary.ImpactLocation), Named(AssessmentVocabulary.ImpactSeverity), Named(AssessmentVocabulary.DamageUnrelated)]);
-        AssertPageOrder(
             [Named(AssessmentVocabulary.Outcome), Named(AssessmentVocabulary.LegalStatus), Named(AssessmentVocabulary.UnroadworthyReason), Named(AssessmentVocabulary.SalvageCategory)],
             [Named(AssessmentVocabulary.Outcome), Named(AssessmentVocabulary.SalvageCategory), Named(AssessmentVocabulary.LegalStatus), Named(AssessmentVocabulary.UnroadworthyReason)]);
         AssertPageOrder(
@@ -376,7 +366,6 @@ public sealed class ReportRequirementOwnershipTests
         Assert.All(AssessmentVocabulary.LookupDerivedPaths, path =>
         {
             Assert.Contains(path, AssessmentVocabulary.Definitions);
-            Assert.DoesNotContain(path, AssessmentVocabulary.DerivedPaths);
             Assert.DoesNotContain(path, AssessmentVocabulary.CaseOwnedPaths);
             Assert.False(CaseWorkspaceLabels.Editors.HasStaffEditor(path));
             // MCP lets the path through, so Core's field save names the refusal.
@@ -523,6 +512,9 @@ public sealed class ReportRequirementOwnershipTests
     {
         AssessmentVocabulary.Outcome => "repairable",
         AssessmentVocabulary.LegalStatus => "roadworthy",
+        // A complete impact: the report needs one or Skip impacts (v47, R647–R649).
+        AssessmentVocabulary.Impacts => "[{\"severity\":\"moderate\",\"location\":\"rear\",\"note\":\"\"}]",
+        AssessmentVocabulary.DamageMarkers => "[{\"x\":0.5,\"y\":0.92,\"r\":0.12}]",
         _ => definition.Type switch
         {
             AssessmentFieldType.Text => "value",

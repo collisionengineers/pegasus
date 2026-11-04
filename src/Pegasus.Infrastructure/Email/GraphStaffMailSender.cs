@@ -112,9 +112,13 @@ internal sealed class GraphStaffMailSender(
         StaffMailSendCommand command,
         CancellationToken cancellationToken)
     {
+        // A reply from another mailbox than the one holding the original (a
+        // staff forward answered from the mailbox that forwarded it) has no
+        // copy to reply in there, so it is a new message.
         var path = command.ComposeMode switch
         {
             StaffMailComposeMode.New => "messages",
+            _ when !RepliesInThread(command) => "messages",
             StaffMailComposeMode.Reply => $"messages/{Escape(command.OriginalMessage!.ImmutableMessageId)}/createReply",
             StaffMailComposeMode.ReplyAll => $"messages/{Escape(command.OriginalMessage!.ImmutableMessageId)}/createReplyAll",
             StaffMailComposeMode.Forward => $"messages/{Escape(command.OriginalMessage!.ImmutableMessageId)}/createForward",
@@ -162,7 +166,7 @@ internal sealed class GraphStaffMailSender(
                 command.ExpectedMailboxGeneration.ToString(System.Globalization.CultureInfo.InvariantCulture));
             message.Headers.Add(StaffMailCorrelationHeaders.PayloadSha256, operation.PayloadHash);
         }
-        if (command.OriginalMessage?.InternetMessageId is { Length: > 0 } replyTo)
+        if (RepliesInThread(command) && command.OriginalMessage?.InternetMessageId is { Length: > 0 } replyTo)
         {
             message.InReplyTo = replyTo;
             message.References.Add(replyTo);
@@ -170,6 +174,9 @@ internal sealed class GraphStaffMailSender(
         message.Body = new TextPart(TextFormat.Plain) { Text = command.Body };
         return message;
     }
+
+    private static bool RepliesInThread(StaffMailSendCommand command) =>
+        command.OriginalMessage is { } original && original.ApprovedMailboxId == command.ApprovedMailboxId;
 
     private static bool HasHeader(JsonElement headers, string name, string expected) =>
         headers.EnumerateArray().Any(header =>

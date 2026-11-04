@@ -31,8 +31,8 @@ public sealed class IndexModel(
     public bool StaffMailAvailable => staffMailSend is not null
         && staffMailSend is not UnavailableStaffMailSend;
 
-    /// <summary>The approved mailboxes a reply can leave from; a received message held by one offers Reply.</summary>
-    public IReadOnlySet<Guid> ReplyMailboxIds { get; private set; } = new HashSet<Guid>();
+    /// <summary>The approved mailboxes that can send, which a reply from the list may leave from.</summary>
+    public IReadOnlyList<ApprovedMailbox> ReplyMailboxes { get; private set; } = [];
     internal const int PageSize = 25;
 
     /// <summary>The folder route value of the Dismissed scope.</summary>
@@ -195,10 +195,7 @@ public sealed class IndexModel(
             Principals = await principalsRead;
             Scopes = await scopesRead;
             Freshness = await freshnessRead;
-            ReplyMailboxIds = (await replyRead)
-                .Where(item => item.CanSend)
-                .Select(item => item.Id)
-                .ToHashSet();
+            ReplyMailboxes = [.. (await replyRead).Where(item => item.CanSend)];
         }
         catch (StaffAuthorizationException)
         {
@@ -215,15 +212,16 @@ public sealed class IndexModel(
     private static async Task<T> ReadAsync<T>(Func<Task<T>> read) => await read();
 
     /// <summary>
-    /// Whether a received message offers Reply from the list: its mailbox can
-    /// send and it has a sender to answer. Reply opens the message record's own
-    /// reply, from the mailbox the message arrived in.
+    /// Whether a received message offers Reply from the list: a mailbox can
+    /// send, which any reply may leave from (<see cref="StaffMailAnswer"/>,
+    /// R655), and it has a sender to answer. Reply opens the message record's
+    /// own reply.
     /// </summary>
     public bool OffersReply(RetainedMailSummary item) =>
         Folder != MailFolderScope.Sent
         && !Dismissed
-        && ReplyMailboxIds.Contains(item.MailboxId)
-        && !string.IsNullOrWhiteSpace(item.SenderAddress);
+        && !string.IsNullOrWhiteSpace(item.SenderAddress)
+        && ReplyMailboxes.Count > 0;
 
     /// <summary>The list itself.</summary>
     private async Task ReadListAsync(

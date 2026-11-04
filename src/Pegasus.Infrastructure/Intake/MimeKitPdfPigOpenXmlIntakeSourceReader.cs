@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Security.Cryptography;
-using System.Text.RegularExpressions;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Custody;
@@ -1390,11 +1389,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         }
 
         var fromValue = matches[0].Groups["from"].Value.Trim();
-        var mailboxes = ForwardedMailboxRegex().Matches(fromValue)
-            .Select(match => match.Groups["address"].Value)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        if (mailboxes.Length != 1 || !TryGetMailboxDomain(mailboxes[0], out _))
+        var mailboxes = StaffForwardBodyCleaner.HeaderAddresses(fromValue);
+        if (mailboxes.Count != 1 || !TryGetMailboxDomain(mailboxes[0], out _))
         {
             return false;
         }
@@ -1742,11 +1738,6 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
     }
 
     private static string SourceLabel(string fileName) => $"uploaded {Path.GetFileName(fileName)}";
-
-    [GeneratedRegex(
-        "(?i)(?<![a-z0-9._%+-])(?<address>[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,})(?![a-z0-9._%+-])",
-        RegexOptions.CultureInvariant)]
-    private static partial Regex ForwardedMailboxRegex();
 
     private enum SourceFormat
     {

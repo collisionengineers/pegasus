@@ -157,7 +157,9 @@ Marking a Triage Awaiting information asks no reason either; the Triage Case
 page does not offer it.
 **Reply with finding** is optional. The completion notice and Record
 finding's Reply with finding tickbox offer it when the Triage came by e-mail
-and its mailbox may send. It opens the composer with the
+and a mailbox may answer it
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence),
+R651). It opens the composer with the
 Triage outcome template from Administration
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)), which the
 user can edit. A sent reply is linked to the
@@ -184,8 +186,9 @@ calendar days with default 1
 ([FRD-17](frd-17-administration-workspace.md#workflow-configuration)), and
 appears in Needs attention until then
 ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)). Staff may
-send a **chaser** from the composer: a reply to the Triage's origin message
-from its approved mailbox, offered when the Triage came by e-mail and that
+send a **chaser** from the composer: a reply to the Triage's origin message,
+by default from its approved mailbox and from any Outgoing mailbox staff
+choose (4 November 2026, R655), offered when the Triage came by e-mail and a
 mailbox may send. The Automation Actor sends the chaser, and the reply with
 finding, with `pegasus_mail_send` `triage_reply`
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#sending)).

@@ -64,8 +64,8 @@ public static class AssessmentPolicy
 
     /// <summary>
     /// The one gate every generic field save passes: the path must be part of
-    /// the vocabulary, must not be derived from the damage impacts or recorded
-    /// by the vehicle lookup, and must not be owned by the accepted case
+    /// the vocabulary, must not be recorded by the vehicle lookup or the
+    /// chosen guide card, and must not be owned by the accepted case
     /// record. The value is then canonicalized
     /// against its own definition. Both the assessment save and the Case
     /// workspace save call it, so an unwritable path fails the same way on
@@ -75,11 +75,6 @@ public static class AssessmentPolicy
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(actor);
-        if (AssessmentVocabulary.DerivedPaths.Contains(path))
-        {
-            throw new InvalidOperationException(
-                $"The field '{path}' is derived from damage.impacts and cannot be written directly.");
-        }
         if (AssessmentVocabulary.LookupDerivedPaths.Contains(path))
         {
             throw new InvalidOperationException(
@@ -157,6 +152,7 @@ public static class AssessmentPolicy
         return NormalizeValue(definition, rawValue);
     }
 
+    /// <summary>The impacts staff entered (v46), in their order; nothing stored is none.</summary>
     public static IReadOnlyList<AssessmentImpact> ParseImpacts(string? value)
     {
         if (value is null)
@@ -168,77 +164,33 @@ public static class AssessmentPolicy
         return ReadImpacts(document.RootElement);
     }
 
-    public static (string? Location, string? Severity) DeriveImpactValues(string? value) =>
-        DeriveImpactValues(ParseImpacts(value));
-
     /// <summary>
-    /// The headline impact the recorded damages derive (operator, 2 November
-    /// 2026: bursts that touch are one damage). Each damage is judged by its
-    /// disc on the canonical plan, drawn or the one its areas give, and two
-    /// are one group when their discs touch; a group chains. A group reads
-    /// as the plan area holding most of its centres, a tie going to the
-    /// record's order. Underside, Interior and Mechanical have no disc and
-    /// are each a group reading as themselves. One group is the location;
-    /// more read <see cref="AssessmentVocabulary.SeveralAreas"/>. The
-    /// severity is the highest recorded. No damage derives nothing.
+    /// Skip impacts stands only while no impact row exists (v47 items B and D,
+    /// operator, 3 November 2026; R649): a save that would leave the skip
+    /// ticked beside any row, complete or not, is refused, for staff and the
+    /// Automation actor alike. <paramref name="merged"/> is the work's values
+    /// after the save.
     /// </summary>
-    public static (string? Location, string? Severity) DeriveImpactValues(IReadOnlyList<AssessmentImpact> impacts)
+    public static void RequireSkipOnlyWithoutImpacts(IReadOnlyDictionary<string, string> merged)
     {
-        ArgumentNullException.ThrowIfNull(impacts);
-        if (impacts.Count == 0)
+        ArgumentNullException.ThrowIfNull(merged);
+        if (string.Equals(merged.GetValueOrDefault(AssessmentVocabulary.ImpactsSkipped), "true", StringComparison.Ordinal)
+            && ParseImpacts(merged.GetValueOrDefault(AssessmentVocabulary.Impacts)).Count > 0)
         {
-            return (null, null);
+            throw new InvalidOperationException("Skip impacts can be ticked only while no impact is entered.");
         }
-
-        var groups = GroupAreas(impacts);
-        var location = groups.Count == 1 ? groups[0] : AssessmentVocabulary.SeveralAreas;
-        var severity = impacts.MaxBy(
-            impact => AssessmentVocabulary.DamageSeverities[impact.Severity].Rank)!.Severity;
-        return (location, severity);
     }
 
-    /// <summary>The area each group of touching damages reads as, one entry per group.</summary>
-    private static List<string> GroupAreas(IReadOnlyList<AssessmentImpact> impacts)
+    /// <summary>The damage markers drawn on the plan (v46: positions only); nothing stored is none.</summary>
+    public static IReadOnlyList<DamageDisc> ParseMarkers(string? value)
     {
-        var discs = impacts
-            .Select(impact => impact.Disc ?? DamageAreaGeometry.Disc(impact.Areas))
-            .ToArray();
-        var grouped = new bool[discs.Length];
-        var areas = new List<string>();
-        for (var seed = 0; seed < discs.Length; seed++)
+        if (value is null)
         {
-            if (grouped[seed])
-            {
-                continue;
-            }
-            grouped[seed] = true;
-            if (discs[seed] is not { } first)
-            {
-                // An other area: recorded alone, with no disc to touch.
-                areas.Add(impacts[seed].Areas[0]);
-                continue;
-            }
-            var group = new List<DamageDisc> { first };
-            for (var next = 0; next < group.Count; next++)
-            {
-                for (var candidate = 0; candidate < discs.Length; candidate++)
-                {
-                    if (!grouped[candidate] && discs[candidate] is { } disc && DamageAreaGeometry.Touch(group[next], disc))
-                    {
-                        grouped[candidate] = true;
-                        group.Add(disc);
-                    }
-                }
-            }
-            areas.Add(group
-                .Select(disc => DamageAreaGeometry.AreaAt(new(disc.CentreX, disc.CentreY)))
-                .GroupBy(area => area, StringComparer.Ordinal)
-                .OrderByDescending(seats => seats.Count())
-                .ThenBy(seats => AssessmentVocabulary.DamageAreaOrder(seats.Key))
-                .First()
-                .Key);
+            return [];
         }
-        return areas;
+
+        using var document = JsonDocument.Parse(value);
+        return ReadMarkers(document.RootElement);
     }
 
     /// <summary>
@@ -414,12 +366,32 @@ public static class AssessmentPolicy
 
         RequireField(AssessmentVocabulary.VehicleType, "Vehicle type", "Vehicle");
         RequireField(AssessmentVocabulary.VehicleCondition, "Pre-incident condition", "Vehicle");
-        RequireField(
-            AssessmentVocabulary.ImpactSeverity, "Impact severity", "Damage",
-            "Record a damage on the Damage section; the impact severity is derived from it.");
-        RequireField(
-            AssessmentVocabulary.ImpactLocation, "Impact location", "Damage",
-            "Record a damage on the Damage section; the impact location is derived from it.");
+        // The damage markers are always required, Skip impacts or not (operator,
+        // 3 November 2026; R650): the report's picture marks the damage.
+        if (ParseMarkers(fields.GetValueOrDefault(AssessmentVocabulary.DamageMarkers)).Count == 0)
+        {
+            items.Add(new(
+                "Damage markers",
+                "Assessment record",
+                "No damage marker is drawn.",
+                "Draw a marker on the plan on the Damage section.",
+                Field: AssessmentVocabulary.DamageMarkers));
+        }
+        // An impact, or the deliberate Skip impacts (v47, operator, 3 November
+        // 2026; R647–R649): the Incident narrative is not required, but leaving
+        // it out is a choice, never an oversight. A row missing its severity or
+        // location is not an impact.
+        if (!ParseImpacts(fields.GetValueOrDefault(AssessmentVocabulary.Impacts)).Any(impact => impact.IsComplete)
+            && !string.Equals(
+                fields.GetValueOrDefault(AssessmentVocabulary.ImpactsSkipped), "true", StringComparison.Ordinal))
+        {
+            items.Add(new(
+                "Impacts",
+                "Assessment record",
+                "No impact is entered.",
+                "Enter an impact, or tick Skip impacts, on the Damage section.",
+                Field: AssessmentVocabulary.Impacts));
+        }
         // The report prints the retail, trade and Engineer's values side by
         // side, so each is named until entered. Retail and trade are the
         // chosen guide card's (operator, 8 October 2026), and an AI market
@@ -647,7 +619,7 @@ public static class AssessmentPolicy
                 return date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
             case AssessmentFieldType.Json:
-                return NormalizeImpacts(value);
+                return NormalizeJson(definition, value);
 
             default:
                 throw new InvalidOperationException(
@@ -656,9 +628,9 @@ public static class AssessmentPolicy
     }
 
     /// <summary>
-    /// The canonical wire shape of the damage impacts. A caller holding typed
-    /// impacts (the Case workspace save) writes them through here so the
-    /// stored JSON has exactly one owner.
+    /// The canonical wire shape of the impacts staff enter (v46). A row with
+    /// nothing chosen or written is dropped; a row naming only some of its
+    /// members is kept as entered.
     /// </summary>
     public static string SerializeImpacts(IReadOnlyList<AssessmentImpact> impacts)
     {
@@ -670,22 +642,13 @@ public static class AssessmentPolicy
             foreach (var impact in impacts)
             {
                 ArgumentNullException.ThrowIfNull(impact);
+                if (impact.Severity.Length == 0 && impact.Location.Length == 0 && impact.Note.Length == 0)
+                {
+                    continue;
+                }
                 writer.WriteStartObject();
-                writer.WriteStartArray("areas");
-                foreach (var area in impact.Areas)
-                {
-                    writer.WriteStringValue(area);
-                }
-                writer.WriteEndArray();
-                if (impact.Disc is { } disc)
-                {
-                    writer.WriteStartObject("disc");
-                    writer.WriteNumber("x", RoundDisc(disc.CentreX));
-                    writer.WriteNumber("y", RoundDisc(disc.CentreY));
-                    writer.WriteNumber("r", RoundDisc(disc.Radius));
-                    writer.WriteEndObject();
-                }
                 writer.WriteString("severity", impact.Severity);
+                writer.WriteString("location", impact.Location);
                 writer.WriteString("note", impact.Note);
                 writer.WriteEndObject();
             }
@@ -695,21 +658,54 @@ public static class AssessmentPolicy
         return Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private static string NormalizeImpacts(string value)
+    /// <summary>
+    /// The canonical wire shape of the damage markers. A caller holding typed
+    /// markers (the Case workspace save) writes them through here so the
+    /// stored JSON has exactly one owner.
+    /// </summary>
+    public static string SerializeMarkers(IReadOnlyList<DamageDisc> markers)
+    {
+        ArgumentNullException.ThrowIfNull(markers);
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartArray();
+            foreach (var marker in markers)
+            {
+                ArgumentNullException.ThrowIfNull(marker);
+                writer.WriteStartObject();
+                writer.WriteNumber("x", RoundDisc(marker.CentreX));
+                writer.WriteNumber("y", RoundDisc(marker.CentreY));
+                writer.WriteNumber("r", RoundDisc(marker.Radius));
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+        }
+
+        return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static string NormalizeJson(AssessmentFieldDefinition definition, string value)
     {
         try
         {
             using var document = JsonDocument.Parse(value);
-            var normalized = SerializeImpacts(ReadImpacts(document.RootElement));
-            if (normalized.Length > AssessmentVocabulary.Definitions[AssessmentVocabulary.DamageImpacts].MaximumLength)
+            var normalized = definition.Path switch
             {
-                throw new ArgumentOutOfRangeException(nameof(value), "The canonical damage impacts cannot exceed 4000 characters.");
+                AssessmentVocabulary.Impacts => SerializeImpacts(ReadImpacts(document.RootElement)),
+                AssessmentVocabulary.DamageMarkers => SerializeMarkers(ReadMarkers(document.RootElement)),
+                _ => throw new InvalidOperationException($"The field '{definition.Path}' has no JSON reader."),
+            };
+            if (normalized.Length > definition.MaximumLength)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value), $"The canonical value of '{definition.Path}' cannot exceed {definition.MaximumLength} characters.");
             }
             return normalized;
         }
         catch (JsonException exception)
         {
-            throw new ArgumentException("The damage impacts must be a valid JSON array.", nameof(value), exception);
+            throw new ArgumentException($"The value for '{definition.Path}' must be a valid JSON array.", nameof(value), exception);
         }
     }
 
@@ -717,74 +713,51 @@ public static class AssessmentPolicy
     {
         if (root.ValueKind != JsonValueKind.Array)
         {
-            throw new ArgumentException("The damage impacts must be a JSON array.", nameof(root));
+            throw new ArgumentException("The impacts must be a JSON array.", nameof(root));
         }
         var result = new List<AssessmentImpact>();
-        var alone = new HashSet<string>(StringComparer.Ordinal);
         foreach (var element in root.EnumerateArray())
         {
             if (element.ValueKind != JsonValueKind.Object
-                || (element.EnumerateObject().Select(property => property.Name).Order().ToArray() is var members
-                    && !members.SequenceEqual(["areas", "note", "severity"])
-                    && !members.SequenceEqual(["areas", "disc", "note", "severity"]))
-                || !element.TryGetProperty("areas", out var areasElement)
-                || !element.TryGetProperty("severity", out var severityElement)
-                || !element.TryGetProperty("note", out var noteElement)
-                || areasElement.ValueKind != JsonValueKind.Array
-                || severityElement.ValueKind != JsonValueKind.String
-                || noteElement.ValueKind != JsonValueKind.String)
+                || !element.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal)
+                    .SequenceEqual(["location", "note", "severity"])
+                || element.GetProperty("severity").ValueKind != JsonValueKind.String
+                || element.GetProperty("location").ValueKind != JsonValueKind.String
+                || element.GetProperty("note").ValueKind != JsonValueKind.String)
             {
-                throw new ArgumentException("Each damage impact must contain exactly an areas array, an optional disc and string severity and note members.", nameof(root));
+                throw new ArgumentException("Each impact must contain exactly string severity, location and note members.", nameof(root));
             }
-            var areas = new List<string>();
-            foreach (var areaElement in areasElement.EnumerateArray())
+            var severity = element.GetProperty("severity").GetString()!.Trim();
+            var location = element.GetProperty("location").GetString()!.Trim();
+            var note = element.GetProperty("note").GetString()!.Trim();
+            if (severity.Length > 0 && !AssessmentVocabulary.DamageSeverities.ContainsKey(severity))
             {
-                var area = areaElement.ValueKind == JsonValueKind.String ? areaElement.GetString() : null;
-                if (area is null || !AssessmentVocabulary.DamageAreas.ContainsKey(area) || areas.Contains(area, StringComparer.Ordinal))
-                {
-                    throw new ArgumentException("Damage impact areas must be accepted and unique.", nameof(root));
-                }
-                areas.Add(area);
+                throw new ArgumentException("An impact severity is not accepted.", nameof(root));
             }
-            // A disc names one or more plan areas; Underside, Interior and
-            // Mechanical are each one impact of their own, recorded once.
-            if (areas.Count == 0
-                || (areas.Any(AssessmentVocabulary.DamageOtherAreas.Contains) && (areas.Count > 1 || !alone.Add(areas[0]))))
+            if (location.Length > 0 && !AssessmentVocabulary.DamageAreas.ContainsKey(location))
             {
-                throw new ArgumentException("A damage impact names one or more plan areas, or one other area recorded once.", nameof(root));
-            }
-            // A drawn damage keeps its disc as drawn (ruled 23 September 2026)
-            // and names exactly the plan areas that disc touches: Core reads
-            // the areas off the disc rather than trusting the posted list.
-            DamageDisc? disc = null;
-            if (element.TryGetProperty("disc", out var discElement))
-            {
-                if (areas.Any(AssessmentVocabulary.DamageOtherAreas.Contains))
-                {
-                    throw new ArgumentException("Underside, Interior and Mechanical are not drawn on the plan.", nameof(root));
-                }
-                disc = ReadDisc(discElement);
-                var touched = DamageAreaGeometry.AreasUnder(disc);
-                if (touched.Count == 0)
-                {
-                    throw new ArgumentException("A drawn damage must touch at least one plan area.", nameof(root));
-                }
-                areas = [.. touched];
-            }
-            areas.Sort((left, right) => AssessmentVocabulary.DamageAreaOrder(left).CompareTo(AssessmentVocabulary.DamageAreaOrder(right)));
-            var severity = severityElement.GetString()!;
-            var note = noteElement.GetString()!.Trim();
-            if (!AssessmentVocabulary.DamageSeverities.ContainsKey(severity))
-            {
-                throw new ArgumentException("A damage impact severity is not accepted.", nameof(root));
+                throw new ArgumentException("An impact location is not accepted.", nameof(root));
             }
             if (note.Length > 200 || note.Any(char.IsControl))
             {
-                throw new ArgumentException("A damage impact note cannot exceed 200 characters or contain control characters.", nameof(root));
+                throw new ArgumentException("An impact note cannot exceed 200 characters or contain control characters.", nameof(root));
             }
-            result.Add(new(areas, severity, note, disc));
+            if (severity.Length == 0 && location.Length == 0 && note.Length == 0)
+            {
+                continue;
+            }
+            result.Add(new(severity, location, note));
         }
         return result;
+    }
+
+    private static List<DamageDisc> ReadMarkers(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Array)
+        {
+            throw new ArgumentException("The damage markers must be a JSON array.", nameof(root));
+        }
+        return [.. root.EnumerateArray().Select(ReadDisc)];
     }
 
     /// <summary>

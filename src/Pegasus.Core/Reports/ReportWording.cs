@@ -183,10 +183,7 @@ public static class ReportWordingComposition
         ArgumentNullException.ThrowIfNull(presentation);
         return key switch
         {
-            NatureOfIncident => NatureOfIncidentSentence(
-                snapshot.ImpactSeverity,
-                snapshot.ImpactLocation,
-                AreasOf(snapshot.Damage.Impacts.Select(impact => impact.Codes))),
+            NatureOfIncident => NatureOfIncidentText(snapshot.Damage.Impacts),
             EngineersComments => Comments(snapshot),
             SupplementaryDamage => snapshot.SupplementaryStatement ?? string.Empty,
             ValuationCommentary => snapshot.ValuationCommentary ?? string.Empty,
@@ -201,24 +198,36 @@ public static class ReportWordingComposition
     }
 
     /// <summary>
-    /// The Nature of Incident block's composed sentence, from the headline
-    /// impact severity and location codes and the distinct areas recorded.
-    /// Damage to one area is the template's sentence. Damage recorded over
-    /// several areas, whatever the headline location reads, is the manager's
-    /// case page's (operator, 2 November 2026): the areas follow the
-    /// sentence, one to a line, in the order they were recorded and named as
-    /// that page names them.
+    /// The template's Nature of Incident sentence, with the
+    /// <c>{severity}</c> and <c>{location}</c> an impact fills in. The Case
+    /// page's Damage section fills the same pattern while it edits.
     /// </summary>
-    public static string NatureOfIncidentSentence(
-        string impactSeverity, string impactLocation, IReadOnlyList<string> areas)
+    public const string NatureOfIncidentPattern =
+        "The vehicle has suffered {severity} collision/impact damage to the {location}.";
+
+    /// <summary>
+    /// The template's Nature of Incident sentence for one impact, its severity
+    /// and location in small letters.
+    /// </summary>
+    public static string NatureOfIncidentSentence(string impactSeverity, string impactLocation)
     {
         ArgumentNullException.ThrowIfNull(impactSeverity);
         ArgumentNullException.ThrowIfNull(impactLocation);
-        ArgumentNullException.ThrowIfNull(areas);
-        return areas.Count > 1
-            ? $"The vehicle has suffered {Words(impactSeverity)} collision/impact damage to the following areas:"
-                + string.Concat(areas.Select(area => "\n— " + LeadingWords(area)))
-            : $"The vehicle has suffered {Words(impactSeverity)} collision/impact damage to the {Words(impactLocation)}.";
+        return NatureOfIncidentPattern
+            .Replace("{severity}", Words(impactSeverity), StringComparison.Ordinal)
+            .Replace("{location}", Words(impactLocation), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Nature of Incident block's composed text: a separate sentence for
+    /// each impact, one to a line, in the order staff entered them (v46 A and
+    /// A2, operator, 3 November 2026). No impact composes nothing, so the
+    /// block is not offered (v46 G).
+    /// </summary>
+    public static string NatureOfIncidentText(IReadOnlyList<ReportImpact> impacts)
+    {
+        ArgumentNullException.ThrowIfNull(impacts);
+        return string.Join("\n", impacts.Select(impact => NatureOfIncidentSentence(impact.Severity, impact.Location)));
     }
 
     /// <summary>
@@ -231,8 +240,8 @@ public static class ReportWordingComposition
 
     /// <summary>
     /// The Nature of Incident block's text whether or not a report can yet be
-    /// projected: the Engineer's own wording when written, else the sentence
-    /// composed from the recorded headline impact; null when there is neither.
+    /// projected: the Engineer's own wording when written, else the sentences
+    /// composed from the impacts staff entered; null when there is neither.
     /// The Damage section's Incident narrative reads it (operator, 24 September
     /// 2026); whether the report carries the block is Report wording's choice and
     /// does not change it.
@@ -240,20 +249,26 @@ public static class ReportWordingComposition
     public static string? NatureOfIncidentOf(AssessmentReportProjectionInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
-        var severity = input.Assessment.Field(AssessmentVocabulary.ImpactSeverity)?.Value;
-        var location = input.Assessment.Field(AssessmentVocabulary.ImpactLocation)?.Value;
-        // The recorded damages name the areas the sentence lists; the
-        // location was derived from them by the save that recorded them.
-        var areas = AreasOf(AssessmentPolicy
-            .ParseImpacts(input.Assessment.Field(AssessmentVocabulary.DamageImpacts)?.Value)
-            .Select(impact => impact.Areas));
-        var composed = string.IsNullOrWhiteSpace(severity) || string.IsNullOrWhiteSpace(location)
-            ? string.Empty
-            : NatureOfIncidentSentence(severity, location, areas);
+        var composed = NatureOfIncidentText(AssessmentReportProjection.ReportImpacts(
+            AssessmentPolicy.ParseImpacts(input.Assessment.Field(AssessmentVocabulary.Impacts)?.Value)));
         var change = (input.Wording ?? []).FirstOrDefault(item =>
             !item.Manual && string.Equals(item.Key, NatureOfIncident, StringComparison.Ordinal));
         var text = Worded(change, composed);
         return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
+    /// <summary>
+    /// Whether the Engineer has written their own Nature of Incident wording,
+    /// which the Damage section's Incident narrative then shows in place of
+    /// the sentences the impacts compose.
+    /// </summary>
+    public static bool NatureOfIncidentIsWorded(AssessmentReportProjectionInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        return (input.Wording ?? []).Any(item =>
+            !item.Manual
+            && string.Equals(item.Key, NatureOfIncident, StringComparison.Ordinal)
+            && !string.IsNullOrWhiteSpace(item.Text));
     }
 
     /// <summary>
@@ -456,10 +471,6 @@ public static class ReportWordingComposition
     /// <summary>A block's text: the Engineer's own wording when written, else the composed sentence.</summary>
     private static string Worded(CaseReportWording? change, string composed) =>
         string.IsNullOrWhiteSpace(change?.Text) ? composed : change!.Text!.Trim();
-
-    /// <summary>The areas the recorded damages name, each once, in the order they were recorded.</summary>
-    private static string[] AreasOf(IEnumerable<IReadOnlyList<string>> damages) =>
-        [.. damages.SelectMany(areas => areas).Distinct(StringComparer.Ordinal)];
 
     private static string Money(decimal value) =>
         value.ToString("£#,##0.00", CultureInfo.GetCultureInfo("en-GB"));

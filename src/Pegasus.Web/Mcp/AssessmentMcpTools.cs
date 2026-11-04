@@ -585,13 +585,13 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Records assessment fields that staff record on the Case, professional findings included (for example assessment.outcome, assessment.legal_status for roadworthiness, assessment.salvage_category, assessment.values.engineer), under the expected case version; present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command. pegasus_vocabulary_get lists every path with its accepted codes. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag. Case-owned facts (use pegasus_case_update_details), fields derived from damage.impacts, fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field.")]
+    [Description("Records assessment fields that staff record on the Case, professional findings included (for example assessment.outcome, assessment.legal_status for roadworthiness, assessment.salvage_category, assessment.values.engineer), under the expected case version; present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command. pegasus_vocabulary_get lists every path with its accepted codes. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag. Case-owned facts (use pegasus_case_update_details), fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field.")]
     public async Task<AssessmentUpdateToolResult> UpdateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same result.")] string operationKey,
         [Description("Why these values are being recorded (case history reason, at most 500 characters).")] string reason,
-        [Description("Assessment values keyed by field path, each as a string, limited to fields staff can record on the Case; a null value clears the field. An enumerated field takes one of its codes, and damage.impacts takes a JSON array in the format pegasus_vocabulary_get gives for it.")] Dictionary<string, string?>? fields = null,
+        [Description("Assessment values keyed by field path, each as a string, limited to fields staff can record on the Case; a null value clears the field. An enumerated field takes one of its codes; assessment.impacts (the impacts, each a severity, a location and a note) and damage.impacts (the damage markers drawn on the plan) each take a JSON array in the format pegasus_vocabulary_get gives for it.")] Dictionary<string, string?>? fields = null,
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
@@ -645,14 +645,13 @@ internal sealed class AssessmentMcpTools(
     /// <summary>
     /// Refuses a generic automation write of a path with no staff editor on
     /// the Case (FRD-10), the one rule only the Web can answer because it owns
-    /// the editor list. An unknown, case-owned, impact-derived,
-    /// lookup-derived or guide-card-derived path falls through to Core's
+    /// the editor list. An unknown, case-owned, lookup-derived or
+    /// guide-card-derived path falls through to Core's
     /// NormalizeWritableField, which names each.
     /// </summary>
     internal static void RequireGenericWrite(string path)
     {
         if (!AssessmentVocabulary.Definitions.ContainsKey(path)
-            || AssessmentVocabulary.DerivedPaths.Contains(path)
             || AssessmentVocabulary.LookupDerivedPaths.Contains(path)
             || AssessmentVocabulary.GuideCardDerivedPaths.Contains(path))
         {
@@ -671,15 +670,13 @@ internal sealed class AssessmentMcpTools(
     /// it writes it: the vocabulary read names the reason beside the path.
     /// </summary>
     internal static string? WriteRefusal(string path) =>
-        AssessmentVocabulary.DerivedPaths.Contains(path)
-            ? "Derived from damage.impacts."
-            : AssessmentVocabulary.LookupDerivedPaths.Contains(path)
-                ? "Filled by the DVLA/DVSA vehicle lookup."
-                : AssessmentVocabulary.GuideCardDerivedPaths.Contains(path)
-                    ? "The chosen guide card's figure: written by pegasus_valuation_save with a calculation."
-                    : !CaseWorkspaceLabels.Editors.HasStaffEditor(path)
-                        ? "No staff editor on the Case."
-                        : null;
+        AssessmentVocabulary.LookupDerivedPaths.Contains(path)
+            ? "Filled by the DVLA/DVSA vehicle lookup."
+            : AssessmentVocabulary.GuideCardDerivedPaths.Contains(path)
+                ? "The chosen guide card's figure: written by pegasus_valuation_save with a calculation."
+                : !CaseWorkspaceLabels.Editors.HasStaffEditor(path)
+                    ? "No staff editor on the Case."
+                    : null;
 
     private async Task<RepairSpecificationVersion> FindEstimateAsync(
         Guid caseId, Guid estimateId, CancellationToken cancellationToken) =>

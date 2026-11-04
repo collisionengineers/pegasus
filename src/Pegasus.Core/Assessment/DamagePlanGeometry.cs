@@ -6,12 +6,11 @@ namespace Pegasus.Core.Assessment;
 /// <summary>
 /// The plan: one top-down drawing of the vehicle the Case records — a car, a
 /// van or a motorbike (operator, 28 September 2026, from the precision marker
-/// pack) — and the comic burst each damage is drawn as. The Case page and the
-/// report both draw from here; the page shows the shaded drawing and the
-/// report the flat one, which the PDF renderer reproduces faithfully. Every
-/// drawing shares one body box, so the areas, the bands and the disc a damage
-/// is judged by are <see cref="DamageAreaGeometry"/>'s whatever the vehicle,
-/// and a saved disc sits in the same place on each.
+/// pack) — and the comic burst each damage marker is drawn as. The Case page
+/// and the report both draw from here; the page shows the shaded drawing and
+/// the report the flat one, which the PDF renderer reproduces faithfully.
+/// Every drawing shares one body box, so a saved marker's disc
+/// (<see cref="DamageAreaGeometry"/>) sits in the same place on each.
 /// </summary>
 public static class DamagePlanGeometry
 {
@@ -53,8 +52,7 @@ public static class DamagePlanGeometry
 
     /// <summary>
     /// The body box the unit plan maps onto: x 42 to 198, y 16 to 410, the
-    /// same on every drawing. Core's canonical plan has this box's shape, so
-    /// a disc touches the same areas here as where Core judges them.
+    /// same on every drawing.
     /// </summary>
     public const int PlanLeft = 42;
     public const int PlanTop = 16;
@@ -66,32 +64,23 @@ public static class DamagePlanGeometry
         $"M{PlanLeft} {PlanY(DamageAreaGeometry.FrontBand)} H{PlanLeft + PlanWidth} M{PlanLeft} {PlanY(DamageAreaGeometry.RearBand)} H{PlanLeft + PlanWidth} M{PlanX(DamageAreaGeometry.LeftBand)} {PlanTop} V{PlanTop + PlanHeight} M{PlanX(DamageAreaGeometry.RightBand)} {PlanTop} V{PlanTop + PlanHeight}");
 
     /// <summary>
-    /// The disc a damage is judged by, in this plan's coordinates: its drawn
-    /// disc, or for a damage recorded by area the disc its areas give; null
-    /// for the other areas. It is drawn as its <see cref="BurstPath"/>.
+    /// A marker's disc in this plan's coordinates: the centre maps onto the
+    /// body box and the radius scales with its width, so the disc stays round.
+    /// It is drawn as its <see cref="BurstPath"/>.
     /// </summary>
-    public static DamageDisc? Disc(AssessmentImpact impact)
+    public static DamageDisc Disc(DamageDisc marker)
     {
-        ArgumentNullException.ThrowIfNull(impact);
-        return Disc(impact.Areas, impact.Disc);
+        ArgumentNullException.ThrowIfNull(marker);
+        return new(
+            PlanLeft + marker.CentreX * PlanWidth,
+            PlanTop + marker.CentreY * PlanHeight,
+            marker.Radius * PlanWidth);
     }
 
     /// <summary>
-    /// The same disc from a damage's areas and the disc drawn for it, which is
-    /// how a report carries a damage.
-    /// </summary>
-    public static DamageDisc? Disc(IReadOnlyList<string> areas, DamageDisc? drawn)
-    {
-        ArgumentNullException.ThrowIfNull(areas);
-        var disc = DamageAreaGeometry.RenderDisc(areas, PlanWidth, PlanHeight, drawn);
-        return disc is null ? null : disc with { CentreX = disc.CentreX + PlanLeft, CentreY = disc.CentreY + PlanTop };
-    }
-
-    /// <summary>
-    /// The comic burst a damage is drawn as: one yellow star, outlined in
-    /// black, whose spikes reach about the disc's edge. Every damage has the
-    /// same burst, whatever its severity, and it carries no number; the disc
-    /// alone decides the areas. The Case page's script draws the same path
+    /// The comic burst a damage marker is drawn as: one yellow star, outlined
+    /// in black, whose spikes reach about the disc's edge. Every marker has the
+    /// same burst and it carries no number. The Case page's script draws the same path
     /// from <see cref="DamageBurst"/>.
     /// </summary>
     public static string BurstPath(DamageDisc disc)

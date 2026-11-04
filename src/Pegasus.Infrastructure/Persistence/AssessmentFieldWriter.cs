@@ -62,11 +62,10 @@ internal static class AssessmentFieldWriter
 
 /// <summary>
 /// The write set one assessment save turns into row changes: the fields the
-/// caller asked for plus the values derived from the damage impacts, and the
-/// merged state the cross-field rules are checked against. The assessment
-/// command and the Case workspace save share it, so the derived impact
-/// location and severity cannot be recorded one way through one route and a
-/// different way through the other.
+/// caller asked for plus their coupled writes, and the merged state the
+/// cross-field rules are checked against. The assessment command and the Case
+/// workspace save share it, so a value cannot be recorded one way through one
+/// route and a different way through the other.
 /// </summary>
 internal static class AssessmentWriteSet
 {
@@ -93,23 +92,7 @@ internal static class AssessmentWriteSet
                 merged[path] = value;
             }
         }
-
-        if (toWrite.TryGetValue(AssessmentVocabulary.DamageImpacts, out var impacts))
-        {
-            var derived = AssessmentPolicy.DeriveImpactValues(impacts);
-            toWrite[AssessmentVocabulary.ImpactLocation] = derived.Location;
-            toWrite[AssessmentVocabulary.ImpactSeverity] = derived.Severity;
-            if (derived.Location is null)
-            {
-                merged.Remove(AssessmentVocabulary.ImpactLocation);
-                merged.Remove(AssessmentVocabulary.ImpactSeverity);
-            }
-            else
-            {
-                merged[AssessmentVocabulary.ImpactLocation] = derived.Location;
-                merged[AssessmentVocabulary.ImpactSeverity] = derived.Severity!;
-            }
-        }
+        AssessmentPolicy.RequireSkipOnlyWithoutImpacts(merged);
 
         return (toWrite, merged);
     }

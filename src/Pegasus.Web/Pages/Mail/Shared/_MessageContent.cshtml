@@ -44,7 +44,10 @@
             <a class="btn" asp-page="/Mail/Index" asp-route-open="@summary.Id" asp-route-compose="reply-all"
                asp-route-correspondenceCaseReference="@Model.CorrespondenceCaseReference" data-case-message-record>@OperatorLabels.StaffMail.ReplyAll</a>
         }
-        <a class="btn" asp-page="/Mail/Index" asp-route-open="@summary.Id" asp-route-compose="forward"
-           asp-route-correspondenceCaseReference="@Model.CorrespondenceCaseReference" data-case-message-record>@OperatorLabels.StaffMail.Forward</a>
+        @if (Model.CanForward)
+        {
+            <a class="btn" asp-page="/Mail/Index" asp-route-open="@summary.Id" asp-route-compose="forward"
+               asp-route-correspondenceCaseReference="@Model.CorrespondenceCaseReference" data-case-message-record>@OperatorLabels.StaffMail.Forward</a>
+        }
     </div>
 }

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 
@@ -89,6 +90,7 @@ public sealed class EfReportRecipientSuggestionQueries(
                     message.ConversationIdentity,
                     message.CcAddressesJson,
                     message.Subject,
+                    message.SenderAddress,
                     message.BodyPlainText
                 })
                 .FirstOrDefaultAsync(cancellationToken);
@@ -99,6 +101,17 @@ public sealed class EfReportRecipientSuggestionQueries(
                 instructionText = text.Length == 0 ? null : text;
                 if (row.ReceiptChannel == "mailbox" && retained.MailboxId is { } mailboxId)
                 {
+                    // A staff forward held in instructions@ is answered as
+                    // though the original had arrived directly, so its Cc is
+                    // the original's own, less the mailbox that forwarded it
+                    // (operator, 3 November 2026; R651, R652, R653).
+                    var cc = StaffMailAnswer.OriginalSender(
+                            retained.MailboxAddress, retained.SenderAddress, row.EffectiveSender) is null
+                        ? JsonSerializer.Deserialize<string[]>(retained.CcAddressesJson, RetainedJsonOptions) ?? []
+                        : StaffForwardBodyCleaner.ForwardedRecipients(retained.BodyPlainText ?? string.Empty).Cc
+                            .Where(address => !string.Equals(
+                                address, retained.SenderAddress?.Trim(), StringComparison.OrdinalIgnoreCase))
+                            .ToArray();
                     instruction = new ReportInstructionMessage(
                         retained.Id,
                         mailboxId,
@@ -107,8 +120,9 @@ public sealed class EfReportRecipientSuggestionQueries(
                         retained.InternetMessageIdentity,
                         retained.ConversationIdentity,
                         row.EffectiveSender,
-                        JsonSerializer.Deserialize<string[]>(retained.CcAddressesJson, RetainedJsonOptions) ?? [],
-                        retained.Subject);
+                        cc,
+                        retained.Subject,
+                        retained.SenderAddress);
                 }
             }
         }

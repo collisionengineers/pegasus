@@ -633,7 +633,7 @@ public sealed class ImageCaseCustodyIntegrationTests
                 "Recorded the damage",
                 editor.Token)
             {
-                Damage = new([new(["front"], "light", "Scuffed")], null)
+                Damage = new([new Pegasus.Core.Assessment.DamageDisc(0.5, 0.1, 0.12)], null)
             },
             CancellationToken.None);
         Assert.False(saved.WasReplay);

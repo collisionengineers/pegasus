@@ -8,8 +8,9 @@
   to an issued report is a new reasoned version, never an edit of the old
   one. A saved finding keeps its before and after values in history
   (`case_assessment_saved`).
-- A damage entry records the areas it covers, a severity and a note. Impact
-  location and severity are derived by `Pegasus.Core`, never typed in.
+- Staff enter each impact by hand: a severity, a location and a note. The
+  damage markers on the plan are the report's picture only; nothing is derived
+  from them (3 November 2026, R642–R646).
 - Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
   Glass's, Brego and Cazana are connected: Get valuation fetches their figures,
   files each provider's PDF report on the Case, and fills an empty Case VIN.
@@ -115,40 +116,64 @@ signature items. The Sign-off Engineer account
 ([FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)) is the only
 source of the signatory tuple.
 
-Each damage entry records the areas it covers, a severity and a note;
-collision work has no separate damage type (v28 P5, ruled 20 September 2026).
-The areas are the eight of the plan — Front, LH Front, RH Front, LH Side, RH
-Side, Rear, LH Rear, RH Rear — and Underside, Interior and Mechanical. A disc
-drawn on the plan is one entry naming one or more plan areas; each of the
-other three is an entry of its own, recorded once. Two discs may cover the
-same area and stay two entries. A drawn disc is kept as drawn — its centre on
-the plan and its radius, no smaller than the plan's smallest disc and no
-wider than half the vehicle — and the entry's areas are exactly the plan
-areas that disc touches, which `Pegasus.Core` reads off the disc (operator
-decision, 23 September 2026, superseding the 20 September ruling that the
-record keeps the areas only). An entry recorded by area alone, from the
-keyboard, keeps just its areas and is drawn with a disc centred between them,
-no wider than half the vehicle.
+Staff enter the impacts by hand (operator, 3 November 2026, R642–R646,
+superseding R639; [v46 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v46-impact-entry/v46_planning)). Each impact is a row with a
+**severity** (Light, Light to moderate, Moderate, Moderate to heavy, Heavy), a
+**location** and a free-text **note** of up to 200 characters; there is no
+damage type. The locations are the eight of the plan — Front, LH Front, RH
+Front, LH Side, RH Side, Rear, LH Rear, RH Rear — and Underside, Interior and
+Mechanical; there is no Multiple. Rows are added as needed and each is cleared
+by its own ×, which removes it. A new row starts with nothing chosen. A row
+naming both a severity and a location is an impact the report prints; a row
+missing either is kept as entered but not printed, and a row with nothing
+chosen or written is not kept. The impacts are `assessment.impacts`, one JSON
+value staff and the Automation Actor write alike.
+
+The report needs an impact or a deliberate **Skip impacts** (operator,
+3 November 2026, R647–R649, replacing R646's "impacts are optional";
+[v47 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v47-impact-skip/v47_planning)). The Incident narrative is not required, but leaving it
+out is a choice: until a row names both a severity and a location, or Skip
+impacts is recorded, readiness names **Impacts** ("No impact is entered.").
+A row missing its severity or location is not an impact. Skip impacts is
+`assessment.impacts_skipped` (`true` or `false`), offered only while no impact
+row exists; a save that would leave it ticked beside any row, complete or not,
+is refused with "Skip impacts can be ticked only while no impact is entered.",
+for staff and the Automation Actor alike. A skipped Case prints no Nature of
+Incident and its Impact Magnitude reads `—`; the skip itself prints nothing,
+does not by itself make a sent report out of date, and is recorded in the
+assessment history like any field. Existing Cases are not backfilled: each
+needs an impact or the skip before its next report.
+
+The **damage markers** are the report's picture and nothing else. A marker is
+a disc on the plan — its centre and its radius, no smaller than the plan's
+smallest disc and no wider than half the vehicle — kept as drawn
+(`damage.impacts`). It records no area, severity or note, and no impact
+location or severity is derived from the markers. While the Damage section
+edits, pressing and dragging on the vehicle draws a marker and dragging one
+moves it; dragging never removes a marker, and **Clear markers** removes them
+all. There is no Reset. The report always needs at least one marker, whether
+or not Skip impacts is ticked (operator, 3 November 2026, R650): until one is
+drawn, readiness names **Damage markers** ("No damage marker is drawn.").
+Markers beside a ticked Skip impacts are a complete damage record.
 
 The plan is the recorded Vehicle type's drawing: a van is drawn as the van, a
 motorcycle or scooter as the motorbike, and anything else, or no type, as the
 car (operator decision, 28 September 2026). All three share one body box, so
-the eight areas and a saved disc stand in the same place on each. Every
-entry's disc is drawn as the same yellow comic burst, whatever its severity,
-with no number and not clipped, so it may spill past the vehicle's outline;
-the burst is only its picture, and the disc alone decides the areas. The
-workspace and the report draw alike.
+a saved marker stands in the same place on each. Every marker is drawn as the
+same yellow comic burst, with no number and not clipped, so it may spill past
+the vehicle's outline. The workspace and the report draw alike.
 
-The record also carries the unrelated damage. `impact_location` and
-`impact_severity` are derived from the damages by `Pegasus.Core`, never
-typed in (operator, 2 November 2026, R639, replacing the rule that more than
-one distinct area read Multiple). Bursts whose discs overlap or touch are one
-damage: each entry is judged by its disc, drawn or the one its areas give,
-two are joined when their centres are no further apart than their radii
-added together, and joining chains. A group reads as the plan area most of
-its bursts' centres sit in, a tie going to the plan's order. Each of
-Underside, Interior and Mechanical is a group of its own. One group reads as
-its area; more read Multiple. The severity is the highest recorded.
+The record also carries the unrelated damage. Existing Cases started with no
+impacts when this rule arrived: each marker kept its disc, a damage recorded by
+plan area alone became the disc its areas were drawn with, an Underside,
+Interior or Mechanical damage was dropped, and the derived
+`impact_location` and `impact_severity` were removed (migration
+`ImpactsEnteredByHand`, v46 item F).
+
+The report's Impact Magnitude prints each impact on its own line, "Moderate —
+right rear", and Nature of Incident composes a sentence for each
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks));
+the note does not print.
 
 The report prints the marked diagram, which is the Case page's own plan, and
 no damage or tyre table (operator, 27 September 2026). Unrelated damage

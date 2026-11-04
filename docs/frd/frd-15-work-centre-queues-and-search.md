@@ -357,8 +357,8 @@ bounded detail. Its actions are:
   by e-mail);
 - **Request again**, a reply to that message, while the item is open; once
   it is closed the same reply is offered as **Reply**. Both open the message
-  record's Reply from the mailbox the message arrived in and appear only
-  when that mailbox can send
+  record's Reply, its From starting on the mailbox the message arrived in,
+  and appear only when an Outgoing mailbox can send (4 November 2026, R655)
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence));
 - **Link to Case**, a dialog searching every Case and every Triage Case, in
   any state. Linking claims that Case's edit lease, or a Triage Case's edit
@@ -477,9 +477,11 @@ person first as "Name (you)". Nothing is preselected. Its buttons are
 Unassign (when assigned), Cancel and Assign. Neither asks a reason.
 
 **Composer.** Send chaser and Reply with finding open the mail composer's
-frame over the page: From (the approved mailbox), To, Cc, Subject, Message
-and the request's own files as attachments. It is offered only when the
-Triage came by e-mail and its approved mailbox may send. To answers the
+frame over the page: From (a choice of the send-ready Outgoing mailboxes,
+starting on the approved mailbox the request arrived in; 4 November 2026,
+R655), To, Cc, Subject, Message and the request's own files as attachments.
+It is offered only when the Triage came by e-mail and an Outgoing mailbox
+may send. To answers the
 request's Reply-To, or its From without one; a request a member of Collision
 Engineers forwarded answers its original sender instead, and drops the
 forward's own "FW:" from the subject

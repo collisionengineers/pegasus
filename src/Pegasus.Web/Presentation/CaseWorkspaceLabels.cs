@@ -204,8 +204,15 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.ReportIncludeStatementOfTruth] = "Include statement of truth"
         };
 
+        /// <summary>
+        /// The Damage section's fields: the impacts staff enter, posted as one
+        /// JSON value by the section's impact rows (v46), Skip impacts (v47)
+        /// and the unrelated damage.
+        /// </summary>
         public static IReadOnlyDictionary<string, string> Damage { get; } = new Dictionary<string, string>
         {
+            [AssessmentVocabulary.Impacts] = "Impact",
+            [AssessmentVocabulary.ImpactsSkipped] = CaseWorkspaceLabels.Damage.SkipImpacts,
             [AssessmentVocabulary.DamageUnrelated] = "Unrelated damage",
         };
 
@@ -299,8 +306,7 @@ public static class CaseWorkspaceLabels
                     or CaseDataFieldNames.VehicleRegistration
                     or CaseDataFieldNames.VehicleMake or CaseDataFieldNames.VehicleModel
                     or CaseDataFieldNames.VehicleYear or CaseDataFieldNames.VehicleMileage => "vehicle",
-                AssessmentVocabulary.DamageImpacts or AssessmentVocabulary.ImpactSeverity
-                    or AssessmentVocabulary.ImpactLocation => "damage",
+                AssessmentVocabulary.DamageMarkers => "damage",
                 AssessmentVocabulary.ReportDate => "report",
                 // Storage per day and the recovery charge are recorded in Decisions (v36 item G).
                 AssessmentVocabulary.SettlementStoragePerDay or AssessmentVocabulary.CostRecoveryCharge => "settlement",
@@ -315,22 +321,26 @@ public static class CaseWorkspaceLabels
 
     /// <summary>
     /// The Damage section's own words (v26 Plan clicker): the workbench
-    /// captions, the derived cells and the recorded-zones list.
+    /// captions and the impact rows (v46: "Impact" and "Clear" are the
+    /// operator's example, "Location", "Add impact" and "Clear markers" were
+    /// approved on 3 November 2026).
     /// </summary>
     public static class Damage
     {
         public const string DiagramLabel = "Vehicle damage diagram, plan view";
         public const string Front = "FRONT";
         public const string Rear = "REAR";
-        public const string RecordedAreas = "Recorded areas";
-        public const string Reset = "Reset";
+        public const string ClearMarkers = "Clear markers";
         public const string NoDamageRecorded = "No damage recorded.";
+        public const string Impact = "Impact";
         public const string Severity = "Severity";
+        public const string Location = "Location";
         public const string Note = "Note";
-        public const string NoNote = "No note";
-        public const string Remove = "Remove";
-        public const string Multiple = "Multiple";
-        public const string OtherAreas = "Other vehicle areas";
+        public const string Clear = "Clear";
+        public const string AddImpact = "Add impact";
+
+        /// <summary>The deliberate choice to send the report with no impact (v47, operator, 3 November 2026).</summary>
+        public const string SkipImpacts = "Skip impacts";
 
         /// <summary>A code word as the cell prints it: "not_fitted" reads "Not fitted".</summary>
         public static string CodeWord(string code)
@@ -343,17 +353,13 @@ public static class CaseWorkspaceLabels
             return char.ToUpperInvariant(words[0]) + words[1..];
         }
 
-        /// <summary>An area, or the derived impact location, as the cells print it, from Core's names.</summary>
-        public static string Location(string? code) =>
-            code is null ? OperatorLabels.CaseWorkspace.AbsentValue
-            : code == AssessmentVocabulary.SeveralAreas ? Multiple
-            : AssessmentVocabulary.DamageAreas.TryGetValue(code, out var name) ? name
-            : CodeWord(code);
+        /// <summary>An impact's location as its cell prints it, from Core's names; blank when none is chosen.</summary>
+        public static string LocationWord(string code) =>
+            AssessmentVocabulary.DamageAreas.TryGetValue(code, out var name) ? name : CodeWord(code);
 
-        public static string SeverityWord(string? code) =>
-            code is not null && AssessmentVocabulary.DamageSeverities.TryGetValue(code, out var severity)
-                ? severity.Display
-                : OperatorLabels.CaseWorkspace.AbsentValue;
+        /// <summary>An impact's severity as its cell prints it, from Core's names; blank when none is chosen.</summary>
+        public static string SeverityWord(string code) =>
+            AssessmentVocabulary.DamageSeverities.TryGetValue(code, out var severity) ? severity.Display : CodeWord(code);
     }
 
     /// <summary>
@@ -501,8 +507,8 @@ public static class CaseWorkspaceLabels
             AssessmentVocabulary.VehicleType,
             AssessmentVocabulary.VehicleCondition,
             AssessmentVocabulary.HistoryCheck,
-            AssessmentVocabulary.ImpactLocation,
-            AssessmentVocabulary.ImpactSeverity,
+            AssessmentVocabulary.DamageMarkers,
+            AssessmentVocabulary.Impacts,
             AssessmentVocabulary.DamageUnrelated,
             AssessmentVocabulary.ValueRetail,
             AssessmentVocabulary.ValueTrade,

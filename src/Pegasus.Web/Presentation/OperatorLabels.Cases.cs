@@ -250,8 +250,6 @@ public static partial class OperatorLabels
         public static class EngineerSections
         {
             public const string Damage = "Damage";
-            public const string ImpactLocation = "Impact location";
-            public const string ImpactSeverity = "Impact severity";
             public const string IncidentNarrative = "Incident narrative";
             public const string Estimate = "Repair Spec";
             public const string Estimates = "Repair specs";

@@ -266,8 +266,7 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(0, send.SendCalls);
         // The redraw reuses the message and the mailbox the refused send read.
         Assert.Equal(1, counts.OriginMessageReads);
-        Assert.Equal(1, counts.MailboxSenderReads);
-        Assert.Equal(0, counts.MailboxLists);
+        Assert.Equal(1, counts.MailboxLists);
     }
 
     [Fact]
@@ -796,6 +795,63 @@ public sealed partial class QdosTriageIntegrationTests
     }
 
     /// <summary>
+    /// A staff forward held in instructions@ is answered as though it had
+    /// arrived in the mailbox that forwarded it (operator, 3 November 2026;
+    /// R651, R652): From starts on that mailbox, which staff may change
+    /// (R655), and the reply still names the forwarded message it answers.
+    /// </summary>
+    [Fact]
+    public async Task AStaffForwardedTriageIsAnsweredFromTheMailboxThatForwardedIt()
+    {
+        const string forwarder = "triage-forwarder@collisionengineers.co.uk";
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var forwarderId = await SeedSendingMailboxAsync(factory, forwarder);
+        var fixture = await SeedMailboxTriageAsync(
+            factory,
+            senderAddress: forwarder,
+            replyToAddress: forwarder,
+            subject: "FW: Engineer Triage AB12CDE",
+            body: ForwardedTriageBody,
+            mailboxAddress: "instructions@collisionengineers.co.uk");
+
+        using (var page = await client.GetAsync($"/Cases/{fixture.TriageCaseId}"))
+        {
+            var html = await page.Content.ReadAsStringAsync();
+            Assert.Matches(
+                new Regex(
+                    $"<select id=\"triage-reply-from\" name=\"fromMailboxId\"[^>]*>.*?<option value=\"{forwarderId:D}\" selected=\"selected\">{Regex.Escape(forwarder)}</option>",
+                    RegexOptions.Singleline | RegexOptions.CultureInvariant),
+                html);
+        }
+        var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageCaseId}");
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["expectedVersion"] = fixture.Version.ToString(CultureInfo.InvariantCulture),
+            ["operationKey"] = operationKey,
+            ["to"] = "randerson@qdosassist.co.uk",
+            ["subject"] = "Re: Engineer Triage AB12CDE",
+            ["body"] = "Please supply the requested additional vehicle details."
+        });
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(forwarderId, command.ApprovedMailboxId);
+        Assert.Equal(StaffMailComposeMode.Reply, command.ComposeMode);
+        Assert.Equal(fixture.RetainedMessageId, command.OriginalMessage?.RetainedMessageId);
+    }
+
+    /// <summary>
     /// Issue 1042: a forward inside the Principal's own organisation is
     /// answered to the colleague who sent it, with the subject as it came.
     /// </summary>
@@ -968,10 +1024,10 @@ public sealed partial class QdosTriageIntegrationTests
         string senderAddress = "sender@example.invalid",
         string? replyToAddress = "reply@example.invalid",
         string subject = "Originating triage subject",
-        string body = "Originating triage body.")
+        string body = "Originating triage body.",
+        string mailboxAddress = "sc08-sender@collisionengineers.co.uk")
     {
         var externalToken = $"12:instructions{Guid.NewGuid():N}";
-        const string mailboxAddress = "sc08-sender@collisionengineers.co.uk";
         const string immutableMessageId = "triage-msg-001";
         const string internetMessageId = "<triage-msg-001@example.invalid>";
         const string conversationId = "conv-triage-001";
@@ -1161,6 +1217,37 @@ public sealed partial class QdosTriageIntegrationTests
         DateOfIncident: null,
         InspectionAddress: null);
 
+    /// <summary>An Approved, activated Outgoing mailbox at <paramref name="address"/>: one that can send.</summary>
+    private static async Task<Guid> SeedSendingMailboxAsync(
+        WebApplicationFactory<Program> factory,
+        string address)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        if (await context.ApprovedMailboxes.SingleOrDefaultAsync(m => m.Address == address) is { } existing)
+        {
+            return existing.Id;
+        }
+        var id = Guid.NewGuid();
+        context.ApprovedMailboxes.Add(new()
+        {
+            Id = id,
+            Address = address,
+            State = "Approved",
+            AllowIncoming = false,
+            AllowOutgoing = true,
+            MailboxIdentity = $"forwarder-{id:N}",
+            InboxFolderIdentity = "inbox",
+            SentFolderIdentity = "sent-items",
+            MailboxGeneration = 1,
+            Version = 1,
+            ActivatedAtUtc = ChaserNowUtc
+        });
+        await context.SaveChangesAsync();
+        return id;
+    }
+
     private static async Task<Guid> GetMailboxIdAsync(
         WebApplicationFactory<Program> factory,
         string address)
@@ -1200,14 +1287,11 @@ public sealed partial class QdosTriageIntegrationTests
     {
         public int OriginMessageReads { get; set; }
 
-        public int MailboxSenderReads { get; set; }
-
         public int MailboxLists { get; set; }
 
         public void Reset()
         {
             OriginMessageReads = 0;
-            MailboxSenderReads = 0;
             MailboxLists = 0;
         }
     }
@@ -1233,12 +1317,6 @@ public sealed partial class QdosTriageIntegrationTests
         {
             counts.MailboxLists++;
             return inner.ListAsync(cancellationToken);
-        }
-
-        public Task<ApprovedMailbox?> GetSenderAsync(Guid mailboxId, CancellationToken cancellationToken)
-        {
-            counts.MailboxSenderReads++;
-            return inner.GetSenderAsync(mailboxId, cancellationToken);
         }
 
         public Task<ApprovedMailbox> UpdateAsync(

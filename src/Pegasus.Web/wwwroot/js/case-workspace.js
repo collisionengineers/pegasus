@@ -2417,15 +2417,19 @@
 })();
 
 
-// --- damage: damage by area (v28 P5) ---------------------------------------
-// The bursts on the plan, the three chips, the recorded-areas list and the
-// derived cells are one view of the impacts JSON the Save reads from the
-// hidden input. The page renders all of it server-side; this keeps them in
-// step while the section edits: pressing and dragging on the vehicle sizes a
+// --- damage: impacts entered by hand, markers for the picture (v46) ----------
+// The bursts on the plan are one view of the markers JSON the Save reads from
+// the section's hidden input: pressing and dragging on the vehicle sizes a
 // disc (no smaller or wider than Core allows), dragging a disc moves it, and
-// the areas a disc touches follow Core's bands. A drawn disc is kept as drawn
-// and saved with its areas; Core reads the areas off it again. Reset returns
-// to the values held when the edit opened. Outside a session nothing is live
+// Clear markers removes them all. A marker is a position only; dragging never
+// removes one. Beside the plan, the impact rows are one view of the impacts
+// JSON: Add impact adds a blank row, a row's × (Clear) removes it, and every
+// change writes the rows back and recomposes the Incident narrative from
+// Core's sentence and words, one line to a sentence. Skip impacts (v47) stands
+// beside Add impact while no row exists: ticking it greys out Add impact, a
+// row hides it and clearing the last row offers it again, unticked. The page
+// renders all of it server-side; this
+// keeps it in step while the section edits. Outside a session nothing is live
 // (D21: absent, not disabled).
 (function () {
     'use strict';
@@ -2440,625 +2444,323 @@
             editor.dataset.damageBound = 'true';
 
             var editable = editor.getAttribute('data-damage-editable') === 'true';
-            var input = editor.querySelector('[data-damage-input]');
-            var svg = editor.querySelector('svg.damage-diagram');
-            var layer = editor.querySelector('[data-damage-marks]');
-            var readout = editor.querySelector('[data-damage-readout]');
-            var list = editor.querySelector('[data-damage-impact-list]');
-            var reset = editor.querySelector('[data-damage-reset]');
-            var locationCell = editor.querySelector('[data-damage-location]');
-            var severityCell = editor.querySelector('[data-damage-severity]');
-            var countCell = editor.querySelector('[data-damage-count]');
-            var words = {
-                multiple: editor.getAttribute('data-damage-multiple') || 'Multiple',
-                absent: editor.getAttribute('data-damage-absent') || 'Not recorded',
-                none: editor.getAttribute('data-damage-none') || 'No damage recorded.',
-                noNote: editor.getAttribute('data-damage-no-note') || 'No note',
-                note: editor.getAttribute('data-damage-note-label') || 'Note',
-                remove: editor.getAttribute('data-damage-remove-label') || 'Remove',
-                severity: editor.getAttribute('data-damage-grade-label') || 'Severity'
-            };
-            var vocabulary, severities, impacts;
-            try { vocabulary = JSON.parse(editor.getAttribute('data-damage-areas') || '{}'); } catch (_) { vocabulary = {}; }
-            try { severities = JSON.parse(editor.getAttribute('data-damage-severities') || '[]'); } catch (_) { severities = []; }
-            try {
-                impacts = JSON.parse(input ? input.value : (editor.getAttribute('data-damage-impacts') || '[]'));
-                if (!Array.isArray(impacts)) { impacts = []; }
-            } catch (_) { impacts = []; }
-            var planAreas = vocabulary.plan || [];
-            var otherAreas = vocabulary.other || [];
-            var names = vocabulary.names || {};
-            var centres = vocabulary.centres || {};
-            var box = vocabulary.box || { x: 0, y: 0, w: 1, h: 1 };
-            var bands = vocabulary.bands || { front: 0.34, rear: 0.72, left: 0.372, right: 0.628 };
-            var baseRadius = vocabulary.radius || 0.12;
-            // Core's disc limits, served in the area table: no second copy here.
-            var margin = vocabulary.margin;
-            var minRadius = vocabulary.minRadius * box.w;
-            var maxRadius = vocabulary.maxRadius * box.w;
-            // Core's one comic burst (DamageBurst), drawn over each disc.
-            var burst = vocabulary.burst;
-            var order = planAreas.concat(otherAreas);
-
-            // Each recorded damage keeps its disc beside its areas. The disc the
-            // page drew is read back, so the opening view is the recorded one
-            // and Reset can return to it. `unit` is the disc the operator drew,
-            // in the plan's own terms, saved with the damage exactly as it was
-            // recorded until the disc is drawn or moved again; a damage recorded
-            // by area alone has none.
-            var marks = impacts.map(function (item, index) {
-                var shown = layer ? layer.querySelector('[data-mark="' + index + '"] circle.area') : null;
-                var unit = item.disc && typeof item.disc === 'object'
-                    ? { x: +item.disc.x, y: +item.disc.y, r: +item.disc.r }
-                    : null;
-                return {
-                    areas: Array.isArray(item.areas) ? item.areas.slice() : [],
-                    severity: item.severity || 'moderate',
-                    note: item.note || '',
-                    disc: shown ? { x: +shown.getAttribute('cx'), y: +shown.getAttribute('cy'), r: +shown.getAttribute('r') } : null,
-                    unit: unit
-                };
-            });
-            var opening = JSON.parse(JSON.stringify(marks));
-
-            function areaName(code) {
-                return names[code] || String(code || '').replace(/_/g, ' ');
-            }
-            function areaNames(areas) {
-                return areas.map(areaName).join(', ');
-            }
-            function sortAreas(areas) {
-                return areas.slice().sort(function (a, b) { return order.indexOf(a) - order.indexOf(b); });
-            }
-            function severityName(code) {
-                var found = severities.filter(function (item) { return item.k === code; })[0];
-                return found ? found.n : code;
-            }
-            function severityRank(code) {
-                return severities.map(function (item) { return item.k; }).indexOf(code);
-            }
-            function otherMark(code) {
-                return marks.filter(function (mark) { return mark.areas.length === 1 && mark.areas[0] === code; })[0];
-            }
-            function format(value) {
-                return String(Math.round(value * 10) / 10);
-            }
-
-            function persist() {
-                if (input) {
-                    input.value = JSON.stringify(marks.map(function (mark) {
-                        return mark.unit
-                            ? { areas: mark.areas, disc: mark.unit, severity: mark.severity, note: mark.note }
-                            : { areas: mark.areas, severity: mark.severity, note: mark.note };
-                    }));
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-            }
-            // A drawn disc in the plan's own terms, as Core stores it: the centre
-            // as fractions of the body box, the radius as a fraction of its width.
-            function round4(value) {
-                return Math.round(value * 10000) / 10000;
-            }
-            function toUnit(disc) {
-                return { x: round4((disc.x - box.x) / box.w), y: round4((disc.y - box.y) / box.h), r: round4(disc.r / box.w) };
-            }
-            function fromUnit(unit) {
-                return { x: box.x + unit.x * box.w, y: box.y + unit.y * box.h, r: unit.r * box.w };
-            }
-            // A disc's centre stays on the body box and its radius between the
-            // smallest and the largest disc Core accepts.
-            function bound(disc) {
-                disc.x = Math.max(box.x, Math.min(box.x + box.w, disc.x));
-                disc.y = Math.max(box.y, Math.min(box.y + box.h, disc.y));
-                disc.r = Math.max(minRadius, Math.min(maxRadius, disc.r));
-                return disc;
-            }
-
-            // --- the plan: points, the vehicle and Core's bands
-            function svgPoint(event) {
-                var point = svg.createSVGPoint();
-                point.x = event.clientX;
-                point.y = event.clientY;
-                var mapped = point.matrixTransform(svg.getScreenCTM().inverse());
-                return { x: mapped.x, y: mapped.y };
-            }
-            // On the drawing's outline: its body, tyres and mirrors (and a
-            // motorbike's frame and bars), as Core lists them.
-            function onVehicle(x, y) {
-                var point = svg.createSVGPoint();
-                point.x = x;
-                point.y = y;
-                return Array.prototype.slice.call(svg.querySelectorAll('.dv-hit path')).some(function (path) {
-                    return path.isPointInFill(point);
-                });
-            }
-            // The one plan area holding a point on the unit plan, as Core
-            // judges it (DamageAreaGeometry.AreaAt): the readout under the
-            // pointer and the seat of a burst's centre share the one test.
-            function areaOfUnit(ux, uy) {
-                var band = uy < bands.front ? 'front' : uy > bands.rear ? 'rear' : 'side';
-                var lateral = ux < bands.left ? 'left' : ux > bands.right ? 'right' : 'centre';
-                if (band === 'side') {
-                    return (lateral === 'centre' ? (ux < 0.5 ? 'left' : 'right') : lateral) + '_side';
-                }
-                return lateral === 'centre' ? band : lateral + '_' + band;
-            }
-            function areaAt(x, y) {
-                if (!onVehicle(x, y)) {
-                    return null;
-                }
-                return areaOfUnit((x - box.x) / box.w, (y - box.y) / box.h);
-            }
-            function circleIntersectsArea(disc, left, top, right, bottom) {
-                var closestX = Math.max(left, Math.min(disc.x, right));
-                var closestY = Math.max(top, Math.min(disc.y, bottom));
-                var dx = disc.x - closestX;
-                var dy = disc.y - closestY;
-                // Strictly positive area: tangency at a band boundary does not
-                // record an area, matching DamageAreaGeometry in Core.
-                return dx * dx + dy * dy < disc.r * disc.r;
-            }
-            function areaBounds(area) {
-                var plan = box;
-                var left = plan.x;
-                var top = plan.y;
-                var right = plan.x + plan.w;
-                var bottom = plan.y + plan.h;
-                var front = top + bands.front * plan.h;
-                var rear = top + bands.rear * plan.h;
-                var leftBand = left + bands.left * plan.w;
-                var rightBand = left + bands.right * plan.w;
-                var middle = left + plan.w / 2;
-                switch (area) {
-                    case 'front': return [leftBand, top, rightBand, front];
-                    case 'left_front': return [left, top, leftBand, front];
-                    case 'right_front': return [rightBand, top, right, front];
-                    case 'left_side': return [left, front, middle, rear];
-                    case 'right_side': return [middle, front, right, rear];
-                    case 'rear': return [leftBand, rear, rightBand, bottom];
-                    case 'left_rear': return [left, rear, leftBand, bottom];
-                    case 'right_rear': return [rightBand, rear, right, bottom];
-                    default: return null;
-                }
-            }
-            // The plan areas a disc touches, judged as Core judges them: on the
-            // disc as it is stored, so the page and the save agree at the edges.
-            function areasUnder(disc) {
-                var stored = fromUnit(toUnit(disc));
-                return sortAreas(planAreas.filter(function (area) {
-                    var bounds = areaBounds(area);
-                    return bounds && circleIntersectsArea(stored, bounds[0], bounds[1], bounds[2], bounds[3]);
-                }));
-            }
-            // The disc a damage recorded by area alone is drawn with, as Core
-            // draws it (DamageAreaGeometry.Disc): between its areas, reaching
-            // them, never wider than the vehicle.
-            function renderedDisc(areas) {
-                var points = areas.map(function (area) {
-                    var centre = centres[area];
-                    return centre ? { x: box.x + centre.x * box.w, y: box.y + centre.y * box.h } : null;
-                }).filter(function (point) { return point !== null; });
-                if (!points.length) {
-                    return null;
-                }
-                var x = points.reduce(function (sum, point) { return sum + point.x; }, 0) / points.length;
-                var y = points.reduce(function (sum, point) { return sum + point.y; }, 0) / points.length;
-                var spread = points.reduce(function (max, point) {
-                    return Math.max(max, Math.hypot(point.x - x, point.y - y));
-                }, 0);
-                return { x: x, y: y, r: Math.min(maxRadius, Math.max(baseRadius * box.w, spread + margin * box.w)) };
-            }
-
-            // --- painting
-            // The burst over a disc, as Core draws it (DamagePlanGeometry.BurstPath).
-            function burstPath(disc) {
-                var vertices = [];
-                for (var i = 0; i < burst.points * 2; i++) {
-                    var theta = (burst.rotation - 90) * Math.PI / 180 + i * Math.PI / burst.points;
-                    var reach = i % 2 ? disc.r * (1 - burst.depth) : disc.r;
-                    var wave = 1 + burst.jitter * (Math.sin(theta * 3.7 + burst.points * 0.31) + Math.cos(theta * 2.1 + burst.rotation * 0.07)) * 0.35;
-                    vertices.push(format(disc.x + Math.cos(theta) * reach * wave * burst.stretchX) + ' ' + format(disc.y + Math.sin(theta) * reach * wave * burst.stretchY));
-                }
-                return 'M' + vertices.join(' L') + ' Z';
-            }
-            function circle(className, x, y, r) {
-                var element = document.createElementNS(SVG_NS, 'circle');
-                element.setAttribute('class', className);
-                element.setAttribute('cx', format(x));
-                element.setAttribute('cy', format(y));
-                element.setAttribute('r', format(r));
-                return element;
-            }
-            function paintMarks() {
-                if (!layer) {
-                    return;
-                }
-                while (layer.firstChild) { layer.removeChild(layer.firstChild); }
-                marks.forEach(function (mark, index) {
-                    if (!mark.disc) {
-                        return;
-                    }
-                    var group = document.createElementNS(SVG_NS, 'g');
-                    group.setAttribute('class', 'dm');
-                    group.setAttribute('data-mark', String(index));
-                    group.appendChild(circle('area', mark.disc.x, mark.disc.y, mark.disc.r));
-                    var shape = document.createElementNS(SVG_NS, 'path');
-                    shape.setAttribute('class', 'burst');
-                    shape.setAttribute('d', burstPath(mark.disc));
-                    shape.setAttribute('fill', burst.fill);
-                    shape.setAttribute('fill-opacity', String(burst.opacity));
-                    shape.setAttribute('stroke', burst.line);
-                    shape.setAttribute('stroke-width', String(burst.lineWidth));
-                    shape.setAttribute('stroke-linejoin', 'round');
-                    group.appendChild(shape);
-                    layer.appendChild(group);
-                });
-            }
-            function paintChips() {
-                editor.querySelectorAll('[data-damage-area]').forEach(function (chip) {
-                    var recorded = !!otherMark(chip.getAttribute('data-damage-area'));
-                    chip.classList.toggle('is-damaged', recorded);
-                    chip.setAttribute('aria-pressed', recorded ? 'true' : 'false');
-                });
-            }
-            // The headline location as Core derives it (AssessmentPolicy
-            // .DeriveImpactValues, 2 November 2026): marks whose stored discs
-            // touch are one group, read as the area holding most of their
-            // centres, a tie going to the record's order; an other-area mark
-            // is a group of its own. One group is the location; more are
-            // Multiple. Judged on the disc as it is stored, like areasUnder.
-            function storedDisc(mark) {
-                var drawn = mark.disc || renderedDisc(mark.areas);
-                return drawn ? toUnit(drawn) : null;
-            }
-            function touching(a, b) {
-                var dx = a.x - b.x;
-                var dy = (a.y - b.y) * box.h / box.w;
-                var reach = a.r + b.r;
-                return dx * dx + dy * dy <= reach * reach;
-            }
-            function groupAreas() {
-                var discs = marks.map(storedDisc);
-                var grouped = discs.map(function () { return false; });
-                var areas = [];
-                discs.forEach(function (first, seed) {
-                    if (grouped[seed]) {
-                        return;
-                    }
-                    grouped[seed] = true;
-                    if (!first) {
-                        areas.push(marks[seed].areas[0]);
-                        return;
-                    }
-                    var group = [first];
-                    for (var next = 0; next < group.length; next++) {
-                        discs.forEach(function (disc, candidate) {
-                            if (!grouped[candidate] && disc && touching(group[next], disc)) {
-                                grouped[candidate] = true;
-                                group.push(disc);
-                            }
-                        });
-                    }
-                    var seats = {};
-                    group.forEach(function (disc) {
-                        var area = areaOfUnit(disc.x, disc.y);
-                        seats[area] = (seats[area] || 0) + 1;
-                    });
-                    areas.push(Object.keys(seats).sort(function (a, b) {
-                        return seats[b] - seats[a] || order.indexOf(a) - order.indexOf(b);
-                    })[0]);
-                });
-                return areas;
-            }
-            function paintDerived() {
-                if (countCell) {
-                    countCell.textContent = String(marks.length);
-                }
-                if (locationCell) {
-                    var groups = groupAreas();
-                    locationCell.textContent = groups.length === 0
-                        ? words.absent
-                        : groups.length === 1
-                            ? areaName(groups[0])
-                            : words.multiple;
-                }
-                if (severityCell) {
-                    var best = null;
-                    marks.forEach(function (mark) {
-                        if (best === null || severityRank(mark.severity) > severityRank(best)) {
-                            best = mark.severity;
-                        }
-                    });
-                    severityCell.textContent = best === null ? words.absent : severityName(best);
-                }
-            }
-            function cell(className, contents) {
-                var span = document.createElement('span');
-                span.className = editable ? 'fc' : 'fc ro';
-                var value = document.createElement('div');
-                value.className = className;
-                value.textContent = contents;
-                span.appendChild(value);
-                return span;
-            }
-            function renderList() {
-                if (!list) {
-                    return;
-                }
-                list.innerHTML = '';
-                if (marks.length === 0) {
-                    var empty = document.createElement('li');
-                    empty.className = 'muted';
-                    empty.setAttribute('data-damage-empty', '');
-                    empty.textContent = words.none;
-                    list.appendChild(empty);
-                    return;
-                }
-                marks.forEach(function (mark, index) {
-                    var row = document.createElement('li');
-                    row.className = 'impact-row';
-                    row.setAttribute('data-damage-row', String(index));
-
-                    var name = document.createElement('span');
-                    name.className = 'zc';
-                    var badge = document.createElement('i');
-                    badge.className = 'zn';
-                    badge.textContent = String(index + 1);
-                    name.appendChild(badge);
-                    name.appendChild(document.createTextNode(areaNames(mark.areas)));
-                    row.appendChild(name);
-
-                    var severityCellRow = cell('fv', severityName(mark.severity));
-                    if (editable) {
-                        var select = document.createElement('select');
-                        select.className = 'fi';
-                        select.setAttribute('data-damage-row-severity', '');
-                        select.setAttribute('aria-label', areaNames(mark.areas) + ' ' + words.severity.toLowerCase());
-                        severities.forEach(function (severity) {
-                            var option = document.createElement('option');
-                            option.value = severity.k;
-                            option.textContent = severity.n;
-                            option.selected = severity.k === mark.severity;
-                            select.appendChild(option);
-                        });
-                        severityCellRow.appendChild(select);
-                    }
-                    row.appendChild(severityCellRow);
-
-                    var noteCellRow = cell('fv' + (mark.note ? '' : ' empty'), mark.note || words.noNote);
-                    if (editable) {
-                        var note = document.createElement('input');
-                        note.className = 'fi';
-                        note.maxLength = 200;
-                        note.value = mark.note || '';
-                        note.placeholder = words.note;
-                        note.setAttribute('data-damage-row-note', '');
-                        note.setAttribute('aria-label', areaNames(mark.areas) + ' ' + words.note.toLowerCase());
-                        noteCellRow.appendChild(note);
-                    }
-                    row.appendChild(noteCellRow);
-
-                    if (editable) {
-                        var remove = document.createElement('button');
-                        remove.type = 'button';
-                        remove.className = 'del';
-                        remove.setAttribute('data-damage-row-remove', '');
-                        remove.setAttribute('aria-label', words.remove + ' ' + areaNames(mark.areas));
-                        remove.textContent = '×';
-                        row.appendChild(remove);
-                    }
-                    list.appendChild(row);
-                });
-            }
-            function render() {
-                paintMarks();
-                paintChips();
-                paintDerived();
-                renderList();
-            }
-            function hover(index) {
-                if (layer) {
-                    layer.querySelectorAll('[data-mark]').forEach(function (group) {
-                        group.classList.toggle('is-hover', index !== null && group.getAttribute('data-mark') === String(index));
-                    });
-                }
-                if (list) {
-                    list.querySelectorAll('[data-damage-row]').forEach(function (row) {
-                        row.classList.toggle('is-hover', index !== null && row.getAttribute('data-damage-row') === String(index));
-                    });
-                }
-            }
-
-            function toggleOther(code) {
-                if (!editable) {
-                    return;
-                }
-                var existing = otherMark(code);
-                if (existing) {
-                    marks.splice(marks.indexOf(existing), 1);
-                } else {
-                    marks.push({ areas: [code], severity: 'moderate', note: '', disc: null, unit: null });
-                }
-                render();
-                persist();
-            }
-            // The keyboard's way onto the plan: the focused area is recorded by
-            // area alone, drawn with the disc its area gives.
-            function addPlanArea(code) {
-                if (!editable || planAreas.indexOf(code) < 0) {
-                    return;
-                }
-                marks.push({ areas: [code], severity: 'moderate', note: '', disc: renderedDisc([code]), unit: null });
-                render();
-                persist();
-            }
-            editor.querySelectorAll('[data-damage-area]').forEach(function (chip) {
-                chip.addEventListener('click', function () { toggleOther(chip.getAttribute('data-damage-area')); });
-            });
-            editor.querySelectorAll('[data-damage-plan-area]').forEach(function (control) {
-                control.addEventListener('keydown', function (event) {
-                    if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') {
-                        return;
-                    }
-                    event.preventDefault();
-                    addPlanArea(control.getAttribute('data-damage-plan-area'));
-                });
-            });
-
-            // The plan: pressing and dragging sizes a new disc, dragging a
-            // disc moves it, and the readout names the area under the pointer.
-            // The disc stays as drawn; it names the areas it touches.
-            if (editable && svg && layer) {
-                var drawing = null;
-                svg.addEventListener('pointerdown', function (event) {
-                    var point = svgPoint(event);
-                    var hit = event.target.closest ? event.target.closest('[data-mark]') : null;
-                    if (hit) {
-                        var moved = marks[+hit.getAttribute('data-mark')];
-                        if (!moved || !moved.disc) {
-                            return;
-                        }
-                        drawing = {
-                            mark: moved,
-                            move: true,
-                            changed: false,
-                            dx: moved.disc.x - point.x,
-                            dy: moved.disc.y - point.y,
-                            was: { disc: JSON.parse(JSON.stringify(moved.disc)), areas: moved.areas.slice(), unit: moved.unit }
-                        };
-                    } else {
-                        var area = areaAt(point.x, point.y);
-                        if (!area) {
-                            return;
-                        }
-                        var mark = { areas: [area], severity: 'moderate', note: '', disc: bound({ x: point.x, y: point.y, r: 12 }), unit: null };
-                        marks.push(mark);
-                        drawing = { mark: mark, move: false, changed: true };
-                    }
-                    event.preventDefault();
-                    svg.setPointerCapture(event.pointerId);
-                    render();
-                });
-                svg.addEventListener('pointermove', function (event) {
-                    var point = svgPoint(event);
-                    if (!drawing) {
-                        if (readout) {
-                            var under = areaAt(point.x, point.y);
-                            readout.textContent = under ? areaName(under) : '';
-                        }
-                        return;
-                    }
-                    drawing.changed = true;
-                    if (drawing.move) {
-                        drawing.mark.disc.x = point.x + drawing.dx;
-                        drawing.mark.disc.y = point.y + drawing.dy;
-                    } else {
-                        drawing.mark.disc.r = Math.hypot(point.x - drawing.mark.disc.x, point.y - drawing.mark.disc.y);
-                    }
-                    bound(drawing.mark.disc);
-                    var areas = areasUnder(drawing.mark.disc);
-                    if (areas.length) {
-                        drawing.mark.areas = areas;
-                    }
-                    render();
-                });
-                var finish = function () {
-                    if (!drawing) {
-                        return;
-                    }
-                    // A press on a disc that did not move it changes nothing.
-                    if (!drawing.changed) {
-                        drawing = null;
-                        return;
-                    }
-                    // A disc dragged off the vehicle names nothing: a moved one
-                    // returns, a new one is not recorded. Otherwise the disc is
-                    // kept as drawn, at the precision it is saved at.
-                    var areas = areasUnder(drawing.mark.disc);
-                    if (!areas.length) {
-                        if (drawing.move) {
-                            drawing.mark.disc = drawing.was.disc;
-                            drawing.mark.areas = drawing.was.areas;
-                            drawing.mark.unit = drawing.was.unit;
-                        } else {
-                            marks.splice(marks.indexOf(drawing.mark), 1);
-                        }
-                    } else {
-                        drawing.mark.unit = toUnit(drawing.mark.disc);
-                        drawing.mark.disc = fromUnit(drawing.mark.unit);
-                        drawing.mark.areas = areas;
-                    }
-                    drawing = null;
-                    render();
-                    persist();
-                };
-                svg.addEventListener('pointerup', finish);
-                svg.addEventListener('pointercancel', finish);
-                svg.addEventListener('pointerleave', function () {
-                    if (readout && !drawing) { readout.textContent = ''; }
-                });
-                layer.addEventListener('mouseover', function (event) {
-                    var group = event.target.closest ? event.target.closest('[data-mark]') : null;
-                    hover(group ? +group.getAttribute('data-mark') : null);
-                });
-                layer.addEventListener('mouseleave', function () { hover(null); });
-            }
-            if (reset) {
-                reset.addEventListener('click', function () {
-                    marks = JSON.parse(JSON.stringify(opening));
-                    render();
-                    persist();
-                });
-            }
-            // The list: severity and note write back; remove takes the damage
-            // away; hover lights its disc.
-            if (list) {
-                list.addEventListener('change', function (event) {
-                    var select = event.target.closest('[data-damage-row-severity]');
-                    if (!select) {
-                        return;
-                    }
-                    var row = select.closest('[data-damage-row]');
-                    var recorded = row && marks[+row.getAttribute('data-damage-row')];
-                    if (recorded) {
-                        recorded.severity = select.value;
-                        paintDerived();
-                        persist();
-                    }
-                });
-                list.addEventListener('input', function (event) {
-                    var note = event.target.closest('[data-damage-row-note]');
-                    if (!note) {
-                        return;
-                    }
-                    var row = note.closest('[data-damage-row]');
-                    var recorded = row && marks[+row.getAttribute('data-damage-row')];
-                    if (recorded) {
-                        recorded.note = note.value;
-                        persist();
-                    }
-                });
-                list.addEventListener('click', function (event) {
-                    var remove = event.target.closest('[data-damage-row-remove]');
-                    if (!remove || !editable) {
-                        return;
-                    }
-                    var row = remove.closest('[data-damage-row]');
-                    if (row) {
-                        marks.splice(+row.getAttribute('data-damage-row'), 1);
-                        render();
-                        persist();
-                    }
-                });
-                list.addEventListener('mouseover', function (event) {
-                    var row = event.target.closest('[data-damage-row]');
-                    hover(row ? +row.getAttribute('data-damage-row') : null);
-                });
-                list.addEventListener('mouseleave', function () { hover(null); });
-            }
-            // The server rendered the discs, the chips, the list and the cells;
-            // nothing is painted on load.
+            bindMarkers(editor, editable);
+            bindImpacts(editor);
         });
+    }
+
+    function bindMarkers(editor, editable) {
+        var input = editor.querySelector('[data-damage-input]');
+        var svg = editor.querySelector('svg.damage-diagram');
+        var layer = editor.querySelector('[data-damage-marks]');
+        var clear = editor.querySelector('[data-damage-clear-markers]');
+        var plan;
+        try { plan = JSON.parse(editor.getAttribute('data-damage-plan') || '{}'); } catch (_) { plan = {}; }
+        var box = plan.box || { x: 0, y: 0, w: 1, h: 1 };
+        // Core's disc limits, served in the plan table: no second copy here.
+        var minRadius = plan.minRadius * box.w;
+        var maxRadius = plan.maxRadius * box.w;
+        // Core's one comic burst (DamageBurst), drawn over each disc.
+        var burst = plan.burst;
+
+        // The disc the page drew for each marker is read back, so the opening
+        // view is the recorded one. `unit` is the disc in the plan's own
+        // terms, as it is saved.
+        var marks = Array.prototype.slice.call(layer ? layer.querySelectorAll('[data-mark] circle.area') : []).map(function (shown) {
+            var disc = { x: +shown.getAttribute('cx'), y: +shown.getAttribute('cy'), r: +shown.getAttribute('r') };
+            return { disc: disc, unit: toUnit(disc) };
+        });
+        try {
+            var stored = JSON.parse(input ? input.value : (editor.getAttribute('data-damage-markers') || '[]'));
+            if (Array.isArray(stored) && stored.length === marks.length) {
+                marks.forEach(function (mark, index) {
+                    mark.unit = { x: +stored[index].x, y: +stored[index].y, r: +stored[index].r };
+                });
+            }
+        } catch (_) { /* the drawn discs stand */ }
+
+        function format(value) {
+            return String(Math.round(value * 10) / 10);
+        }
+        function persist() {
+            if (input) {
+                input.value = JSON.stringify(marks.map(function (mark) { return mark.unit; }));
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+        // A disc in the plan's own terms, as Core stores it: the centre as
+        // fractions of the body box, the radius as a fraction of its width.
+        function round4(value) {
+            return Math.round(value * 10000) / 10000;
+        }
+        function toUnit(disc) {
+            return { x: round4((disc.x - box.x) / box.w), y: round4((disc.y - box.y) / box.h), r: round4(disc.r / box.w) };
+        }
+        function fromUnit(unit) {
+            return { x: box.x + unit.x * box.w, y: box.y + unit.y * box.h, r: unit.r * box.w };
+        }
+        // A disc's centre stays on the body box and its radius between the
+        // smallest and the largest disc Core accepts.
+        function bound(disc) {
+            disc.x = Math.max(box.x, Math.min(box.x + box.w, disc.x));
+            disc.y = Math.max(box.y, Math.min(box.y + box.h, disc.y));
+            disc.r = Math.max(minRadius, Math.min(maxRadius, disc.r));
+            return disc;
+        }
+        function svgPoint(event) {
+            var point = svg.createSVGPoint();
+            point.x = event.clientX;
+            point.y = event.clientY;
+            var mapped = point.matrixTransform(svg.getScreenCTM().inverse());
+            return { x: mapped.x, y: mapped.y };
+        }
+        // On the drawing's outline: its body, tyres and mirrors (and a
+        // motorbike's frame and bars), as Core lists them.
+        function onVehicle(x, y) {
+            var point = svg.createSVGPoint();
+            point.x = x;
+            point.y = y;
+            return Array.prototype.slice.call(svg.querySelectorAll('.dv-hit path')).some(function (path) {
+                return path.isPointInFill(point);
+            });
+        }
+        // The burst over a disc, as Core draws it (DamagePlanGeometry.BurstPath).
+        function burstPath(disc) {
+            var vertices = [];
+            for (var i = 0; i < burst.points * 2; i++) {
+                var theta = (burst.rotation - 90) * Math.PI / 180 + i * Math.PI / burst.points;
+                var reach = i % 2 ? disc.r * (1 - burst.depth) : disc.r;
+                var wave = 1 + burst.jitter * (Math.sin(theta * 3.7 + burst.points * 0.31) + Math.cos(theta * 2.1 + burst.rotation * 0.07)) * 0.35;
+                vertices.push(format(disc.x + Math.cos(theta) * reach * wave * burst.stretchX) + ' ' + format(disc.y + Math.sin(theta) * reach * wave * burst.stretchY));
+            }
+            return 'M' + vertices.join(' L') + ' Z';
+        }
+        function render() {
+            if (!layer) {
+                return;
+            }
+            while (layer.firstChild) { layer.removeChild(layer.firstChild); }
+            marks.forEach(function (mark, index) {
+                var group = document.createElementNS(SVG_NS, 'g');
+                group.setAttribute('class', 'dm');
+                group.setAttribute('data-mark', String(index));
+                var area = document.createElementNS(SVG_NS, 'circle');
+                area.setAttribute('class', 'area');
+                area.setAttribute('cx', format(mark.disc.x));
+                area.setAttribute('cy', format(mark.disc.y));
+                area.setAttribute('r', format(mark.disc.r));
+                group.appendChild(area);
+                var shape = document.createElementNS(SVG_NS, 'path');
+                shape.setAttribute('class', 'burst');
+                shape.setAttribute('d', burstPath(mark.disc));
+                shape.setAttribute('fill', burst.fill);
+                shape.setAttribute('fill-opacity', String(burst.opacity));
+                shape.setAttribute('stroke', burst.line);
+                shape.setAttribute('stroke-width', String(burst.lineWidth));
+                shape.setAttribute('stroke-linejoin', 'round');
+                group.appendChild(shape);
+                layer.appendChild(group);
+            });
+        }
+
+        if (!editable || !svg || !layer || !burst) {
+            return;
+        }
+        // The plan: pressing on the vehicle and dragging sizes a new disc;
+        // dragging a disc moves it. The disc is kept as drawn.
+        var drawing = null;
+        svg.addEventListener('pointerdown', function (event) {
+            var point = svgPoint(event);
+            var hit = event.target.closest ? event.target.closest('[data-mark]') : null;
+            if (hit) {
+                var moved = marks[+hit.getAttribute('data-mark')];
+                if (!moved) {
+                    return;
+                }
+                drawing = { mark: moved, move: true, changed: false, dx: moved.disc.x - point.x, dy: moved.disc.y - point.y };
+            } else {
+                if (!onVehicle(point.x, point.y)) {
+                    return;
+                }
+                var mark = { disc: bound({ x: point.x, y: point.y, r: 12 }), unit: null };
+                marks.push(mark);
+                drawing = { mark: mark, move: false, changed: true };
+            }
+            event.preventDefault();
+            svg.setPointerCapture(event.pointerId);
+            render();
+        });
+        svg.addEventListener('pointermove', function (event) {
+            if (!drawing) {
+                return;
+            }
+            var point = svgPoint(event);
+            drawing.changed = true;
+            if (drawing.move) {
+                drawing.mark.disc.x = point.x + drawing.dx;
+                drawing.mark.disc.y = point.y + drawing.dy;
+            } else {
+                drawing.mark.disc.r = Math.hypot(point.x - drawing.mark.disc.x, point.y - drawing.mark.disc.y);
+            }
+            bound(drawing.mark.disc);
+            render();
+        });
+        var finish = function () {
+            if (!drawing) {
+                return;
+            }
+            // A press on a disc that did not move it changes nothing.
+            if (!drawing.changed) {
+                drawing = null;
+                return;
+            }
+            // Kept as drawn, at the precision it is saved at.
+            drawing.mark.unit = toUnit(drawing.mark.disc);
+            drawing.mark.disc = fromUnit(drawing.mark.unit);
+            drawing = null;
+            render();
+            persist();
+        };
+        svg.addEventListener('pointerup', finish);
+        svg.addEventListener('pointercancel', finish);
+        if (clear) {
+            clear.addEventListener('click', function () {
+                marks = [];
+                render();
+                persist();
+            });
+        }
+    }
+
+    // The impact rows: Add impact, the row's ×, and the values written back
+    // as the one JSON value the Save reads. The Incident narrative follows
+    // the rows that name both a severity and a location, unless the Engineer
+    // has written their own Nature of Incident wording.
+    function bindImpacts(editor) {
+        var root = editor.querySelector('[data-impacts]');
+        var input = root ? root.querySelector('[data-impacts-input]') : null;
+        if (!root || !input) {
+            return;
+        }
+        var rows = root.querySelector('[data-impacts-rows]');
+        var head = root.querySelector('[data-impacts-head]');
+        var empty = root.querySelector('[data-impacts-empty]');
+        var template = root.querySelector('[data-impacts-template]');
+        var add = root.querySelector('[data-impacts-add]');
+        var skip = root.querySelector('[data-impacts-skip]');
+        var skipInput = skip ? skip.querySelector('input[type="checkbox"]') : null;
+        var narrative = editor.querySelector('[data-damage-narrative]');
+        var follows = editor.getAttribute('data-damage-narrative-follows') === 'true';
+        var absent = editor.getAttribute('data-damage-absent') || '';
+        var words;
+        try { words = JSON.parse(editor.getAttribute('data-damage-narrative-table') || '{}'); } catch (_) { words = {}; }
+
+        function all() {
+            return Array.prototype.slice.call(rows.querySelectorAll('[data-impact-row]'));
+        }
+        function valueOf(row, selector) {
+            var control = row.querySelector(selector);
+            return control ? control.value.trim() : '';
+        }
+        function impacts() {
+            return all().map(function (row) {
+                return {
+                    severity: valueOf(row, '[data-impact-severity]'),
+                    location: valueOf(row, '[data-impact-location]'),
+                    note: valueOf(row, '[data-impact-note]')
+                };
+            });
+        }
+        function recompose(list) {
+            if (!narrative || !follows || !words.sentence) {
+                return;
+            }
+            var text = list.filter(function (impact) {
+                return impact.severity && impact.location && words.severities[impact.severity] && words.locations[impact.location];
+            }).map(function (impact) {
+                return words.sentence
+                    .split('{severity}').join(words.severities[impact.severity])
+                    .split('{location}').join(words.locations[impact.location]);
+            }).join('\n');
+            narrative.textContent = text ? '' : absent;
+            if (text) {
+                text.split('\n').forEach(function (sentence) {
+                    var line = document.createElement('span');
+                    line.className = 'fv-line';
+                    line.textContent = sentence;
+                    narrative.appendChild(line);
+                });
+            }
+            narrative.classList.toggle('empty', !text);
+            narrative.classList.toggle('multi', text.indexOf('\n') >= 0);
+        }
+        function sync() {
+            var list = impacts();
+            input.value = JSON.stringify(list.filter(function (impact) {
+                return impact.severity || impact.location || impact.note;
+            }));
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            var count = list.length;
+            if (head) { head.hidden = count === 0; }
+            if (empty) { empty.hidden = count > 0; }
+            offerSkip(count === 0);
+            recompose(list);
+        }
+        // Skip impacts is offered only while no row exists, and is never left
+        // ticked beside one.
+        function offerSkip(offered) {
+            if (!skip) {
+                return;
+            }
+            skip.hidden = !offered;
+            if (!offered && skipInput) { skipInput.checked = false; }
+            if (add) { add.disabled = !!(skipInput && skipInput.checked); }
+        }
+        if (skipInput && add) {
+            skipInput.addEventListener('change', function () {
+                add.disabled = skipInput.checked;
+            });
+        }
+        if (add && template) {
+            add.addEventListener('click', function () {
+                var row = template.content.firstElementChild.cloneNode(true);
+                rows.appendChild(row);
+                if (head) { head.hidden = false; }
+                if (empty) { empty.hidden = true; }
+                offerSkip(false);
+                var first = row.querySelector('select');
+                if (first) { first.focus(); }
+            });
+        }
+        rows.addEventListener('click', function (event) {
+            var clear = event.target.closest('[data-impact-clear]');
+            if (!clear) {
+                return;
+            }
+            var row = clear.closest('[data-impact-row]');
+            var next = row.nextElementSibling || row.previousElementSibling;
+            row.remove();
+            sync();
+            var focus = next ? next.querySelector('select') : add;
+            if (focus) { focus.focus(); }
+        });
+        function changed(event) {
+            var control = event.target.closest('[data-impact-severity], [data-impact-location], [data-impact-note]');
+            if (!control) {
+                return;
+            }
+            // The value reads where the control edits.
+            var value = control.parentElement.querySelector('.fv');
+            if (value) {
+                value.textContent = control.tagName === 'SELECT'
+                    ? (control.value ? control.options[control.selectedIndex].text : '')
+                    : control.value.trim();
+                value.classList.toggle('empty', !value.textContent);
+            }
+            sync();
+        }
+        rows.addEventListener('change', changed);
+        rows.addEventListener('input', changed);
     }
 
     bind(document);

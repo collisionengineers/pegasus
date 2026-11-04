@@ -760,8 +760,8 @@ public sealed class SendCaseReport(
             ];
         }
 
-        // A reply to the instruction email from the mailbox it arrived in, or
-        // a new message from the mailbox staff chose when there is none.
+        // A reply to the instruction email, or a new message when there is
+        // none, from the mailbox staff chose or else the default (R655).
         var sender = await senders.ExecuteAsync(request.CaseId, request.FromMailboxId, cancellationToken).ConfigureAwait(false);
         var mail = new StaffMailSendCommand(
             request.Actor,

@@ -271,6 +271,9 @@ internal static partial class CaseWebTestSupport
         /// <summary>The Engineer's Value the Case holds, for a test that needs one saved.</summary>
         public string? EngineerValue { get; set; }
 
+        /// <summary>Further assessment values the Case holds, recorded by staff, for a test that needs them.</summary>
+        public Dictionary<string, string> AssessmentFields { get; } = new(StringComparer.Ordinal);
+
         private CaseAssessmentProjection EngineeringAssessment() => new(
             CaseId, "QDOS3100042", CaseVersion, State, null,
             [new(AssessmentVocabulary.ReportDate, "2031-05-06", ActorKind.Staff,
@@ -278,7 +281,9 @@ internal static partial class CaseWebTestSupport
              .. EngineerValue is null
                 ? Array.Empty<AssessmentFieldValue>()
                 : [new AssessmentFieldValue(AssessmentVocabulary.ValueEngineer, EngineerValue, ActorKind.Staff,
-                    "recorded-engineer", _now)]],
+                    "recorded-engineer", _now)],
+             .. AssessmentFields.Select(field => new AssessmentFieldValue(
+                 field.Key, field.Value, ActorKind.Staff, "recorded-engineer", _now))],
             [], new("AB12CDE", null, null, null, null, null, "tbc", null, DateOnly.FromDateTime(_now.UtcDateTime), null, null,
                 null, "Case claimant", "CLM-42"));
 

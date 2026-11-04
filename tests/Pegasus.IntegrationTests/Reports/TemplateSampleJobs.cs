@@ -104,8 +104,6 @@ internal static class TemplateSampleJobs
             Outcome: outcome,
             LegalStatus: Text(assessment, "legal_status"),
             UnroadworthyReason: Optional(assessment, "unroadworthy_reason"),
-            ImpactSeverity: Text(assessment, "impact_severity"),
-            ImpactLocation: location,
             AssessmentMethod: Text(assessment, "method"),
             LocationAddress: null,
             EngineerValue: values.GetProperty("engineer").GetDecimal(),
@@ -117,7 +115,11 @@ internal static class TemplateSampleJobs
             NewParts: Lines(worklists, "new_parts"),
             Repairs: Lines(worklists, "repairs"),
             Operations: Lines(worklists, "operations"),
-            Damage: new ReportDamage([new ReportImpact([location], Text(assessment, "impact_severity"))], null, DamagePlanGeometry.Car),
+            Damage: new ReportDamage(
+                [SampleMarker(location)],
+                [new ReportImpact(Text(assessment, "impact_severity"), location)],
+                null,
+                DamagePlanGeometry.Car),
             Settlement: outcome == AssessmentReportOutcome.ContractRepair
                 ? new ReportSettlement(costs.Total)
                 : new ReportSettlement(),
@@ -284,4 +286,22 @@ internal static class TemplateSampleJobs
 
     private static string[] Lines(JsonElement element, string name) =>
         [.. element.GetProperty(name).EnumerateArray().Select(line => line.GetString()!)];
+
+    /// <summary>
+    /// The sample job names one impact location and no marker, so its marker
+    /// is drawn where the plan showed a one-area damage before markers became
+    /// positions only (v46): on the area's centre, 0.12 of the plan wide.
+    /// </summary>
+    private static DamageDisc SampleMarker(string location) => location switch
+    {
+        "front" => new(0.5, 0.1, 0.12),
+        "left_front" => new(0.18, 0.2, 0.12),
+        "right_front" => new(0.82, 0.2, 0.12),
+        "left_side" => new(0.1, 0.53, 0.12),
+        "right_side" => new(0.9, 0.53, 0.12),
+        "rear" => new(0.5, 0.92, 0.12),
+        "left_rear" => new(0.18, 0.84, 0.12),
+        "right_rear" => new(0.82, 0.84, 0.12),
+        _ => throw new InvalidOperationException($"The sample job's impact location '{location}' is not on the plan."),
+    };
 }

@@ -109,14 +109,17 @@ the Engineer names it (operator, 27 September 2026).
 The report prints no Damage table and no Tyres table. The marked damage
 diagram prints on page 1, beside the Overview image (operator, 7 October
 2026). It is the Case page's plan, turned on its side with the front pointing
-left. When no damage names a plan area it prints with no marks.
+left. The report always carries at least one marker (R650).
 
 The Damage section's Incident narrative reads the Nature of Incident block
 from the same owner: the Engineer's wording when written, else the composed
 sentence. It is available once the Engineer has written that wording or the
 damage record has a headline impact, in every lifecycle state and before a
 report can be projected, whether or not the report carries the block; Damage
-keeps no narrative of its own (operator, 24 September 2026).
+keeps no narrative of its own (operator, 24 September 2026). The printed
+Nature of Incident keeps one sentence to a line with no space between them
+(R645); the space between the Case page's sentences is the page's alone
+(v47 item G, R649).
 
 A block tracks the Case's own facts until the Engineer writes wording in its
 place. The Engineer may rename a block, move it, take it off the report, put
@@ -156,8 +159,11 @@ verbatim.
   in small letters: "The vehicle has suffered moderate collision/impact
   damage to the right rear." and "The vehicle is considered to be in below
   average condition for its age and type."
-- **Damage to several areas.** The sentence ends "to the following areas:"
-  and the areas follow, one to a line, in the order they were recorded.
+- **One sentence for each impact.** Nature of Incident is a separate sentence
+  for each impact naming a severity and a location, one to a line, in the
+  order staff entered them; with no such impact the block is not offered or
+  printed (3 November 2026, R644–R646, replacing the "following areas" list).
+  Impact Magnitude prints each impact on its own line the same way.
 - **Mileage.** The online data sentence is the template's. The sentences for
   owner, repairer, principal, average and a mileage still to be confirmed are
   the old manager's case page's, for example "The mileage was advised by the
@@ -343,15 +349,24 @@ actually left the approved mailbox.
 
 **From and subject (operator, 12 October 2026).** The report goes out as a
 reply to the Case's instruction email, the retained mailbox message the
-Case's origin receipt came from, from the approved mailbox it arrived in
-while that mailbox is Outgoing and can send; its subject is "Re:" and the
-instruction's subject, and the form shows that mailbox as From. When the
+Case's origin receipt came from; its subject is "Re:" and the
+instruction's subject. The form's From is a choice of every send-ready
+Outgoing mailbox, starting on the approved mailbox the instruction arrived in
+while that mailbox is Outgoing and can send; staff may change it, and a
+report from another mailbox still answers the instruction, as a new message
+(operator, 4 November 2026; R655). When the
 Case has no instruction email (a manual Case, an uploaded `.eml` or another
-non-mailbox origin) or its mailbox can no longer send, staff choose an
-Outgoing mailbox as From, the Principal's Send from chosen to start with
-([Report sending rules](#report-sending-rules)), and the report goes as a new
-message whose subject is "{REG} Report"
-([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+non-mailbox origin) the report goes as a new message whose subject is
+"{REG} Report". With no instruction email, or one whose mailbox can no
+longer send, From starts on the Principal's Send from
+([Report sending rules](#report-sending-rules);
+[FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+A Collision Engineers staff forward held in instructions@ is answered as though
+it had arrived in the mailbox that forwarded it: From starts on that
+mailbox while it can send, else on the Principal's Send from, and the report
+is a new message whose subject is "Re:" and the original's without the
+forward's "FW:" (operator, 3 November 2026;
+R651, R652, R655; [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 Either way the reviewed To and Cc are the only recipients: it is a Reply,
 never Reply all. A send the mailbox provider refuses is shown as a failed
 send.
@@ -403,7 +418,9 @@ Principal's report sending rules, in the order of Report Sending SOP rule R12.
 
 1. To is the Principal's fixed addresses when it has any, else the original
    instruction sender.
-2. Cc starts as the instruction's own Cc list, unless the Principal turns that
+2. Cc starts as the instruction's own Cc list (for a staff forward held in
+   instructions@, the original message's, read from its forwarded header,
+   less the mailbox that forwarded it; R651, R652, R653), unless the Principal turns that
    off, then the Principal's Cc addresses, then the Cc of each rule that holds.
 3. A Principal set to send only to its fixed addresses has no Cc at all.
 4. The addresses the Principal never copies, and the ones a rule removes, are
@@ -432,9 +449,11 @@ and follows it. Everything below is answered on the one delivery form, in the
 same click as Send report.
 
 - **Mode.** Where the report leaves from is **From and subject** above: a
-  reply in the instruction's thread from the mailbox it arrived in while that
-  mailbox can send, otherwise a new message from the Outgoing mailbox staff
-  choose, the Principal's Send from chosen to start with. An uploaded e-mail
+  reply to the instruction from the Outgoing mailbox staff choose, in its
+  thread when that is the mailbox it arrived in; From starts there while that
+  mailbox can send, otherwise on the Principal's Send from (R655). A staff
+  forward held in instructions@ starts on the mailbox that forwarded it
+  (R651, R652). An uploaded e-mail
   sits in no mailbox, so it takes the new message route.
 - **Rule conditions.** A rule's conditions read the Case's Claim Source,
   Repairer, recorded outcome, Case type and the instruction's sender. A Case
@@ -642,7 +661,7 @@ Each fact is recorded in one section of the Case record
 | The Sign-off Engineer's name and signature on file | Accounts |
 | Registration, vehicle type, pre-incident condition, vehicle history check | Vehicle |
 | Inspection type; the inspection address for a physical location; the Inspection date, printed as the date the damage was assessed | Inspection details |
-| Impact location and severity derived from the damage record ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)); unrelated damage when its switch is on | Damage |
+| At least one damage marker (R650); an impact naming a severity and a location, or Skip impacts (R647–R649); unrelated damage when its switch is on ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)) | Damage |
 | The Engineer's Value with its retail and trade values ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)) | Valuation |
 | A Current repair spec with lines, a labour rate and a repairer VAT status the report can word ([Estimate VAT on the rendered report](#estimate-vat-on-the-rendered-report)) | Repair Spec |
 | Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage category and salvage value; on a contract repair the agreed contract sum | Decisions |

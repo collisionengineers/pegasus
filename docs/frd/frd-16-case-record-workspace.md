@@ -384,9 +384,13 @@ Return to Engineer needs no session. The rules behind each action are in
 - **Send chaser**, on any open Case where staff mail is composed in
   (operator, 5 October 2026). It is a link, not a dialog, and needs no lease:
   it opens the chaser composer (`/Cases/{id}/Chaser`), a reply to the
-  Case's instruction email from the mailbox it arrived in, or, with no
-  usable instruction email, a new message from the Outgoing mailbox staff
-  choose as From (operator, 12 October 2026). To is addressed to the sender
+  Case's instruction email, or, with no instruction email, a new message,
+  from the Outgoing mailbox staff choose as From (operator, 12 October 2026;
+  4 November 2026, R655). From starts on the mailbox the instruction
+  arrived in (a staff forward held in instructions@ on the mailbox that
+  forwarded it, R651, R652), else on the Principal's Send from (3 November
+  2026, R654). To is
+  addressed to the sender
   of the Case's instruction and the sender of each image-intake e-mail
   paired to the Case and the repairer's directory e-mail; Subject is "Re:"
   and the instruction's subject for a reply, or opens with the registration
@@ -546,20 +550,30 @@ field.
 Damage shows the **plan**: a top-down drawing of the recorded Vehicle type —
 the car, the van or the motorbike
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record))
-— with one yellow comic burst per recorded damage, and Underside, Interior
-and Mechanical chips. While editable, dashed band guides show the eight
-areas, pressing and dragging on the vehicle sizes a disc, dragging a burst
-moves it, the readout names the area under the pointer, and Reset returns
-the damage to the values held when the edit opened. A disc stays as it was
-drawn, names the areas it touches and is never wider than half the vehicle;
-its burst carries no number and may spill past the outline. Beside it sits
-the recorded-areas list, numbered in recorded order, with the areas,
-severity and note per damage, and the other
-damage facts; the list rows and the chips stand in the same places in read
-and edit mode, greyed when they cannot be edited. The **Incident narrative**
-is read-only: it is the report's Nature of Incident wording, the Engineer's
-own from Report wording or else the sentence composed from the recorded
-damage
+— with one yellow comic burst per damage marker. While editable, dashed band
+guides show on the plan, pressing and dragging on the vehicle sizes a marker,
+dragging a burst moves it, and **Clear markers** under the plan removes them
+all; there is no Reset, and dragging never removes a marker. A marker stays as
+it was drawn and is never wider than half the vehicle; its burst carries no
+number and may spill past the outline. Beside the plan stand the **impacts**,
+one row each: Impact · Severity · Location · Note · × (Clear), with **Add
+impact** under them while editing and "No damage recorded." when there are
+none (3 November 2026, R642–R646). The rows stand in the same places in read
+and edit mode, values reading where controls edit; below 1100 px a row folds
+into a captioned card. With no row, **Skip impacts** stands beside Add impact
+while editing, and the empty line, Add impact and the tick sit on the facts'
+own left edge, the edge of the Unrelated damage and Incident narrative cells
+(v47, R647–R649). Ticking Skip impacts greys out Add impact and unticking it
+enables it again; adding a row hides the tick, and clearing the last row
+offers it again, unticked. While reading with no row, Skip impacts is a static
+tick under the empty line, ticked or not
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)).
+A report blocker for the markers (R650) jumps to the plan, and one for the
+impacts to the impact rows.
+The **Incident narrative** is read-only: it is the report's Nature of Incident
+wording, the Engineer's own from Report wording or else a sentence for each
+impact, each its own line with a line's space between them (v47 item G),
+recomposed as the impacts are edited
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks)).
 The field set is owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record).
@@ -1090,9 +1104,9 @@ not yet hold it, in or out of edit mode as Generate report is. Generate report
 makes the separate fee note with the report (operator, 7 October 2026), and
 once the separate fee note is confirmed the report card offers Open fee note
 beside Open report (issue 912).
-The delivery form shows From: the mailbox the Case's instruction email
-arrived in, read-only, or, with no usable instruction email, a choice of
-Outgoing mailbox (operator, 12 October 2026;
+The delivery form shows From, a choice of Outgoing mailbox starting on the
+mailbox the Case's instruction email arrived in, else on the Principal's
+Send from (operator, 12 October 2026; 4 November 2026, R655;
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)).
 It offers the Case's known addresses on every recipient field
 (v28 P21), the documents to attach (v28 P22), with Report and Fee note ticked,
@@ -1105,9 +1119,8 @@ The form also shows what the Principal's report sending rules decided
 
 - an "Already sent on 3 Oct 2026 14:02 to a@x, b@y" line when a report of this
   work has already been sent;
-- on a reply, the From line "From {mailbox} — reply in the instruction's
-  thread"; with no usable instruction email, the Outgoing choice starts on
-  the Principal's Send from;
+- the From choice, starting on the mailbox the instruction email arrived
+  in; with no usable instruction email, on the Principal's Send from (R655);
 - a notice when a rule stops the delivery, with an Override reason box for
   staff with casework. The box is also offered when only an answer below can
   decide the Stop;

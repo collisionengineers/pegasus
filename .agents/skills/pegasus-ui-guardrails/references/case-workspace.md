@@ -308,11 +308,19 @@ the rate control in the bar, not the head.
 
 Use the approved Plan clicker, not a newly invented Elevations/Dial/alternative presentation.
 
-The recorded-zone model and visual markers must remain aligned: a drawn disc is saved as drawn and
-names exactly the areas it touches (Core reads them off the disc). Do not snap, regrow or rebuild a
-drawn disc from its areas, and keep every disc capped at half the vehicle's width. Each disc is drawn
-as the one yellow comic burst, unnumbered and unclipped, on the recorded Vehicle type's drawing (car,
-van or motorbike), alike on the page and the report.
+The damage markers are the report's picture only (v46, R642–R646): a drawn disc is saved as drawn
+and names no area, severity or note; nothing is derived from it. Do not snap or regrow a disc, keep
+every disc capped at half the vehicle's width, and keep Clear markers (no Reset, no removal by
+dragging). Each disc is drawn as the one yellow comic burst, unnumbered and unclipped, on the
+recorded Vehicle type's drawing (car, van or motorbike), alike on the page and the report. The
+impacts are entered by hand beside the plan, one row each (Impact · Severity · Location · Note · ×),
+read and edit sharing one geometry; do not reintroduce derived Impact location or severity cells,
+area chips, an area readout or a per-marker list. With no row, Skip impacts (v47, R647–R649)
+stands beside Add impact on the facts' own left edge and greys out Add impact while ticked; a row
+hides it, and while reading it is the static tick (`span.choice.is-static`). The Incident
+narrative is one `fv-line` block per sentence with a line's space (`1lh`) between them. The
+plan carries `data-field="damage.impacts"` and the impact rows `data-field="assessment.impacts"`,
+the cells their report blockers outline (R650, R647–R649).
 
 Do not re-add the Files image strip to Damage.
 

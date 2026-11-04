@@ -554,6 +554,7 @@ public static class DependencyInjection
         services.AddScoped<SaveAssessment>();
         services.AddScoped<ISendToAiControl, EfSendToAiControlStore>();
         services.AddScoped<IAutomaticGuideValuationControl, EfSendToAiControlStore>();
+        services.AddScoped<Pegasus.Core.Cases.ICaseReferenceSuffixControl, EfSendToAiControlStore>();
         services.AddScoped<EfAiJobStore>();
         services.AddScoped<IAiJobStore>(provider => provider.GetRequiredService<EfAiJobStore>());
         services.AddScoped<IAiJobQueries>(provider => provider.GetRequiredService<EfAiJobStore>());
@@ -981,6 +982,18 @@ public static class DependencyInjection
             provider.GetRequiredService<EfCaseArtifactCustody>());
         services.AddScoped<ReconcilePendingArtifactCustody>();
         services.AddScoped<ISettleFiledCaseReportArtifacts, EfSettleFiledCaseReportArtifacts>();
+        return services;
+    }
+
+    /// <summary>
+    /// The Worker's one-off pass renaming the Box folders of the Cases the
+    /// temporary <c>-p</c> suffix rewrote (R656). Only a host composing Box
+    /// custody calls this, and only the Worker does.
+    /// </summary>
+    public static IServiceCollection AddCaseReferenceSuffixBoxRename(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddHostedService<CaseReferenceSuffixBoxRename>();
         return services;
     }
 

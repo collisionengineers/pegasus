@@ -408,13 +408,11 @@ public sealed class ReportWordingTests
     public void DamageToOneAreaIsTheTemplatesSentenceInSmallLetters(
         string severity, string location, string expected)
     {
-        Assert.Equal(expected, ReportWordingComposition.NatureOfIncidentSentence(severity, location, [location]));
+        Assert.Equal(expected, ReportWordingComposition.NatureOfIncidentSentence(severity, location));
 
         var snapshot = Repairable() with
         {
-            ImpactSeverity = severity,
-            ImpactLocation = location,
-            Damage = new([new([location], severity)], null, DamagePlanGeometry.Car),
+            Damage = new([], [new(severity, location)], null, DamagePlanGeometry.Car),
         };
         Assert.Equal(expected, snapshot.PrintedWording[0].Text);
     }
@@ -436,24 +434,22 @@ public sealed class ReportWordingTests
     }
 
     /// <summary>
-    /// Damage to several areas is the manager's case page's sentence
-    /// (pegasus_case_dashboard_2026-09-15.html, lines 1161 to 1163): "...to
-    /// the following areas:" and then one line to an area, each behind its
-    /// dash and named as that page names it (lines 786 to 790), in the order
-    /// the damages were recorded and each area once.
+    /// Several impacts are a separate sentence for each, one to a line, in the
+    /// order staff entered them (v46 A and A2, operator, 3 November 2026: "there
+    /// should be a seperate sentence for each impact", "One to a line"). There
+    /// is no list of areas and nothing reads multiple.
     /// </summary>
     [Fact]
-    public void DamageToSeveralAreasListsThemOneToALine()
+    public void EachImpactIsASeparateSentenceOneToALine()
     {
         var snapshot = Repairable() with
         {
-            ImpactSeverity = "moderate_to_heavy",
-            ImpactLocation = AssessmentVocabulary.SeveralAreas,
             Damage = new(
+                [],
                 [
-                    new(["right_side", "right_rear"], "moderate"),
-                    new(["rear", "right_rear"], "light"),
-                    new(["underside"], "heavy"),
+                    new("light", "front"),
+                    new("moderate", "right_side"),
+                    new("moderate_to_heavy", "rear"),
                 ],
                 null,
                 DamagePlanGeometry.Car),
@@ -463,66 +459,47 @@ public sealed class ReportWordingTests
             .Single(block => block.Key == ReportWordingComposition.NatureOfIncident);
 
         Assert.Equal(
-            "The vehicle has suffered moderate to heavy collision/impact damage to the following areas:"
-            + "\n— Right side"
-            + "\n— Right rear"
-            + "\n— Rear"
-            + "\n— Underside",
+            "The vehicle has suffered light collision/impact damage to the front.\n"
+            + "The vehicle has suffered moderate collision/impact damage to the right side.\n"
+            + "The vehicle has suffered moderate to heavy collision/impact damage to the rear.",
             nature.Text);
         Assert.False(nature.HandEdited);
         Assert.DoesNotContain("multiple", nature.Text, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
-    /// The area names are the manager's case page's
-    /// (pegasus_case_dashboard_2026-09-15.html, lines 786 to 790).
+    /// With no impact the report skips the Nature of Incident block: it is
+    /// neither offered nor printed (v46 G, operator, 3 November 2026: "if no
+    /// impact area is chosen, the nature of incident block would be skipped
+    /// on report").
     /// </summary>
-    [Theory]
-    [InlineData("front", "Front")]
-    [InlineData("left_front", "Left front")]
-    [InlineData("right_front", "Right front")]
-    [InlineData("left_side", "Left side")]
-    [InlineData("right_side", "Right side")]
-    [InlineData("rear", "Rear")]
-    [InlineData("left_rear", "Left rear")]
-    [InlineData("right_rear", "Right rear")]
-    [InlineData("underside", "Underside")]
-    [InlineData("interior", "Interior")]
-    [InlineData("mechanical", "Mechanical")]
-    public void AListedAreaIsNamedAsTheManagersCasePageNamesIt(string area, string expected)
+    [Fact]
+    public void WithNoImpactNatureOfIncidentIsSkipped()
     {
-        Assert.Equal(expected, ReportWordingComposition.LeadingWords(area));
-        Assert.Equal(
-            "The vehicle has suffered light collision/impact damage to the following areas:\n— " + expected + "\n— Interior",
-            ReportWordingComposition.NatureOfIncidentSentence(
-                "light", AssessmentVocabulary.SeveralAreas, [area, "interior"]));
+        var snapshot = Repairable() with
+        {
+            Damage = new([new DamageDisc(0.5, 0.1, 0.12)], [], null, DamagePlanGeometry.Car),
+        };
+
+        Assert.Equal(string.Empty, ReportWordingComposition.NatureOfIncidentText([]));
+        Assert.DoesNotContain(snapshot.PrintedWording, block => block.Key == ReportWordingComposition.NatureOfIncident);
+        Assert.DoesNotContain(
+            ReportWordingComposition.Offered(snapshot, []),
+            block => block.Key == ReportWordingComposition.NatureOfIncident);
     }
 
     /// <summary>
-    /// The sentence lists the areas whenever more than one is recorded, even
-    /// when the touching bursts derive one headline area (operator, 2
-    /// November 2026); one recorded area is the template's sentence whatever
-    /// word is passed as the location.
+    /// The Damage section fills the same pattern while it edits, so the page
+    /// and the report read the same sentence.
     /// </summary>
     [Fact]
-    public void TheListFollowsTheRecordedAreasNotTheHeadlineLocation()
+    public void TheSentencePatternIsTheOneTheReportFills()
     {
         Assert.Equal(
-            "The vehicle has suffered heavy collision/impact damage to the following areas:\n— Front\n— Left front",
-            ReportWordingComposition.NatureOfIncidentSentence("heavy", "front", ["front", "left_front"]));
-        Assert.Equal(
-            "The vehicle has suffered heavy collision/impact damage to the front.",
-            ReportWordingComposition.NatureOfIncidentSentence("heavy", "front", ["front"]));
-
-        var snapshot = Repairable() with
-        {
-            ImpactSeverity = "heavy",
-            ImpactLocation = "front",
-            Damage = new([new(["front", "left_front"], "heavy")], null, DamagePlanGeometry.Car),
-        };
-        Assert.Equal(
-            "The vehicle has suffered heavy collision/impact damage to the following areas:\n— Front\n— Left front",
-            snapshot.PrintedWording.Single(block => block.Key == ReportWordingComposition.NatureOfIncident).Text);
+            ReportWordingComposition.NatureOfIncidentSentence("light_to_moderate", "left_front"),
+            ReportWordingComposition.NatureOfIncidentPattern
+                .Replace("{severity}", "light to moderate", StringComparison.Ordinal)
+                .Replace("{location}", "left front", StringComparison.Ordinal));
     }
 
     /// <summary>
