@@ -1609,6 +1609,59 @@ public sealed class ProductionBoxCustodyTests
             }).ToArray());
     }
 
+    /// <summary>
+    /// A Case the <c>-p</c> migration rewrote keeps its Box folders by id; the
+    /// Worker's pass renames the Case folder and its Audit folder to the new
+    /// reference, after which the folder proves as the Case's own again, and
+    /// a second pass renames nothing (operator, 4 November 2026; R656).
+    /// </summary>
+    [Fact]
+    public async Task TheSuffixPassRenamesTheCaseAndAuditFoldersOnce()
+    {
+        var box = new StatefulBox();
+        var client = CreateClient(box);
+        var custody = new BoxCaseCustody(new EmptyArtifactStore(), client);
+        var caseId = Guid.Parse("4f1d2c3b-5a69-4788-9aab-bccddeeff001");
+        var root = await custody.CreateCaseRootAsync(
+            caseId, "QDOS26157", "0123456789ABCDEFGHJKMNPQRS", "case-create", default);
+        var auditFolderId = await custody.CreateAuditReferenceFolderAsync(
+            root, "a.QDOS26157", "123456789ABCDEFGHJKMNPQRS0", "audit-create", default);
+        var folders = new SuffixedCaseFolders(
+            caseId, "QDOS26157-p", root.RemoteId, "a.QDOS26157-p", auditFolderId);
+
+        Assert.Equal(2, await CaseReferenceSuffixBoxRename.RenameAsync(client, folders, default));
+
+        Assert.True(box.PathExists("QDOS26157-p/a.QDOS26157-p"));
+        Assert.False(box.PathExists("QDOS26157"));
+        var renamed = await new BoxCaseCustody(new EmptyArtifactStore(), client)
+            .GetExistingCaseRootAsync(caseId, "QDOS26157-p", root.RemoteId, default);
+        Assert.Equal(root.RemoteId, renamed.RemoteId);
+        var renames = box.RenameCount;
+        Assert.Equal(0, await CaseReferenceSuffixBoxRename.RenameAsync(client, folders, default));
+        Assert.Equal(renames, box.RenameCount);
+    }
+
+    /// <summary>A folder holding neither the old nor the new reference is refused and left as it is.</summary>
+    [Fact]
+    public async Task TheSuffixPassLeavesAFolderOfAnotherName()
+    {
+        var box = new StatefulBox();
+        var client = CreateClient(box);
+        var custody = new BoxCaseCustody(new EmptyArtifactStore(), client);
+        var caseId = Guid.Parse("4f1d2c3b-5a69-4788-9aab-bccddeeff002");
+        var root = await custody.CreateCaseRootAsync(
+            caseId, "QDOS26158", "0123456789ABCDEFGHJKMNPQRS", "case-create", default);
+        var renames = box.RenameCount;
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => CaseReferenceSuffixBoxRename.RenameAsync(
+            client,
+            new SuffixedCaseFolders(caseId, "QDOS26157-p", root.RemoteId, null, null),
+            default));
+
+        Assert.True(box.PathExists("QDOS26158"));
+        Assert.Equal(renames, box.RenameCount);
+    }
+
     private static BoxCaseCustody Create(DelegateHandler handler, IIntakeArtifactStore? artifactStore = null) => new(
         artifactStore ?? new EmptyArtifactStore(),
         CreateClient(handler));
