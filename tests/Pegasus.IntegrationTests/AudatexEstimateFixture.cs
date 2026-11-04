@@ -21,7 +21,8 @@ internal static class AudatexEstimateFixture
     /// prints a MATERIAL COST section. A Specialist labour row prints when
     /// asked, and each parts footer row ("Deduction from RRP", "Sundry
     /// Parts", "Total Parts") prints under the Sub Total when it is given; by
-    /// default there is none, as on an older report.
+    /// default there is none, as on an older report. A joined asterisk prints
+    /// the REPAIR WING work units as one word, "12.0*".
     /// </summary>
     internal static byte[] Build(
         string partsSubTotal = "£620.20",
@@ -35,7 +36,8 @@ internal static class AudatexEstimateFixture
         string pricedPart = "£620.20",
         (string Percent, string Amount)? partsDeduction = null,
         string? partsSundry = null,
-        string? partsTotal = null)
+        string? partsTotal = null,
+        bool joinedAsterisk = false)
     {
         var builder = new PdfDocumentBuilder();
         var font = builder.AddStandard14Font(Standard14Font.Helvetica);
@@ -67,7 +69,7 @@ internal static class AudatexEstimateFixture
         Text(522, 635, "9.0");
         Text(20, 624, "0742");
         Text(159, 624, "REPAIR WING");
-        Text(522, 623, "12.0");
+        Text(522, 623, joinedAsterisk ? "12.0*" : "12.0");
         if (extraOrphanAmount)
         {
             Text(522, 621.5, "3.0");
