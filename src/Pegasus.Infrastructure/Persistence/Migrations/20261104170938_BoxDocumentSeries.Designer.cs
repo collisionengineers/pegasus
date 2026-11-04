@@ -12,7 +12,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PegasusDbContext))]
-    [Migration("20261104095512_BoxDocumentSeries")]
+    [Migration("20261104170938_BoxDocumentSeries")]
     partial class BoxDocumentSeries
     {
         /// <inheritdoc />
