@@ -1186,7 +1186,10 @@ public sealed class BoxDocumentContentStoreTests
             SeriesAddress(3, "valuation.pdf", first.RemoteId!), later, Sha256(later), CancellationToken.None);
 
         Assert.Equal(DocumentContentWriteDisposition.Created, next.Disposition);
-        Assert.Equal(new string?[] { "1", "2" }, box.VersionUploads.Select(upload => upload.IfMatch));
+        Assert.Collection(
+            box.VersionUploads,
+            upload => Assert.Equal("1", upload.IfMatch),
+            upload => Assert.Equal("2", upload.IfMatch));
 
         var last = Encoding.UTF8.GetBytes("the last valuation");
         box.AdvanceBeforeNextVersionUploads = 2;
