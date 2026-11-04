@@ -1155,6 +1155,9 @@ try {
 
     # A completed release removes its worktree itself (Complete-Release).
     if (Test-Path -LiteralPath $worktree) { & git -C $fixture.Work worktree remove --force $worktree }
+    # The last case ran a child pwsh that exited non-zero by design; the
+    # script's own exit code is its verdict.
+    $global:LASTEXITCODE = 0
 
     Write-Output "Release validation behaviour tests passed ($script:caseIndex isolated runs)."
 }
