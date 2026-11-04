@@ -5,6 +5,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
@@ -495,7 +496,12 @@ public sealed partial class DetailsModel(
             && await getRetainedMailPreview.ExecuteAsync(actor, sourceMessageId, cancellationToken: cancellationToken) is { } source)
         {
             SourceMessageCanReply = !string.IsNullOrWhiteSpace(source.Summary.SenderAddress)
-                && (await approvedMailboxes.ListAsync(cancellationToken)).Sender(source.Summary.MailboxId) is not null;
+                && StaffMailAnswer.For(
+                    source.Summary.MailboxId,
+                    source.Summary.MailboxAddress,
+                    source.Summary.SenderAddress,
+                    source.Summary.EffectiveSenderAddress,
+                    [.. (await approvedMailboxes.ListAsync(cancellationToken)).Where(mailbox => mailbox.CanSend)]).CanSend;
         }
 
         History = await store.HistoryAsync(id, cancellationToken);

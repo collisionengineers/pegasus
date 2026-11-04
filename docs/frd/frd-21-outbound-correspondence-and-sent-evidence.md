@@ -190,17 +190,27 @@ There is no automatic or scheduled send.
 ([FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe)),
 and only while it is send-ready: Approved, activated, its identity and Sent
 Items bound. Reply and Forward send as the approved mailbox that holds the
-retained message. A Case's report and Send chaser are a reply to the Case's
+retained message, with one exception: a Collision Engineers staff forward
+held in instructions@ (the route of R586) is answered as though it had
+arrived in the mailbox that forwarded it; a staff forward held in any other
+mailbox is answered as any message is (3 November 2026, R652). Reply, Reply all, a Case's report and Send chaser
+answering one leave that mailbox while it can send, as a new message, since
+only the mailbox holding the forward has a copy to reply in, and are still
+recorded as the reply to the forwarded message; when it cannot send, staff
+choose an Outgoing mailbox as From, the Principal's Send from chosen to start
+with. A forward always leaves the mailbox that holds the message (operator,
+3 November 2026; R651). A Case's report and Send chaser are a reply to the Case's
 instruction email, the retained mailbox message its origin receipt came
 from, sent as the approved mailbox that email arrived in while that mailbox
 can send. When the Case has no instruction email (a manual Case, an uploaded
 `.eml` or any other non-mailbox origin) or its mailbox can no longer send,
 staff choose an Outgoing mailbox as From and the message is new (operator,
-12 October 2026); for a report the choice starts on the Principal's Send from
+12 October 2026); for a report, and for a Send chaser (3 November 2026,
+R654), the choice starts on the Principal's Send from
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)).
 Pegasus never silently picks a mailbox. The sender is never
 a staff member's own address or any mailbox outside the allowlist; a reply
-shows its sender read-only. There is no default sender.
+shows its sender read-only unless staff choose it. There is no default sender.
 
 **One size limit.** Every Outgoing mailbox sends under one fixed limit of
 35 MB, 36,700,160 encoded bytes (operator, 12 October 2026); there is no
@@ -230,8 +240,10 @@ from the Triage's registration and finding
 before Send. A Case chaser opened from the Case's Send chaser is a staff
 send with purpose `CaseChaser` on its own chaser composer
 (`/Cases/{id}/Chaser`): a reply to the Case's instruction email from the
-mailbox it arrived in, or, with no usable instruction email, a new message
-from the Outgoing mailbox staff choose as From (see From which mailbox). To
+mailbox it arrived in (a staff forward held in instructions@ from the mailbox
+that forwarded it, R652),
+or, with no usable instruction email, a new message from the Outgoing
+mailbox staff choose as From (see From which mailbox). To
 is the sender of the Case's instruction, the sender of each image-intake
 e-mail paired to the Case and the repairer's directory e-mail, each once;
 Subject is "Re:" and the instruction's subject for a reply, or opens with
@@ -248,14 +260,20 @@ absent. A Reply-To header that is present but unusable gives an empty list.
 The reply screen shows the retained targets and the chosen recipients so
 staff can confirm them. If the retained metadata is missing or the target
 list is empty, Reply and Reply all are refused. The transport Sender, To and
-Cc are never used as substitutes. The Triage Case composer
-([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)) has
-one exception: when its request is a Collision Engineers staff forward (the
-transport sender is on the staff domain) and the forward names one external
-original sender, To is that original sender, not the forwarding desk, and
-the forward's leading "FW:" or "Fwd:" is dropped before "Re:". A forward
-inside the Principal's own organisation is not unwrapped and answers its own
-Reply-To or From (operator, issue 1042, 7 October 2026).
+Cc are never used as substitutes. There is one exception: when the message
+is a Collision Engineers staff forward (the transport sender is on the staff
+domain) held in instructions@ and the forward names one external original
+sender, it is answered as though the original had arrived directly. To is
+that original sender, not the forwarding desk; Reply all adds the original
+message's own To and Cc, read from the forwarded header, less the sending and
+the forwarding mailbox (3 November 2026, R653); and the forward's
+leading "FW:" or "Fwd:" is dropped before "Re:". The Triage Case composer
+answers a staff forward held in any mailbox to its original sender, without
+its "FW:". A forward inside the
+Principal's own organisation is not unwrapped and answers its own Reply-To or
+From (operator, issue 1042, 7 October 2026, first for the Triage Case
+composer, [FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page);
+every reply to one held in instructions@, 3 November 2026, R651, R652).
 
 **What is retained.** The immutable Sent item that Graph writes is the
 evidence. The Sent-evidence poll retains it under the rules in
