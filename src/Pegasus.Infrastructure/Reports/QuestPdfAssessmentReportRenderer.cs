@@ -82,12 +82,14 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate, IM
 
     /// <summary>
     /// The images one artifact prints. The report leads page 1 with the
-    /// Overview and prints it nowhere else (operator, 7 October 2026); the
-    /// image pack prints every image in the grid. Full page has no effect on
-    /// the Overview. Each image is opened, prepared and let go of before the
-    /// next is opened. A report generated without vehicle images opens none:
-    /// it has no lead and no image pages, and its image pack still prints
-    /// every image.
+    /// Overview and prints it again first on the image pages, ahead of the
+    /// Close-up (operator, 4 November 2026, R659); the image pack prints every
+    /// image in the grid. Full page applies to every image on the image pages,
+    /// the Overview among them, and never to page 1's slot. Each image is
+    /// opened, prepared and let go of before the next is opened; the Overview
+    /// is opened once and prepared for both its slot and the image pages. A
+    /// report generated without vehicle images opens none: it has no lead and
+    /// no image pages, and its image pack still prints every image.
     /// </summary>
     private async Task<PreparedReportImages> PrepareAsync(
         AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind, CancellationToken cancellationToken)
@@ -101,34 +103,28 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate, IM
             return new(null, [], SignatureFor(snapshot.Signatory), ReportResources.Logo());
         }
         var ordered = snapshot.OrderedPhotos;
-        var overview = ordered.FirstOrDefault(photo => photo.Role == CaseAssetReportRole.Overview);
-        var lead = kind == CaseReportArtifactKind.AssessmentReport ? overview : null;
-        var leadImage = lead is null
-            ? null
-            : await PreparePhotoAsync(lead, ReportChrome.LeadSlotHeight, cancellationToken).ConfigureAwait(false);
+        var lead = kind == CaseReportArtifactKind.AssessmentReport
+            ? ordered.FirstOrDefault(photo => photo.Role == CaseAssetReportRole.Overview)
+            : null;
+        byte[]? leadImage = null;
         var photos = new List<PreparedReportPhoto>(ordered.Count);
         foreach (var photo in ordered)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            var content = await photo.OpenAsync(cancellationToken).ConfigureAwait(false);
             if (ReferenceEquals(photo, lead))
             {
-                continue;
+                leadImage = Prepare(content, photo, ReportChrome.LeadSlotHeight, cancellationToken);
             }
-            var fullPage = photo.FullPage && !ReferenceEquals(photo, overview);
-            photos.Add(new PreparedReportPhoto(
-                await PreparePhotoAsync(photo, null, cancellationToken).ConfigureAwait(false),
-                fullPage));
+            photos.Add(new PreparedReportPhoto(Prepare(content, photo, null, cancellationToken), photo.FullPage));
         }
         return new(leadImage, photos, SignatureFor(snapshot.Signatory), ReportResources.Logo());
     }
 
-    private static async Task<byte[]> PreparePhotoAsync(
-        ReportImageEvidence photo, float? slotHeight, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var content = await photo.OpenAsync(cancellationToken).ConfigureAwait(false);
-        return ReportPhotoPreparation.Prepare(
+    private static byte[] Prepare(
+        byte[] content, ReportImageEvidence photo, float? slotHeight, CancellationToken cancellationToken) =>
+        ReportPhotoPreparation.Prepare(
             content, photo.CustodyReference, photo.Rotation, photo.AppliedCrop, slotHeight, cancellationToken);
-    }
 
     private RenderedReportArtifact Artifact(string fileName, byte[] pdf, int pageCount) =>
         new(

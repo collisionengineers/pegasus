@@ -403,7 +403,7 @@ public sealed class CaseAssetPreparationTests
             saved.OrderBy(item => item.Order).Select(item => item.OccurrenceId).ToArray());
     }
 
-    /// <summary>One image tagged both Overview and Close-up prints once, as the Overview.</summary>
+    /// <summary>One image tagged both Overview and Close-up takes the Overview's place alone.</summary>
     [Fact]
     public void AnImageTaggedOverviewAndCloseUpPrintsOnceAsTheOverview()
     {
