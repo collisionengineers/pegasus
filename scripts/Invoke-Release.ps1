@@ -618,7 +618,7 @@ function Invoke-Promotion {
     # failure is never retried with rebase, reset, an unleased push or another
     # SHA.
     param([Parameter(Mandatory)][string] $Sha)
-    Invoke-Git -Arguments @('fetch', 'origin', '--prune')
+    Invoke-Git -Arguments @('fetch', 'origin', '--prune') | Out-Null
     $mainSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
     $devSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
     if ($mainSha -ceq $Sha) {
@@ -631,7 +631,7 @@ function Invoke-Promotion {
     if ($LASTEXITCODE -ne 0) { throw 'origin/main is not an ancestor of the approved SHA.' }
     Invoke-Git -Failure 'Atomic promotion failed.' -Arguments @(
         'push', '--atomic', "--force-with-lease=refs/heads/dev:$Sha", 'origin', "${Sha}:refs/heads/main", "${Sha}:refs/heads/dev") | ForEach-Object { Write-Host $_ }
-    Invoke-Git -Arguments @('fetch', 'origin', '--prune')
+    Invoke-Git -Arguments @('fetch', 'origin', '--prune') | Out-Null
     $promotedMain = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
     $promotedDev = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
     if ($promotedMain -cne $Sha -or $promotedDev -cne $Sha) { throw 'Remote read-back does not equal the approved release SHA.' }
@@ -643,7 +643,7 @@ function Invoke-Promotion {
 
 function Invoke-Preflight {
     Write-Host '=== Preflight (read-only) ==='
-    Invoke-Git -Arguments @('fetch', 'origin', '--prune')
+    Invoke-Git -Arguments @('fetch', 'origin', '--prune') | Out-Null
     $mainSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
     $devSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
     & git -C $RepositoryRoot merge-base --is-ancestor $mainSha $devSha
