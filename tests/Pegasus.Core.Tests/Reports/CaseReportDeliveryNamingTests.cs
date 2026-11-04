@@ -120,7 +120,7 @@ public sealed class CaseReportDeliveryNamingTests
     }
 
     [Fact]
-    public void OnlyTheReportIsRenamedAndTheCompanionsKeepTheirCustodyNames()
+    public void TheReportIsRenamedAndTheCompanionsKeepTheirCustodyNamesUnlessStaffNameThem()
     {
         var named = CaseReportDeliveryNaming.Named(
             [ReportAttachment, FeeAttachment, ImageAttachment],
@@ -132,6 +132,64 @@ public sealed class CaseReportDeliveryNamingTests
         // The bytes a rename travels with are the same bytes.
         Assert.Equal(ReportAttachment.Sha256, named[0].Sha256);
         Assert.Equal(ReportAttachment.VersionId, named[0].VersionId);
+    }
+
+    /// <summary>
+    /// Operator, 4 November 2026 (v48 item E): staff may name each of the
+    /// generation's documents for the send; a kind not named keeps its policy
+    /// name, and a filed estimate past the documents keeps its filed name.
+    /// </summary>
+    [Fact]
+    public void StaffNamesReachTheDocumentsTheyNameAndAFiledEstimateKeepsItsName()
+    {
+        var estimate = new StaffMailAttachment(
+            Guid.NewGuid(), Guid.NewGuid(), new string('d', 64), 40, "Audatex 123.pdf", "application/pdf");
+        var named = CaseReportDeliveryNaming.Named(
+            [ReportAttachment, FeeAttachment, ImageAttachment, estimate],
+            "QDOS26001 PK12TMZ Repairable report",
+            [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote, CaseReportArtifactKind.ImagePack],
+            new Dictionary<CaseReportArtifactKind, string>
+            {
+                [CaseReportArtifactKind.AssessmentReport] = " Our report.pdf ",
+                [CaseReportArtifactKind.ImagePack] = "Photos.pdf",
+                [CaseReportArtifactKind.RepairSpecification] = "Not attached.pdf",
+            });
+
+        Assert.Equal(
+            ["Our report.pdf", FeeAttachment.FileName, "Photos.pdf", "Audatex 123.pdf"],
+            named.Select(attachment => attachment.FileName).ToArray());
+        Assert.Equal(ImageAttachment with { FileName = "Photos.pdf" }, named[2]);
+        Assert.Equal(estimate, named[3]);
+    }
+
+    [Theory]
+    [InlineData("report")]
+    [InlineData(".pdf")]
+    [InlineData("  .pdf")]
+    [InlineData("report.PDF")]
+    public void AStaffNameMustEndInPdfWithSomethingBeforeIt(string name)
+    {
+        Assert.Throws<ArgumentException>(() => CaseReportDeliveryNaming.StaffName(name));
+        Assert.Throws<ArgumentException>(() => CaseReportDeliveryNaming.Named(
+            [ReportAttachment], "QDOS26001 PK12TMZ Repairable report",
+            [CaseReportArtifactKind.AssessmentReport],
+            new Dictionary<CaseReportArtifactKind, string> { [CaseReportArtifactKind.AssessmentReport] = name }));
+    }
+
+    /// <summary>
+    /// Operator, 4 November 2026 (v48 item C): the subject staff edited is
+    /// sent, trimmed; left blank, the derived one; past 500 characters, refused.
+    /// </summary>
+    [Fact]
+    public void TheSubjectIsStaffsWhenGivenElseTheDerivedOneAndBounded()
+    {
+        Assert.Equal("Re: Claim", CaseReportDeliveryPolicy.Subject(null, "Re: Claim"));
+        Assert.Equal("Re: Claim", CaseReportDeliveryPolicy.Subject("  ", "Re: Claim"));
+        Assert.Equal("Our report", CaseReportDeliveryPolicy.Subject(" Our report \r\n", "Re: Claim"));
+        Assert.Equal(500, CaseReportDeliveryPolicy.MaximumSubjectLength);
+        var longest = new string('s', CaseReportDeliveryPolicy.MaximumSubjectLength);
+        Assert.Equal(longest, CaseReportDeliveryPolicy.Subject(longest, "Re: Claim"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CaseReportDeliveryPolicy.Subject(longest + "s", "Re: Claim"));
     }
 
     [Fact]

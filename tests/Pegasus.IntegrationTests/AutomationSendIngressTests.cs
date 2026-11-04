@@ -119,6 +119,8 @@ public sealed class AutomationSendIngressTests
             cc = Desk,
             attach = FeeNote,
             fromMailbox = mailbox.Address,
+            subject = "Our report on PK12 TMZ",
+            attachmentNames = new Dictionary<string, string> { ["FeeNote"] = "Fee.pdf" },
         }));
         var result = await ReadStructuredContentAsync(sent);
         Assert.Equal(generationId, result.GetProperty("generationId").GetGuid());
@@ -137,6 +139,10 @@ public sealed class AutomationSendIngressTests
         Assert.Equal("Please find our report attached.", request.CoveringMessage);
         Assert.Equal(["handler@principal.example"], request.ReviewedRecipients!.To);
         Assert.Equal(["desk@principal.example"], request.ReviewedRecipients.Cc);
+        // The subject and the documents' names, as the Case page's composer posts them (v48).
+        Assert.Equal("Our report on PK12 TMZ", request.Subject);
+        Assert.Equal("Fee.pdf", request.AttachmentNames![CaseReportArtifactKind.FeeNote]);
+        Assert.Single(request.AttachmentNames);
         Assert.Equal([CaseReportArtifactKind.FeeNote], request.Attach);
         Assert.Equal(CaseWorkSelector.Current, request.Work);
         // No instruction e-mail to reply to: the report leaves the named Outgoing mailbox.

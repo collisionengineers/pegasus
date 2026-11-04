@@ -97,6 +97,9 @@ internal sealed class SendMcpTools(
         [Description("The other report's companion documents, as attach takes them; omit for every confirmed document its generation holds. Read only with otherReport.")] string[]? otherAttach = null,
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one send.")] string? editLeaseToken = null,
         [Description("The address of the Outgoing approved mailbox to send from; omit for the default: the approved mailbox the instruction e-mail arrived in (for a staff forward held in instructions@, the mailbox that forwarded it), else the Principal's Send from.")] string? fromMailbox = null,
+        [Description("The e-mail's subject, as the Case page's Subject field takes it (at most 500 characters); omit for the derived subject: Re: and the instruction's subject, else the registration and Report.")] string? subject = null,
+        [Description("Names for this report's documents in the send, keyed by kind (AssessmentReport, FeeNote, RepairSpecification, ImagePack), each ending in .pdf; a kind not named attaches under its delivery name. Filed estimates keep their filed names.")] Dictionary<string, string>? attachmentNames = null,
+        [Description("Names for the other report's documents, as attachmentNames takes them. Read only with otherReport.")] Dictionary<string, string>? otherAttachmentNames = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync("pegasus_report_send", cancellationToken);
@@ -142,7 +145,7 @@ internal sealed class SendMcpTools(
                     {
                         throw new McpException("The Case has no other work's report to send; otherReport needs a Case that has its Audit and the other work's generated report.");
                     }
-                    second = new(other.Id, other.Version, ParseAttach(otherAttach));
+                    second = new(other.Id, other.Version, ParseAttach(otherAttach), ParseAttachmentNames(otherAttachmentNames));
                 }
 
                 StaffMailOperation operation;
@@ -168,7 +171,9 @@ internal sealed class SendMcpTools(
                                 kinds,
                                 selector,
                                 from?.Id,
-                                second),
+                                second,
+                                Subject: subject,
+                                AttachmentNames: ParseAttachmentNames(attachmentNames)),
                             cancellationToken),
                         cancellationToken);
                 }
@@ -632,6 +637,16 @@ internal sealed class SendMcpTools(
                         : throw new McpException("attach takes FeeNote, RepairSpecification and ImagePack."))
                 .Distinct()
                 .ToArray();
+
+    private static Dictionary<CaseReportArtifactKind, string>? ParseAttachmentNames(Dictionary<string, string>? names) =>
+        names is null
+            ? null
+            : names.ToDictionary(
+                pair => pair.Key is not null
+                    && Enum.GetNames<CaseReportArtifactKind>().Contains(pair.Key.Trim(), StringComparer.Ordinal)
+                        ? Enum.Parse<CaseReportArtifactKind>(pair.Key.Trim())
+                        : throw new McpException("attachmentNames is keyed by AssessmentReport, FeeNote, RepairSpecification and ImagePack."),
+                pair => pair.Value);
 
     private static CaseWorkSelector ParseWork(string? work) => work?.Trim() switch
     {

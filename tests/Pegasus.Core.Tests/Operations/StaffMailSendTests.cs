@@ -434,10 +434,28 @@ public sealed class StaffMailSendTests
             Sha256 = new string('c', 64),
             FileName = "CE_100_fee_note.pdf"
         };
-        var renamedCompanion = companion with { FileName = "renamed-fee-note.pdf" };
+        // A companion travels under a name staff gave it too (v48 item E),
+        // the same bytes under a .pdf name; a name that is not one is refused.
+        var filedCompanion = companion with { Sha256 = custodyAttachment.Sha256 };
+        var renamedCompanion = filedCompanion with { FileName = "renamed-fee-note.pdf" };
+        var companionTransport = new Transport();
+        var companionSend = new StaffMailSend(
+            new Store(),
+            new Mailboxes(mail.ApprovedMailboxId, mail.ExpectedMailboxGeneration),
+            new Reader(bytes, custodyAttachment, filedCompanion),
+            companionTransport,
+            TimeProvider.System,
+            new ExecutionLock(), NoJobs, NoConfirm);
+        var withCompanion = await new StaffReportSend(readiness, companionSend).SendAsync(
+            new(mail with { OperationKey = "op-companion", Attachments = [deliveryAttachment, renamedCompanion] },
+                report with { Artifacts = [custodyAttachment, filedCompanion] }),
+            CancellationToken.None);
+        Assert.Equal(StaffMailState.Submitted, withCompanion.State);
+        Assert.Equal([deliveryAttachment.FileName, "renamed-fee-note.pdf"], companionTransport.AttachedNames);
+
         await Assert.ThrowsAsync<ArgumentException>(() => new StaffReportSend(
             readiness, send).SendAsync(
-                new(mail with { Attachments = [deliveryAttachment, renamedCompanion] },
+                new(mail with { Attachments = [deliveryAttachment, companion with { FileName = ".pdf" }] },
                     report with { Artifacts = [custodyAttachment, companion] }),
                 CancellationToken.None));
     }
@@ -641,14 +659,17 @@ public sealed class StaffMailSendTests
         }
     }
 
-    private sealed class Reader(byte[] bytes, StaffMailAttachment attachment) : IReadLogicalDocumentVersion
+    private sealed class Reader(byte[] bytes, params StaffMailAttachment[] attachments) : IReadLogicalDocumentVersion
     {
         public Task<LogicalDocumentContent> OpenAsync(
-            ReadLogicalDocumentVersionRequest request, CancellationToken cancellationToken) =>
-            Task.FromResult(new LogicalDocumentContent(
+            ReadLogicalDocumentVersionRequest request, CancellationToken cancellationToken)
+        {
+            var attachment = attachments.FirstOrDefault(item => item.DocumentId == request.DocumentId) ?? attachments[0];
+            return Task.FromResult(new LogicalDocumentContent(
                 new MemoryStream(bytes, writable: false), attachment.DocumentId,
                 attachment.VersionId, null, attachment.Sha256, bytes.Length,
                 attachment.FileName, attachment.MediaType));
+        }
     }
 
     private sealed class Transport : IStaffMailTransport

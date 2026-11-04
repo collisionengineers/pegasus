@@ -26,6 +26,8 @@ public interface IReportSendReadiness
 /// </summary>
 /// <param name="DispatchFingerprint">The <see cref="ReportDispatchFacts.Fingerprint"/> the form was drawn from.</param>
 /// <param name="AcknowledgedHolds">The hold texts staff ticked as done; every hold the plan sets must be among them.</param>
+/// <param name="Subject">The subject staff edited (v48 item C); null or blank sends the derived one.</param>
+/// <param name="AttachmentNames">The names staff gave this generation's documents for the send (v48 item E), by kind; a kind not named keeps its policy name.</param>
 public sealed record SendCaseReportRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
     Guid GenerationId, long ExpectedGenerationVersion, string OperationKey,
@@ -38,15 +40,19 @@ public sealed record SendCaseReportRequest(
     string? DispatchFingerprint = null,
     IReadOnlyList<ReportRuleDecision>? Decisions = null,
     IReadOnlyList<string>? AcknowledgedHolds = null,
-    string? StopOverrideReason = null);
+    string? StopOverrideReason = null,
+    string? Subject = null,
+    IReadOnlyDictionary<CaseReportArtifactKind, string>? AttachmentNames = null);
 
 /// <summary>
 /// The other work's report one send also carries: its generation at the
-/// version staff saw, and the documents of it to attach.
+/// version staff saw, the documents of it to attach, and the names staff
+/// gave them for the send.
 /// </summary>
 public sealed record SecondCaseReport(
     Guid GenerationId, long ExpectedGenerationVersion,
-    IReadOnlyList<CaseReportArtifactKind>? Attach = null);
+    IReadOnlyList<CaseReportArtifactKind>? Attach = null,
+    IReadOnlyDictionary<CaseReportArtifactKind, string>? AttachmentNames = null);
 public interface ISendCaseReport
 {
     Task<StaffMailOperation> ExecuteAsync(
@@ -231,20 +237,66 @@ public static class CaseReportDeliveryNaming
             + new string('.', sentCount);
     }
 
+    /// <summary>The extension every delivered document keeps.</summary>
+    public const string Extension = ".pdf";
+
     /// <summary>
-    /// The attachments as the recipient sees them: the report under the name
-    /// above, every companion document keeping the name custody gave it.
+    /// A name staff gave a document for one send (operator, 4 November 2026,
+    /// v48 item E): trimmed, ending in <see cref="Extension"/> with something
+    /// before it. Anything else is refused.
+    /// </summary>
+    public static string StaffName(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var trimmed = name.Trim();
+        if (!trimmed.EndsWith(Extension, StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(trimmed[..^Extension.Length]))
+        {
+            throw new ArgumentException($"A delivered document's name ends in {Extension}.", nameof(name));
+        }
+        return trimmed;
+    }
+
+    /// <summary>
+    /// The attachments as the recipient sees them: the generation's documents
+    /// first, in <paramref name="kinds"/> order, the report leading under the
+    /// name above unless staff named it, each companion under the name staff
+    /// gave it, else the name custody gave it; any attachment past the
+    /// documents (a filed estimate) keeps its filed name. Without
+    /// <paramref name="kinds"/> the list is the report and its companions.
     /// </summary>
     public static IReadOnlyList<StaffMailAttachment> Named(
-        IReadOnlyList<StaffMailAttachment> attachments, string reportName)
+        IReadOnlyList<StaffMailAttachment> attachments,
+        string reportName,
+        IReadOnlyList<CaseReportArtifactKind>? kinds = null,
+        IReadOnlyDictionary<CaseReportArtifactKind, string>? staffNames = null)
     {
         ArgumentNullException.ThrowIfNull(attachments);
         ArgumentException.ThrowIfNullOrWhiteSpace(reportName);
+        var documents = kinds?.Count ?? attachments.Count;
+        if (documents > attachments.Count)
+        {
+            throw new ArgumentException("Every document kind names an attachment.", nameof(kinds));
+        }
         return
         [
-            .. attachments.Select((attachment, index) => index == 0
-                ? attachment with { FileName = reportName + ".pdf" }
-                : attachment)
+            .. attachments.Select((attachment, index) =>
+            {
+                if (index >= documents)
+                {
+                    return attachment;
+                }
+                var kind = kinds is null
+                    ? index == 0 ? CaseReportArtifactKind.AssessmentReport : (CaseReportArtifactKind?)null
+                    : kinds[index];
+                if (kind is { } named && staffNames is not null && staffNames.TryGetValue(named, out var staffName))
+                {
+                    return attachment with { FileName = StaffName(staffName) };
+                }
+                return index == 0
+                    ? attachment with { FileName = reportName + Extension }
+                    : attachment;
+            })
         ];
     }
 }
@@ -292,6 +344,46 @@ public static class CaseReportDeliveryPolicy
         }
 
         return normalized;
+    }
+
+    /// <summary>
+    /// The most a staff-edited subject may run to (operator, 4 November 2026,
+    /// v48): the Triage composer's bound, under the mail command's own.
+    /// </summary>
+    public const int MaximumSubjectLength = 500;
+
+    /// <summary>
+    /// The subject one delivery leaves under (v48 item C): the one staff
+    /// edited, trimmed, when they gave one; else the subject the send
+    /// derives. A subject past <see cref="MaximumSubjectLength"/> is refused.
+    /// </summary>
+    public static string Subject(string? edited, string derived)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(derived);
+        if (string.IsNullOrWhiteSpace(edited))
+        {
+            return derived;
+        }
+        var trimmed = edited.Trim();
+        if (trimmed.Length > MaximumSubjectLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(edited),
+                $"A subject cannot exceed {MaximumSubjectLength} characters.");
+        }
+        return trimmed;
+    }
+
+    /// <summary>
+    /// The subject the send derives before staff edit it: a reply's "Re:" and
+    /// the instruction's subject, else a new message's "{REG} Report", never
+    /// an instruction's subject on a new message. The form prefills from this
+    /// and the send reads it when staff leave the field as it was.
+    /// </summary>
+    public static string DerivedSubject(CaseInstructionEmail? replyTo, ReportDispatchFacts facts)
+    {
+        ArgumentNullException.ThrowIfNull(facts);
+        return replyTo?.ReplySubject ?? ReportDispatchPolicy.Subject(facts with { Instruction = null });
     }
 
     /// <summary>
@@ -473,7 +565,23 @@ public static class CaseReportDeliveryPolicy
     public static IReadOnlyList<StaffMailAttachment> Attachments(
         Guid generationId,
         IReadOnlyList<CaseReportArtifactRecord> artifacts,
-        IReadOnlyList<CaseReportArtifactKind>? attach = null)
+        IReadOnlyList<CaseReportArtifactKind>? attach = null) =>
+        Chosen(generationId, artifacts, attach).Select(AttachmentOf).ToArray();
+
+    /// <summary>
+    /// The kinds of the documents <see cref="Attachments"/> delivers, in the
+    /// same order, so a name staff gave a kind reaches its attachment.
+    /// </summary>
+    public static IReadOnlyList<CaseReportArtifactKind> AttachedKinds(
+        Guid generationId,
+        IReadOnlyList<CaseReportArtifactRecord> artifacts,
+        IReadOnlyList<CaseReportArtifactKind>? attach = null) =>
+        Chosen(generationId, artifacts, attach).Select(artifact => artifact.Kind).ToArray();
+
+    private static IEnumerable<CaseReportArtifactRecord> Chosen(
+        Guid generationId,
+        IReadOnlyList<CaseReportArtifactRecord> artifacts,
+        IReadOnlyList<CaseReportArtifactKind>? attach)
     {
         ArgumentNullException.ThrowIfNull(artifacts);
         var reports = artifacts
@@ -503,7 +611,7 @@ public static class CaseReportDeliveryPolicy
                 $"Case report generation '{generationId}' does not hold every document the delivery attaches.");
         }
 
-        return chosen.OrderBy(artifact => artifact.Kind).Select(AttachmentOf).ToArray();
+        return chosen.OrderBy(artifact => artifact.Kind);
     }
 
     /// <summary>
@@ -704,18 +812,20 @@ public sealed class SendCaseReport(
         var addressing = CaseReportDeliveryPolicy.ReviewedAddress(facts, review);
 
         // The generation's documents first, the report leading; then the
-        // Case's filed estimates the Principal's rules attach.
+        // Case's filed estimates the Principal's rules attach. Staff may name
+        // each document for the send (v48 item E); a filed estimate keeps
+        // the name it was filed under.
+        var attachChoice = CaseReportDeliveryPolicy.AttachChoice(plan, request.Attach, confirmed);
         StaffMailAttachment[] attachments =
         [
-            .. CaseReportDeliveryPolicy.Attachments(
-                generation.Id,
-                generation.Artifacts,
-                CaseReportDeliveryPolicy.AttachChoice(plan, request.Attach, confirmed)),
+            .. CaseReportDeliveryPolicy.Attachments(generation.Id, generation.Artifacts, attachChoice),
             .. plan.FiledEstimates
         ];
         IReadOnlyList<StaffMailAttachment> named = CaseReportDeliveryNaming.Named(
             attachments,
-            CaseReportDeliveryNaming.ReportName(generation.Snapshot, history.SentCount, facts.Rules.AttachmentName));
+            CaseReportDeliveryNaming.ReportName(generation.Snapshot, history.SentCount, facts.Rules.AttachmentName),
+            CaseReportDeliveryPolicy.AttachedKinds(generation.Id, generation.Artifacts, attachChoice),
+            request.AttachmentNames);
 
         // The other work's report the same email carries: deliverable on its
         // own work under the same lease, and named by its own work's sends.
@@ -748,15 +858,17 @@ public sealed class SendCaseReport(
                 .Where(artifact => artifact.Status == CaseReportArtifactStatus.Confirmed)
                 .Select(artifact => artifact.Kind)
                 .ToArray();
-            secondAttachments = CaseReportDeliveryPolicy.Attachments(
-                second.Id, second.Artifacts,
-                CaseReportDeliveryPolicy.AttachChoice(plan, secondReport.Attach, secondConfirmed));
+            var secondChoice = CaseReportDeliveryPolicy.AttachChoice(plan, secondReport.Attach, secondConfirmed);
+            secondAttachments = CaseReportDeliveryPolicy.Attachments(second.Id, second.Artifacts, secondChoice);
             var secondHistory = await sendHistory.GetAsync(request.CaseId, otherWork, cancellationToken).ConfigureAwait(false);
             named =
             [
                 .. named,
                 .. CaseReportDeliveryNaming.Named(
-                    secondAttachments, CaseReportDeliveryNaming.ReportName(second.Snapshot, secondHistory.SentCount))
+                    secondAttachments,
+                    CaseReportDeliveryNaming.ReportName(second.Snapshot, secondHistory.SentCount),
+                    CaseReportDeliveryPolicy.AttachedKinds(second.Id, second.Artifacts, secondChoice),
+                    secondReport.AttachmentNames)
             ];
         }
 
@@ -778,8 +890,9 @@ public sealed class SendCaseReport(
             sender.ReplyTo?.Original,
             addressing.To,
             addressing.Cc,
-            // A new message never carries the instruction's subject.
-            sender.ReplyTo?.ReplySubject ?? ReportDispatchPolicy.Subject(facts with { Instruction = null }),
+            // The subject staff edited, else the derived one (v48 item C); a
+            // new message never carries the instruction's subject.
+            CaseReportDeliveryPolicy.Subject(request.Subject, CaseReportDeliveryPolicy.DerivedSubject(sender.ReplyTo, facts)),
             Body: message,
             // Custody keeps its own name for the same bytes.
             named,
