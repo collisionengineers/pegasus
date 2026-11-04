@@ -409,29 +409,19 @@
                         }
                     }
                     <span class="lg">@Words.ReviewedRecipients</span>
-                    @* Operator, 12 October and 3 November 2026: the report
-                       answers the instruction email from the mailbox it
-                       arrived in, or a staff forward's held in instructions@
-                       from the mailbox that forwarded it; with none that can
-                       send, staff choose the
-                       Outgoing mailbox, the Principal's Send from chosen to
-                       start with. *@
+                    @* Operator, 4 November 2026 (R655): staff choose From
+                       among the Outgoing mailboxes, starting on the default:
+                       the mailbox the instruction email arrived in (for a
+                       staff forward held in instructions@, the mailbox that
+                       forwarded it), else the Principal's Send from. *@
                     <span class="lbl">@ReportLabels.From</span>
-                    @if (Model.ReportSenders.Reply is { } reportReply)
-                    {
-                        <div class="fv" data-report-from>@reportReply.Mailbox.Address</div>
-                    }
-                    else
-                    {
-                        var sendFrom = Model.DeliveryRecipientSuggestions?.Rules.SendFromMailbox;
-                        <select name="fromMailboxId" aria-label="From" required data-report-from>
-                            <option value=""></option>
-                            @foreach (var mailbox in Model.ReportSenders.Mailboxes)
-                            {
-                                <option value="@mailbox.Id" selected="@string.Equals(mailbox.Address, sendFrom, StringComparison.OrdinalIgnoreCase)">@mailbox.Address</option>
-                            }
-                        </select>
-                    }
+                    <select name="fromMailboxId" aria-label="From" required data-report-from>
+                        <option value=""></option>
+                        @foreach (var mailbox in Model.ReportSenders.Mailboxes)
+                        {
+                            <option value="@mailbox.Id" selected="@(mailbox.Id == Model.ReportSenders.Default?.Mailbox.Id)">@mailbox.Address</option>
+                        }
+                    </select>
                     @* P21: the addresses this Case already knows, offered by the
                        browser's own picker on every recipient field. *@
                     @if (Model.ReportAddressBook.Count > 0)
@@ -594,7 +584,7 @@
                 @* Reading: the same cells, greyed, with no Send (v36 item Z). *@
                 <div class="recip-form" data-send-report-read>
                     <span class="lg">@Words.ReviewedRecipients</span>
-                    <div class="fc ro"><span class="lbl">From</span><div class="fv @(Model.ReportSenders.Reply is null ? "empty" : null)">@(Model.ReportSenders.Reply?.Mailbox.Address ?? OperatorLabels.CaseWorkspace.AbsentValue)</div></div>
+                    <div class="fc ro"><span class="lbl">From</span><div class="fv @(Model.ReportSenders.Default is null ? "empty" : null)">@(Model.ReportSenders.Default?.Mailbox.Address ?? OperatorLabels.CaseWorkspace.AbsentValue)</div></div>
                     @* To and Cc read the last send's recipients (v41 K5). *@
                     <div class="fc ro"><span class="lbl">To</span><div class="fv @(lastTo.Length == 0 ? "empty" : null)" data-report-last-to>@(lastTo.Length == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : lastTo)</div></div>
                     <div class="fc ro"><span class="lbl">Cc</span><div class="fv @(lastCc.Length == 0 ? "empty" : null)" data-report-last-cc>@(lastCc.Length == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : lastCc)</div></div>

@@ -150,14 +150,15 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// Reply to the message the material came in (operator, 12 October 2026),
-    /// from the mailbox it arrived in. While the item is open, Request again
-    /// is that same reply, so Reply is offered once the item is closed.
+    /// by default from the mailbox it arrived in (R655). While the item is
+    /// open, Request again is that same reply, so Reply is offered once the
+    /// item is closed.
     /// </summary>
     public string? ReplyHref => !IsOpen && SourceMessageCanReply && Context.SourceMessageId is { } messageId
         ? ReplyHrefFor(messageId)
         : null;
 
-    /// <summary>Whether the source message's mailbox can send and the message has a sender to answer.</summary>
+    /// <summary>Whether a mailbox can send the reply (<see cref="StaffMailAnswer"/>) and the message has a sender to answer.</summary>
     public bool SourceMessageCanReply { get; private set; }
 
     private static string ReplyHrefFor(Guid messageId) =>
@@ -496,12 +497,7 @@ public sealed partial class DetailsModel(
             && await getRetainedMailPreview.ExecuteAsync(actor, sourceMessageId, cancellationToken: cancellationToken) is { } source)
         {
             SourceMessageCanReply = !string.IsNullOrWhiteSpace(source.Summary.SenderAddress)
-                && StaffMailAnswer.For(
-                    source.Summary.MailboxId,
-                    source.Summary.MailboxAddress,
-                    source.Summary.SenderAddress,
-                    source.Summary.EffectiveSenderAddress,
-                    [.. (await approvedMailboxes.ListAsync(cancellationToken)).Where(mailbox => mailbox.CanSend)]).CanSend;
+                && (await approvedMailboxes.ListAsync(cancellationToken)).Any(mailbox => mailbox.CanSend);
         }
 
         History = await store.HistoryAsync(id, cancellationToken);

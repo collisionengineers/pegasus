@@ -513,11 +513,11 @@ public sealed class ApprovedMailboxEstateIntegrationTests
     }
 
     /// <summary>
-    /// A send reads the one mailbox it names, not the estate: the row is a
-    /// sender only while it is send-ready, exactly as the list would say.
+    /// The listed row is a sender only while it is send-ready, which is what
+    /// every From a send may leave from is chosen among (R655).
     /// </summary>
     [Fact]
-    public async Task OneMailboxIsReadAsASenderOnlyWhileItIsSendReady()
+    public async Task OneMailboxIsListedAsASenderOnlyWhileItIsSendReady()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var mailboxId = TestMailboxId.From("instructions");
@@ -525,7 +525,7 @@ public sealed class ApprovedMailboxEstateIntegrationTests
         var store = scope.ServiceProvider.GetRequiredService<IApprovedMailboxStore>();
 
         // The seeded row reads Incoming only.
-        Assert.Null(await store.GetSenderAsync(mailboxId, CancellationToken.None));
+        Assert.Null((await store.ListAsync(CancellationToken.None)).Sender(mailboxId));
 
         await database.ExecuteAsync(
             $"""
@@ -536,18 +536,13 @@ public sealed class ApprovedMailboxEstateIntegrationTests
             WHERE Id = '{mailboxId:D}';
             """);
         var sender = Assert.IsType<ApprovedMailbox>(
-            await store.GetSenderAsync(mailboxId, CancellationToken.None));
-        var listed = Assert.Single(
-            await store.ListAsync(CancellationToken.None), item => item.Id == mailboxId);
-        Assert.True(listed.CanSend);
-        Assert.Equal(listed.Address, sender.Address);
-        Assert.Equal(listed.Generation, sender.Generation);
-        Assert.Equal(listed.Version, sender.Version);
-        Assert.Null(await store.GetSenderAsync(Guid.NewGuid(), CancellationToken.None));
+            (await store.ListAsync(CancellationToken.None)).Sender(mailboxId));
+        Assert.True(sender.CanSend);
+        Assert.Null((await store.ListAsync(CancellationToken.None)).Sender(Guid.NewGuid()));
 
         await database.ExecuteAsync(
             $"UPDATE ApprovedMailboxes SET SentFolderIdentity = NULL WHERE Id = '{mailboxId:D}';");
-        Assert.Null(await store.GetSenderAsync(mailboxId, CancellationToken.None));
+        Assert.Null((await store.ListAsync(CancellationToken.None)).Sender(mailboxId));
     }
 
     [Fact]

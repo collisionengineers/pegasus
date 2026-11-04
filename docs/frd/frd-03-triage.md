@@ -186,8 +186,9 @@ calendar days with default 1
 ([FRD-17](frd-17-administration-workspace.md#workflow-configuration)), and
 appears in Needs attention until then
 ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)). Staff may
-send a **chaser** from the composer: a reply to the Triage's origin message
-from its approved mailbox, offered when the Triage came by e-mail and that
+send a **chaser** from the composer: a reply to the Triage's origin message,
+by default from its approved mailbox and from any Outgoing mailbox staff
+choose (4 November 2026, R655), offered when the Triage came by e-mail and a
 mailbox may send. The Automation Actor sends the chaser, and the reply with
 finding, with `pegasus_mail_send` `triage_reply`
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#sending)).

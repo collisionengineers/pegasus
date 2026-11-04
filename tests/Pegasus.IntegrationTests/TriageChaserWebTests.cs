@@ -266,8 +266,7 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(0, send.SendCalls);
         // The redraw reuses the message and the mailbox the refused send read.
         Assert.Equal(1, counts.OriginMessageReads);
-        Assert.Equal(1, counts.MailboxSenderReads);
-        Assert.Equal(0, counts.MailboxLists);
+        Assert.Equal(1, counts.MailboxLists);
     }
 
     [Fact]
@@ -798,8 +797,8 @@ public sealed partial class QdosTriageIntegrationTests
     /// <summary>
     /// A staff forward held in instructions@ is answered as though it had
     /// arrived in the mailbox that forwarded it (operator, 3 November 2026;
-    /// R651, R652): From is that mailbox, and the reply still names the
-    /// forwarded message it answers.
+    /// R651, R652): From starts on that mailbox, which staff may change
+    /// (R655), and the reply still names the forwarded message it answers.
     /// </summary>
     [Fact]
     public async Task AStaffForwardedTriageIsAnsweredFromTheMailboxThatForwardedIt()
@@ -825,7 +824,11 @@ public sealed partial class QdosTriageIntegrationTests
         using (var page = await client.GetAsync($"/Cases/{fixture.TriageCaseId}"))
         {
             var html = await page.Content.ReadAsStringAsync();
-            Assert.Contains($"id=\"triage-reply-from\" value=\"{forwarder}\" readonly", html, StringComparison.Ordinal);
+            Assert.Matches(
+                new Regex(
+                    $"<select id=\"triage-reply-from\" name=\"fromMailboxId\"[^>]*>.*?<option value=\"{forwarderId:D}\" selected=\"selected\">{Regex.Escape(forwarder)}</option>",
+                    RegexOptions.Singleline | RegexOptions.CultureInvariant),
+                html);
         }
         var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageCaseId}");
         using var request = new HttpRequestMessage(
@@ -1284,14 +1287,11 @@ public sealed partial class QdosTriageIntegrationTests
     {
         public int OriginMessageReads { get; set; }
 
-        public int MailboxSenderReads { get; set; }
-
         public int MailboxLists { get; set; }
 
         public void Reset()
         {
             OriginMessageReads = 0;
-            MailboxSenderReads = 0;
             MailboxLists = 0;
         }
     }
@@ -1317,12 +1317,6 @@ public sealed partial class QdosTriageIntegrationTests
         {
             counts.MailboxLists++;
             return inner.ListAsync(cancellationToken);
-        }
-
-        public Task<ApprovedMailbox?> GetSenderAsync(Guid mailboxId, CancellationToken cancellationToken)
-        {
-            counts.MailboxSenderReads++;
-            return inner.GetSenderAsync(mailboxId, cancellationToken);
         }
 
         public Task<ApprovedMailbox> UpdateAsync(

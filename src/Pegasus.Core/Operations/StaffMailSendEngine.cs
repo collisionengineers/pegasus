@@ -547,8 +547,8 @@ public sealed class StaffMailSend(
             throw new ArgumentException("Reply, reply-all and forward require an original message; new mail must not name one.", nameof(command));
         }
         // A reply may leave another mailbox than the one holding the original
-        // (a staff forward is answered from the mailbox that forwarded it); a
-        // forward carries the original itself, so only its own mailbox sends it.
+        // (staff choose any send-ready mailbox, R655); a forward carries the
+        // original itself, so only its own mailbox sends it.
         if (command.ComposeMode == StaffMailComposeMode.Forward
             && command.OriginalMessage!.ApprovedMailboxId != command.ApprovedMailboxId)
         {
