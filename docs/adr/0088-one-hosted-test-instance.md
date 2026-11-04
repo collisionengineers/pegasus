@@ -13,10 +13,10 @@ tags: [environment, test-instance, linux, tailscale, graph]
 
 ## Status
 
-Amended 3 November 2026 (R656 to R661): the instance has full Graph parity
+Amended 3 November 2026 (R673 to R678): the instance has full Graph parity
 with production on the mailboxes the operator enables on it, read, send, the
 answered-instruction move and change subscriptions, in place of R626's
-read-only grant; see Decision. Amended 4 November 2026 (R674): the
+read-only grant; see Decision. Amended 4 November 2026 (R691): the
 instance's own mailbox is `pegasustest@collisionengineers.co.uk`, a shared
 mailbox for the test environment alone; a production mailbox is enabled on
 it only when the operator says so.
@@ -61,11 +61,11 @@ their Tailscale network, at no Azure cost (R623).
   local-test root, Glass's, and the classifier agent run locally in dry run
   first (R625). It runs `dev`, the branch a release is promoted from, so a
   change is vetted on it before `main` moves; the release preflight refuses
-  a candidate the instance is not serving (R662, R665).
+  a candidate the instance is not serving (R679, R682).
 - It has Graph parity with production on its own shared mailbox,
   `pegasustest@collisionengineers.co.uk`, created for the test environment
-  alone and never approved on production (R674), and on a production
-  mailbox only while the operator enables it on the instance (R656, R658,
+  alone and never approved on production (R691), and on a production
+  mailbox only while the operator enables it on the instance (R673, R675,
   superseding R626).
   `Features:LiveGraphMail` composes Production's Graph mail side (the mail
   client, the Inbox and Sent sources and their pollers, the mailbox resolver
@@ -80,26 +80,26 @@ their Tailscale network, at no Azure cost (R623).
 - Change subscriptions are the instance's own, never production's: a Graph
   subscription is bound to the notification URL it was created with. Graph
   reaches the instance only through Tailscale Funnel on port 8443 for the one
-  path `/hooks/microsoft-graph/mail` (R657); port 443 stays tailnet-only. The
+  path `/hooks/microsoft-graph/mail` (R674); port 443 stays tailnet-only. The
   Worker maintains subscriptions only when `Graph:ChangeNotificationUrl` and
   `Graph:ChangeNotificationClientState` are both set; without them the
   five-minute recovery poll carries mail.
 - Rehearsal data is a SqlPackage copy of production into the run's database
   with every approved mailbox deactivated on import (R627), the copied
-  subscription rows cleared (R659), the copied Principal API credentials
-  paused (R660) and the copied pending answered-instruction tidies closed
-  (R661); each copy is a live production read the operator approves. The Box
+  subscription rows cleared (R676), the copied Principal API credentials
+  paused (R677) and the copied pending answered-instruction tidies closed
+  (R678); each copy is a live production read the operator approves. The Box
   custody fence keeps the instance on the local-test root whatever the copied
   rows say.
 - The Principal API and the Automation MCP run on the instance, tailnet-only:
   Principal keys are issued on the instance, the MCP uses development keys and
-  the instance's own client secret, and no connector redirect exists (R660).
+  the instance's own client secret, and no connector redirect exists (R677).
 - The instance proves local behaviour at the Linux runtime production uses.
   The evidence tiers in [engineering](../engineering.md#required-evidence-tiers)
   are unchanged: staff send and Graph subscriptions can be rehearsed on the
   instance, but they, OCR and deployment remain production proofs, as the
   [verification matrix](../engineering/local-live-verification.md) states and
-  the operator kept (R658).
+  the operator kept (R675).
 
 ## Consequences
 
@@ -109,7 +109,7 @@ their Tailscale network, at no Azure cost (R623).
 - `AGENTS.md`'s Outlook clause names the instance's Graph parity on the
   mailboxes the operator enables on it; the approved-test-mailbox acceptance
   lines in FRD-21 and FRD-26 stand, because production remains the proof of
-  record (R658).
+  record (R675).
 - The procedure is the [`pegasus-test-instance`](../../.agents/skills/pegasus-test-instance/SKILL.md)
   skill. Its tooling is the lifecycle's `-PublicOrigin`, the
   `Features:LiveGraphMail` opt-in with the two webhook keys, Funnel on the
@@ -125,5 +125,5 @@ their Tailscale network, at no Azure cost (R623).
 
 - Superseded clause: [ADR-0014](0014-local-to-production-deployment.md).
 - Workstations: [ADR-0039](0039-windows-and-linux-release-workstations.md).
-- Rulings: R623 to R629, R656 to R661 and R674 in [rulings](../rulings.md).
+- Rulings: R623 to R629, R673 to R678 and R691 in [rulings](../rulings.md).
 - Procedure: [runbook, local live-integration run](../runbook.md#local-live-integration-run).

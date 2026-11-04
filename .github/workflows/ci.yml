@@ -2,8 +2,8 @@ name: repository-check
 
 # dev is what the hosted test instance runs and what a release deploys, so a
 # push to dev runs the full lanes on the merged tree: that run is the
-# exact-head evidence the release preflight reads (R664). main receives the
-# same SHA once the release's smoke has passed (R663), so a push to main runs
+# exact-head evidence the release preflight reads (R681). main receives the
+# same SHA once the release's smoke has passed (R680), so a push to main runs
 # the history guard alone; its lanes already ran on dev.
 on:
   pull_request:
@@ -61,7 +61,7 @@ jobs:
           $all = $true
           $files = @()
           if ('${{ github.event_name }}' -eq 'push' -and '${{ github.ref }}' -eq 'refs/heads/main') {
-            # main receives a SHA dev already ran (R663, R664): the guard above
+            # main receives a SHA dev already ran (R680, R681): the guard above
             # is this push's whole check.
             foreach ($lane in 'code', 'infrastructure', 'classifier') { "$lane=false" >> $env:GITHUB_OUTPUT }
             Write-Host 'Lanes: none (a push to main is guarded, not re-run; its lanes ran on dev).'

@@ -117,7 +117,7 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
     /// Features:LiveGraphMail composes the Web's Graph mail side over an app
     /// registration credential, as Production does: the resolver and staff send,
     /// with the offline Unavailable senders gone rather than shadowed (ADR-0088
-    /// as amended, R656).
+    /// as amended, R673).
     /// </summary>
     [Fact]
     [Trait("Category", "SqlServer")]

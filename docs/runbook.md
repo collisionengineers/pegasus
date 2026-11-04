@@ -24,7 +24,7 @@ environment.
 
 ### Branch and tag protection
 
-Three repository rulesets guard the process branches (R672, 3 November 2026):
+Three repository rulesets guard the process branches (R689, 3 November 2026):
 `dev` requires a pull request and the green `repository-check` jobs; `main`
 and the `v*` tags accept no push except from a bypass actor. The one bypass
 actor is the repository-admin role, the operator's account the release pushes
@@ -377,7 +377,7 @@ clears it. In front of the run, `tailscale serve --bg --https=443
 https+insecure://localhost:7139` (the Windows host's Tailscale through WSL
 localhost forwarding, or Tailscale inside WSL) answers with the tailnet's
 certificate, so no development certificate is exported. Tailscale Funnel
-exposes one path alone, the Graph webhook, on its own port (R657):
+exposes one path alone, the Graph webhook, on its own port (R674):
 `tailscale funnel --bg --https=8443 --set-path /hooks/microsoft-graph/mail
 https+insecure://localhost:7139/hooks/microsoft-graph/mail`; port 443 stays
 tailnet-only. OpenIddict issues tokens for the host a request arrived on, so a
@@ -385,7 +385,7 @@ classifier or connector uses the public origin for both the token endpoint and
 the MCP endpoint.
 
 The instance has Graph parity with production on the mailboxes the operator
-enables on it (R656, R658). `Features__LiveGraphMail=true` with
+enables on it (R673, R675). `Features__LiveGraphMail=true` with
 `Graph__BaseUri`, `Graph__TenantId`, `Graph__ClientId` and
 `Graph__ClientSecret` in the settings file composes Production's Graph mail
 side (reads, staff and report send, the answered-instruction move) over an
@@ -404,21 +404,21 @@ enabled on both. A mailbox row added earlier under the local resolver holds a
 local identity and fails its access check: disable it and add the address
 again.
 
-The instance runs `dev` (R662). To move it to `dev`'s tip, `Stop` the run,
+The instance runs `dev` (R679). To move it to `dev`'s tip, `Stop` the run,
 `git checkout dev && git pull --ff-only origin dev` with a clean tree, run
 `Initialize-LocalDevelopment.ps1`, and `Start -RunId <run-id>` with the same
 ports; the manifest's source and artifact evidence follow the new build,
 `--initialize-development` migrates the existing database forward, and the
 Tailscale proxy keeps working because the port is unchanged. Status prints
 `SourceSha` for the comparison with `origin/dev`, and the release preflight
-refuses a candidate the instance is not serving (R665). `Reset` removes the database with the run, so a
+refuses a candidate the instance is not serving (R682). `Reset` removes the database with the run, so a
 long-lived instance keeps one run id; an older revision is not supported
 (migrations go forward only). For release rehearsal,
 `scripts/Copy-ProductionDatabaseToRun.ps1 -RunId <run-id>` replaces the
 Stopped run's database with a SqlPackage copy of production, deactivates
 every approved mailbox in the copy (R627), clears the copied subscription rows
-(R659), pauses the copied Principal API credentials (R660) and closes the
-copied pending answered-instruction tidies (R661); without `-Approve` it prints
+(R676), pauses the copied Principal API credentials (R677) and closes the
+copied pending answered-instruction tidies (R678); without `-Approve` it prints
 the source, target and statements and stops, and with it the extract is a live
 production read under the operator's own `az` sign-in. The rehearsal runs at
 the candidate's tip, and its record in operations names the copy record, the
@@ -437,7 +437,7 @@ drives when files are supplied.
 What the instance cannot prove, even with every opt-in on, is listed in the
 matrix: OCR and the problem-report sink. Staff send, Graph subscriptions and
 the answered-instruction move run on it with `Features__LiveGraphMail`, as a
-rehearsal; production remains their proof of record (R658).
+rehearsal; production remains their proof of record (R675).
 
 ### Isolated runs and failure controls
 
@@ -830,8 +830,8 @@ The hosted test instance (ADR-0088 as amended) reaches the production
 mailboxes through its own Entra app registration, never through the Web or
 Worker managed identities, which exist only inside Azure. The grant gives it
 Graph parity with production on the mailboxes in its scope and nothing on any
-other (R656, R658). The instance's own mailbox is
-`pegasustest@collisionengineers.co.uk` (R674); a production mailbox is in the
+other (R673, R675). The instance's own mailbox is
+`pegasustest@collisionengineers.co.uk` (R691); a production mailbox is in the
 instance's use only while the operator enables it there.
 
 1. The identity is the tenant's existing **CollisionSpike Graph Intake**
@@ -851,7 +851,7 @@ instance's use only while the operator enables it there.
    in scope on a covered mailbox and nothing on one outside the filter, and
    record both checks in [operations](operations.md). Done 3 November 2026;
    the test mailbox `pegasustest@` was admitted by widening the filter on
-   4 November 2026 (R674). Admitting a further
+   4 November 2026 (R691). Admitting a further
    mailbox widens `CollisionSpike-Intake-Prod` for every identity on it and
    is its own approval.
 3. On the instance's machine, add `Features__LiveGraphMail=true`,
@@ -1246,9 +1246,9 @@ Check it against the actual schema and current preservation requirements.
 Production has carried live Cases since 2 November 2026 (R603);
 [rollback step 3](#previous-artifact-rollback-web-and-worker) distinguishes
 compatible artifact rollback from roll-forward. `main` moves only after a
-release's full smoke has passed (R663), so a failed release leaves it at the
+release's full smoke has passed (R680), so a failed release leaves it at the
 SHA still serving; nothing in git is reset. The released SHA carries the tag
-`v<version>` (R669). A rollback redeploys the previous version's artifacts
+`v<version>` (R686). A rollback redeploys the previous version's artifacts
 and moves neither `main` nor the tag: the record names the version the
 estate serves, and the next release steps above the tag.
 
@@ -1266,7 +1266,7 @@ exact-target approval first. Select the retained previous release's folder
 `artifacts/releases/release-<version>-<sha8>` on the release workstation when
 it holds one; match its hashes, source revision and version to the
 [retained release evidence](operations.md#retained-evidence-and-recovery-basis).
-When the workstation does not hold it, rebuild it from the tag (R673):
+When the workstation does not hold it, rebuild it from the tag (R690):
 `git worktree add --detach ../pegasus-worktrees/release-<sha8> v<version>`,
 then `pwsh ../pegasus-worktrees/release-<sha8>/scripts/Build-ReleaseArtifacts.ps1
 -Version <version> -SourceRevision <sha>`. A rebuilt package's hashes differ
