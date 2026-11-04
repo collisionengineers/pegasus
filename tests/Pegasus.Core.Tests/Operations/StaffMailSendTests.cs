@@ -659,16 +659,16 @@ public sealed class StaffMailSendTests
         }
     }
 
-    private sealed class Reader(byte[] bytes, params StaffMailAttachment[] attachments) : IReadLogicalDocumentVersion
+    private sealed class Reader(byte[] bytes, StaffMailAttachment attachment, StaffMailAttachment? companion = null) : IReadLogicalDocumentVersion
     {
         public Task<LogicalDocumentContent> OpenAsync(
             ReadLogicalDocumentVersionRequest request, CancellationToken cancellationToken)
         {
-            var attachment = attachments.FirstOrDefault(item => item.DocumentId == request.DocumentId) ?? attachments[0];
+            var source = companion is not null && companion.DocumentId == request.DocumentId ? companion : attachment;
             return Task.FromResult(new LogicalDocumentContent(
-                new MemoryStream(bytes, writable: false), attachment.DocumentId,
-                attachment.VersionId, null, attachment.Sha256, bytes.Length,
-                attachment.FileName, attachment.MediaType));
+                new MemoryStream(bytes, writable: false), source.DocumentId,
+                source.VersionId, null, source.Sha256, bytes.Length,
+                source.FileName, source.MediaType));
         }
     }
 
