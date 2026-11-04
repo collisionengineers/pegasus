@@ -261,6 +261,11 @@ mailbox and Graph subscription states are owned by
 
 - A message with no Message-ID, or one that contradicts a retained message:
   refused, never guessed.
+- An Inbox message whose sender is the receiving approved mailbox itself,
+  the copy of the mailbox's own reply: not intake, no receipt, no retained
+  Inbox record; the Sent copy is the record
+  ([FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md);
+  operator, 2 November 2026; R582, R587).
 - A comparison key over 500 characters: refused before storage.
 - Two accepted predicates matching one message: a defect; the message is
   Unclassified with the candidates named.
