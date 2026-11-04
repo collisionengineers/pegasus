@@ -550,11 +550,17 @@ function Assert-NoCall {
 }
 
 function Assert-Order {
+    # Each pattern is matched after the previous one's match: a read the run
+    # also makes earlier (the version read of the resume check) is not the
+    # one the order is about.
     param([Parameter(Mandatory)][object] $Result, [Parameter(Mandatory)][string] $Case, [Parameter(Mandatory)][string[]] $Patterns)
     $previous = -1
     foreach ($pattern in $Patterns) {
-        $index = Get-CallIndex $Result.Calls $pattern
-        Assert-True ($index -ge 0) $Case "never issued '$pattern'." $Result.Diagnostic
+        Assert-True ((Get-CallIndex $Result.Calls $pattern) -ge 0) $Case "never issued '$pattern'." $Result.Diagnostic
+        $index = -1
+        for ($candidate = $previous + 1; $candidate -lt $Result.Calls.Count; $candidate++) {
+            if ($Result.Calls[$candidate] -like $pattern) { $index = $candidate; break }
+        }
         Assert-True ($index -gt $previous) $Case "issued '$pattern' out of order." $Result.Diagnostic
         $previous = $index
     }
