@@ -31,6 +31,14 @@ namespace Pegasus.Core.ImageIntake;
 /// staff to choose a destination: nothing is registered, held or made
 /// Unidentified while it waits.
 /// </param>
+/// <param name="WaitsInNoCaseFound">
+/// True when an e-mail carries a vehicle-capture document whose printed
+/// registration no Case holds: it waits in No Case Found with its
+/// photographs, so the caller registers nothing for it, not even an
+/// Unidentified item, and Register images, Link to case and the classifier
+/// agent's Pre-Pegasus case stay available on it (operator, 2 and
+/// 4 November 2026, R585, R663; FRD-02 EXT-17).
+/// </param>
 /// <param name="GroupReading">
 /// The submission group as this pass read it, when the group resolved
 /// Unidentified (<paramref name="UnidentifiedGroup"/> is the whole group) or
@@ -45,7 +53,8 @@ public sealed record ImageIntakeAutomationOutcome(
     RegisterUnidentifiedRequest? UnidentifiedGroup = null,
     bool AssociatedCase = false,
     bool AwaitingStaffDecision = false,
-    ImageIntakeGroupReading? GroupReading = null);
+    ImageIntakeGroupReading? GroupReading = null,
+    bool WaitsInNoCaseFound = false);
 
 /// <summary>
 /// A submission group as one automation pass read it: the group, the member
@@ -797,9 +806,12 @@ public sealed class ImageIntakeAutomation(
             // new work: with no Case holding its printed registration the
             // e-mail stays No Case Found with its photographs, for staff to
             // link or register and for the classifier agent to read; no Image
-            // Intake is made for it, nor for a staff forward of it (operator,
-            // 2 November 2026, R585; FRD-02 EXT-17).
-            return new(receipt);
+            // Intake is made for it, nor for a staff forward of it, and it is
+            // not registered Unidentified either (operator, 2 and 4 November
+            // 2026, R585, R663; FRD-02 EXT-17).
+            return new(
+                receipt,
+                WaitsInNoCaseFound: receipt.SourceIdentity.Channel == IntakeSourceChannel.Mailbox);
         }
 
         var origin = await originResolver.ResolveOriginAsync(receipt.Id, cancellationToken);

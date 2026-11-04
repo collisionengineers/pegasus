@@ -1226,8 +1226,130 @@ public sealed class AutomaticImageIntakeTests
         Assert.Empty(harness.AssociationStore.Requests);
         Assert.False(outcome.AssociatedCase);
         Assert.Null(outcome.UnidentifiedGroup);
+        Assert.True(outcome.WaitsInNoCaseFound);
         Assert.Equal(0, harness.Engine.Calls);
         Assert.Empty(harness.SuggestionStore.Records);
+    }
+
+    /// <summary>
+    /// Through the queued caller, on its first pass and on a completed
+    /// redelivery, a capture e-mail whose printed registration no Case holds
+    /// gets no Image intake, no Case and no Unidentified item: it stays
+    /// image-only and NeedsSorting, waiting in No Case Found (operator,
+    /// 4 November 2026, R663; FRD-02 EXT-17). The plain photograph e-mail the
+    /// same caller processes next is still registered Unidentified.
+    /// </summary>
+    [Theory]
+    [InlineData("live")]
+    [InlineData("replay")]
+    public async Task AQueuedCaptureEmailNoCaseHoldsIsNotRegisteredUnidentified(string path)
+    {
+        var replay = path == "replay";
+        var register = new CountingRegisterUnidentified();
+        var capture = CaptureHarness("LS74JYY");
+        capture.CaseCandidates.Candidates = [];
+
+        var outcome = await ProcessQueuedAsync(capture, register, replay);
+
+        Assert.Equal(
+            replay ? QueuedIntakeProcessingOutcome.NoOp : QueuedIntakeProcessingOutcome.Completed,
+            outcome);
+        Assert.Equal(0, register.Calls);
+        Assert.Empty(capture.Register.Requests);
+        Assert.Empty(capture.AssociationStore.Requests);
+        var stored = Assert.IsType<IntakeReceipt>(
+            await capture.ReceiptQueries.GetAsync(capture.Receipt.Id, CancellationToken.None));
+        Assert.Null(stored.CurrentCaseId);
+        Assert.Equal(IntakeDecision.NeedsSorting, stored.Decision);
+        Assert.True(ImageIntakeLifecycleRules.IsImageOnlyMaterial(stored));
+
+        var following = new Harness(sourceChannel: IntakeSourceChannel.Mailbox);
+
+        await ProcessQueuedAsync(following, register, replay);
+
+        Assert.Equal(1, register.Calls);
+        Assert.Empty(following.Register.Requests);
+    }
+
+    /// <summary>
+    /// Runs one harness receipt through <see cref="ProcessQueuedIntake"/>:
+    /// a claimed work item whose evaluation is already recorded, or a
+    /// completed redelivery of it.
+    /// </summary>
+    private static async Task<QueuedIntakeProcessingOutcome> ProcessQueuedAsync(
+        Harness harness,
+        CountingRegisterUnidentified register,
+        bool replay)
+    {
+        var receipt = harness.Receipt;
+        harness.ReceiptQueries.Receipt = receipt;
+        var stagedReceiptId = Guid.NewGuid();
+        var evaluation = new IntakeEvaluationRevision(
+            Guid.NewGuid(), stagedReceiptId, receipt.Id, 1, receipt.ReceivedAtUtc);
+        var workItem = new IntakeWorkItem(
+            Guid.NewGuid(),
+            stagedReceiptId,
+            "queued-capture",
+            IntakeWorkState.Processing,
+            1,
+            receipt.ReceivedAtUtc,
+            "lease",
+            null,
+            receipt.Id,
+            null,
+            HasPendingEvaluation: true);
+        var staged = new IntakeStagedReceipt(
+            stagedReceiptId,
+            receipt.SourceFileName,
+            receipt.MediaType,
+            receipt.SourceLength,
+            receipt.SourceHash,
+            receipt.SourceIdentity,
+            receipt.ReceivedAtUtc,
+            "system-worker:mailbox",
+            "staging/source",
+            receipt.ReceivedAtUtc);
+        var work = Forwarder.For<IIntakeWorkStore>(null);
+        work.Overrides[nameof(IIntakeWorkStore.ClaimProcessingAsync)] =
+            _ => Task.FromResult<(IntakeWorkItem WorkItem, IntakeStagedReceipt Receipt)?>(
+                replay ? null : (workItem, staged));
+        work.Overrides[nameof(IIntakeWorkStore.GetCompletedEvaluationAsync)] =
+            _ => Task.FromResult<IntakeEvaluationRevision?>(evaluation);
+        work.Overrides[nameof(IIntakeWorkStore.RecordEvaluationAsync)] = _ => Task.FromResult(evaluation);
+        work.Overrides[nameof(IIntakeWorkStore.CompleteProcessingAsync)] = _ => Task.CompletedTask;
+        var artifacts = Forwarder.For<IIntakeArtifactStore>(null);
+        artifacts.Overrides[nameof(IIntakeArtifactStore.TryCompleteStagedAsync)] = _ => Task.FromResult(true);
+        var allocation = Forwarder.For<IAllocateIntake>(null);
+        allocation.Overrides[nameof(IAllocateIntake.AttemptAutomaticAsync)] =
+            _ => Task.FromResult<IntakeAllocationResult?>(null);
+        var processIntake = new ProcessIntake(
+            null!,
+            (IIntakeReceiptStore)Forwarder.For<IIntakeReceiptStore>(null).Proxy,
+            harness.ArtifactStore,
+            null!,
+            null!,
+            null!,
+            [],
+            null!,
+            TimeProvider.System);
+        var processor = new ProcessQueuedIntake(
+            (IIntakeWorkStore)work.Proxy,
+            (IIntakeArtifactStore)artifacts.Proxy,
+            processIntake,
+            harness.ReceiptQueries,
+            (Pegasus.Core.Triage.ICreateTriageFromIntake)
+                Forwarder.For<Pegasus.Core.Triage.ICreateTriageFromIntake>(null).Proxy,
+            (Pegasus.Core.Triage.ITriagePrincipalGate)
+                Forwarder.For<Pegasus.Core.Triage.ITriagePrincipalGate>(null).Proxy,
+            (Pegasus.Core.Intake.IAutomaticCaseAssociationStore)
+                Forwarder.For<Pegasus.Core.Intake.IAutomaticCaseAssociationStore>(null).Proxy,
+            (IAllocateIntake)allocation.Proxy,
+            TimeProvider.System,
+            (IIntakeOcrOperationStore)Forwarder.For<IIntakeOcrOperationStore>(null).Proxy,
+            harness.Automation,
+            register);
+
+        return (await processor.ProcessAsync(stagedReceiptId)).Outcome;
     }
 
     private static Harness CaptureHarness(string printedRegistration) =>
@@ -1385,7 +1507,7 @@ public sealed class AutomaticImageIntakeTests
 
         public FakeReceiptQueries ReceiptQueries { get; } = new();
 
-        private ImageIntakeAutomation Automation { get; }
+        public ImageIntakeAutomation Automation { get; }
 
         public Task<ImageIntakeAutomationOutcome> ApplyAsync()
         {
