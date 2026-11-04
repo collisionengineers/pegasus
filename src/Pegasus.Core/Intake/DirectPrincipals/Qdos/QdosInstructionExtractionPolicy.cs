@@ -611,8 +611,9 @@ public sealed partial class QdosInstructionExtractionPolicy
         }
 
         // The Triage subject template writes the registration as its own
-        // labelled field, in two recorded spacings ("Vehicle Registration
-        // YD14VGJ" and "Vehicle Registration : VO75DFJ"). It is the only
+        // labelled field, in three recorded spacings ("Vehicle Registration
+        // YD14VGJ", "Vehicle Registration : VO75DFJ" and "Vehicle
+        // Registration, PN12VRD"). It is the only
         // place that template states a registration at all — its body is
         // free prose — so without this rule every subject-template Triage
         // request falls to Unidentified.
@@ -838,7 +839,7 @@ public sealed partial class QdosInstructionExtractionPolicy
     [GeneratedRegex(@"\b(?:Client[:.]?\s+)?((?:Mr|Mrs|Ms|Miss|Dr|Mx)\.?\s+[A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,3})", RegexOptions.None, 100)]
     private static partial Regex SubjectClientRegex();
 
-    [GeneratedRegex(@"\bVehicle\s+Registration\b[\s:.-]{1,10}(?<value>[A-Za-z0-9]{1,4}[ -]?[A-Za-z0-9]{1,4})\b", RegexOptions.IgnoreCase, 100)]
+    [GeneratedRegex(@"\bVehicle\s+Registration\b[\s:.,-]{1,10}(?<value>[A-Za-z0-9]{1,4}[ -]?[A-Za-z0-9]{1,4})\b", RegexOptions.IgnoreCase, 100)]
     private static partial Regex SubjectRegistrationRegex();
 
     [GeneratedRegex(@"\bVehicle(?!\s+Registration\b)[:.]?\s+([^,()]+)", RegexOptions.IgnoreCase, 100)]
