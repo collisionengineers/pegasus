@@ -10,7 +10,7 @@ Tailscale network. It is the `DevelopmentOffline` lifecycle the runbook owns
 ([local live-integration run](../../../docs/runbook.md#local-live-integration-run))
 with every opt-in on, so the procedure here is the order of the runbook's
 commands and the approvals between them. [ADR-0088](../../../docs/adr/0088-one-hosted-test-instance.md)
-and rulings R623 to R660 decided its shape; this skill invents none of it.
+and rulings R623 to R661 decided its shape; this skill invents none of it.
 
 What it is for (R624): the operator's and agents' QA walks, staff UAT rounds,
 and rehearsing a release (migrations included) on a copy of production.
@@ -19,9 +19,9 @@ and rehearsing a release (migrations included) on a copy of production.
 
 - **Mail is real.** The instance's mailbox is
   `pegasustest@collisionengineers.co.uk`, a shared mailbox for the test
-  environment alone, never approved on production (R673), and the instance
+  environment alone, never approved on production (R674), and the instance
   has Graph parity with production on it and on any production mailbox the
-  operator enables on the instance (R655, R657): a send leaves the mailbox
+  operator enables on the instance (R656, R658): a send leaves the mailbox
   and reaches its recipients, the answered-instruction move happens in that
   mailbox, and both the instance and production ingest the same incoming
   mail while a production mailbox is enabled on both. Send only to addresses
@@ -32,7 +32,7 @@ and rehearsing a release (migrations included) on a copy of production.
   create or run anything in Azure is a question to the operator first.
 - **Funnel for the Graph webhook path alone.** `tailscale serve` on 443 keeps
   the origin on the tailnet; `tailscale funnel` on 8443 exposes
-  `/hooks/microsoft-graph/mail` and nothing else (R656). Nothing else is
+  `/hooks/microsoft-graph/mail` and nothing else (R657). Nothing else is
   ever Funnelled.
 - **No public origin without password sign-in.** `Start` refuses it; the
   automatic offline sign-in would make every tailnet caller the Administrator.
@@ -49,7 +49,7 @@ and rehearsing a release (migrations included) on a copy of production.
 | Graph identity | a Microsoft 365 administrator (the operator) | the existing `CollisionSpike Graph Intake` registration and scope `CollisionSpike-Intake-Prod`; adds the one role it lacks (`Application Mail.Send`) and the secret; recorded in operations |
 | `tailscale funnel` of the webhook path | the operator | the one public path on the machine |
 | `Copy-ProductionDatabaseToRun.ps1 -Approve` | the operator's word per copy | a live read of production SQL |
-| Enabling a production mailbox on the instance | the operator | names which production mailbox the instance also reads from, sends from and subscribes to, and for how long; `pegasustest@` is the instance's own (R673) |
+| Enabling a production mailbox on the instance | the operator | names which production mailbox the instance also reads from, sends from and subscribes to, and for how long; `pegasustest@` is the instance's own (R674) |
 | A send from the instance | the operator names the recipient | a real e-mail from `pegasustest@` or an enabled production mailbox |
 | Anthropic key for the classifier | the operator supplies it | metered spend, not Azure |
 
@@ -107,7 +107,7 @@ them if it does not yet, and the run uses the folder mailbox adapters. The two
 Funnelled (section 3); without them the run polls and never subscribes. The
 Principal API issues its keys on the instance (Administration > Contacts);
 the MCP serves the local classifier and tailnet agents, with no connector
-redirect (R659). Never put `AutomationMcp__PublicOrigin` or
+redirect (R660). Never put `AutomationMcp__PublicOrigin` or
 `Glass__CallbackBaseUri` in the file: the lifecycle owns both and refuses
 them.
 
@@ -132,7 +132,7 @@ tailscale funnel status
 
 `+insecure` is needed because Kestrel presents the development certificate;
 the tailnet certificate is what the browser sees, so nothing is exported or
-trusted by hand. The second command is the one public path (R656): `funnel
+trusted by hand. The second command is the one public path (R657): `funnel
 status` must list `:8443` with that path alone, and
 `curl -sS -X POST 'https://<host>.<tailnet>.ts.net:8443/hooks/microsoft-graph/mail?validationToken=x'`
 must print `x`. Prove the proxy keeps the host:
@@ -162,7 +162,7 @@ The operator runs the tenant steps; the agent prepares the exact commands and
 the operations record. Then add the Graph lines to the settings file, restart
 the run (`Stop`, then `Start -RunId <id>`), and add
 `pegasustest@collisionengineers.co.uk` in Administration > Mailboxes on the
-instance, Incoming and Outgoing (R673); a production mailbox the operator
+instance, Incoming and Outgoing (R674); a production mailbox the operator
 enables is added the same way, as production has it. The Worker log
 (`artifacts/local-development/<run>/logs/worker-*.stdout.log`) shows the
 instance's own subscription being created within five minutes, the poll, and
@@ -195,7 +195,7 @@ machine uses the Tailscale origin.
 
 ## 6. Follow dev
 
-The instance runs `dev` and nothing else (R661): after each merge into `dev`,
+The instance runs `dev` and nothing else (R662): after each merge into `dev`,
 the agent on the machine when asked, or the operator, moves it.
 
 ```powershell
@@ -210,8 +210,8 @@ Ports and the public origin come from the manifest; `--initialize-development`
 migrates the existing database forward and keeps its data. Status prints
 `SourceSha`; the instance is current when it equals `git rev-parse origin/dev`,
 and the release preflight refuses a candidate the instance is not serving
-(R664). Its `Version` reads `0.0.0-dev`, as in every build that is not a
-release (R666); the SHA is its identity. Going back to an older revision is not supported: migrations run
+(R665). Its `Version` reads `0.0.0-dev`, as in every build that is not a
+release (R667); the SHA is its identity. Going back to an older revision is not supported: migrations run
 forward only, and that needs a Reset and a re-seed the operator agrees to.
 
 ## 7. Rehearse a release on a copy of production
@@ -226,14 +226,14 @@ pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -RunId <id>   # migrate
 The copy is a SqlPackage extract of production to a local `.dacpac` under the
 run's `state/`, published over the run database with users, logins, role
 memberships, permissions and database options left out, every approved
-mailbox deactivated (R627), the copied subscription rows cleared (R658), the
-copied Principal API keys paused (R659) and the copied pending
-answered-instruction tidies closed (R660), so the instance subscribes under
+mailbox deactivated (R627), the copied subscription rows cleared (R659), the
+copied Principal API keys paused (R660) and the copied pending
+answered-instruction tidies closed (R661), so the instance subscribes under
 its own webhook, authenticates no production key and moves only what its own
 sends answered. The record `state/production-copy-<utc>.json` holds the
 migration head, the Case count and the four counts. The copy carries
 production's mailbox rows and not the instance's, so `pegasustest@` is added
-again in Administration > Mailboxes after the next Start (R673). The
+again in Administration > Mailboxes after the next Start (R674). The
 rehearsal is then the next Start: the checked-out revision's migrations run
 against production's schema and data. The rehearsal runs at the candidate's
 tip, the branch about to land on `dev` (checked out detached at its SHA when

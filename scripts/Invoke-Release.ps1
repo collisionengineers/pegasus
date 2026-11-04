@@ -17,13 +17,13 @@ the exact SHA, the manifest SHA-256, the version, the route, whether to
 provision and, for a destructive route, the old serving Web source SHA. It
 reads the hosted test instance to prove it is serving the approved SHA, runs
 the one route to a passing full smoke, then promotes main to the SHA the
-estate now serves and tags it v<version> in one leased push (R662, R668),
+estate now serves and tags it v<version> in one leased push (R663, R669),
 copies the azd environment back to the primary checkout, retains the
 artifacts and prints the record skeleton for docs/operations.md.
 
-Releases are Semantic Versions from 1.0.0 (R666). The live version is the
+Releases are Semantic Versions from 1.0.0 (R667). The live version is the
 highest v* tag on main; the read-only run proposes the next one from the
-range (R667) and builds it unless -Version says otherwise; the approved run
+range (R668) and builds it unless -Version says otherwise; the approved run
 refuses a version that is not one step above the live one, or not the one
 the manifest was built with.
 
@@ -89,8 +89,8 @@ param(
     [ValidatePattern('^[0-9a-f]{40}$')]
     [string] $ApprovedReleaseSha,
 
-    # The Semantic Version the release carries (R666). The read-only run
-    # proposes one from the live tag and the range (R667) and builds it unless
+    # The Semantic Version the release carries (R667). The read-only run
+    # proposes one from the live tag and the range (R668) and builds it unless
     # given here; the approved run names the one the approval granted, one
     # step above the live version and the one the manifest was built with.
     [Parameter(ParameterSetName = 'Prepare')]
@@ -121,7 +121,7 @@ $resourceGroup = 'rg-pegasus-prod'
 $webApp = 'pegasus-prod-web-252ow37gij'
 $webOrigin = 'https://pegasus-prod-web-252ow37gij.azurewebsites.net/'
 # The hosted test instance (ADR-0088) runs dev; a deployable candidate is the
-# SHA it is serving, read the way the Web App is (R664).
+# SHA it is serving, read the way the Web App is (R665).
 $testInstanceOrigin = 'https://cemattypc-1.tail432b53.ts.net/'
 $workerApp = 'pegasus-prod-worker-252ow37gij'
 $classifierApp = 'pegasus-prod-classifier-252ow37gij'
@@ -231,7 +231,7 @@ function Get-WebVersion {
 
 function Assert-TestInstanceServes {
     # "Vetted on the test server" is the instance serving the candidate SHA
-    # (R664): read over the tailnet, never assumed. The operator's approval
+    # (R665): read over the tailnet, never assumed. The operator's approval
     # message stays the acceptance; this proves it saw the same bytes.
     param([Parameter(Mandatory)][string] $Sha)
     $version = Get-WebVersion -Origin $testInstanceOrigin
@@ -245,8 +245,8 @@ function Assert-TestInstanceServes {
 # --- Version ---------------------------------------------------------------------
 
 function Get-LiveVersion {
-    # Releases are Semantic Versions (R666) and main carries each release's
-    # tag (R668), so the live version is the highest v<MAJOR.MINOR.PATCH> tag
+    # Releases are Semantic Versions (R667) and main carries each release's
+    # tag (R669), so the live version is the highest v<MAJOR.MINOR.PATCH> tag
     # merged into origin/main. Null until the first one.
     $versions = @(Invoke-Git -Arguments @('tag', '--list', 'v*', '--merged', 'origin/main') |
         ForEach-Object { if ($_ -match '^v(\d+\.\d+\.\d+)$') { [version]$Matches[1] } })
@@ -264,11 +264,11 @@ function Get-NextVersions {
 }
 
 function Assert-VersionStep {
-    # R666, R667: the first Semantic Version is 1.0.0; after it a release is
+    # R667, R668: the first Semantic Version is 1.0.0; after it a release is
     # exactly one step above the live version. Returns the step.
     param([version] $Live, [Parameter(Mandatory)][string] $Candidate)
     if ($null -eq $Live) {
-        if ($Candidate -ne '1.0.0') { throw "No v* tag on main: the first Semantic Version is 1.0.0, not $Candidate (R666)." }
+        if ($Candidate -ne '1.0.0') { throw "No v* tag on main: the first Semantic Version is 1.0.0, not $Candidate (R667)." }
         return 'first'
     }
     $next = Get-NextVersions -Live $Live
@@ -277,13 +277,13 @@ function Assert-VersionStep {
 }
 
 function Get-ProposedVersion {
-    # R667: PATCH when every pull request in the range closes only type:bug
+    # R668: PATCH when every pull request in the range closes only type:bug
     # issues, MAJOR when the route is destructive, MINOR otherwise. The route
     # is classified after the preflight, so a range that adds a migration is
     # proposed both ways. A proposal: the approval names the version.
     param([version] $Live, [Parameter(Mandatory)][bool] $BugFixesOnly, [Parameter(Mandatory)][string] $BugFixesReason, [Parameter(Mandatory)][bool] $AddsMigration)
     if ($null -eq $Live) {
-        return [pscustomobject]@{ Version = '1.0.0'; Step = 'first'; Reason = 'no v* tag on main, so the first Semantic Version is 1.0.0 (R666)'; Alternative = '' }
+        return [pscustomobject]@{ Version = '1.0.0'; Step = 'first'; Reason = 'no v* tag on main, so the first Semantic Version is 1.0.0 (R667)'; Alternative = '' }
     }
     $next = Get-NextVersions -Live $Live
     $step = if ($BugFixesOnly) { 'PATCH' } else { 'MINOR' }
@@ -300,7 +300,7 @@ function Get-RemoteTagSha {
 }
 
 function New-ReleaseTag {
-    # The release's annotated tag in the primary checkout (R668); an existing
+    # The release's annotated tag in the primary checkout (R669); an existing
     # local tag must already point at the released SHA.
     param([Parameter(Mandatory)][string] $Sha)
     $name = "v$Version"
@@ -470,7 +470,7 @@ function Get-AzdEnvironmentHash {
 function Get-RetainedAzdEnvironmentHash {
     # The hash the previous release retained beside its artifacts; null when
     # no release has retained one yet. Folders are release-<version>-<sha8>
-    # from 1.0.0 (R666) and release-<n>-<sha8> before it; the newest Semantic
+    # from 1.0.0 (R667) and release-<n>-<sha8> before it; the newest Semantic
     # Version comes first, then the highest counter.
     $retained = @(Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'artifacts/releases') -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -match '^release-(\d+\.\d+\.\d+|\d+)-[0-9a-f]{8}$' } |
@@ -733,7 +733,7 @@ function Invoke-Promotion {
     # atomic push; dev must still be at it; no tag, nothing was deployed.
     # After the smoke (-AfterSmoke): main alone moves to the SHA the estate
     # now serves and the annotated tag v<version> goes with it in one atomic
-    # push (R662, R668); dev must contain it, and may have moved on during
+    # push (R663, R669); dev must contain it, and may have moved on during
     # the release.
     param([Parameter(Mandatory)][string] $Sha, [switch] $AfterSmoke)
     Invoke-Git -Arguments @('fetch', 'origin', '--prune')
@@ -797,39 +797,39 @@ function Assert-DevStillAt {
 # --- Default run: preflight, build, approval request -------------------------------
 
 function Read-Protection {
-    # R671: dev and main carry rulesets whose specification is the runbook's
+    # R672: dev and main carry rulesets whose specification is the runbook's
     # "Branch and tag protection". The preflight reads them back and warns;
     # it never writes one.
     $json = (& gh api "repos/$gitHubRepository/rulesets" 2>&1) -join "`n"
     $rulesets = @()
     if ($LASTEXITCODE -eq 0) { try { $rulesets = @($json | ConvertFrom-Json) } catch { $rulesets = @() } }
-    if ($rulesets.Count -eq 0) { Write-Host "Warning: no ruleset read back from $gitHubRepository (R671)." }
+    if ($rulesets.Count -eq 0) { Write-Host "Warning: no ruleset read back from $gitHubRepository (R672)." }
     foreach ($ruleset in $rulesets) { Write-Host "ruleset $($ruleset.name): $($ruleset.target), $($ruleset.enforcement)" }
     foreach ($name in 'dev', 'main') {
         if (@($rulesets | Where-Object { [string]$_.name -ceq $name -and [string]$_.enforcement -ceq 'active' }).Count -eq 0) {
-            Write-Host "Warning: $name has no active ruleset named $name (R671)."
+            Write-Host "Warning: $name has no active ruleset named $name (R672)."
         }
     }
 }
 
 function Read-CandidateChecks {
-    # The push-to-dev run on the candidate is its exact-head evidence (R663);
+    # The push-to-dev run on the candidate is its exact-head evidence (R664);
     # the merged pull requests in the range and their checks are listed with
-    # it, and what they close decides the proposed version step (R667). A run
-    # that is not green is counted and never waived (R671): the read-only run
+    # it, and what they close decides the proposed version step (R668). A run
+    # that is not green is counted and never waived (R672): the read-only run
     # reports it and the approved run refuses before any write.
     param([Parameter(Mandatory)][string] $MainSha, [Parameter(Mandatory)][string] $DevSha)
     $runsJson = (& gh run list --repo $gitHubRepository --workflow repository-check --branch dev --commit $devSha --json 'status,conclusion,url' 2>&1) -join "`n"
     $devRun = $null
     if ($LASTEXITCODE -eq 0) { try { $devRun = @($runsJson | ConvertFrom-Json) | Select-Object -First 1 } catch { $devRun = $null } }
-    if ($null -eq $devRun) { Write-Host "No repository-check run found for $devSha on dev: the candidate waits (R671)."; $notGreen = 1 }
+    if ($null -eq $devRun) { Write-Host "No repository-check run found for $devSha on dev: the candidate waits (R672)."; $notGreen = 1 }
     elseif ([string]$devRun.conclusion -cne 'success') { Write-Host "The dev run for $devSha is $($devRun.status)/$($devRun.conclusion): $($devRun.url)"; $notGreen = 1 }
     else { Write-Host "dev run for ${devSha}: success ($($devRun.url))"; $notGreen = 0 }
     Write-Host ''
     Write-Host '--- Pull requests in the range ---'
     $pullNumbers = @(Invoke-Git -Arguments @('log', '--merges', '--format=%s', "$mainSha..$devSha") |
         ForEach-Object { if ($_ -match 'Merge pull request #(\d+)') { [int]$Matches[1] } } | Sort-Object -Unique)
-    # R667: what the pull requests close decides the proposed version step.
+    # R668: what the pull requests close decides the proposed version step.
     $bugFixesOnly = $pullNumbers.Count -gt 0
     $bugFixesReason = if ($bugFixesOnly) { 'every pull request in the range closes only type:bug issues' } else { 'the range has no merged pull request' }
     foreach ($number in $pullNumbers) {
@@ -861,7 +861,7 @@ function Read-CandidateChecks {
         if ($failing.Count -gt 0) { $notGreen++ }
         Write-Host ("#{0} {1}: {2} checks, {3} not successful" -f $pull.number, $pull.title, $checks.Count, $failing.Count)
     }
-    if ($notGreen -gt 0) { Write-Host "$notGreen run(s) are not green: the candidate waits; nothing is waived (R671)." }
+    if ($notGreen -gt 0) { Write-Host "$notGreen run(s) are not green: the candidate waits; nothing is waived (R672)." }
     return [pscustomobject]@{ NotGreen = $notGreen; BugFixesOnly = $bugFixesOnly; BugFixesReason = $bugFixesReason }
 }
 
@@ -938,8 +938,8 @@ function Invoke-Preflight {
         Assert-TestInstanceServes -Sha $devSha
     }
 
-    # The live version is the tag on main (R666, R668); the proposal is a
-    # proposal, the approval names the version (R667).
+    # The live version is the tag on main (R667, R669); the proposal is a
+    # proposal, the approval names the version (R668).
     Write-Host ''
     Write-Host '--- Version ---'
     $live = Get-LiveVersion
@@ -1247,7 +1247,7 @@ switch ($PSCmdlet.ParameterSetName) {
         if ([string]$account.subscription -ne $subscriptionId -or [string]$account.tenant -ne $tenantId) {
             throw "The Azure CLI account is $($account.subscription)/$($account.tenant), not the fixed target."
         }
-        # R666, R667: the approved version is one step above the live one, or
+        # R667, R668: the approved version is one step above the live one, or
         # 1.0.0 before any tag; a resumed run after the promotion finds its own
         # tag live. Read before anything else.
         Invoke-Git -Arguments @('fetch', 'origin', '--prune') | Out-Null
@@ -1279,15 +1279,15 @@ switch ($PSCmdlet.ParameterSetName) {
         $webPackageSha256 = [string]@($manifest.artifacts | Where-Object name -eq 'web.zip')[0].sha256
         $script:record['Packages'] = "manifest $($actualManifestSha256.ToUpperInvariant()); " + (@($manifest.artifacts | ForEach-Object { "$($_.name) $($_.sha256)" }) -join '; ')
 
-        # R567 and R664: the approval named dev's head, and the instance must
+        # R567 and R665: the approval named dev's head, and the instance must
         # be serving it; both are read before any write.
         Assert-DevStillAt -Sha $ApprovedReleaseSha
         Assert-TestInstanceServes -Sha $ApprovedReleaseSha
-        # R663, R671: the candidate's push-to-dev run and every pull request in
+        # R664, R672: the candidate's push-to-dev run and every pull request in
         # the range are read again here; one that is not green is a refusal,
         # never a waiver.
         $checks = Read-CandidateChecks -MainSha (@(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()) -DevSha $ApprovedReleaseSha
-        if ($checks.NotGreen -gt 0) { throw "$($checks.NotGreen) run(s) on the candidate are not green: the candidate waits; nothing is waived (R671)." }
+        if ($checks.NotGreen -gt 0) { throw "$($checks.NotGreen) run(s) on the candidate are not green: the candidate waits; nothing is waived (R672)." }
         if ($Route -eq 'Destructive') {
             # The route's preconditions are read before any write, so a
             # refusal writes nothing anywhere.
@@ -1308,7 +1308,7 @@ switch ($PSCmdlet.ParameterSetName) {
             Invoke-DestructiveRoute -Root $root -Manifest $manifest -WebPackagePath $webPackagePath -WebPackageSha256 $webPackageSha256
         }
         # main records what is live: it moves only now, after the full smoke
-        # (R662). A failed release has left it at the SHA still serving.
+        # (R663). A failed release has left it at the SHA still serving.
         Invoke-Promotion -Sha $ApprovedReleaseSha -AfterSmoke
         Complete-Release -Root $root
         Write-Record

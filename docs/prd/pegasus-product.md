@@ -121,7 +121,7 @@ Case that later matches a Case still merges into it, per the paragraph above.
 Automated mailbox ingestion and processing operate continuously. Staff use is
 primarily during business hours; the application remains available outside them
 except planned maintenance, which is a release's restart or a destructive
-route's approved window (R605, R670; 3 November 2026). This does not establish
+route's approved window (R605, R671; 3 November 2026). This does not establish
 an additional uptime SLA.
 
 Use the lowest practical Azure tiers that support required development and

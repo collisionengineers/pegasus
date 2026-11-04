@@ -120,11 +120,11 @@ public static class WorkerDependencyInjection
         {
             if (liveGraphMail)
             {
-                // The hosted test instance (ADR-0088 as amended, R655) composes
+                // The hosted test instance (ADR-0088 as amended, R656) composes
                 // Production's Graph mail side over an app registration: the
                 // pollers, the answered-instruction move and staff send. Change
                 // subscriptions are added only when the settings file names the
-                // Funnelled webhook and its client state (R656); without them the
+                // Funnelled webhook and its client state (R657); without them the
                 // five-minute recovery poll alone carries mail.
                 services.AddSingleton(LocalGraphCredential.Create(key => configuration[key]));
                 services.AddGraphApprovedMail(

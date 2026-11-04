@@ -101,7 +101,7 @@ and the [verification procedure](docs/runbook.md).
   Graph parity on its own mailbox, `pegasustest@collisionengineers.co.uk`,
   and on a production mailbox only while the operator enables it there:
   read, send, the answered-instruction move and change subscriptions
-  (ADR-0088 as amended, R655, R657, R673).
+  (ADR-0088 as amended, R656, R658, R674).
 - Use PowerShell 7 on Windows or Linux, one platform per evidence run. Paths and
   commands are repository-relative. Follow the existing [release skill](.agents/skills/pegasus-release/SKILL.md)
   for the authorized workstation and platform-matching artifacts; one approval
@@ -151,17 +151,17 @@ Historical tickets and retired plans are provenance only.
 
 `main` is the live deployment: it moves only when a release's full smoke has
 passed, or by the promotion-only route for a range that deploys nothing
-(R661, R662). A release is a Semantic Version from 1.0.0, named in the
-approval and tagged `v<version>` on the released SHA (R666 to R668); a fix
-ships as a PATCH of `dev`'s tip, and there is no hotfix branch (R669). `dev`
+(R662, R663). A release is a Semantic Version from 1.0.0, named in the
+approval and tagged `v<version>` on the released SHA (R667 to R669); a fix
+ships as a PATCH of `dev`'s tip, and there is no hotfix branch (R670). `dev`
 is what the hosted test instance runs; a change is vetted there and promoted
-to `main` (R661, R664). Rulesets make `dev` take only green pull requests and
+to `main` (R662, R665). Rulesets make `dev` take only green pull requests and
 `main` only the release's push; their one bypass is the operator's account,
-so the rule below that agents never push either branch is procedural (R671).
+so the rule below that agents never push either branch is procedural (R672).
 Task work uses a worktree at
 `../pegasus-worktrees/<slug>` on branch `task/<slug>`, created from
 `origin/dev` with `--no-track`; a change that depends on an open PR may branch
-from that PR's branch and target it (R665). A release build uses a detached
+from that PR's branch and target it (R666). A release build uses a detached
 worktree at `../pegasus-worktrees/release-<sha8>`.
 `.agents/skills/resolve-issue/scripts/cleanup_worktree.py` removes a task
 worktree once the PR head equals the worktree HEAD and the tree is clean.
