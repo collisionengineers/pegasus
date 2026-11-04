@@ -373,7 +373,9 @@ function New-FixtureRepository {
     Set-Content -LiteralPath (Join-Path $seed 'scripts/Invoke-ProductionSmoke.ps1') -Encoding ascii -Value @'
 param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
 if ($env:PEGASUS_TEST_FULL_SMOKE -eq 'pass' -and $Arguments -contains '-BaseUri') { Write-Host 'fixture: full smoke passed'; exit 0 }
-& $env:PEGASUS_TEST_REAL_SMOKE_PATH @Arguments
+# -File binds -WorkerOnly and the named values as the real script's parameters;
+# splatting a string array would pass them positionally.
+& pwsh -NoLogo -NoProfile -File $env:PEGASUS_TEST_REAL_SMOKE_PATH @Arguments
 exit $LASTEXITCODE
 '@
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'azure.yaml') -Destination (Join-Path $seed 'azure.yaml')
