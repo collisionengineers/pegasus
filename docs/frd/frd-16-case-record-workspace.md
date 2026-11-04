@@ -988,7 +988,7 @@ prints, shown as soon as the image is in the report. The two tagged places
 are fixed: their order cannot be changed and they have no grip, and ordering
 moves only the rest. The Overview prints on page 1 and again
 first on the image pages, the Close-up after it (operator, 4 November 2026;
-R659)
+R660)
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
 Beneath the grid a line counts what the report uses, out of the images that
 can print

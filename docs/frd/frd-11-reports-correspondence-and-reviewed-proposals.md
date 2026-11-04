@@ -586,9 +586,9 @@ split (operator, 8 October 2026), in the order the Engineer set (operator,
 27 September 2026). The Overview prints
 on page 1, beside the marked damage diagram (operator, 7 October 2026), and
 again first on the image pages, followed by the Close-up, so a report whose
-one image is its Overview prints it twice (operator, 4 November 2026; R659).
+one image is its Overview prints it twice (operator, 4 November 2026; R660).
 An image flagged Full page prints on a page of its own (v28 P41); on the
-Overview that flag applies to its image-page copy, never to page 1 (R659). An image
+Overview that flag applies to its image-page copy, never to page 1 (R660). An image
 prints whole after the Engineer's own crop and rotation, so nothing of it
 is trimmed (operator, 7 October 2026). Every image
 the Engineer includes prints, whatever their number or source file size,

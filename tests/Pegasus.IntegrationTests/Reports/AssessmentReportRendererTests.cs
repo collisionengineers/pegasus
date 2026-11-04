@@ -306,7 +306,7 @@ public sealed partial class AssessmentReportRendererTests
 
     /// <summary>
     /// A Full page image prints alone on the image pack's first page, the
-    /// Overview as any other (R659).
+    /// Overview as any other (R660).
     /// </summary>
     [Theory]
     [InlineData(CaseAssetReportRole.Supporting)]
@@ -621,7 +621,7 @@ public sealed partial class AssessmentReportRendererTests
     /// <summary>
     /// Page 1 carries the Overview beside the damage diagram (operator,
     /// 7 October 2026), and the image pages print it again first, then the
-    /// Close-up (R659). Full page applies to its image-page copy, never to
+    /// Close-up (R660). Full page applies to its image-page copy, never to
     /// page 1's slot.
     /// </summary>
     [Fact]
@@ -676,7 +676,7 @@ public sealed partial class AssessmentReportRendererTests
 
     /// <summary>
     /// A report whose one image is its Overview prints that image twice: in
-    /// page 1's slot and on the image page (R659).
+    /// page 1's slot and on the image page (R660).
     /// </summary>
     [Fact]
     public async Task ALoneOverviewPrintsOnPageOneAndOnTheImagePage()

@@ -83,7 +83,7 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate, IM
     /// <summary>
     /// The images one artifact prints. The report leads page 1 with the
     /// Overview and prints it again first on the image pages, ahead of the
-    /// Close-up (operator, 4 November 2026, R659); the image pack prints every
+    /// Close-up (operator, 4 November 2026, R660); the image pack prints every
     /// image in the grid. Full page applies to every image on the image pages,
     /// the Overview among them, and never to page 1's slot. Each image is
     /// opened, prepared and let go of before the next is opened; the Overview

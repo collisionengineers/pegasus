@@ -211,7 +211,7 @@ internal static class TemplateSampleJobs
     /// <summary>
     /// Six drawn landscape photographs in the sizes a telephone takes them:
     /// the Close-up, the Overview, and four supporting images in order. The
-    /// Overview prints on page 1 and again on the image page (R659), so the
+    /// Overview prints on page 1 and again on the image page (R660), so the
     /// six fill the template's one image page.
     /// </summary>
     private static ReportImageEvidence[] Photographs()
