@@ -989,23 +989,30 @@ public sealed class CaseViewsWebTests
         var caseId = store.CaseId.ToString("D");
         var version = store.CaseVersion.ToString(CultureInfo.InvariantCulture);
 
-        async Task PostFromTheInspectionViewAsync(string handler, params (string Name, string Value)[] fields)
+        async Task PostFromTheInspectionViewAsync(string handler, string? dialog, params (string Name, string Value)[] fields)
         {
             using var posted = await workspace.Client.PostAsync(
                 $"/Cases/{caseId}?handler={handler}&section=report",
                 Form(workspace.AntiforgeryToken, [("id", caseId), .. fields, ("view", "inspection")]));
 
             Assert.Equal(HttpStatusCode.Redirect, posted.StatusCode);
-            Assert.Equal($"/Cases/{caseId}?section=report&view=inspection", posted.Headers.Location?.OriginalString);
+            Assert.Equal(
+                $"/Cases/{caseId}?section=report&view=inspection{(dialog is null ? string.Empty : $"&dialog={dialog}")}",
+                posted.Headers.Location?.OriginalString);
         }
 
         await PostFromTheInspectionViewAsync(
             "GenerateReport",
+            dialog: null,
             ("operationKey", Guid.NewGuid().ToString("N")),
             ("editLeaseToken", store.LeaseToken),
             ("expectedCaseVersion", version));
+        // The recording fake refuses the send once it has the request, and a
+        // refused send lands back with the Send report dialog reopened on its
+        // notice (v48 item N), still on the Inspection view's Report.
         await PostFromTheInspectionViewAsync(
             "SendReport",
+            dialog: "send-report",
             ("operationKey", Guid.NewGuid().ToString("N")),
             ("editLeaseToken", store.LeaseToken),
             ("expectedCaseVersion", version),

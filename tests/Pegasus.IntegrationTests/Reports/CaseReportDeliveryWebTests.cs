@@ -968,7 +968,7 @@ public sealed partial class AssessmentReportDraftWebTests
             StringComparison.Ordinal);
         var from = Regex.Match(
             form,
-            "<select name=\"fromMailboxId\"[^>]*data-report-from>(?<options>.*?)</select>",
+            "<select[^>]*name=\"fromMailboxId\"[^>]*data-report-from>(?<options>.*?)</select>",
             RegexOptions.Singleline | RegexOptions.CultureInvariant);
         Assert.True(from.Success, "The delivery form drew no From select.");
         Assert.Contains(
@@ -1072,12 +1072,16 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.DoesNotContain("data-report-send-open", html, StringComparison.Ordinal);
     }
 
-    /// <summary>The Report section's markup, head to foot.</summary>
+    /// <summary>
+    /// The Report section's markup, head to foot: from its id to its own
+    /// closing tag (its title's id is <c>section-report-title</c>, so the
+    /// next <c>id="section-</c> is two lines in, not the next section).
+    /// </summary>
     private static string ReportSection(string html)
     {
         var start = html.IndexOf("id=\"section-report\"", StringComparison.Ordinal);
         Assert.True(start >= 0, "The Report section is not rendered.");
-        var end = html.IndexOf("id=\"section-", start + 1, StringComparison.Ordinal);
+        var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
         return end < 0 ? html[start..] : html[start..end];
     }
 
@@ -1109,7 +1113,12 @@ public sealed partial class AssessmentReportDraftWebTests
             caseId,
             feeNoteStatus: CaseReportArtifactStatus.Confirmed,
             repairSpecStatus: CaseReportArtifactStatus.Confirmed);
-        using var factory = WithCurrentGeneration(baseFactory, caseId, generation);
+        // The Subject prefills from the dispatch facts' derived subject, so the
+        // page needs the facts a real Case has (the Default rules require no
+        // companion, so the Files rows stay as the generation has them).
+        var facts = new ReportDispatchFacts(
+            "QDOS26001", "PK12TMZ", "Principal Ltd", PrincipalReportSendingRules.Default, null);
+        using var factory = WithDispatchFacts(baseFactory, caseId, generation, facts, CaseReportSendHistory.None);
         using var client = Client(factory);
 
         var html = WebUtility.HtmlDecode(await EnterEditModeAsync(client, caseId));
