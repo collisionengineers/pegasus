@@ -115,4 +115,45 @@ public sealed class CaseReferenceFormatTests
             "a.AB12CDE.2",
             CaseReferenceFormat.CasePo(CaseType.Audit, CaseReferenceFormat.Registration("AB12CDE", 2)));
     }
+
+    /// <summary>
+    /// While the temporary switch is on every finished Case/PO ends in
+    /// <c>-p</c>, prefix and all, and the Audit report of an Inspection +
+    /// Audit Case follows its Case/PO (operator, 4 November 2026; R656).
+    /// </summary>
+    [Theory]
+    [InlineData(CaseType.Inspection, true, "QDOS26158-p")]
+    [InlineData(CaseType.InspectionAndAudit, true, "QDOS26158-p")]
+    [InlineData(CaseType.Audit, true, "a.QDOS26158-p")]
+    [InlineData(CaseType.Triage, true, "t.QDOS26158-p")]
+    [InlineData(CaseType.Audit, false, "a.QDOS26158")]
+    public void TheSwitchEndsEveryCasePoInTheSuffix(CaseType caseType, bool suffixed, string expected)
+    {
+        var casePo = CaseReferenceFormat.CasePo(caseType, CaseReferenceFormat.Base("QDOS", 2026, 158));
+
+        Assert.Equal(expected, CaseReferenceFormat.WithSuffix(casePo, suffixed));
+    }
+
+    [Fact]
+    public void TheAuditReportOfASuffixedCasePoCarriesTheSuffixOnce()
+    {
+        Assert.Equal("a.QDOS26157-p", CaseReferenceFormat.AuditReport("QDOS26157-p"));
+        Assert.Equal("a.QDOS26157", CaseReferenceFormat.WithoutSuffix("a.QDOS26157-p"));
+        Assert.Equal("QDOS26157", CaseReferenceFormat.WithoutSuffix("QDOS26157"));
+    }
+
+    /// <summary>
+    /// A one-off minted with the suffix still counts toward its vehicle's
+    /// repeat, so the switch can never hand a registration out twice.
+    /// </summary>
+    [Fact]
+    public void ASuffixedOneOffCountsTowardTheRepeat()
+    {
+        Assert.Equal(2, CaseReferenceFormat.NextRegistrationRepeat("AB12CDE", ["AB12CDE-p"]));
+        Assert.Equal(3, CaseReferenceFormat.NextRegistrationRepeat("AB12CDE", ["AB12CDE", "a.AB12CDE.2-p"]));
+        Assert.Equal(4, CaseReferenceFormat.NextRegistrationRepeat("AB12CDE", ["AB12CDE.3-p", "AB12CDE.2"]));
+        Assert.Equal(
+            "AB12CDE.2-p",
+            CaseReferenceFormat.WithSuffix(CaseReferenceFormat.Registration("AB12CDE", 2), suffixed: true));
+    }
 }

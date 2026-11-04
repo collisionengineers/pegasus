@@ -28,7 +28,9 @@ internal static class PrincipalReferenceSchemes
 /// Principal lineage and annual sequence, and each calls this inside its own
 /// transaction before it writes the Case, so creators on one lineage queue on
 /// the sequence row. The allocation stays in memory until <c>SaveChanges</c>,
-/// so a creator that returns early releases the number.
+/// so a creator that returns early releases the number. The finished Case/PO
+/// ends in <see cref="CaseReferenceFormat.ReferenceSuffix"/> while the
+/// Administrator's switch is on (R656), read in the creator's transaction.
 /// </summary>
 /// <remarks>
 /// A Principal referenced by registration takes its lineage number the same
@@ -80,20 +82,22 @@ internal static class CaseIdentityAllocator
         }
 
         var number = checked(++sequence.LastAllocatedSequence);
-        if (principal.ReferenceScheme == PrincipalReferenceSchemes.Registration)
-        {
-            return new(year, number, await RegistrationReferenceAsync(
-                context, caseType, registration, cancellationToken));
-        }
-
-        var baseReference = CaseReferenceFormat.Base(principal.Code, year, number);
-        return new(year, number, CaseReferenceFormat.CasePo(caseType, baseReference));
+        var reference = principal.ReferenceScheme == PrincipalReferenceSchemes.Registration
+            ? await RegistrationReferenceAsync(context, caseType, registration, cancellationToken)
+            : CaseReferenceFormat.CasePo(caseType, CaseReferenceFormat.Base(principal.Code, year, number));
+        var suffixed = await EfSendToAiControlStore.IsEnabledAsync(
+            context,
+            SendToAiControlEntity.CaseReferenceSuffixId,
+            cancellationToken);
+        return new(year, number, CaseReferenceFormat.WithSuffix(reference, suffixed));
     }
 
     /// <summary>
     /// A one-off's Case/PO: the registration, or <c>.2</c> and on when an
     /// earlier Case already holds it. Read after the sequence lock, so the
-    /// previous creator's reference is committed and visible.
+    /// previous creator's reference is committed and visible. Every reference
+    /// that starts with the registration is read, so one carrying the
+    /// temporary suffix (R656) counts; the repeat rule keeps the exact forms.
     /// </summary>
     private static async Task<string> RegistrationReferenceAsync(
         PegasusDbContext context,
@@ -109,13 +113,10 @@ internal static class CaseIdentityAllocator
             throw new OneOffCaseRouteException();
         }
 
-        var prefix = registration + CaseReferenceFormat.RepeatSeparator;
         var audit = CaseReferenceFormat.AuditPrefix + registration;
-        var auditPrefix = audit + CaseReferenceFormat.RepeatSeparator;
         var existing = await context.Cases
             .AsNoTracking()
-            .Where(item => item.Reference == registration || item.Reference.StartsWith(prefix)
-                || item.Reference == audit || item.Reference.StartsWith(auditPrefix))
+            .Where(item => item.Reference.StartsWith(registration) || item.Reference.StartsWith(audit))
             .Select(item => item.Reference)
             .ToArrayAsync(cancellationToken);
         return CaseReferenceFormat.CasePo(caseType, CaseReferenceFormat.Registration(

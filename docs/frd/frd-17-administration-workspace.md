@@ -165,6 +165,10 @@ the field and the server. The directory rules are owned by
   Unidentified target (default 0, due by the midnight after receipt), Triage
   target (1), Held decision target (7), Review target (1) and AI draft
   target (1);
+- the temporary switch **Add -p to new Case/PO**, on by default, saved with
+  the workflow settings: while on, every newly minted Case/PO ends in `-p`
+  ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity);
+  operator, 4 November 2026, [R656](../rulings.md)). A change enters history;
 - labour-rate-card administration: the two built-in global versioned cards,
   Standard and Prestige/Aluminium (operator, 13 October 2026), that every
   estimate version selects from. Their names are fixed and there are no other

@@ -18,13 +18,13 @@ internal sealed record LocalDbTemplateSnapshot(
 /// <remarks>
 /// Migrating a fresh database per test dominated the suite's wall clock. The
 /// schema is instead migrated once, backed up, and restored per test. Backup
-/// and restore are server-side, which a
-/// <c>PEGASUS_TEST_SQL_DATASOURCE</c> server could in principle serve too —
-/// but no job proves that path and its guard tests skip themselves there, so
-/// an external server migrates per test instead of running an unverified
-/// template. A failure to build the template falls back to migrating each
-/// database, and <see cref="LocalDbTemplateDatabaseTests"/> keeps that
-/// fallback from passing silently on LocalDB.
+/// and restore are server-side, so the SQL Server container a
+/// <c>PEGASUS_TEST_SQL_DATASOURCE</c> names serves them the same way LocalDB
+/// does; only the sweep of stale backups reads the server's data directory
+/// from this file system, and it is best-effort. A failure to build the
+/// template falls back to migrating each database, and
+/// <see cref="LocalDbTemplateDatabaseTests"/> keeps that fallback from
+/// passing silently wherever the suite runs.
 /// </remarks>
 internal static class LocalDbTemplateDatabase
 {
@@ -49,14 +49,6 @@ internal static class LocalDbTemplateDatabase
         // instance with whatever an earlier run abandoned just the same, and
         // the container path is exactly where both are most likely.
         await SweepAbandonedDatabasesAsync();
-        if (LocalDbTestDatabase.UsesExternalDataSource)
-        {
-            // The equivalence guards skip themselves against an external
-            // server, and an unverified template with its watchdog off is
-            // worse than the slow-but-proved migrate-per-test path.
-            return null;
-        }
-
         try
         {
             return await BuildTemplateAsync();
