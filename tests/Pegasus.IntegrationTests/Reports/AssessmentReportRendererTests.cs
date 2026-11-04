@@ -304,14 +304,20 @@ public sealed partial class AssessmentReportRendererTests
         });
     }
 
-    [Fact]
-    public async Task TheImagePackDoesNotLeaveAHeaderOnlyPageBeforeAFullPageImage()
+    /// <summary>
+    /// A Full page image prints alone on the image pack's first page, the
+    /// Overview as any other (R660).
+    /// </summary>
+    [Theory]
+    [InlineData(CaseAssetReportRole.Supporting)]
+    [InlineData(CaseAssetReportRole.Overview)]
+    public async Task TheImagePackDoesNotLeaveAHeaderOnlyPageBeforeAFullPageImage(CaseAssetReportRole role)
     {
         await using var provider = RendererProvider();
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
         var snapshot = ReadySnapshot();
         var photo = snapshot.Photos.Single();
-        var fullPage = photo with { CustodyReference = "full.jpg", Order = 0, FullPage = true };
+        var fullPage = photo with { CustodyReference = "full.jpg", Order = 0, FullPage = true, Role = role };
         var ordinary = photo with { CustodyReference = "ordinary.jpg", Order = 1, FullPage = false };
 
         var artifact = await new GenerateAssessmentReportDraft(renderer)
@@ -613,12 +619,13 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     /// <summary>
-    /// Page 1 carries the Overview beside the damage diagram and the image
-    /// pages begin with the Close-up (operator, 7 October 2026). The Overview
-    /// prints on page 1 only, and Full page has no effect on it.
+    /// Page 1 carries the Overview beside the damage diagram (operator,
+    /// 7 October 2026), and the image pages print it again first, then the
+    /// Close-up (R660). Full page applies to its image-page copy, never to
+    /// page 1's slot.
     /// </summary>
     [Fact]
-    public async Task TheOverviewLeadsPageOneAndTheCloseUpLeadsTheImagePages()
+    public async Task TheOverviewLeadsPageOneAndAgainTheImagePages()
     {
         await using var provider = RendererProvider();
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
@@ -654,14 +661,37 @@ public sealed partial class AssessmentReportRendererTests
         Assert.InRange(overview.Left, 38.1, 38.5);
         Assert.InRange(overview.Width, 47.7, 48.3);
         Assert.InRange(overview.Height, 35.8, 36.2);
-        var images = Assert.Single(ImagePages(artifact.Pdf));
-        // The Close-up, then the supporting images in the Engineer's order;
-        // none is enlarged.
-        Assert.Equal([800, 400, 640], images.Select(image => image.PixelWidth));
+        // The Overview again, flagged Full page and so alone on the first
+        // image page; then the Close-up and the supporting images in the
+        // Engineer's order. None is enlarged.
+        var images = ImagePages(artifact.Pdf);
+        Assert.Equal(2, images.Length);
+        Assert.Equal(1600, Assert.Single(images[0]).PixelWidth);
+        Assert.Equal([800, 400, 640], images[1].Select(image => image.PixelWidth));
         // The narrative, the vehicle data and the work lists carry no image,
         // the statement of truth carries the signature alone, and the fee
         // note none.
-        Assert.Equal([1, 0, 0, 0, 3, 1, 0], printed.Select(page => page.Count));
+        Assert.Equal([1, 0, 0, 0, 1, 3, 1, 0], printed.Select(page => page.Count));
+    }
+
+    /// <summary>
+    /// A report whose one image is its Overview prints that image twice: in
+    /// page 1's slot and on the image page (R660).
+    /// </summary>
+    [Fact]
+    public async Task ALoneOverviewPrintsOnPageOneAndOnTheImagePage()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var snapshot = ReadySnapshot();
+        var overview = snapshot.Photos.Single() with { Role = CaseAssetReportRole.Overview };
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(snapshot with { Photos = [overview] }, CaseReportArtifactKind.AssessmentReport);
+
+        Assert.Single(BodyImages(artifact.Pdf)[0]);
+        var image = Assert.Single(Assert.Single(ImagePages(artifact.Pdf)));
+        Assert.Equal((160, 120), (image.PixelWidth, image.PixelHeight));
     }
 
     /// <summary>
