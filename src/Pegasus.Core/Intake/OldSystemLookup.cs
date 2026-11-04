@@ -1,4 +1,7 @@
+using System.Text.RegularExpressions;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Core.Intake;
 
@@ -113,12 +116,78 @@ public static class OldSystemLookupBounds
 }
 
 /// <summary>
+/// The old-system folders are named by the firm's own Case reference
+/// (operator, 2 November 2026, R592). The source's search is a full-text
+/// match, so when the term is itself reference-shaped only the folders that
+/// name that reference as a whole token are hits; any other term keeps the
+/// source's hits as they are.
+/// </summary>
+public static partial class OldSystemFolderNameMatch
+{
+    private static readonly char[] TokenSeparators = [' ', '\t', '_', '-', ',', ';', '(', ')', '[', ']', '/'];
+
+    /// <summary>
+    /// A Case/PO (<c>QDOS26112</c>), with or without its <c>a.</c> or
+    /// <c>t.</c> prefix, or a one-off's registration with an optional repeat
+    /// (<c>AB12CDE</c>, <c>AB12CDE.2</c>, <c>a.AB12CDE</c>).
+    /// </summary>
+    public static bool IsReferenceShaped(string term)
+    {
+        var bare = StripTypePrefix(term.Trim());
+        if (CasePoRegex().IsMatch(bare))
+        {
+            return true;
+        }
+
+        var separator = bare.IndexOf(CaseReferenceFormat.RepeatSeparator, StringComparison.Ordinal);
+        var registration = separator < 0 ? bare : bare[..separator];
+        var repeat = separator < 0 ? null : bare[(separator + 1)..];
+        if (repeat is not null && !RepeatRegex().IsMatch(repeat))
+        {
+            return false;
+        }
+
+        return registration.Length > 0
+            && registration.All(char.IsAsciiLetterOrDigit)
+            && UkRegistrationShapes.IsAnyShape(registration.ToUpperInvariant());
+    }
+
+    /// <summary>
+    /// The folder's name holds the term as a whole token, prefix-insensitive:
+    /// <c>QDOS26112</c> matches <c>a.QDOS26112 Smith</c> and not
+    /// <c>QDOS261125</c>.
+    /// </summary>
+    public static bool Matches(string folderName, string term)
+    {
+        var wanted = StripTypePrefix(term.Trim());
+        return folderName
+            .Split(TokenSeparators, StringSplitOptions.RemoveEmptyEntries)
+            .Any(token => string.Equals(StripTypePrefix(token), wanted, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string StripTypePrefix(string value) =>
+        value.StartsWith(CaseReferenceFormat.AuditPrefix, StringComparison.OrdinalIgnoreCase)
+        || value.StartsWith(CaseReferenceFormat.TriagePrefix, StringComparison.OrdinalIgnoreCase)
+            ? value[CaseReferenceFormat.AuditPrefix.Length..]
+            : value;
+
+    // The Case/PO shape CaseReferenceFormat.Base writes: principal code,
+    // two-digit year, at least three digits of sequence.
+    [GeneratedRegex(@"^[A-Za-z]{2,10}[0-9]{2}[0-9]{3,}$", RegexOptions.CultureInvariant, 100)]
+    private static partial Regex CasePoRegex();
+
+    [GeneratedRegex(@"^[1-9][0-9]{0,2}$", RegexOptions.CultureInvariant, 100)]
+    private static partial Regex RepeatRegex();
+}
+
+/// <summary>
 /// Searches the old system's case folders by name for a caseworker or the
-/// Automation actor (R561). Read-only.
+/// Automation actor (R561). Read-only. A reference-shaped term keeps only the
+/// folders named by that reference (R592).
 /// </summary>
 public sealed class SearchOldSystemCaseFolders(IOldSystemCaseFolderSearch source)
 {
-    public Task<OldSystemCaseFolderSearchResult> ExecuteAsync(
+    public async Task<OldSystemCaseFolderSearchResult> ExecuteAsync(
         ActionActor actor,
         string term,
         int maximumItems = OldSystemLookupBounds.MaximumItems,
@@ -127,7 +196,16 @@ public sealed class SearchOldSystemCaseFolders(IOldSystemCaseFolderSearch source
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         var trimmed = OldSystemLookupBounds.RequireTerm(term, nameof(term));
         OldSystemLookupBounds.RequireMaximum(maximumItems, nameof(maximumItems));
-        return source.SearchAsync(trimmed, maximumItems, cancellationToken);
+        var result = await source.SearchAsync(trimmed, maximumItems, cancellationToken);
+        if (!OldSystemFolderNameMatch.IsReferenceShaped(trimmed))
+        {
+            return result;
+        }
+
+        return result with
+        {
+            Items = result.Items.Where(folder => OldSystemFolderNameMatch.Matches(folder.Name, trimmed)).ToArray(),
+        };
     }
 }
 

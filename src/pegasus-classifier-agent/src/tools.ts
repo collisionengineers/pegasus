@@ -1,10 +1,12 @@
-// The agent's six tools, served in-process: one list, three writes and two
-// read-only lookups. Each write re-reads the message from Pegasus and refuses
-// it, without calling Pegasus, when staff have decided it or its
-// classification version or linked Case differs from what this run listed (or
-// last wrote itself); Pegasus then applies its own checks (versions, leases,
-// link rules) as it does for staff. The lookups read the old system's Box
-// folders and the approved mailboxes through Pegasus's own read-only tools.
+// The agent's seven tools, served in-process: one list, one read, three
+// writes and two read-only lookups. The list carries headers only, so its
+// result stays small at any batch size; the read returns one e-mail's text
+// (#1829). Each write re-reads the message from Pegasus and refuses it,
+// without calling Pegasus, when staff have decided it or its classification
+// version or linked Case differs from what this run listed (or last wrote
+// itself); Pegasus then applies its own checks (versions, leases, link rules)
+// as it does for staff. The lookups read the old system's Box folders and the
+// approved mailboxes through Pegasus's own read-only tools.
 
 import { randomUUID } from "node:crypto";
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
@@ -22,9 +24,16 @@ export interface Logger {
   (message: string, properties?: Record<string, unknown>): void;
 }
 
+/** What the tools need of Pegasus; the replay harness supplies a recording one. */
+export type ClassifierPegasus = Pick<
+  PegasusMail,
+  "get" | "correct" | "link" | "openQuery" | "searchOldSystemFolders" | "searchMailboxes"
+>;
+
 export const ServerName = "classifier";
 export const ToolNames = [
   "list_eligible_emails",
+  "read_email",
   "classify_email",
   "link_case",
   "open_query",
@@ -35,8 +44,9 @@ export const ToolNames = [
 /** Hits per lookup: enough to tell whether the old system holds the case, not a listing. */
 const LookupLimit = 10;
 
-const BodyLimit = 6000;
+export const BodyLimit = 6000;
 const ReasonPrefix = "Classifier agent: ";
+const NotListed = "That message is not in this run's eligible list.";
 
 function text(value: unknown, isError = false) {
   return {
@@ -61,8 +71,8 @@ function newAttempt(): string {
   return randomUUID().replaceAll("-", "").slice(0, 12);
 }
 
-function view({ detail, destinations }: Candidate) {
-  const body = detail.bodyPlainText ?? "";
+/** The list row: everything but the body. A few hundred characters per e-mail. */
+export function header({ detail, destinations }: Candidate) {
   return {
     messageId: detail.summary.id,
     receivedAtUtc: detail.summary.receivedAtUtc,
@@ -72,8 +82,7 @@ function view({ detail, destinations }: Candidate) {
     to: detail.toAddresses,
     cc: detail.ccAddresses,
     subject: detail.summary.subject,
-    body: body.length > BodyLimit ? `${body.slice(0, BodyLimit)}\n[truncated]` : body,
-    attachments: detail.attachments.map((item) => item.fileName),
+    attachments: detail.attachments.map((item) => `${item.fileName} (${item.mediaType}, ${item.contentLength} bytes)`),
     thread: detail.thread.map((item) => ({ from: item.senderAddress, subject: item.subject, receivedAtUtc: item.receivedAtUtc })),
     currentOutcome: detail.classification?.current.outcome,
     currentCategory: detail.classification?.current.category,
@@ -90,18 +99,33 @@ function view({ detail, destinations }: Candidate) {
   };
 }
 
+/** The read: the row plus the body, cut at BodyLimit. */
+export function view(candidate: Candidate) {
+  const body = candidate.detail.bodyPlainText ?? "";
+  return {
+    ...header(candidate),
+    body: body.length > BodyLimit ? `${body.slice(0, BodyLimit)}\n[truncated]` : body,
+  };
+}
+
 export function createClassifierServer(options: {
-  pegasus: PegasusMail;
+  pegasus: ClassifierPegasus;
   batch: Map<string, Candidate>;
   /**
    * Messages whose write failed this run, with why. They are looked at again
    * next run, up to the run's cap on failed attempts.
    */
   failed: Map<string, string>;
+  /**
+   * Messages the model gave a verdict this run: a classification, a link or
+   * a query that Pegasus accepted (or that a dry run would have made). Only
+   * these are marked reviewed (#1829).
+   */
+  verdicts: Set<string>;
   dryRun: boolean;
   log: Logger;
 }) {
-  const { pegasus, batch, failed, dryRun, log } = options;
+  const { pegasus, batch, failed, verdicts, dryRun, log } = options;
 
   // What this run last knew of each listed message: its classification version
   // and linked Case id as listed, then as this run's own writes left them.
@@ -120,7 +144,7 @@ export function createClassifierServer(options: {
   async function reread(messageId: string): Promise<{ detail: MailDetail; expected: MessageState } | string> {
     const expected = known.get(messageId);
     if (!expected) {
-      return "That message is not in this run's eligible list.";
+      return NotListed;
     }
     const detail = await pegasus.get(messageId);
     if (!isStillWritable(detail)) {
@@ -135,9 +159,23 @@ export function createClassifierServer(options: {
 
   const listEligible = tool(
     "list_eligible_emails",
-    "Lists the e-mails this run may act on: each one is Unclassified or has no Case linked, and was decided only by the automatic pipeline. Each carries the Cases suggested for linking, when it can be linked.",
+    "Lists the e-mails this run may act on, headers only: each one is Unclassified or has no Case linked, and was decided only by the automatic pipeline. Each carries the Cases suggested for linking, when it can be linked. Read an e-mail with read_email before deciding it.",
     {},
-    async () => text([...batch.values()].map(view)),
+    async () => text([...batch.values()].map(header)),
+    { annotations: { readOnlyHint: true, openWorldHint: false } });
+
+  const readEmail = tool(
+    "read_email",
+    `Reads one listed e-mail: its headers and its body text, cut at ${BodyLimit} characters.`,
+    { messageId: z.guid().describe("messageId from list_eligible_emails") },
+    async (args) => {
+      const candidate = batch.get(args.messageId);
+      if (!candidate) {
+        return text(NotListed, true);
+      }
+      log("read", { messageId: args.messageId });
+      return text(view(candidate));
+    },
     { annotations: { readOnlyHint: true, openWorldHint: false } });
 
   const classify = tool(
@@ -163,10 +201,12 @@ export function createClassifierServer(options: {
         if (classification.current.outcome === "Classified"
           && classification.current.category === args.category
           && (args.category !== "new-instruction" || classification.current.caseType === args.workType)) {
+          verdicts.add(args.messageId);
           return text(`The e-mail is already ${args.category}; nothing changed.`);
         }
         log("classify", { messageId: args.messageId, from: classification.current.category, to: args.category, workType: args.workType, reason: args.reason, dryRun });
         if (dryRun) {
+          verdicts.add(args.messageId);
           return text(`Dry run: would classify as ${args.category}.`);
         }
         // The key is only an audit correlation here: Pegasus guards a
@@ -180,6 +220,7 @@ export function createClassifierServer(options: {
           operationKey: operationKey("cls", args.messageId, expected.classificationVersion),
         });
         known.set(args.messageId, { ...expected, classificationVersion: corrected.version });
+        verdicts.add(args.messageId);
         return text(`Classified as ${args.category}.`);
       } catch (error) {
         failed.set(args.messageId, (error as Error).message);
@@ -212,6 +253,7 @@ export function createClassifierServer(options: {
         }
         log("link", { messageId: args.messageId, caseReference: destination.reference, reason: args.reason, dryRun });
         if (dryRun) {
+          verdicts.add(args.messageId);
           return text(`Dry run: would link to ${destination.reference}.`);
         }
         // Each attempt is its own command, so a refused link can be tried
@@ -241,6 +283,7 @@ export function createClassifierServer(options: {
         if (state) {
           known.set(args.messageId, state);
         }
+        verdicts.add(args.messageId);
         return text(`Linked to ${destination.reference}.`);
       } catch (error) {
         failed.set(args.messageId, (error as Error).message);
@@ -252,7 +295,7 @@ export function createClassifierServer(options: {
   return createSdkMcpServer({
     name: ServerName,
     version: "1.0.0",
-    tools: [listEligible, classify, link, tool(
+    tools: [listEligible, readEmail, classify, link, tool(
       "open_query",
       "Opens a query on a listed e-mail that is linked to a Case whose report is sent, when the fresh text is a question about or challenge to that report.",
       { messageId: z.guid().describe("messageId from list_eligible_emails") },
@@ -264,12 +307,14 @@ export function createClassifierServer(options: {
           }
           log("open query", { messageId: args.messageId, dryRun });
           if (dryRun) {
+            verdicts.add(args.messageId);
             return text("Dry run: would open a query.");
           }
           const opened = await pegasus.openQuery({
             messageId: args.messageId,
             operationKey: operationKey("qry", args.messageId, read.expected.classificationVersion),
           });
+          verdicts.add(args.messageId);
           return text(`Opened query ${opened.queryId}.`);
         } catch (error) {
           failed.set(args.messageId, (error as Error).message);
@@ -279,8 +324,8 @@ export function createClassifierServer(options: {
       }),
     tool(
       "search_old_system_folders",
-      "Read-only. Searches the firm's old-system case folders by name (a case reference, registration or claimant) and returns folder names only. state is unavailable when the folders could not be read.",
-      { query: z.string().min(1).max(200).describe("A case reference, registration, claimant or claim number") },
+      "Read-only. Searches the firm's old-system case folders by name and returns folder names only. The folders are named by the firm's own Case reference (QDOS26112, a.QDOS26112), so search by that reference; a reference-shaped term matches a folder name only as a whole token. state is unavailable when the folders could not be read.",
+      { query: z.string().min(1).max(200).describe("The firm's own Case reference for the job, as named in the firm's earlier e-mail about it") },
       async (args) => {
         try {
           const result = await pegasus.searchOldSystemFolders(args.query, LookupLimit);

@@ -85,6 +85,68 @@ public sealed class OldSystemLookupTests
         Assert.Empty(mailboxes.Items);
     }
 
+    // R592: the old-system folders are named by the firm's own Case reference,
+    // so a reference-shaped term keeps only the folders that name it as a
+    // whole token; Box's full-text hits for anything else pass through.
+    [Theory]
+    [InlineData("QDOS26112", "QDOS26112|a.QDOS26112 Smith|Smith (QDOS26112)")]
+    [InlineData("a.QDOS26112", "QDOS26112|a.QDOS26112 Smith|Smith (QDOS26112)")]
+    [InlineData("t.QDOS26112", "QDOS26112|a.QDOS26112 Smith|Smith (QDOS26112)")]
+    [InlineData("qdos26112", "QDOS26112|a.QDOS26112 Smith|Smith (QDOS26112)")]
+    [InlineData("AB12CDE", "AB12CDE Jones")]
+    [InlineData("AB12CDE.2", "AB12CDE.2 Jones")]
+    [InlineData("a.AB12CDE", "AB12CDE Jones")]
+    public async Task AReferenceShapedTermKeepsOnlyTheFoldersThatNameIt(string term, string expectedNames)
+    {
+        var folders = new RecordingFolderSearch
+        {
+            Hits =
+            [
+                "QDOS26112",
+                "a.QDOS26112 Smith",
+                "Smith (QDOS26112)",
+                "QDOS261125",
+                "QDOS26112B",
+                "Smith QDOS",
+                "AB12CDE Jones",
+                "AB12CDE.2 Jones",
+                "AB12CDEF",
+            ],
+        };
+
+        var result = await new SearchOldSystemCaseFolders(folders).ExecuteAsync(Automation, term);
+
+        Assert.Equal(expectedNames.Split('|'), result.Items.Select(folder => folder.Name).ToArray());
+        Assert.Equal(OldSystemLookupState.Available, result.State);
+    }
+
+    [Theory]
+    [InlineData("Smith")]
+    [InlineData("AMA/49679/1")]
+    [InlineData("49679")]
+    [InlineData("SD71 KBU")]
+    public async Task ATermThatIsNotAReferenceKeepsEveryHitTheSourceReturned(string term)
+    {
+        string[] hits = ["Smith QDOS", "AMA-49679-1 Gutaj", "unrelated"];
+        var folders = new RecordingFolderSearch { Hits = hits };
+
+        var result = await new SearchOldSystemCaseFolders(folders).ExecuteAsync(Automation, term);
+
+        Assert.Equal(hits, result.Items.Select(folder => folder.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task TheFilterKeepsTheSourcesTruncationAndState()
+    {
+        var folders = new RecordingFolderSearch { Hits = ["QDOS261125"], IsTruncated = true };
+
+        var result = await new SearchOldSystemCaseFolders(folders).ExecuteAsync(Automation, "QDOS26112");
+
+        Assert.Empty(result.Items);
+        Assert.True(result.IsTruncated);
+        Assert.Equal(OldSystemLookupState.Available, result.State);
+    }
+
     [Fact]
     public void AMailboxSearchIsAvailableWhenAnyMailboxAnswered()
     {
@@ -100,13 +162,19 @@ public sealed class OldSystemLookupTests
     {
         public List<(string Term, int Maximum)> Terms { get; } = [];
 
+        public string[] Hits { get; init; } = [];
+
+        public bool IsTruncated { get; init; }
+
         public Task<OldSystemCaseFolderSearchResult> SearchAsync(
             string term,
             int maximumItems,
             CancellationToken cancellationToken)
         {
             Terms.Add((term, maximumItems));
-            return Task.FromResult(new OldSystemCaseFolderSearchResult([], false));
+            return Task.FromResult(new OldSystemCaseFolderSearchResult(
+                Hits.Select((name, index) => new OldSystemCaseFolder(index.ToString(), name, null)).ToArray(),
+                IsTruncated));
         }
     }
 

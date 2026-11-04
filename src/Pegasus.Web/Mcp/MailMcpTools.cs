@@ -258,7 +258,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Read-only. Searches the folder names below the old system's Box folder for a term (a case reference, registration or claimant) and returns folder names and identities only; no content is read and nothing is written. state is unavailable when that folder is not configured or Box could not be read. Use it to see whether a case an e-mail refers to is one still run in the old system (FRD-08 Pre-Pegasus case).")]
+    [Description("Read-only. Searches the folder names below the old system's Box folder for the firm's own Case reference, which names those folders (R592), and returns folder names and identities only; a reference-shaped term matches a folder name only as a whole token, any other term is a plain name search; no content is read and nothing is written. state is unavailable when that folder is not configured or Box could not be read. Use it to see whether a case an e-mail refers to is one still run in the old system (FRD-08 Pre-Pegasus case).")]
     public async Task<MailToolOldSystemFolderSearch> OldSystemFolderSearchAsync(
         [Description("The search text, 1 to 200 characters.")] string query,
         [Description("Folders to return, 1 to 100.")] int pageSize = OldSystemLookupBounds.MaximumItems,
