@@ -147,7 +147,9 @@ internal sealed class EfSentEvidencePollStore(
             VerifyReplay(existing, state, outcome);
         }
 
-        state.Cursor = outcome.Item.NextCursor;
+        // The cursor moves in CompleteAsync, at a page boundary. A position
+        // inside a provider page is not durable: the page is live, so an item
+        // recorded at one position can be presented again at another (#1897).
         state.DueAtUtc = outcome.RecordedAtUtc;
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -324,7 +326,6 @@ internal sealed class EfSentEvidencePollStore(
             || !string.Equals(existing.OutcomeKind, expected.OutcomeKind, StringComparison.Ordinal)
             || existing.RelatedEvidenceId != expected.RelatedEvidenceId
             || !string.Equals(existing.FailureCode, expected.FailureCode, StringComparison.Ordinal)
-            || !string.Equals(existing.CursorAfterItem, expected.CursorAfterItem, StringComparison.Ordinal)
             || !string.Equals(existing.OperationKey, expected.OperationKey, StringComparison.Ordinal))
         {
             throw new InvalidDataException(

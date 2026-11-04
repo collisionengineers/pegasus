@@ -74,11 +74,21 @@ public sealed class SentEvidencePollPersistenceTests
             "sent-poll:durable-replay");
 
         await store.RecordOutcomeAsync(lease.MailboxId, lease.LeaseToken, outcome, default);
+        // The provider presented the same item again at another position
+        // (#1897): the replay is a no-op, and the cursor waits for the page.
         await store.RecordOutcomeAsync(
             lease.MailboxId,
             lease.LeaseToken,
-            outcome with { RecordedAtUtc = nowUtc.AddSeconds(1) },
+            outcome with
+            {
+                RecordedAtUtc = nowUtc.AddSeconds(1),
+                Item = item with { NextCursor = "durable-cursor-moved" }
+            },
             default);
+        Assert.Equal(
+            1L,
+            await database.ScalarAsync<long>(
+                "SELECT COUNT_BIG(*) FROM ApprovedSentPollStates WHERE MailboxId = 'instructions' AND [Cursor] IS NULL"));
         var terminalItem = new ApprovedSentItem(
             "changed-occurrence",
             new string('D', 64),
@@ -112,6 +122,10 @@ public sealed class SentEvidencePollPersistenceTests
             default);
 
         Assert.Equal(2L, await database.ScalarAsync<long>("SELECT COUNT_BIG(*) FROM ApprovedSentPollOutcomes"));
+        Assert.Equal(
+            item.NextCursor,
+            await database.ScalarAsync<string>(
+                "SELECT CursorAfterItem FROM ApprovedSentPollOutcomes WHERE OperationKey = 'sent-poll:durable-replay'"));
         Assert.Equal(
             terminalItem.NextCursor,
             await database.ScalarAsync<string>("SELECT [Cursor] FROM ApprovedSentPollStates WHERE MailboxId = 'instructions'"));

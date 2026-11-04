@@ -214,7 +214,7 @@ public sealed class MessageModel(
     [BindProperty]
     public string? CorrespondenceTo { get; set; }
 
-    /// <summary>The mailbox staff chose for a reply that has no fixed sender.</summary>
+    /// <summary>The mailbox staff chose for Reply or Reply all; none leaves from the default.</summary>
     [BindProperty]
     public Guid? CorrespondenceFromMailboxId { get; set; }
 
@@ -330,11 +330,8 @@ public sealed class MessageModel(
     /// <summary>The send-ready mailbox that holds the message, which Forward sends as.</summary>
     public ApprovedMailbox? CorrespondenceMailbox { get; private set; }
 
-    /// <summary>Which mailbox Reply and Reply all leave from (<see cref="StaffMailAnswer"/>).</summary>
-    public StaffMailAnswer ReplyAnswer { get; private set; } = new(null, []);
-
-    /// <summary>The message's Case's Principal's Send from, chosen to start with when staff choose.</summary>
-    public ApprovedMailbox? ReplySendFrom { get; private set; }
+    /// <summary>Which mailboxes Reply and Reply all may leave from, and the default (<see cref="StaffMailAnswer"/>).</summary>
+    public StaffMailAnswer ReplyAnswer { get; private set; } = StaffMailAnswer.None;
 
     public CaseHeader? CorrespondenceCase { get; private set; }
 
@@ -1565,9 +1562,8 @@ public sealed class MessageModel(
     /// Who <paramref name="detail"/> is answered as, for staff and for the
     /// Automation Actor's <c>pegasus_mail_send</c> alike: the send-ready
     /// mailbox that holds it, which Forward sends as, and the
-    /// <see cref="StaffMailAnswer"/> Reply and Reply all leave from. Only the
-    /// holding mailbox is read, unless the message is a staff forward held in
-    /// instructions@.
+    /// <see cref="StaffMailAnswer"/> Reply and Reply all leave from: any
+    /// send-ready mailbox, starting on the default (R655).
     /// </summary>
     internal static async Task<(ApprovedMailbox? Holding, StaffMailAnswer Reply)> CorrespondenceSendersAsync(
         RetainedMailDetail detail,
@@ -1578,22 +1574,15 @@ public sealed class MessageModel(
             || detail.Summary.Id == Guid.Empty
             || detail.Summary.MailboxId == Guid.Empty)
         {
-            return (null, new(null, []));
+            return (null, StaffMailAnswer.None);
         }
-        if (StaffForwardOriginalSender(detail.Summary) is null)
-        {
-            var holding = await mailboxes.GetSenderAsync(detail.Summary.MailboxId, cancellationToken);
-            return (holding, new(holding, []));
-        }
-        var sending = (await mailboxes.ListAsync(cancellationToken)).Where(mailbox => mailbox.CanSend).ToArray();
-        return (
-            sending.Sender(detail.Summary.MailboxId),
-            StaffMailAnswer.For(
-                detail.Summary.MailboxId,
-                detail.Summary.MailboxAddress,
-                detail.Summary.SenderAddress,
-                detail.Summary.EffectiveSenderAddress,
-                sending));
+        var answer = StaffMailAnswer.For(
+            detail.Summary.MailboxId,
+            detail.Summary.MailboxAddress,
+            detail.Summary.SenderAddress,
+            detail.Summary.EffectiveSenderAddress,
+            await mailboxes.ListAsync(cancellationToken));
+        return (answer.Choices.Sender(detail.Summary.MailboxId), answer);
     }
 
     /// <summary>The original sender a staff forward held in instructions@ is answered to; null otherwise.</summary>
@@ -1627,17 +1616,11 @@ public sealed class MessageModel(
         {
             return false;
         }
-        // Staff choose who a staff forward is answered from when the mailbox
-        // that forwarded it cannot send; the Principal's Send from starts.
-        if (CorrespondenceMode is not null
-            && mode != StaffMailComposeMode.Forward
-            && ReplyAnswer.Fixed is null
-            && ReplySendFrom is null
-            && Detail.Summary.CaseId is { } sendFromCase)
+        // With no default mailbox that can send, a reply starts on the
+        // Principal's Send from.
+        if (CorrespondenceMode is not null && mode != StaffMailComposeMode.Forward)
         {
-            var sendFrom = await caseSendFrom.SendFromAsync(sendFromCase, cancellationToken);
-            ReplySendFrom = ReplyAnswer.Choices.FirstOrDefault(mailbox =>
-                string.Equals(mailbox.Address, sendFrom, StringComparison.OrdinalIgnoreCase));
+            ReplyAnswer = await ReplyAnswer.OrSendFromAsync(caseSendFrom, Detail.Summary.CaseId, cancellationToken);
         }
         if (mode is StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll
             && ReplyRecipients(Detail).To.Length == 0)

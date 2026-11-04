@@ -56,7 +56,7 @@ internal sealed class EfStaffMailSendStore(
                 ?? throw new UnauthorizedAccessException(
                     "The original retained message is not owned by the approved mailbox.");
             // Only a reply may leave another mailbox than the one holding the
-            // original: a staff forward answered from the mailbox that forwarded it.
+            // original: from the mailbox staff chose (R655).
             if ((original.ApprovedMailboxId != command.ApprovedMailboxId
                     && command.ComposeMode is not (StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll))
                 || !string.Equals(retained.ImmutableMessageId, original.ImmutableMessageId, StringComparison.Ordinal)

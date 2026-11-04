@@ -1,19 +1,21 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// The Administrator-held switches of the Automation &amp; AI settings panel,
-/// one row each: Send to AI, the immediate operational cut point for new AI
-/// jobs, and the automatic Glass's valuation at Case creation (R546). An
-/// absent row means enabled.
+/// The Administrator-held switches, one row each: Send to AI, the immediate
+/// operational cut point for new AI jobs, and the automatic Glass's valuation
+/// at Case creation (R546), both on the Automation &amp; AI settings panel;
+/// and the temporary Case/PO suffix on Configuration (R656). An absent row
+/// means enabled.
 /// </summary>
 public sealed class EfSendToAiControlStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ISendToAiControl, IAutomaticGuideValuationControl
+    TimeProvider timeProvider) : ISendToAiControl, IAutomaticGuideValuationControl, ICaseReferenceSuffixControl
 {
     public async Task<bool> IsEnabledAsync(CancellationToken cancellationToken)
     {
@@ -27,7 +29,15 @@ public sealed class EfSendToAiControlStore(
         string? reason,
         string operationKey,
         CancellationToken cancellationToken) =>
-        SetEnabledAsync(SendToAiControlEntity.SingletonId, "send_to_ai", enabled, actor, reason, operationKey, cancellationToken);
+        SetEnabledAsync(
+            SendToAiControlEntity.SingletonId,
+            "send_to_ai",
+            StaffAccessRight.ManageAutomationClients,
+            enabled,
+            actor,
+            reason,
+            operationKey,
+            cancellationToken);
 
     async Task<bool> IAutomaticGuideValuationControl.IsEnabledAsync(CancellationToken cancellationToken)
     {
@@ -44,9 +54,31 @@ public sealed class EfSendToAiControlStore(
         SetEnabledAsync(
             SendToAiControlEntity.AutomaticGuideValuationId,
             "automatic_guide_valuation",
+            StaffAccessRight.ManageAutomationClients,
             enabled,
             actor,
             reason,
+            operationKey,
+            cancellationToken);
+
+    async Task<bool> ICaseReferenceSuffixControl.IsEnabledAsync(CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await IsEnabledAsync(context, SendToAiControlEntity.CaseReferenceSuffixId, cancellationToken);
+    }
+
+    Task<bool> ICaseReferenceSuffixControl.SetEnabledAsync(
+        bool enabled,
+        ActionActor actor,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        SetEnabledAsync(
+            SendToAiControlEntity.CaseReferenceSuffixId,
+            "case_reference_suffix",
+            StaffAccessRight.ManageWorkflowConfiguration,
+            enabled,
+            actor,
+            reason: null,
             operationKey,
             cancellationToken);
 
@@ -64,13 +96,14 @@ public sealed class EfSendToAiControlStore(
     private async Task<bool> SetEnabledAsync(
         string switchId,
         string aggregateType,
+        StaffAccessRight requiredRight,
         bool enabled,
         ActionActor actor,
         string? reason,
         string operationKey,
         CancellationToken cancellationToken)
     {
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
+        StaffAuthorization.Require(actor, requiredRight);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);

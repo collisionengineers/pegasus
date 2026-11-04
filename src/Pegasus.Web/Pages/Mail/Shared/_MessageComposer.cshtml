@@ -55,18 +55,12 @@
                         <input asp-for="CorrespondenceCc" type="text" />
                     </div>
                 }
-                else if (Model.ReplyAnswer.Fixed is { } replyFrom)
-                {
-                    var copied = string.IsNullOrWhiteSpace(Model.CorrespondenceCc) ? string.Empty : $" · Cc {Model.CorrespondenceCc}";
-                    <p class="mail-route">@($"From {replyFrom.Address} · To {Model.CorrespondenceTo}{copied}")</p>
-                }
                 else
                 {
-                    @* A staff forward whose forwarding mailbox cannot send:
-                       staff choose From, the Principal's Send from chosen to
-                       start with (operator, 3 November 2026). *@
+                    @* Reply and Reply all: staff choose From, starting on the
+                       default (operator, 4 November 2026; R655). *@
                     var copied = string.IsNullOrWhiteSpace(Model.CorrespondenceCc) ? string.Empty : $" · Cc {Model.CorrespondenceCc}";
-                    var chosenFrom = Model.CorrespondenceFromMailboxId ?? Model.ReplySendFrom?.Id;
+                    var chosenFrom = Model.CorrespondenceFromMailboxId ?? Model.ReplyAnswer.Default?.Id;
                     <div class="field">
                         <label asp-for="CorrespondenceFromMailboxId">From</label>
                         <select asp-for="CorrespondenceFromMailboxId" required>

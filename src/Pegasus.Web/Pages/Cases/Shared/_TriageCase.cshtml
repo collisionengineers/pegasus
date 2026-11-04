@@ -712,24 +712,16 @@
                         <div class="mail-compose-addresses">
                             <div class="field mail-compose-from">
                                 <label for="triage-reply-from">From</label>
-                                @if (view.ReplyAnswer.Fixed is { } replyFrom)
-                                {
-                                    <input id="triage-reply-from" value="@replyFrom.Address" readonly />
-                                }
-                                else
-                                {
-                                    @* A staff forward whose forwarding mailbox cannot send:
-                                       staff choose From, the Principal's Send from chosen to
-                                       start with (operator, 3 November 2026). *@
-                                    var chosenFrom = view.ReplyFromMailboxId ?? view.ReplySendFrom?.Id;
-                                    <select id="triage-reply-from" name="fromMailboxId" required>
-                                        <option value=""></option>
-                                        @foreach (var mailbox in view.ReplyAnswer.Choices)
-                                        {
-                                            <option value="@mailbox.Id" selected="@(mailbox.Id == chosenFrom)">@mailbox.Address</option>
-                                        }
-                                    </select>
-                                }
+                                @* Staff choose From, starting on the default (operator,
+                                   4 November 2026; R655). *@
+                                @{ var chosenFrom = view.ReplyFromMailboxId ?? view.ReplyAnswer.Default?.Id; }
+                                <select id="triage-reply-from" name="fromMailboxId" required>
+                                    <option value=""></option>
+                                    @foreach (var mailbox in view.ReplyAnswer.Choices)
+                                    {
+                                        <option value="@mailbox.Id" selected="@(mailbox.Id == chosenFrom)">@mailbox.Address</option>
+                                    }
+                                </select>
                             </div>
                             <div class="field mail-compose-to">
                                 <label class="req" for="triage-reply-to">To</label>

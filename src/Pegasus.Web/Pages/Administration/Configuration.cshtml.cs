@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -11,17 +12,22 @@ namespace Pegasus.Web.Pages.Administration;
 public sealed class ConfigurationModel(
     GetWorkflowConfiguration getWorkflowConfiguration,
     UpdateWorkflowConfiguration updateWorkflowConfiguration,
-    LabourRateCardAdministration rateCards) : AdministrationPageModel
+    LabourRateCardAdministration rateCards,
+    ICaseReferenceSuffixControl caseReferenceSuffix) : AdministrationPageModel
 {
     public CaseWorkflowConfiguration Configuration { get; private set; } = null!;
     public IReadOnlyList<LabourRateCard> RateCards { get; private set; } = [];
     public bool CardPostFailed { get; private set; }
     public string HourlyRateInput { get; private set; } = string.Empty;
 
+    /// <summary>The temporary Case/PO suffix switch as stored (R656).</summary>
+    public bool CaseReferenceSuffixStored { get; private set; }
+
     [BindProperty] public long WorkflowExpectedVersion { get; set; }
     [BindProperty] public string WorkflowOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public bool RequireInstructions { get; set; }
     [BindProperty] public bool RequireImages { get; set; }
+    [BindProperty] public bool CaseReferenceSuffix { get; set; }
     [BindProperty] public int? ChaseIntervalDays { get; set; }
     [BindProperty] public int? UnidentifiedTargetDays { get; set; }
     [BindProperty] public int? TriageTargetDays { get; set; }
@@ -103,6 +109,13 @@ public sealed class ConfigurationModel(
                         AiDraftTargetDays = AiDraftTargetDays!.Value
                     },
                     cancellationToken);
+                // The suffix switch saves with the workflow settings, and only
+                // when it changes, so an unchanged save writes no history.
+                if (CaseReferenceSuffix != CaseReferenceSuffixStored)
+                {
+                    await caseReferenceSuffix.SetEnabledAsync(
+                        CaseReferenceSuffix, actor, WorkflowOperationKey, cancellationToken);
+                }
                 TempData["Confirmation"] = "Workflow settings saved.";
                 return RedirectToPage();
             }
@@ -173,15 +186,18 @@ public sealed class ConfigurationModel(
         // so they run side by side.
         var configuration = getWorkflowConfiguration.ExecuteAsync(actor, cancellationToken);
         var cards = rateCards.ListAsync(actor, cancellationToken);
-        await Task.WhenAll(configuration, cards);
+        var suffix = caseReferenceSuffix.IsEnabledAsync(cancellationToken);
+        await Task.WhenAll(configuration, cards, suffix);
         Configuration = await configuration;
         RateCards = await cards;
+        CaseReferenceSuffixStored = await suffix;
         if (!initializeWorkflowSettings) return;
 
         WorkflowExpectedVersion = Configuration.PolicyVersion;
         WorkflowOperationKey = NewOperationKey();
         RequireInstructions = Configuration.RequireInstructions;
         RequireImages = Configuration.RequireImages;
+        CaseReferenceSuffix = CaseReferenceSuffixStored;
         ChaseIntervalDays = Configuration.ChaseIntervalDays;
         UnidentifiedTargetDays = Configuration.UnidentifiedTargetDays;
         TriageTargetDays = Configuration.TriageTargetDays;

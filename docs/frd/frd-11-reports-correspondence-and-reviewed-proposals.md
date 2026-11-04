@@ -349,21 +349,24 @@ actually left the approved mailbox.
 
 **From and subject (operator, 12 October 2026).** The report goes out as a
 reply to the Case's instruction email, the retained mailbox message the
-Case's origin receipt came from, from the approved mailbox it arrived in
-while that mailbox is Outgoing and can send; its subject is "Re:" and the
-instruction's subject, and the form shows that mailbox as From. When the
+Case's origin receipt came from; its subject is "Re:" and the
+instruction's subject. The form's From is a choice of every send-ready
+Outgoing mailbox, starting on the approved mailbox the instruction arrived in
+while that mailbox is Outgoing and can send; staff may change it, and a
+report from another mailbox still answers the instruction, as a new message
+(operator, 4 November 2026; R655). When the
 Case has no instruction email (a manual Case, an uploaded `.eml` or another
-non-mailbox origin) or its mailbox can no longer send, staff choose an
-Outgoing mailbox as From, the Principal's Send from chosen to start with
-([Report sending rules](#report-sending-rules)), and the report goes as a new
-message whose subject is "{REG} Report"
-([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+non-mailbox origin) the report goes as a new message whose subject is
+"{REG} Report". With no instruction email, or one whose mailbox can no
+longer send, From starts on the Principal's Send from
+([Report sending rules](#report-sending-rules);
+[FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 A Collision Engineers staff forward held in instructions@ is answered as though
-it had arrived in the mailbox that forwarded it: the report leaves that
-mailbox while it can send, as a new message whose subject is "Re:" and the
-original's without the forward's "FW:", or else the mailbox staff choose,
-the Principal's Send from chosen to start with (operator, 3 November 2026;
-R651, R652; [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+it had arrived in the mailbox that forwarded it: From starts on that
+mailbox while it can send, else on the Principal's Send from, and the report
+is a new message whose subject is "Re:" and the original's without the
+forward's "FW:" (operator, 3 November 2026;
+R651, R652, R655; [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 Either way the reviewed To and Cc are the only recipients: it is a Reply,
 never Reply all. A send the mailbox provider refuses is shown as a failed
 send.
@@ -446,10 +449,10 @@ and follows it. Everything below is answered on the one delivery form, in the
 same click as Send report.
 
 - **Mode.** Where the report leaves from is **From and subject** above: a
-  reply in the instruction's thread from the mailbox it arrived in while that
-  mailbox can send, otherwise a new message from the Outgoing mailbox staff
-  choose, the Principal's Send from chosen to start with. A staff forward
-  held in instructions@ is answered from the mailbox that forwarded it
+  reply to the instruction from the Outgoing mailbox staff choose, in its
+  thread when that is the mailbox it arrived in; From starts there while that
+  mailbox can send, otherwise on the Principal's Send from (R655). A staff
+  forward held in instructions@ starts on the mailbox that forwarded it
   (R651, R652). An uploaded e-mail
   sits in no mailbox, so it takes the new message route.
 - **Rule conditions.** A rule's conditions read the Case's Claim Source,

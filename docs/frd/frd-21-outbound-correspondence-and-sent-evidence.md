@@ -153,8 +153,9 @@ on the Case correspondence surface. Reply also appears on Inbox
 list rows and on a closed Unidentified item's record, where Request again is
 that same reply while the item is open
 ([FRD-15](frd-15-work-centre-queues-and-search.md#pre-case-records)); each
-opens the message record's Reply. Every one appears only when the mailbox the
-email arrived in can send. Send chaser is on the Case record
+opens the message record's Reply. Forward appears only when the mailbox the
+email arrived in can send; Reply and Reply all appear while any Outgoing
+mailbox can (4 November 2026, R655). Send chaser is on the Case record
 ([FRD-16](frd-16-case-record-workspace.md#actions-menu)) and Send report on
 the Case's Report section
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)). There is
@@ -189,28 +190,32 @@ There is no automatic or scheduled send.
 **From which mailbox.** Only an Outgoing approved mailbox sends
 ([FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe)),
 and only while it is send-ready: Approved, activated, its identity and Sent
-Items bound. Reply and Forward send as the approved mailbox that holds the
-retained message, with one exception: a Collision Engineers staff forward
+Items bound. From is a default, not a rule: every send but a forward leaves
+the send-ready Outgoing mailbox staff choose, starting on the default this
+paragraph names (operator, 4 November 2026; R655). Reply and Reply all start
+on the approved mailbox that holds the retained message while it can send,
+otherwise on the Principal's Send from of the message's Case, and Forward
+always sends as it, with one exception to the start: a Collision Engineers staff forward
 held in instructions@ (the route of R586) is answered as though it had
 arrived in the mailbox that forwarded it; a staff forward held in any other
 mailbox is answered as any message is (3 November 2026, R652). Reply, Reply all, a Case's report and Send chaser
-answering one leave that mailbox while it can send, as a new message, since
-only the mailbox holding the forward has a copy to reply in, and are still
-recorded as the reply to the forwarded message; when it cannot send, staff
-choose an Outgoing mailbox as From, the Principal's Send from chosen to start
-with. A forward always leaves the mailbox that holds the message (operator,
-3 November 2026; R651). A Case's report and Send chaser are a reply to the Case's
+answering one start on that mailbox while it can send, otherwise on the
+Principal's Send from. A reply that leaves another mailbox than the one
+holding the message goes as a new message to the same recipients, since
+only the holding mailbox has a copy to reply in, and is still recorded as the
+reply to that message (R651, R655). A forward always leaves the mailbox that holds the message (operator,
+3 November 2026; R651; kept by R655). A Case's report and Send chaser are a reply to the Case's
 instruction email, the retained mailbox message its origin receipt came
-from, sent as the approved mailbox that email arrived in while that mailbox
-can send. When the Case has no instruction email (a manual Case, an uploaded
-`.eml` or any other non-mailbox origin) or its mailbox can no longer send,
-staff choose an Outgoing mailbox as From and the message is new (operator,
-12 October 2026); for a report, and for a Send chaser (3 November 2026,
-R654), the choice starts on the Principal's Send from
+from, from whichever Outgoing mailbox staff choose, starting on the approved
+mailbox that email arrived in while that mailbox can send (R655). When the
+Case has no instruction email (a manual Case, an uploaded `.eml` or any other
+non-mailbox origin) the message is new (operator, 12 October 2026). With no
+instruction email, or one whose mailbox can no longer send, From starts on
+the Principal's Send from (3 November 2026, R654)
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)).
-Pegasus never silently picks a mailbox. The sender is never
-a staff member's own address or any mailbox outside the allowlist; a reply
-shows its sender read-only unless staff choose it. There is no default sender.
+Pegasus never silently picks a mailbox: every send but a forward shows its
+From as a choice, starting on that default (R655). The sender is never
+a staff member's own address or any mailbox outside the allowlist.
 
 **One size limit.** Every Outgoing mailbox sends under one fixed limit of
 35 MB, 36,700,160 encoded bytes (operator, 12 October 2026); there is no
@@ -239,11 +244,9 @@ from the Triage's registration and finding
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)); staff edit it
 before Send. A Case chaser opened from the Case's Send chaser is a staff
 send with purpose `CaseChaser` on its own chaser composer
-(`/Cases/{id}/Chaser`): a reply to the Case's instruction email from the
-mailbox it arrived in (a staff forward held in instructions@ from the mailbox
-that forwarded it, R652),
-or, with no usable instruction email, a new message from the Outgoing
-mailbox staff choose as From (see From which mailbox). To
+(`/Cases/{id}/Chaser`): a reply to the Case's instruction email, or, with
+no instruction email, a new message, from the Outgoing mailbox staff choose
+as From, starting on the default (see From which mailbox; R652, R655). To
 is the sender of the Case's instruction, the sender of each image-intake
 e-mail paired to the Case and the repairer's directory e-mail, each once;
 Subject is "Re:" and the instruction's subject for a reply, or opens with
@@ -351,6 +354,10 @@ document never moves a Case by itself.
 - A matched send whose observation fails: the poll records no outcome for the
   item, so the next poll reads it again and the send does not stay Submitted
   (QDOS26099, 12 October 2026).
+- A Sent item the provider presents again at another position in its page:
+  the recorded outcome replays as a no-op, and the mailbox's cursor moves
+  only at a page boundary, so a run that fails re-reads its page and the poll
+  is not held on the item (a.QDOS26157, 4 November 2026).
 - The answered instruction cannot be moved (permission refused, Graph error):
   three attempts, each in Case history, then it stays where it is.
 
