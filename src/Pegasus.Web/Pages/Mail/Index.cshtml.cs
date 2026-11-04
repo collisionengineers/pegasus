@@ -213,15 +213,15 @@ public sealed class IndexModel(
 
     /// <summary>
     /// Whether a received message offers Reply from the list: a mailbox can
-    /// answer it (<see cref="StaffMailAnswer"/>) and it has a sender to answer.
-    /// Reply opens the message record's own reply.
+    /// send, which any reply may leave from (<see cref="StaffMailAnswer"/>,
+    /// R655), and it has a sender to answer. Reply opens the message record's
+    /// own reply.
     /// </summary>
     public bool OffersReply(RetainedMailSummary item) =>
         Folder != MailFolderScope.Sent
         && !Dismissed
         && !string.IsNullOrWhiteSpace(item.SenderAddress)
-        && StaffMailAnswer.For(
-            item.MailboxId, item.MailboxAddress, item.SenderAddress, item.EffectiveSenderAddress, ReplyMailboxes).CanSend;
+        && ReplyMailboxes.Count > 0;
 
     /// <summary>The list itself.</summary>
     private async Task ReadListAsync(

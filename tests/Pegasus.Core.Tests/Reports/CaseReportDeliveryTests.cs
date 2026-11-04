@@ -1054,26 +1054,95 @@ public sealed class CaseReportDeliveryTests
     }
 
     /// <summary>
-    /// An instruction email held by a mailbox that cannot send is not replied
-    /// to: the report is new, from the Outgoing mailbox staff chose.
+    /// An instruction email held by a mailbox that cannot send is still
+    /// answered (R655): the report replies to it from the Outgoing mailbox
+    /// staff chose, which sends it as a new message.
     /// </summary>
     [Fact]
-    public async Task SendFromAnInstructionMailboxThatCannotSendIsNewFromTheChosenMailbox()
+    public async Task SendFromAnInstructionMailboxThatCannotSendAnswersItFromTheChosenMailbox()
     {
         var send = new RecordingSend();
         var incoming = Mailbox(scopes: [ApprovedMailboxRouteScope.Incoming], id: Guid.NewGuid());
+        var instruction = InstructionEmail(incoming.Id);
 
         await Use(
                 new FixedGenerations(Generation()),
                 send,
-                Senders(InstructionEmail(incoming.Id), incoming, Mailbox()))
+                Senders(instruction, incoming, Mailbox()))
             .ExecuteAsync(Request(), CancellationToken.None);
 
         var mail = Assert.Single(send.Commands).Mail;
-        Assert.Equal(StaffMailComposeMode.New, mail.ComposeMode);
+        Assert.Equal(StaffMailComposeMode.Reply, mail.ComposeMode);
         Assert.Equal(MailboxId, mail.ApprovedMailboxId);
-        Assert.Null(mail.OriginalMessage);
-        Assert.Equal("PK12 TMZ Report", mail.Subject);
+        Assert.Equal(instruction.Original, mail.OriginalMessage);
+        Assert.Equal("Re: New instruction DVR-31001", mail.Subject);
+    }
+
+    /// <summary>
+    /// From is a default, not a rule (operator, 4 November 2026; R655): the
+    /// mailbox the instruction arrived in is the default, every send-ready
+    /// Outgoing mailbox is offered, and one staff choose instead still answers
+    /// the instruction email.
+    /// </summary>
+    [Fact]
+    public async Task TheInstructionMailboxIsTheDefaultAndEverySendReadyMailboxIsOffered()
+    {
+        var instruction = InstructionEmail(MailboxId);
+        var holding = Mailbox();
+        var other = Mailbox(id: OtherMailboxId, address: EngineersMailbox);
+        var incoming = Mailbox(scopes: [ApprovedMailboxRouteScope.Incoming], id: Guid.NewGuid());
+
+        var options = await Senders(instruction, holding, other, incoming)
+            .OptionsAsync(CaseId, CancellationToken.None);
+
+        Assert.Equal(new CaseMailSender(holding, instruction), options.Default);
+        Assert.Equal([holding, other], options.Mailboxes);
+        Assert.Equal(instruction, options.ReplyTo);
+        Assert.Equal(new CaseMailSender(other, instruction), options.Sender(other.Id));
+        Assert.Null(options.Sender(incoming.Id));
+    }
+
+    /// <summary>
+    /// A report sent from another mailbox than the one the instruction
+    /// arrived in is still the reply to it (R655), its subject "Re:" the
+    /// instruction's.
+    /// </summary>
+    [Fact]
+    public async Task SendFromAnotherChosenMailboxStillRepliesToTheInstruction()
+    {
+        var send = new RecordingSend();
+        var instruction = InstructionEmail(MailboxId);
+        var other = Mailbox(id: OtherMailboxId, address: EngineersMailbox);
+
+        await Use(new FixedGenerations(Generation()), send, Senders(instruction, Mailbox(), other))
+            .ExecuteAsync(Request() with { FromMailboxId = other.Id }, CancellationToken.None);
+
+        var mail = Assert.Single(send.Commands).Mail;
+        Assert.Equal(StaffMailComposeMode.Reply, mail.ComposeMode);
+        Assert.Equal(OtherMailboxId, mail.ApprovedMailboxId);
+        Assert.Equal(instruction.Original, mail.OriginalMessage);
+        Assert.Equal("Re: New instruction DVR-31001", mail.Subject);
+    }
+
+    /// <summary>
+    /// With no instruction mailbox that can send, the default is the
+    /// Principal's Send from (R654), which a send that names no mailbox
+    /// leaves from.
+    /// </summary>
+    [Fact]
+    public async Task SendWithNoInstructionMailboxThatCanSendStartsOnThePrincipalsSendFrom()
+    {
+        var send = new RecordingSend();
+        var sendFrom = Mailbox(id: OtherMailboxId, address: EngineersMailbox);
+        var senders = new ResolveCaseMailSender(
+            new FixedInstruction(null, EngineersMailbox), new FixedMailboxes(Mailbox(), sendFrom));
+
+        await Use(new FixedGenerations(Generation()), send, senders)
+            .ExecuteAsync(Request() with { FromMailboxId = null }, CancellationToken.None);
+
+        var mail = Assert.Single(send.Commands).Mail;
+        Assert.Equal(StaffMailComposeMode.New, mail.ComposeMode);
+        Assert.Equal(OtherMailboxId, mail.ApprovedMailboxId);
     }
 
     /// <summary>
@@ -1128,8 +1197,8 @@ public sealed class CaseReportDeliveryTests
     /// <summary>
     /// Only instructions@ is answered as though the original had arrived
     /// directly (operator, 3 November 2026; R652): a staff forward held in
-    /// desk@ is answered from desk@, in its thread, even when the mailbox
-    /// that forwarded it can send.
+    /// desk@ is answered by default from desk@, in its thread, even when the
+    /// mailbox that forwarded it can send, which staff may choose instead.
     /// </summary>
     [Fact]
     public async Task SendAnswersAStaffForwardHeldOutsideInstructionsFromTheMailboxHoldingIt()
@@ -1144,8 +1213,8 @@ public sealed class CaseReportDeliveryTests
         await Use(new FixedGenerations(Generation()), send, Senders(instruction, desk, engineers))
             .ExecuteAsync(Request() with { FromMailboxId = null }, CancellationToken.None);
 
-        Assert.Equal(desk, answer.Fixed);
-        Assert.Empty(answer.Choices);
+        Assert.Equal(desk, answer.Default);
+        Assert.Equal([desk, engineers], answer.Choices);
         var mail = Assert.Single(send.Commands).Mail;
         Assert.Equal(desk.Id, mail.ApprovedMailboxId);
         Assert.Equal(StaffMailComposeMode.Reply, mail.ComposeMode);
@@ -1484,13 +1553,14 @@ public sealed class CaseReportDeliveryTests
             Task.FromResult(false);
     }
 
-    private sealed class FixedInstruction(CaseInstructionEmail? instruction) : ICaseInstructionEmailQueries
+    private sealed class FixedInstruction(CaseInstructionEmail? instruction, string? sendFrom = null)
+        : ICaseInstructionEmailQueries
     {
         public Task<CaseInstructionEmail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult(caseId == CaseId ? instruction : null);
 
         public Task<string?> SendFromAsync(Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult<string?>(null);
+            Task.FromResult(caseId == CaseId ? sendFrom : null);
     }
 
     private sealed class RecordingSend : IStaffReportSend

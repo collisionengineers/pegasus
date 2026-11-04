@@ -942,15 +942,18 @@ public sealed partial class AssessmentReportDraftWebTests
             LastSentAtUtc: new DateTimeOffset(2026, 10, 3, 13, 2, 0, TimeSpan.Zero),
             LastTo: ["a@principal.example"],
             LastCc: ["b@principal.example"]);
-        // The report replies to the instruction email from the mailbox it
-        // arrived in (operator, 12 October 2026).
+        // The report replies to the instruction email, From starting on the
+        // mailbox it arrived in (operator, 12 October 2026), which staff may
+        // change to any other that can send (R655).
         var engineers = OutgoingMailbox("engineers@collisionengineers.example");
+        var desk = OutgoingMailbox("desk@collisionengineers.example");
         using var factory = WithDispatchFacts(
             baseFactory, caseId, new FakeCurrentGeneration(caseId), facts, history,
             new CaseInstructionEmail(
                 Guid.NewGuid(), engineers.Id, engineers.Address, "immutable-1", null, null,
                 "Claim for PK12TMZ", "handler@principal.example", null),
-            engineers);
+            engineers,
+            desk);
         using var client = Client(factory);
 
         var html = WebUtility.HtmlDecode(await EnterEditModeAsync(client, caseId));
@@ -960,9 +963,18 @@ public sealed partial class AssessmentReportDraftWebTests
             "<p class=\"muted\" data-report-already-sent>Already sent on 3 Oct 2026 14:02 to a@principal.example, b@principal.example.</p>",
             form,
             StringComparison.Ordinal);
-        Assert.Contains(
-            "data-report-from>engineers@collisionengineers.example</div>",
+        var from = Regex.Match(
             form,
+            "<select name=\"fromMailboxId\"[^>]*data-report-from>(?<options>.*?)</select>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        Assert.True(from.Success, "The delivery form drew no From select.");
+        Assert.Contains(
+            $"<option value=\"{engineers.Id:D}\" selected=\"selected\">engineers@collisionengineers.example</option>",
+            from.Groups["options"].Value,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"<option value=\"{desk.Id:D}\">desk@collisionengineers.example</option>",
+            from.Groups["options"].Value,
             StringComparison.Ordinal);
         // The Stop is only possible until the images question is answered.
         Assert.DoesNotContain("data-report-stop>", form, StringComparison.Ordinal);
@@ -1204,8 +1216,8 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var request = Assert.Single(send.Requests);
         Assert.Equal(caseId, request.CaseId);
-        // With no instruction email to reply to, the From staff chose reaches
-        // the send; Core decides whether it may send.
+        // The From staff chose reaches the send; Core decides whether it may
+        // send.
         Assert.Equal(fromMailboxId, request.FromMailboxId);
         Assert.Equal(0, request.ExpectedCaseVersion);
         Assert.Equal("held-report-lease", request.LeaseToken);
@@ -1375,7 +1387,7 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Contains("data-send-report", form, StringComparison.Ordinal);
         Assert.Contains("name=\"toRecipients\"", form, StringComparison.Ordinal);
         Assert.Contains("name=\"coveringMessage\"", form, StringComparison.Ordinal);
-        // The Case has no instruction email to reply to, so staff choose From.
+        // Staff choose From on every report send (R655).
         Assert.Contains("name=\"fromMailboxId\"", form, StringComparison.Ordinal);
         Assert.Contains("data-report-from", form, StringComparison.Ordinal);
         Assert.Contains(

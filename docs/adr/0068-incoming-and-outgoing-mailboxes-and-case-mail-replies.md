@@ -73,7 +73,13 @@ instructed in.
    instructions@ (`PrincipalMailRoutePolicy.StaffForwardMailboxAddress`) is
    answered this way; one held in any other mailbox is answered from that
    mailbox like any message. This is the one exception to decision 1's
-   "never by its mailbox".
+   "never by its mailbox". *Amended 4 November 2026 (R655):* the mailbox
+   this decision names, and failing it the Principal's Send from, is the
+   default every send's From starts on, not a rule: staff, and the MCP send
+   tools through `fromMailbox`, choose any send-ready Outgoing mailbox. A
+   reply from another mailbox than the one holding the message is still the
+   reply to it and goes as a new message, as for a staff forward. A forward
+   still leaves the holding mailbox.
 4. Every Outgoing mailbox sends under one fixed limit,
    `ApprovedStaffSendMailbox.OutgoingEncodedMessageSizeLimit`
    (36,700,160 encoded bytes).
@@ -88,8 +94,8 @@ instructed in.
 - The Sent-evidence poll reads every Outgoing mailbox while the Worker and
   that function are enabled; no separate activation is needed.
 - `pegasus_mail_send` loses `new` and gains `chaser`; it and
-  `pegasus_report_send` take `fromMailbox` only for a Case with no
-  instruction reply to make
+  `pegasus_report_send` take `fromMailbox` on every send but a forward,
+  the default applying when it is omitted (amended 4 November 2026, R655)
   ([FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#sending)).
 - The migration is destructive: the default-sender and size-limit columns
   and their values do not return.

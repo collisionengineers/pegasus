@@ -129,7 +129,10 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Single(recipients.CaseIds);
     }
 
-    /// <summary>With no instruction email to reply to, a chaser without a chosen From mailbox is not sent.</summary>
+    /// <summary>
+    /// With no default sender (no instruction email to reply to and no Send
+    /// from), a chaser without a chosen From mailbox is not sent.
+    /// </summary>
     [Fact]
     public async Task AChaserWithoutAChosenMailboxReturnsTheFormWithoutSending()
     {
@@ -156,12 +159,12 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     /// <summary>
-    /// With no fixed sender the chaser's From starts on the Principal's Send
-    /// from (operator, 3 November 2026; R654); the other Outgoing mailboxes
-    /// stay offered.
+    /// With no instruction email to reply to, the chaser's From starts on the
+    /// Principal's Send from (operator, 3 November 2026; R654); the other
+    /// Outgoing mailboxes stay offered.
     /// </summary>
     [Fact]
-    public async Task AChaserWithNoFixedSenderStartsFromThePrincipalsSendFrom()
+    public async Task AChaserWithoutAnInstructionEmailStartsFromThePrincipalsSendFrom()
     {
         const string sendFrom = "sc08-send-from@collisionengineers.co.uk";
         var send = new RecordingStaffMailSend();
@@ -178,27 +181,16 @@ public sealed class StaffCorrespondenceWebTests
 
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         var html = await get.Content.ReadAsStringAsync();
-        var select = Regex.Match(
-            html,
-            "<select[^>]*name=\"FromMailboxId\"[^>]*>(?<options>.*?)</select>",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
-        Assert.True(select.Success, "The chaser offered no From select.");
-        var options = select.Groups["options"].Value;
-        var selected = Regex.Matches(
-                options,
-                "<option value=\"(?<id>[^\"]+)\"[^>]*\\bselected\\b[^>]*>",
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
-            .Select(match => match.Groups["id"].Value);
-        Assert.Equal([sendFromId.ToString("D")], selected);
-        Assert.Contains($"<option value=\"{otherId:D}\"", options, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal([sendFromId.ToString("D")], SelectedOptions(html, "FromMailboxId"));
+        Assert.Contains($"<option value=\"{otherId:D}\"", html, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, send.SendCalls);
     }
 
     /// <summary>
     /// Send chaser on a Case that arrived by an approved mailbox (operator,
-    /// 12 October 2026): a reply to the instruction email, from the mailbox it
-    /// arrived in, titled with the original's subject and one "Re:". No From
-    /// mailbox is offered.
+    /// 12 October 2026): a reply to the instruction email, titled with the
+    /// original's subject and one "Re:", its From starting on the mailbox the
+    /// instruction arrived in, which staff may change (R655).
     /// </summary>
     [Fact]
     public async Task AChaserRepliesToTheInstructionEmailFromTheMailboxItArrivedIn()
@@ -216,13 +208,12 @@ public sealed class StaffCorrespondenceWebTests
 
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         var html = await get.Content.ReadAsStringAsync();
-        Assert.DoesNotContain("name=\"FromMailboxId\"", html, StringComparison.Ordinal);
-        Assert.Contains($"value=\"{instruction.MailboxAddress}\"", html, StringComparison.Ordinal);
+        Assert.Equal([instruction.MailboxId.ToString("D")], SelectedOptions(html, "FromMailboxId"));
         Assert.Equal("Re: Source subject", InputValue(html, "Subject"));
 
         using var response = await client.PostAsync(
             FormAction(html, "Send"),
-            new FormUrlEncodedContent(ChaserForm(html, fromMailboxId: null)));
+            new FormUrlEncodedContent(ChaserForm(html, instruction.MailboxId)));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var command = Assert.Single(send.Commands);
@@ -239,6 +230,41 @@ public sealed class StaffCorrespondenceWebTests
                 instruction.ConversationId),
             command.OriginalMessage);
         Assert.Equal(caseId, command.ContextId);
+        Assert.Equal("Re: Source subject", command.Subject);
+    }
+
+    /// <summary>
+    /// A chaser sent from another Outgoing mailbox than the one the
+    /// instruction arrived in (operator, 4 November 2026; R655) is still the
+    /// reply to the instruction email.
+    /// </summary>
+    [Fact]
+    public async Task AChaserFromAnotherChosenMailboxStillRepliesToTheInstructionEmail()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
+        var instruction = await SeedRetainedCorrespondenceAsync(baseFactory, caseId: null);
+        await MakeInstructionEmailAsync(baseFactory, caseId, instruction.ReceiptId);
+        var otherId = await SeedSendableMailboxAsync(
+            baseFactory, "sc08-other-sender", "sc08-other-sender@collisionengineers.co.uk");
+        using var factory = Configure(
+            baseFactory, send, chaserRecipients: new FixedChaserRecipients(ChaserRecipients));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        using var get = await client.GetAsync($"/Cases/{caseId:D}/Chaser");
+        var html = await get.Content.ReadAsStringAsync();
+        Assert.Contains($"<option value=\"{otherId:D}\"", html, StringComparison.OrdinalIgnoreCase);
+
+        using var response = await client.PostAsync(
+            FormAction(html, "Send"),
+            new FormUrlEncodedContent(ChaserForm(html, otherId)));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(StaffMailComposeMode.Reply, command.ComposeMode);
+        Assert.Equal(otherId, command.ApprovedMailboxId);
+        Assert.Equal(instruction.MessageId, command.OriginalMessage!.RetainedMessageId);
+        Assert.Equal(instruction.MailboxId, command.OriginalMessage.ApprovedMailboxId);
         Assert.Equal("Re: Source subject", command.Subject);
     }
 
@@ -443,8 +469,9 @@ public sealed class StaffCorrespondenceWebTests
     /// <summary>
     /// A staff forward held in instructions@ is answered as though the
     /// original had arrived in the mailbox that forwarded it (operator, 3
-    /// November 2026; R651, R652): Reply all leaves that mailbox, or the one
-    /// staff choose when it cannot send, goes to the original sender and the
+    /// November 2026; R651, R652): Reply all's From starts on that mailbox,
+    /// or on none when it cannot send, and it leaves the mailbox staff choose
+    /// (R655), goes to the original sender and the
     /// original's own Cc, drops the forward's "FW:", and still names the
     /// message it answers. The forwarded header's To names the forwarding
     /// mailbox, which is copied neither when it sends nor when another
@@ -493,17 +520,13 @@ public sealed class StaffCorrespondenceWebTests
         using var composerGet = await client.GetAsync(WebUtility.HtmlDecode(replyAll.Groups["href"].Value));
         var composer = await composerGet.Content.ReadAsStringAsync();
         Assert.Equal("Re: Claim PK12TMZ", InputValue(composer, "CorrespondenceSubject"));
-        Assert.Equal(
-            !forwarderSends,
-            composer.Contains("name=\"CorrespondenceFromMailboxId\"", StringComparison.Ordinal));
+        string[] startsOn = forwarderSends ? [senderId.ToString("D")] : [];
+        Assert.Equal(startsOn, SelectedOptions(composer, "CorrespondenceFromMailboxId"));
 
         var form = RetainedReplyForm(
             composer, InputValue(composer, "CorrespondenceOperationKey"), "Reviewed response.");
         form["FixedCorrespondenceCaseReference"] = InputValue(composer, "FixedCorrespondenceCaseReference");
-        if (!forwarderSends)
-        {
-            form["CorrespondenceFromMailboxId"] = senderId.ToString("D");
-        }
+        form["CorrespondenceFromMailboxId"] = senderId.ToString("D");
         using var post = await client.PostAsync(
             FormAction(composer, "ReplyAll"),
             new FormUrlEncodedContent(form));
@@ -520,9 +543,9 @@ public sealed class StaffCorrespondenceWebTests
     /// <summary>
     /// Only instructions@ answers a staff forward as though the original had
     /// arrived directly (operator, 3 November 2026; R652): a staff forward
-    /// held in desk@ is answered from desk@, in its thread, to the message's
-    /// own Reply-To, with its subject as it came, even when the mailbox that
-    /// forwarded it can send.
+    /// held in desk@ is answered by default from desk@, in its thread, to the
+    /// message's own Reply-To, with its subject as it came, even when the
+    /// mailbox that forwarded it can send.
     /// </summary>
     [Fact]
     public async Task ReplyToAStaffForwardHeldOutsideInstructionsLeavesTheMailboxHoldingIt()
@@ -554,8 +577,7 @@ public sealed class StaffCorrespondenceWebTests
 
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
         var html = await get.Content.ReadAsStringAsync();
-        Assert.DoesNotContain("name=\"CorrespondenceFromMailboxId\"", html, StringComparison.Ordinal);
-        Assert.Contains($"From {desk}", WebUtility.HtmlDecode(html), StringComparison.Ordinal);
+        Assert.Equal([seeded.MailboxId.ToString("D")], SelectedOptions(html, "CorrespondenceFromMailboxId"));
         Assert.Equal("Re: FW: Claim PK12TMZ", InputValue(html, "CorrespondenceSubject"));
         var form = new Dictionary<string, string>
         {
@@ -575,6 +597,44 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(seeded.MessageId, command.OriginalMessage!.RetainedMessageId);
         Assert.Equal([forwarder], command.To.Select(item => item.Address));
         Assert.Empty(command.Cc);
+    }
+
+    /// <summary>
+    /// From is a default, not a rule (operator, 4 November 2026; R655): Reply
+    /// starts on the mailbox holding the message, offers every send-ready
+    /// mailbox, and leaves the one staff choose, still answering the message
+    /// held in the other mailbox.
+    /// </summary>
+    [Fact]
+    public async Task AReplyStartsOnTheMailboxHoldingTheMessageAndLeavesTheOneStaffChoose()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 CHOSEN FROM", "SC08-CHOSEN-FROM-REPLY");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        var otherId = await SeedSendableMailboxAsync(
+            baseFactory, "sc08-other-sender", "sc08-other-sender@collisionengineers.co.uk");
+        using var factory = Configure(baseFactory, send);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var html = await get.Content.ReadAsStringAsync();
+        Assert.Equal([seeded.MailboxId.ToString("D")], SelectedOptions(html, "CorrespondenceFromMailboxId"));
+        Assert.Contains($"<option value=\"{otherId:D}\"", html, StringComparison.OrdinalIgnoreCase);
+        var form = RetainedReplyForm(html, InputValue(html, "CorrespondenceOperationKey"), "Reviewed response.");
+        form["CorrespondenceFromMailboxId"] = otherId.ToString("D");
+        using var post = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.Redirect, post.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(otherId, command.ApprovedMailboxId);
+        Assert.Equal(StaffMailComposeMode.Reply, command.ComposeMode);
+        Assert.Equal(seeded.MessageId, command.OriginalMessage!.RetainedMessageId);
+        Assert.Equal(seeded.MailboxId, command.OriginalMessage.ApprovedMailboxId);
+        Assert.Equal(["reply@example.invalid"], command.To.Select(item => item.Address));
     }
 
     /// <summary>
@@ -1381,7 +1441,6 @@ public sealed class StaffCorrespondenceWebTests
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=forward");
         var html = await get.Content.ReadAsStringAsync();
         var lists = resolver.ListCalls;
-        var senders = counts.MailboxSenderReads;
         var mailboxLists = counts.MailboxLists;
         var operations = send.LatestForOriginalCalls;
 
@@ -1401,8 +1460,7 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(1, resolver.ListCalls - lists);
         Assert.Equal(0, resolver.SelectCalls);
         Assert.Equal(0, resolver.ResolveCalls);
-        Assert.Equal(1, counts.MailboxSenderReads - senders);
-        Assert.Equal(0, counts.MailboxLists - mailboxLists);
+        Assert.Equal(1, counts.MailboxLists - mailboxLists);
         Assert.Equal(1, send.LatestForOriginalCalls - operations);
     }
 
@@ -1429,7 +1487,6 @@ public sealed class StaffCorrespondenceWebTests
         var selectedReference = await CaseReferenceAsync(factory, selectedCaseId);
         var lists = resolver.ListCalls;
         var searches = counts.CaseSearches;
-        var senders = counts.MailboxSenderReads;
         var mailboxLists = counts.MailboxLists;
         var operations = send.LatestForOriginalCalls;
 
@@ -1452,8 +1509,7 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(0, resolver.ResolveCalls);
         Assert.Equal(0, resolver.ListCalls - lists);
         Assert.Equal(1, counts.CaseSearches - searches);
-        Assert.Equal(1, counts.MailboxSenderReads - senders);
-        Assert.Equal(0, counts.MailboxLists - mailboxLists);
+        Assert.Equal(1, counts.MailboxLists - mailboxLists);
         Assert.Equal(1, send.LatestForOriginalCalls - operations);
     }
 
@@ -1813,6 +1869,24 @@ public sealed class StaffCorrespondenceWebTests
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant),
             html);
 
+    /// <summary>The option values the select named <paramref name="name"/> draws selected.</summary>
+    private static string[] SelectedOptions(string html, string name)
+    {
+        var select = Regex.Match(
+            html,
+            $"<select[^>]*name=\"{Regex.Escape(name)}\"[^>]*>(?<options>.*?)</select>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+        Assert.True(select.Success, $"No {name} select was drawn.");
+        return
+        [
+            .. Regex.Matches(
+                    select.Groups["options"].Value,
+                    "<option value=\"(?<id>[^\"]+)\"[^>]*\\bselected\\b[^>]*>",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+                .Select(match => match.Groups["id"].Value)
+        ];
+    }
+
     private static string FormAction(string html, string handler)
     {
         var form = Regex.Match(
@@ -1841,8 +1915,6 @@ public sealed class StaffCorrespondenceWebTests
     {
         public int MailboxLists { get; set; }
 
-        public int MailboxSenderReads { get; set; }
-
         public int CaseSearches { get; set; }
     }
 
@@ -1867,12 +1939,6 @@ public sealed class StaffCorrespondenceWebTests
         {
             counts.MailboxLists++;
             return inner.ListAsync(cancellationToken);
-        }
-
-        public Task<ApprovedMailbox?> GetSenderAsync(Guid mailboxId, CancellationToken cancellationToken)
-        {
-            counts.MailboxSenderReads++;
-            return inner.GetSenderAsync(mailboxId, cancellationToken);
         }
 
         public Task<ApprovedMailbox> UpdateAsync(

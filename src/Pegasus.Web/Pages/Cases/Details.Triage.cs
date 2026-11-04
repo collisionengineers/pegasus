@@ -46,11 +46,8 @@ public sealed class TriageCaseView(TriageDetail triage)
     /// </summary>
     public bool OutcomeReplySent => TriageLifecycleRules.OutcomeReplySent(Triage);
 
-    /// <summary>Which mailbox the reply leaves from (<see cref="StaffMailAnswer"/>).</summary>
-    public StaffMailAnswer ReplyAnswer { get; set; } = new(null, []);
-
-    /// <summary>The Principal's Send from, chosen to start with when staff choose From.</summary>
-    public ApprovedMailbox? ReplySendFrom { get; set; }
+    /// <summary>Which mailboxes the reply may leave from, and the default (<see cref="StaffMailAnswer"/>).</summary>
+    public StaffMailAnswer ReplyAnswer { get; set; } = StaffMailAnswer.None;
 
     /// <summary>The From staff chose in a refused send, chosen again on its redisplay.</summary>
     public Guid? ReplyFromMailboxId { get; set; }
@@ -970,14 +967,12 @@ public sealed partial class DetailsModel
                     ? resolvedReply.Answer
                     : (await Pegasus.Web.Pages.Mail.MessageModel.CorrespondenceSendersAsync(
                         retainedMail, ports.ApprovedMailboxes, cancellationToken)).Reply;
-                // A staff forward whose forwarding mailbox cannot send: staff
-                // choose From, the Principal's Send from chosen to start with
-                // (operator, 3 November 2026).
-                if (view.ReplyAnswer is { Fixed: null, Choices.Count: > 0 } && ports.CaseInstructions is { } caseInstructions)
+                // With no default mailbox that can send, staff start on the
+                // Principal's Send from (operator, 3 November 2026).
+                if (ports.CaseInstructions is { } caseInstructions)
                 {
-                    var sendFrom = await caseInstructions.SendFromAsync(triage.Record.CaseId, cancellationToken);
-                    view.ReplySendFrom = view.ReplyAnswer.Choices.FirstOrDefault(mailbox =>
-                        string.Equals(mailbox.Address, sendFrom, StringComparison.OrdinalIgnoreCase));
+                    view.ReplyAnswer = await view.ReplyAnswer.OrSendFromAsync(
+                        caseInstructions, triage.Record.CaseId, cancellationToken);
                 }
 
                 var replyRecipients = TriageReplyRecipients(retainedMail);

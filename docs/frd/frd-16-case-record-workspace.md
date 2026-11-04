@@ -384,11 +384,12 @@ Return to Engineer needs no session. The rules behind each action are in
 - **Send chaser**, on any open Case where staff mail is composed in
   (operator, 5 October 2026). It is a link, not a dialog, and needs no lease:
   it opens the chaser composer (`/Cases/{id}/Chaser`), a reply to the
-  Case's instruction email from the mailbox it arrived in (a staff forward
-  held in instructions@ from the mailbox that forwarded it, R651, R652), or,
-  with no usable instruction email, a new message from the Outgoing mailbox
-  staff choose as From (operator, 12 October 2026). With no fixed sender,
-  From starts on the Principal's Send from (3 November 2026, R654). To is
+  Case's instruction email, or, with no instruction email, a new message,
+  from the Outgoing mailbox staff choose as From (operator, 12 October 2026;
+  4 November 2026, R655). From starts on the mailbox the instruction
+  arrived in (a staff forward held in instructions@ on the mailbox that
+  forwarded it, R651, R652), else on the Principal's Send from (3 November
+  2026, R654). To is
   addressed to the sender
   of the Case's instruction and the sender of each image-intake e-mail
   paired to the Case and the repairer's directory e-mail; Subject is "Re:"
@@ -1103,9 +1104,9 @@ not yet hold it, in or out of edit mode as Generate report is. Generate report
 makes the separate fee note with the report (operator, 7 October 2026), and
 once the separate fee note is confirmed the report card offers Open fee note
 beside Open report (issue 912).
-The delivery form shows From: the mailbox the Case's instruction email
-arrived in, read-only, or, with no usable instruction email, a choice of
-Outgoing mailbox (operator, 12 October 2026;
+The delivery form shows From, a choice of Outgoing mailbox starting on the
+mailbox the Case's instruction email arrived in, else on the Principal's
+Send from (operator, 12 October 2026; 4 November 2026, R655;
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)).
 It offers the Case's known addresses on every recipient field
 (v28 P21), the documents to attach (v28 P22), with Report and Fee note ticked,
@@ -1118,9 +1119,8 @@ The form also shows what the Principal's report sending rules decided
 
 - an "Already sent on 3 Oct 2026 14:02 to a@x, b@y" line when a report of this
   work has already been sent;
-- on a reply, the From line "From {mailbox} — reply in the instruction's
-  thread"; with no usable instruction email, the Outgoing choice starts on
-  the Principal's Send from;
+- the From choice, starting on the mailbox the instruction email arrived
+  in; with no usable instruction email, on the Principal's Send from (R655);
 - a notice when a rule stops the delivery, with an Override reason box for
   staff with casework. The box is also offered when only an answer below can
   decide the Stop;
