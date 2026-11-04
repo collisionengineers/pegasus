@@ -1545,7 +1545,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 if (mailboxes.Length > 0)
                 {
                     services.RemoveAll<ICaseInstructionEmailQueries>();
-                    services.AddSingleton<ICaseInstructionEmailQueries>(new FixedInstructionEmail(caseId, instruction));
+                    services.AddSingleton<ICaseInstructionEmailQueries>(new FixedInstructionEmail(caseId, instruction, facts.Rules.SendFromMailbox));
                     services.RemoveAll<IApprovedMailboxStore>();
                     services.AddSingleton<IApprovedMailboxStore>(new FixedMailboxes(mailboxes));
                 }
@@ -1991,13 +1991,14 @@ public sealed partial class AssessmentReportDraftWebTests
             Task.FromResult(history);
     }
 
-    private sealed class FixedInstructionEmail(Guid caseId, CaseInstructionEmail? instruction) : ICaseInstructionEmailQueries
+    /// <summary>The Case's instruction email and its Principal's Send from, the same rules the dispatch facts carry.</summary>
+    private sealed class FixedInstructionEmail(Guid caseId, CaseInstructionEmail? instruction, string? sendFrom) : ICaseInstructionEmailQueries
     {
         public Task<CaseInstructionEmail?> GetAsync(Guid ownerCaseId, CancellationToken cancellationToken) =>
             Task.FromResult(ownerCaseId == caseId ? instruction : null);
 
         public Task<string?> SendFromAsync(Guid ownerCaseId, CancellationToken cancellationToken) =>
-            Task.FromResult<string?>(null);
+            Task.FromResult(ownerCaseId == caseId ? sendFrom : null);
     }
 
     private sealed class FixedMailboxes(ApprovedMailbox[] mailboxes) : IApprovedMailboxStore
