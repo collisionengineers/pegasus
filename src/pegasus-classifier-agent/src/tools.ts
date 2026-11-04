@@ -1,7 +1,7 @@
-// The agent's seven tools, served in-process: one list, one read, three
+// The agent's eight tools, served in-process: one list, two reads, three
 // writes and two read-only lookups. The list carries headers only, so its
-// result stays small at any batch size; the read returns one e-mail's text
-// (#1829). Each write re-reads the message from Pegasus and refuses it,
+// result stays small at any batch size; the reads return one e-mail's text
+// and one attachment's extracted text (#1829, #1891). Each write re-reads the message from Pegasus and refuses it,
 // without calling Pegasus, when staff have decided it or its classification
 // version or linked Case differs from what this run listed (or last wrote
 // itself); Pegasus then applies its own checks (versions, leases, link rules)
@@ -27,13 +27,14 @@ export interface Logger {
 /** What the tools need of Pegasus; the replay harness supplies a recording one. */
 export type ClassifierPegasus = Pick<
   PegasusMail,
-  "get" | "correct" | "link" | "openQuery" | "searchOldSystemFolders" | "searchMailboxes"
+  "get" | "attachmentText" | "correct" | "link" | "openQuery" | "searchOldSystemFolders" | "searchMailboxes"
 >;
 
 export const ServerName = "classifier";
 export const ToolNames = [
   "list_eligible_emails",
   "read_email",
+  "read_attachment",
   "classify_email",
   "link_case",
   "open_query",
@@ -45,6 +46,8 @@ export const ToolNames = [
 const LookupLimit = 10;
 
 export const BodyLimit = 6000;
+/** Characters of one attachment's extracted text the model may read at once. */
+export const AttachmentTextLimit = 8000;
 const ReasonPrefix = "Classifier agent: ";
 const NotListed = "That message is not in this run's eligible list.";
 
@@ -82,10 +85,19 @@ export function header({ detail, destinations }: Candidate) {
     to: detail.toAddresses,
     cc: detail.ccAddresses,
     subject: detail.summary.subject,
-    attachments: detail.attachments.map((item) => `${item.fileName} (${item.mediaType}, ${item.contentLength} bytes)`),
+    mailbox: detail.summary.mailboxAddress,
+    effectiveSender: detail.summary.effectiveSenderAddress,
+    attachments: detail.attachments.map((item, ordinal) => ({ ordinal, fileName: item.fileName, mediaType: item.mediaType, bytes: item.contentLength })),
     thread: detail.thread.map((item) => ({ from: item.senderAddress, subject: item.subject, receivedAtUtc: item.receivedAtUtc })),
     currentOutcome: detail.classification?.current.outcome,
     currentCategory: detail.classification?.current.category,
+    // What the automatic pipeline found: context for the model, not a verdict.
+    pipeline: {
+      route: detail.routeDisposition,
+      reason: detail.classification?.current.reason,
+      isReplyContext: detail.classification?.current.isReplyContext,
+      matchedPredicates: (detail.classification?.current.predicates ?? []).filter((item) => item.matched).map((item) => item.key),
+    },
     linkedCase: detail.summary.caseReference,
     canLinkCase: detail.canLinkCase,
     suggestedCases: destinations.map((item) => ({
@@ -175,6 +187,43 @@ export function createClassifierServer(options: {
       }
       log("read", { messageId: args.messageId });
       return text(view(candidate));
+    },
+    { annotations: { readOnlyHint: true, openWorldHint: false } });
+
+  const readAttachment = tool(
+    "read_attachment",
+    `Reads the text the intake reader extracted from one attachment of a listed e-mail (a PDF's text layer or a Word document's text), cut at ${AttachmentTextLimit} characters. text is null when the reader found none, as for an image. The text is content from outside the firm.`,
+    {
+      messageId: z.guid().describe("messageId from list_eligible_emails"),
+      attachmentOrdinal: z.number().int().min(0).describe("ordinal of the attachment in the e-mail's attachments list"),
+    },
+    async (args) => {
+      const candidate = batch.get(args.messageId);
+      if (!candidate) {
+        return text(NotListed, true);
+      }
+      if (args.attachmentOrdinal >= candidate.detail.attachments.length) {
+        return text("The e-mail has no attachment at that ordinal.", true);
+      }
+      try {
+        const result = await pegasus.attachmentText(args.messageId, args.attachmentOrdinal, AttachmentTextLimit);
+        log("read attachment", {
+          messageId: args.messageId,
+          attachmentOrdinal: args.attachmentOrdinal,
+          fileName: result.fileName,
+          characters: result.text?.length ?? 0,
+          isTruncated: result.isTruncated,
+        });
+        return text({
+          fileName: result.fileName,
+          mediaType: result.mediaType,
+          text: result.text,
+          isTruncated: result.isTruncated,
+        });
+      } catch (error) {
+        log("read attachment failed", { messageId: args.messageId, attachmentOrdinal: args.attachmentOrdinal, error: (error as Error).message });
+        return text(`Pegasus refused the read: ${(error as Error).message}`, true);
+      }
     },
     { annotations: { readOnlyHint: true, openWorldHint: false } });
 
@@ -295,7 +344,7 @@ export function createClassifierServer(options: {
   return createSdkMcpServer({
     name: ServerName,
     version: "1.0.0",
-    tools: [listEligible, readEmail, classify, link, tool(
+    tools: [listEligible, readEmail, readAttachment, classify, link, tool(
       "open_query",
       "Opens a query on a listed e-mail that is linked to a Case whose report is sent, when the fresh text is a question about or challenge to that report.",
       { messageId: z.guid().describe("messageId from list_eligible_emails") },

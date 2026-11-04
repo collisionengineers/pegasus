@@ -20,15 +20,18 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { ClassifierConfig } from "./config.js";
-import type { MailboxSearch, MailClassification, MailDetail, OldSystemFolderSearch } from "./pegasus.js";
+import type { MailAttachmentText, MailboxSearch, MailClassification, MailDetail, OldSystemFolderSearch } from "./pegasus.js";
 import { runAgent } from "./run.js";
 import { createClassifierServer, type Candidate, type ClassifierPegasus } from "./tools.js";
 
 /** A mailbox header the search may return; text, when given, is what the term is matched against. */
 type CorpusItem = MailboxSearch["items"][number] & { text?: string };
 
+/** A batch member; attachmentTexts holds the reader's text per attachment ordinal (null: none). */
+type FixtureCandidate = Candidate & { attachmentTexts?: (string | null)[] };
+
 interface Fixture {
-  candidates: Candidate[];
+  candidates: FixtureCandidate[];
   mailboxCorpus?: CorpusItem[];
   folders?: { name: string; modifiedAtUtc: string | null }[];
 }
@@ -110,6 +113,24 @@ class ReplayPegasus implements ClassifierPegasus {
     detail.canLinkCase = false;
     this.writes.push({ kind: "link", messageId: args.messageId, detail: `${destination.reference}: ${args.reason}` });
     return structuredClone(detail);
+  }
+
+  async attachmentText(messageId: string, attachmentOrdinal: number, maximumCharacters: number): Promise<MailAttachmentText> {
+    const candidate = this.fixture.candidates.find((item) => item.detail.summary.id === messageId);
+    const attachment = candidate?.detail.attachments[attachmentOrdinal];
+    if (!candidate || !attachment) {
+      throw new Error("The message has no attachment at that position.");
+    }
+    const full = candidate.attachmentTexts?.[attachmentOrdinal] ?? null;
+    const isTruncated = full !== null && full.length > maximumCharacters;
+    return {
+      messageId,
+      attachmentOrdinal,
+      fileName: attachment.fileName,
+      mediaType: attachment.mediaType,
+      text: isTruncated ? full.slice(0, maximumCharacters) : full,
+      isTruncated,
+    };
   }
 
   async openQuery(args: { messageId: string; operationKey: string }): Promise<{ queryId: string }> {
@@ -194,10 +215,13 @@ const pegasus = new ReplayPegasus({ ...fixture, candidates });
 const failed = new Map<string, string>();
 const verdicts = new Set<string>();
 const reads = new Set<string>();
+const attachmentReads: string[] = [];
 const lookups: string[] = [];
 const log = (message: string, properties?: Record<string, unknown>) => {
   if (message === "read") {
     reads.add(String(properties?.messageId));
+  } else if (message === "read attachment") {
+    attachmentReads.push(`${String(properties?.messageId).slice(0, 8)} #${String(properties?.attachmentOrdinal)} ${String(properties?.fileName)} (${String(properties?.characters)} chars)`);
   } else if (message.startsWith("search ")) {
     lookups.push(`${message}: ${String(properties?.query)} -> ${String(properties?.hits)} (${String(properties?.state)})`);
   } else if (message === "result") {
@@ -210,7 +234,10 @@ const server = createClassifierServer({ pegasus, batch, failed, verdicts, dryRun
 const result = await runAgent(config, server, batch.size, log);
 
 console.log(`\nReplay of ${batch.size} e-mail(s): ${result.outcome}, ${result.turns} turns, USD ${result.costUsd.toFixed(3)}`);
-console.log(`read ${reads.size}/${batch.size}; verdicts ${verdicts.size}; refused writes ${failed.size}; lookups ${lookups.length}`);
+console.log(`read ${reads.size}/${batch.size}; attachments read ${attachmentReads.length}; verdicts ${verdicts.size}; refused writes ${failed.size}; lookups ${lookups.length}`);
+for (const line of attachmentReads) {
+  console.log(`  attachment ${line}`);
+}
 for (const line of lookups) {
   console.log(`  ${line}`);
 }

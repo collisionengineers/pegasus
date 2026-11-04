@@ -474,6 +474,13 @@ replays by its operation key.
 - `pegasus_mail_action` with `dismiss` or `restore` changes the message's
   Pegasus scope only
   ([FRD-20](frd-20-mailbox-workspace.md#dismiss)).
+- `pegasus_mail_attachment_text` returns the text the intake reader already
+  extracted from one attachment of a retained message (a PDF's text layer or
+  a Word document's text), named by its position in `pegasus_mail_get`'s
+  attachment list and cut at the caller's cap; it returns no bytes and
+  writes nothing. It exists so the classifier agent can read an instruction
+  letter or an estimate it would otherwise judge by file name (4 November
+  2026, #1891).
 - `pegasus_mail_mailbox_search` and `pegasus_old_system_folder_search` are
   the Actor's two read-only lookups outside Pegasus's retained records
   (operator, 30 October 2026, R561): the first searches one or every
@@ -635,6 +642,7 @@ its one command when none is given.
 | `automation.mail` | `pegasus_mail_open_query` | Open a query on a linked message whose report is sent | key only |
 | `automation.mail` | `pegasus_mail_action` | `dismiss` or `restore` in Pegasus | key |
 | `automation.mail` | `pegasus_mail_mailbox_search` | Read-only: message headers (subject, sender, received time, preview) matching a term in one or every approved mailbox; a mailbox the tenant has not admitted reports unavailable (R561) | none |
+| `automation.mail` | `pegasus_mail_attachment_text` | Read-only: the text the intake reader extracted from one attachment of a retained message, by the attachment's position, cut at the caller's cap (at most 20,000 characters); null when the reader produced none; never the bytes (#1891) | none |
 | `automation.mail` | `pegasus_old_system_folder_search` | Read-only: folder names and identities matching a term below the old system's Box folder; a reference-shaped term matches a folder name only as a whole token (R592); unavailable until that folder is configured (R561) | none |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does | one-command lease |

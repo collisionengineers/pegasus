@@ -182,9 +182,11 @@ search is made with that reference and a reference-shaped term matches a
 folder name only as a whole token (operator, 2 November 2026, R592). Every
 Unclassified e-mail the agent reviews and leaves is recorded as
 correspondence with its one-sentence reason (operator, 2 November 2026,
-R584). The agent reads each listed e-mail in full before deciding it and
-counts an e-mail reviewed only once it has given it a verdict; a run that
-decides nothing is retried.
+R584). The agent reads each listed e-mail in full before deciding it, may
+read the text the intake reader extracted from an attachment
+(`pegasus_mail_attachment_text`, [FRD-10](frd-10-mcp-automation-and-actor-boundary.md#tool-inventory)),
+and counts an e-mail reviewed only once it has given it a verdict; a run
+that decides nothing is retried.
 
 **History.** Every automated or human classification decision keeps the
 source identity, policy key and version, outcome, evidence references,

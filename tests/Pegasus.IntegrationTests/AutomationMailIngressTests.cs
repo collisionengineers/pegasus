@@ -724,6 +724,65 @@ public sealed class AutomationMailIngressTests
     /// writes them, plus the poll state the freshness read model consumes —
     /// the same fixture shape as <see cref="MailWorkspaceWebTests"/>.
     /// </summary>
+    /// <summary>
+    /// The classifier agent's attachment read: the text the intake reader put
+    /// in the message's search documents, by the attachment's position, cut at
+    /// the caller's cap; a position the message does not have is refused.
+    /// </summary>
+    [Fact]
+    public async Task AnAttachmentsExtractedTextIsAMailScopeReadBoundedByTheCaller()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var ids = await SeedRetainedAsync(mcpFactory, count: 1);
+        await SeedClassificationAsync(
+            mcpFactory,
+            $"{MailboxId}-0",
+            searchDocuments:
+            [
+                new("message body", null, "Please inspect the vehicle at the address supplied."),
+                new("message, attachment 1", "estimate.pdf", "URGENT VEHICLE INSPECTION REQUIRED. Our Ref SJG/S515485.001. Client reg VO09JNR.", 0)
+            ]);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(1, "pegasus_mail_attachment_text", new { messageId = ids[0], attachmentOrdinal = 0 })))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal("estimate.pdf", structured.GetProperty("fileName").GetString());
+            Assert.Equal("application/pdf", structured.GetProperty("mediaType").GetString());
+            Assert.StartsWith(
+                "URGENT VEHICLE INSPECTION REQUIRED",
+                structured.GetProperty("text").GetString(),
+                StringComparison.Ordinal);
+            Assert.False(structured.GetProperty("isTruncated").GetBoolean());
+        }
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(2, "pegasus_mail_attachment_text", new { messageId = ids[0], attachmentOrdinal = 0, maximumCharacters = 6 })))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal("URGENT", structured.GetProperty("text").GetString());
+            Assert.True(structured.GetProperty("isTruncated").GetBoolean());
+        }
+
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(3, "pegasus_mail_attachment_text", new { messageId = ids[0], attachmentOrdinal = 3 })))
+        {
+            using var document = await ReadJsonRpcAsync(refused);
+            Assert.True(document.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
+            Assert.Contains("1 attachment(s)", document.RootElement.ToString(), StringComparison.Ordinal);
+        }
+    }
+
     private static async Task<Guid[]> SeedRetainedAsync(
         Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> factory,
         int count)
@@ -797,7 +856,8 @@ public sealed class AutomationMailIngressTests
     private static async Task SeedClassificationAsync(
         Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> factory,
         string messageId,
-        char sourceHash = 'E')
+        char sourceHash = 'E',
+        IReadOnlyList<IntakeSearchDocument>? searchDocuments = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>().StoreAsync(
@@ -830,7 +890,8 @@ public sealed class AutomationMailIngressTests
                     [new("attachment.engineer-notification", true, "An attached document contains the generated title.")],
                     "An accepted Inspection instruction was recognised.",
                     "qdos_mail_classification",
-                    3)),
+                    3),
+                SearchDocuments: searchDocuments),
             CancellationToken.None);
     }
 

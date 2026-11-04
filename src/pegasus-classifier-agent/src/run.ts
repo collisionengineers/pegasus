@@ -116,9 +116,9 @@ export async function runAgent(
         permissionMode: "dontAsk",
         settingSources: [],
         persistSession: false,
-        // Per e-mail: one read, up to two lookups (R561), a classification
-        // and a link, beside the list.
-        maxTurns: batchSize * 6 + 5,
+        // Per e-mail: a read, an attachment read, up to two lookups (R561),
+        // a classification and a link, beside the list.
+        maxTurns: batchSize * 7 + 5,
         maxBudgetUsd: config.maxBudgetUsd,
         abortController,
         cwd: tmpdir(),
