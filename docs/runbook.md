@@ -315,7 +315,7 @@ what each row proves is owned by the
 The file is `artifacts/local-development/local.settings.env`: `KEY=VALUE`
 lines with double-underscore keys, `#` comments, mode `0600` on Linux. `Start`
 reads it on every attempt, splits it by host prefix (Web: `Features__`,
-`Box__`, `Glass__`, `Graph__`, `GitHub__`, `DevelopmentOffline__`,
+`Box__`, `Glass__`, `Cazana__`, `Brego__`, `Graph__`, `GitHub__`, `DevelopmentOffline__`,
 `AutomationMcp__`; Worker: `Features__`, `Box__`, `Dvla__`, `Dvsa__`,
 `Graph__`), refuses any key the run owns itself (`Runtime__Profile`, the
 connection string, URLs, storage, `Features__LocalIntake`,

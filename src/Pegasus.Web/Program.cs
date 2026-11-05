@@ -137,6 +137,7 @@ if (builder.Configuration.GetValue<bool>("Features:LocalIntake")
 var liveVehicleLookup = builder.Configuration.GetValue<bool>("Features:LiveVehicleLookup");
 var liveBoxCustody = builder.Configuration.GetValue<bool>("Features:LiveBoxCustody");
 var liveGlass = builder.Configuration.GetValue<bool>("Features:LiveGlass");
+var liveGuideValuation = builder.Configuration.GetValue<bool>("Features:LiveGuideValuation");
 var passwordSignIn = builder.Configuration.GetValue<bool>("Features:PasswordSignIn");
 var liveGraphMail = builder.Configuration.GetValue<bool>(LocalGraphCredential.FeatureKey);
 foreach (var (featureKey, enabled) in new[]
@@ -144,6 +145,7 @@ foreach (var (featureKey, enabled) in new[]
     ("Features:LiveVehicleLookup", liveVehicleLookup),
     ("Features:LiveBoxCustody", liveBoxCustody),
     ("Features:LiveGlass", liveGlass),
+    ("Features:LiveGuideValuation", liveGuideValuation),
     ("Features:PasswordSignIn", passwordSignIn),
     (LocalGraphCredential.FeatureKey, liveGraphMail),
 })
@@ -152,6 +154,32 @@ foreach (var (featureKey, enabled) in new[]
     {
         throw new InvalidOperationException(
             $"{featureKey} requires the DevelopmentOffline runtime profile.");
+    }
+}
+// The hosted test instance's guide valuations use production's Glass's,
+// Cazana and Brego accounts (R709). Glass's valuation reads the Glass's
+// gateway's options, so it needs Features:LiveGlass; each account is checked
+// at start, naming the key, rather than at an Engineer's Get valuation.
+if (liveGuideValuation)
+{
+    if (!liveGlass)
+    {
+        throw new InvalidOperationException("Features:LiveGuideValuation requires Features:LiveGlass.");
+    }
+    foreach (var key in new[]
+    {
+        "Glass:ValuationAccount:Username",
+        "Glass:ValuationAccount:Password",
+        "Cazana:CompanionAccount:Email",
+        "Cazana:CompanionAccount:Password",
+        "Brego:ValuationAccount:Email",
+        "Brego:ValuationAccount:Password"
+    })
+    {
+        if (string.IsNullOrWhiteSpace(builder.Configuration[key]))
+        {
+            throw new InvalidOperationException($"{key} is required for Features:LiveGuideValuation.");
+        }
     }
 }
 if (!developmentOfflineProfile && !productionProfile)
@@ -735,10 +763,11 @@ documentStorage: composesLocalArtifactRoot
 // The staff-identity surfaces need this host's Identity and key ring.
 builder.Services.AddPegasusStaffIdentity();
 // Glass's (ADR-0060), Cazana (ADR-0079) and Brego (ADR-0084) valuation:
-// Production only — the offline profile reaches no vendor — and each Key
-// Vault-held credential is read on each valuation for the same
-// unresolved-Key-Vault-reference reason as Box's.
-if (productionProfile)
+// Production, and the hosted test instance under Features:LiveGuideValuation
+// (R709); any other offline host reaches no vendor. Each credential is read on
+// each valuation for the same unresolved-Key-Vault-reference reason as Box's.
+// Offline there is no Brego session store, so each valuation signs in afresh.
+if (productionProfile || liveGuideValuation)
 {
     builder.Services.AddGlassGuideValuation(
         _ => Pegasus.Infrastructure.Glass.GlassValuationAccount.Create(key => builder.Configuration[key]));

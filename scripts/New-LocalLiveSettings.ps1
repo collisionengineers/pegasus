@@ -1,8 +1,9 @@
 <#
     .SYNOPSIS
     Writes the ignored local live-integration settings file for a hosted local
-    Pegasus run: real DVLA/DVSA, real Box custody under the test root and real
-    Glass's, with the secrets read from the production Key Vault.
+    Pegasus run: real DVLA/DVSA, real Box custody under the test root, real
+    Glass's, and the Glass's, Cazana and Brego guide valuations on production's
+    accounts (R709), with the secrets read from the production Key Vault.
 
     .DESCRIPTION
     Nothing is read until -Approve is given; without it the script prints the
@@ -67,6 +68,13 @@ $secretNames = [ordered]@{
     Dvsa__ClientId = 'dvsa-client-id'
     Dvsa__ClientSecret = 'dvsa-client-secret'
     Dvsa__ApiKey = 'dvsa-api-key'
+    # Production's guide valuation accounts (R709).
+    Glass__ValuationAccount__Username = 'glass-valuation-username'
+    Glass__ValuationAccount__Password = 'glass-valuation-password'
+    Cazana__CompanionAccount__Email = 'cazana-companion-email'
+    Cazana__CompanionAccount__Password = 'cazana-companion-password'
+    Brego__ValuationAccount__Email = 'brego-valuation-email'
+    Brego__ValuationAccount__Password = 'brego-valuation-password'
 }
 if ($IncludeProblemReports) {
     $secretNames['GitHub__ProblemReports__Token'] = 'github-problem-report-token'
@@ -78,6 +86,7 @@ $literals = [ordered]@{
     Features__LiveVehicleLookup = 'true'
     Features__LiveBoxCustody = 'true'
     Features__LiveGlass = 'true'
+    Features__LiveGuideValuation = 'true'
     Box__BaseUri = 'https://api.box.com/2.0/'
     Box__UploadUri = 'https://upload.box.com/api/2.0/'
     Box__RootFolderId = $boxRootFolderId

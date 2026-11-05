@@ -10,7 +10,7 @@ Tailscale network. It is the `DevelopmentOffline` lifecycle the runbook owns
 ([local live-integration run](../../../docs/runbook.md#local-live-integration-run))
 with every opt-in on, so the procedure here is the order of the runbook's
 commands and the approvals between them. [ADR-0088](../../../docs/adr/0088-one-hosted-test-instance.md)
-and rulings R623 to R629, R675 to R680, R693 to R696 and R708 decided its shape; this skill
+and rulings R623 to R629, R675 to R680, R693 to R696, R708 and R709 decided its shape; this skill
 invents none of it.
 
 What it is for (R624): the operator's and agents' QA walks, staff UAT rounds,
@@ -74,7 +74,7 @@ together, with a ruling.
 
 | Step | Needs | Why |
 | --- | --- | --- |
-| `New-LocalLiveSettings.ps1 -Approve` | the operator's `az` sign-in and their word | reads six Key Vault secrets from `pegasusprodkv252ow37g` (names printed first) |
+| `New-LocalLiveSettings.ps1 -Approve` | the operator's `az` sign-in and their word | reads twelve Key Vault secrets from `pegasusprodkv252ow37g` (names printed first) |
 | Graph identity | a Microsoft 365 administrator (the operator) | the existing `CollisionSpike Graph Intake` registration and scope `CollisionSpike-Intake-Prod`; adds the one role it lacks (`Application Mail.Send`) and the secret; recorded in operations |
 | `tailscale funnel` of the webhook path | the operator | the one public path on the machine |
 | `Copy-ProductionDatabaseToRun.ps1 -Approve` | the operator's word per copy | a live read of production SQL, into this run on this host alone |
@@ -115,7 +115,10 @@ pwsh ./scripts/New-LocalLiveSettings.ps1 -BoxHoldingFolderId <id> -Administrator
 
 The first run prints the secret names and stops; the second, after the
 operator's word, writes `artifacts/local-development/local.settings.env`
-(mode 600) with live DVLA/DVSA, Box and Glass's on and password sign-in on.
+(mode 600) with live DVLA/DVSA, Box and Glass's on, the Glass's, Cazana and Brego
+guide valuations on production's accounts (R709) and password sign-in on.
+A file written before R709 gains them by re-running the script with
+`-Approve`, which rewrites it, so the hand-appended lines below go back in.
 Then append by hand, in the same file:
 
 ```text

@@ -286,17 +286,18 @@ try {
         'Box__RootFolderId=425169015650',
         'Dvla__ApiKey=key=with=equals',
         'Glass__RepairProfileId=4063',
+        'Brego__ValuationAccount__Email=valuer@example.test',
         'Graph__TenantId=858cf5b3-aa0a-47a6-9b40-4851fd0afa94',
         'DevelopmentOffline__AdministratorPassword=p#ss=word',
         'GitHub__ProblemReports__Token=')
     $settings = Read-PegasusLocalSettingsFile -Path $good
-    if ($settings.Count -ne 11) { throw "Expected 11 parsed settings; got $($settings.Count)." }
+    if ($settings.Count -ne 12) { throw "Expected 12 parsed settings; got $($settings.Count)." }
     if ($settings['Box__ConfigJson'] -cne '{"boxAppSettings":{"clientID":"a=b"},"enterpriseID":"1"}' -or
         $settings['Dvla__ApiKey'] -cne 'key=with=equals') {
         throw 'The first = must split a settings line and the rest is the verbatim value.'
     }
     $flags = Get-PegasusLiveIntegrationFlags -Settings $settings
-    if (-not $flags.vehicleLookup -or -not $flags.boxCustody -or -not $flags.graphMail -or $flags.glass -or $flags.passwordSignIn -or
+    if (-not $flags.vehicleLookup -or -not $flags.boxCustody -or -not $flags.graphMail -or $flags.glass -or $flags.guideValuation -or $flags.passwordSignIn -or
         $flags.automationMcp -or $flags.principalApi -or $flags.problemReports) {
         throw 'Flag derivation does not follow the Features__ names (case-insensitive true, token presence).'
     }
@@ -309,10 +310,12 @@ try {
     $web = Split-PegasusLocalSettings -Settings $settings -HostKind Web
     $worker = Split-PegasusLocalSettings -Settings $settings -HostKind Worker
     if ($web.Contains('Dvla__ApiKey') -or -not $web.Contains('Glass__RepairProfileId') -or -not $web.Contains('Graph__TenantId') -or
-        -not $web.Contains('DevelopmentOffline__AdministratorPassword') -or -not $web.Contains('Box__ConfigJson')) {
-        throw 'The Web split must carry Features, Box, Glass, Graph, GitHub, DevelopmentOffline and AutomationMcp keys only.'
+        -not $web.Contains('DevelopmentOffline__AdministratorPassword') -or -not $web.Contains('Box__ConfigJson') -or
+        -not $web.Contains('Brego__ValuationAccount__Email')) {
+        throw 'The Web split must carry Features, Box, Glass, Cazana, Brego, Graph, GitHub, DevelopmentOffline and AutomationMcp keys only.'
     }
     if ($worker.Contains('Glass__RepairProfileId') -or $worker.Contains('DevelopmentOffline__AdministratorPassword') -or
+        $worker.Contains('Brego__ValuationAccount__Email') -or
         -not $worker.Contains('Dvla__ApiKey') -or -not $worker.Contains('Box__ConfigJson') -or -not $worker.Contains('Features__LiveVehicleLookup') -or
         -not $worker.Contains('Graph__TenantId')) {
         throw 'The Worker split must carry Features, Box, Dvla, Dvsa and Graph keys only.'

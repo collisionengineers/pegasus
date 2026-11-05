@@ -1079,7 +1079,7 @@ function Get-PegasusDatabaseConnectionString {
 $script:PegasusLocalSettingsFileName = 'local.settings.env'
 
 $script:PegasusLocalSettingsHostPrefixes = @{
-    Web = @('Features__', 'Box__', 'Glass__', 'Graph__', 'GitHub__', 'DevelopmentOffline__', 'AutomationMcp__')
+    Web = @('Features__', 'Box__', 'Glass__', 'Cazana__', 'Brego__', 'Graph__', 'GitHub__', 'DevelopmentOffline__', 'AutomationMcp__')
     Worker = @('Features__', 'Box__', 'Dvla__', 'Dvsa__', 'Graph__')
 }
 
@@ -1087,6 +1087,7 @@ $script:PegasusLiveIntegrationFlagKeys = [ordered]@{
     vehicleLookup = 'Features__LiveVehicleLookup'
     boxCustody = 'Features__LiveBoxCustody'
     glass = 'Features__LiveGlass'
+    guideValuation = 'Features__LiveGuideValuation'
     graphMail = 'Features__LiveGraphMail'
     passwordSignIn = 'Features__PasswordSignIn'
     automationMcp = 'Features__AutomationMcp'
