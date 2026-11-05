@@ -1178,7 +1178,7 @@ internal sealed class EfIntakeMutationStore(
         }
 
         var opensQuery = receipt.MailClassificationDecision?.OpensQuery == true;
-        var reportIsSent = await EfCaseWorkflowStore.ReportIsSentAsync(context, workflow, cancellationToken);
+        var reportIsSent = EfCaseWorkflowStore.ReportIsSent(workflow);
         var withdrawn = nameof(CaseQueryClosure.Withdrawn);
         var messageHasQuery = await context.CaseQueries.AnyAsync(
             item => item.CaseId == workflow.CaseId

@@ -70,20 +70,19 @@ public sealed class CaseQueryRulesTests
     }
 
     /// <summary>
-    /// Operator, 13 October 2026: between the Inspection report's send and Create
-    /// audit an Inspection + Audit Case stays With Engineer, and a query can still
-    /// be logged there. With Engineer with Sent evidence on any other Case (after
-    /// Return to Engineer) is not that window.
+    /// Operator, 5 November 2026 (replacing 13 October 2026): the Inspection
+    /// report's send moves an Inspection + Audit Case with no Audit to Report
+    /// sent, so no With Engineer Case is a query window, whatever Sent evidence
+    /// it holds (after Return to Engineer or Create audit).
     /// </summary>
     [Theory]
-    [InlineData("inspection-audit-no-audit", CaseType.InspectionAndAudit, false, true)]
-    [InlineData("inspection-audit-with-audit", CaseType.InspectionAndAudit, true, false)]
-    [InlineData("inspection", CaseType.Inspection, false, false)]
-    public void AQueryIsLoggedWithEngineerWhileTheInspectionReportIsSentAndTheAuditIsStillToCome(
+    [InlineData("inspection-audit-no-audit", CaseType.InspectionAndAudit, false)]
+    [InlineData("inspection-audit-with-audit", CaseType.InspectionAndAudit, true)]
+    [InlineData("inspection", CaseType.Inspection, false)]
+    public void AQueryIsNotLoggedWithEngineerWhateverSentEvidenceItHolds(
         string name,
         CaseType caseType,
-        bool hasAudit,
-        bool expected)
+        bool hasAudit)
     {
         Assert.NotEmpty(name);
         var workflow = Workflow(CaseLifecycleState.ReportPreparation, hasOpenQuery: false) with
@@ -93,7 +92,7 @@ public sealed class CaseQueryRulesTests
             ReportSentEvidence = SentEvidence()
         };
 
-        Assert.Equal(expected, CaseQueryRules.CanOpen(workflow));
+        Assert.False(CaseQueryRules.CanOpen(workflow));
     }
 
     private static ApprovedMailboxReportSentEvidence SentEvidence() => new(

@@ -320,9 +320,7 @@ public static class AiJobPolicy
         state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.ReportSent;
 
     /// <summary>
-    /// A Query response needs the Case's report sent: Report sent, or With
-    /// Engineer holding the Inspection report's Sent item while the Audit is
-    /// still to come (operator, 13 October 2026).
+    /// A Query response needs the Case's report sent: the Case is Report sent.
     /// </summary>
     public static bool IsEligibleQueryResponse(CaseWorkflowRecord workflow) =>
         Lifecycle.CaseLifecycleRules.ReportIsSent(workflow);
