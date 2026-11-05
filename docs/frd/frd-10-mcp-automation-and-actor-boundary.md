@@ -339,7 +339,9 @@ submission is not part of it.
   documents as `attach` does and `otherAttachmentNames` naming them as
   `attachmentNames` does. It holds the Case's lease for its one send
   unless a lease token is presented. Its result is the send's state and
-  `attachments`, the file names the e-mail carries, in order (R698).
+  `attachments`, the file names the e-mail carries, in order (R698); a
+  caller reports what was sent from `attachments`, not from what it asked
+  for (R699).
 - `pegasus_mail_send` is the staff mail send with a `mode`: `chaser` is the
   Case's **Send chaser**, recorded as the Case's chaser; `reply`, `reply_all`
   and `forward` answer one retained message, with the recipients the message
