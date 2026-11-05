@@ -318,7 +318,7 @@ yields nothing; with a choice, exactly the chosen documents must be present
 and confirmed, so a companion still being filed never silently drops out of a
 delivery that asked for it and never blocks one that did not. An empty choice
 is a choice: it attaches the report alone, with any companion the Principal
-requires (operator, 5 November 2026, R675). The report is always attached. The other work's report, when ticked, attaches with the
+requires (operator, 5 November 2026, R697). The report is always attached. The other work's report, when ticked, attaches with the
 documents of it ticked, after the viewed report's, under the same
 Principal attachment rules (its required companions must be confirmed), and
 is re-checked the same way. The send names each chosen attachment by document,

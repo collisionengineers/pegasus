@@ -1,6 +1,6 @@
 ---
 name: pegasus-wipe-intake-data
-description: Sterilize the Pegasus production estate between test rounds — clear intake-generated Blob and SQL data, with an explicit full test-estate option that retains only alex and restarts the current QDOS counter. Use whenever an operator asks to wipe, clear, reset or sterilize test/intake data.
+description: Clear intake-generated Blob and SQL data from the Pegasus production estate on exact-target operator approval, with an explicit full test-estate option that retains only alex and restarts the current QDOS counter. The estate is live from 2 November 2026 and a wipe destroys real Cases. Use whenever an operator asks to wipe, clear, reset or sterilize intake data.
 ---
 
 # Wiping Pegasus intake-generated data
@@ -12,6 +12,11 @@ must be cleared together, or cases and emails keep showing in the UI even
 after the blobs are gone. Prior runs are recorded in `docs/operations.md`; use
 the script below rather than re-deriving the preserve list or account names by
 hand.
+
+**The estate is live.** From the cutover of 2 November 2026 (R603) production
+carries real Cases: a wipe now destroys real Cases, documents, evidence and
+history, and the approval names that (R604). Nothing in this skill is a
+standing grant.
 
 ## The estate
 
@@ -92,7 +97,7 @@ enumerate old messages whose occurrence identities the wipe removed.
    pwsh ./scripts/Invoke-IntakeDataWipe.ps1
    ```
    Prints the current blob count/size and the SQL table/row breakdown to be
-   wiped. This *is* the fresh inventory the live-operation approval matrix
+   wiped. This *is* the fresh inventory the runbook's operational authority
    requires — always re-run it immediately before executing, never reuse a
    stale count.
 
@@ -108,10 +113,10 @@ enumerate old messages whose occurrence identities the wipe removed.
 2. **Get explicit approval** naming the exact targets — *clear all blobs in
    `pegcustody252ow37gij/transient-intake` and delete rows from the N
    reported non-preserved tables in database `pegasus` on
-   `pegasus-prod-sql-252ow37gij`.* Both are production writes; per
-   `docs/runbook.md`'s live-operation approval matrix ("Change or use an
-   Azure service") this needs approval before running with `-Execute` —
-   plan approval alone is not enough.
+   `pegasus-prod-sql-252ow37gij`.* Both are production writes on a live
+   estate; per `docs/runbook.md`'s operational authority this needs approval
+   before running with `-Execute` — plan approval alone is not enough, and the
+   approval names that real Cases are destroyed (R604).
 
    Approval for `-ResetTestEstate` must also name every reported non-`alex`
    account, its attributable trace counts, and the reported current-year QDOS

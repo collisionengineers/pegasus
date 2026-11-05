@@ -214,7 +214,7 @@ public sealed class CaseReportDeliveryTests
                 plan, [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.ImagePack], confirmed));
         // No choice means every confirmed document, as it was.
         Assert.Null(CaseReportDeliveryPolicy.AttachChoice(plan, null, confirmed));
-        // An empty choice is the report alone, and still gains the required companions (R675).
+        // An empty choice is the report alone, and still gains the required companions (R697).
         Assert.Equal(
             [CaseReportArtifactKind.ImagePack],
             CaseReportDeliveryPolicy.AttachChoice(plan, [], confirmed));
@@ -222,7 +222,7 @@ public sealed class CaseReportDeliveryTests
 
     /// <summary>
     /// An empty choice attaches the report alone (operator, 5 November 2026,
-    /// R675): it is a choice of no companion, not the absence of a choice.
+    /// R697): it is a choice of no companion, not the absence of a choice.
     /// </summary>
     [Fact]
     public void AnEmptyChoiceAttachesTheReportAlone()
@@ -623,8 +623,8 @@ public sealed class CaseReportDeliveryTests
 
     /// <summary>
     /// An empty choice sends the report without the fee note the generation
-    /// holds (R675), and the send returns the file names the e-mail carries
-    /// (R676).
+    /// holds (R697), and the send returns the file names the e-mail carries
+    /// (R698).
     /// </summary>
     [Fact]
     public async Task AnEmptyChoiceSendsTheReportAloneAndReturnsWhatItCarries()

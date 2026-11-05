@@ -128,7 +128,7 @@ public sealed record StaffMailOperation(
     public AiJobConfirmRefusal? AiJobRefusal { get; init; }
 
     /// <summary>
-    /// The file names a Case report send's e-mail carries, in order (R676).
+    /// The file names a Case report send's e-mail carries, in order (R698).
     /// Set only on the operation a report send returns, never stored; null
     /// for every other send.
     /// </summary>

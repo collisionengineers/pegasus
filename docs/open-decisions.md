@@ -9,20 +9,19 @@ Add a question here only when it is genuinely unresolved, with its owner,
 affected contract and the decision needed; remove it once its outcome has a
 durable owner.
 
-## Cutover date and the definition of v1
+## Cutover: the Case reference sequence is not seeded from the old system (#1601)
 
 - **Owner**: the operator.
-- **Affected contract**: [ADR-0030](adr/0030-non-additive-schema-changes-before-cutover.md)
-  (non-additive schema changes are permitted only before cutover),
-  [ADR-0046](adr/0046-destructive-migration-runtime-shutdown.md) (the
-  destructive-migration shutdown sequence), the disposable-test-data basis of
-  the intake wipe, and the proof round and UAT pack that close release
-  readiness.
-- **Decision needed**: the date, or the condition, at which production stops
-  being a test estate and carries real Cases, and what the application must
-  do by then to be v1. Until it is made, production data is disposable and
-  releases verify changes; after it, ADR-0002's expand-and-contract rule and
-  ADR-0046's full containment apply without exemption.
+- **Affected contract**: [FRD-01](frd/frd-01-case-identity-and-lifecycle.md)
+  (the reference format and the one sequence per Principal per year) and
+  `CaseIdentityAllocator`, which starts a missing `CaseSequences` row at zero.
+- **Decision needed**: whether and how each Principal's current-year sequence
+  starts from the old system's last issued number. The old system issues the
+  same `{code}{YY}{sequence}` format (R592), so a reference Pegasus allocates
+  this year may repeat one the old system already issued. Production has
+  carried live Cases since 2 November 2026 (R603);
+  [#1601](https://github.com/collisionengineers/pegasus/issues/1601) stays
+  parked under R606 ("Decide later") and this row records the live risk.
 
 ## Cutover: a re-sent or forwarded old-system instruction creates a Case (#1600)
 
@@ -39,6 +38,5 @@ durable owner.
   2026 (R512) makes this the one cutover item that is decided and built before
   the v1 date; [#1336](https://github.com/collisionengineers/pegasus/issues/1336)
   was taken up on 30 October 2026 (R561: the Pre-Pegasus case mail category
-  and the classifier agent's read-only old-system lookups), and
-  [#1601](https://github.com/collisionengineers/pegasus/issues/1601) stays
-  parked under R391 until the date is set.
+  and the classifier agent's read-only old-system lookups). The date is
+  2 November 2026 (R603).

@@ -37,7 +37,7 @@ Records whose status is superseded live in `superseded/` with their IDs unchange
 | [ADR-0011](0011-restrict-mcp-to-automation-actor.md) | Restrict MCP to a vendor-neutral Automation Actor | accepted | — | — |
 | [ADR-0012](superseded/0012-conservative-mot-mileage-estimation.md) | Conservative MOT mileage estimation | superseded | — | — |
 | [ADR-0013](0013-qdos-alpha-implementation-contract.md) | QDOS alpha implementation contract | accepted | ADR-0029 | — |
-| [ADR-0014](0014-local-to-production-deployment.md) | Local-to-production deployment only | accepted | — | — |
+| [ADR-0014](0014-local-to-production-deployment.md) | Local-to-production deployment only | accepted | ADR-0088 (the no-test-environment clause) | — |
 | [ADR-0015](superseded/0015-host-web-on-container-apps-consumption.md) | Host Pegasus Web on Azure Container Apps Consumption | superseded | ADR-0049 | — |
 | [ADR-0016](superseded/0016-standalone-desktop-email-evaluator.md) | Standalone local desktop email evaluator | superseded | — | — |
 | [ADR-0018](0018-provider-inspection-mode-database-setting.md) | Provider-determined inspection mode as a database setting | accepted | ADR-0076 (DATA-02 deferral; decision 5) | — |
@@ -52,7 +52,7 @@ Records whose status is superseded live in `superseded/` with their IDs unchange
 | [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md) | Authorization code with PKCE for external MCP connectors | accepted | ADR-0041 | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
 | [ADR-0028](superseded/0028-run-integrated-renderer-in-web-container-app.md) | Run the integrated report renderer in the Web Container App | superseded | ADR-0049, ADR-0050 | EXT-08, RPT-01, RPT-02 |
 | [ADR-0029](0029-image-initiated-case-projection.md) | Image-initiated Case projection | accepted | ADR-0045 | INT-17, INT-28 |
-| [ADR-0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | accepted | ADR-0046 (partial) | — |
+| [ADR-0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | accepted; expired at cutover, 2 November 2026 (R603) | ADR-0046 (partial) | — |
 | [ADR-0031](0031-automation-actor-contract-without-eva-export-tools.md) | Automation Actor contract without EVA export tools | accepted | ADR-0064 (professional findings) | MCP-06, AI-09 |
 | [ADR-0032](superseded/0032-near-real-time-durable-intake-triggering.md) | Near-real-time durable intake triggering | superseded | ADR-0033 | INT-33 |
 | [ADR-0033](0033-warm-unified-work-queue-for-five-second-intake.md) | Warm unified work queue for five-second intake | accepted | — | INT-33 |
@@ -110,6 +110,7 @@ Records whose status is superseded live in `superseded/` with their IDs unchange
 | [ADR-0085](0085-mail-is-instructions-or-correspondence-and-queries-are-assignable.md) | Mail is instructions or Case correspondence, and queries are assignable records | accepted | — | CASE-16, CASE-23, MAIL-02 |
 | [ADR-0086](0086-work-centre-views-are-computed-on-read.md) | Work Centre views are computed on read | accepted | — | UI-04, UI-05 |
 | [ADR-0087](0087-one-automation-mcp-server-with-per-scope-consent.md) | One Automation MCP server with per-scope consent | accepted | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06 |
+| [ADR-0088](0088-one-hosted-test-instance.md) | One hosted test instance | accepted | — | OPS-10, OPS-11, OPS-28 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

@@ -5,6 +5,136 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Test instance mailbox - 4 November 2026
+
+- The operator created the shared mailbox `pegasustest@collisionengineers.co.uk`
+  at 08:39 UTC for the test environment alone (R693); it is never approved on
+  production. At 08:50 UTC the agent, under the operator's `az` sign-in, widened
+  the management scope `CollisionSpike-Intake-Prod` with `Set-ManagementScope`
+  to add `PrimarySmtpAddress -eq 'pegasustest@collisionengineers.co.uk'` to its
+  filter; the four production addresses are unchanged.
+- `Test-ServicePrincipalAuthorization` for `5d37a155-2af8-4878-b96a-6faad5207137`
+  afterwards lists `Application Mail.Read`, `Mail.ReadWrite` and `Mail.Send`
+  `InScope True` on `CollisionSpike-Intake-Prod` for pegasustest@ and for
+  instructions@; for digital@ the three read `InScope False` on that scope
+  (its only grant is `CS-Intake-EngDigital`).
+- The instance (run `83ec377d`, serving `8cbc26146`) approved pegasustest@ in
+  Administration > Mailboxes, Incoming and Outgoing, at 08:52 UTC; the Web's
+  access check read the Inbox and Sent Items, and the Worker's next pass
+  created the instance's own change subscription at 08:55 UTC, Active,
+  expiring 10 November, no failure code. No send was made (no recipient
+  named). desk@ (Outgoing) and instructions@ were already re-approved on the
+  instance by the operator; instructions@ holds no subscription row.
+
+## First release rehearsal on a copy of production - 3 November 2026
+
+- The instance (run `83ec377d`) was stopped, checked out detached at the
+  release-readiness branch's tip `8cbc26146` (PR #1879), initialized, and
+  `Copy-ProductionDatabaseToRun.ps1 -Approve` ran under the operator's `az`
+  sign-in at 17:33 UTC with the operator's approval (#1864, R627): record
+  `state/production-copy-20261103T173340Z.json`, dacpac SHA-256
+  `b0458fc3…51e391`, migration head `20261103120000_ImpactsEnteredByHand`,
+  3 Cases, 4 mailbox rows deactivated, 4 subscription rows cleared, 0 Principal
+  API keys paused, 0 pending instruction tidies closed.
+- `Start` migrated the copy forward (head unchanged: the branch adds no
+  migration; production already holds the same head) and `Smoke` passed at
+  17:34 UTC: `Version 0.0.0-dev`, `SourceSha 8cbc26146`, administrator route
+  validated. The copied Cases are the operator's to walk on the instance.
+- What the first SqlPackage run needed: the tool's runtime 10.0.11 beside the
+  SDK, and `-I` on the run statements (fixed in `8cbc26146`); the first
+  attempt's extract and publish had succeeded before the statements failed.
+
+## Branch and tag protection - 3 November 2026
+
+- Three rulesets created from the runbook's
+  [specification](runbook.md#branch-and-tag-protection) (R691, PR #1879) and
+  read back `active` at 17:15 UTC: `dev` (id 26469537, branch: a pull request
+  and the eleven `repository-check` jobs; no deletion or force push), `main`
+  (id 26469538, branch: update, deletion and force push only by the bypass
+  actor) and `release tags` (id 26469540, tag `v*`: creation, update, deletion
+  and force push only by the bypass actor). The one bypass actor is the
+  repository-admin role, the operator's account the release pushes from.
+  `gh api repos/collisionengineers/pegasus/branches/{dev,main}` read
+  `protected: true`.
+
+## Test instance production extracts removed - 4 November 2026
+
+- The two SqlPackage extracts of production that the 3 November copy left
+  under the instance's run `state/` (`pegasus-production-20261103T172851Z`
+  from the first, failed attempt and `pegasus-production-20261103T173340Z`
+  from the copy the instance runs on) were removed from the host on
+  4 November 2026 (R696); the copy record keeps the second's SHA-256. The
+  copy script now removes its extract itself once published.
+
+## Test instance Graph parity first run - 3 November 2026
+
+- The instance ran `5627a801f` (PR #1865 head; CI run 41624879453 green in
+  every lane) with `Features__LiveGraphMail` and `Features__PrincipalApi` on
+  from 11:17 UTC; Smoke passed. The first start, on `65806bf36`, failed at
+  host build: the Worker's Graph mail side composed the Web's staff send,
+  which needs data protection no Worker has; `5627a801f` composes the
+  staff-send store alone, as production's Worker needs.
+- desk@, engineers@, info@ and instructions@ were enabled on the instance,
+  Incoming and Outgoing. The Worker's subscription pass created four change
+  subscriptions, one per mailbox, under the Funnel URL: all Active, rows
+  timestamped 11:20 UTC, expiring 9 November, no maintenance failure. By
+  11:45 UTC the instance held 16 retained messages, 7 receipts and 2 Cases
+  from the shared incoming mail. No send was made (no recipient named).
+- One SQL deadlock at 11:40 UTC between two instruction analyses inserting
+  `RetainedInstructionAnalyses`; the victim was retried and one analysis stands.
+
+## Test instance Graph identity admitted - 3 November 2026
+
+- The hosted test instance's Graph identity is the tenant's existing
+  `CollisionSpike Graph Intake` app registration, client id
+  `5d37a155-2af8-4878-b96a-6faad5207137` (ADR-0088 as amended, R675, R677).
+  Its Exchange RBAC grant on 3 November 2026 was `Application Mail.Read` and
+  `Application Mail.ReadWrite` on scope `CollisionSpike-Intake-Prod`; the
+  operator, as Microsoft 365 administrator, added `Application Mail.Send` on
+  the same scope at about 10:55 UTC. No new registration or scope.
+- `Test-ServicePrincipalAuthorization` afterwards lists all three roles
+  `InScope True` on `CollisionSpike-Intake-Prod` for both
+  `instructions@collisionengineers.co.uk` and `desk@collisionengineers.co.uk`.
+  The scope's filter is exactly info@, engineers@, desk@ and instructions@;
+  the registration's other scope, `CS-Intake-EngDigital`, is engineers@ and
+  digital@. A second secret, `pegasus-test-instance (2026-11-03)`, expiring
+  3 November 2027, was added to the registration for the instance; the
+  orchestrator's secret is untouched.
+- Funnel on at about 11:10 UTC (R676): only
+  `https://cemattypc-1.tail432b53.ts.net:8443/hooks/microsoft-graph/mail` is
+  public, proxied to the run's Web; the validation handshake returned the
+  token with 200 and a malformed POST 202. Port 443 stays tailnet-only.
+
+## Hosted test instance first run - 2 November 2026
+
+- The one hosted test instance (ADR-0088) first ran on the operator's WSL
+  machine `cemattypc-1` from PR #1865's head `bdd2f4770`, run id
+  `83ec377dd6f249d59c2e8ae8e96459c3`, Web on port 7139. Public origin
+  `https://cemattypc-1.tail432b53.ts.net` through `tailscale serve` inside
+  WSL (tailnet only; the operator's user set as the Tailscale operator); the
+  `/Cases` redirect lands on the `ts.net` host. Smoke passed.
+- Opt-ins on: vehicleLookup, boxCustody (local-test root `425169015650`),
+  glass, passwordSignIn. Off: graphMail, automationMcp, principalApi. No
+  read-only Graph identity exists yet, so the run uses the folder mailbox
+  adapters and reads no production mailbox.
+- The October run `9d112a34...` was Reset first: its database held the
+  pre-Baseline migration chain and could not migrate forward (R484).
+
+## Cutover - 2 November 2026
+
+- The operator ruled 2 November 2026 the cutover date (R603): production
+  stops being a disposable test estate and carries live Cases from the wipe
+  the operator ran that day. No figures for that wipe were supplied to the
+  repository.
+- Mailbox state as the operator stated it: desk@, info@ and engineers@ are
+  disabled (R590; info@ confirmed disabled on 2 November), and instructions@
+  with the staff-forward route is the intake (R586).
+- Schema policy from this date is the contained destructive route with a
+  recorded restore point and an approved window (R605); ADR-0030 has expired.
+- The intake-wipe tooling stays as it is, approval only (R604); a wipe now
+  destroys real Cases.
+- Sequence seeding from the old system (#1601) stays parked (R606).
+
 ## Intake data wipe - 30 October 2026
 
 - Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
@@ -535,7 +665,7 @@ boundary, confined to an approved disposable test subtree. Folder
 run writes under when `Features:LiveBoxCustody` is on (approved 2026-10-07);
 its holding folder is created by the operator beneath it. None of these
 folders is standing write authority. The exact-target approval and invocation checks are
-owned by the [runbook's live-operation approval matrix](runbook.md#operational-authority).
+owned by the [runbook's operational authority](runbook.md#operational-authority).
 The activated production caller is confined to case-scoped objects under the
 configured root and has no move, copy, or share operation, and no delete
 except the abort of an upload session that was not committed (operator ruling
@@ -616,9 +746,8 @@ acceptance or disaster-recovery exercise is claimed by this documentation change
 Historical evidence remains historical; an unresolved incident stays explicit
 until an observation establishes its disposition.
 
-## Current development estate choices
+## Current estate choices
 
 The current Web warm settings are the operator's chosen configuration, not an
-architectural minimum. Current data is disposable test data and need not be
-preserved during an authorized reset. Neither fact supplies permission to
-change settings or clear an estate outside the current task's authorization.
+architectural minimum. That supplies no permission to change settings or
+clear an estate outside the current task's authorization.

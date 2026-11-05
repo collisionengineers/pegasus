@@ -74,7 +74,7 @@ version and a configuration read-back, not a release. The selected repository
 
 ## Local opt-in features
 
-The `DevelopmentOffline` profile accepts four opt-ins that a hosted local test
+The `DevelopmentOffline` profile accepts five opt-ins that a hosted local test
 instance uses to reach the vendors it is allowed to. Each is read only in that
 profile; a Production host carrying one refuses to start naming the key, as it
 does for `Features:LocalIntake`.
@@ -84,7 +84,8 @@ does for `Features:LocalIntake`.
 | `Features:LiveVehicleLookup` | The Worker composes the live DVLA/DVSA adapter from `Dvla:*` and `Dvsa:*` (parsed at start) instead of the replay folder; the Web records requests as `production_live`. |
 | `Features:LiveBoxCustody` | Both hosts compose the production storage shape (blob-backed intake artifacts, cached document reads, Box case custody) over the run's Azurite `transient-intake` container, with the fenced local-test Box root `425169015650`. It cannot be combined with `Features:LocalDocumentCustody`. |
 | `Features:LiveGlass` | The Web composes the Glass's gateway from `Glass:*` at start. Without it, or in any host without Glass's, the Case page offers no Glass's control and refuses the command. |
-| `Features:PasswordSignIn` | The automatic offline sign-in stops answering; the Identity cookie and `/Account/SignIn` are used, and `--initialize-development` sets `DevelopmentOffline:AdministratorPassword` on the local Administrator each time it runs. |
+| `Features:LiveGraphMail` | Both hosts compose Production's Graph mail side (the mail client, the Inbox and Sent sources and their pollers, staff and report send and the answered-instruction move in the Worker; the mailbox resolver, access check, search and staff send in the Web) over a `ClientSecretCredential` built from `Graph:TenantId`, `Graph:ClientId` and `Graph:ClientSecret`, parsed at start. The Worker maintains change subscriptions only when `Graph:ChangeNotificationUrl` (the Funnelled webhook path on the instance's public host) and `Graph:ChangeNotificationClientState` are both set, checked at start: one without the other fails the start naming the missing key, and neither leaves the five-minute recovery poll to carry mail (ADR-0088 as amended, R675 to R677). |
+| `Features:PasswordSignIn` | The automatic offline sign-in stops answering; the Identity cookie and `/Account/SignIn` are used, and `--initialize-development` sets `DevelopmentOffline:AdministratorPassword` on the local Administrator each time it runs. The lifecycle requires it for a run with a public origin. |
 
 `Features:AutomationMcp` with `AutomationMcp:UseDevelopmentKeys` and
 `Features:PrincipalApi` already compose offline and need no further switch.

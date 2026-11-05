@@ -61,13 +61,13 @@ composed-or-absent pattern of `IRetainedMailFolderMover`: absent, the
 surfaces carry no send, flag or delete control at all. Local alpha and every
 test profile use the unavailable implementation and never mutate a mailbox.
 Enabling it in production is a separately approved live write under the
-[runbook approval matrix](../runbook.md#operational-authority).
+[runbook's operational authority](../runbook.md#operational-authority).
 
 ## Consequences
 
 - The application registration needs Graph `Mail.Send` and `Mail.ReadWrite`
   for the approved mailboxes, granted as a separately approved tenant change
-  under the [runbook approval matrix](../runbook.md#operational-authority)
+  under the [runbook's operational authority](../runbook.md#operational-authority)
   and kept apart from the read/intake scopes.
 - The Sent-evidence poll (`SentEvidencePollFunction`, ADR-0024 §4) is part of
   the activation set: a send whose Sent item is never polled has no evidence,

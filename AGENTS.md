@@ -6,9 +6,11 @@ and [CONTEXT.md](CONTEXT.md) for reserved business terminology.
 
 ## Project principles
 
-- Treat the project as unreleased development. Replace obsolete behaviour and
-  update affected consumers; do not implement compatibility for features being
-  removed, or legacy fallbacks.
+- Production has carried live Cases since the cutover of 2 November 2026
+  (R603). Replace obsolete behaviour and update affected consumers; do not
+  implement compatibility for features being removed, or legacy fallbacks. A
+  change that removes or rewrites stored data names its migration class and
+  recovery boundary ([engineering](docs/engineering.md#migrations)).
 - Core owns business policy and ports. Infrastructure implements those ports;
   Web and Worker compose both. Imported source, skills and models own no
   policy.
@@ -17,8 +19,8 @@ and [CONTEXT.md](CONTEXT.md) for reserved business terminology.
   feature flag, skill, cache, edit-authority concept or plan names the
   existing one it replaces, or shows that none exists.
 - Release as often as verifying a change needs, and keep each release cheap:
-  the record in `docs/operations.md` is at most 15 lines, and anything still
-  owed after a release becomes a GitHub issue.
+  the record in `docs/operations.md` ("Release <version>") is at most 15
+  lines, and anything still owed after a release becomes a GitHub issue.
 - Decide once, in the repository. The operator's rulings are the decision
   record and live in [docs/rulings.md](docs/rulings.md); a behaviour rule goes
   into the FRD clause it changes, dated and citing its ruling. An ADR is
@@ -61,7 +63,7 @@ and the [verification procedure](docs/runbook.md).
   when source structure changes.
 - `.agents/skills/`: the Pegasus procedures (`pegasus-release`,
   `pegasus-wipe-intake-data`, `pegasus-corpus-holding`,
-  `pegasus-ui-guardrails`, `razor-pages-ui-design`,
+  `pegasus-test-instance`, `pegasus-ui-guardrails`, `razor-pages-ui-design`,
   `razor-pages-ui-implementation`, `razor-pages-ui-review`,
   `razor-html-mockup-creation`, `razor-html-mockup-conversion`) and the
   issue workflow skills (`combine-prs`, `investigate-issue`, `record-issue`,
@@ -95,15 +97,22 @@ and the [verification procedure](docs/runbook.md).
 - Read-only cloud inventory is permitted. External writes require authorization
   covering the actual operation and targets; tool availability is not a grant.
 - Local work does not mutate Outlook or Box except an explicitly approved
-  test mailbox or disposable Box subtree.
+  test mailbox or disposable Box subtree. The hosted test instance has full
+  Graph parity on its own mailbox, `pegasustest@collisionengineers.co.uk`,
+  and on a production mailbox only while the operator enables it there:
+  read, send, the answered-instruction move and change subscriptions
+  (ADR-0088 as amended, R675, R677, R693). The instance runs on one machine
+  and its procedure stops on any other (R694); its data is not disposable,
+  so a Reset of its run needs the operator's word (R696).
 - Use PowerShell 7 on Windows or Linux, one platform per evidence run. Paths and
   commands are repository-relative. Follow the existing [release skill](.agents/skills/pegasus-release/SKILL.md)
   for the authorized workstation and platform-matching artifacts; one approval
   message grants a release's promotion push and Azure writes (R567).
 - Plan destructive migrations explicitly: identify the affected capability and
   forward-only recovery boundary, then require approved old-Worker `Stopped` and
-  old-Web `Stopped` and unserved read-back before SQL. After actual release,
-  approve a concrete window outside typical usage. The release is incomplete
+  old-Web `Stopped` and unserved read-back before SQL. A non-additive
+  migration runs only in an operator-approved window outside typical usage,
+  with the restore point recorded before SQL (R605). The release is incomplete
   until approved new Web/Worker bytes are explicitly active, healthy and smoked;
   never revive old bytes after destructive SQL begins.
 - The release containment sequence explicitly stops and verifies
@@ -142,8 +151,20 @@ CI checks that relative links resolve. The current operator task owns scope and 
 for delivery evidence, and name one verifier for heavy checks on this host.
 Historical tickets and retired plans are provenance only.
 
-Task work uses a worktree at `../pegasus-worktrees/<slug>` on branch
-`task/<slug>`, created from `origin/dev` with `--no-track`. A release build
-uses a detached worktree at `../pegasus-worktrees/release-<sha8>`.
+`main` is the live deployment: it moves only when a release's full smoke has
+passed, or by the promotion-only route for a range that deploys nothing
+(R681, R682). A release is a Semantic Version from 1.0.0, named in the
+approval and tagged `v<version>` on the released SHA (R686 to R688); a fix
+ships as a PATCH of `dev`'s tip, and there is no hotfix branch (R689). `dev`
+is what the hosted test instance runs by default; the operator may point it
+at a branch or pull request, and it is back on `dev`'s tip before a release
+(R681, R684, R695); a change is vetted there and promoted to `main`. Rulesets make `dev` take only green pull requests and
+`main` only the release's push; their one bypass is the operator's account,
+so the rule below that agents never push either branch is procedural (R691).
+Task work uses a worktree at
+`../pegasus-worktrees/<slug>` on branch `task/<slug>`, created from
+`origin/dev` with `--no-track`; a change that depends on an open PR may branch
+from that PR's branch and target it (R685). A release build uses a detached
+worktree at `../pegasus-worktrees/release-<sha8>`.
 `.agents/skills/resolve-issue/scripts/cleanup_worktree.py` removes a task
 worktree once the PR head equals the worktree HEAD and the tree is clean.

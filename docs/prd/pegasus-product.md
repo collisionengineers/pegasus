@@ -120,7 +120,9 @@ Case that later matches a Case still merges into it, per the paragraph above.
 
 Automated mailbox ingestion and processing operate continuously. Staff use is
 primarily during business hours; the application remains available outside them
-except planned maintenance. This does not establish an additional uptime SLA.
+except planned maintenance, which is a release's restart or a destructive
+route's approved window (R605, R690; 3 November 2026). This does not establish
+an additional uptime SLA.
 
 Use the lowest practical Azure tiers that support required development and
 integration testing. There is no fixed monthly budget or absolute monthly
@@ -166,8 +168,10 @@ spreadsheet-driven customer and garage-procedure automation remain deferred.
 - BND-06: Persistent external case/customer portal.
 - BND-07: Independent Engineer accounts.
 - BND-08: Solicitor, insurer, repairer, or vehicle-owner accounts.
-- BND-09: Separate QA/test environment.
-- BND-10: Separate user-acceptance environment.
+- BND-09: Separate Azure QA/test environment (the one hosted test instance,
+  OPS-28, is not an Azure environment; ADR-0088, R628).
+- BND-10: Separate Azure user-acceptance environment (UAT rounds run on the
+  hosted test instance; ADR-0088, R628).
 - BND-11: Training/demo environment.
 
 

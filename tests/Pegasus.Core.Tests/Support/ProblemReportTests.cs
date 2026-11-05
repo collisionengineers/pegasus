@@ -17,7 +17,7 @@ public sealed class ProblemReportTests
         ActionActor actor, string? description = "The Save button did nothing.", string? operationKey = null) => new(
         actor,
         description,
-        "0.1.0-alpha.1",
+        "1.0.0",
         new string('c', 40),
         "/Cases/1f2e?section=estimate",
         "GET",

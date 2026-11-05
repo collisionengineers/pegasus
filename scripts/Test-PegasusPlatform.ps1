@@ -45,6 +45,24 @@ finally {
     Remove-Item -LiteralPath $identityProbe -Recurse -Force
 }
 
+# The hosted test instance's host (ADR-0088, R694): the origin is fixed, and
+# only the Tailscale node that owns its name is the host.
+if ((Get-PegasusTestInstanceOrigin) -cne 'https://cemattypc-1.tail432b53.ts.net/') {
+    throw 'The hosted test instance origin must be the one ADR-0088 records, with one trailing slash.'
+}
+foreach ($accepted in @('https://cemattypc-1.tail432b53.ts.net', 'https://cemattypc-1.tail432b53.ts.net/', 'HTTPS://CEMATTYPC-1.tail432b53.ts.net/')) {
+    if (-not (Test-PegasusTestInstanceOrigin -Origin $accepted)) { throw "The instance origin '$accepted' must be accepted." }
+}
+foreach ($refused in @('', 'https://other.tail432b53.ts.net/', 'https://cemattypc-1.tail432b53.ts.net:8443/', 'http://cemattypc-1.tail432b53.ts.net/', 'https://localhost:7139/')) {
+    if (Test-PegasusTestInstanceOrigin -Origin $refused) { throw "The origin '$refused' is not the instance's and must be refused." }
+}
+foreach ($owner in @('cemattypc-1.tail432b53.ts.net.', 'cemattypc-1.tail432b53.ts.net', 'CEMATTYPC-1.tail432b53.ts.net.')) {
+    if (-not (Test-PegasusTestInstanceHost -NodeName $owner)) { throw "The Tailscale node '$owner' owns the instance origin and must be the host." }
+}
+foreach ($other in @('', 'cemattypc.tail432b53.ts.net.', 'cemattypc-1.other.ts.net.', 'cemattypc-1')) {
+    if (Test-PegasusTestInstanceHost -NodeName $other) { throw "The Tailscale node '$other' does not own the instance origin and must not be the host." }
+}
+
 $platformResolver = ${function:Get-PegasusPlatform}
 try {
     foreach ($hostKind in @('Windows', 'Linux')) {
@@ -263,38 +281,41 @@ try {
         'Features__LiveVehicleLookup=true',
         'Features__LiveBoxCustody=TRUE',
         'Features__LiveGlass=false',
+        'Features__LiveGraphMail=true',
         'Box__ConfigJson={"boxAppSettings":{"clientID":"a=b"},"enterpriseID":"1"}',
         'Box__RootFolderId=425169015650',
         'Dvla__ApiKey=key=with=equals',
         'Glass__RepairProfileId=4063',
+        'Graph__TenantId=858cf5b3-aa0a-47a6-9b40-4851fd0afa94',
         'DevelopmentOffline__AdministratorPassword=p#ss=word',
         'GitHub__ProblemReports__Token=')
     $settings = Read-PegasusLocalSettingsFile -Path $good
-    if ($settings.Count -ne 9) { throw "Expected 9 parsed settings; got $($settings.Count)." }
+    if ($settings.Count -ne 11) { throw "Expected 11 parsed settings; got $($settings.Count)." }
     if ($settings['Box__ConfigJson'] -cne '{"boxAppSettings":{"clientID":"a=b"},"enterpriseID":"1"}' -or
         $settings['Dvla__ApiKey'] -cne 'key=with=equals') {
         throw 'The first = must split a settings line and the rest is the verbatim value.'
     }
     $flags = Get-PegasusLiveIntegrationFlags -Settings $settings
-    if (-not $flags.vehicleLookup -or -not $flags.boxCustody -or $flags.glass -or $flags.passwordSignIn -or
+    if (-not $flags.vehicleLookup -or -not $flags.boxCustody -or -not $flags.graphMail -or $flags.glass -or $flags.passwordSignIn -or
         $flags.automationMcp -or $flags.principalApi -or $flags.problemReports) {
         throw 'Flag derivation does not follow the Features__ names (case-insensitive true, token presence).'
     }
-    if ((Format-PegasusLiveIntegrationFlags -Flags $flags) -cne 'vehicleLookup,boxCustody') {
+    if ((Format-PegasusLiveIntegrationFlags -Flags $flags) -cne 'vehicleLookup,boxCustody,graphMail') {
         throw "Unexpected flag summary '$(Format-PegasusLiveIntegrationFlags -Flags $flags)'."
     }
-    if ((Format-PegasusLiveIntegrationFlags -Flags ([pscustomobject]$flags)) -cne 'vehicleLookup,boxCustody') {
+    if ((Format-PegasusLiveIntegrationFlags -Flags ([pscustomobject]$flags)) -cne 'vehicleLookup,boxCustody,graphMail') {
         throw 'The flag summary must read a manifest-shaped (PSCustomObject) flag set too.'
     }
     $web = Split-PegasusLocalSettings -Settings $settings -HostKind Web
     $worker = Split-PegasusLocalSettings -Settings $settings -HostKind Worker
-    if ($web.Contains('Dvla__ApiKey') -or -not $web.Contains('Glass__RepairProfileId') -or
+    if ($web.Contains('Dvla__ApiKey') -or -not $web.Contains('Glass__RepairProfileId') -or -not $web.Contains('Graph__TenantId') -or
         -not $web.Contains('DevelopmentOffline__AdministratorPassword') -or -not $web.Contains('Box__ConfigJson')) {
-        throw 'The Web split must carry Features, Box, Glass, GitHub, DevelopmentOffline and AutomationMcp keys only.'
+        throw 'The Web split must carry Features, Box, Glass, Graph, GitHub, DevelopmentOffline and AutomationMcp keys only.'
     }
     if ($worker.Contains('Glass__RepairProfileId') -or $worker.Contains('DevelopmentOffline__AdministratorPassword') -or
-        -not $worker.Contains('Dvla__ApiKey') -or -not $worker.Contains('Box__ConfigJson') -or -not $worker.Contains('Features__LiveVehicleLookup')) {
-        throw 'The Worker split must carry Features, Box, Dvla and Dvsa keys only.'
+        -not $worker.Contains('Dvla__ApiKey') -or -not $worker.Contains('Box__ConfigJson') -or -not $worker.Contains('Features__LiveVehicleLookup') -or
+        -not $worker.Contains('Graph__TenantId')) {
+        throw 'The Worker split must carry Features, Box, Dvla, Dvsa and Graph keys only.'
     }
 
     Assert-SettingsRejected -Case 'unknown prefix' -ExpectedError 'not a recognised Web or Worker setting prefix' -Path (
@@ -303,6 +324,8 @@ try {
         Write-SettingsFixture -Name 'reserved.env' -Lines @('Glass__CallbackBaseUri=https://example.test/'))
     Assert-SettingsRejected -Case 'reserved local custody key' -ExpectedError 'owned by the run lifecycle' -Path (
         Write-SettingsFixture -Name 'reserved2.env' -Lines @('Features__LocalDocumentCustody=true'))
+    Assert-SettingsRejected -Case 'reserved public origin' -ExpectedError 'owned by the run lifecycle' -Path (
+        Write-SettingsFixture -Name 'reserved3.env' -Lines @('AutomationMcp__PublicOrigin=https://example.test/'))
     Assert-SettingsRejected -Case 'duplicate key' -ExpectedError 'set more than once' -Path (
         Write-SettingsFixture -Name 'dup.env' -Lines @('Features__LiveGlass=true', 'Features__LiveGlass=false'))
     Assert-SettingsRejected -Case 'not KEY=VALUE' -ExpectedError 'is not KEY=VALUE' -Path (

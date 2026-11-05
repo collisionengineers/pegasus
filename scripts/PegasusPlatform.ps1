@@ -1070,25 +1070,130 @@ function Get-PegasusDatabaseConnectionString {
 # ---------------------------------------------------------------------------
 #
 # An operator-supplied, ignored KEY=VALUE file that opts a DevelopmentOffline
-# run into real vendor integrations (live DVLA/DVSA, Box custody, Glass's) and
-# password sign-in. Its values reach only the Web and Worker process
-# environments; the run manifest records the derived boolean flags and never
-# a value. The lifecycle owns the keys named in Get-PegasusReservedLocalSettingKeys.
+# run into real vendor integrations (live DVLA/DVSA, Box custody, Glass's,
+# Graph mail with parity) and password sign-in. Its values reach only the Web and
+# Worker process environments; the run manifest records the derived boolean
+# flags and never a value. The lifecycle owns the keys named in
+# Get-PegasusReservedLocalSettingKeys.
 
 $script:PegasusLocalSettingsFileName = 'local.settings.env'
 
 $script:PegasusLocalSettingsHostPrefixes = @{
-    Web = @('Features__', 'Box__', 'Glass__', 'GitHub__', 'DevelopmentOffline__', 'AutomationMcp__')
-    Worker = @('Features__', 'Box__', 'Dvla__', 'Dvsa__')
+    Web = @('Features__', 'Box__', 'Glass__', 'Graph__', 'GitHub__', 'DevelopmentOffline__', 'AutomationMcp__')
+    Worker = @('Features__', 'Box__', 'Dvla__', 'Dvsa__', 'Graph__')
 }
 
 $script:PegasusLiveIntegrationFlagKeys = [ordered]@{
     vehicleLookup = 'Features__LiveVehicleLookup'
     boxCustody = 'Features__LiveBoxCustody'
     glass = 'Features__LiveGlass'
+    graphMail = 'Features__LiveGraphMail'
     passwordSignIn = 'Features__PasswordSignIn'
     automationMcp = 'Features__AutomationMcp'
     principalApi = 'Features__PrincipalApi'
+}
+
+# ---------------------------------------------------------------------------
+# The hosted test instance's host
+# ---------------------------------------------------------------------------
+#
+# ADR-0088 has one hosted test instance, on one operator-owned Linux/WSL
+# machine, reached at one Tailscale origin. The origin names the machine: only
+# the Tailscale node that owns the name can serve it, so the lifecycle and the
+# production copy accept that origin alone and refuse to run the instance on
+# any other machine (R694). Moving the instance is an operator decision that
+# changes this constant, the Tailscale name and the operations record together.
+
+$script:PegasusTestInstanceOrigin = 'https://cemattypc-1.tail432b53.ts.net/'
+
+function Get-PegasusTestInstanceOrigin {
+    <#
+        .SYNOPSIS
+        The one hosted test instance's public origin, with one trailing slash.
+    #>
+    return $script:PegasusTestInstanceOrigin
+}
+
+function Test-PegasusTestInstanceOrigin {
+    <#
+        .SYNOPSIS
+        Whether an origin is the hosted test instance's, ignoring case and the
+        trailing slash.
+    #>
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Origin)
+
+    if ([string]::IsNullOrWhiteSpace($Origin)) {
+        return $false
+    }
+    return ($Origin.TrimEnd('/') + '/').Equals($script:PegasusTestInstanceOrigin, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Test-PegasusTestInstanceHost {
+    <#
+        .SYNOPSIS
+        Whether a Tailscale node name (tailscale status --json, Self.DNSName)
+        owns the hosted test instance's origin. Pure, so the test exercises it.
+    #>
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$NodeName)
+
+    if ([string]::IsNullOrWhiteSpace($NodeName)) {
+        return $false
+    }
+    $expected = ([uri]$script:PegasusTestInstanceOrigin).Host
+    return $NodeName.TrimEnd('.').Equals($expected, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Get-PegasusTailscaleNodeName {
+    <#
+        .SYNOPSIS
+        This machine's Tailscale node name, or $null when tailscale is absent,
+        not running or not signed in.
+    #>
+    $tailscale = Get-Command 'tailscale' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $tailscale) {
+        return $null
+    }
+    $json = (& $tailscale.Source status --json 2>$null) -join "`n"
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($json)) {
+        return $null
+    }
+    try {
+        $status = $json | ConvertFrom-Json -Depth 10
+    }
+    catch {
+        return $null
+    }
+    $self = $status.PSObject.Properties['Self']
+    if ($null -eq $self -or $null -eq $self.Value) {
+        return $null
+    }
+    $name = $self.Value.PSObject.Properties['DNSName']
+    if ($null -eq $name -or [string]::IsNullOrWhiteSpace([string]$name.Value)) {
+        return $null
+    }
+    return ([string]$name.Value).TrimEnd('.')
+}
+
+function Assert-PegasusTestInstanceHost {
+    <#
+        .SYNOPSIS
+        Throws unless this machine is the hosted test instance's host: Linux,
+        with the Tailscale node that owns the instance's origin (R694). The
+        caller names what it refused to do.
+    #>
+    param([Parameter(Mandatory)][string]$Operation)
+
+    $origin = $script:PegasusTestInstanceOrigin
+    if (-not (Get-PegasusPlatform).IsLinux) {
+        throw "$Operation runs only on the hosted test instance's Linux/WSL host, the Tailscale node that owns $origin (ADR-0088, R694). This machine is $((Get-PegasusPlatform).Kind)."
+    }
+    $nodeName = Get-PegasusTailscaleNodeName
+    if ($null -eq $nodeName) {
+        throw "$Operation runs only on the hosted test instance's host, the Tailscale node that owns $origin (ADR-0088, R694). This machine's Tailscale node name could not be read (tailscale status --json)."
+    }
+    if (-not (Test-PegasusTestInstanceHost -NodeName $nodeName)) {
+        throw "$Operation runs only on the hosted test instance's host, the Tailscale node that owns $origin (ADR-0088, R694). This machine is the Tailscale node $nodeName; stop here."
+    }
 }
 
 function Get-PegasusLocalSettingsPath {
@@ -1120,6 +1225,7 @@ function Get-PegasusReservedLocalSettingKeys {
         'Features__LocalIntake',
         'Features__LocalDocumentCustody',
         'Glass__CallbackBaseUri',
+        'AutomationMcp__PublicOrigin',
         'PendingWorkRecoverySchedule',
         'IntakeStagedArtifactReconciliationSchedule',
         'SentEvidencePollSchedule'

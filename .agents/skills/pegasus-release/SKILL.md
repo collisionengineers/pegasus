@@ -41,6 +41,7 @@ writing a migration, operations owns the dated record.
 | Key Vault | `pegasusprodkv252ow37g` |
 | SQL | `pegasus-prod-sql-252ow37gij` / `pegasus` |
 | App Insights | `pegasus-prod-appi-252ow37gij` |
+| Test instance | `https://cemattypc-1.tail432b53.ts.net/` (ADR-0088; serves `dev` by default, or a branch the operator named, R695; read only here, and it must be serving the candidate, R684) |
 
 The script carries these names; nothing is passed in. `PEGASUS_WEB_LOCATION`
 is set only when an approval names a Web region other than the platform region.
@@ -54,22 +55,42 @@ is set only when an approval names a Web region other than the platform region.
 - **Normal.** A deployable change whose migration identity equals the live
   head. Packages deploy; provision runs only when the preflight says it is
   needed (an `infra/` or `azure.yaml` change, or an azd environment that
-  differs from the one the previous release retained).
+  differs from the one the previous release retained). It runs when its
+  candidate has passed on the test instance, at any hour: the restart is the
+  outage, and there is no window and no staff notice (R690).
 - **Normal after an additive migration.** The migration runs first, with the
   runtime grants and the head check, and the packages deploy as above.
 - **Destructive.** An explicitly approved short outage (ADR-0046): the
   classifier (R232), the Worker and the Web App are stopped and read back
-  before SQL; after SQL, recovery is forward only. The approval names the old
-  serving Web source SHA and the window; after real release the window is
-  outside typical usage, and this procedure invents no standing hours.
+  before SQL; the script records the database's `earliestRestoreDate` and a
+  UTC restore point before SQL; after SQL, recovery is forward only. The
+  approval names the old serving Web source SHA and the window, which is
+  outside typical usage (R605); this procedure invents no standing hours.
 
 The preflight prints the live head, the candidate's identity and the migration
-sources the range adds. The agent reads those sources and classifies: a change
-that only adds (a table, a column with a default, an index) is additive; one
-that drops, renames, narrows or rewrites is destructive, and the agent names
-each non-additive operation, the capability it affects and the forward-only
-recovery boundary in the approval request. Uncertainty is resolved before
-approval, never during the route.
+sources the range adds. The agent reads those sources and classifies them by
+the rule in [engineering](../../../docs/engineering.md#migrations) (R605):
+additive runs on the normal route; non-additive runs only on the destructive
+route, and the agent names each non-additive operation, the capability it
+affects and the forward-only recovery boundary in the approval request.
+Uncertainty is resolved before approval, never during the route.
+
+## Version
+
+Releases are Semantic Versions from 1.0.0 (R686): `MAJOR.MINOR.PATCH` with no
+suffix, because the running build reports `<version>+<sha>` and the `+`
+separates the two. The live version is the highest `v*` tag on `main`; the
+released SHA gets its annotated tag `v<version>` in the promotion push after
+the smoke (R688). Nothing in source carries a release version:
+`Directory.Build.props` stamps `0.0.0-dev` into every build that is not a
+release, the test instance included. The read-only run proposes the next
+version (R687): PATCH when every pull request in the range closes only
+`type:bug` issues, MAJOR when the route is destructive, MINOR otherwise. The
+approval names the version it grants; the script refuses one that is not one
+step above the live version, or not the one the manifest was built with. A
+fix is a PATCH of `dev`'s tip; there is no hotfix branch from `main` (R689).
+The version replaces the release counter: the record is "Release 1.0.0" and
+the retained folder `release-<version>-<sha8>`.
 
 ## 1. The read-only run
 
@@ -77,25 +98,35 @@ approval, never during the route.
 pwsh ./scripts/Invoke-Release.ps1
 ```
 
-It fetches, checks `main` is an ancestor of `dev`, lists the range and the
-pull requests in it with their checks, reads the deployed state (Web state and
-stack, `/diagnostics/version`, Worker and classifier states, the schedule and
-Disabled settings), reads the live migration head, prints the route and
-whether provision is needed, then builds the artifacts in a detached worktree
-at `../pegasus-worktrees/release-<sha8>` and validates them. It writes
-nothing to GitHub or Azure. `-PreflightOnly` stops before the build.
+It fetches, checks `main` is an ancestor of `dev`, lists the range, the
+candidate's push-to-`dev` CI run (R683) and the pull requests in it with their
+checks, reads the deployed state (Web state and stack, `/diagnostics/version`,
+Worker and classifier states, the schedule and Disabled settings), reads the
+live migration head, prints the route and whether provision is needed, reads
+the test instance's `/diagnostics/version` over the tailnet and refuses a
+deployable candidate the instance is not serving (R684), prints the live
+version and the proposed next one (R687), then builds the artifacts at that
+version in a detached worktree at `../pegasus-worktrees/release-<sha8>` and
+validates them. It writes nothing to GitHub or Azure. `-PreflightOnly` stops
+before the build; `-Version <v>` builds another version than the proposal,
+the MAJOR when the agent classifies the range's migration as non-additive.
 
-Read the report. A pull request that is not green is either waived by number
-in the approval or the candidate waits. A head that differs from the candidate
-identity while the range adds no migration is a question, not a route.
+Read the report. A candidate whose push-to-`dev` run or any pull request in
+the range is not green waits; nothing is waived, and `-Execute` refuses it
+(R691). The `--- Protection ---` section reads the repository's rulesets back
+([runbook](../../../docs/runbook.md#branch-and-tag-protection)); `dev` and
+`main` each carry an active one, and a missing one is a question before the
+approval. A head that differs from the candidate identity while the range adds
+no migration is a question, not a route.
 
 ## 2. The one approval
 
 One message from the operator names the release SHA, the manifest SHA-256,
-the route, the targets, whether provision runs and, for a destructive route,
-the old Web source SHA and the window (operator, 30 October 2026). That
-message grants the promotion push and the Azure writes for exactly those
-values; nothing else is a grant. The script refuses if `origin/dev` moved
+the version (R687), the route, the targets, whether provision runs and, for a
+destructive route, the old Web source SHA and the window (operator, 30
+October 2026). That message grants the Azure writes for exactly those values
+and the promotion and tag of `main` that follow the smoke (R682, R688);
+nothing else is a grant. The script refuses if `origin/dev` moved
 after the message, and a moved head needs a fresh message. The agent never
 retries a refused promotion with a rebase, a reset, an unleased push or a
 different SHA.
@@ -103,16 +134,21 @@ different SHA.
 ## 3. The approved run
 
 ```powershell
-pwsh ./scripts/Invoke-Release.ps1 -Execute -ReleaseNumber <n> -Route Normal `
+pwsh ./scripts/Invoke-Release.ps1 -Execute -Version <v> -Route Normal `
   -ApprovedReleaseSha <sha> -ApprovedManifestSha256 <hash> [-Provision]
-pwsh ./scripts/Invoke-Release.ps1 -Execute -ReleaseNumber <n> -Route Destructive `
+pwsh ./scripts/Invoke-Release.ps1 -Execute -Version <v> -Route Destructive `
   -ApprovedReleaseSha <sha> -ApprovedManifestSha256 <hash> -ApprovedOldWebSourceSha <sha>
 pwsh ./scripts/Invoke-Release.ps1 -PromoteOnly -ApprovedReleaseSha <sha>
 ```
 
-The script re-validates the worktree and the manifest against the approved
-values, promotes with one leased atomic push and reads both refs back, then
-runs the route to a passing full smoke.
+The script checks the version is one step above the live tag and the one
+the manifest was built with, re-validates the worktree and the manifest
+against the approved values, reads `dev` and the test instance again, runs
+the route to a passing full smoke, then promotes `main` to the released SHA
+and tags it `v<version>` in one leased push and reads both back (R682,
+R688): `main` records what is live, so a failed release leaves it at the SHA
+still serving, with nothing in git to reset. `-PromoteOnly` keeps the atomic
+push of the SHA to `main` and `dev`, with no tag: nothing was deployed.
 
 The normal route provisions when `-Provision` is given, deploys `web.zip`
 with a restart, waits for the site to read back `Running`, ready and at the
@@ -124,8 +160,9 @@ The destructive route reads the Web App at the approved old SHA, sets every
 Disabled setting `true`, proves the disabled census, stages the approved
 `worker.zip` (staging is not activation), stops the classifier, the Worker and
 the Web App with a bounded read-back of each (`Stopped`, and `/health/live` not
-2xx), takes one fresh read-back immediately before the gate, runs the
-migration, the runtime grants and the head check, deploys `web.zip` to the
+2xx), takes one fresh read-back immediately before the gate, records the
+restore point, runs the migration, the runtime grants and the head check,
+deploys `web.zip` to the
 stopped site with `--restart false --track-status false`, provisions once with
 Web and Worker approved, starts the Web App and waits for the exact
 read-back, starts the Worker and the classifier if they are still stopped,
@@ -138,7 +175,9 @@ is and reported as it is. After SQL began, recovery is forward only: the same
 (Web `Stopped` before or after the migration, or already serving the release).
 It never contains twice, never starts a package before the new `web.zip` is on
 the stopped site and never starts old bytes. An unfinished destructive run is
-an outage, not a release.
+an outage, not a release. The recorded restore point is the input to the
+runbook's [point-in-time restore](../../../docs/runbook.md#point-in-time-restore-commands)
+when data must be recovered.
 
 ## 4. Judgement calls that stay with the agent
 
@@ -161,12 +200,14 @@ an outage, not a release.
 
 The script prints the record skeleton from what it observed. The record in
 `docs/operations.md` is at most 15 lines (R459): what was released, the route,
-the SHAs and hashes, the migration head, the deployment ids, the smoke time and
-what is owed. Owed items become GitHub issues, not sentences carried from
+the SHAs and hashes, the migration head, the restore point when a migration
+ran, the deployment ids, the smoke time and what is owed. Owed items become GitHub issues, not sentences carried from
 record to record. `docs/current-architecture.md` changes only when source
 structure changed. The exact artifacts are retained at
-`artifacts/releases/release-<n>-<sha8>` (ignored), beside the previous
-releases', and the worktree is removed.
+`artifacts/releases/release-<version>-<sha8>` (ignored), beside the previous
+releases', and the worktree is removed. The folder is a convenience: the tag
+`v<version>` is the recoverable source, and a rollback without the folder
+rebuilds it from the tag (R692).
 
 Rollback is the runbook's [production recovery](../../../docs/runbook.md#production-recovery);
 [troubleshooting](references/troubleshooting.md) names the symptoms seen so far.
