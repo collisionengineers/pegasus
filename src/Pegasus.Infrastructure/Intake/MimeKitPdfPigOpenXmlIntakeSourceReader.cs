@@ -1671,8 +1671,19 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             display.Attachments ?? [],
             display.ThreadIdentity,
             message.Date == DateTimeOffset.MinValue ? null : message.Date,
-            display.InReplyToIdentities ?? []);
+            ReplyIdentities(message, display.InReplyToIdentities));
     }
+
+    /// <summary>
+    /// The reply identities the classifier reads (R713). A message that carries
+    /// In-Reply-To or References but none the display reader could keep (a
+    /// malformed or over-long value is dropped) reports null, "could not
+    /// tell", never an empty list that would read as carrying neither header.
+    /// </summary>
+    private static IReadOnlyList<string>? ReplyIdentities(MimeMessage message, IReadOnlyList<string>? identities) =>
+        identities is { Count: > 0 } ? identities
+        : message.Headers.Contains(HeaderId.InReplyTo) || message.Headers.Contains(HeaderId.References) ? null
+        : [];
 
     private static SourceFormat DetectFormat(string fileName, string mediaType)
     {

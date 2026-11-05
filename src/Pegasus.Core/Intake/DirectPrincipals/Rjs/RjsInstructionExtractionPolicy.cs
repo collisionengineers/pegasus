@@ -86,11 +86,17 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
         // location itself (operator, 5 November 2026, R715).
         var namesInspectionAddress = InspectionAddressRegex().IsMatch(body);
         var availableAt = AvailableAtRegex().Match(body);
+        var inspectionAddressYielded = namesInspectionAddress || !availableAt.Success;
         foreach (Match match in AddressRegex().Matches(body))
         {
             yield return Label(fragment, "Claimant address", match.Groups["value"].Value);
-            if (!namesInspectionAddress && availableAt.Success && availableAt.Index < match.Index)
+            // Only the address block that follows "is available at" is the
+            // inspection address; a later Address: block is someone else's.
+            if (!inspectionAddressYielded && availableAt.Index < match.Index)
+            {
+                inspectionAddressYielded = true;
                 yield return fragment with { Text = $"Inspection address: {AddressLines(match.Groups["value"].Value)}" };
+            }
         }
         foreach (Match match in CircumstancesRegex().Matches(body)) yield return Label(fragment, "Accident circumstances", match.Groups["value"].Value);
     }

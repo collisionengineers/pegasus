@@ -60,8 +60,18 @@ public sealed class RjsInstructionExtractionPolicyTests
         Assert.Equal("Example Storage, Priestley Way, RH10 9AA", draft.InspectionAddress);
     }
 
+    [Fact]
+    public void OnlyTheAddressAfterIsAvailableAtIsTheInspectionAddress()
+    {
+        var result = Extract(Letter(vehicleLocation: null, laterAddress: true));
+
+        var inspection = Field(result, "Inspection address");
+        Assert.False(inspection.HasConflict);
+        Assert.Equal("1 Example Close, Crawley, Sussex, RH10 1AA", inspection.SuggestedValue);
+    }
+
     /// <summary>Invented values in the layout of Robert James's November 2026 letters.</summary>
-    private static string Letter(string? vehicleLocation) => string.Join('\n',
+    private static string Letter(string? vehicleLocation, bool laterAddress = false) => string.Join('\n',
         "Collision Engineers Ltd",
         "Our Reference: 900001.001/AB/AB",
         "URGENT VEHICLE INSPECTION REQUIRED",
@@ -83,6 +93,7 @@ public sealed class RjsInstructionExtractionPolicyTests
         "\t ",
         "Work Tel:\t01234 000000 ",
         "Mobile Tel:\t07000 000000  ",
+        laterAddress ? "Our client's employer is:\nAddress:\t2 Sample Road \n\tHorsham \n\tRH12 2BB \n\t \nWork Tel:\t01234 111111 " : string.Empty,
         "Yours faithfully",
         "Robert James Solicitors");
 
