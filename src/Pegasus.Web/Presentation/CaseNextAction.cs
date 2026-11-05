@@ -208,12 +208,12 @@ public static class CaseNextAction
             : null;
 
     // What follows the stored, unsent report of an Inspection + Audit Case that
-    // has no Audit yet: Create audit, offered even without an Engineer, where
-    // the item is greyed with that reason (operator, 11 and 12 October 2026),
-    // with Send report beside it for a Case that needs no Audit (operator,
-    // 5 November 2026). Null on any other Case, which sends its report.
+    // has no Audit yet: Create audit, with Send report beside it for a Case
+    // that needs no Audit (operator, 5 November 2026). A Case without an
+    // Engineer is handed on first (BeforeTheReport). Null on any other Case,
+    // which sends its report.
     private static CaseNextActionStep? AuditStep(CaseWorkflowRecord workflow, CaseType caseType, CaseWorkSet? works) =>
-        AuditPolicy.Refusal(caseType, workflow, works) is null or AuditRefusal.NoAssignedEngineer
+        AuditPolicy.Refusal(caseType, workflow, works) is null
             ? new(CaseWorkspaceLabels.Frame.CreateAudit, "overview", OpensCreateAudit: true)
             : null;
 }

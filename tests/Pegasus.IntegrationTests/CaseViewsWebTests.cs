@@ -611,20 +611,21 @@ public sealed class CaseViewsWebTests
     /// <summary>
     /// Once the Inspection report is stored and until it is sent, the Next
     /// action of an Inspection + Audit Case that has no Audit yet is Create
-    /// audit with the Actions menu's own control, live or greyed with Core's
-    /// reason (operator, 2 and 12 October 2026), and Send report beside it for
-    /// a Case that needs no Audit (operator, 5 November 2026). Any other Case
-    /// sends its stored report. Once the report is sent and the Case has no
-    /// open query, neither has a step (operator, 11 October and 5 November 2026).
+    /// audit with the Actions menu's own control (operator, 2 and 12 October
+    /// 2026), and Send report beside it for a Case that needs no Audit
+    /// (operator, 5 November 2026); without an Engineer the Case is handed on
+    /// first (#1213). Any other Case sends its stored report. Once the report
+    /// is sent and the Case has no open query, neither has a step (operator,
+    /// 11 October and 5 November 2026).
     /// </summary>
     [Theory]
-    [InlineData(CaseType.InspectionAndAudit, true, true, null)]
-    [InlineData(CaseType.InspectionAndAudit, false, true, null)]
-    [InlineData(CaseType.InspectionAndAudit, false, false, "Report preparation requires an assigned Engineer.")]
-    [InlineData(CaseType.Inspection, true, true, null)]
-    [InlineData(CaseType.Inspection, false, true, null)]
+    [InlineData(CaseType.InspectionAndAudit, true, true)]
+    [InlineData(CaseType.InspectionAndAudit, false, true)]
+    [InlineData(CaseType.InspectionAndAudit, false, false)]
+    [InlineData(CaseType.Inspection, true, true)]
+    [InlineData(CaseType.Inspection, false, true)]
     public async Task CreateAuditBesideSendReportIsTheNextActionUntilTheInspectionReportIsSent(
-        CaseType caseType, bool sent, bool engineerAssigned, string? condition)
+        CaseType caseType, bool sent, bool engineerAssigned)
     {
         var store = new RecordingCaseDetailsStore
         {
@@ -650,6 +651,12 @@ public sealed class CaseViewsWebTests
         }
         var next = NextAction(html);
         Assert.DoesNotContain("data-next-mark-completed", next, StringComparison.Ordinal);
+        if (!engineerAssigned)
+        {
+            Assert.Contains(CaseWorkspaceLabels.AssignEngineer, next, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-next-create-audit", next, StringComparison.Ordinal);
+            return;
+        }
         if (caseType != CaseType.InspectionAndAudit)
         {
             Assert.Contains(
@@ -668,20 +675,11 @@ public sealed class CaseViewsWebTests
         var sendReport = Regex.Match(next, $"<a [^>]*data-next-send-report[^>]*>{CaseWorkspaceLabels.ReportDelivery.SendReport}</a>");
         Assert.True(sendReport.Success, "Send report is not drawn beside Create audit.");
         Assert.Contains("data-section-jump=\"report\"", sendReport.Value, StringComparison.Ordinal);
-        if (condition is null)
-        {
-            Assert.Contains(
-                $"<button type=\"button\" class=\"btn next-step-go\" data-dialog-open=\"case-create-audit-dialog\" data-next-create-audit>{Frame.CreateAudit}</button>",
-                next,
-                StringComparison.Ordinal);
-            Assert.DoesNotContain("menu-gated", next, StringComparison.Ordinal);
-        }
-        else
-        {
-            Assert.Contains($"<span class=\"menu-gated\" title=\"{condition}\" data-create-audit-condition=\"{condition}\">", next, StringComparison.Ordinal);
-            Assert.Contains("disabled aria-disabled=\"true\" data-next-create-audit>", next, StringComparison.Ordinal);
-            Assert.DoesNotContain("data-dialog-open", next, StringComparison.Ordinal);
-        }
+        Assert.Contains(
+            $"<button type=\"button\" class=\"btn next-step-go\" data-dialog-open=\"case-create-audit-dialog\" data-next-create-audit>{Frame.CreateAudit}</button>",
+            next,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("menu-gated", next, StringComparison.Ordinal);
     }
 
     /// <summary>
