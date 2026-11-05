@@ -16,7 +16,7 @@
   on the Case.
 - When DVSA history holds a usable MOT reading, Pegasus estimates a mileage
   figure from it; only readings that disagree with each other give no figure
-  (operator, 5 November 2026; R698, R699).
+  (operator, 5 November 2026; R699, R700).
 
 ## Purpose
 
@@ -262,7 +262,7 @@ the facts only the lookup holds.
   PSV, tractor, articulated or multi-axle classifications are `other`. With
   no type approval, a rigid body is not classified: a revenue weight does not
   tell a car from a van, so staff pick the type (operator, 5 November 2026;
-  R697). It fills only where staff have not recorded a type. A changed
+  R698). It fills only where staff have not recorded a type. A changed
   lookup classification may replace an earlier lookup value, and a complete
   answer that no longer classifies the vehicle withdraws a type the lookup
   itself recorded; an unchanged value is not re-stamped.
@@ -379,14 +379,14 @@ When DVSA history must estimate a Case mileage, Pegasus:
 - returns the exact observation on an exact MOT date, interpolates only
   inside a compatible segment, forecasts from the latest reading at the rate
   of whatever clean intervals there are, even one, and with none gives the
-  latest reading itself (operator, 5 November 2026; R698), and
+  latest reading itself (operator, 5 November 2026; R699), and
   gives calibrated intervals only with eligible chronological holdouts.
 
 Any usable reading gives a figure. A qualified range is left only where the
 odometer history disagrees with itself: across a corroborated odometer drop,
 or after a latest reading below the odometer that no later test confirms; and
 an abstention only where no reading is usable or the day's readings disagree
-(R699). Neither is written into the Case. The rule applies only after the
+(R700). Neither is written into the Case. The rule applies only after the
 DVSA/DVLA route, input contract and caller evidence have activated vehicle
 enrichment. It neither picks a provider nor authorises an external call.
 
@@ -403,7 +403,7 @@ enrichment. It neither picks a provider nor authorises an external call.
   estimate (operator, 16 October 2026).
 - **Irreversible choice.** The estimate may be derived only by this
   conservative algorithm. Readings that disagree give an abstention or a
-  qualified range; any other usable MOT reading gives a figure (R698, R699).
+  qualified range; any other usable MOT reading gives a figure (R699, R700).
 
 ## States and transitions
 
@@ -420,8 +420,8 @@ enrichment. It neither picks a provider nor authorises an external call.
   one group are Conflicting identification.
 - A provider 404 that is not the provider's own not-found error is a failed
   lookup.
-- A sparse MOT history still gives a figure (R698); readings that disagree
-  give an abstention or a qualified range (R699), not
+- A sparse MOT history still gives a figure (R699); readings that disagree
+  give an abstention or a qualified range (R700), not
   a number.
 
 ## Acceptance evidence
