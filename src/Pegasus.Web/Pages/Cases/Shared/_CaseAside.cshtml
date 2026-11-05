@@ -306,17 +306,30 @@
                     }
                     else if (nextRow.OpensCreateAudit)
                     {
+                        @* Before the Inspection report is sent, Send report sits
+                           beside Create audit for a Case that needs no Audit, as
+                           Take sits beside Assign Engineer (operator, 5 November 2026). *@
                         <div class="next-step" data-next-step>
-                            @if (Model.CreateAuditCondition is { } createAuditCondition)
-                            {
-                                <span class="menu-gated" title="@createAuditCondition" data-create-audit-condition="@createAuditCondition">
-                                    <button type="button" class="@StepButton" disabled aria-disabled="true" data-next-create-audit>@Frame.CreateAudit</button>
-                                </span>
-                            }
-                            else
-                            {
-                                <button type="button" class="@StepButton" data-dialog-open="case-create-audit-dialog" data-next-create-audit>@Frame.CreateAudit</button>
-                            }
+                            <div class="next-row" data-next-audit-or-send>
+                                @if (Model.CreateAuditCondition is { } createAuditCondition)
+                                {
+                                    <span class="menu-gated" title="@createAuditCondition" data-create-audit-condition="@createAuditCondition">
+                                        <button type="button" class="@StepButton" disabled aria-disabled="true" data-next-create-audit>@Frame.CreateAudit</button>
+                                    </span>
+                                }
+                                else
+                                {
+                                    <button type="button" class="@StepButton" data-dialog-open="case-create-audit-dialog" data-next-create-audit>@Frame.CreateAudit</button>
+                                }
+                                @if (Model.CanSendReport)
+                                {
+                                    <button type="button" class="btn btn--small" data-dialog-open="case-send-report-dialog" data-next-send-report>@CaseWorkspaceLabels.ReportDelivery.SendReport</button>
+                                }
+                                else
+                                {
+                                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="report" asp-route-view="@Model.ViewRoute" asp-fragment="section-report" data-section-jump="report" data-next-send-report>@CaseWorkspaceLabels.ReportDelivery.SendReport</a>
+                                }
+                            </div>
                         </div>
                     }
                     else if (workflow.State == Pegasus.Core.Workflow.CaseLifecycleState.Held)

@@ -11,7 +11,10 @@ namespace Pegasus.Web.Presentation;
 /// the blocker it names while the report is not ready, and whether it opens
 /// the Actions menu's Create audit or Assign Engineer dialog, or is Resolve
 /// query, rather than a section, or is the Case's open tasks, which the
-/// Next action lists in its place (operator, 6 October 2026).
+/// Next action lists in its place (operator, 6 October 2026). Create audit
+/// is the step only before the Inspection report is sent, and the Case page
+/// draws Send report beside it for a Case that needs no Audit (operator,
+/// 5 November 2026).
 /// </summary>
 public sealed record CaseNextActionStep(
     string Label,
@@ -38,8 +41,9 @@ public static class CaseNextAction
     /// ready, it names the first blocker at the section that clears it, and
     /// at the Report section when that blocker has none, and carries that
     /// blocker. Once the report is stored, an Inspection + Audit Case without
-    /// its Audit creates it next, whether or not the report is sent; any
-    /// other Case sends the report, and once a send of it is accepted its
+    /// its Audit offers Create audit with Send report beside it, until the
+    /// report is sent (operator, 5 November 2026); any other Case sends the
+    /// report. Once a send of the report is accepted the
     /// step is its open tasks while it has any (operator, 6 October 2026),
     /// else none (operator, 12 October 2026). A closed or archived Case has
     /// none. Null when no step remains: the Case page draws no Next action
@@ -75,19 +79,17 @@ public static class CaseNextAction
         {
             return early;
         }
-        // An open query is the next concern of any open Case (the Query stage),
-        // including one With Engineer that holds the Inspection report's Sent
-        // item while its Audit is still to come. The step is Answer query; the
-        // aside chooses Reply or Mark done from the oldest open query.
+        // An open query is the next concern of any open Case (the Query stage).
+        // The step is Answer query; the aside chooses Reply or Mark done from
+        // the oldest open query.
         if (CaseQueryRules.IsQueryStage(workflow.State, workflow.HasOpenQuery))
         {
             return new(CaseWorkspaceLabels.Frame.AnswerQuery, "queries");
         }
         return ReportStep(reportBlockers, blockerSection, currentReport)
-            ?? AuditStep(workflow, caseType, works)
             ?? (workflow.ReportSentEvidence is not null || reportSent
                 ? AfterTheSend(hasOpenTasks)
-                : DeliveryStep);
+                : AuditStep(workflow, caseType, works) ?? DeliveryStep);
     }
 
     /// <summary>
@@ -205,12 +207,13 @@ public static class CaseNextAction
             ? new(OperatorLabels.WorkCentre.OpenTasks, "overview", ListsOpenTasks: true)
             : null;
 
-    // What follows the stored report of an Inspection + Audit Case that has
-    // no Audit yet: Create audit, offered even without an Engineer, where the
-    // item is greyed with that reason (operator, 11 and 12 October 2026). Null
-    // on any other Case, which sends its report.
+    // What follows the stored, unsent report of an Inspection + Audit Case that
+    // has no Audit yet: Create audit, with Send report beside it for a Case
+    // that needs no Audit (operator, 5 November 2026). A Case without an
+    // Engineer is handed on first (BeforeTheReport). Null on any other Case,
+    // which sends its report.
     private static CaseNextActionStep? AuditStep(CaseWorkflowRecord workflow, CaseType caseType, CaseWorkSet? works) =>
-        AuditPolicy.Refusal(caseType, workflow, works) is null or AuditRefusal.NoAssignedEngineer
+        AuditPolicy.Refusal(caseType, workflow, works) is null
             ? new(CaseWorkspaceLabels.Frame.CreateAudit, "overview", OpensCreateAudit: true)
             : null;
 }

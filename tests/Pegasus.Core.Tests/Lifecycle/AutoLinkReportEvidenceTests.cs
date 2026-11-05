@@ -225,43 +225,18 @@ public sealed class AutoLinkReportEvidenceTests
     }
 
     /// <summary>
-    /// An Inspection + Audit Case with no Audit yet keeps With Engineer when its
-    /// Inspection report's Sent item is linked (operator, 13 October 2026): the
-    /// store says the send did not end the work, and Core accepts that state only.
+    /// The current work's link always moves the Case to Report sent, an
+    /// Inspection + Audit Case's Inspection report with no Audit included
+    /// (operator, 5 November 2026): Core refuses a link still reading With Engineer.
     /// </summary>
     [Fact]
-    public async Task ACurrentWorkLinkThatDoesNotEndTheWorkReadsWithEngineer()
+    public async Task ACurrentWorkLinkMustReadReportSent()
     {
         var caseId = Guid.NewGuid();
         var evidenceId = Guid.NewGuid();
         var store = new RecordingStore(new(
             AutoLinkReportEvidenceDisposition.Linked,
-            new(caseId, evidenceId, CaseLifecycleState.ReportPreparation, Version: 3, EndsTheWork: false),
-            NotLinkedReasonCode: null));
-
-        var result = await new AutoLinkReportEvidence(store).ExecuteAsync(
-            new(caseId, evidenceId, WorkerActor, "report-auto-link-window", "Inspection report sent before the Audit"),
-            default);
-
-        Assert.Equal(AutoLinkReportEvidenceDisposition.Linked, result.Disposition);
-        Assert.Equal(CaseLifecycleState.ReportPreparation, result.Link?.State);
-        Assert.False(result.Link?.EndsTheWork);
-    }
-
-    [Theory]
-    [InlineData("ended-but-with-engineer", true, CaseLifecycleState.ReportPreparation)]
-    [InlineData("not-ended-but-report-sent", false, CaseLifecycleState.ReportSent)]
-    public async Task ACurrentWorkLinkMustReadTheStateItsSendProduced(
-        string name,
-        bool endsTheWork,
-        CaseLifecycleState state)
-    {
-        Assert.NotEmpty(name);
-        var caseId = Guid.NewGuid();
-        var evidenceId = Guid.NewGuid();
-        var store = new RecordingStore(new(
-            AutoLinkReportEvidenceDisposition.Linked,
-            new(caseId, evidenceId, state, Version: 3, EndsTheWork: endsTheWork),
+            new(caseId, evidenceId, CaseLifecycleState.ReportPreparation, Version: 3),
             NotLinkedReasonCode: null));
 
         await Assert.ThrowsAsync<InvalidDataException>(() => new AutoLinkReportEvidence(store).ExecuteAsync(

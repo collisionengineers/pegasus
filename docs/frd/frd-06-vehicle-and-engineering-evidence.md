@@ -14,8 +14,9 @@
   what the instruction or a staff member entered. The engine, fuel, colour,
   tax expiry and MOT expiry they alone record follow each answer, read-only
   on the Case.
-- When DVSA history must estimate a mileage, Pegasus prefers an abstention or
-  a qualified range over an unsupported number.
+- When DVSA history holds a usable MOT reading, Pegasus estimates a mileage
+  figure from it; only readings that disagree with each other give no figure
+  (operator, 5 November 2026; R699, R700).
 
 ## Purpose
 
@@ -256,12 +257,15 @@ the facts only the lookup holds.
 
 - Make, Model, Year and Mileage fill only where the field is empty. They
   never overwrite an extracted instruction value or a staff-entered value.
-- Vehicle type follows one rule: type approval, then wheelplan, then
-  rigid-body revenue weight. L1 and L2 mopeds are `scooter`, other L-class
-  vehicles are `motorcycle`, and heavy, PSV or tractor classifications are
-  `other`. It fills only where staff have not recorded a type. A changed
-  lookup classification may replace an earlier lookup value; an unchanged
-  value is not re-stamped.
+- Vehicle type follows one rule: type approval, then wheelplan. L1 and L2
+  mopeds are `scooter`, other L-class vehicles are `motorcycle`, and heavy,
+  PSV, tractor, articulated or multi-axle classifications are `other`. With
+  no type approval, a rigid body is not classified: a revenue weight does not
+  tell a car from a van, so staff pick the type (operator, 5 November 2026;
+  R698). It fills only where staff have not recorded a type. A changed
+  lookup classification may replace an earlier lookup value, and a complete
+  answer that no longer classifies the vehicle withdraws a type the lookup
+  itself recorded; an unchanged value is not re-stamped.
 - A Lookup Vehicle type keeps its Lookup tag until staff change it; a Save
   that leaves it untouched leaves its provenance alone (operator, 25
   September 2026).
@@ -373,13 +377,18 @@ When DVSA history must estimate a Case mileage, Pegasus:
   rates, using a versioned cohort prior only for sparse histories that pass
   its sample checks;
 - returns the exact observation on an exact MOT date, interpolates only
-  inside a compatible segment, forecasts only within a validated horizon, and
+  inside a compatible segment, forecasts from the latest reading at the rate
+  of whatever clean intervals there are, even one, and with none gives the
+  latest reading itself (operator, 5 November 2026; R699), and
   gives calibrated intervals only with eligible chronological holdouts.
 
-The rule prefers a reviewable abstention or a qualified range over a
-plausible but unsupported number. It applies only after the DVSA/DVLA route,
-input contract and caller evidence have activated vehicle enrichment. It
-neither picks a provider nor authorises an external call.
+Any usable reading gives a figure. A qualified range is left only where the
+odometer history disagrees with itself: across a corroborated odometer drop,
+or after a latest reading below the odometer that no later test confirms; and
+an abstention only where no reading is usable or the day's readings disagree
+(R700). Neither is written into the Case. The rule applies only after the
+DVSA/DVLA route, input contract and caller evidence have activated vehicle
+enrichment. It neither picks a provider nor authorises an external call.
 
 - **Activation evidence.** The DVLA/DVSA adapter is selected and composed;
   credentials, real caller evidence and live acceptance are evidenced
@@ -393,8 +402,8 @@ neither picks a provider nor authorises an external call.
   that the lookup fills an empty Case mileage with an exact reading or an
   estimate (operator, 16 October 2026).
 - **Irreversible choice.** The estimate may be derived only by this
-  conservative algorithm. Unsafe evidence gives an abstention or a qualified
-  range, never an invented mileage.
+  conservative algorithm. Readings that disagree give an abstention or a
+  qualified range; any other usable MOT reading gives a figure (R699, R700).
 
 ## States and transitions
 
@@ -411,7 +420,8 @@ neither picks a provider nor authorises an external call.
   one group are Conflicting identification.
 - A provider 404 that is not the provider's own not-found error is a failed
   lookup.
-- Sparse or unsafe MOT history gives an abstention or a qualified range, not
+- A sparse MOT history still gives a figure (R699); readings that disagree
+  give an abstention or a qualified range (R700), not
   a number.
 
 ## Acceptance evidence

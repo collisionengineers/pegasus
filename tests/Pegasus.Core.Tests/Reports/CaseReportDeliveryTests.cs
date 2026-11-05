@@ -214,9 +214,32 @@ public sealed class CaseReportDeliveryTests
                 plan, [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.ImagePack], confirmed));
         // No choice means every confirmed document, as it was.
         Assert.Null(CaseReportDeliveryPolicy.AttachChoice(plan, null, confirmed));
-        var empty = CaseReportDeliveryPolicy.AttachChoice(plan, [], confirmed);
-        Assert.NotNull(empty);
-        Assert.Empty(empty);
+        // An empty choice is the report alone, and still gains the required companions (R702).
+        Assert.Equal(
+            [CaseReportArtifactKind.ImagePack],
+            CaseReportDeliveryPolicy.AttachChoice(plan, [], confirmed));
+    }
+
+    /// <summary>
+    /// An empty choice attaches the report alone (operator, 5 November 2026,
+    /// R702): it is a choice of no companion, not the absence of a choice.
+    /// </summary>
+    [Fact]
+    public void AnEmptyChoiceAttachesTheReportAlone()
+    {
+        var generationId = Guid.NewGuid();
+        IReadOnlyList<CaseReportArtifactRecord> artifacts =
+        [
+            Artifact(CaseReportArtifactStatus.Confirmed, CaseReportArtifactKind.FeeNote),
+            Artifact(CaseReportArtifactStatus.Confirmed, CaseReportArtifactKind.AssessmentReport)
+        ];
+
+        Assert.Equal([ReportAttachment], CaseReportDeliveryPolicy.Attachments(generationId, artifacts, []));
+        Assert.Equal(
+            [CaseReportArtifactKind.AssessmentReport],
+            CaseReportDeliveryPolicy.AttachedKinds(generationId, artifacts, []));
+        // No choice still attaches every confirmed document.
+        Assert.Equal([ReportAttachment, FeeAttachment], CaseReportDeliveryPolicy.Attachments(generationId, artifacts));
     }
 
     [Fact]
@@ -596,6 +619,29 @@ public sealed class CaseReportDeliveryTests
                 "DVR-31001 PK12 TMZ Repairable report..pdf"
             ],
             command.Mail.Attachments.Select(attachment => attachment.FileName).ToArray());
+    }
+
+    /// <summary>
+    /// An empty choice sends the report without the fee note the generation
+    /// holds (R702), and the send returns the file names the e-mail carries
+    /// (R703).
+    /// </summary>
+    [Fact]
+    public async Task AnEmptyChoiceSendsTheReportAloneAndReturnsWhatItCarries()
+    {
+        var send = new RecordingSend();
+
+        var operation = await Use(
+                new FixedGenerations(Generation(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote)),
+                send)
+            .ExecuteAsync(Request() with { Attach = [] }, CancellationToken.None);
+
+        var command = Assert.Single(send.Commands);
+        Assert.Equal([ReportAttachment], command.Report.Artifacts);
+        Assert.Equal(
+            command.Mail.Attachments.Select(attachment => attachment.FileName).ToArray(),
+            operation.AttachmentFileNames);
+        Assert.Equal("DVR-31001 PK12 TMZ Repairable report.pdf", Assert.Single(operation.AttachmentFileNames!));
     }
 
     [Fact]

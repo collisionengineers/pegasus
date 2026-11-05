@@ -515,6 +515,16 @@ internal sealed class EfVehicleLookupWorkStore(
         {
             Write(existingType, AssessmentVocabulary.VehicleType, vehicleType);
         }
+        else if (vehicleType is null
+            && result is { Vehicle: not null, Failure: null }
+            && existingType is { RecordedBy: VehicleLookupFillPolicy.RecorderId })
+        {
+            // A whole answer that no longer classifies the vehicle withdraws the
+            // lookup's own earlier type, so staff pick it (operator, 5 November
+            // 2026); a type anyone else recorded stays.
+            context.CaseAssessmentFields.Remove(existingType);
+            assessmentRows.Remove(existingType);
+        }
 
         // The facts only the lookup records are its to replace and, on a complete
         // answer, to clear: recorded by the lookup whatever wrote the row before;

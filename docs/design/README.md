@@ -968,7 +968,7 @@ deleted in wave 5.
 | `report-image`, `cropper` | Image preparation on the Files tiles: In report on or off, the Overview and Close-up their tags decide, the report order, non-destructive crop |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
 | `blocker-list`, `blocker`, `blocker-name` | Outstanding requirements, and the report blockers in the aside's Report not ready card, whose `blocker-name` is the requirement as its link to the section that clears it; the Engineer blocker is the one exception and links the ribbon's Assign Engineer action, not a section (operator, 22 October 2026) |
-| `next-step`, `next-step-go` | The Next action's one step and its full-width control, which shares its row with Take while the Case is Unassigned ([v41 K9](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
+| `next-step`, `next-step-go` | The Next action's one step and its full-width control, which shares its row with Take while the Case is Unassigned ([v41 K9](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)), and Create audit's with Send report before an Inspection + Audit Case's report is sent (operator, 5 November 2026) |
 | `timeline`, `notes-list`, `note-entry` | History and Notes |
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
 | `decision-card` | Message decision |

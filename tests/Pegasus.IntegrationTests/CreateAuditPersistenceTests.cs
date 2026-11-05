@@ -309,14 +309,15 @@ public sealed class CreateAuditPersistenceTests
     }
 
     /// <summary>
-    /// Operator, 13 October 2026: the Inspection report's Sent item on an
-    /// Inspection + Audit Case with no Audit yet is recorded on the Case, which
-    /// stays With Engineer and still takes a query; Create audit moves that
-    /// evidence to the Inspection, and the Audit report's send is what reaches
-    /// Report sent.
+    /// Operator, 5 November 2026 (replacing 13 October 2026): an Inspection +
+    /// Audit Case need not have an Audit, so the Inspection report's Sent item
+    /// with no Audit moves it to Report sent, where it takes a query. Create
+    /// audit stays live there: it moves that evidence to the Inspection and
+    /// returns the Case to With Engineer, and the Audit report's send reaches
+    /// Report sent again.
     /// </summary>
     [Fact]
-    public async Task TheInspectionReportSentBeforeTheAuditKeepsTheCaseWithEngineerUntilTheAuditReportIsSent()
+    public async Task TheInspectionReportSentWithoutAnAuditEndsTheWorkAndCreateAuditStillReturnsItToTheEngineer()
     {
         await using var harness = await Harness.CreateAsync();
         var now = DateTimeOffset.UtcNow;
@@ -327,7 +328,7 @@ public sealed class CreateAuditPersistenceTests
         var link = await harness.LinkRequestAsync("link-inspection-first", inspection.EvidenceId);
         var linked = (await harness.Workflows.LinkReportEvidenceAsync(link, default)).Workflow;
 
-        Assert.Equal(CaseLifecycleState.ReportPreparation, linked.State);
+        Assert.Equal(CaseLifecycleState.ReportSent, linked.State);
         Assert.Equal(inspection.EvidenceId, linked.ReportSentEvidence?.EvidenceId);
         Assert.Equal(CaseType.InspectionAndAudit, linked.CaseType);
         Assert.True(CaseQueryRules.CanOpen(linked));
@@ -350,16 +351,14 @@ public sealed class CreateAuditPersistenceTests
 
         Assert.Equal(CaseLifecycleState.ReportSent, auditLinked.State);
         Assert.Equal(audit.EvidenceId, auditLinked.ReportSentEvidence?.EvidenceId);
-        Assert.False(CaseLifecycleRules.ReportIsSent(linked with { ReportSentEvidence = null }));
     }
 
     /// <summary>
     /// The Worker's automatic link on the same shape: the committed link reads
-    /// With Engineer and says the send did not end the work, and a replay of the
-    /// same operation answers the same.
+    /// Report sent, and a replay of the same operation answers the same.
     /// </summary>
     [Fact]
-    public async Task TheWorkersLinkOfTheInspectionReportBeforeTheAuditReadsWithEngineer()
+    public async Task TheWorkersLinkOfTheInspectionReportWithoutAnAuditReadsReportSent()
     {
         await using var harness = await Harness.CreateAsync();
         var now = DateTimeOffset.UtcNow;
@@ -378,15 +377,13 @@ public sealed class CreateAuditPersistenceTests
         var replayed = await autoLink.ExecuteAsync(request, default);
 
         Assert.Equal(AutoLinkReportEvidenceDisposition.Linked, linked.Disposition);
-        Assert.Equal(CaseLifecycleState.ReportPreparation, linked.Link!.State);
+        Assert.Equal(CaseLifecycleState.ReportSent, linked.Link!.State);
         Assert.True(linked.Link.OfCurrentWork);
-        Assert.False(linked.Link.EndsTheWork);
         Assert.Equal(AutoLinkReportEvidenceDisposition.Linked, replayed.Disposition);
-        Assert.Equal(CaseLifecycleState.ReportPreparation, replayed.Link!.State);
-        Assert.False(replayed.Link.EndsTheWork);
+        Assert.Equal(CaseLifecycleState.ReportSent, replayed.Link!.State);
         await using var context = await harness.ContextAsync();
         var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == harness.CaseId);
-        Assert.Equal(nameof(CaseLifecycleState.ReportPreparation), workflow.State);
+        Assert.Equal(nameof(CaseLifecycleState.ReportSent), workflow.State);
         Assert.Equal(evidence.EvidenceId, workflow.ReportSentEvidenceId);
     }
 

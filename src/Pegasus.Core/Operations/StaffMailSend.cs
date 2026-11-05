@@ -126,6 +126,13 @@ public sealed record StaffMailOperation(
     /// the job or named none.
     /// </summary>
     public AiJobConfirmRefusal? AiJobRefusal { get; init; }
+
+    /// <summary>
+    /// The file names a Case report send's e-mail carries, in order (R703).
+    /// Set only on the operation a report send returns, never stored; null
+    /// for every other send.
+    /// </summary>
+    public IReadOnlyList<string>? AttachmentFileNames { get; init; }
 }
 
 public interface IStaffMailSend

@@ -150,10 +150,12 @@ where the menu does not offer it, the step is named without a control
 (issue 1025).
 Once the report is ready, the Next action is **Generate report** until the
 report is stored, or **Waiting for the report to be stored** while its file
-is on its way to Box. Once the report is stored, the Next action is
-**Create audit** on an Inspection + Audit Case that has no Audit yet, whether
-or not the report is sent, with the Actions menu's own control (greyed with
-its reason where Core refuses it). On any other Case delivery is the Next
+is on its way to Box. Once the report is stored and until it is sent, the
+Next action is **Create audit** on an Inspection + Audit Case that has no
+Audit yet, with the Actions menu's own control (greyed with its reason where
+Core refuses it) and **Send report** beside it, as Take sits beside Assign
+Engineer, for a Case that needs no Audit (operator, 5 November 2026; R706).
+On any other Case delivery is the Next
 action once the report is stored (operator, 27 September 2026). Once a send
 of the report is accepted there is no step: that follows Pegasus's own send
 record, not the Sent poll, while the Case state still moves to Report sent
@@ -373,14 +375,11 @@ Return to Engineer needs no session. The rules behind each action are in
   sprite's square-check (v41 K1, operator, 15 and 19 October 2026,
   [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 - **Mark report sent**, in With Engineer. It confirms detected or linked
-  Sent evidence and moves the Case to Report sent, except on an Inspection +
-  Audit Case with no Audit yet, which stays With Engineer with the
-  Inspection's Sent evidence recorded (operator, 13 October 2026). It never
+  Sent evidence and moves the Case to Report sent, an Inspection + Audit
+  Case with no Audit included (operator, 5 November 2026; R705). It never
   records a manual assertion
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
-- **Log query**, in Report sent, or With Engineer while the Inspection
-  report's Sent item is recorded and the Audit is still to come (operator,
-  13 October 2026). Its compact dialog takes the channel
+- **Log query**, in Report sent. Its compact dialog takes the channel
   (E-mail, Phone, WhatsApp, Other) and the details, and no reason
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
   Mark done, Reopen and Assign are the query row's own posts, not menu items.
