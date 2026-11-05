@@ -101,7 +101,10 @@ Classification may use mailbox and message identity, direction, headers,
 sender and domain, fresh body text, attachment and document evidence,
 Principal-route tells, reply and thread signals, and a separately produced
 Case correlation. `In-Reply-To` and `References` establish reply context.
-`RE:` is a fallback. `FW:` or `FWD:` alone does not make a reply. A reply is
+`RE:` is a fallback. A `RE:` subject on a message that carries neither header
+does not stop a selected Principal instruction that proves its work, as on
+Robert James's `Re:<file number>/<client>` instructions (operator, 5 November
+2026, [R713](../rulings.md)). `FW:` or `FWD:` alone does not make a reply. A reply is
 not a category of its own. Quoted or attached old content is not evidence of
 fresh work. A deterministic rule names its policy, version and predicates.
 Otherwise an authorised staff member records the decision and the reason.
