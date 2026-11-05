@@ -17,7 +17,7 @@
   There is no Mark completed (operator, 11 October 2026). An Inspection +
   Audit Case need not have an Audit: its Inspection report's send with no
   Audit moves it to Report sent like any other, and Create audit stays live
-  there (operator, 5 November 2026; R675, replacing 13 October 2026). A Case
+  there (operator, 5 November 2026; R705, replacing 13 October 2026). A Case
   is never permanently closed, except `Created in error`.
 - **Close case** records a cancellation or a rejection with a reason.
   **Archive** hides a closed Case from queues. Nothing is ever deleted.
@@ -181,7 +181,7 @@ never changes the Case state and records no handoff.
   an Inspection + Audit Case with no Audit included: its Inspection report's
   Sent evidence is recorded on the Case, and Create audit later moves that
   evidence to the Inspection's own work and returns the Case to With
-  Engineer (operator, 5 November 2026; R675, replacing 13 October 2026).
+  Engineer (operator, 5 November 2026; R705, replacing 13 October 2026).
   Sent evidence belongs to the
   report it proves: after Create audit, the Case's own Mark report sent takes
   the Audit report's evidence, sent after the Audit was created, while the
@@ -302,7 +302,7 @@ other Actions-menu progressions. Once the Inspection report is stored and
 until it is sent, Create audit is the Case's Next action, stated in the aside
 and the Cases quick detail with the same control (operator, 2 and 12 October
 2026); the aside draws Send report beside it, for a Case that needs no Audit
-(operator, 5 November 2026; R676). Once the report is sent, Create audit is
+(operator, 5 November 2026; R706). Once the report is sent, Create audit is
 in the Actions menu only.
 With no assigned Engineer it is refused, "Report preparation requires an
 assigned Engineer.": an Engineer must take an Unassigned Case first (#1213,
@@ -467,7 +467,7 @@ Automation Actor action.
 | With Engineer | With Engineer, another Engineer or Unassigned | Assign Engineer or Take (#1213, [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | Not ready, Review, With Engineer | Held | Place on Hold (reason) |
 | Held | previous state | Release Hold (reason) |
-| With Engineer | Report sent | Mark report sent, or the Worker's automatic link of the report's Sent evidence, an Inspection + Audit Case with no Audit included (operator, 5 November 2026; R675) |
+| With Engineer | Report sent | Mark report sent, or the Worker's automatic link of the report's Sent evidence, an Inspection + Audit Case with no Audit included (operator, 5 November 2026; R705) |
 | Report sent | With Engineer | Return to Engineer (reason), or Unlink report evidence |
 | With Engineer, Report sent | Review | Return to Review (reason) |
 | Not ready, Review, With Engineer, Report sent | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |

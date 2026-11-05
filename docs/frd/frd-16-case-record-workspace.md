@@ -154,7 +154,7 @@ is on its way to Box. Once the report is stored and until it is sent, the
 Next action is **Create audit** on an Inspection + Audit Case that has no
 Audit yet, with the Actions menu's own control (greyed with its reason where
 Core refuses it) and **Send report** beside it, as Take sits beside Assign
-Engineer, for a Case that needs no Audit (operator, 5 November 2026; R676).
+Engineer, for a Case that needs no Audit (operator, 5 November 2026; R706).
 On any other Case delivery is the Next
 action once the report is stored (operator, 27 September 2026). Once a send
 of the report is accepted there is no step: that follows Pegasus's own send
@@ -376,7 +376,7 @@ Return to Engineer needs no session. The rules behind each action are in
   [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 - **Mark report sent**, in With Engineer. It confirms detected or linked
   Sent evidence and moves the Case to Report sent, an Inspection + Audit
-  Case with no Audit included (operator, 5 November 2026; R675). It never
+  Case with no Audit included (operator, 5 November 2026; R705). It never
   records a manual assertion
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
 - **Log query**, in Report sent. Its compact dialog takes the channel
