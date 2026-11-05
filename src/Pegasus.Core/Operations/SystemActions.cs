@@ -17,7 +17,7 @@ public enum SystemActionKind
 }
 
 /// <summary>
-/// The System Actions sub-filters: All, or one kind each (R711).
+/// The System Actions sub-filters: All, or one kind each (R717).
 /// </summary>
 public enum SystemActionFilter
 {
