@@ -23,22 +23,25 @@ public sealed class VehicleTypePolicyTests
     }
 
     [Theory]
-    [InlineData("2-WHEEL", null, "motorcycle")]
-    [InlineData("2 WHEEL", null, "motorcycle")]
-    [InlineData("3 WHEEL", null, "motorcycle")]
-    [InlineData("2 AXLE RIGID BODY", 0, "car")]
-    [InlineData("2 AXLE RIGID BODY", 1_800, "van")]
-    [InlineData("2 AXLE RIGID BODY", 7_500, "other")]
-    [InlineData("NON STANDARD", null, null)]
-    public void WheelplanAndRigidBodyRevenueWeightProvideTheFallback(
-        string wheelplan,
-        int? revenueWeightKg,
-        string? expected)
-    {
-        var vehicle = Details(wheelplan: wheelplan, revenueWeightKg: revenueWeightKg);
+    [InlineData("2-WHEEL", "motorcycle")]
+    [InlineData("2 WHEEL", "motorcycle")]
+    [InlineData("3 WHEEL", "motorcycle")]
+    [InlineData("ARTICULATED", "other")]
+    [InlineData("NON STANDARD", null)]
+    public void WheelplanProvidesTheFallback(string wheelplan, string? expected) =>
+        Assert.Equal(expected, VehicleTypePolicy.Classify(Details(wheelplan: wheelplan)));
 
-        Assert.Equal(expected, VehicleTypePolicy.Classify(vehicle));
-    }
+    // QCL26005-p: a 2017 Toyota Prius that VES answered with no type approval,
+    // a rigid body and a revenue weight was classified a van. The weight
+    // cannot tell a car from a van, so the type is left for staff
+    // (operator, 5 November 2026).
+    [Theory]
+    [InlineData(null)]
+    [InlineData(1_635)]
+    [InlineData(7_500)]
+    public void ARigidBodyWithNoTypeApprovalIsLeftForStaff(int? revenueWeightKg) =>
+        Assert.Null(VehicleTypePolicy.Classify(
+            Details(wheelplan: "2 AXLE RIGID BODY", revenueWeightKg: revenueWeightKg)));
 
     [Fact]
     public void ClassificationNormalisesCasingAndWhitespace()
@@ -64,7 +67,7 @@ public sealed class VehicleTypePolicyTests
             Details(typeApproval: "O2"),
             Details(typeApproval: "T1"),
             Details(wheelplan: "2-WHEEL"),
-            Details(wheelplan: "2 AXLE RIGID BODY", revenueWeightKg: 7_500)
+            Details(wheelplan: "ARTICULATED")
         };
         var codes = AssessmentVocabulary.Definitions[AssessmentVocabulary.VehicleType].Codes!;
 

@@ -277,13 +277,13 @@ public sealed class MotMileageEstimationPolicyTests
     public void InterpolatesOnlyInsideASegment()
     {
         // 100 of the 365 days from 49,930 to 60,515, within the widest
-        // holdout miss of 3 a day.
+        // holdout miss of 5 a day.
         var inside = MotMileageEstimationPolicy.Estimate(Steady, On(1_195));
 
         Assert.Equal(MotMileageEstimateKind.Estimate, inside.Kind);
         Assert.Equal(52_830L, inside.Miles);
-        Assert.Equal(52_530L, inside.Low);
-        Assert.Equal(53_130L, inside.High);
+        Assert.Equal(52_330L, inside.Low);
+        Assert.Equal(53_330L, inside.High);
 
         // Between the old odometer's 60,000 and the new one's 5,000 either
         // could be fitted: a range from zero, not a blend of the two.
@@ -294,34 +294,35 @@ public sealed class MotMileageEstimationPolicyTests
         Assert.Equal(0L, across.Low);
         Assert.Equal(60_000L + (135 * MotMileageEstimationPolicy.MaxPlausibleMilesPerDay), across.High);
 
-        // Inside the new odometer's segment, with no holdout yet.
+        // Inside the new odometer's segment, with no holdout yet: linear,
+        // bounded by the two readings.
         var second = MotMileageEstimationPolicy.Estimate(Replaced, On(900));
 
-        Assert.Equal(MotMileageEstimateKind.QualifiedRange, second.Kind);
+        Assert.Equal(MotMileageEstimateKind.Estimate, second.Kind);
+        Assert.Equal(9_658L, second.Miles);
         Assert.Equal(5_000L, second.Low);
         Assert.Equal(15_000L, second.High);
     }
 
     [Fact]
-    public void ForecastAtTheHorizonIsAnEstimatePastItIsARange()
+    public void ForecastAfterTheLatestReadingIsAlwaysAnEstimate()
     {
-        var atHorizon = MotMileageEstimationPolicy.Estimate(Steady, On(1_825));
+        var oneYear = MotMileageEstimationPolicy.Estimate(Steady, On(1_825));
 
-        Assert.Equal(365, Assert.Single(atHorizon.Evidence.Segments).HorizonDays);
-        Assert.Equal(MotMileageEstimateKind.Estimate, atHorizon.Kind);
-        Assert.False(atHorizon.NonProbabilistic);
-        // 60,515 + 29 a day for 365 days, give or take 3 a day.
-        Assert.Equal(71_100L, atHorizon.Miles);
-        Assert.Equal(70_005L, atHorizon.Low);
-        Assert.Equal(72_195L, atHorizon.High);
+        Assert.Equal(MotMileageEstimateKind.Estimate, oneYear.Kind);
+        Assert.False(oneYear.NonProbabilistic);
+        // 60,515 + 29 a day for 365 days, give or take 5 a day.
+        Assert.Equal(71_100L, oneYear.Miles);
+        Assert.Equal(69_275L, oneYear.Low);
+        Assert.Equal(72_925L, oneYear.High);
 
-        var past = MotMileageEstimationPolicy.Estimate(Steady, On(1_826));
+        // No horizon: a day further on is still a figure (operator, 5 November 2026).
+        var further = MotMileageEstimationPolicy.Estimate(Steady, On(1_826));
 
-        Assert.Equal(MotMileageEstimateKind.QualifiedRange, past.Kind);
-        Assert.True(past.NonProbabilistic);
-        Assert.Null(past.Miles);
-        Assert.Equal(60_515L, past.Low);
-        Assert.Equal(60_515L + (366 * MotMileageEstimationPolicy.MaxPlausibleMilesPerDay), past.High);
+        Assert.Equal(MotMileageEstimateKind.Estimate, further.Kind);
+        Assert.Equal(71_129L, further.Miles);
+        Assert.Equal(69_299L, further.Low);
+        Assert.Equal(72_959L, further.High);
     }
 
     [Fact]
@@ -329,11 +330,12 @@ public sealed class MotMileageEstimationPolicyTests
     {
         var segment = Assert.Single(MotMileageEstimationPolicy.Estimate(Steady, On(1_825)).Evidence.Segments);
 
-        // The first two readings have too few clean intervals before them;
-        // 49,930 is predicted at 30 a day from the first three readings and
-        // 60,515 at 27 a day from the first four.
+        // The first two readings have no clean interval before them; 40,075
+        // is predicted at 25 a day from the first two readings, 49,930 at 30
+        // a day from the first three and 60,515 at 27 a day from the first four.
         MotMileageHoldout[] holdouts =
         [
+            new(On(730), 40_075, 365, 38_250, 1_825),
             new(On(1_095), 49_930, 365, 51_025, -1_095),
             new(On(1_460), 60_515, 365, 59_785, 730)
         ];
@@ -346,32 +348,76 @@ public sealed class MotMileageEstimationPolicyTests
     }
 
     [Fact]
-    public void SparseHistoryGivesARangeNeverAPointOrAPrior()
+    public void SparseHistoryStillGivesAFigureNeverAPrior()
     {
+        // One reading and no rate: the reading stands, up to the plausibility ceiling.
         var single = MotMileageEstimationPolicy.Estimate([Passed(0, 30_000)], On(200));
 
-        Assert.Equal(MotMileageEstimateKind.QualifiedRange, single.Kind);
-        Assert.Null(single.Miles);
+        Assert.Equal(MotMileageEstimateKind.Estimate, single.Kind);
+        Assert.Equal(30_000L, single.Miles);
         Assert.Equal(30_000L, single.Low);
         Assert.Equal(30_000L + (200 * MotMileageEstimationPolicy.MaxPlausibleMilesPerDay), single.High);
 
-        // Two clean intervals give a rate, but nothing has tested it yet.
+        // Two clean intervals: 30 a day, and the one holdout (40,075 from 25
+        // a day) misses by 5 a day.
         var three = MotMileageEstimationPolicy.Estimate(Steady[..3], On(830));
         var segment = Assert.Single(three.Evidence.Segments);
 
         Assert.Equal(30m, segment.MilesPerDay);
-        Assert.Empty(segment.Holdouts);
-        Assert.Equal(MotMileageEstimateKind.QualifiedRange, three.Kind);
-        Assert.Null(three.Miles);
-        Assert.Equal(40_075L, three.Low);
-        Assert.Equal(40_075L + (100 * MotMileageEstimationPolicy.MaxPlausibleMilesPerDay), three.High);
+        Assert.Single(segment.Holdouts);
+        Assert.Equal(MotMileageEstimateKind.Estimate, three.Kind);
+        Assert.Equal(43_075L, three.Miles);
+        Assert.Equal(42_575L, three.Low);
+        Assert.Equal(43_575L, three.High);
 
         // Before the first reading the floor is zero.
         var before = MotMileageEstimationPolicy.Estimate(Steady, On(-100));
 
         Assert.Equal(MotMileageEstimateKind.QualifiedRange, before.Kind);
+        Assert.True(before.NonProbabilistic);
+        Assert.Null(before.Miles);
         Assert.Equal(0L, before.Low);
         Assert.Equal(20_000L, before.High);
+    }
+
+    [Fact]
+    public void AnUnconfirmedLatestDropGivesNoFigure()
+    {
+        // 6,000 after 60,000 with nothing after it: either odometer may be
+        // right, so the answer is bounds from zero (operator, 5 November 2026).
+        var dropped = MotMileageEstimationPolicy.Estimate(
+            [Passed(0, 50_000), Passed(365, 60_000), Passed(730, 6_000)],
+            On(800));
+
+        Assert.Equal(MotMileageEstimateKind.QualifiedRange, dropped.Kind);
+        Assert.Null(dropped.Miles);
+        Assert.Equal(0L, dropped.Low);
+        Assert.Equal(60_000L + (435 * MotMileageEstimationPolicy.MaxPlausibleMilesPerDay), dropped.High);
+    }
+
+    // QCL26005-p (ME17EBA, 5 November 2026): one clean interval of 107 a day
+    // (Jan to Apr is under MinIntervalDays) used to leave only a range and
+    // fill nothing. One interval now gives the rate.
+    [Fact]
+    public void OneCleanIntervalProjectsTheLatestReading()
+    {
+        MotTestObservation[] history =
+        [
+            new(new(2026, 1, 26), "PASSED", new(2027, 1, 25), 43_007, VehicleMileageUnit.Miles),
+            new(new(2026, 4, 8), "FAILED", null, 43_742, VehicleMileageUnit.Miles),
+            new(new(2026, 4, 10), "PASSED", new(2027, 4, 9), 43_749, VehicleMileageUnit.Miles),
+            new(new(2026, 10, 5), "FAILED", null, 62_801, VehicleMileageUnit.Miles),
+            new(new(2026, 10, 5), "PASSED", new(2027, 10, 4), 62_801, VehicleMileageUnit.Miles)
+        ];
+
+        var estimate = MotMileageEstimationPolicy.Estimate(history, new(2026, 11, 5));
+
+        Assert.Equal(MotMileageEstimateKind.Estimate, estimate.Kind);
+        // 62,801 + 19,052 / 178 a day for 31 days.
+        Assert.Equal(66_119L, estimate.Miles);
+        Assert.Equal(62_801L, estimate.Low);
+        Assert.Equal(62_801L + (31 * MotMileageEstimationPolicy.MaxPlausibleMilesPerDay), estimate.High);
+        Assert.Equal(MotMileageEstimationPolicy.MethodKey, estimate.MethodKey);
     }
 
     [Fact]
@@ -412,13 +458,12 @@ public sealed class MotMileageEstimationPolicyTests
     [Theory]
     [InlineData("exact-agrees", true, 1_095, 49_930L, false)]
     [InlineData("exact-differs", true, 1_095, 49_931L, true)]
-    [InlineData("estimate-low-edge", true, 1_825, 70_005L, false)]
-    [InlineData("estimate-high-edge", true, 1_825, 72_195L, false)]
-    [InlineData("estimate-below", true, 1_825, 70_004L, true)]
-    [InlineData("estimate-above", true, 1_825, 72_196L, true)]
-    [InlineData("range-inside", true, 1_826, 100_000L, false)]
-    [InlineData("range-below", true, 1_826, 60_514L, true)]
-    [InlineData("range-above", true, 1_826, 170_316L, true)]
+    [InlineData("estimate-low-edge", true, 1_825, 69_275L, false)]
+    [InlineData("estimate-high-edge", true, 1_825, 72_925L, false)]
+    [InlineData("estimate-below", true, 1_825, 69_274L, true)]
+    [InlineData("estimate-above", true, 1_825, 72_926L, true)]
+    [InlineData("range-inside", true, -100, 10_000L, false)]
+    [InlineData("range-above", true, -100, 20_001L, true)]
     [InlineData("abstention", false, 0, 123_456L, false)]
     public void ContradictsFollowsTheKind(string row, bool withHistory, int day, long caseMiles, bool contradicts)
     {

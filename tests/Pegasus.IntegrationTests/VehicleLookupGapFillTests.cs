@@ -89,9 +89,30 @@ public sealed class VehicleLookupGapFillTests
     }
 
     /// <summary>
+    /// A single MOT reading still fills the Case mileage: there is always a
+    /// figure when DVSA gives one (operator, 5 November 2026).
+    /// </summary>
+    [Fact]
+    public async Task ASingleMotReadingFillsTheMileage()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        MotTestObservation[] history =
+            [new(new(2025, 9, 25), "PASSED", FixtureMotExpiry, 121_823, VehicleMileageUnit.Miles)];
+
+        await RecordLookupAsync(database, caseId, motHistory: history);
+
+        Assert.Equal("121823", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
+        Assert.Equal(MotMileageEstimationPolicy.MethodKey, await database.ScalarAsync<string>(
+            $"SELECT PolicyKey FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
+    }
+
+    /// <summary>
     /// Bounds and an abstention carry no figure, so the Case mileage stays
     /// empty; the observation still keeps the answer and the latest exact
-    /// reading.
+    /// reading. An unconfirmed drop in the latest MOT is bounds (operator, 5
+    /// November 2026).
     /// </summary>
     [Theory]
     [InlineData("range", MotMileageEstimateKind.QualifiedRange)]
@@ -101,7 +122,11 @@ public sealed class VehicleLookupGapFillTests
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
         MotTestObservation[] history = row == "range"
-            ? [new(new(2025, 9, 25), "PASSED", FixtureMotExpiry, 121_823, VehicleMileageUnit.Miles)]
+            ?
+            [
+                new(new(2024, 9, 25), "PASSED", null, 121_823, VehicleMileageUnit.Miles),
+                new(new(2025, 9, 25), "PASSED", FixtureMotExpiry, 21_823, VehicleMileageUnit.Miles)
+            ]
             : [];
 
         await RecordLookupAsync(database, caseId, motHistory: history);
@@ -784,6 +809,29 @@ public sealed class VehicleLookupGapFillTests
             typeApproval: null,
             wheelplan: null,
             revenueWeightKg: null);
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+    }
+
+    /// <summary>
+    /// QCL26005-p: a Prius the lookup once called a van. A whole answer that no
+    /// longer classifies the vehicle withdraws the lookup's own type, so staff
+    /// pick it (operator, 5 November 2026).
+    /// </summary>
+    [Fact]
+    public async Task AnAnswerThatNoLongerClassifiesWithdrawsTheLookupsOwnType()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId, typeApproval: "N1");
+
+        await RecordLookupAsync(
+            database,
+            caseId,
+            typeApproval: null,
+            revenueWeightKg: 1_635,
+            recordedAtUtc: FixedUtcNow.AddMinutes(1));
 
         Assert.Equal(0, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));

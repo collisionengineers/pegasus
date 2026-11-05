@@ -42,22 +42,13 @@ public static class VehicleTypePolicy
         {
             return "motorcycle";
         }
-        if (wheelplan.Contains("ARTIC", StringComparison.Ordinal)
-            || wheelplan.Contains("MULTIAXLE", StringComparison.Ordinal))
-        {
-            return "other";
-        }
-        if (!wheelplan.Contains("RIGIDBODY", StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        return vehicle.RevenueWeightKg switch
-        {
-            null or <= 0 => "car",
-            <= 3_500 => "van",
-            _ => "other"
-        };
+        // A rigid body with no type approval is left for staff to pick: DVLA
+        // records a revenue weight for cars as well as vans, so nothing left in
+        // the answer tells one from the other (operator, 5 November 2026).
+        return wheelplan.Contains("ARTIC", StringComparison.Ordinal)
+            || wheelplan.Contains("MULTIAXLE", StringComparison.Ordinal)
+                ? "other"
+                : null;
     }
 
     private static string Normalize(string? value) =>
