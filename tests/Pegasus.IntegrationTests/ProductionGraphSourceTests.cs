@@ -260,11 +260,11 @@ public sealed class ProductionGraphSourceTests
     private static readonly string[] LargeAttachmentRanges =
         ["bytes 0-3276799/7340032", "bytes 3276800-6553599/7340032", "bytes 6553600-7340031/7340032"];
 
-    [Fact]
-    public async Task ALargeAttachmentUploadsInRangesToGraphsOutlookOfficeSessionUrl()
+    [Theory]
+    [InlineData("https://outlook.office.com/api/v2.0/Users('u')/Messages('draft')/AttachmentSessions('s')?authtoken=t")]
+    [InlineData("https://outlook.office365.com/api/gv1.0/users('u')/messages('draft')/AttachmentSessions('s')?authtoken=t")]
+    public async Task ALargeAttachmentUploadsInRangesToGraphsOutlookSessionUrl(string sessionUrl)
     {
-        const string sessionUrl =
-            "https://outlook.office.com/api/v2.0/Users('u')/Messages('draft')/AttachmentSessions('s')?authtoken=t";
         var bytes = Enumerable.Range(0, 7 * 1024 * 1024).Select(value => (byte)(value % 251)).ToArray();
         var attachment = new StaffMailAttachment(Guid.NewGuid(), Guid.NewGuid(),
             Convert.ToHexString(SHA256.HashData(bytes)), bytes.Length, "report.pdf", "application/pdf");
@@ -301,8 +301,11 @@ public sealed class ProductionGraphSourceTests
         Assert.True(progress.Completed);
     }
 
-    [Fact]
-    public async Task ALargeAttachmentRefusesAnUploadSessionUrlOnAnotherHost()
+    [Theory]
+    [InlineData("https://outlook.office.com.example.invalid/AttachmentSessions('s')")]
+    [InlineData("https://outlook.office365.com.example.invalid/AttachmentSessions('s')")]
+    [InlineData("http://outlook.office365.com/AttachmentSessions('s')")]
+    public async Task ALargeAttachmentRefusesAnUploadSessionUrlOnAnotherHost(string uploadUrl)
     {
         var bytes = new byte[4 * 1024 * 1024];
         var attachment = new StaffMailAttachment(Guid.NewGuid(), Guid.NewGuid(),
@@ -310,7 +313,7 @@ public sealed class ProductionGraphSourceTests
         var graph = new DelegateHandler(_ => Response(HttpStatusCode.Created,
             System.Text.Json.JsonSerializer.Serialize(new
             {
-                uploadUrl = "https://outlook.office.com.example.invalid/AttachmentSessions('s')",
+                uploadUrl,
                 expirationDateTime = DateTimeOffset.UtcNow.AddHours(1)
             })));
         var progress = new UploadProgressFake();
