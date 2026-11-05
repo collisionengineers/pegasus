@@ -9,7 +9,10 @@ public enum MotMileageEstimateKind
     /// <summary>A figure derived from the history, with an interval from its chronological holdouts.</summary>
     Estimate,
 
-    /// <summary>Bounds only, explicitly non-probabilistic; never written to the Case.</summary>
+    /// <summary>
+    /// Bounds only, explicitly non-probabilistic; never written to the Case.
+    /// Given only before the first reading and across an odometer drop.
+    /// </summary>
     QualifiedRange,
 
     /// <summary>The history gives no answer.</summary>
@@ -82,15 +85,11 @@ public sealed record MotMileageHoldout(
     long PredictedMiles,
     long ErrorMiles);
 
-/// <summary>
-/// Readings on one odometer. <paramref name="HorizonDays"/> is the longest
-/// span any of its holdouts predicted across.
-/// </summary>
+/// <summary>Readings on one odometer, with its rate and holdouts.</summary>
 public sealed record MotMileageSegment(
     IReadOnlyList<MotMileagePoint> Readings,
     decimal? MilesPerDay,
-    IReadOnlyList<MotMileageHoldout> Holdouts,
-    int? HorizonDays);
+    IReadOnlyList<MotMileageHoldout> Holdouts);
 
 /// <summary>
 /// Everything the answer rests on, each kept distinct: the raw tests, the
@@ -147,15 +146,16 @@ public sealed record MotMileageEstimate(
 /// low-information intervals aside without deleting them, starts a new
 /// segment only at a corroborated odometer drop, and derives a rate from a
 /// recency- and quality-weighted median of one segment's clean intervals. No
-/// cohort prior is read: a sparse or unsafe history gives a qualified range or
-/// an abstention, never an invented figure.
+/// cohort prior is read. Any usable reading gives a figure (operator, 5
+/// November 2026); only a day whose readings disagree, an odometer drop, or a
+/// history with no usable reading gives a qualified range or an abstention.
 /// </summary>
 public static class MotMileageEstimationPolicy
 {
     public const string MethodKey = "mot-mileage-estimate";
 
     /// <summary>Changing any tuning constant below bumps this version.</summary>
-    public const int MethodVersion = 1;
+    public const int MethodVersion = 2;
 
     /// <summary>Tests within this many days after a failed test are its retests.</summary>
     public const int RetestWindowDays = 30;
@@ -172,8 +172,12 @@ public static class MotMileageEstimationPolicy
     /// <summary>An interval's span counts towards its weight up to this many days.</summary>
     public const int QualitySpanCapDays = 365;
 
-    /// <summary>Fewer clean intervals than this give no rate and no eligible holdout.</summary>
-    public const int MinCleanIntervals = 2;
+    /// <summary>
+    /// Fewer clean intervals than this give no rate and no eligible holdout.
+    /// One is enough: an MOT history always gives a figure (operator, 5
+    /// November 2026).
+    /// </summary>
+    public const int MinCleanIntervals = 1;
 
     private const string FailedTestStatus = "FAILED";
 
@@ -252,18 +256,18 @@ public static class MotMileageEstimationPolicy
         var last = current.Readings[^1];
         if (asOf < last.ObservedOn)
         {
-            var before = current.Readings.Last(point => point.ObservedOn < asOf);
-            var after = current.Readings.First(point => point.ObservedOn > asOf);
-            if (current.Holdouts.Count == 0)
-            {
-                return Range(asOf, before.Miles, after.Miles, evidence);
-            }
-
             // Linear between the two readings. A value between two whole
             // readings rounds to one between them, so it stays clamped to them.
+            var before = current.Readings.Last(point => point.ObservedOn < asOf);
+            var after = current.Readings.First(point => point.ObservedOn > asOf);
             var elapsed = asOf.DayNumber - before.ObservedOn.DayNumber;
             var span = after.ObservedOn.DayNumber - before.ObservedOn.DayNumber;
             var interpolated = before.Miles + Round((decimal)(after.Miles - before.Miles) * elapsed / span);
+            if (current.Holdouts.Count == 0)
+            {
+                return Estimated(asOf, interpolated, before.Miles, after.Miles, evidence);
+            }
+
             var spread = Round(ErrorRate(current) * elapsed);
             return Estimated(
                 asOf,
@@ -283,14 +287,29 @@ public static class MotMileageEstimationPolicy
             return Range(asOf, 0, Math.Max(segments[index + 1].Readings[0].Miles, ceiling), evidence);
         }
 
-        if (current.MilesPerDay is { } rate && days <= current.HorizonDays)
+        // A later reading below this segment that nothing has confirmed means
+        // the odometer history disagrees with itself: either odometer may be
+        // the right one, so staff decide (operator, 5 November 2026).
+        if (evidence.Readings.Any(reading => reading.ObservedOn > last.ObservedOn
+            && reading.SetAsideReason == MotMileageSetAsideReason.UncorroboratedDrop))
         {
-            var forecast = last.Miles + Round(rate * days);
-            var spread = Round(ErrorRate(current) * days);
-            return Estimated(asOf, forecast, Math.Max(last.Miles, forecast - spread), forecast + spread, evidence);
+            return Range(asOf, 0, ceiling, evidence);
         }
 
-        return Range(asOf, last.Miles, ceiling, evidence);
+        // After the latest reading there is always a figure (operator, 5
+        // November 2026): the latest reading carried forward at the segment's
+        // rate, or as it stands where no clean interval gives a rate. Holdouts
+        // narrow the interval where there are any; otherwise it runs from the
+        // latest reading to the plausibility ceiling.
+        var forecast = current.MilesPerDay is { } rate ? last.Miles + Round(rate * days) : last.Miles;
+        if (current.Holdouts.Count == 0)
+        {
+            return Estimated(asOf, forecast, last.Miles, ceiling, evidence);
+        }
+
+        var forecastSpread = Round(ErrorRate(current) * days);
+        return Estimated(
+            asOf, forecast, Math.Max(last.Miles, forecast - forecastSpread), forecast + forecastSpread, evidence);
     }
 
     private static List<MotMileageReading> EpisodeReadings(MotTestObservation[] ordered)
@@ -408,7 +427,7 @@ public static class MotMileageEstimationPolicy
                 holdouts.Add(new(end.ObservedOn, end.Miles, days, predicted, end.Miles - predicted));
             }
 
-            segments.Add(new(points, Rate(within, latest), holdouts, holdouts.Max(holdout => (int?)holdout.Days)));
+            segments.Add(new(points, Rate(within, latest), holdouts));
         }
 
         return (intervals, segments);
