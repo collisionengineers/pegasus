@@ -15,8 +15,9 @@ public sealed class V1ActivityReportTests
         var beta = Guid.NewGuid();
         var queries = new Queries(
         [
-            new(qdos, "QDOS", 1, 2, 1, 1, 0, 0, 0, 0, TimeSpan.FromDays(2), TimeSpan.FromDays(2), TimeSpan.FromDays(2), TimeSpan.FromDays(3), 0, null, 0, null, 0, 0),
-            new(beta, "BETA", 1, 1, 0, 1, 1, 1, 0, 0, null, null, null, null, 0, null, 0, null, 0, 0)
+            new(qdos, "QDOS", 2, 0, TimeSpan.FromDays(3), 0, null, 0, null, 0),
+            // Only re-sends in the period: no report first sent, so no time to send.
+            new(beta, "BETA", 0, 2, null, 0, null, 0, null, 0)
         ]);
 
         var result = await new GetV1ActivityReport(queries)
@@ -25,10 +26,10 @@ public sealed class V1ActivityReportTests
         Assert.Equal((From, To), (result.FromUtc, result.ToUtc));
         Assert.Equal((From, To), queries.Request);
         Assert.Equal(["BETA", "QDOS"], result.Rows.Select(x => x.PrincipalCode));
-        Assert.Equal(1, result.Rows[0].MissingOriginForGeneratedTurnaround);
-        Assert.Equal(1, result.Rows[0].Ready);
-        Assert.Equal(1, result.Rows[0].MissingOriginForReadyTurnaround);
-        Assert.Null(result.Rows[0].AverageReceivedToReady);
+        Assert.Equal((0, 2), (result.Rows[0].Sent, result.Rows[0].Resends));
+        Assert.Null(result.Rows[0].AverageReceivedToSent);
+        Assert.Equal((2, 0), (result.Rows[1].Sent, result.Rows[1].Resends));
+        Assert.Equal(TimeSpan.FromDays(3), result.Rows[1].AverageReceivedToSent);
     }
 
     [Fact]
@@ -60,18 +61,31 @@ public sealed class V1ActivityReportTests
     public async Task ReportRejectsInvalidOrDuplicateAdapterRows()
     {
         var id = Guid.NewGuid();
-        var invalid = new GetV1ActivityReport(new Queries(
-            [new(id, "QDOS", 0, 0, 1, 0, 0, 0, 0, 2, null, null, null, null, 0, null, 0, null, 0, 0)]));
-        var duplicate = new GetV1ActivityReport(new Queries(
+        var valid = new PrincipalReportActivity(id, "QDOS", 2, 1, TimeSpan.FromDays(1), 1, From, 2, From, 1, 10m);
+        IReadOnlyList<IReadOnlyList<PrincipalReportActivity>> invalidRows =
         [
-            new(id, "QDOS", 0, 0, 0, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, 0),
-            new(id, "QDOS", 0, 0, 0, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, 0)
-        ]));
+            [valid with { PrincipalId = Guid.Empty }],
+            [valid with { PrincipalCode = " " }],
+            [valid with { Sent = -1 }],
+            [valid with { Resends = -1 }],
+            [valid with { AverageReceivedToSent = TimeSpan.FromHours(-1) }],
+            [valid with { CurrentTriage = -1 }],
+            [valid with { CurrentHeldCases = -1 }],
+            [valid with { HeldWithoutRecordedHoldEvent = -1 }],
+            [valid with { HeldWithoutRecordedHoldEvent = 3 }],
+            [valid with { AgreedFeeTotal = -1m }],
+            [valid, valid]
+        ];
 
-        await Assert.ThrowsAsync<InvalidDataException>(() => invalid.ExecuteAsync(
-            Administrator(), From, To, CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidDataException>(() => duplicate.ExecuteAsync(
-            Administrator(), From, To, CancellationToken.None));
+        foreach (var rows in invalidRows)
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() => new GetV1ActivityReport(new Queries(rows))
+                .ExecuteAsync(Administrator(), From, To, CancellationToken.None));
+        }
+
+        var accepted = await new GetV1ActivityReport(new Queries([valid]))
+            .ExecuteAsync(Administrator(), From, To, CancellationToken.None);
+        Assert.Equal(valid, Assert.Single(accepted.Rows));
     }
 
     [Fact]
@@ -79,12 +93,15 @@ public sealed class V1ActivityReportTests
     {
         var id = Guid.NewGuid();
         const int oneReport = 1;
+        const int oneResend = 1;
         IReadOnlyList<PrincipalReportActivity> invalidRows =
         [
-            new(id, "QDOS", 1, 1, 1, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, oneReport, 10m, AuditReportsProduced: 2),
-            new(id, "QDOS", 1, 1, 1, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, oneReport, 10m, AuditSent: 2),
-            new(id, "QDOS", 1, 1, 1, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, oneReport, 10m, AuditAgreedFeeTotal: 11m),
-            new(id, "QDOS", 1, 1, 1, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, oneReport, 10m, AuditSent: -1)
+            new(id, "QDOS", oneReport, oneResend, null, 0, null, 0, null, 0, 10m, AuditSent: 2),
+            new(id, "QDOS", oneReport, oneResend, null, 0, null, 0, null, 0, 10m, AuditSent: -1),
+            new(id, "QDOS", oneReport, oneResend, null, 0, null, 0, null, 0, 10m, AuditResends: 2),
+            new(id, "QDOS", oneReport, oneResend, null, 0, null, 0, null, 0, 10m, AuditResends: -1),
+            new(id, "QDOS", oneReport, oneResend, null, 0, null, 0, null, 0, 10m, AuditAgreedFeeTotal: 11m),
+            new(id, "QDOS", oneReport, oneResend, null, 0, null, 0, null, 0, 10m, AuditAgreedFeeTotal: -1m)
         ];
 
         foreach (var row in invalidRows)
@@ -94,10 +111,21 @@ public sealed class V1ActivityReportTests
         }
 
         var valid = await new GetV1ActivityReport(new Queries(
-            [new(id, "QDOS", 1, 1, 1, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, oneReport, 10m, 1, 1, 10m)]))
+            [new(id, "QDOS", oneReport, oneResend, null, 0, null, 0, null, 0, 10m, 1, 1, 10m)]))
             .ExecuteAsync(Administrator(), From, To, CancellationToken.None);
         var only = Assert.Single(valid.Rows);
-        Assert.Equal((0, 0, 0m), (only.InspectionReportsProduced, only.InspectionSent, only.InspectionAgreedFeeTotal));
+        Assert.Equal((0, 0, 0m), (only.InspectionSent, only.InspectionResends, only.InspectionAgreedFeeTotal));
+    }
+
+    /// <summary>MI-02: each Inspection figure is its total less the Audit share.</summary>
+    [Fact]
+    public void EachInspectionFigureIsTheTotalLessTheAuditShare()
+    {
+        var row = new PrincipalReportActivity(
+            Guid.NewGuid(), "QDOS", 5, 3, null, 0, null, 0, null, 0, 400m,
+            AuditSent: 2, AuditResends: 1, AuditAgreedFeeTotal: 150m);
+
+        Assert.Equal((3, 2, 250m), (row.InspectionSent, row.InspectionResends, row.InspectionAgreedFeeTotal));
     }
 
     private static ActionActor Administrator() =>

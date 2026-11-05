@@ -2,6 +2,7 @@
 @using Pegasus.Web.Presentation
 @using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession
 @using EstimateLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate
+@using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
     var caseId = Model.CurrentWorkflow!.CaseId;
@@ -46,31 +47,48 @@
             }
             @if (Model.CanCloseGlass)
             {
-                @* The guarded close (FRD-25): a reason, the confirmation
-                   that Glass's is closed, one consequence, red Close. Never
-                   offered mid-import (Recording). *@
-                <details class="glass-close" data-glass-close>
-                    <summary><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>@GlassLabels.Close</summary>
+                <button type="button" class="btn btn--small btn--danger" data-dialog-open="glass-close-dialog">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+                    <span>@GlassLabels.Close</span>
+                </button>
+            }
+        </div>
+        @if (Model.CanCloseGlass)
+        {
+            @* The guarded close (FRD-25, R674): the prompt states the
+               condition and the press is the confirmation that Glass's is
+               closed, with a reason. Never offered mid-import (Recording).
+               It lives inside the session host so a controls refresh brings
+               the session's current version with it. *@
+            <div id="glass-close-dialog" class="dialog-backdrop" data-dialog="glass-close-dialog" hidden>
+                <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="glass-close-dialog-title">
+                    <div class="dialog-head">
+                        <h2 id="glass-close-dialog-title" tabindex="-1">@GlassLabels.CloseTitle</h2>
+                        <button type="button" class="dialog-close" data-dialog-close aria-label="@EngineerLabels.CloseDialog">
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+                        </button>
+                    </div>
                     <form method="post" asp-page="/Cases/Details" asp-page-handler="CloseGlass"
-                          asp-route-id="@caseId" asp-route-section="estimate" class="glass-close-form" data-glass-close-form>
+                          asp-route-id="@caseId" asp-route-section="estimate" data-glass-close-form>
                         <input type="hidden" name="sessionId" value="@glassSession.Id" />
                         <input type="hidden" name="expectedSessionVersion" value="@glassSession.Version" />
                         <input type="hidden" name="view" value="@Model.ViewRoute" />
-                        <div class="fc">
-                            <label for="glass-close-reason">@GlassLabels.CloseReason</label>
-                            <input id="glass-close-reason" class="fi" name="reason" maxlength="2000" required aria-required="true" />
+                        <input type="hidden" name="externalSessionClosed" value="true" />
+                        <div class="dialog-body stack">
+                            <p class="consequence">@GlassLabels.ClosePrompt</p>
+                            <div class="field">
+                                <label class="req" for="glass-close-reason">@GlassLabels.CloseReason</label>
+                                <input type="text" id="glass-close-reason" name="reason" maxlength="2000" required data-dialog-initial-focus />
+                            </div>
                         </div>
-                        <label class="choice" for="glass-external-closed">
-                            <input id="glass-external-closed" type="checkbox" name="externalSessionClosed"
-                                   value="true" required aria-required="true" />
-                            <span>@GlassLabels.ExternalClosedConfirmation</span>
-                        </label>
-                        <p class="consequence">@GlassLabels.CloseConsequence</p>
-                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Closing" class="btn btn--danger">@GlassLabels.Close</button>
+                        <div class="dialog-foot">
+                            <button type="button" class="btn" data-dialog-close>@EngineerLabels.Cancel</button>
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Closing" class="btn btn--danger">@GlassLabels.Close</button>
+                        </div>
                     </form>
-                </details>
-            }
-        </div>
+                </section>
+            </div>
+        }
     }
 
 </div>

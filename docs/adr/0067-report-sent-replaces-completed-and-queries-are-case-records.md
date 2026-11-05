@@ -63,7 +63,10 @@ or not it answered it.
 
 - The Work Centre's Completed figure has no meaning and goes; Reports sent
   counts each Case's first report send, so it no longer agrees with MI-01
-  in a week with a re-send.
+  in a week with a re-send. *Amended 4 November 2026 (R673):* Reports sent
+  counts each report once at its first send, an Inspection + Audit Case
+  counting two, and MI-01 counts the same sends with re-sends apart, so the
+  two agree. FRD-15 owns the figure.
 - A Report sent Case has no queue; the Query queue lists every open Case
   with an open query, whatever its state, and a query outlives Return to
   Engineer.

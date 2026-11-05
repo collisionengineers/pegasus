@@ -1,17 +1,16 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
-using Pegasus.Core.Documents;
 using Pegasus.Core.Reports;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// Outcomes (item O): every confirmed report produced in the period, read the
-/// way MI-02 confirms it (the artifact's hash matches its custody-confirmed
-/// document version), with the outcome frozen in its snapshot. An Audit
-/// report carries the reviewed report's recorded outcome, read from the Case's
-/// own work by the Case list's rule (<see cref="CaseListPolicy.OriginalOutcomeCode(Pegasus.Core.Cases.CaseType, CaseListWorkFacts)"/>).
+/// Outcomes (item O; R673): every report first sent in the period
+/// (<see cref="ReportSends"/>), with the outcome frozen in the report that
+/// send carried. An Audit report carries the reviewed report's recorded
+/// outcome, read from the Case's own work by the Case list's rule
+/// (<see cref="CaseListPolicy.OriginalOutcomeCode(Pegasus.Core.Cases.CaseType, CaseListWorkFacts)"/>).
 /// </summary>
 internal sealed class EfReportOutcomeQueries(
     IDbContextFactory<PegasusDbContext> factory) : IReportOutcomeQueries
@@ -25,28 +24,22 @@ internal sealed class EfReportOutcomeQueries(
         CancellationToken cancellationToken)
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        var reports = await (
-            from generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
-            join artifact in db.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
-                on generation.Id equals artifact.GenerationId
-            join documentVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
-                on artifact.VersionId equals (Guid?)documentVersion.Id
-            join @case in db.Cases.AsNoTracking() on generation.CaseId equals @case.Id
-            join work in db.CaseWorks.AsNoTracking() on generation.WorkId equals work.Id
-            where generation.GeneratedAtUtc >= fromUtc && generation.GeneratedAtUtc < toUtc
-                && artifact.Kind == nameof(CaseReportArtifactKind.AssessmentReport)
-                && artifact.Sha256 != null
-                && artifact.Sha256 == documentVersion.Sha256
-                && documentVersion.CustodyStatus == DocumentCustodyStatus.Confirmed
-            select new ReportRow(
-                @case.PrincipalId,
-                @case.Principal.Code,
-                @case.Id,
-                @case.Type,
-                generation.Id,
-                work.Kind,
-                SqlJson.Value(generation.SnapshotJson, OutcomePath)))
-            .ToListAsync(cancellationToken);
+        var reports = (await ReportSends.InPeriodAsync(db, fromUtc, toUtc, cancellationToken))
+            .Where(send => send.IsFirst)
+            .ToList();
+        var generationIds = reports.Select(report => report.GenerationId).ToHashSet();
+        var outcomes = generationIds.Count == 0
+            ? new Dictionary<Guid, string?>()
+            : (await FrozenReportSnapshot.ReadAsync(
+                db.Set<CaseReportGenerationEntity>().AsNoTracking()
+                    .Where(generation => EF.Parameter(generationIds).Contains(generation.Id))
+                    .Select(generation => new OutcomeRow
+                    {
+                        GenerationId = generation.Id,
+                        Outcome = SqlJson.Value(generation.SnapshotJson, OutcomePath)
+                    }),
+                cancellationToken))
+                .ToDictionary(row => row.GenerationId, row => row.Outcome);
 
         var auditCaseIds = reports.Where(report => report.IsAudit).Select(report => report.CaseId).Distinct().ToArray();
         var paths = new[] { AssessmentVocabulary.Outcome, AssessmentVocabulary.OriginalReportOutcome };
@@ -68,8 +61,8 @@ internal sealed class EfReportOutcomeQueries(
         return reports
             .Select(report => new ReportOutcomeFact(
                 report.PrincipalId,
-                report.Code,
-                OutcomeOf(report),
+                report.PrincipalCode,
+                OutcomeOf(report.GenerationId, outcomes[report.GenerationId]),
                 report.IsAudit,
                 report.IsAudit
                     ? CaseListPolicy.OriginalOutcomeCode(
@@ -80,21 +73,16 @@ internal sealed class EfReportOutcomeQueries(
     }
 
     /// <summary>The snapshot writes the outcome as its number; a snapshot without one is unreadable, never a zero.</summary>
-    private static AssessmentReportOutcome OutcomeOf(ReportRow report) =>
-        int.TryParse(report.Outcome, NumberStyles.None, CultureInfo.InvariantCulture, out var outcome)
-            ? (AssessmentReportOutcome)outcome
+    private static AssessmentReportOutcome OutcomeOf(Guid generationId, string? outcome) =>
+        int.TryParse(outcome, NumberStyles.None, CultureInfo.InvariantCulture, out var value)
+            ? (AssessmentReportOutcome)value
             : throw new InvalidDataException(
-                $"The frozen snapshot of report generation '{report.GenerationId}' has no outcome.");
+                $"The frozen snapshot of report generation '{generationId}' has no outcome.");
 
-    private sealed record ReportRow(
-        Guid PrincipalId,
-        string Code,
-        Guid CaseId,
-        string CaseType,
-        Guid GenerationId,
-        string WorkKind,
-        string? Outcome)
+    private sealed class OutcomeRow
     {
-        public bool IsAudit => CaseWorkKinds.IsAuditReport(CaseType, WorkKind);
+        public Guid GenerationId { get; init; }
+
+        public string? Outcome { get; init; }
     }
 }

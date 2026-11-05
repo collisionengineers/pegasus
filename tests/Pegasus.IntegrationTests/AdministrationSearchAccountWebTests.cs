@@ -874,6 +874,7 @@ public sealed class AdministrationSearchAccountWebTests
         var to = from.AddDays(31);
         var generatedAt = from.AddDays(2);
         var sentAt = from.AddDays(3);
+        var resentAt = from.AddDays(4);
         using var factory = new IntakeWebApplicationFactory();
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -930,7 +931,7 @@ public sealed class AdministrationSearchAccountWebTests
                     WorkId = caseId,
                     CaseVersion = 1,
                     SnapshotHash = new string('b', 64),
-                    SnapshotJson = "{\"agreedFee\":0.00}",
+                    SnapshotJson = "{\"agreedFee\":150.00}",
                     TemplateVersion = "test",
                     RendererVersion = "test",
                     State = "ready",
@@ -968,30 +969,9 @@ public sealed class AdministrationSearchAccountWebTests
                     State = "Confirmed",
                     OperationKey = $"artifact:{Guid.NewGuid():N}"
                 },
-                new StaffMailSendOperationEntity
-                {
-                    Id = Guid.NewGuid(),
-                    ActorSubjectId = Guid.NewGuid().ToString("D"),
-                    MailboxId = Guid.NewGuid(),
-                    MailboxGeneration = 1,
-                    OperationKey = $"send:{Guid.NewGuid():N}",
-                    PayloadHash = new string('2', 64),
-                    Purpose = StaffMailPurpose.CaseReport,
-                    ContextId = generationId,
-                    ContextVersion = 1,
-                    ComposeMode = StaffMailComposeMode.New,
-                    RecipientsJson = "[]",
-                    Subject = "report",
-                    Body = "report",
-                    AttachmentsJson = "[]",
-                    State = StaffMailState.Sent,
-                    CorrelationMarker = "test",
-                    CreatedAtUtc = sentAt,
-                    RequestedAtUtc = sentAt,
-                    ObservedSentAtUtc = sentAt,
-                    Version = 1,
-                    ConcurrencyToken = Guid.NewGuid()
-                });
+                ReportSend(generationId, sentAt),
+                // The same report again: a re-send.
+                ReportSend(generationId, resentAt));
             await context.SaveChangesAsync();
         }
 
@@ -1003,6 +983,7 @@ public sealed class AdministrationSearchAccountWebTests
 
         Assert.Contains("Reports by Principal", html, StringComparison.Ordinal);
         Assert.Contains("QDOS", html, StringComparison.Ordinal);
+        Assert.Contains(">Re-sends</a>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Report types", html, StringComparison.Ordinal);
         Assert.DoesNotContain("generated artifact", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("pending or failed", html, StringComparison.OrdinalIgnoreCase);
@@ -1013,13 +994,15 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.StartsWith("text/csv", csvResponse.Content.Headers.ContentType?.MediaType, StringComparison.Ordinal);
         var csv = await csvResponse.Content.ReadAsStringAsync();
         Assert.Contains(
-            "Principal,Reports produced,Reports produced · Inspection,Reports produced · Audit,"
-            + "Reports sent,Reports sent · Inspection,Reports sent · Audit,"
+            "Principal,Reports sent,Reports sent · Inspection,Reports sent · Audit,"
+            + "Re-sends,Re-sends · Inspection,Re-sends · Audit,"
             + "Agreed fees,Agreed fees · Inspection,Agreed fees · Audit\r\n",
             csv,
             StringComparison.Ordinal);
-        // An Inspection Case's report, send and fee are all Inspection.
-        Assert.Contains("QDOS,1,1,0,1,1,0,0.00,0.00,0.00\r\n", csv, StringComparison.Ordinal);
+        // R673: the report counts once, at its first send; the second send is a
+        // re-send, and the fee frozen in the report counts once. An Inspection
+        // Case's report, re-send and fee are all Inspection.
+        Assert.Contains("QDOS,1,1,0,1,1,0,150.00,150.00,0.00\r\n", csv, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1028,9 +1011,9 @@ public sealed class AdministrationSearchAccountWebTests
         var from = new DateTimeOffset(2032, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var to = from.AddDays(31);
         var generatedAt = from.AddDays(2);
-        var readyAt = from.AddDays(3);
         var sentAt = from.AddDays(4);
         var heldAt = from.AddDays(5);
+        var resentAt = from.AddDays(6);
         using var factory = new IntakeWebApplicationFactory();
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -1148,44 +1131,9 @@ public sealed class AdministrationSearchAccountWebTests
                     State = "Confirmed",
                     OperationKey = $"artifact:{Guid.NewGuid():N}"
                 },
-                new ActionHistoryEntity
-                {
-                    Id = Guid.NewGuid(),
-                    AggregateType = "case",
-                    AggregateId = caseId.ToString("D"),
-                    EventKind = "case_report_generation_ready",
-                    ActorKind = "Staff",
-                    ActorSubjectId = Guid.NewGuid().ToString("D"),
-                    ActorRolesJson = "[]",
-                    OccurredAtUtc = readyAt,
-                    Outcome = "Succeeded",
-                    CorrelationId = "report-ready:mi03-test",
-                    AfterJson = $"{{\"generationId\":\"{generationId:D}\"}}"
-                },
-                new StaffMailSendOperationEntity
-                {
-                    Id = Guid.NewGuid(),
-                    ActorSubjectId = Guid.NewGuid().ToString("D"),
-                    MailboxId = Guid.NewGuid(),
-                    MailboxGeneration = 1,
-                    OperationKey = $"send:{Guid.NewGuid():N}",
-                    PayloadHash = new string('2', 64),
-                    Purpose = StaffMailPurpose.CaseReport,
-                    ContextId = generationId,
-                    ContextVersion = 1,
-                    ComposeMode = StaffMailComposeMode.New,
-                    RecipientsJson = "[]",
-                    Subject = "report",
-                    Body = "report",
-                    AttachmentsJson = "[]",
-                    State = StaffMailState.Sent,
-                    CorrelationMarker = "test",
-                    CreatedAtUtc = sentAt,
-                    RequestedAtUtc = sentAt,
-                    ObservedSentAtUtc = sentAt,
-                    Version = 1,
-                    ConcurrencyToken = Guid.NewGuid()
-                });
+                ReportSend(generationId, sentAt),
+                // A re-send, which does not move the time to send.
+                ReportSend(generationId, resentAt));
             await context.SaveChangesAsync();
         }
 
@@ -1200,8 +1148,7 @@ public sealed class AdministrationSearchAccountWebTests
         // Held is now, so it is on the Queues tab.
         var queuesTab = await client.GetStringAsync($"/Administration/Reports?tab=queues&from={fromParam}&to={toParam}");
         Assert.Contains(OperatorLabels.OfficeTime(heldAt), queuesTab, StringComparison.Ordinal);
-        Assert.Contains("2 days", html, StringComparison.Ordinal);
-        Assert.Contains("3 days", html, StringComparison.Ordinal);
+        // R673: the time to the report's first send.
         Assert.Contains("4 days", html, StringComparison.Ordinal);
         Assert.DoesNotContain("missing origin", html, StringComparison.OrdinalIgnoreCase);
 
@@ -1210,8 +1157,9 @@ public sealed class AdministrationSearchAccountWebTests
         csvResponse.EnsureSuccessStatusCode();
         Assert.StartsWith("text/csv", csvResponse.Content.Headers.ContentType?.MediaType, StringComparison.Ordinal);
         var csv = await csvResponse.Content.ReadAsStringAsync();
-        Assert.Contains("Principal,Time to produce,Time to ready,Time to send", csv, StringComparison.Ordinal);
-        Assert.Contains("QDOS,2 days,3 days,4 days", csv, StringComparison.Ordinal);
+        Assert.Contains("Principal,Time to send\r\n", csv, StringComparison.Ordinal);
+        // The first send was four days after receipt; counting the re-send too would make it five.
+        Assert.Contains("QDOS,4 days\r\n", csv, StringComparison.Ordinal);
 
         // Held is now, so it is Queues' (item E), with the same holding age.
         using var queuesResponse = await client.GetAsync(
@@ -1224,6 +1172,32 @@ public sealed class AdministrationSearchAccountWebTests
             queues,
             StringComparison.Ordinal);
     }
+
+    /// <summary>An observed Case report e-mail that carried one report generation.</summary>
+    private static StaffMailSendOperationEntity ReportSend(Guid generationId, DateTimeOffset sentAt) => new()
+    {
+        Id = Guid.NewGuid(),
+        ActorSubjectId = Guid.NewGuid().ToString("D"),
+        MailboxId = Guid.NewGuid(),
+        MailboxGeneration = 1,
+        OperationKey = $"send:{Guid.NewGuid():N}",
+        PayloadHash = new string('2', 64),
+        Purpose = StaffMailPurpose.CaseReport,
+        ContextId = generationId,
+        ContextVersion = 1,
+        ComposeMode = StaffMailComposeMode.New,
+        RecipientsJson = "[]",
+        Subject = "report",
+        Body = "report",
+        AttachmentsJson = "[]",
+        State = StaffMailState.Sent,
+        CorrelationMarker = "test",
+        CreatedAtUtc = sentAt,
+        RequestedAtUtc = sentAt,
+        ObservedSentAtUtc = sentAt,
+        Version = 1,
+        ConcurrencyToken = Guid.NewGuid()
+    };
 
     private static string FormValue(string html, string name)
     {

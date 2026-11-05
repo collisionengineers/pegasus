@@ -1,20 +1,18 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Intake;
-using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// The Engineer Report's two counts (MI-01, D12), read from the records that
-/// hold each fact: observed staff-mail send operations for reports, credited
-/// to their recorded staff actor, or for any other kind of actor (Automation)
-/// to that kind's one row, and mailbox receipts whose classification
-/// decision is post-report. Queries are CaseQueries rows that are open or
-/// Done, not withdrawn, raised in the window and credited to the Case's
-/// assigned Engineer (operator, 27 October 2026).
+/// The Engineer Report's counts (MI-01, D12), read from the records that
+/// hold each fact: the report sends (<see cref="ReportSends"/>), each report
+/// counted once on its first send and every later send a re-send (R673),
+/// credited to their recorded staff sender, or for any other kind of sender
+/// (Automation) to that kind's one row. Queries are CaseQueries rows that are
+/// open or Done, not withdrawn, raised in the window and credited to the
+/// Case's assigned Engineer (operator, 27 October 2026).
 /// </summary>
 internal sealed class EfEngineerActivityQueries(
     IDbContextFactory<PegasusDbContext> contextFactory) : IEngineerActivityQueries
@@ -30,79 +28,37 @@ internal sealed class EfEngineerActivityQueries(
     {
         // One staff member asked for reads only that sender's report sends and
         // the query Cases assigned to them; the sender's id is stored in the
-        // "D" form (ActionActor.Staff).
+        // "D" form (ActionActor.Staff). A send is told first or re-send over
+        // every sender's sends before that narrowing.
         var staffSubjectId = engineerId?.ToString("D");
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        // A report send's context is its generation, which names its Case and
-        // work, and a send that carried both works' reports counts each
-        // (operator, 12 October 2026): the Case type and work kind decide an Audit report
-        // (CaseWorkPolicy.IsAuditReport); the turnaround runs from the Case's
-        // origin receipt for the primary work and from the Audit work's
-        // creation for an Inspection + Audit Case's Audit.
-        var sentOperations = (await context.Set<StaffMailSendOperationEntity>()
-            .AsNoTracking()
-            // Every report send, so the total agrees with Reports by Principal:
-            // a staff member's under their account, Automation's as its own row.
-            .Where(item => item.Purpose == StaffMailPurpose.CaseReport
-                && item.State == StaffMailState.Sent
-                && item.ObservedSentAtUtc >= fromUtc
-                && item.ObservedSentAtUtc < toUtc
-                && (staffSubjectId == null
-                    || (item.ActorKind == ActorKind.Staff && item.ActorSubjectId == staffSubjectId)))
-            .Select(item => new { item.ActorKind, item.ActorSubjectId, item.ContextId, item.SecondContextId, SentAtUtc = item.ObservedSentAtUtc!.Value })
-            .ToListAsync(cancellationToken))
-            .SelectMany(item => item.SecondContextId is { } second
-                ? new[] { (item.ActorKind, item.ActorSubjectId, item.ContextId, item.SentAtUtc), (item.ActorKind, item.ActorSubjectId, ContextId: second, item.SentAtUtc) }
-                : [(item.ActorKind, item.ActorSubjectId, item.ContextId, item.SentAtUtc)])
-            .ToList();
-        var generationIds = sentOperations.Select(item => item.ContextId).Distinct().ToArray();
-        var sentCases = generationIds.Length == 0
-            ? new Dictionary<Guid, SentReport>()
-            : (await (
-                from generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
-                join @case in context.Cases.AsNoTracking() on generation.CaseId equals @case.Id
-                join work in context.CaseWorks.AsNoTracking() on generation.WorkId equals work.Id
-                where generationIds.Contains(generation.Id)
-                select new
-                {
-                    GenerationId = generation.Id,
-                    @case.Type,
-                    WorkKind = work.Kind,
-                    WorkCreatedAtUtc = work.CreatedAtUtc,
-                    ReceivedAtUtc = context.IntakeReceipts
-                        .Where(receipt => receipt.Id == @case.OriginIntakeReceiptId)
-                        .Select(receipt => (DateTimeOffset?)receipt.ReceivedAtUtc)
-                        .FirstOrDefault()
-                })
-                .ToListAsync(cancellationToken))
-                .ToDictionary(
-                    item => item.GenerationId,
-                    item => new SentReport(
-                        CaseWorkKinds.IsAuditReport(item.Type, item.WorkKind),
-                        item.WorkKind == CaseWorkKinds.Audit
-                            ? item.WorkCreatedAtUtc
-                            : item.ReceivedAtUtc));
-        var reports = sentOperations
-            .Select(item => new
+        // Every report send, so the total agrees with Reports by Principal: a
+        // staff member's under their account, Automation's as its own row. A
+        // send that carried both works' reports counts each (operator, 12
+        // October 2026); the turnaround runs to each report's first send
+        // (ReportSendPolicy.TurnaroundStart).
+        var reports = (await ReportSends.InPeriodAsync(context, fromUtc, toUtc, cancellationToken))
+            .Where(send => staffSubjectId == null
+                || (send.ActorKind == ActorKind.Staff && send.ActorSubjectId == staffSubjectId))
+            .Select(send => new
             {
-                Sender = item.ActorKind != ActorKind.Staff
-                    ? (item.ActorKind, Guid.Empty)
-                    : Guid.TryParse(item.ActorSubjectId, out var id) ? (ActorKind.Staff, id) : ((ActorKind, Guid)?)null,
-                item.ContextId,
-                item.SentAtUtc
+                Sender = send.ActorKind != ActorKind.Staff
+                    ? (send.ActorKind, Guid.Empty)
+                    : Guid.TryParse(send.ActorSubjectId, out var id) ? (ActorKind.Staff, id) : ((ActorKind, Guid)?)null,
+                Send = send
             })
             .Where(item => item.Sender is not null)
             .GroupBy(item => item.Sender!.Value)
             .Select(group => new
             {
                 Sender = group.Key,
-                Count = group.Count(),
-                Audit = group.Count(item => sentCases.TryGetValue(item.ContextId, out var sentCase)
-                    && sentCase.IsAudit),
+                Count = group.Count(item => item.Send.IsFirst),
+                Audit = group.Count(item => item.Send.IsFirst && item.Send.IsAudit),
+                Resends = group.Count(item => !item.Send.IsFirst),
                 Turnaround = Average(group
-                    .Where(item => sentCases.TryGetValue(item.ContextId, out var sentCase) && sentCase.StartedAtUtc is not null)
-                    .Select(item => item.SentAtUtc - sentCases[item.ContextId].StartedAtUtc!.Value))
+                    .Where(item => item.Send.IsFirst && item.Send.TurnaroundStartUtc is not null)
+                    .Select(item => item.Send.SentAtUtc - item.Send.TurnaroundStartUtc!.Value))
             })
             .ToList();
 
@@ -142,7 +98,8 @@ internal sealed class EfEngineerActivityQueries(
                 reportsBySender.TryGetValue(sender, out var sent) ? sent.Count : 0,
                 sender.Item1 == ActorKind.Staff && queries.TryGetValue(sender.Item2, out var received) ? received : 0,
                 sent?.Audit ?? 0,
-                sent?.Turnaround)
+                sent?.Turnaround,
+                sent?.Resends ?? 0)
             {
                 SenderKind = sender.Item1
             })
@@ -154,7 +111,4 @@ internal sealed class EfEngineerActivityQueries(
         var list = durations.ToList();
         return list.Count == 0 ? null : TimeSpan.FromTicks((long)list.Average(duration => duration.Ticks));
     }
-
-    /// <summary>A sent report's MI-01 facts: whether it is an Audit report and when its work started.</summary>
-    private sealed record SentReport(bool IsAudit, DateTimeOffset? StartedAtUtc);
 }

@@ -55,8 +55,10 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
             .Where(work => work.Kind == CaseWorkKinds.Audit && EF.Parameter(caseIds).Contains(work.CaseId))
             .ToDictionaryAsync(work => work.CaseId, work => work.Id, cancellationToken);
 
+        // Each report reads its own work's case data: the Case's own (primary)
+        // work, whose id is the Case's, and an Inspection + Audit Case's Audit.
         var claimData = query.Needs.HasFlag(CaseListFacts.ClaimData) && query.ClaimFields.Count > 0
-            ? await ClaimDataAsync(db, caseIds, query.ClaimFields, cancellationToken)
+            ? await ClaimDataAsync(db, [.. caseIds, .. auditWorks.Values], query.ClaimFields, cancellationToken)
             : [];
         var assessment = query.Needs.HasFlag(CaseListFacts.Assessment) && query.AssessmentPaths.Count > 0
             ? await AssessmentAsync(db, caseIds, query.AssessmentPaths, cancellationToken)
@@ -65,7 +67,11 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
             ? await ReportFiguresAsync(db, caseIds, cancellationToken)
             : [];
         var sends = query.Needs.HasFlag(CaseListFacts.Sends)
-            ? await FirstSendsAsync(db, caseIds, cancellationToken)
+            ? await SendsAsync(db, caseIds, cancellationToken)
+            : [];
+        var fees = query.Needs.HasFlag(CaseListFacts.SentFees)
+            ? await FrozenReportSnapshot.ReadAgreedFeesAsync(
+                db, sends.Values.Select(send => send.GenerationId).ToHashSet(), cancellationToken)
             : [];
         var activity = query.Needs.HasFlag(CaseListFacts.Activity)
             ? await ActivityAsync(db, caseIds, cancellationToken)
@@ -86,9 +92,8 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
                 row.TriageState is null ? null : EfTriageStore.ParseState(row.TriageState),
                 row.AssignedEngineerId,
                 row.SignOffEngineerId,
-                claimData.GetValueOrDefault(row.CaseId) ?? new Dictionary<string, string>(),
-                Work(row.CaseId, assessment, reports, sends),
-                auditWorks.TryGetValue(row.CaseId, out var auditWorkId) ? Work(auditWorkId, assessment, reports, sends) : null,
+                Work(row.CaseId, claimData, assessment, reports, sends, fees),
+                auditWorks.TryGetValue(row.CaseId, out var auditWorkId) ? Work(auditWorkId, claimData, assessment, reports, sends, fees) : null,
                 activity.GetValueOrDefault(row.CaseId) ?? CaseListActivity.None)
             {
                 HasOpenQuery = row.HasOpenQuery
@@ -120,10 +125,10 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
         return cases;
     }
 
-    /// <summary>The accepted value of each asked-for field on the Case's own work (<see cref="CaseDataFieldValues.Accepted"/>).</summary>
+    /// <summary>The accepted value of each asked-for field on each named work (<see cref="CaseDataFieldValues.Accepted"/>).</summary>
     private static async Task<Dictionary<Guid, IReadOnlyDictionary<string, string>>> ClaimDataAsync(
         PegasusDbContext db,
-        HashSet<Guid> caseIds,
+        HashSet<Guid> workIds,
         IReadOnlySet<string> fieldNames,
         CancellationToken cancellationToken)
     {
@@ -131,7 +136,7 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
         var fields = await db.CaseDataFields.AsNoTracking()
             .Where(field => names.Contains(field.FieldName)
                 && (field.ValueKind == CaseDataCodes.Confirmed || field.ValueKind == CaseDataCodes.Fact)
-                && EF.Parameter(caseIds).Contains(field.WorkId))
+                && EF.Parameter(workIds).Contains(field.WorkId))
             .ToListAsync(cancellationToken);
         return fields
             .GroupBy(field => field.WorkId)
@@ -169,10 +174,9 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
     }
 
     /// <summary>
-    /// Each work's confirmed assessment reports, read the way MI-02 confirms
-    /// them (the artifact's hash matches its custody-confirmed document
-    /// version). The fee comes from the first, the repair cost and signatory
-    /// from the latest, each read from the frozen snapshot in the database.
+    /// Each work's confirmed assessment reports (the artifact's hash matches
+    /// its custody-confirmed document version). The repair cost and signatory
+    /// come from the latest, read from its frozen snapshot in the database.
     /// </summary>
     private static async Task<Dictionary<Guid, ReportFigures>> ReportFiguresAsync(
         PegasusDbContext db,
@@ -194,7 +198,6 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
                 generation.WorkId,
                 generation.Id,
                 generation.GeneratedAtUtc,
-                SqlJson.Value(generation.SnapshotJson, FrozenReportSnapshot.AgreedFeePath),
                 SqlJson.Value(generation.SnapshotJson, RepairCostPath),
                 SqlJson.Value(generation.SnapshotJson, SignatoryPath)))
             .ToListAsync(cancellationToken);
@@ -202,38 +205,35 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
             .GroupBy(report => report.WorkId)
             .ToDictionary(group => group.Key, group =>
             {
-                var ordered = group.OrderBy(report => report.GeneratedAtUtc).ThenBy(report => report.GenerationId).ToList();
-                var first = ordered[0];
-                var latest = ordered[^1];
+                var latest = group.OrderBy(report => report.GeneratedAtUtc).ThenBy(report => report.GenerationId).Last();
                 return new ReportFigures(
-                    FrozenReportSnapshot.AgreedFee(first.GenerationId, first.AgreedFee),
                     FrozenReportSnapshot.Number(latest.RepairCost),
                     Guid.TryParse(latest.SignatoryId, out var signatory) ? signatory : null);
             });
     }
 
     /// <summary>
-    /// Each work's first observed report send and who made it (MI-01's send
-    /// record); a send that carried both works' reports is each work's send.
+    /// Each work's report sends (<see cref="ReportSendPolicy"/>, R673): its
+    /// first send, who made it and the generation it carried, and how many
+    /// re-sends followed. A send that carried both works' reports is a send of
+    /// each.
     /// </summary>
-    private static async Task<Dictionary<Guid, SendRow>> FirstSendsAsync(
+    private static async Task<Dictionary<Guid, SendRow>> SendsAsync(
         PegasusDbContext db,
         HashSet<Guid> caseIds,
         CancellationToken cancellationToken)
     {
-        var sends = await (
-            from operation in db.Set<StaffMailSendOperationEntity>().AsNoTracking()
-            from generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
-            where (generation.Id == operation.ContextId || generation.Id == operation.SecondContextId)
-                && operation.Purpose == StaffMailPurpose.CaseReport
-                && operation.State == StaffMailState.Sent
-                && operation.ObservedSentAtUtc != null
-                && EF.Parameter(caseIds).Contains(generation.CaseId)
-            select new SendRow(generation.WorkId, operation.ObservedSentAtUtc!.Value, operation.ActorKind, operation.ActorSubjectId))
+        var sends = await ReportSends.All(db)
+            .Where(send => EF.Parameter(caseIds).Contains(send.CaseId))
             .ToListAsync(cancellationToken);
-        return sends
-            .GroupBy(send => send.WorkId)
-            .ToDictionary(group => group.Key, group => group.OrderBy(send => send.SentAtUtc).First());
+        return ReportSendPolicy
+            .Classify(sends, send => send.WorkId, send => send.SentAtUtc, send => send.SendId)
+            .GroupBy(item => item.Send.WorkId)
+            .ToDictionary(group => group.Key, group =>
+            {
+                var first = group.Single(item => item.IsFirst).Send;
+                return new SendRow(first.SentAtUtc, first.ActorKind, first.ActorSubjectId, first.GenerationId, group.Count() - 1);
+            });
     }
 
     private static async Task<Dictionary<Guid, CaseListActivity>> ActivityAsync(
@@ -333,20 +333,26 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
 
     private static CaseListWorkFacts Work(
         Guid workId,
+        Dictionary<Guid, IReadOnlyDictionary<string, string>> claimData,
         Dictionary<Guid, Dictionary<string, string>> assessment,
         Dictionary<Guid, ReportFigures> reports,
-        Dictionary<Guid, SendRow> sends)
+        Dictionary<Guid, SendRow> sends,
+        Dictionary<Guid, decimal> fees)
     {
         var report = reports.GetValueOrDefault(workId);
         var send = sends.GetValueOrDefault(workId);
         return new(
             assessment.GetValueOrDefault(workId) ?? new Dictionary<string, string>(),
-            report?.AgreedFee,
+            send is not null && fees.TryGetValue(send.GenerationId, out var fee) ? fee : (decimal?)null,
             report?.RepairCost,
             report?.SignatoryId,
             send?.SentAtUtc,
             send?.ActorKind,
-            send?.ActorSubjectId);
+            send?.ActorSubjectId,
+            send?.Resends ?? 0)
+        {
+            ClaimData = claimData.GetValueOrDefault(workId) ?? new Dictionary<string, string>()
+        };
     }
 
     private sealed record CaseRow(
@@ -367,15 +373,16 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
         Guid WorkId,
         Guid GenerationId,
         DateTimeOffset GeneratedAtUtc,
-        string? AgreedFee,
         string? RepairCost,
         string? SignatoryId);
 
-    private sealed record ReportFigures(decimal AgreedFee, decimal? RepairCost, Guid? SignatoryId);
+    private sealed record ReportFigures(decimal? RepairCost, Guid? SignatoryId);
 
+    /// <summary>A work's first report send, the generation it carried, and how many re-sends followed.</summary>
     private sealed record SendRow(
-        Guid WorkId,
         DateTimeOffset SentAtUtc,
         Pegasus.Core.Identity.ActorKind ActorKind,
-        string ActorSubjectId);
+        string ActorSubjectId,
+        Guid GenerationId,
+        int Resends);
 }
