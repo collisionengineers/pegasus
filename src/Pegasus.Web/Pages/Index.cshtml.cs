@@ -569,7 +569,8 @@ public partial class IndexModel(
     {
         SystemActionFilter.AutoMatched => "auto-match",
         SystemActionFilter.ImagesPaired => "images",
-        SystemActionFilter.RulesAndQueries => "rules",
+        SystemActionFilter.QueryOpened => "queries",
+        SystemActionFilter.CancellationMatched => "cancellations",
         _ => null
     };
 
@@ -577,7 +578,8 @@ public partial class IndexModel(
     {
         "auto-match" => SystemActionFilter.AutoMatched,
         "images" => SystemActionFilter.ImagesPaired,
-        "rules" => SystemActionFilter.RulesAndQueries,
+        "queries" => SystemActionFilter.QueryOpened,
+        "cancellations" => SystemActionFilter.CancellationMatched,
         _ => SystemActionFilter.All
     };
 

@@ -17,22 +17,20 @@ public enum SystemActionKind
 }
 
 /// <summary>
-/// The System Actions sub-filters. Rules and queries is the two rule kinds
-/// together; the other two name one kind each.
+/// The System Actions sub-filters: All, or one kind each (R711).
 /// </summary>
 public enum SystemActionFilter
 {
     All,
     AutoMatched,
     ImagesPaired,
-    RulesAndQueries
+    QueryOpened,
+    CancellationMatched
 }
 
 /// <summary>
 /// One System Actions row. <see cref="RecordId"/> is the underlying record —
-/// the receipt, the image intake or the query — and <see cref="Signal"/> is
-/// the text that record left (the association reason, which names the agreeing
-/// signals, or the recorded reason of the other kinds).
+/// the receipt, the image intake or the query.
 /// </summary>
 public sealed record SystemActionRow(
     Guid RecordId,
@@ -42,8 +40,6 @@ public sealed record SystemActionRow(
     string? Registration,
     string? VehicleMake,
     string? VehicleModel,
-    string Summary,
-    string Signal,
     DateTimeOffset OccurredAtUtc,
     Guid? QueryId,
     bool QueryUnassigned);
@@ -91,14 +87,14 @@ public static class SystemActionsPolicy
     {
         SystemActionFilter.AutoMatched => kind == SystemActionKind.AutoMatchedMail,
         SystemActionFilter.ImagesPaired => kind == SystemActionKind.VehicleImagesPaired,
-        SystemActionFilter.RulesAndQueries => kind is SystemActionKind.QueryOpenedAutomatically
-            or SystemActionKind.CancellationMatched,
+        SystemActionFilter.QueryOpened => kind == SystemActionKind.QueryOpenedAutomatically,
+        SystemActionFilter.CancellationMatched => kind == SystemActionKind.CancellationMatched,
         _ => true
     };
 
     /// <summary>
     /// Find within System Actions: the reference, the registration with its
-    /// spaces and dashes ignored, the vehicle, the summary or the signal.
+    /// spaces and dashes ignored, or the vehicle.
     /// The same compact registration rule as <see cref="RecentCasesPolicy.Matches"/>.
     /// </summary>
     public static bool MatchesSearch(SystemActionRow row, string? search)
@@ -112,8 +108,6 @@ public static class SystemActionsPolicy
 
         var compact = Compact(term);
         return Contains(row.Reference, term)
-            || Contains(row.Summary, term)
-            || Contains(row.Signal, term)
             || Contains(row.VehicleMake, term)
             || Contains(row.VehicleModel, term)
             || (row.Registration is { } registration && Contains(Compact(registration), compact));

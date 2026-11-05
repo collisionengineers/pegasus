@@ -35,11 +35,9 @@ public sealed class SystemActionsPersistenceTests
         var mail = Assert.Single(page.Items, row => row.Kind == SystemActionKind.AutoMatchedMail);
         Assert.Equal(ids.MailReceipt, mail.RecordId);
         Assert.Equal(ids.MailCase, mail.CaseId);
-        Assert.Contains("conversation thread", mail.Signal, StringComparison.Ordinal);
 
         var images = Assert.Single(page.Items, row => row.Kind == SystemActionKind.VehicleImagesPaired);
         Assert.Equal(ids.ImageIntake, images.RecordId);
-        Assert.Equal("GJ13EVC-01", images.Summary);
 
         var query = Assert.Single(page.Items, row => row.Kind == SystemActionKind.QueryOpenedAutomatically);
         Assert.Equal(ids.Query, query.RecordId);

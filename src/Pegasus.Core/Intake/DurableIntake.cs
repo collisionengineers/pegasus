@@ -1353,7 +1353,7 @@ public sealed class ProcessQueuedIntake(
                 decision.PolicyVersion,
                 SystemActor,
                 $"case-match-association:{evaluation.Id:N}",
-                $"Automatic association from the recorded case-match decision ({decision.PolicyKey} v{decision.PolicyVersion})."),
+                "Automatic association from the recorded case-match decision."),
             timeProvider.GetUtcNow(),
             cancellationToken);
         if (outcome == AutomaticCaseAssociationOutcome.Associated && caseNotifier is not null)
