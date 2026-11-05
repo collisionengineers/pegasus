@@ -287,7 +287,7 @@ Dialogs are `.dialog` inside `.dialog-backdrop`, mounted in the dialog root:
 initial focus on the first control, a focus trap, the rest of the document
 `inert` while open, Escape closes where safe, a click on the backdrop closes
 only when the press also began on the backdrop, so a text selection dragged
-out of the dialog closes nothing (R711, 5 November 2026), and focus returns to
+out of the dialog closes nothing (R716, 5 November 2026), and focus returns to
 the invoking control. The Request to edit dialog is the one dialog with no close
 control and no Escape (R557, 30 October 2026). Toasts live in `.toast-region`, are announced restrainedly,
 and never carry an action the page does not also offer. Every toast carries the

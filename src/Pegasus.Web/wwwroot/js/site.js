@@ -64,7 +64,7 @@
         return type === 'video/mp4' || type === 'video/quicktime' ? 'video' : '';
     }
 
-    // A click on a backdrop counts only when the press began on it too (R711):
+    // A click on a backdrop counts only when the press began on it too (R716):
     // a text selection dragged out of the dialog and released on the
     // backdrop fires its click there, and must not close the dialog.
     function onBackdropClick(backdrop, handler) {
