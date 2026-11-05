@@ -4,9 +4,13 @@ name: repository-check
 # push to dev runs the full lanes on the merged tree: that run is the
 # exact-head evidence the release preflight reads (R683). main receives the
 # same SHA once the release's smoke has passed (R682), so a push to main runs
-# the history guard alone; its lanes already ran on dev.
+# the history guard alone; its lanes already ran on dev. A pull request into
+# main is only the dev -> main promotion: its head is dev, whose push run
+# already tests that SHA, and the release lands it by pushing main, never by
+# merging the pull request (R682, R691), so it runs nothing.
 on:
   pull_request:
+    branches-ignore: [main]
   push:
     branches: [main, dev]
 
