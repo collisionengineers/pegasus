@@ -5,6 +5,24 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Test Case removal - 5 November 2026
+
+- Approved one-off removal of the test Cases `QCL26005-p`, `AB12CDE-p` and
+  `QDOS26158-p` (R697). Worker and classifier Function Apps were stopped and
+  read back `Stopped`; the Web App stayed Running. A fresh inventory matched
+  the approved dry run before one SQL transaction deleted 1,243 rows across
+  54 tables in `pegasus` (the Cases, their receipts, 4 retained e-mails, 2
+  report sends and 228 action-log rows), with no constraint disabled.
+- `CaseSequences` was unchanged. Cases went from 8 to 5, mailbox receipts from
+  8 to 6, and observed report sends from 7 to 5. The instructions@ inbox
+  boundary moved to `2026-11-05T09:02:56Z` and the desk@ Sent boundary to
+  `2026-11-05T08:29:35Z`; cursors were kept.
+- 93 of 339 blobs in `pegcustody252ow37gij/transient-intake` were deleted,
+  none shared with another Case. Box folders `434473135134`, `433877230818`
+  and `433570134392` went to Box trash. Outlook was untouched. A scan of every
+  id and reference column found no remaining reference, and both apps read
+  back `Running`.
+
 ## Test instance on dev's tip - 5 November 2026
 
 - The hosted test instance (run `83ec377dd6f249d59c2e8ae8e96459c3` on
