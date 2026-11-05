@@ -379,12 +379,13 @@ resource webBoxLinkContributor 'Microsoft.Authorization/roleAssignments@2022-04-
 // ADR-0049: Web runs on a Linux App Service plan as a code-deployed Web App.
 // The plan is fixed compute; it can be resized within the Basic tier without a
 // redeployment. Nothing here depends on a container image or registry.
+// B2 (2 vCPU, 3.5 GB) since 5 November 2026 (R711, issue 982).
 resource webPlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: '${prefix}-web-plan-${suffix}'
   location: webLocation
   kind: 'linux'
   tags: tags
-  sku: { name: 'B1', tier: 'Basic', capacity: 1 }
+  sku: { name: 'B2', tier: 'Basic', capacity: 1 }
   properties: { reserved: true }
 }
 

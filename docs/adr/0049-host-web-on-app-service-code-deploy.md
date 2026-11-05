@@ -44,7 +44,7 @@ environment-variable configuration.
 
 ## Decision
 
-Pegasus.Web runs on a Linux Azure App Service plan (`B1`, Always On) in UK
+Pegasus.Web runs on a Linux Azure App Service plan (`B2`, Always On) in UK
 South as a code-deployed Web App on the platform `DOTNETCORE|10.0` stack. The
 release artifact is `web.zip` from `dotnet publish`, deployed with
 `az webapp deploy --type zip` and run from package. The Web App keeps the
@@ -52,6 +52,12 @@ existing user-assigned identity, role assignments, Key Vault references,
 `/health/ready` as its health-check path, HTTPS only, TLS 1.2 minimum and FTPS
 disabled. The `webActivation` fail-closed gate remains: the site is created
 only when explicitly approved.
+
+Amended 5 November 2026 (R711): the plan is `B2` (2 vCPU, 3.5 GB), up from
+`B1`. The B1 plan was spending working hours at 99 % CPU with memory averaging
+80 %, and report rendering shared its single core with every page request.
+The evidence is in [operations](../operations.md) ("Page p95 reading -
+5 November 2026") and issue 982.
 
 The Container Apps environment, the Container App, the container registry and
 the `AcrPull` assignment leave the template in the release after cutover. The

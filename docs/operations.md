@@ -264,6 +264,50 @@ names the run, so the checklist file is deleted (R525).
   resumed and read back `Running` at 09:26:12Z after verification. The
   Web App read back `Running` at 09:26:15Z.
 
+## Page p95 reading - 5 November 2026 (read-only observation)
+
+The second reading against the [budgets](engineering.md#page-budgets). It is
+the "before" for issues 982 and 1948 to 1952. The window is the seven days to
+about 17:00Z on 5 November and covers the first live week. Releases 140 to
+1.0.0 and their restarts fall inside it. Figures use the 28 October query
+(`AppRequests`, server ms).
+
+| Page | Requests | p50 | p95 | 28 Oct p95 | Budget |
+| --- | --- | --- | --- | --- | --- |
+| `GET /Index` | 385 | 398 | 3,035 | 3,431 | 500 |
+| `GET /Mail/Index` | 484 | 83 | 990 | 1,391 | 500 |
+| `GET /Cases/Index` | 507 | 114 | 2,290 | 1,965 | 500 |
+| `GET /Cases/Details` | 1,845 | 163 | 1,157 | 2,043 | 500 |
+| `POST /Cases/Details` (all handlers) | 623 | 376 | 14,211 | 2,238 | 300 |
+| `GET /Mail/Message` | 62 | 140 | 3,158 | 4,140 | 300 |
+
+Per handler, from the unsampled `AppServiceHTTPLogs` (`TimeTaken`):
+
+| Handler | p50 | p95 | Budget |
+| --- | --- | --- | --- |
+| `GenerateReport` | 7.3 s | 42 s | 3 s |
+| `SendReport` | 8.8 s | 22 s | 3 s |
+| `Save` | 0.5 s | 3.4 s | 0.3 s |
+
+GenerateReport's daily p50 went from 6.2 s on 2 November to 23.6 s on
+5 November. Static images ran at p95 0.65 to 2 s.
+
+Phases inside GenerateReport, averaged per request: `report.photos.prepare`
+4.0 s (p95 15.8 s) and `report.pdf.generate` 0.7 s. Box writes took about
+3.6 s and SQL about 0.46 s (about 98 statements).
+
+Other sources of the time:
+
+- **Sends:** SendReport averages about 1.9 s per send in `GetToken`. The
+  multi-second calls cluster after each deploy.
+- **Case open:** about 49 SQL statements per open.
+- **Save:** about 72 SQL statements per save.
+- **`web.case.resource`:** its p95 is 25 s because it includes the
+  `WatchEditRequest` long polls.
+- **Host load:** the B1 plan reached 99 % CPU in 25 working hours and averaged
+  80 % memory.
+- **SQL:** load averaged 0.7 % DTU.
+
 ## Page p95 baseline - 28 October 2026 (read-only observation)
 
 The first recorded page baseline for the budgets in

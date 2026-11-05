@@ -34,7 +34,7 @@ writing a migration, operations owns the dated record.
 | Resource group | `rg-pegasus-prod` |
 | azd environment | `pegasus-prod` |
 | Web App | `pegasus-prod-web-252ow37gij` |
-| Web plan | `pegasus-prod-web-plan-252ow37gij` (Linux, B1) |
+| Web plan | `pegasus-prod-web-plan-252ow37gij` (Linux, B2, R711) |
 | Web public origin | `https://pegasus-prod-web-252ow37gij.azurewebsites.net/` |
 | Worker | `pegasus-prod-worker-252ow37gij` |
 | Classifier | `pegasus-prod-classifier-252ow37gij` (exists only with `PEGASUS_CLASSIFIER_ACTIVATION=approved`) |
