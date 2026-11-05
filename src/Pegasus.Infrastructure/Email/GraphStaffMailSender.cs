@@ -327,8 +327,11 @@ internal sealed class GraphStaffMailSender(
                 created.Content, 64 * 1024, cancellationToken));
             uploadUrl = new Uri(document.RootElement.GetProperty("uploadUrl").GetString()
                 ?? throw new InvalidDataException("Microsoft Graph returned no attachment upload URL."));
+            // Graph answers a message attachment upload session with a
+            // pre-authenticated URL on outlook.office.com.
             if (uploadUrl.Scheme != System.Uri.UriSchemeHttps
                 || !(uploadUrl.Host.Equals("graph.microsoft.com", StringComparison.OrdinalIgnoreCase)
+                    || uploadUrl.Host.Equals("outlook.office.com", StringComparison.OrdinalIgnoreCase)
                     || uploadUrl.Host.EndsWith(".outlook.com", StringComparison.OrdinalIgnoreCase)))
             {
                 throw new UnauthorizedAccessException("Microsoft Graph returned an untrusted attachment upload URL.");

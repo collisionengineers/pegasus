@@ -257,6 +257,73 @@ public sealed class ProductionGraphSourceTests
         Assert.True(progress.Completed);
     }
 
+    private static readonly string[] LargeAttachmentRanges =
+        ["bytes 0-3276799/7340032", "bytes 3276800-6553599/7340032", "bytes 6553600-7340031/7340032"];
+
+    [Fact]
+    public async Task ALargeAttachmentUploadsInRangesToGraphsOutlookOfficeSessionUrl()
+    {
+        const string sessionUrl =
+            "https://outlook.office.com/api/v2.0/Users('u')/Messages('draft')/AttachmentSessions('s')?authtoken=t";
+        var bytes = Enumerable.Range(0, 7 * 1024 * 1024).Select(value => (byte)(value % 251)).ToArray();
+        var attachment = new StaffMailAttachment(Guid.NewGuid(), Guid.NewGuid(),
+            Convert.ToHexString(SHA256.HashData(bytes)), bytes.Length, "report.pdf", "application/pdf");
+        var graph = new DelegateHandler(request =>
+        {
+            Assert.EndsWith("/attachments/createUploadSession", request.RequestUri!.AbsolutePath);
+            return Response(HttpStatusCode.Created, System.Text.Json.JsonSerializer.Serialize(new
+            {
+                uploadUrl = sessionUrl,
+                expirationDateTime = DateTimeOffset.UtcNow.AddHours(1)
+            }));
+        });
+        var uploaded = new MemoryStream();
+        var ranges = new List<string>();
+        var upload = new DelegateHandler(request =>
+        {
+            Assert.Equal(HttpMethod.Put, request.Method);
+            Assert.Equal(sessionUrl, request.RequestUri!.AbsoluteUri);
+            Assert.Null(request.Headers.Authorization);
+            ranges.Add(request.Content!.Headers.ContentRange!.ToString());
+            request.Content.CopyToAsync(uploaded).GetAwaiter().GetResult();
+            return Response(HttpStatusCode.OK, "{}");
+        });
+        var progress = new UploadProgressFake();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(graph)),
+            new HttpClient(upload), progress);
+
+        await sender.AttachAsync(new(Guid.NewGuid(), "mailbox-id", 1, 10_000_000),
+            Guid.NewGuid(), "draft", attachment, new MemoryStream(bytes), CancellationToken.None);
+
+        Assert.Equal(bytes, uploaded.ToArray());
+        Assert.Equal(LargeAttachmentRanges, ranges);
+        Assert.True(progress.Completed);
+    }
+
+    [Fact]
+    public async Task ALargeAttachmentRefusesAnUploadSessionUrlOnAnotherHost()
+    {
+        var bytes = new byte[4 * 1024 * 1024];
+        var attachment = new StaffMailAttachment(Guid.NewGuid(), Guid.NewGuid(),
+            Convert.ToHexString(SHA256.HashData(bytes)), bytes.Length, "report.pdf", "application/pdf");
+        var graph = new DelegateHandler(_ => Response(HttpStatusCode.Created,
+            System.Text.Json.JsonSerializer.Serialize(new
+            {
+                uploadUrl = "https://outlook.office.com.example.invalid/AttachmentSessions('s')",
+                expirationDateTime = DateTimeOffset.UtcNow.AddHours(1)
+            })));
+        var progress = new UploadProgressFake();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(graph)),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())), progress);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => sender.AttachAsync(
+            new(Guid.NewGuid(), "mailbox-id", 1, 10_000_000),
+            Guid.NewGuid(), "draft", attachment, new MemoryStream(bytes), CancellationToken.None));
+        Assert.Null(progress.Current);
+    }
+
     [Fact]
     public async Task AttachmentReconciliationIgnoresLargeNonMatchingAttachmentsWithoutFetchingContent()
     {
