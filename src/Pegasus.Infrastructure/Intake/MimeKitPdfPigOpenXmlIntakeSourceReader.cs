@@ -1670,7 +1670,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             string.IsNullOrWhiteSpace(display.Body) ? null : display.Body,
             display.Attachments ?? [],
             display.ThreadIdentity,
-            message.Date == DateTimeOffset.MinValue ? null : message.Date);
+            message.Date == DateTimeOffset.MinValue ? null : message.Date,
+            display.InReplyToIdentities ?? []);
     }
 
     private static SourceFormat DetectFormat(string fileName, string mediaType)

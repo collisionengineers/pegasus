@@ -26,11 +26,15 @@ namespace Pegasus.Core.Intake;
 /// 2026). An automatic reply is Unclassified. The pre-accident-value dispute
 /// sentence remains a tell, and sets <see cref="MailClassificationResult.OpensQuery"/>
 /// rather than a category.
+///
+/// Version 5 reads a selected instruction's RE: subject as reply context only
+/// when the message carries In-Reply-To or References, or proves no work
+/// (operator, 5 November 2026, R713).
 /// </summary>
 public sealed partial class PrincipalMailClassificationPolicy(string principalCode) : IMailClassificationPolicy
 {
     public const string Key = "principal_mail_classification";
-    public const int Version = 4;
+    public const int Version = 5;
 
     private const string TriagePhrase = "Triage Only Request";
     private const string TriageSubjectPrefix = "Engineer Triage";
@@ -277,13 +281,22 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
             ExplicitInspectionRequestRegex().IsMatch(text)
             || (PrincipalCode == "DFD" && text.Contains("Engineer instruction request", StringComparison.OrdinalIgnoreCase))
             || (PrincipalCode == "FW" && text.Contains("New INSTRUCTIONS:", StringComparison.OrdinalIgnoreCase))));
+        // In-Reply-To and References establish reply context and a RE: subject
+        // is only the fallback (FRD-08). A RE: subject on a message that carries
+        // neither header does not stop an instruction that proves its work:
+        // Robert James Solicitors write "Re:<file number>/<client>", meaning
+        // "regarding", on fresh instructions (operator, 5 November 2026, R713).
+        // A reader that could not tell (no root e-mail, or no reply identities)
+        // keeps the prefix as reply context.
+        var isReplyContext = ReplyPrefixRegex().IsMatch(subject)
+            && (readResult.RootEmail?.ReplyIdentities is not { Count: 0 } || (!audit && !inspection));
         MailClassificationPredicateResult[] predicates =
         [
             new("instruction.explicit-audit", audit, "The selected PCH instruction explicitly requests a Connexus Audit Report."),
             new("instruction.explicit-inspection", inspection, "The selected instruction contains an evidenced inspection request."),
-            new("subject.reply-context", ReplyPrefixRegex().IsMatch(subject), "The subject identifies correspondence in a reply thread.")
+            new("subject.reply-context", isReplyContext, "The subject identifies correspondence in a reply thread.")
         ];
-        if (AutomaticReplyRegex().IsMatch(subject) || ReplyPrefixRegex().IsMatch(subject)
+        if (AutomaticReplyRegex().IsMatch(subject) || isReplyContext
             || (!audit && !inspection))
         {
             return MailClassificationResult.Unclassified(predicates,

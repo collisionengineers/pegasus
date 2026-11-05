@@ -631,6 +631,9 @@ public sealed record IntakeAttachmentDescriptor(
 /// The submitted source as a message, when the source is an email: what the
 /// Correspondence tab and the mail viewer show for a polled message, read once
 /// by the reader so an uploaded <c>.eml</c> can be retained the same way.
+/// <see cref="ReplyIdentities"/> holds the messages it answers, from its
+/// In-Reply-To and References headers: empty when it carries neither, null
+/// when the reader could not tell.
 /// </summary>
 public sealed record IntakeEmailSummary(
     string? SenderAddress,
@@ -642,7 +645,8 @@ public sealed record IntakeEmailSummary(
     string? BodyPlainText,
     IReadOnlyList<RetainedMailboxAttachment> Attachments,
     string? ThreadIdentity,
-    DateTimeOffset? SentAtUtc);
+    DateTimeOffset? SentAtUtc,
+    IReadOnlyList<string>? ReplyIdentities = null);
 
 public sealed record IntakeAssetRecord(
     Guid Id,
