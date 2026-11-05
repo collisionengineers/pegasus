@@ -657,7 +657,8 @@
                 <a class="chip" href="@Model.PageUrl(tab: IndexModel.SystemActionsTab, systemFilter: SystemActionFilter.All, sysPage: 1)" aria-current="@(Model.SystemFilter == SystemActionFilter.All ? "true" : "false")" data-wc-sys-filter="all">@Labels.All<span class="n">@Model.SystemActionsWindowCount</span></a>
                 <a class="chip" href="@Model.PageUrl(tab: IndexModel.SystemActionsTab, systemFilter: SystemActionFilter.AutoMatched, sysPage: 1)" aria-current="@(Model.SystemFilter == SystemActionFilter.AutoMatched ? "true" : "false")" data-wc-sys-filter="auto-match">@Labels.AutoMatched<span class="n">@(Model.SystemActions?.KindCounts.GetValueOrDefault(SystemActionKind.AutoMatchedMail) ?? 0)</span></a>
                 <a class="chip" href="@Model.PageUrl(tab: IndexModel.SystemActionsTab, systemFilter: SystemActionFilter.ImagesPaired, sysPage: 1)" aria-current="@(Model.SystemFilter == SystemActionFilter.ImagesPaired ? "true" : "false")" data-wc-sys-filter="images">@Labels.ImagesPaired<span class="n">@(Model.SystemActions?.KindCounts.GetValueOrDefault(SystemActionKind.VehicleImagesPaired) ?? 0)</span></a>
-                <a class="chip" href="@Model.PageUrl(tab: IndexModel.SystemActionsTab, systemFilter: SystemActionFilter.RulesAndQueries, sysPage: 1)" aria-current="@(Model.SystemFilter == SystemActionFilter.RulesAndQueries ? "true" : "false")" data-wc-sys-filter="rules">@Labels.RulesAndQueries<span class="n">@((Model.SystemActions?.KindCounts.GetValueOrDefault(SystemActionKind.QueryOpenedAutomatically) ?? 0) + (Model.SystemActions?.KindCounts.GetValueOrDefault(SystemActionKind.CancellationMatched) ?? 0))</span></a>
+                <a class="chip" href="@Model.PageUrl(tab: IndexModel.SystemActionsTab, systemFilter: SystemActionFilter.QueryOpened, sysPage: 1)" aria-current="@(Model.SystemFilter == SystemActionFilter.QueryOpened ? "true" : "false")" data-wc-sys-filter="queries">@Labels.SystemActionKindLabel(SystemActionKind.QueryOpenedAutomatically)<span class="n">@(Model.SystemActions?.KindCounts.GetValueOrDefault(SystemActionKind.QueryOpenedAutomatically) ?? 0)</span></a>
+                <a class="chip" href="@Model.PageUrl(tab: IndexModel.SystemActionsTab, systemFilter: SystemActionFilter.CancellationMatched, sysPage: 1)" aria-current="@(Model.SystemFilter == SystemActionFilter.CancellationMatched ? "true" : "false")" data-wc-sys-filter="cancellations">@Labels.SystemActionKindLabel(SystemActionKind.CancellationMatched)<span class="n">@(Model.SystemActions?.KindCounts.GetValueOrDefault(SystemActionKind.CancellationMatched) ?? 0)</span></a>
             </div>
         </div>
         <h2 id="wc-system-actions-title" class="sr-only" tabindex="-1">@Labels.SystemActions</h2>
@@ -681,7 +682,6 @@
                         <tr>
                             <th scope="col">@Labels.SystemActionColumn</th>
                             <th scope="col">@Labels.CaseColumn</th>
-                            <th scope="col">@Labels.MatchedDetailColumn</th>
                             <th scope="col">@Labels.WhenColumn</th>
                             <th scope="col"><span class="sr-only">@Labels.ActionColumn</span></th>
                         </tr>
@@ -700,13 +700,6 @@
                                 @if (vehicle.Length > 0)
                                 {
                                     <small>@vehicle</small>
-                                }
-                            </td>
-                            <td>
-                                <span>@row.Summary</span>
-                                @if (!string.IsNullOrWhiteSpace(row.Signal))
-                                {
-                                    <small>@Labels.SignalLabel: <strong>@row.Signal</strong></small>
                                 }
                             </td>
                             <td><time datetime="@row.OccurredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.OccurredAtUtc)</time></td>

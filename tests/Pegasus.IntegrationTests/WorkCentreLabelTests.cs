@@ -18,7 +18,6 @@ public sealed class WorkCentreLabelTests
         Assert.Equal("AI Actions", OperatorLabels.WorkCentre.AiActions);
         Assert.Equal("Auto-matched", OperatorLabels.WorkCentre.AutoMatched);
         Assert.Equal("Images paired", OperatorLabels.WorkCentre.ImagesPaired);
-        Assert.Equal("Rules & queries", OperatorLabels.WorkCentre.RulesAndQueries);
         Assert.Equal("Estimate done", OperatorLabels.WorkCentre.EstimateDone);
         Assert.Equal("Draft to a query", OperatorLabels.WorkCentre.DraftToQuery);
         Assert.Equal("Taken by Alex", OperatorLabels.WorkCentre.TakenBy("Alex"));
