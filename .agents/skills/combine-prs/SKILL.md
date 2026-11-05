@@ -272,6 +272,11 @@ Do not merge without an explicit instruction.
 
 1. Fetch and confirm that the combined PR's head SHA is the one CI tested and the
    audit covered. If anything was pushed since, re-run the audit and wait for CI.
+   List the migration files the combined range adds under
+   `src/Pegasus.Infrastructure/Persistence/Migrations/` with their class
+   (engineering §Migrations, R605): landing on `dev` makes them the next
+   release's migration, and a non-additive one needs the destructive route and
+   its approved window.
 2. Land with a merge commit (`gh pr merge M --merge`), or fast-forward the target
    to the tested tip if the repo does that. A fast-forward must be a lease-guarded,
    non-forced push of exactly that SHA. Never squash or rebase, because the

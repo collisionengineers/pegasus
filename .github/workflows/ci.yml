@@ -1,20 +1,25 @@
 name: repository-check
 
-# A push to dev deliberately runs nothing: the dev -> main pull request is where
-# the whole of dev is tested as one, and that run is the release-route evidence.
-# Adding dev here would buy a third full run of a tree two runs already covered.
+# dev is what the hosted test instance runs and what a release deploys, so a
+# push to dev runs the full lanes on the merged tree: that run is the
+# exact-head evidence the release preflight reads (R683). main receives the
+# same SHA once the release's smoke has passed (R682), so a push to main runs
+# the history guard alone; its lanes already ran on dev.
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, dev]
 
 permissions:
   contents: read
 
 # One live run per pull request: a newer head cancels the superseded run
 # instead of letting both finish (two ~15-minute runs started 2m15s apart on
-# task/eng-028-multi-estimate-editor both ran to completion). A push to main is
-# never cancelled — its run is the release-route evidence. DELIV-043.
+# task/eng-028-multi-estimate-editor both ran to completion). A push to dev or
+# main is never cancelled — the dev run is the release-route evidence. DELIV-043.
+# (GitHub still replaces a run that is queued and not yet started by the next
+# push to the same group; a dev run that was replaced shows as cancelled, and
+# the release preflight then reports the candidate as not green.)
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -58,23 +63,27 @@ jobs:
           # runs every lane.
           $all = $true
           $files = @()
+          if ('${{ github.event_name }}' -eq 'push' -and '${{ github.ref }}' -eq 'refs/heads/main') {
+            # main receives a SHA dev already ran (R682, R683): the guard above
+            # is this push's whole check.
+            foreach ($lane in 'code', 'infrastructure', 'classifier') { "$lane=false" >> $env:GITHUB_OUTPUT }
+            Write-Host 'Lanes: none (a push to main is guarded, not re-run; its lanes ran on dev).'
+            exit 0
+          }
           if ('${{ github.event_name }}' -eq 'pull_request') {
             $files = @(gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" --paginate --jq '.[].filename')
             if ($LASTEXITCODE -eq 0 -and $files.Count -eq [int]'${{ github.event.pull_request.changed_files }}') { $all = $false }
-          } else {
-            $base = '${{ github.event.before }}'
-            if ($base -and $base -notmatch '^0+$') {
-              $files = @(git diff --name-only "$base...${{ github.sha }}")
-              if ($LASTEXITCODE -eq 0) { $all = $false }
-            }
           }
+          # A push to dev keeps $all: the merged tree is the release candidate
+          # and the exact-head evidence the preflight reads (R683), so every
+          # lane runs on it whatever the last push alone touched.
           # Code is every path except the ones no .NET build or test reads:
           # Markdown, docs/ (bar the brand logo the report renderer embeds), the
           # skills, the Python helper tests, the reference-data generator, the
           # classifier agent, and the scripts under scripts/ other than the six
           # the Architecture tests read or the shards run.
           $prose = '\.md$|^docs/(?!design/brand/logos/)|^\.agents/|^scripts/skill_scripts/|^scripts/reference_data/|^src/pegasus-classifier-agent/|^scripts/(?!(Invoke-TestShard|Update-TestShardDurations|Test-MainBranchHistory|PegasusPlatform|Test-PegasusPlatform|Invoke-LocalDevelopment)\.ps1$)[^/]+\.ps1$'
-          $infrastructure = '^infra/|^azure\.yaml$|^src/Pegasus\.Infrastructure/Persistence/Migrations/|^scripts/(Test-AzureDeploymentPlan|Test-ReleaseValidation|Test-MigrationGrants|Invoke-ProductionSmoke|Build-ReleaseArtifacts|Invoke-ProductionAdministratorBootstrap|Invoke-AzureDatabaseBootstrap|Invoke-Release|PegasusPlatform)\.ps1$|^\.github/workflows/ci\.yml$'
+          $infrastructure = '^infra/|^azure\.yaml$|^src/Pegasus\.Infrastructure/Persistence/Migrations/|^scripts/(Test-AzureDeploymentPlan|Test-ReleaseValidation|Invoke-ProductionSmoke|Build-ReleaseArtifacts|Invoke-ProductionAdministratorBootstrap|Invoke-AzureDatabaseBootstrap|Invoke-Release|PegasusPlatform)\.ps1$|^\.github/workflows/ci\.yml$'
           $classifier = '^src/pegasus-classifier-agent/|^\.github/workflows/ci\.yml$'
           $code = $all -or [bool]($files | Where-Object { $_ -notmatch $prose } | Select-Object -First 1)
           $infra = $all -or [bool]($files | Where-Object { $_ -match $infrastructure } | Select-Object -First 1)
@@ -280,6 +289,25 @@ jobs:
           name: rendered-reports-${{ matrix.shard }}
           path: tests/Pegasus.IntegrationTests/bin/Release/net10.0/rendered-reports/
           if-no-files-found: ignore
+
+  sql-integration-result:
+    # One check with one name for the six shards and their coverage, so the
+    # dev ruleset can require it (runbook, "Branch and tag protection"): a
+    # path-skipped matrix reports a single skipped `sql-integration` and never
+    # the shard names, and a required shard name then waits for ever. Green
+    # when the lane passed or was skipped; red when a shard or the coverage
+    # failed or was cancelled.
+    needs: [sql-integration, sql-integration-coverage]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Fail when a shard or the coverage did not pass
+        shell: pwsh
+        run: |
+          $results = @{ 'sql-integration' = '${{ needs.sql-integration.result }}'; 'sql-integration-coverage' = '${{ needs.sql-integration-coverage.result }}' }
+          $results.GetEnumerator() | ForEach-Object { Write-Host "$($_.Key): $($_.Value)" }
+          if ($results.Values | Where-Object { $_ -notin @('success', 'skipped') }) { exit 1 }
 
   sql-integration-coverage:
     # Proves the shards reassemble into exactly the tests the lane's filter

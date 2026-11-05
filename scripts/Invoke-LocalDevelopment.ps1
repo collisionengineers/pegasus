@@ -14,7 +14,21 @@ param(
     # restarts (the Glass's callback origin, bookmarks). Valid only with Start
     # and only when the run is created; the other ports stay dynamic.
     [ValidateRange(1024, 65535)]
-    [int]$WebPort
+    [int]$WebPort,
+    # The HTTPS origin a browser reaches this run at when a proxy in front of
+    # it (tailscale serve) answers for a name other than localhost. Recorded in
+    # the manifest and handed to the Glass's callback and the Automation MCP
+    # resource; the owned probes stay on loopback. It needs
+    # Features__PasswordSignIn, because a reachable run would otherwise sign
+    # every caller in as the Administrator. Valid only with Start; omitted on a
+    # restart, the recorded value stands.
+    [ValidatePattern('^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/?$')]
+    [string]$PublicOrigin,
+    # The operator's word for a Reset of the hosted test instance's run (one
+    # with a public origin) or of a run holding a production copy: Reset
+    # removes the database, migrations go forward only, and the data is
+    # people's. Valid only with Reset.
+    [switch]$Approve
 )
 
 $ErrorActionPreference = 'Stop'
@@ -290,7 +304,8 @@ function New-RunManifest {
         [object]$Initialization,
         [int]$FixedWebPort = 0,
         [System.Collections.IDictionary]$LiveIntegrations = [ordered]@{},
-        [bool]$LocalSettingsApplied = $false
+        [bool]$LocalSettingsApplied = $false,
+        [string]$RequestedPublicOrigin = ''
     )
 
     $paths = Get-RunPaths -Id $Id
@@ -353,6 +368,9 @@ function New-RunManifest {
             liveIntegrations = $LiveIntegrations
             localSettingsApplied = $LocalSettingsApplied
             webPortFixed = ($FixedWebPort -gt 0)
+            # The origin a browser reaches the run at behind a proxy; null when
+            # the run is reached on its own loopback origin.
+            publicOrigin = $(if ([string]::IsNullOrWhiteSpace($RequestedPublicOrigin)) { $null } else { $RequestedPublicOrigin })
         }
         identity = [ordered]@{
             initializationCompleted = $false
@@ -446,6 +464,12 @@ function Assert-OwnedManifest {
         if ($flag.Value -isnot [bool]) {
             throw "The local development manifest records a non-boolean live integration '$($flag.Key)': $ManifestPath"
         }
+    }
+    # Absent (a manifest written before the value existed) or null means the
+    # run is reached on its own loopback origin.
+    $recordedOrigin = Get-ManifestRuntimeValue -Manifest $Manifest -Name 'publicOrigin'
+    if ($null -ne $recordedOrigin -and -not (Test-PublicOrigin -Origin ([string]$recordedOrigin))) {
+        throw "The local development manifest records an invalid public origin: $ManifestPath"
     }
 
     $paths = Get-RunPaths -Id $id
@@ -563,6 +587,62 @@ function Set-ManifestRuntimeValue {
     else {
         $Manifest.runtime | Add-Member -NotePropertyName $Name -NotePropertyValue $Value -Force
     }
+}
+
+function Get-ManifestRuntimeValue {
+    # The counterpart of Set-ManifestRuntimeValue: one read for both manifest
+    # shapes; $null when the value was never recorded.
+    param(
+        [Parameter(Mandatory)][object]$Manifest,
+        [Parameter(Mandatory)][string]$Name
+    )
+
+    if ($Manifest.runtime -is [System.Collections.IDictionary]) {
+        if ($Manifest.runtime.Contains($Name)) {
+            return $Manifest.runtime[$Name]
+        }
+        return $null
+    }
+    $property = $Manifest.runtime.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+    return $property.Value
+}
+
+function Test-PublicOrigin {
+    <#
+        .SYNOPSIS
+        An absolute https origin with no path, query, fragment or user information,
+        and not loopback: the run's own origin is already localhost.
+    #>
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Origin)
+
+    $uri = $null
+    if (-not [Uri]::TryCreate($Origin, [UriKind]::Absolute, [ref]$uri)) {
+        return $false
+    }
+    return $uri.Scheme -eq 'https' -and
+        -not $uri.IsLoopback -and
+        [string]::IsNullOrEmpty($uri.UserInfo) -and
+        $uri.AbsolutePath -eq '/' -and
+        [string]::IsNullOrEmpty($uri.Query) -and
+        [string]::IsNullOrEmpty($uri.Fragment)
+}
+
+function Get-RunPublicOrigin {
+    <#
+        .SYNOPSIS
+        The recorded public origin with one trailing slash, or $null when the run
+        is reached on its own loopback origin.
+    #>
+    param([Parameter(Mandatory)][object]$Manifest)
+
+    $recorded = Get-ManifestRuntimeValue -Manifest $Manifest -Name 'publicOrigin'
+    if ([string]::IsNullOrWhiteSpace([string]$recorded)) {
+        return $null
+    }
+    return ([string]$recorded).TrimEnd('/') + '/'
 }
 
 function Read-OwnedManifest {
@@ -701,10 +781,22 @@ function Get-WebEnvironment {
         # local store on, and an absent variable would not override it.
         $environment['Features__LocalDocumentCustody'] = 'false'
     }
+    # The origin a browser reaches the run at: the recorded public origin behind
+    # a proxy, else the run's own loopback base. The manifest owns it, not the
+    # settings file, so the Glass's return and the MCP resource name one origin.
+    $browserOrigin = Get-RunPublicOrigin -Manifest $Manifest
+    if ($null -eq $browserOrigin) {
+        $browserOrigin = $webBase.TrimEnd('/') + '/'
+    }
     if ($flags.glass) {
-        # The provider returns the staff browser to this run's own origin; the
-        # manifest owns that origin, not the settings file.
-        $environment['Glass__CallbackBaseUri'] = $webBase.TrimEnd('/') + '/'
+        # The provider returns the staff browser to the origin it came from.
+        $environment['Glass__CallbackBaseUri'] = $browserOrigin
+    }
+    if ($flags.automationMcp) {
+        # The MCP resource identifier. OpenIddict issues tokens for the host a
+        # request arrived on, so a classifier or connector must use this one
+        # origin for both the token endpoint and the MCP endpoint.
+        $environment['AutomationMcp__PublicOrigin'] = $browserOrigin
     }
     foreach ($entry in (Split-PegasusLocalSettings -Settings $Settings -HostKind Web).GetEnumerator()) {
         $environment[$entry.Key] = $entry.Value
@@ -1364,6 +1456,7 @@ function Test-RunStatus {
     return [pscustomobject][ordered]@{
         RunId = [string]$Manifest.runId
         State = [string]$Manifest.state
+        SourceSha = [string]$Manifest.sourceSha
         AzuriteProcess = $azuriteIdentity.Owned -and $azuriteIdentity.Exists
         AzuriteReady = $azuriteReady
         WebProcess = $webIdentity.Owned -and $webIdentity.Exists
@@ -1371,6 +1464,7 @@ function Test-RunStatus {
         WorkerProcess = $workerIdentity.Owned -and $workerIdentity.Exists
         FunctionsRunning = $functionsRunning
         WebUrl = [string]$Manifest.endpoints.webBase
+        PublicOrigin = $(if ($null -ne ($origin = Get-RunPublicOrigin -Manifest $Manifest)) { $origin } else { 'none' })
         FunctionsStatusUrl = [string]$Manifest.endpoints.functionsStatus
         LiveIntegrations = Format-PegasusLiveIntegrationFlags -Flags $Manifest.runtime.liveIntegrations
     }
@@ -1418,6 +1512,10 @@ function Invoke-RunSmoke {
         SourceSha = ([string]$version.sourceSha).ToLowerInvariant()
         IdentityInitialized = [bool]$Manifest.identity.initializationCompleted
         HttpsOriginValidated = $true
+        # Recorded, not probed: the smoke proves the loopback origin only; the
+        # proxy in front of a public origin is the operator's to check.
+        PublicOrigin = $(if ($null -ne ($origin = Get-RunPublicOrigin -Manifest $Manifest)) { $origin } else { 'none' })
+        PublicOriginProbed = $false
         AdministratorRouteValidated = $true
         SubjectId = [string]$Manifest.identity.subjectId
         UserName = [string]$Manifest.identity.userName
@@ -1473,6 +1571,23 @@ function Start-LocalRun {
     $localSettings = Read-PegasusLocalSettingsFile -Path $localSettingsPath
     $liveIntegrations = Get-PegasusLiveIntegrationFlags -Settings $localSettings
     $localSettingsApplied = $localSettings.Count -gt 0
+    $publicOriginNeedsPasswordSignIn = 'A run with a public origin needs Features__PasswordSignIn=true in the local settings file: ' +
+        'without it every caller on that origin is signed in as the Administrator.'
+    if (-not [string]::IsNullOrWhiteSpace($PublicOrigin)) {
+        if (-not (Test-PublicOrigin -Origin $PublicOrigin)) {
+            throw "-PublicOrigin must be an absolute https origin with no path, and not loopback: $PublicOrigin"
+        }
+        # One hosted test instance (ADR-0088): the only public origin is its
+        # own, and only its host serves it (R694). A run on another machine
+        # stays on loopback.
+        if (-not (Test-PegasusTestInstanceOrigin -Origin $PublicOrigin)) {
+            throw "-PublicOrigin accepts only the hosted test instance's origin $(Get-PegasusTestInstanceOrigin) (ADR-0088, R694); a run anywhere else is reached on its own loopback origin."
+        }
+        Assert-PegasusTestInstanceHost -Operation 'A run with the public origin'
+        if (-not $liveIntegrations.passwordSignIn) {
+            throw $publicOriginNeedsPasswordSignIn
+        }
+    }
 
     if ([string]::IsNullOrWhiteSpace($RunId)) {
         do {
@@ -1484,7 +1599,8 @@ function Start-LocalRun {
             -Initialization $initialization `
             -FixedWebPort $WebPort `
             -LiveIntegrations $liveIntegrations `
-            -LocalSettingsApplied $localSettingsApplied
+            -LocalSettingsApplied $localSettingsApplied `
+            -RequestedPublicOrigin $PublicOrigin
     }
     else {
         $paths = Get-RunPaths -Id $RunId
@@ -1500,6 +1616,40 @@ function Start-LocalRun {
             # after editing the file records what this attempt actually runs.
             Set-ManifestRuntimeValue -Manifest $manifest -Name 'liveIntegrations' -Value ([pscustomobject]$liveIntegrations)
             Set-ManifestRuntimeValue -Manifest $manifest -Name 'localSettingsApplied' -Value $localSettingsApplied
+            # $PSBoundParameters here is this function's own (empty), so the
+            # script-scope capture says whether -PublicOrigin was given.
+            if ($script:PublicOriginGiven) {
+                Set-ManifestRuntimeValue -Manifest $manifest -Name 'publicOrigin' -Value $PublicOrigin
+            }
+            # A production copy whose post-copy statements did not complete
+            # still holds production's active mailboxes, subscriptions,
+            # Principal keys and pending tidies (R696): the copy is re-run
+            # before the run serves anything.
+            $copyRecords = @(
+                if ([System.IO.Directory]::Exists([string]$manifest.resources.paths.state)) {
+                    [System.IO.Directory]::GetFiles([string]$manifest.resources.paths.state, 'production-copy-*.json') | Sort-Object
+                }
+            )
+            if ($copyRecords.Count -gt 0) {
+                $latestCopy = Get-Content -LiteralPath $copyRecords[-1] -Raw | ConvertFrom-Json
+                if (($latestCopy.PSObject.Properties.Name -contains 'statementsCompleted') -and -not [bool]$latestCopy.statementsCompleted) {
+                    throw "Run '$RunId' holds a production copy whose post-copy statements did not complete ($([System.IO.Path]::GetFileName($copyRecords[-1]))): its mailboxes, subscriptions, Principal API keys and pending instruction tidies are still production's. Re-run scripts/Copy-ProductionDatabaseToRun.ps1 -RunId $RunId before Start."
+                }
+            }
+            if ($null -ne (Get-RunPublicOrigin -Manifest $manifest)) {
+                # The recorded origin is the instance's; a restart elsewhere
+                # (a copied run root on another machine) is refused (R694).
+                Assert-PegasusTestInstanceHost -Operation "Restarting run '$RunId' with its public origin"
+                if (-not $liveIntegrations.passwordSignIn) {
+                    throw $publicOriginNeedsPasswordSignIn
+                }
+            }
+            # A restart runs whatever Initialize last built, so the manifest's
+            # source and artifact evidence follow the marker; the smoke that
+            # compared the old build is no longer evidence of this one.
+            $manifest.sourceSha = ([string]$initialization.sourceSha).ToLowerInvariant()
+            Set-ManifestRuntimeValue -Manifest $manifest -Name 'artifacts' -Value $initialization.runtimeArtifacts
+            $manifest.verification.smoke = $null
             foreach ($role in @('azurite', 'web', 'worker')) {
                 $record = $manifest.processes.PSObject.Properties[$role].Value
                 $identity = Test-OwnedProcessIdentity -Record $record
@@ -1519,7 +1669,8 @@ function Start-LocalRun {
                 -Initialization $initialization `
                 -FixedWebPort $WebPort `
                 -LiveIntegrations $liveIntegrations `
-                -LocalSettingsApplied $localSettingsApplied
+                -LocalSettingsApplied $localSettingsApplied `
+                -RequestedPublicOrigin $PublicOrigin
         }
     }
 
@@ -1718,6 +1869,7 @@ function Start-LocalRun {
             State = 'Running'
             WebUrl = [string]$manifest.endpoints.webBase
             WebReadyUrl = [string]$manifest.endpoints.webReady
+            PublicOrigin = $(if ($null -ne ($origin = Get-RunPublicOrigin -Manifest $manifest)) { $origin } else { 'none' })
             FunctionsStatusUrl = [string]$manifest.endpoints.functionsStatus
             LiveIntegrations = Format-PegasusLiveIntegrationFlags -Flags $manifest.runtime.liveIntegrations
             ManifestPath = $paths.Manifest
@@ -1780,6 +1932,13 @@ if ($Action -eq 'Status' -and -not [string]::IsNullOrWhiteSpace($RunId)) {
 if ($Action -ne 'Start' -and $PSBoundParameters.ContainsKey('WebPort')) {
     throw '-WebPort is valid only with -Action Start.'
 }
+$script:PublicOriginGiven = $PSBoundParameters.ContainsKey('PublicOrigin')
+if ($Action -ne 'Start' -and $script:PublicOriginGiven) {
+    throw '-PublicOrigin is valid only with -Action Start.'
+}
+if ($Action -ne 'Reset' -and $Approve) {
+    throw '-Approve is valid only with -Action Reset.'
+}
 
 $mutex = $null
 try {
@@ -1837,6 +1996,24 @@ try {
             $manifest = Resolve-OwnedManifest -RequestedRunId $RunId
             $paths = Get-RunPaths -Id ([string]$manifest.runId)
             Assert-NoReparsePoints -RunRoot $paths.RunRoot
+            # The hosted test instance's run and any run holding a production
+            # copy carry data that is not disposable: Reset needs the
+            # operator's word, given as -Approve, and says first what it
+            # removes. Nothing is changed before this check.
+            $hostedOrigin = Get-RunPublicOrigin -Manifest $manifest
+            $productionCopies = @(
+                if ([System.IO.Directory]::Exists([string]$manifest.resources.paths.state)) {
+                    [System.IO.Directory]::GetFiles([string]$manifest.resources.paths.state, 'production-copy-*.json') |
+                        ForEach-Object { [System.IO.Path]::GetFileName($_) } | Sort-Object
+                }
+            )
+            if (($null -ne $hostedOrigin -or $productionCopies.Count -gt 0) -and -not $Approve) {
+                $what = @(
+                    if ($null -ne $hostedOrigin) { "the hosted test instance's run (public origin $hostedOrigin)" }
+                    if ($productionCopies.Count -gt 0) { "a run holding $($productionCopies.Count) production copy record(s): $($productionCopies -join ', ')" }
+                ) -join ' and '
+                throw "Run '$($manifest.runId)' is $what. Reset removes its database and everything under $($paths.RunRoot), and migrations go forward only, so nothing brings that data back. Nothing was changed. Stop the run instead to keep it, or re-run with -Approve after the operator's word for this exact run."
+            }
             $tools = Get-ControlToolPaths
             $ownedPids = @(
                 foreach ($role in @('worker', 'web', 'azurite')) {

@@ -37,8 +37,8 @@ The Data Protection key ring must remain available to authorized replicas and
 across restarts for as long as protected credentials/session state is retained.
 Recover its keys together with the matching database; losing the keys requires
 explicit credential replacement and invalidation, not a fallback to plaintext.
-Current disposable test data may be reset under operator authority. This is a
-required recovery contract, not a claim that a restore has been exercised.
+This is a required recovery contract, not a claim that a restore has been
+exercised.
 
 ## Consequences
 

@@ -1,6 +1,6 @@
 name: pegasus
 metadata:
-  template: pegasus@0.1.0-alpha.1
+  template: pegasus
 services:
   web:
     project: ./src/Pegasus.Web

@@ -113,7 +113,6 @@ var commonTags = {
   app: 'pegasus'
   environment: 'prod'
   managedBy: 'azd-bicep'
-  release: '0.1.0-alpha.1'
 }
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-11-01' = if (activationAllowed) {

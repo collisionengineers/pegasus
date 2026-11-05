@@ -13,7 +13,7 @@ public sealed class GitHubIssueProblemReportSinkTests
         Guid.NewGuid(),
         "The Save button did nothing.",
         new ProblemReportSnapshot(
-            "0.1.0-alpha.1", new string('a', 40), new DateTimeOffset(2026, 9, 20, 15, 0, 0, TimeSpan.Zero),
+            "1.0.0", new string('a', 40), new DateTimeOffset(2026, 9, 20, 15, 0, 0, TimeSpan.Zero),
             "/Cases/x?section=estimate", "GET", "00-trace", "integration-user", "Engineer", "QDOS26001", null, null,
             [], new ProblemReportClientFacts("1580x1000", "agent", false, [])),
         new DateTimeOffset(2026, 9, 20, 15, 0, 0, TimeSpan.Zero),

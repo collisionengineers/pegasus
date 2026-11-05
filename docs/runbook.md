@@ -18,8 +18,57 @@ authorization comes from the operator; the primary agent owns verification.
 
 Read-only inventory is permitted. Writes require authorization covering the
 operation and targets. Use the current task grant; a past example, credential,
-or tool's availability is not permission. Current test data is disposable;
-this does not itself direct an agent to clear an environment.
+or tool's availability is not permission. Production has carried live Cases
+since 2 November 2026 (R603); nothing here directs an agent to clear an
+environment.
+
+### Branch and tag protection
+
+Three repository rulesets guard the process branches (R691, 3 November 2026):
+`dev` requires a pull request and the green `repository-check` jobs; `main`
+and the `v*` tags accept no push except from a bypass actor. The one bypass
+actor is the repository-admin role, the operator's account the release pushes
+from, so the rule in `AGENTS.md` that agents never push `dev` or `main` stays
+a procedural one: a ruleset cannot tell an agent from the operator at the same
+keyboard. The rulesets live in GitHub, not in the repository; this section is
+their specification, so a lost one is recreated from it with
+`gh api -X POST repos/collisionengineers/pegasus/rulesets --input <file>`.
+The release preflight reads them back (`--- Protection ---`) and warns when
+`dev` or `main` has no active ruleset of that name; by hand:
+`gh api repos/collisionengineers/pegasus/rulesets --jq '.[] | [.name, .target, .enforcement] | @tsv'`.
+A skipped lane counts as a passed check, so a documentation-only pull request
+is not blocked. The SQL lane is required through its one aggregate check,
+`sql-integration-result`, never through the shard names: a path-skipped
+matrix reports a single skipped `sql-integration` and no `sql-integration (N)`,
+so a required shard name waits for ever on a documentation-only pull request.
+(The ruleset created on 3 November 2026 named the six shards; it is updated to
+this specification with `gh api -X PUT repos/collisionengineers/pegasus/rulesets/26469537 --input <file>`.)
+
+```json
+{ "name": "dev", "target": "branch", "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/heads/dev"], "exclude": [] } },
+  "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
+  "rules": [
+    { "type": "deletion" }, { "type": "non_fast_forward" },
+    { "type": "pull_request", "parameters": { "required_approving_review_count": 0, "dismiss_stale_reviews_on_push": false, "require_code_owner_review": false, "require_last_push_approval": false, "required_review_thread_resolution": false } },
+    { "type": "required_status_checks", "parameters": { "strict_required_status_checks_policy": false, "required_status_checks": [
+      { "context": "changes" }, { "context": "invariants" }, { "context": "unit" }, { "context": "infrastructure" }, { "context": "classifier" },
+      { "context": "sql-integration-result" } ] } } ] }
+```
+
+```json
+{ "name": "main", "target": "branch", "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/heads/main"], "exclude": [] } },
+  "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
+  "rules": [ { "type": "deletion" }, { "type": "non_fast_forward" }, { "type": "update" } ] }
+```
+
+```json
+{ "name": "release tags", "target": "tag", "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/tags/v*"], "exclude": [] } },
+  "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
+  "rules": [ { "type": "creation" }, { "type": "deletion" }, { "type": "non_fast_forward" }, { "type": "update" } ] }
+```
 
 ## Supported platform
 
@@ -266,16 +315,19 @@ what each row proves is owned by the
 The file is `artifacts/local-development/local.settings.env`: `KEY=VALUE`
 lines with double-underscore keys, `#` comments, mode `0600` on Linux. `Start`
 reads it on every attempt, splits it by host prefix (Web: `Features__`,
-`Box__`, `Glass__`, `GitHub__`, `DevelopmentOffline__`, `AutomationMcp__`;
-Worker: `Features__`, `Box__`, `Dvla__`, `Dvsa__`), refuses any key the run
-owns itself (`Runtime__Profile`, the connection string, URLs, storage,
-`Features__LocalIntake`, `Features__LocalDocumentCustody`,
-`Glass__CallbackBaseUri`, the mailbox roots and the timer schedules), and hands
-the values to the processes through their environment only. The manifest
+`Box__`, `Glass__`, `Graph__`, `GitHub__`, `DevelopmentOffline__`,
+`AutomationMcp__`; Worker: `Features__`, `Box__`, `Dvla__`, `Dvsa__`,
+`Graph__`), refuses any key the run owns itself (`Runtime__Profile`, the
+connection string, URLs, storage, `Features__LocalIntake`,
+`Features__LocalDocumentCustody`, `Glass__CallbackBaseUri`,
+`AutomationMcp__PublicOrigin`, the mailbox roots and the timer schedules), and
+hands the values to the processes through their environment only. The manifest
 records which integrations are on as booleans; no value reaches the manifest,
 a launcher script, a log or a command line. With `Features__LiveGlass=true`
-the lifecycle sets `Glass__CallbackBaseUri` to the run's own HTTPS origin, and
-with `Features__LiveBoxCustody=true` it omits `Features__LocalDocumentCustody`.
+the lifecycle sets `Glass__CallbackBaseUri`, and with
+`Features__AutomationMcp=true` `AutomationMcp__PublicOrigin`, to the origin a
+browser reaches the run at (below); with `Features__LiveBoxCustody=true` it
+omits `Features__LocalDocumentCustody`.
 
 ```powershell
 pwsh ./scripts/New-LocalLiveSettings.ps1 -BoxHoldingFolderId <id>
@@ -306,11 +358,89 @@ prints `LiveIntegrations` and Smoke records the same flags; neither probes a
 vendor. Glass's logins are per staff account ([ADR-0043](adr/0043-per-engineer-vendor-credential-protection.md))
 and are entered in Administration > Accounts on the local instance.
 
-From a Windows browser, `https://localhost:7139` reaches the WSL run through
-localhost forwarding; the WSL development certificate is not trusted there
-until exported (`dotnet dev-certs https --export-path <pfx> -p <password>`)
-and imported into the Windows trusted root store. The Glass's return needs
-that trust, because the provider navigates the same browser back.
+From a Windows browser on the same machine, `https://localhost:7139` reaches
+the WSL run through localhost forwarding; the WSL development certificate is
+not trusted there until exported (`dotnet dev-certs https --export-path <pfx>
+-p <password>`) and imported into the Windows trusted root store. The Glass's
+return needs that trust, because the provider navigates the same browser back.
+
+#### The hosted test instance (ADR-0088)
+
+The one hosted test instance is this run on one operator-owned Linux/WSL
+machine, reached over the operator's Tailscale network. `Start -PublicOrigin
+https://cemattypc-1.tail432b53.ts.net` records the origin a browser reaches
+the run at; it is the only origin accepted, `scripts/PegasusPlatform.ps1`
+holds it, and Start, a restart of the run with its recorded origin and the
+production copy refuse any machine other than the Tailscale node that owns
+it (`tailscale status --json`, `Self.DNSName`; R694). The lifecycle hands
+the origin to `Glass__CallbackBaseUri` and
+`AutomationMcp__PublicOrigin` while its own probes stay on loopback, and
+Status, Start and Smoke print it (`PublicOrigin`; Smoke records
+`PublicOriginProbed: false`, because the proxy is the operator's to check). A
+public origin requires `Features__PasswordSignIn=true`: without it every
+caller on that origin would be signed in as the Administrator, so `Start`
+refuses. Omitted on a restart, the recorded origin stands. In front of the run, `tailscale serve --bg --https=443
+https+insecure://localhost:7139` (the Windows host's Tailscale through WSL
+localhost forwarding, or Tailscale inside WSL) answers with the tailnet's
+certificate, so no development certificate is exported. Tailscale Funnel
+exposes one path alone, the Graph webhook, on its own port (R676):
+`tailscale funnel --bg --https=8443 --set-path /hooks/microsoft-graph/mail
+https+insecure://localhost:7139/hooks/microsoft-graph/mail`; port 443 stays
+tailnet-only. OpenIddict issues tokens for the host a request arrived on, so a
+classifier or connector uses the public origin for both the token endpoint and
+the MCP endpoint.
+
+The instance has Graph parity with production on the mailboxes the operator
+enables on it (R675, R677). `Features__LiveGraphMail=true` with
+`Graph__BaseUri`, `Graph__TenantId`, `Graph__ClientId` and
+`Graph__ClientSecret` in the settings file composes Production's Graph mail
+side (reads, staff and report send, the answered-instruction move) over an
+Entra app registration whose Exchange grant is `Application Mail.Read`,
+`Mail.ReadWrite` and `Mail.Send` on those mailboxes alone
+([admitting the identity](#runbook-admitting-the-test-instances-graph-identity)).
+With `Graph__ChangeNotificationUrl` (the Funnelled webhook path,
+`https://<host>.<tailnet>.ts.net:8443/hooks/microsoft-graph/mail`) and
+`Graph__ChangeNotificationClientState` also in the file, the Worker maintains
+the instance's own change subscriptions; without both, the five-minute
+recovery poll alone carries mail, and one without the other fails the start.
+The mailbox is then enabled in Administration > Mailboxes on the instance as
+any mailbox is; a send from it is a real e-mail from that production mailbox,
+and both the instance and production ingest the same incoming mail while it is
+enabled on both. A mailbox row added earlier under the local resolver holds a
+local identity and fails its access check: disable it and add the address
+again.
+
+The instance runs `dev` by default (R681) and a branch or pull request head
+when the operator names it (R695). To move it, `Stop` the run, check out the
+revision with a clean tree (`git checkout dev && git pull --ff-only origin
+dev`, or `git fetch origin pull/<n>/head && git checkout --detach
+FETCH_HEAD`), run `Initialize-LocalDevelopment.ps1`, and `Start -RunId
+<run-id>` with the same ports; the manifest's source and artifact evidence
+follow the new build, `--initialize-development` migrates the existing
+database forward, and the Tailscale proxy keeps working because the port is
+unchanged. Status prints `SourceSha` for the comparison with `origin/dev` or
+the named head, and the release preflight refuses a candidate the instance is
+not serving (R684), so it is back on `dev`'s tip before a release. Migrations
+go forward only: a head that adds a migration is served only when the
+operator accepts that the return to `dev` waits for it to land or needs a
+`Reset`. `Reset` removes the database with the run, so a long-lived instance
+keeps one run id; for the instance's run, or any run whose `state/` holds a
+production copy record, `Reset` needs `-Approve` after the operator's word
+and refuses without it, saying what it would remove (R696). For release
+rehearsal, `scripts/Copy-ProductionDatabaseToRun.ps1 -RunId <run-id>`
+replaces the Stopped run's database with a SqlPackage copy of production,
+deactivates every approved mailbox in the copy (R627), clears the copied
+subscription rows (R678), pauses the copied Principal API credentials (R679)
+and closes the copied pending answered-instruction tidies (R680); without
+`-Approve` it prints the source, target and statements and stops, and with it
+the extract is a live production read under the operator's own `az` sign-in,
+into the instance's run on its host alone, and the extract is removed once
+published so the run database is the only copy on the machine (R696). The
+rehearsal runs at the candidate's tip, and its record in operations names the
+copy record, the migration head before and after and the walk's result. The procedure around
+these steps, the machine prerequisites and the classifier's local run are the
+[`pegasus-test-instance`](../.agents/skills/pegasus-test-instance/SKILL.md)
+skill.
 
 The seed script copies selected `.eml` files into `<run>/mailbox/inbox` and
 `*.sent.json` files into `<run>/mailbox/sent`, reading the supplied corpus
@@ -320,8 +450,9 @@ and photographs enter through the Upload page, which the verification walk
 drives when files are supplied.
 
 What the instance cannot prove, even with every opt-in on, is listed in the
-matrix: staff mail send and Graph mailbox behaviour (until a test mailbox is
-approved), OCR, and the problem-report sink.
+matrix: OCR and the problem-report sink. Staff send, Graph subscriptions and
+the answered-instruction move run on it with `Features__LiveGraphMail`, as a
+rehearsal; production remains their proof of record (R677).
 
 ### Isolated runs and failure controls
 
@@ -347,10 +478,11 @@ pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Stop -RunId <run-id>
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset -RunId <run-id>
 ```
 
-Stop retains the manifest and diagnostics. Reset first verifies that the
-manifest run ID, directory, database name, and every owned path agree; it then
-stops only matching child processes, drops only that LocalDB database, and
-removes only that run directory. If a log is still held, Reset retries for
+Stop retains the manifest, the database and diagnostics. Reset first verifies
+that the manifest run ID, directory, database name, and every owned path
+agree; it then stops only matching child processes, drops only that run's
+database (the LocalDB database, or the container and its data), and removes
+only that run directory. If a log is still held, Reset retries for
 about ten seconds, then names the held files. A malformed or ambiguous manifest refuses
 action. Never manually repurpose these commands to remove another run,
 `corpus/`, tracked reference files, or an Azure resource.
@@ -706,6 +838,50 @@ Exchange RBAC scope change that covers them for the Web identity's
 fails closed through intake policy; approval of a mailbox is not approval of
 all its senders. Operators do not edit SQL rows or raw environment settings to
 add an already-authorized mailbox.
+
+### Runbook: admitting the test instance's Graph identity
+
+The hosted test instance (ADR-0088 as amended) reaches the production
+mailboxes through its own Entra app registration, never through the Web or
+Worker managed identities, which exist only inside Azure. The grant gives it
+Graph parity with production on the mailboxes in its scope and nothing on any
+other (R675, R677). The instance's own mailbox is
+`pegasustest@collisionengineers.co.uk` (R693); a production mailbox is in the
+instance's use only while the operator enables it there.
+
+1. The identity is the tenant's existing **CollisionSpike Graph Intake**
+   app registration (client id `5d37a155-2af8-4878-b96a-6faad5207137`, no
+   API permissions, Exchange RBAC as its only grant). On 3 November 2026 it
+   held `Application Mail.Read` and `Application Mail.ReadWrite` on the
+   management scope `CollisionSpike-Intake-Prod`, which covers
+   `instructions@collisionengineers.co.uk`. No new registration or scope is
+   created. The operator obtains its secret from where the orchestrator keeps
+   it, or adds a second secret to the registration named for the instance;
+   the value goes only into the settings file.
+2. In Exchange Online PowerShell, add the one missing role,
+   `New-ManagementRoleAssignment -App 5d37a155-2af8-4878-b96a-6faad5207137
+   -Role 'Application Mail.Send' -CustomResourceScope 'CollisionSpike-Intake-Prod'`,
+   then read the scope's filter with `Get-ManagementScope` and prove the
+   grant with `Test-ServicePrincipalAuthorization` listing all three roles
+   in scope on a covered mailbox and nothing on one outside the filter, and
+   record both checks in [operations](operations.md). Done 3 November 2026;
+   the test mailbox `pegasustest@` was admitted by widening the filter on
+   4 November 2026 (R693). Admitting a further
+   mailbox widens `CollisionSpike-Intake-Prod` for every identity on it and
+   is its own approval.
+3. On the instance's machine, add `Features__LiveGraphMail=true`,
+   `Graph__BaseUri=https://graph.microsoft.com/v1.0/`, `Graph__TenantId`,
+   `Graph__ClientId` and `Graph__ClientSecret` to the owner-only
+   `artifacts/local-development/local.settings.env`; for change
+   subscriptions, Funnel the webhook path (the `tailscale funnel` command in
+   the hosted test instance section) and add `Graph__ChangeNotificationUrl`
+   and `Graph__ChangeNotificationClientState` (a value of at most 128
+   characters the operator chooses, different from production's). Restart the
+   run and add `pegasustest@`, and any production mailbox the operator
+   enables, in Administration > Mailboxes on the instance (step 3 of the
+   procedure above). The instance's Worker then subscribes and
+   polls, and the Web sends from the mailbox; the production Worker's own
+   subscriptions and polling are unaffected.
 
 ### Disabling a mailbox
 
@@ -1082,9 +1258,14 @@ LocalDB recovery does not prove Azure SQL point-in-time recovery, RPO, or RTO.
 
 Retain the previous immutable application artifact for an authorized rollback.
 Check it against the actual schema and current preservation requirements.
-Current disposable test data creates no cutover-based compatibility obligation;
+Production has carried live Cases since 2 November 2026 (R603);
 [rollback step 3](#previous-artifact-rollback-web-and-worker) distinguishes
-compatible artifact rollback from an authorized reset or roll-forward.
+compatible artifact rollback from roll-forward. `main` moves only after a
+release's full smoke has passed (R682), so a failed release leaves it at the
+SHA still serving; nothing in git is reset. The released SHA carries the tag
+`v<version>` (R688). A rollback redeploys the previous version's artifacts
+and moves neither `main` nor the tag: the record names the version the
+estate serves, and the next release steps above the tag.
 
 After a destructive migration begins, [ADR-0046](adr/0046-destructive-migration-runtime-shutdown.md)
 requires forward-only recovery. Do not use the previous-artifact route to revive
@@ -1095,10 +1276,22 @@ owns the exact containment, migration, reactivation and smoke commands.
 #### Previous-artifact rollback (Web and Worker)
 
 Rolling production back to the previous release's artifacts is a production
-mutation under the live-operation approval matrix: obtain exact-target
-approval first. Select the retained previous release manifest and its verified
-artifacts from the release workstation; match its hashes, source revision and
-version to the [retained release evidence](operations.md#retained-evidence-and-recovery-basis).
+mutation under [operational authority](#operational-authority): obtain
+exact-target approval first. Select the retained previous release's folder
+`artifacts/releases/release-<version>-<sha8>` on the release workstation when
+it holds one; match its hashes, source revision and version to the
+[retained release evidence](operations.md#retained-evidence-and-recovery-basis).
+When the workstation does not hold it, rebuild it from the tag (R692):
+`git worktree add --detach ../pegasus-worktrees/release-<sha8> v<version>`,
+then `pwsh ../pegasus-worktrees/release-<sha8>/scripts/Build-ReleaseArtifacts.ps1
+-Version <version> -SourceRevision <sha>`. The rebuild writes
+`../pegasus-worktrees/release-<sha8>/artifacts/releases/<version>/` with its
+`release-manifest.json`; the steps below then read the packages and the
+manifest from that folder in place of the retained one. A rebuilt package's
+hashes differ from the record's; what must match is the informational
+version `<version>+<sha>`, which the build script checks. Nothing is copied
+off the workstation. A release before 1.0.0 ("Release N") carries no tag, so
+rolling back to one needs its retained folder.
 Read the current target and Worker activation before choosing any mutation.
 
 1. Web: run `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreProvision
@@ -1112,19 +1305,19 @@ Read the current target and Worker activation before choosing any mutation.
    the retained release's template or settings differ from the deployed ones.
    Then deploy the retained package: `az webapp deploy --resource-group
    rg-pegasus-prod --name pegasus-prod-web-252ow37gij --src-path
-   ./artifacts/releases/release-<n>-<sha>/web.zip --type zip --clean true
+   ./artifacts/releases/release-<version>-<sha8>/web.zip --type zip --clean true
    --restart true`, and verify `/diagnostics/version` reports the retained
    source revision and version.
 2. Worker: `az functionapp deployment source config-zip --resource-group
    rg-pegasus-prod --name pegasus-prod-worker-252ow37gij --src
-   ./artifacts/releases/release-<n>-<sha>/worker.zip`.
+   ./artifacts/releases/release-<version>-<sha8>/worker.zip`.
 3. Database: establish the intended current schema with the normal migration
-   mechanism. Current test data is disposable; no historical cutover milestone
-   imposes compatibility preservation. A schema change still identifies its
-   effect on the running and retained artifacts. Use an authorized reset or
-   roll-forward where a prior artifact is incompatible; do not call an
-   incompatible artifact rollback successful. Any real preservation requirement
-   must name the data/consumer and the recovery procedure.
+   mechanism. A schema change identifies its effect on the running and
+   retained artifacts. Roll forward where a prior artifact is incompatible; do
+   not call an incompatible artifact rollback successful. Data is recovered
+   from the restore point the release recorded before SQL (R605) with the
+   [point-in-time restore commands](#point-in-time-restore-commands), never by
+   a reset.
 4. Smoke: `Invoke-ProductionSmoke.ps1` with the previous release's exact
    source revision and version, and the current Worker activation value.
 5. Record the rollback and its reason in operations in the same task.
@@ -1138,12 +1331,11 @@ When data must be preserved, a production recovery exercise must:
 5. reconcile stable source, Outlook, Box, outbox, and external-operation identities without duplicating or resurrecting work;
 6. run health checks and the named real-caller smoke journey, then inspect correlated failure evidence;
 7. record achieved recovery point, restoration duration, missing data, limitations, and rollback result; and
-8. retain the failed restore target for diagnosis until a separately approved cutover or cleanup.
+8. retain the failed restore target for diagnosis until a separately approved cleanup.
 
 Stop after one failed recovery attempt and report the exact read-back. Do not
 improvise a second deployment with unreviewed inputs, schema down-migration,
-or deletion of source evidence/shared resources. An authorized disposable-data
-reset uses its own exact scope, not this data-preserving recovery procedure.
+or deletion of source evidence/shared resources.
 
 ### Explicit intake-data wipe
 
@@ -1173,8 +1365,8 @@ Confirm the requested restore time is at or after `earliestRestoreDate` and
 inside the short-term retention window before proceeding.
 
 **2. Restore into a new, isolated target (write — requires exact-target
-approval per [Live-operation approval matrix](runbook.md#operational-authority),
-row "Deploy, restore, fail over, or retire"; never overwrites `pegasus`):**
+approval per [operational authority](runbook.md#operational-authority);
+never overwrites `pegasus`):**
 
 ```powershell
 az sql db restore `

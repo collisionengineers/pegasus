@@ -110,7 +110,9 @@ the cutoff or bring cleared mail back. Mail received at or after the cutoff
 stays eligible, and forwarding an old email creates a newly received message
 that is evaluated normally. An ordinary deployment or Worker restart never
 moves this boundary. Wipes run only with the Worker stopped and application
-writes excluded for maintenance.
+writes excluded for maintenance. From the cutover of 2 November 2026 (R603)
+the estate is live: a wipe destroys real Cases, documents, evidence and
+history, and its approval names that (R604).
 
 ### Mailbox wake-up and recovery
 

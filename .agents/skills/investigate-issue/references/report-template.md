@@ -35,8 +35,9 @@ design around. "None found" is a valid and important answer.
 | `tests/.../OwnerTests.cs` | owning test class | — |
 | migrations / config / fixtures / docs | what else must move | — |
 
-Include data: tables, columns, stored enums, migrations, retained records that
-already exist in production and what happens to them.
+Include data: tables, columns, stored enums, migrations and their class
+(additive or non-additive, per engineering §Migrations), retained records that
+already exist in production, what happens to them and the recovery boundary.
 
 ### Approaches
 
