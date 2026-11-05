@@ -495,9 +495,10 @@ public static class CaseReportDeliveryPolicy
 
     /// <summary>
     /// Which generated documents one send attaches. The operator's choice
-    /// stands (none means every confirmed document), and every companion the
-    /// Principal requires is added to it and never removed. A required
-    /// companion that is not confirmed refuses.
+    /// stands (no choice, null, means every confirmed document; an empty
+    /// choice is the report alone, R675), and every companion the Principal
+    /// requires is added to it and never removed. A required companion that
+    /// is not confirmed refuses.
     /// </summary>
     public static IReadOnlyList<CaseReportArtifactKind>? AttachChoice(
         ReportDispatchPlan plan,
@@ -514,9 +515,9 @@ public static class CaseReportDeliveryPolicy
                 + string.Join(", ", missing.Select(CompanionWords))
                 + ". Generate them before sending the report.");
         }
-        return requested is { Count: > 0 }
-            ? [.. requested.Concat(plan.RequiredCompanions).Distinct()]
-            : requested;
+        return requested is null
+            ? null
+            : [.. requested.Concat(plan.RequiredCompanions).Distinct()];
     }
 
     /// <summary>A companion document as staff read it.</summary>
@@ -560,7 +561,8 @@ public static class CaseReportDeliveryPolicy
     /// Confirmed, taken exactly from the confirmed rows. Without a choice every
     /// artifact the generation holds attaches. With a choice, the one
     /// assessment report is always included and exactly the chosen companion
-    /// kinds must be present and Confirmed.
+    /// kinds must be present and Confirmed; an empty choice is the report
+    /// alone (R675).
     /// </summary>
     public static IReadOnlyList<StaffMailAttachment> Attachments(
         Guid generationId,
@@ -594,7 +596,7 @@ public static class CaseReportDeliveryPolicy
                 $"Case report generation '{generationId}' must have exactly one confirmed assessment report to deliver.");
         }
 
-        var chosen = attach is { Count: > 0 }
+        var chosen = attach is not null
             ? artifacts.Where(artifact => artifact.Kind == CaseReportArtifactKind.AssessmentReport
                 || attach.Contains(artifact.Kind)).ToArray()
             : artifacts;
@@ -604,7 +606,7 @@ public static class CaseReportDeliveryPolicy
             throw new InvalidOperationException(
                 $"Case report generation '{generationId}' has no fully confirmed artifacts to deliver.");
         }
-        if (attach is { Count: > 0 }
+        if (attach is not null
             && attach.Distinct().Any(kind => !chosen.Any(artifact => artifact.Kind == kind)))
         {
             throw new InvalidOperationException(
@@ -912,6 +914,10 @@ public sealed class SendCaseReport(
             ? null
             : new ReportSendReadinessRequest(
                 request.Actor, request.CaseId, second.Id, second.Version, secondAttachments);
-        return await send.SendAsync(new(mail, report, secondReadiness), cancellationToken).ConfigureAwait(false);
+        var operation = await send.SendAsync(new(mail, report, secondReadiness), cancellationToken).ConfigureAwait(false);
+        // What the e-mail carries, as the recipient sees it (R676). A replayed
+        // key returns its operation only when the payload, attachments
+        // included, is the same, so these are the names it was sent with.
+        return operation with { AttachmentFileNames = [.. named.Select(attachment => attachment.FileName)] };
     }
 }
