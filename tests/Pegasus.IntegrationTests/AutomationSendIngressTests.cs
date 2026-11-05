@@ -32,6 +32,8 @@ public sealed class AutomationSendIngressTests
     private static readonly string[] Desk = ["desk@principal.example"];
     private static readonly string[] Invoice = ["Invoice"];
     private static readonly string[] FeeNote = ["FeeNote"];
+    private static readonly string[] NoCompanion = [];
+    private static readonly string[] SentFileNames = ["PK12 TMZ Repairable report.pdf"];
     private static readonly string[] NotAnAddress = ["not an address"];
 
     private const string SendScopes = "automation.cases automation.send";
@@ -192,6 +194,48 @@ public sealed class AutomationSendIngressTests
         Assert.Null(request.ReviewedRecipients);
         // No choice: every confirmed document the generation holds attaches.
         Assert.Null(request.Attach);
+    }
+
+    /// <summary>
+    /// An empty attach is a choice of no companion, so the send boundary
+    /// attaches the report alone (operator, 5 November 2026, R697); the result
+    /// lists the file names the e-mail carries (R698).
+    /// </summary>
+    [Fact]
+    public async Task AnEmptyAttachIsTheReportAloneAndTheResultListsTheFilesSent()
+    {
+        var sends = new RecordingReportSend();
+        var generationId = Guid.NewGuid();
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ISendCaseReport>();
+                services.AddSingleton<ISendCaseReport>(sends);
+                WithCurrentGeneration(services, generationId);
+            }));
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, SendScopes);
+        await EnsureInReviewAsync(mcpFactory, client, token, caseId);
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+
+        using var sent = await PostMcpAsync(client, token, ToolCallPayload(13, "pegasus_report_send", new
+        {
+            caseId,
+            expectedVersion = version,
+            operationKey = "mcp:report-send-report-alone",
+            coveringMessage = "Please find our report attached.",
+            attach = NoCompanion,
+        }));
+        var result = await ReadStructuredContentAsync(sent);
+
+        var request = Assert.Single(sends.Requests);
+        Assert.NotNull(request.Attach);
+        Assert.Empty(request.Attach);
+        Assert.Equal(
+            SentFileNames,
+            result.GetProperty("attachments").EnumerateArray().Select(name => name.GetString()!).ToArray());
     }
 
     /// <summary>
@@ -715,7 +759,10 @@ public sealed class AutomationSendIngressTests
             {
                 requests.Add(request);
             }
-            return Task.FromResult(Submitted(StaffMailPurpose.CaseReport, request.GenerationId, Guid.NewGuid()));
+            return Task.FromResult(Submitted(StaffMailPurpose.CaseReport, request.GenerationId, Guid.NewGuid()) with
+            {
+                AttachmentFileNames = SentFileNames
+            });
         }
     }
 
