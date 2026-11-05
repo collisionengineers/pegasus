@@ -5,6 +5,25 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Inspection location register cleanup - 5 November 2026
+
+- On the operator's word ("lets get rid of the ones that only appear once",
+  every Principal "unless its a garage or storage location or similar", hard
+  delete, the instance first, then production on "approved"), 884 of the 1,328
+  `InspectionLocations` rows and their 864 `InspectionLocationPrincipalLinks`
+  were deleted. These are the addresses that appear once in the `Final` sheet of
+  `providers-worked-on.xlsx` (matched by postcode and name), are linked to at
+  most one Principal, and read as a home address: no trade word, no repairer or
+  storage contact postcode, and no named place apart from its street.
+- 444 locations and 374 links remain on both databases. Cases keep their
+  address as text, so no Case changed.
+- Instance run `83ec377d` went first. One attempt rolled back whole on
+  `QUOTED_IDENTIFIER` and was rerun with `-I`. Production then ran one
+  transaction after a read-only preflight found all 884 ids with identical
+  names and postcodes. Restore point: `2026-11-05T19:11:33Z`. Each database's
+  deleted rows and links are kept as JSON beside the delete and keep lists,
+  outside the repository.
+
 ## Test instance Automation MCP and classifier - 5 November 2026
 
 - Run `83ec377dd6f249d59c2e8ae8e96459c3` (at `a6b5cd387`) had never run the
