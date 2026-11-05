@@ -21,7 +21,11 @@ import { CorrespondenceCode, MailCategoryCodes, WorkTypes } from "./prompt.js";
 
 export interface Candidate {
   detail: MailDetail;
+  // The matcher's suggested Cases, shown to the model as suggestedCases.
   destinations: LinkDestination[];
+  // Cases search_cases found for the e-mail: link_case accepts them too, but
+  // they are not matcher suggestions and are never shown as such.
+  found?: LinkDestination[];
 }
 
 export interface Logger {
@@ -299,7 +303,9 @@ export function createClassifierServer(options: {
       reason: z.string().min(1).max(450),
     },
     async (args) => {
-      const destination = batch.get(args.messageId)?.destinations.find((item) => item.caseId === args.caseId);
+      const candidate = batch.get(args.messageId);
+      const destination = candidate?.destinations.find((item) => item.caseId === args.caseId)
+        ?? candidate?.found?.find((item) => item.caseId === args.caseId);
       if (!destination) {
         return text("That Case is not one of the e-mail's suggested Cases.", true);
       }
@@ -370,10 +376,12 @@ export function createClassifierServer(options: {
       }
       try {
         const found = await pegasus.linkDestinations(args.messageId, args.query);
-        // Found Cases join the e-mail's destinations, so link_case accepts them.
+        // Found Cases are kept apart from the matcher's suggestions, so
+        // link_case accepts them without the model reading them as suggested.
+        candidate.found ??= [];
         for (const item of found) {
-          if (!candidate.destinations.some((known) => known.caseId === item.caseId)) {
-            candidate.destinations.push(item);
+          if (!candidate.found.some((known) => known.caseId === item.caseId)) {
+            candidate.found.push(item);
           }
         }
         log("search cases", { messageId: args.messageId, query: args.query, hits: found.length });
@@ -429,6 +437,15 @@ export function createClassifierServer(options: {
           return text(`The received item already has Case ${intake.caseReference ?? intake.caseId}.`, true);
         }
         const fields = missingOnly(intake.draft, args);
+        // Nothing is written while an identity fact stays missing: the
+        // address would be settled for a Case Pegasus then refuses.
+        const supplied = (["claimantName", "claimNumber", "vehicleRegistration"] as const)
+          .filter((key) => fields[key] !== undefined).length;
+        if ((intake.missingIdentityFields ?? []).length > supplied) {
+          verdicts.add(args.messageId);
+          log("create case left for staff", { messageId: args.messageId, missing: intake.missingIdentityFields });
+          return text(`Pegasus would refuse the Case: ${intake.missingIdentityFields.join(", ")} missing. The e-mail waits for staff.`, true);
+        }
         log("create case", { messageId: args.messageId, receiptId, fields: Object.keys(fields), reason: args.reason, dryRun });
         if (dryRun) {
           verdicts.add(args.messageId);
@@ -464,9 +481,12 @@ export function createClassifierServer(options: {
         verdicts.add(args.messageId);
         return text(`Created Case ${created.caseReference ?? created.caseId}.`);
       } catch (error) {
-        failed.set(args.messageId, (error as Error).message);
-        log("create case failed", { messageId: args.messageId, error: (error as Error).message });
-        return text(`Pegasus refused the Case: ${(error as Error).message}`, true);
+        // create_case follows an accepted new-instruction verdict; a refused
+        // Case leaves the e-mail for staff Create case, which is that verdict's
+        // outcome, not a failed attempt to retry every run.
+        verdicts.add(args.messageId);
+        log("create case refused", { messageId: args.messageId, error: (error as Error).message });
+        return text(`Pegasus refused the Case: ${(error as Error).message}. The e-mail waits for staff.`, true);
       }
     });
 

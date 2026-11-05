@@ -123,6 +123,7 @@ class ReplayPegasus implements ClassifierPegasus {
     const detail = await this.require(args.messageId);
     const candidate = this.fixture.candidates.find((item) => item.detail.summary.id === args.messageId);
     const destination = candidate?.destinations.find((item) => item.caseId === args.caseId)
+      ?? candidate?.found?.find((item) => item.caseId === args.caseId)
       ?? this.fixture.cases?.find((item) => item.caseId === args.caseId);
     if (!destination) {
       throw new Error("That Case is not a link destination for the message.");
