@@ -60,7 +60,10 @@ read from text.
   the supplied or confirmed location, with a reason recorded against them.
 - For a physical-address Principal, the location is extracted from the
   instruction and confirmed by an operator. The setting picks the default
-  mode; it never invents or picks an address.
+  mode; it never invents or picks an address. A Robert James (RJS) letter
+  names the address its client "is available at"; that address is the
+  inspection address unless the letter names an inspection or vehicle
+  location itself (operator, 5 November 2026, [R715](../rulings.md)).
 - Where the source has no address at all, a staff member types the physical
   location at Case creation. It is kept with that person as its source. The
   ban is on Pegasus inferring an address, not on a person stating one.

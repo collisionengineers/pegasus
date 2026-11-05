@@ -6,7 +6,7 @@ public sealed partial class RjsInstructionExtractionPolicy
     : IInstructionExtractionPolicy, IInstructionDocumentProfile, IInstructionFieldRoles
 {
     public const string Key = "rjs_instruction";
-    public const int Version = 1;
+    public const int Version = 2;
     public const string SupportedPrincipalCode = "RJS";
     public const string DocumentProfileKeyValue = "rjs_instruction_document";
 
@@ -81,7 +81,17 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
         foreach (Match match in ReferenceRegex().Matches(header)) yield return Label(fragment, "Our Reference", match.Groups["value"].Value);
         foreach (var (regex, label) in BodyLabels)
             foreach (Match match in regex.Matches(body)) yield return Label(fragment, label, match.Groups["value"].Value);
-        foreach (Match match in AddressRegex().Matches(body)) yield return Label(fragment, "Claimant address", match.Groups["value"].Value);
+        // The address the letter says the client "is available at" is the
+        // inspection address unless the letter names an inspection or vehicle
+        // location itself (operator, 5 November 2026, R715).
+        var namesInspectionAddress = InspectionAddressRegex().IsMatch(body);
+        var availableAt = AvailableAtRegex().Match(body);
+        foreach (Match match in AddressRegex().Matches(body))
+        {
+            yield return Label(fragment, "Claimant address", match.Groups["value"].Value);
+            if (!namesInspectionAddress && availableAt.Success && availableAt.Index < match.Index)
+                yield return fragment with { Text = $"Inspection address: {AddressLines(match.Groups["value"].Value)}" };
+        }
         foreach (Match match in CircumstancesRegex().Matches(body)) yield return Label(fragment, "Accident circumstances", match.Groups["value"].Value);
     }
 
@@ -94,6 +104,10 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
     ];
     private static IntakeContentFragment Label(IntakeContentFragment origin, string label, string value) => origin with { Text = $"{label}: {Clean(value)}" };
     private static string Clean(string value) => WhitespaceRegex().Replace(value, " ").Trim();
+    private static string AddressLines(string value) => string.Join(", ", value
+        .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(Clean)
+        .Where(line => line.Length > 0));
 
     [GeneratedRegex(@"(?im)^\s*Dear\s+Sirs\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex DearSirsRegex();
     [GeneratedRegex(@"(?im)^\s*Robert\s+James\s+Solicitors\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex SignatureRegex();
@@ -111,5 +125,6 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
     [GeneratedRegex(@"(?im)^\s*VAT\s+(?:status|registered)\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex VatRegex();
     [GeneratedRegex(@"(?ims)^\s*Address\s*:[ \t]*(?<value>.+?)\n\s*(?=(?:Work|Home|Mobile)\s+Tel\s*:)", RegexOptions.CultureInvariant, 100)] private static partial Regex AddressRegex();
     [GeneratedRegex(@"(?ims)^\s*The\s+circumstances\s+of\s+the\s+accident\s+are[ \t]*(?<value>.+?)(?=\n\s*Please\s+arrange)", RegexOptions.CultureInvariant, 100)] private static partial Regex CircumstancesRegex();
+    [GeneratedRegex(@"\bis\s+available\s+at\s*:", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)] private static partial Regex AvailableAtRegex();
     [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant, 100)] private static partial Regex WhitespaceRegex();
 }
