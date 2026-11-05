@@ -10,7 +10,7 @@ Tailscale network. It is the `DevelopmentOffline` lifecycle the runbook owns
 ([local live-integration run](../../../docs/runbook.md#local-live-integration-run))
 with every opt-in on, so the procedure here is the order of the runbook's
 commands and the approvals between them. [ADR-0088](../../../docs/adr/0088-one-hosted-test-instance.md)
-and rulings R623 to R680 and R693 to R696 decided its shape; this skill
+and rulings R623 to R629, R675 to R680 and R693 to R696 decided its shape; this skill
 invents none of it.
 
 What it is for (R624): the operator's and agents' QA walks, staff UAT rounds,
@@ -145,7 +145,7 @@ them.
 ## 3. Start it and reach it
 
 ```powershell
-pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -WebPort 7139 -PublicOrigin https://<host>.<tailnet>.ts.net
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -WebPort 7139 -PublicOrigin https://cemattypc-1.tail432b53.ts.net/
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Status
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Smoke
 ```
@@ -283,7 +283,9 @@ its own webhook, authenticates no production key and moves only what its own
 sends answered. The extract is removed once published, whether or not the publish succeeded,
 so the run database is the only copy of production on the machine (R696);
 the record `state/production-copy-<utc>.json` holds the extract's size and
-SHA-256, the migration head, the Case count and the four counts. The copy carries
+SHA-256, the migration head, the Case count and the four counts; `statementsCompleted:
+false` in it means the publish replaced the database but those statements did
+not run, and Start refuses the run until the copy is re-run. The copy carries
 production's mailbox rows and not the instance's, so `pegasustest@` is added
 again in Administration > Mailboxes after the next Start (R693). The
 rehearsal is then the next Start: the checked-out revision's migrations run

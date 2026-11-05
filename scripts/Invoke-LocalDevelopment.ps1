@@ -1616,9 +1616,25 @@ function Start-LocalRun {
             # after editing the file records what this attempt actually runs.
             Set-ManifestRuntimeValue -Manifest $manifest -Name 'liveIntegrations' -Value ([pscustomobject]$liveIntegrations)
             Set-ManifestRuntimeValue -Manifest $manifest -Name 'localSettingsApplied' -Value $localSettingsApplied
-            if ($PSBoundParameters.ContainsKey('PublicOrigin')) {
-                Set-ManifestRuntimeValue -Manifest $manifest -Name 'publicOrigin' -Value $(
-                    if ([string]::IsNullOrWhiteSpace($PublicOrigin)) { $null } else { $PublicOrigin })
+            # $PSBoundParameters here is this function's own (empty), so the
+            # script-scope capture says whether -PublicOrigin was given.
+            if ($script:PublicOriginGiven) {
+                Set-ManifestRuntimeValue -Manifest $manifest -Name 'publicOrigin' -Value $PublicOrigin
+            }
+            # A production copy whose post-copy statements did not complete
+            # still holds production's active mailboxes, subscriptions,
+            # Principal keys and pending tidies (R696): the copy is re-run
+            # before the run serves anything.
+            $copyRecords = @(
+                if ([System.IO.Directory]::Exists([string]$manifest.resources.paths.state)) {
+                    [System.IO.Directory]::GetFiles([string]$manifest.resources.paths.state, 'production-copy-*.json') | Sort-Object
+                }
+            )
+            if ($copyRecords.Count -gt 0) {
+                $latestCopy = Get-Content -LiteralPath $copyRecords[-1] -Raw | ConvertFrom-Json
+                if (($latestCopy.PSObject.Properties.Name -contains 'statementsCompleted') -and -not [bool]$latestCopy.statementsCompleted) {
+                    throw "Run '$RunId' holds a production copy whose post-copy statements did not complete ($([System.IO.Path]::GetFileName($copyRecords[-1]))): its mailboxes, subscriptions, Principal API keys and pending instruction tidies are still production's. Re-run scripts/Copy-ProductionDatabaseToRun.ps1 -RunId $RunId before Start."
+                }
             }
             if ($null -ne (Get-RunPublicOrigin -Manifest $manifest)) {
                 # The recorded origin is the instance's; a restart elsewhere
@@ -1916,7 +1932,8 @@ if ($Action -eq 'Status' -and -not [string]::IsNullOrWhiteSpace($RunId)) {
 if ($Action -ne 'Start' -and $PSBoundParameters.ContainsKey('WebPort')) {
     throw '-WebPort is valid only with -Action Start.'
 }
-if ($Action -ne 'Start' -and $PSBoundParameters.ContainsKey('PublicOrigin')) {
+$script:PublicOriginGiven = $PSBoundParameters.ContainsKey('PublicOrigin')
+if ($Action -ne 'Start' -and $script:PublicOriginGiven) {
     throw '-PublicOrigin is valid only with -Action Start.'
 }
 if ($Action -ne 'Reset' -and $Approve) {

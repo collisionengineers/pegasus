@@ -188,6 +188,35 @@ function Remove-Extract {
     }
 }
 
+# The record is written once the publish has replaced the run database,
+# whether or not the statements after it complete: a run holding a copy whose
+# deactivations failed is production's live configuration under a test Worker,
+# and Start refuses it until the copy is re-run (R696).
+$published = $false
+$statementsCompleted = $false
+$deactivated = $subscriptionsCleared = $credentialsPaused = $tidiesClosed = $migrationHead = $caseCount = $null
+function Write-CopyRecord {
+    $record = [ordered]@{
+        kind = 'Pegasus.LocalDevelopment.ProductionCopy'
+        runId = $RunId
+        copiedUtc = [DateTimeOffset]::UtcNow.ToString('O')
+        source = [ordered]@{ server = $sqlServer; database = $sqlDatabase; account = [string]$accountInfo.user.name }
+        dacpac = [ordered]@{ sha256 = $dacpacSha256; bytes = [int64]$dacpacBytes; retained = $false }
+        excludedObjectTypes = $excludedObjectTypes
+        statementsCompleted = $statementsCompleted
+        migrationHead = $migrationHead
+        caseCount = $(if ($null -ne $caseCount) { [int]$caseCount } else { $null })
+        mailboxesDeactivated = $(if ($null -ne $deactivated) { [int]$deactivated } else { $null })
+        subscriptionsCleared = $(if ($null -ne $subscriptionsCleared) { [int]$subscriptionsCleared } else { $null })
+        principalCredentialsPaused = $(if ($null -ne $credentialsPaused) { [int]$credentialsPaused } else { $null })
+        instructionTidiesClosed = $(if ($null -ne $tidiesClosed) { [int]$tidiesClosed } else { $null })
+    }
+    [System.IO.File]::WriteAllText($recordPath, (($record | ConvertTo-Json -Depth 5) + "`n"), [System.Text.UTF8Encoding]::new($false))
+    if (-not $statementsCompleted) {
+        Write-Warning "The publish replaced the run database but the post-copy statements did not complete; record $recordPath says so, and Start refuses run $RunId until the copy is re-run."
+    }
+}
+
 try {
 # 1. Extract production, read only, to the local file. The connection carries
 #    no secret: Active Directory Default takes the operator's az sign-in.
@@ -236,6 +265,7 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "SqlPackage Publish failed with exit code $LASTEXITCODE."
     }
+    $published = $true
 
     # 3. Deactivate every approved mailbox (R627): the copy carries production's
     #    activated rows, and the test Worker must poll nothing until an
@@ -248,6 +278,7 @@ try {
     $tidiesClosed = Invoke-RunSql -Query ($closeTidiesStatement + ' SELECT @@ROWCOUNT;')
     $migrationHead = Invoke-RunSql -Query 'SELECT TOP 1 MigrationId FROM dbo.__EFMigrationsHistory ORDER BY MigrationId DESC;'
     $caseCount = Invoke-RunSql -Query 'SELECT COUNT(*) FROM dbo.Cases;'
+    $statementsCompleted = $true
 }
 finally {
     Stop-PegasusDatabaseInstance -InstanceName $databaseName -Command $docker -ContainerName $containerName -RunId $RunId
@@ -255,23 +286,8 @@ finally {
 }
 finally {
     Remove-Extract
+    if ($published) { Write-CopyRecord }
 }
-
-$record = [ordered]@{
-    kind = 'Pegasus.LocalDevelopment.ProductionCopy'
-    runId = $RunId
-    copiedUtc = [DateTimeOffset]::UtcNow.ToString('O')
-    source = [ordered]@{ server = $sqlServer; database = $sqlDatabase; account = [string]$accountInfo.user.name }
-    dacpac = [ordered]@{ sha256 = $dacpacSha256; bytes = [int64]$dacpacBytes; retained = $false }
-    excludedObjectTypes = $excludedObjectTypes
-    migrationHead = $migrationHead
-    caseCount = [int]$caseCount
-    mailboxesDeactivated = [int]$deactivated
-    subscriptionsCleared = [int]$subscriptionsCleared
-    principalCredentialsPaused = [int]$credentialsPaused
-    instructionTidiesClosed = [int]$tidiesClosed
-}
-[System.IO.File]::WriteAllText($recordPath, (($record | ConvertTo-Json -Depth 5) + "`n"), [System.Text.UTF8Encoding]::new($false))
 
 Write-Host "Copied. Migration head $migrationHead; $caseCount Cases; $deactivated mailbox row(s) deactivated; $subscriptionsCleared subscription row(s) cleared; $credentialsPaused Principal API key(s) paused; $tidiesClosed pending instruction tidy(ies) closed."
 Write-Host "Record: $recordPath"

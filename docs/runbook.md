@@ -379,8 +379,7 @@ Status, Start and Smoke print it (`PublicOrigin`; Smoke records
 `PublicOriginProbed: false`, because the proxy is the operator's to check). A
 public origin requires `Features__PasswordSignIn=true`: without it every
 caller on that origin would be signed in as the Administrator, so `Start`
-refuses. Omitted on a restart, the recorded origin stands; `-PublicOrigin ''`
-clears it. In front of the run, `tailscale serve --bg --https=443
+refuses. Omitted on a restart, the recorded origin stands. In front of the run, `tailscale serve --bg --https=443
 https+insecure://localhost:7139` (the Windows host's Tailscale through WSL
 localhost forwarding, or Tailscale inside WSL) answers with the tailnet's
 certificate, so no development certificate is exported. Tailscale Funnel
