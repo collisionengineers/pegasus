@@ -1260,7 +1260,7 @@ public static class CaseWorkspaceLabels
         public const string CloseTitle = "Close Glass's session";
 
         /// <summary>
-        /// The Close dialog's one prompt (operator, 3 November 2026; R647):
+        /// The Close dialog's one prompt (operator, 3 November 2026; R674):
         /// it states the condition, and pressing Close session confirms it.
         /// </summary>
         public const string ClosePrompt = "Only close this once Glass's is closed and no estimate is open. The Glass's account is then free for another estimate.";

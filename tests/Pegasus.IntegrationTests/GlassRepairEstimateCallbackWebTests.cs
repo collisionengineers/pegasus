@@ -1010,7 +1010,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Contains("Confirm external closure again", refreshed, StringComparison.Ordinal);
         var fresh = FormFor(refreshed, "CloseGlass");
         Assert.Equal(current.Version.ToString(CultureInfo.InvariantCulture), fresh["expectedSessionVersion"]);
-        // The Close dialog's press is the confirmation (R647): the redrawn
+        // The Close dialog's press is the confirmation (R674): the redrawn
         // form carries it with the session's current version.
         Assert.Equal("true", fresh["externalSessionClosed"]);
         fresh["reason"] = staleClose["reason"];
