@@ -1010,9 +1010,10 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Contains("Confirm external closure again", refreshed, StringComparison.Ordinal);
         var fresh = FormFor(refreshed, "CloseGlass");
         Assert.Equal(current.Version.ToString(CultureInfo.InvariantCulture), fresh["expectedSessionVersion"]);
-        Assert.DoesNotMatch("name=\"externalSessionClosed\"[^>]*checked", refreshed);
+        // The Close dialog's press is the confirmation (R647): the redrawn
+        // form carries it with the session's current version.
+        Assert.Equal("true", fresh["externalSessionClosed"]);
         fresh["reason"] = staleClose["reason"];
-        fresh["externalSessionClosed"] = "true";
         using var closed = await workspace.PostAsync("CloseGlass", fresh);
         Assert.Equal(GlassRepairEstimateSessionState.Cancelled, Assert.Single(await workspace.SessionsAsync()).State);
     }

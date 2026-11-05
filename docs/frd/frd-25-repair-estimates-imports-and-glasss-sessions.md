@@ -494,7 +494,8 @@ unanswered on a recorded vehicle is asked again there when **Glass's** is
 pressed, because it answers the estimate that vehicle holds. The
 owning staff member can close any session that still holds the account, except
 one in the middle of an import, only after confirming Glass's is closed and
-no estimate is open, and with a reason. Stale versions and closure by another
+no estimate is open, and with a reason; the Close Glass's session dialog states that
+condition and its press is the confirmation (3 November 2026, R647). Stale versions and closure by another
 staff member are refused. An account holds one live session: while it is held
 from another Case, every Case the staff member opens names that Case instead of
 offering a launch, and a second launch is refused before the provider is

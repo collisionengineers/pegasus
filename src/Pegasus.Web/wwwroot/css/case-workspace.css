@@ -409,16 +409,7 @@ span.blocker-name{cursor:default;text-decoration:none}
 /* The Glass's session line and its guarded close (FRD-25). */
 #section-estimate .glass-session{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:6px 10px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
 #section-estimate .glass-session .grow{flex:1;min-width:0}
-#section-estimate .glass-session form{display:contents}
 #section-estimate .glass-fail{font-family:var(--mono);font-size:11.5px;color:var(--danger)}
-#section-estimate .glass-close{width:100%;border-top:1px solid var(--line);padding-top:8px}
-#section-estimate .glass-close>summary{list-style:none;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--danger);display:inline-flex;align-items:center;gap:6px}
-#section-estimate .glass-close>summary::-webkit-details-marker{display:none}
-#section-estimate .glass-close>summary .icon{width:14px;height:14px}
-#section-estimate .glass-close-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:end;margin-top:8px}
-#section-estimate .glass-close-form .fc .fi{display:block}
-#section-estimate .glass-close-form .choice,#section-estimate .glass-close-form .consequence{grid-column:1/-1}
-#section-estimate .glass-close-form .consequence{font-size:12px;color:var(--muted);font-weight:400;margin:0}
 
 /* One layout for reading and editing (23 September 2026): where the spec
    cannot be changed, a grid cell or a discount holds a greyed value in its

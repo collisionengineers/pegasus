@@ -39,7 +39,7 @@ function fixture() {
             + '<div data-glass-controls="outcome" hidden></div>'
             + '<div data-glass-controls="session" data-glass-id="session" data-glass-version="' + state.sessionVersion + '" data-glass-state="' + state.status + '">'
             + '<form data-glass-close-form method="post" action="/case?handler=CloseGlass"><input type="hidden" name="expectedSessionVersion" value="' + state.sessionVersion + '">'
-            + '<input name="reason" required><input name="externalSessionClosed" type="checkbox" required><button>Close</button></form></div>';
+            + '<input name="externalSessionClosed" type="hidden" value="true"><input name="reason" required><button>Close</button></form></div>';
     }
     function page(commit, notice) {
         return '<div data-case-record data-case-version="' + state.caseVersion + '" data-case-editing="true" data-section-current="estimate"'
@@ -293,9 +293,9 @@ try {
     result = await evaluate('result()'); assert.equal(result.sessionVersion, '6');
     record('Out-of-order controls cannot replace newer session', result);
 
-    await reset(); await evaluate("edit('XY99ZZZ'); var close=document.querySelector('[data-glass-close-form]'); close.elements.reason.value='Closed externally'; close.elements.externalSessionClosed.checked=true; close.requestSubmit();"); await delay(100);
+    await reset(); await evaluate("edit('XY99ZZZ'); var close=document.querySelector('[data-glass-close-form]'); close.elements.reason.value='Closed externally'; close.requestSubmit();"); await delay(100);
     result = await evaluate('result()'); assert.equal(result.version, '2'); assert.equal(result.value, 'XY99ZZZ'); assert.equal(result.sessionVersion, '2');
-    assert.equal(await evaluate("document.querySelector('[name=externalSessionClosed]').checked"), false);
+    assert.equal(await evaluate("document.querySelector('[data-glass-close-form] [name=expectedSessionVersion]').value"), '2');
     record('Stale Close lands the change first, then refreshes the confirmation', result);
 
     // Real popup and opener, with the production opening and return scripts on both legs.
