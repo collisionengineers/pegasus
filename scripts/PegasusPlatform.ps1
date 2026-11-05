@@ -1101,7 +1101,7 @@ $script:PegasusLiveIntegrationFlagKeys = [ordered]@{
 # machine, reached at one Tailscale origin. The origin names the machine: only
 # the Tailscale node that owns the name can serve it, so the lifecycle and the
 # production copy accept that origin alone and refuse to run the instance on
-# any other machine (R692). Moving the instance is an operator decision that
+# any other machine (R694). Moving the instance is an operator decision that
 # changes this constant, the Tailscale name and the operations record together.
 
 $script:PegasusTestInstanceOrigin = 'https://cemattypc-1.tail432b53.ts.net/'
@@ -1178,21 +1178,21 @@ function Assert-PegasusTestInstanceHost {
     <#
         .SYNOPSIS
         Throws unless this machine is the hosted test instance's host: Linux,
-        with the Tailscale node that owns the instance's origin (R692). The
+        with the Tailscale node that owns the instance's origin (R694). The
         caller names what it refused to do.
     #>
     param([Parameter(Mandatory)][string]$Operation)
 
     $origin = $script:PegasusTestInstanceOrigin
     if (-not (Get-PegasusPlatform).IsLinux) {
-        throw "$Operation runs only on the hosted test instance's Linux/WSL host, the Tailscale node that owns $origin (ADR-0088, R692). This machine is $((Get-PegasusPlatform).Kind)."
+        throw "$Operation runs only on the hosted test instance's Linux/WSL host, the Tailscale node that owns $origin (ADR-0088, R694). This machine is $((Get-PegasusPlatform).Kind)."
     }
     $nodeName = Get-PegasusTailscaleNodeName
     if ($null -eq $nodeName) {
-        throw "$Operation runs only on the hosted test instance's host, the Tailscale node that owns $origin (ADR-0088, R692). This machine's Tailscale node name could not be read (tailscale status --json)."
+        throw "$Operation runs only on the hosted test instance's host, the Tailscale node that owns $origin (ADR-0088, R694). This machine's Tailscale node name could not be read (tailscale status --json)."
     }
     if (-not (Test-PegasusTestInstanceHost -NodeName $nodeName)) {
-        throw "$Operation runs only on the hosted test instance's host, the Tailscale node that owns $origin (ADR-0088, R692). This machine is the Tailscale node $nodeName; stop here."
+        throw "$Operation runs only on the hosted test instance's host, the Tailscale node that owns $origin (ADR-0088, R694). This machine is the Tailscale node $nodeName; stop here."
     }
 }
 

@@ -425,7 +425,7 @@ public sealed class WorkerCompositionTests
     /// Features:LiveGraphMail composes Production's Graph mail side over an app
     /// registration credential: the pollers, the answered-instruction move, staff
     /// send and, with the webhook keys, change subscriptions (ADR-0088 as
-    /// amended, R673, R674).
+    /// amended, R675, R676).
     /// </summary>
     [Fact]
     public void DevelopmentOfflineWithLiveGraphMailComposesProductionsGraphMailSide()
@@ -472,7 +472,7 @@ public sealed class WorkerCompositionTests
     /// <summary>
     /// Without the two webhook keys the instance is poll-only: the move and staff
     /// send are composed, no subscription provider is, and the maintenance pass
-    /// has nothing to call (R674).
+    /// has nothing to call (R676).
     /// </summary>
     [Fact]
     public void DevelopmentOfflineWithLiveGraphMailWithoutWebhookKeysComposesNoSubscriptions()

@@ -2,8 +2,8 @@ name: repository-check
 
 # dev is what the hosted test instance runs and what a release deploys, so a
 # push to dev runs the full lanes on the merged tree: that run is the
-# exact-head evidence the release preflight reads (R681). main receives the
-# same SHA once the release's smoke has passed (R680), so a push to main runs
+# exact-head evidence the release preflight reads (R683). main receives the
+# same SHA once the release's smoke has passed (R682), so a push to main runs
 # the history guard alone; its lanes already ran on dev.
 on:
   pull_request:
@@ -64,7 +64,7 @@ jobs:
           $all = $true
           $files = @()
           if ('${{ github.event_name }}' -eq 'push' -and '${{ github.ref }}' -eq 'refs/heads/main') {
-            # main receives a SHA dev already ran (R680, R681): the guard above
+            # main receives a SHA dev already ran (R682, R683): the guard above
             # is this push's whole check.
             foreach ($lane in 'code', 'infrastructure', 'classifier') { "$lane=false" >> $env:GITHUB_OUTPUT }
             Write-Host 'Lanes: none (a push to main is guarded, not re-run; its lanes ran on dev).'
@@ -75,7 +75,7 @@ jobs:
             if ($LASTEXITCODE -eq 0 -and $files.Count -eq [int]'${{ github.event.pull_request.changed_files }}') { $all = $false }
           }
           # A push to dev keeps $all: the merged tree is the release candidate
-          # and the exact-head evidence the preflight reads (R681), so every
+          # and the exact-head evidence the preflight reads (R683), so every
           # lane runs on it whatever the last push alone touched.
           # Code is every path except the ones no .NET build or test reads:
           # Markdown, docs/ (bar the brand logo the report renderer embeds), the

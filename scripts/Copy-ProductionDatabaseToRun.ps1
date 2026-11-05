@@ -15,7 +15,7 @@
     Stopped; its database container is started for the publish and stopped
     again, and the run manifest is not touched.
 
-    The hosted test instance's host only (R692): the copy refuses any other
+    The hosted test instance's host only (R694): the copy refuses any other
     machine before printing its plan, and the run must be the instance's (its
     manifest records the instance's public origin). The extract is removed
     once published, whether or not the publish succeeded, so the run database
@@ -99,12 +99,12 @@ $stamp = [DateTimeOffset]::UtcNow.ToString('yyyyMMddTHHmmssZ')
 $dacpacPath = Join-Path $runRoot "state/pegasus-production-$stamp.dacpac"
 $recordPath = Join-Path $runRoot "state/production-copy-$stamp.json"
 $deactivateStatement = 'UPDATE dbo.ApprovedMailboxes SET ActivatedAtUtc = NULL WHERE ActivatedAtUtc IS NOT NULL;'
-# R676: a copied subscription row would make the instance renew production's
+# R678: a copied subscription row would make the instance renew production's
 # subscription instead of creating its own under its own webhook.
 $clearSubscriptionsStatement = 'DELETE FROM dbo.ApprovedMailboxSubscriptions;'
-# R677: production's Principal API keys must not authenticate against the instance.
+# R679: production's Principal API keys must not authenticate against the instance.
 $pauseCredentialsStatement = "UPDATE dbo.PrincipalApiCredentials SET State = 'Paused', PausedAtUtc = SYSUTCDATETIME(), Version = Version + 1 WHERE State = 'Active';"
-# R678: the answered-instruction tidy does not check activation, so the copied
+# R680: the answered-instruction tidy does not check activation, so the copied
 # pending tidies are closed here; the instance then moves only the instructions
 # its own sends answered.
 $closeTidiesStatement = "UPDATE dbo.StaffMailSendOperations SET InstructionMoveState = 'Failed', InstructionMoveFailureCode = 'production_copy' WHERE InstructionMoveState IS NULL AND Purpose = 'CaseReport' AND State = 'Sent';"
@@ -240,8 +240,8 @@ try {
     # 3. Deactivate every approved mailbox (R627): the copy carries production's
     #    activated rows, and the test Worker must poll nothing until an
     #    Administrator enables a mailbox on the instance. Then clear the copied
-    #    subscriptions (R676), pause the copied Principal API keys (R677) and
-    #    close the copied pending instruction tidies (R678).
+    #    subscriptions (R678), pause the copied Principal API keys (R679) and
+    #    close the copied pending instruction tidies (R680).
     $deactivated = Invoke-RunSql -Query ($deactivateStatement + ' SELECT @@ROWCOUNT;')
     $subscriptionsCleared = Invoke-RunSql -Query ($clearSubscriptionsStatement + ' SELECT @@ROWCOUNT;')
     $credentialsPaused = Invoke-RunSql -Query ($pauseCredentialsStatement + ' SELECT @@ROWCOUNT;')

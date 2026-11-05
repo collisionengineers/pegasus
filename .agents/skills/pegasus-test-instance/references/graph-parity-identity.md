@@ -1,9 +1,9 @@
 # The test instance's Graph identity
 
 The instance has Graph parity with production on its own shared mailbox,
-`pegasustest@collisionengineers.co.uk` (R691), and on the production mailboxes
+`pegasustest@collisionengineers.co.uk` (R693), and on the production mailboxes
 the operator enables on it: read, send, the answered-instruction move and
-change subscriptions (R673, R675). The hosts compose Production's Graph mail
+change subscriptions (R675, R677). The hosts compose Production's Graph mail
 side under `Features:LiveGraphMail`, and the identity they present holds the
 three Exchange application roles on the named mailboxes and nothing on any
 other. This page is the identity. The runbook section
@@ -27,7 +27,7 @@ in its manifest and one client secret (expiry 26 June 2027). Checked on
 `instructions@collisionengineers.co.uk` (`InScope True`); a second scope,
 `CS-Intake-EngDigital`, does not. On 4 November 2026 the filter was widened
 with `Set-ManagementScope` to admit the test mailbox
-`pegasustest@collisionengineers.co.uk` (R691). The instance reuses this
+`pegasustest@collisionengineers.co.uk` (R693). The instance reuses this
 registration and this scope. No new registration and no new scope is
 created, by the subtract-before-add rule.
 
@@ -63,7 +63,7 @@ A mailbox the filter covers lists `Mail.Read`, `Mail.ReadWrite` and
 `Mail.Send` with `InScope True` on `CollisionSpike-Intake-Prod`; one outside
 it lists nothing in scope. Since 4 November 2026 the filter is the four approved
 production mailboxes, info@, engineers@, desk@ and instructions@, and the
-test mailbox pegasustest@ (R691), so any of the five can be enabled on the
+test mailbox pegasustest@ (R693), so any of the five can be enabled on the
 instance with no Exchange change; a denied-mailbox check uses digital@, which
 only the registration's other scope covers. The test mailbox was admitted
 by widening the filter in place:
@@ -89,7 +89,7 @@ administrator, the time, and both results.
 
 Graph delivers change notifications only to a URL it can reach from the
 internet, so the webhook path alone is Funnelled, on its own port; port 443
-stays tailnet-only (R674). On the Tailscale node that owns the name:
+stays tailnet-only (R676). On the Tailscale node that owns the name:
 
 ```bash
 tailscale funnel --bg --https=8443 --set-path /hooks/microsoft-graph/mail https+insecure://localhost:7139/hooks/microsoft-graph/mail

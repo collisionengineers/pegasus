@@ -1578,10 +1578,10 @@ function Start-LocalRun {
             throw "-PublicOrigin must be an absolute https origin with no path, and not loopback: $PublicOrigin"
         }
         # One hosted test instance (ADR-0088): the only public origin is its
-        # own, and only its host serves it (R692). A run on another machine
+        # own, and only its host serves it (R694). A run on another machine
         # stays on loopback.
         if (-not (Test-PegasusTestInstanceOrigin -Origin $PublicOrigin)) {
-            throw "-PublicOrigin accepts only the hosted test instance's origin $(Get-PegasusTestInstanceOrigin) (ADR-0088, R692); a run anywhere else is reached on its own loopback origin."
+            throw "-PublicOrigin accepts only the hosted test instance's origin $(Get-PegasusTestInstanceOrigin) (ADR-0088, R694); a run anywhere else is reached on its own loopback origin."
         }
         Assert-PegasusTestInstanceHost -Operation 'A run with the public origin'
         if (-not $liveIntegrations.passwordSignIn) {
@@ -1622,7 +1622,7 @@ function Start-LocalRun {
             }
             if ($null -ne (Get-RunPublicOrigin -Manifest $manifest)) {
                 # The recorded origin is the instance's; a restart elsewhere
-                # (a copied run root on another machine) is refused (R692).
+                # (a copied run root on another machine) is refused (R694).
                 Assert-PegasusTestInstanceHost -Operation "Restarting run '$RunId' with its public origin"
                 if (-not $liveIntegrations.passwordSignIn) {
                     throw $publicOriginNeedsPasswordSignIn

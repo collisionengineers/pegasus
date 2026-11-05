@@ -45,7 +45,7 @@ finally {
     Remove-Item -LiteralPath $identityProbe -Recurse -Force
 }
 
-# The hosted test instance's host (ADR-0088, R692): the origin is fixed, and
+# The hosted test instance's host (ADR-0088, R694): the origin is fixed, and
 # only the Tailscale node that owns its name is the host.
 if ((Get-PegasusTestInstanceOrigin) -cne 'https://cemattypc-1.tail432b53.ts.net/') {
     throw 'The hosted test instance origin must be the one ADR-0088 records, with one trailing slash.'
