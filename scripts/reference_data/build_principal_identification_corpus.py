@@ -28,7 +28,7 @@ PACKAGE_RELATIVE_PATH = Path(
 PEGASUS_POLICY_SNAPSHOTS = (
     ("principal-mail-route-v1", "src/Pegasus.Core/Intake/PrincipalMailRoutePolicy.cs"),
     (
-        "principal-mail-classification-v4",
+        "principal-mail-classification-v5",
         "src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs",
     ),
     ("principal-case-match-v1", "src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs"),
@@ -710,7 +710,7 @@ def qdos_accepted_rules() -> list[dict[str, Any]]:
             "signal": signal,
             "taxonomyTarget": target,
             "criterionState": state(observed=True, accepted=True, active=True),
-            "evidenceRefs": ["principal-mail-classification-v4"],
+            "evidenceRefs": ["principal-mail-classification-v5"],
         }
         for rule_id, source_role, signal, target in QDOS_ACCEPTED_CLASSIFICATION
     ]
@@ -893,7 +893,7 @@ def dossier(
         evidence_refs.update(
             {
                 "principal-mail-route-v1",
-                "principal-mail-classification-v4",
+                "principal-mail-classification-v5",
                 "principal-case-match-v1",
                 "qdos-extraction-policy-v13",
                 "qdos-local-email-evidence",
