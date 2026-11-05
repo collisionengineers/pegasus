@@ -1,5 +1,6 @@
 // The Pegasus Automation MCP server, reached as the pegasus-automation client
-// with only the automation.mail scope. Tokens last ten minutes, so each request
+// with the automation.mail scope, and automation.intake for creating a Case from
+// a received instruction (R714). Tokens last ten minutes, so each request
 // carries a token refreshed shortly before it expires.
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -36,6 +37,8 @@ export interface MailSummary {
   caseId: string | null;
   caseReference: string | null;
   isTriageCase: boolean;
+  /** The received item a Case is created from; null for mail intake never took. */
+  intakeReceiptId: string | null;
   classification: ClassificationResult | null;
 }
 
@@ -80,6 +83,39 @@ export interface MailAttachmentText {
   isTruncated: boolean;
 }
 
+/** The instruction draft's identity facts, as pegasus_intake_get returns them. */
+export interface InstructionDraft {
+  claimantName: string | null;
+  claimNumber: string | null;
+  vehicleRegistration: string | null;
+  dateOfIncident: string | null;
+}
+
+/** One received item as the Create case page reviews it (pegasus_intake_get). */
+export interface IntakeDetail {
+  receiptId: string;
+  version: number;
+  decision: string;
+  caseId: string | null;
+  caseReference: string | null;
+  classifiedCaseType: string | null;
+  draft: InstructionDraft | null;
+  missingIdentityFields: string[];
+  inspectionAddressState: string;
+  inspectionAddressSuggestion: string | null;
+  inspectionAddressSuggestionFingerprint: string | null;
+}
+
+/** What pegasus_intake_action answers. */
+export interface IntakeActionResult {
+  receiptId: string;
+  action: string;
+  allocationStatus: string | null;
+  caseId: string | null;
+  caseReference: string | null;
+  safeReason: string | null;
+}
+
 export interface OldSystemFolderSearch {
   query: string;
   items: { folderId: string; name: string; modifiedAtUtc: string | null }[];
@@ -103,7 +139,7 @@ export interface MailboxSearch {
   state: "available" | "unavailable";
 }
 
-const Scope = "automation.mail";
+const Scope = "automation.mail automation.intake";
 
 /**
  * The token request met a Web that is not serving: 403 from a stopped Web,
@@ -157,11 +193,34 @@ export class PegasusMail {
     return this.call("pegasus_mail_get", { messageId });
   }
 
-  async linkDestinations(messageId: string): Promise<LinkDestination[]> {
+  /** The matched suggestions, or with a query, a search over reference, registration, claimant and claim number. */
+  async linkDestinations(messageId: string, query?: string): Promise<LinkDestination[]> {
     const result = await this.call<{ items: LinkDestination[] }>(
       "pegasus_mail_link_destinations",
-      { messageId });
+      { messageId, ...(query ? { query } : {}) });
     return result.items;
+  }
+
+  intakeGet(receiptId: string): Promise<IntakeDetail> {
+    return this.call("pegasus_intake_get", { receiptId });
+  }
+
+  /**
+   * accept: Create case on the received item, as staff do (R714).
+   * resolve_inspection_address: accept Pegasus's own suggested address, no other.
+   */
+  intakeAction(args: {
+    receiptId: string;
+    action: "accept" | "resolve_inspection_address";
+    expectedReceiptVersion: number;
+    operationKey: string;
+    claimantName?: string;
+    claimNumber?: string;
+    vehicleRegistration?: string;
+    incidentDate?: string;
+    addressSuggestionFingerprint?: string;
+  }): Promise<IntakeActionResult> {
+    return this.call("pegasus_intake_action", args);
   }
 
   correct(args: {

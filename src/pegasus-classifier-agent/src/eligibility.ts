@@ -8,6 +8,9 @@
 
 import type { MailDetail, MailSummary } from "./pegasus.js";
 
+// Pegasus leaves a null field out of its JSON, so an unlinked message's caseId
+// arrives undefined, not null: "no Case" is tested loosely.
+
 export function decider(actor: string): string {
   const separator = actor.indexOf(":");
   return separator < 0 ? "" : actor.slice(0, separator);
@@ -15,15 +18,15 @@ export function decider(actor: string): string {
 
 /** From the list row alone: worth reading in full. */
 export function isCandidate(summary: MailSummary): boolean {
-  return summary.caseId === null || summary.classification?.outcome === "Unclassified";
+  return summary.caseId == null || summary.classification?.outcome === "Unclassified";
 }
 
 /** From the full read, at the start of a run. */
 export function isEligible(detail: MailDetail): boolean {
   return (
-    detail.classification !== null &&
+    detail.classification != null &&
     decider(detail.classification.currentActor) === "system-worker" &&
-    (detail.classification.current.outcome === "Unclassified" || detail.summary.caseId === null)
+    (detail.classification.current.outcome === "Unclassified" || detail.summary.caseId == null)
   );
 }
 
@@ -34,7 +37,7 @@ export function isEligible(detail: MailDetail): boolean {
  * link, is caught by hasChangedSince, not here.
  */
 export function isStillWritable(detail: MailDetail): boolean {
-  return detail.classification !== null && decider(detail.classification.currentActor) !== "staff";
+  return detail.classification != null && decider(detail.classification.currentActor) !== "staff";
 }
 
 /** What the run last knew of a message: its classification version and linked Case. */
@@ -45,7 +48,7 @@ export interface MessageState {
 }
 
 export function stateOf(detail: MailDetail): MessageState | null {
-  return detail.classification === null
+  return detail.classification == null
     ? null
     : {
         classificationVersion: detail.classification.version,
