@@ -198,8 +198,8 @@ public sealed class AutomationSendIngressTests
 
     /// <summary>
     /// An empty attach is a choice of no companion, so the send boundary
-    /// attaches the report alone (operator, 5 November 2026, R697); the result
-    /// lists the file names the e-mail carries (R698).
+    /// attaches the report alone (operator, 5 November 2026, R702); the result
+    /// lists the file names the e-mail carries (R703).
     /// </summary>
     [Fact]
     public async Task AnEmptyAttachIsTheReportAloneAndTheResultListsTheFilesSent()
