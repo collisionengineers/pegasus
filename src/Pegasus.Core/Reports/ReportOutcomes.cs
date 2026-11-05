@@ -3,9 +3,10 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Core.Reports;
 
 /// <summary>
-/// One confirmed report produced in the period, as MI-02 counts it: its
-/// Principal, the outcome frozen in its snapshot, whether it is an Audit
-/// report (<c>CaseWorkPolicy.IsAuditReport</c>), and for an Audit report the
+/// One report first sent in the period, as Reports sent counts it
+/// (<see cref="ReportSendPolicy"/>, R673): its Principal, the outcome frozen
+/// in the report that send carried, whether it is an Audit report
+/// (<c>CaseWorkPolicy.IsAuditReport</c>), and for an Audit report the
 /// recorded outcome of the report it reviews (<see cref="CaseListPolicy.OriginalOutcomeCode"/>).
 /// </summary>
 public sealed record ReportOutcomeFact(
@@ -24,9 +25,9 @@ public interface IReportOutcomeQueries
 }
 
 /// <summary>
-/// One Principal's reports produced in the period by outcome, and its Audit
+/// One Principal's reports first sent in the period by outcome, and its Audit
 /// reports that agree or differ with the report they review. The outcome
-/// counts add up to the Principal's Reports produced.
+/// counts add up to the Principal's Reports sent.
 /// </summary>
 public sealed record PrincipalReportOutcomes(
     Guid PrincipalId,
@@ -43,7 +44,7 @@ public sealed record ReportOutcomesReport(
     DateTimeOffset ToUtc,
     IReadOnlyList<PrincipalReportOutcomes> Rows);
 
-/// <summary>Outcomes (item O, 9 October 2026): the period's reports by outcome, with Audit agreement.</summary>
+/// <summary>Outcomes (item O, 9 October 2026; R673): the period's reports sent by outcome, with Audit agreement.</summary>
 public sealed class GetReportOutcomes(IReportOutcomeQueries queries)
 {
     /// <summary>The outcome columns in the order the page, CSV and workbook show them.</summary>

@@ -35,13 +35,15 @@ public sealed class AdministrationReportsWebTests
         var names = document.WorkbookPart!.Workbook!.Sheets!.Elements<Sheet>().Select(sheet => sheet.Name!.Value!).ToArray();
         Assert.Equal(["Engineer activity", "Reports by Principal", "By month", "Outcomes", "Turnaround", "Queues"], names);
 
-        // Every Inspection and Audit split the page's Work choice draws from
-        // sits beside its total on both the per-Principal and month sheets.
+        // Every Inspection and Audit split sits beside its total: Engineer
+        // activity's reports sent, and each measure the page's Work choice
+        // draws from on the per-Principal and month sheets (R673).
         var workbookPart = document.WorkbookPart!;
         foreach (var (sheetName, measures) in new[]
         {
-            ("Reports by Principal", new[] { "Reports produced", "Reports sent", "Agreed fees" }),
-            ("By month", new[] { "Reports produced", "Fee notes produced", "Reports sent", "Agreed fees" })
+            ("Engineer activity", new[] { "Reports sent" }),
+            ("Reports by Principal", new[] { "Reports sent", "Re-sends", "Agreed fees" }),
+            ("By month", new[] { "Reports sent", "Re-sends", "Agreed fees" })
         })
         {
             var sheet = workbookPart.Workbook!.Sheets!.Elements<Sheet>().Single(candidate => candidate.Name!.Value == sheetName);
@@ -91,6 +93,11 @@ public sealed class AdministrationReportsWebTests
         // The sorted column reverses; an unsorted count's first click is largest first.
         Assert.Contains("sort=queries&amp;dir=asc", html, StringComparison.Ordinal);
         Assert.Contains("id=\"mi01-title\"", html, StringComparison.Ordinal);
+        // Reports sent splits into Inspection and Audit beside its total, and
+        // re-sends are counted on their own (R673).
+        Assert.Contains("Reports sent &#xB7; Inspection</th>", html, StringComparison.Ordinal);
+        Assert.Contains("Reports sent &#xB7; Audit</th>", html, StringComparison.Ordinal);
+        Assert.Contains(">Re-sends</th>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-sort-arrow", html, StringComparison.Ordinal);
         Assert.DoesNotContain("MI01", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Queries received are credited", html, StringComparison.Ordinal);
@@ -104,7 +111,8 @@ public sealed class AdministrationReportsWebTests
         {
             Assert.Contains($"handler={handler}", principals, StringComparison.Ordinal);
         }
-        Assert.Contains("msort=produced&amp;mdir=desc", principals, StringComparison.Ordinal);
+        Assert.Contains("msort=sent&amp;mdir=desc", principals, StringComparison.Ordinal);
+        Assert.Contains("msort=resends&amp;mdir=desc", principals, StringComparison.Ordinal);
         Assert.Contains("msort=code&amp;mdir=asc", principals, StringComparison.Ordinal);
         // The Work choice survives every link.
         Assert.Contains("work=audit", principals, StringComparison.Ordinal);
@@ -113,7 +121,7 @@ public sealed class AdministrationReportsWebTests
         Assert.Contains("id=\"outcomes-title\"", principals, StringComparison.Ordinal);
         Assert.Contains("id=\"mi03-title\"", principals, StringComparison.Ordinal);
         // Reports by Principal: four columns, the Work choice picks the figures.
-        Assert.DoesNotContain("Reports produced &#xB7; Inspection", principals, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reports sent &#xB7; Inspection", principals, StringComparison.Ordinal);
 
         // Queues.
         var queues = await client.GetStringAsync($"{Page}?tab=queues");
@@ -157,11 +165,11 @@ public sealed class AdministrationReportsWebTests
         Assert.Equal(HttpStatusCode.OK, csv.StatusCode);
         Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, (await csv.Content.ReadAsByteArrayAsync())[..3]);
         Assert.StartsWith(
-            "Person,Queries received,Reports sent,Audit reports sent,Received to sent\r\n",
+            "Person,Queries received,Reports sent,Reports sent · Inspection,Reports sent · Audit,Re-sends,Received to sent\r\n",
             await csv.Content.ReadAsStringAsync(),
             StringComparison.Ordinal);
         using var turnaround = await client.GetAsync($"{Page}?handler=TurnaroundCsv");
-        Assert.StartsWith("Principal,Time to produce,Time to ready,Time to send\r\n", await turnaround.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.StartsWith("Principal,Time to send\r\n", await turnaround.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -185,7 +193,8 @@ public sealed class AdministrationReportsWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("data-reports-by-month", html, StringComparison.Ordinal);
-        Assert.Contains("<td colspan=\"6\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
+        // By month's five columns: Month, Principal, Reports sent, Re-sends, Agreed fees.
+        Assert.Contains("<td colspan=\"5\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
 
         using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
 
@@ -220,7 +229,7 @@ public sealed class AdministrationReportsWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("<td colspan=\"6\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
+        Assert.Contains("<td colspan=\"5\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
         var logged = Assert.Single(logs.Entries, entry => entry.Category == typeof(ReportsModel).FullName);
         Assert.Equal(LogLevel.Warning, logged.Level);
         Assert.Null(logged.Exception);
@@ -254,7 +263,9 @@ public sealed class AdministrationReportsWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("<span class=\"metric-value\">Unavailable</span>", html, StringComparison.Ordinal);
-        Assert.Contains("<td colspan=\"5\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
+        // Engineer activity's seven columns: Person, Queries received, Reports
+        // sent with its Inspection and Audit split, Re-sends, Received to sent.
+        Assert.Contains("<td colspan=\"7\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
 
         using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
 
@@ -471,6 +482,13 @@ public sealed class AdministrationReportsWebTests
         Assert.Contains("<title>Management Reports", html, StringComparison.Ordinal);
         Assert.Contains("data-case-list", html, StringComparison.Ordinal);
         Assert.Contains("value=\"case.reference\" checked=\"checked\"", html, StringComparison.Ordinal);
+        // One row per report (R673): the Case group names the row's report, its
+        // first send and its re-sends; each measure is one column.
+        Assert.Contains("value=\"report\" checked=\"checked\"", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"sent\" checked=\"checked\"", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"resends\" checked=\"checked\"", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"agreed_fee\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"agreed_fee\" checked", html, StringComparison.Ordinal);
         Assert.Contains("value=\"original.agrees\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("value=\"original.agrees\" checked", html, StringComparison.Ordinal);
         Assert.Contains("handler=CaseListCsv", html, StringComparison.Ordinal);
@@ -484,11 +502,12 @@ public sealed class AdministrationReportsWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync($"{Page}?tab=case-list"));
 
-        using var csv = await client.PostAsync($"{Page}?handler=CaseListCsv", CaseListForm(token, ("AllTime", "true"), ("Columns", "case.type"), ("Columns", "case.reference")));
+        using var csv = await client.PostAsync($"{Page}?handler=CaseListCsv", CaseListForm(
+            token, ("AllTime", "true"), ("Columns", "resends"), ("Columns", "case.type"), ("Columns", "report"), ("Columns", "case.reference")));
 
         Assert.Equal(HttpStatusCode.OK, csv.StatusCode);
         Assert.Equal("case-list-all-time.csv", csv.Content.Headers.ContentDisposition!.FileName!.Trim('"'));
-        Assert.StartsWith("Case/PO,Case type\r\n", await csv.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.StartsWith("Case/PO,Report,Case type,Re-sends\r\n", await csv.Content.ReadAsStringAsync(), StringComparison.Ordinal);
 
         using var workbook = await client.PostAsync($"{Page}?handler=CaseListWorkbook", CaseListForm(
             token, ("ReceivedFrom", "2031-04-01"), ("ReceivedTo", "2031-04-30"), ("Columns", "case.received")));
@@ -593,12 +612,12 @@ public sealed class AdministrationReportsWebTests
             ("NewPresetId", presetId.ToString("D")),
             ("OperationKey", Guid.NewGuid().ToString("N")),
             ("Columns", "case.reference"),
-            ("Columns", "agreed_fee.inspection")));
+            ("Columns", "agreed_fee")));
 
         Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
         Assert.Contains($"preset={presetId:D}", created.Headers.Location!.OriginalString, StringComparison.Ordinal);
         var chosen = await client.GetStringAsync($"{Page}?tab=case-list&preset={presetId:D}");
-        Assert.Contains("value=\"agreed_fee.inspection\" checked=\"checked\"", chosen, StringComparison.Ordinal);
+        Assert.Contains("value=\"agreed_fee\" checked=\"checked\"", chosen, StringComparison.Ordinal);
         Assert.DoesNotContain("value=\"case.type\" checked", chosen, StringComparison.Ordinal);
         Assert.Contains("value=\"Invoicing\"", chosen, StringComparison.Ordinal);
 

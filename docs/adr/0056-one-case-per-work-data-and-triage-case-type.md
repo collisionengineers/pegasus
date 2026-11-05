@@ -89,7 +89,10 @@ they ship as one rework with one destructive migration.
    report alone. *Amended 12 October 2026:* one send may carry both works'
    reports; the send records the second generation beside its own, its one
    Sent item links to both works, and each report is counted for its own
-   work.
+   work. *Amended 4 November 2026 (R673):* fees and MI no longer count the
+   first confirmed report. Each work's report counts once, at its first send,
+   with the fee frozen in the report that send carried; its later sends are
+   re-sends. FRD-17 owns the counting.
 5. **The `a.` folder.** Each Case document records its custody folder: the
    Case folder or its audit folder. An Audit-work report is filed in the
    `a.{Case/PO}` Box subfolder under the Case folder, which Pegasus creates

@@ -17,13 +17,6 @@ internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbCon
     /// <summary>The workflow event that moves a Case into With Engineer.</summary>
     private const string FirstSentToEngineerEvent = "state_ReportPreparation";
 
-    /// <summary>The workflow events that link a Case's report-Sent evidence, by staff or by the Worker.</summary>
-    private static readonly string[] ReportSentEvents =
-    [
-        "report_evidence_linked",
-        "report_evidence_auto_linked"
-    ];
-
     public async Task<WorkCentreActivityCounts> GetAsync(
         DateTimeOffset dayStartUtc,
         DateTimeOffset weekStartUtc,
@@ -61,18 +54,19 @@ internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbCon
             .Select(group => group.Min(item => item.OccurredAtUtc));
     }
 
-    // Reports sent counts Cases whose first report was sent, each once
-    // (operator, 11 October 2026): the first link of report-Sent evidence; a
-    // later re-send is not a second report. Only this week's links are read; a
-    // Case with an earlier link was first reported before the week began.
+    // Reports sent counts reports, each once, on its first send (R673): an
+    // Inspection + Audit Case's two reports count two, even when one e-mail
+    // carried both, and a re-send is not another report. Only this week's
+    // sends are read; a report with an earlier send was first sent before the
+    // week began.
     private static IQueryable<DateTimeOffset> ReportsSent(PegasusDbContext context, DateTimeOffset weekStartUtc)
     {
-        var links = context.CaseWorkflowEvents.Where(item => ReportSentEvents.Contains(item.EventType));
-        return links
-            .Where(item => item.OccurredAtUtc >= weekStartUtc
-                && !links.Any(earlier => earlier.CaseId == item.CaseId && earlier.OccurredAtUtc < weekStartUtc))
-            .GroupBy(item => item.CaseId)
-            .Select(group => group.Min(item => item.OccurredAtUtc));
+        var sends = ReportSends.All(context);
+        return sends
+            .Where(item => item.SentAtUtc >= weekStartUtc
+                && !sends.Any(earlier => earlier.WorkId == item.WorkId && earlier.SentAtUtc < weekStartUtc))
+            .GroupBy(item => item.WorkId)
+            .Select(group => group.Min(item => item.SentAtUtc));
     }
 
     // E-mails received counts mail arrivals only; a manual upload is also a

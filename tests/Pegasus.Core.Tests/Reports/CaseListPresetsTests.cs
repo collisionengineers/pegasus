@@ -12,12 +12,12 @@ public sealed class CaseListPresetsTests
         var id = Guid.NewGuid();
 
         await new SaveCaseListPreset(store).ExecuteAsync(
-            new(id, "  Invoicing ", ["agreed_fee.inspection", "case.reference", "case.reference"], 0, Administrator(), Guid.NewGuid().ToString("N")),
+            new(id, "  Invoicing ", ["agreed_fee", "case.reference", "report", "case.reference"], 0, Administrator(), Guid.NewGuid().ToString("N")),
             default);
 
         var saved = Assert.Single(store.Saved);
         Assert.Equal("Invoicing", saved.Name);
-        Assert.Equal(["case.reference", "agreed_fee.inspection"], saved.ColumnKeys);
+        Assert.Equal(["case.reference", "report", "agreed_fee"], saved.ColumnKeys);
     }
 
     [Fact]

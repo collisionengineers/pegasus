@@ -1,12 +1,19 @@
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
-using Pegasus.Core.Documents;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
+/// <summary>
+/// Reports by Principal, Turnaround and Queues read from the real stores
+/// (MI-02, MI-03, MI-05; R673): each report counts once in Reports sent, at
+/// its first observed send, with the fee frozen in the report that send
+/// carried and its time from the instruction's receipt, or for an
+/// Inspection + Audit Case's Audit from Create audit; every later send of it
+/// is a re-send, counted on its own.
+/// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class V1ActivityReportPersistenceTests
 {
@@ -14,40 +21,21 @@ public sealed class V1ActivityReportPersistenceTests
     private static readonly DateTimeOffset To = From.AddDays(31);
 
     [Fact]
-    public async Task CountsReadyTransitionsInPeriodForPriorGenerationWithoutInflatingGenerationMetrics()
+    public async Task CountsEachReportOnItsFirstSendWithTheFeeFrozenInTheReportItCarriedBesideTheQueuesNow()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
-        var generatedAt = From.AddDays(2);
-        var sentAt = From.AddDays(3);
         await using (var context = await database.CreateContextAsync())
         {
             var principal = await SeededPrincipals.QdosAsync(context);
             var receiptId = Guid.NewGuid();
             var caseId = Guid.NewGuid();
             var triageCaseId = Guid.NewGuid();
+            var unsentGenerationId = Guid.NewGuid();
             var generationId = Guid.NewGuid();
-            var priorGenerationId = Guid.NewGuid();
-            var documentId = Guid.NewGuid();
-            var versionId = Guid.NewGuid();
-            var sha256 = new string('a', 64);
+            var resentGenerationId = Guid.NewGuid();
             context.AddRange(
                 Receipt(receiptId),
-                new CaseEntity
-                {
-                    Id = caseId,
-                    PrincipalId = principal.Id,
-                    SequenceLineageId = principal.SequenceLineageId,
-                    Year = 2031,
-                    Sequence = 1,
-                    Reference = "QDOS31001",
-                    Type = "inspection",
-                    InitialState = "Review",
-                    CustodyState = "Confirmed",
-                    OriginIntakeReceiptId = receiptId,
-                    CreatedAtUtc = From,
-                    Version = 1,
-                    ConcurrencyToken = Guid.NewGuid()
-                },
+                Case(principal, caseId, receiptId, 1, "inspection"),
                 new CaseWorkflowEntity
                 {
                     CaseId = caseId,
@@ -104,101 +92,15 @@ public sealed class V1ActivityReportPersistenceTests
                     Version = 0,
                     ConcurrencyToken = Guid.NewGuid()
                 },
-                new CaseReportGenerationEntity
-                {
-                    Id = generationId,
-                    CaseId = caseId,
-                    WorkId = caseId,
-                    CaseVersion = 1,
-                    SnapshotHash = new string('b', 64),
-                    SnapshotJson = "{\"agreedFee\":111.25}",
-                    TemplateVersion = "test",
-                    RendererVersion = "test",
-                    State = "ready",
-                    GeneratedAtUtc = generatedAt,
-                    Version = 2
-                },
-                new CaseReportGenerationEntity
-                {
-                    Id = priorGenerationId,
-                    CaseId = caseId,
-                    WorkId = caseId,
-                    CaseVersion = 0,
-                    SnapshotHash = new string('c', 64),
-                    SnapshotJson = "{\"agreedFee\":1.00}",
-                    TemplateVersion = "test",
-                    RendererVersion = "test",
-                    State = "ready",
-                    GeneratedAtUtc = From.AddDays(-1),
-                    Version = 1
-                },
-                new CaseDocumentEntity
-                {
-                    Id = documentId,
-                    CaseId = caseId,
-                    Ordinal = 1,
-                    SourceOccurrenceIdentity = "report-output"
-                },
-                new DocumentVersionEntity
-                {
-                    Id = versionId,
-                    DocumentId = documentId,
-                    Version = 1,
-                    FileName = "report.pdf",
-                    MediaType = "application/pdf",
-                    ContentLength = 1,
-                    Sha256 = sha256,
-                    CustodyStatus = DocumentCustodyStatus.Confirmed,
-                    CreatedAtUtc = generatedAt,
-                    CreatedBy = "test",
-                    IsCurrent = true
-                },
-                Artifact(generationId, versionId, sha256, nameof(CaseReportArtifactKind.AssessmentReport), "Confirmed"),
-                Artifact(generationId, null, null, "DOCX", "Pending"),
-                Artifact(priorGenerationId, versionId, sha256, "PDF", "Confirmed"),
-                new ActionHistoryEntity
-                {
-                    Id = Guid.NewGuid(),
-                    AggregateType = "case",
-                    AggregateId = caseId.ToString("D"),
-                    EventKind = "case_report_generation_ready",
-                    ActorKind = "Staff",
-                    ActorSubjectId = Guid.NewGuid().ToString("D"),
-                    ActorRolesJson = "[]",
-                    OccurredAtUtc = generatedAt.AddHours(2),
-                    Outcome = "Succeeded",
-                    CorrelationId = "report-ready:test",
-                    AfterJson = $"{{\"generationId\":\"{generationId:D}\"}}"
-                },
-                new ActionHistoryEntity
-                {
-                    Id = Guid.NewGuid(),
-                    AggregateType = "case",
-                    AggregateId = caseId.ToString("D"),
-                    EventKind = "case_report_generation_ready",
-                    ActorKind = "Staff",
-                    ActorSubjectId = Guid.NewGuid().ToString("D"),
-                    ActorRolesJson = "[]",
-                    OccurredAtUtc = From.AddDays(1),
-                    Outcome = "Succeeded",
-                    CorrelationId = "report-ready:prior-generation",
-                    AfterJson = $"{{\"generationId\":\"{priorGenerationId:D}\"}}"
-                },
-                new ActionHistoryEntity
-                {
-                    Id = Guid.NewGuid(),
-                    AggregateType = "case",
-                    AggregateId = caseId.ToString("D"),
-                    EventKind = "case_report_generation_ready",
-                    ActorKind = "Staff",
-                    ActorSubjectId = Guid.NewGuid().ToString("D"),
-                    ActorRolesJson = "[]",
-                    OccurredAtUtc = generatedAt.AddHours(3),
-                    Outcome = "Succeeded",
-                    CorrelationId = "report-ready:stale-generation",
-                    AfterJson = $"{{\"generationId\":\"{Guid.NewGuid():D}\"}}"
-                },
-                SentOperation(generationId, contextVersion: 1, sentAt));
+                // A Generate is not a send: this report was regenerated before
+                // it was sent, and only the report the first send carried counts.
+                Generation(unsentGenerationId, caseId, From.AddDays(-1), "{\"agreedFee\":1.00}"),
+                Generation(generationId, caseId, From.AddDays(2), "{\"agreedFee\":111.25}"),
+                // Regenerated after its first send and sent again: a re-send,
+                // whose report's fee is not the report's.
+                Generation(resentGenerationId, caseId, From.AddDays(5), "{\"agreedFee\":500.00}"),
+                SentOperation(From.AddDays(3), generationId),
+                SentOperation(From.AddDays(6), resentGenerationId));
             context.CaseAssessmentFields.Add(new CaseAssessmentFieldEntity
             {
                 WorkId = caseId,
@@ -206,7 +108,7 @@ public sealed class V1ActivityReportPersistenceTests
                 Value = "999.99",
                 RecordedByKind = "Staff",
                 RecordedBy = Guid.NewGuid().ToString("D"),
-                RecordedAtUtc = sentAt
+                RecordedAtUtc = From.AddDays(3)
             });
             await context.SaveChangesAsync();
         }
@@ -217,24 +119,117 @@ public sealed class V1ActivityReportPersistenceTests
 
         var row = Assert.Single(rows);
         Assert.Equal("QDOS", row.PrincipalCode);
-        Assert.Equal(1, row.GenerationEvents);
-        Assert.Equal(1, row.GeneratedArtifacts);
-        Assert.Equal(1, row.ReportsProduced);
         Assert.Equal(1, row.Sent);
-        Assert.Equal(2, row.Ready);
-        Assert.Equal(TimeSpan.FromDays(2), row.AverageReceivedToGeneration);
-        Assert.Equal(TimeSpan.FromDays(2), row.AverageReceivedToGeneratedArtifact);
-        Assert.Equal(TimeSpan.FromHours(37), row.AverageReceivedToReady);
+        Assert.Equal(1, row.Resends);
+        Assert.Equal(0, row.AuditSent);
+        Assert.Equal(0, row.AuditResends);
+        // The fee frozen in the report the first send carried: not the unsent
+        // Generate's, the re-sent report's or the Case's live agreed fee.
+        Assert.Equal(111.25m, row.AgreedFeeTotal);
+        Assert.Equal(0m, row.AuditAgreedFeeTotal);
+        // Received at From and first sent three days later; a re-send is not
+        // a time to send.
         Assert.Equal(TimeSpan.FromDays(3), row.AverageReceivedToSent);
-        Assert.Equal(0, row.MissingOriginForReadyTurnaround);
         Assert.Equal(1, row.CurrentTriage);
         Assert.Equal(From.AddDays(1), row.OldestCurrentTriageCreatedAtUtc);
         Assert.Equal(1, row.CurrentHeldCases);
         Assert.Equal(From.AddDays(4), row.OldestHeldAtUtc);
         Assert.Equal(0, row.HeldWithoutRecordedHoldEvent);
-        Assert.Equal(111.25m, row.AgreedFeeTotal);
-        // The DOCX artifact never confirmed, so only the confirmed report is produced.
-        Assert.Equal(1, row.ReportsProduced);
+    }
+
+    /// <summary>
+    /// R673: one e-mail that carried both of an Inspection + Audit Case's
+    /// reports is two reports sent and no re-send, each with the fee frozen
+    /// in its own report and its own time to send: the Inspection report's
+    /// from the receipt, the Audit report's from Create audit.
+    /// </summary>
+    [Fact]
+    public async Task OneEmailCarryingBothReportsCountsEachWithItsOwnFeeAndTimeToSend()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using (var context = await database.CreateContextAsync())
+        {
+            var principal = await SeededPrincipals.QdosAsync(context);
+            var receiptId = Guid.NewGuid();
+            var caseId = Guid.NewGuid();
+            var auditWorkId = Guid.NewGuid();
+            var inspectionGenerationId = Guid.NewGuid();
+            var auditGenerationId = Guid.NewGuid();
+            context.AddRange(
+                Receipt(receiptId),
+                Case(principal, caseId, receiptId, 1, "inspection_and_audit"),
+                AuditWork(auditWorkId, caseId, From.AddDays(5)),
+                Generation(inspectionGenerationId, caseId, From.AddDays(2), "{\"agreedFee\":100.00}"),
+                Generation(auditGenerationId, caseId, From.AddDays(7), "{\"agreedFee\":40.00}", auditWorkId),
+                SentOperation(From.AddDays(8), auditGenerationId, inspectionGenerationId));
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IV1ActivityReportQueries>();
+        var row = Assert.Single(await queries.GetAsync(From, To, CancellationToken.None));
+
+        Assert.Equal((2, 1, 1), (row.Sent, row.AuditSent, row.InspectionSent));
+        Assert.Equal((0, 0), (row.Resends, row.AuditResends));
+        Assert.Equal((140m, 40m, 100m), (row.AgreedFeeTotal, row.AuditAgreedFeeTotal, row.InspectionAgreedFeeTotal));
+        // The Inspection report eight days after the receipt, the Audit report
+        // three days after Create audit.
+        Assert.Equal(TimeSpan.FromHours(132), row.AverageReceivedToSent);
+    }
+
+    /// <summary>
+    /// R673: the Inspection report first sent on its own, then after Create
+    /// audit one e-mail carrying the Audit report for the first time and the
+    /// Inspection report again. Each e-mail is one report sent in its own
+    /// period; the second is also the Inspection report's re-send, which adds
+    /// no fee and no time to send.
+    /// </summary>
+    [Fact]
+    public async Task AnEmailThatResendsTheInspectionAndFirstSendsTheAuditIsOneReportSentAndOneResend()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var createAudit = From.AddDays(10);
+        await using (var context = await database.CreateContextAsync())
+        {
+            var principal = await SeededPrincipals.QdosAsync(context);
+            var receiptId = Guid.NewGuid();
+            var caseId = Guid.NewGuid();
+            var auditWorkId = Guid.NewGuid();
+            var inspectionGenerationId = Guid.NewGuid();
+            var auditGenerationId = Guid.NewGuid();
+            context.AddRange(
+                Receipt(receiptId),
+                Case(principal, caseId, receiptId, 1, "inspection_and_audit"),
+                AuditWork(auditWorkId, caseId, createAudit),
+                Generation(inspectionGenerationId, caseId, From.AddDays(1), "{\"agreedFee\":100.00}"),
+                Generation(auditGenerationId, caseId, createAudit.AddDays(1), "{\"agreedFee\":40.00}", auditWorkId),
+                SentOperation(From.AddDays(2), inspectionGenerationId),
+                SentOperation(createAudit.AddDays(3), auditGenerationId, inspectionGenerationId));
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IV1ActivityReportQueries>();
+
+        // Before Create audit: the Inspection report, two days after the receipt.
+        var before = Assert.Single(await queries.GetAsync(From, createAudit, CancellationToken.None));
+        Assert.Equal((1, 0, 0), (before.Sent, before.AuditSent, before.Resends));
+        Assert.Equal(100m, before.AgreedFeeTotal);
+        Assert.Equal(TimeSpan.FromDays(2), before.AverageReceivedToSent);
+
+        // After it: the Audit report, three days after Create audit, and the
+        // Inspection report's re-send.
+        var after = Assert.Single(await queries.GetAsync(createAudit, To, CancellationToken.None));
+        Assert.Equal((1, 1, 0), (after.Sent, after.AuditSent, after.InspectionSent));
+        Assert.Equal((1, 0, 1), (after.Resends, after.AuditResends, after.InspectionResends));
+        Assert.Equal((40m, 40m), (after.AgreedFeeTotal, after.AuditAgreedFeeTotal));
+        Assert.Equal(TimeSpan.FromDays(3), after.AverageReceivedToSent);
+
+        // The whole month counts each report once.
+        var whole = Assert.Single(await queries.GetAsync(From, To, CancellationToken.None));
+        Assert.Equal((2, 1, 1, 0), (whole.Sent, whole.AuditSent, whole.Resends, whole.AuditResends));
+        Assert.Equal((140m, 40m), (whole.AgreedFeeTotal, whole.AuditAgreedFeeTotal));
+        Assert.Equal(TimeSpan.FromHours(60), whole.AverageReceivedToSent);
     }
 
     private static IntakeReceiptEntity Receipt(Guid id) => new()
@@ -258,26 +253,65 @@ public sealed class V1ActivityReportPersistenceTests
         OcrCandidatesJson = "[]"
     };
 
-    private static GeneratedCaseArtifactEntity Artifact(
-        Guid generationId,
-        Guid? versionId,
-        string? sha256,
-        string kind,
-        string state) => new()
+    private static CaseEntity Case(
+        SeededPrincipalTestData principal,
+        Guid id,
+        Guid receiptId,
+        int sequence,
+        string type) => new()
     {
-        Id = Guid.NewGuid(),
-        GenerationId = generationId,
-        VersionId = versionId,
-        Kind = kind,
-        Sha256 = sha256,
-        State = state,
-        OperationKey = $"artifact:{kind}:{Guid.NewGuid():N}"
+        Id = id,
+        PrincipalId = principal.Id,
+        SequenceLineageId = principal.SequenceLineageId,
+        Year = 2031,
+        Sequence = sequence,
+        Reference = $"QDOS3100{sequence}",
+        Type = type,
+        InitialState = "Review",
+        CustodyState = "Confirmed",
+        OriginIntakeReceiptId = receiptId,
+        CreatedAtUtc = From,
+        Version = 1,
+        ConcurrencyToken = Guid.NewGuid()
     };
 
+    private static CaseWorkEntity AuditWork(Guid id, Guid caseId, DateTimeOffset createdAtUtc) => new()
+    {
+        Id = id,
+        CaseId = caseId,
+        Kind = CaseWorkKinds.Audit,
+        CreatedAtUtc = createdAtUtc
+    };
+
+    private static CaseReportGenerationEntity Generation(
+        Guid id,
+        Guid caseId,
+        DateTimeOffset generatedAtUtc,
+        string snapshotJson,
+        Guid? workId = null) => new()
+    {
+        Id = id,
+        CaseId = caseId,
+        WorkId = workId ?? caseId,
+        CaseVersion = 1,
+        SnapshotHash = $"{id:N}{id:N}",
+        SnapshotJson = snapshotJson,
+        TemplateVersion = "test",
+        RendererVersion = "test",
+        State = nameof(CaseReportGenerationState.Confirmed),
+        GeneratedAtUtc = generatedAtUtc,
+        Version = 1
+    };
+
+    /// <summary>
+    /// A report e-mail seen in Sent Items, from a staff member of its own,
+    /// carrying the report generation <paramref name="generationId"/> and,
+    /// when it carried both works' reports, <paramref name="secondGenerationId"/>.
+    /// </summary>
     private static StaffMailSendOperationEntity SentOperation(
+        DateTimeOffset sentAt,
         Guid generationId,
-        long contextVersion,
-        DateTimeOffset sentAt) => new()
+        Guid? secondGenerationId = null) => new()
     {
         Id = Guid.NewGuid(),
         ActorSubjectId = Guid.NewGuid().ToString("D"),
@@ -287,7 +321,9 @@ public sealed class V1ActivityReportPersistenceTests
         PayloadHash = new string('2', 64),
         Purpose = StaffMailPurpose.CaseReport,
         ContextId = generationId,
-        ContextVersion = contextVersion,
+        ContextVersion = 1,
+        SecondContextId = secondGenerationId,
+        SecondContextVersion = secondGenerationId is null ? null : 1,
         ComposeMode = StaffMailComposeMode.New,
         RecipientsJson = "[]",
         Subject = "report",

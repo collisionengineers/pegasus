@@ -74,7 +74,7 @@ public sealed partial class ReportsModel(
     /// <summary>Engineer activity's direction: <c>desc</c> or anything else for ascending.</summary>
     [BindProperty(SupportsGet = true, Name = "dir")] public string? Direction { get; set; }
 
-    /// <summary>Reports by Principal's sort: <c>code</c>, <c>produced</c>, <c>sent</c> or <c>fees</c> (item P).</summary>
+    /// <summary>Reports by Principal's sort: <c>code</c>, <c>sent</c>, <c>resends</c> or <c>fees</c> (item P).</summary>
     [BindProperty(SupportsGet = true, Name = "msort")] public string? PrincipalSort { get; set; }
 
     [BindProperty(SupportsGet = true, Name = "mdir")] public string? PrincipalDirection { get; set; }
@@ -140,23 +140,23 @@ public sealed partial class ReportsModel(
     public string? PrincipalAriaSort(string column) => AriaSortOf(PrincipalSort, PrincipalDescending, column);
 
     /// <summary>A Reports by Principal measure for the chosen work.</summary>
-    public int Produced(PrincipalReportActivity row) => ByWork(WorkValue, row.ReportsProduced, row.InspectionReportsProduced, row.AuditReportsProduced);
-
     public int Sent(PrincipalReportActivity row) => ByWork(WorkValue, row.Sent, row.InspectionSent, row.AuditSent);
+
+    public int Resends(PrincipalReportActivity row) => ByWork(WorkValue, row.Resends, row.InspectionResends, row.AuditResends);
 
     public decimal Fees(PrincipalReportActivity row) => ByWork(WorkValue, row.AgreedFeeTotal, row.InspectionAgreedFeeTotal, row.AuditAgreedFeeTotal);
 
     /// <summary>A By month measure for its own Work choice.</summary>
-    public (int Produced, int FeeNotes, int Sent, decimal Fees) MonthFigures(MonthlyReportActivity row) => MonthWorkValue switch
+    public (int Sent, int Resends, decimal Fees) MonthFigures(MonthlyReportActivity row) => MonthWorkValue switch
     {
-        "inspection" => (row.InspectionReportsGenerated, row.InspectionFeeNotesGenerated, row.InspectionSent, row.InspectionAgreedFeeTotal),
-        "audit" => (row.AuditReportsGenerated, row.AuditFeeNotesGenerated, row.AuditSent, row.AuditAgreedFeeTotal),
-        _ => (row.ReportsGenerated, row.FeeNotesGenerated, row.Sent, row.AgreedFeeTotal)
+        "inspection" => (row.InspectionSent, row.InspectionResends, row.InspectionAgreedFeeTotal),
+        "audit" => (row.AuditSent, row.AuditResends, row.AuditAgreedFeeTotal),
+        _ => (row.Sent, row.Resends, row.AgreedFeeTotal)
     };
 
-    /// <summary>Reports by Principal's rows: a Principal with anything produced or sent, in the chosen order.</summary>
+    /// <summary>Reports by Principal's rows (<see cref="AdministrationReportTables.PrincipalRows"/>), in the chosen order.</summary>
     public IReadOnlyList<PrincipalReportActivity> PrincipalRows => PrincipalActivity is { } report
-        ? SortedPrincipals(report.Rows.Where(row => row.ReportsProduced > 0 || row.Sent > 0))
+        ? SortedPrincipals(AdministrationReportTables.PrincipalRows(report))
         : [];
 
     /// <summary>
@@ -631,8 +631,8 @@ public sealed partial class ReportsModel(
     {
         IOrderedEnumerable<PrincipalReportActivity> ordered = PrincipalSort?.ToLowerInvariant() switch
         {
-            "produced" => PrincipalDescending ? rows.OrderByDescending(Produced) : rows.OrderBy(Produced),
             "sent" => PrincipalDescending ? rows.OrderByDescending(Sent) : rows.OrderBy(Sent),
+            "resends" => PrincipalDescending ? rows.OrderByDescending(Resends) : rows.OrderBy(Resends),
             "fees" => PrincipalDescending ? rows.OrderByDescending(Fees) : rows.OrderBy(Fees),
             "code" => PrincipalDescending
                 ? rows.OrderByDescending(row => row.PrincipalCode, StringComparer.OrdinalIgnoreCase)

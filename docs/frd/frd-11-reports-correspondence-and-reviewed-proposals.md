@@ -221,7 +221,10 @@ other work's current confirmed report as its own tick, with its own
 documents, so the Inspection report and the Audit report go together
 (operator, 12 October 2026). Each report keeps its own name and re-send
 count, and the email takes its From and subject as **From and subject**
-below says.
+below says. The Work Centre and Management Reports count each report once,
+at its first send, so an Inspection + Audit Case counts two; its later
+sends are its re-sends ([R673](../rulings.md),
+[FRD-17](frd-17-administration-workspace.md#management-reports)).
 
 Audit outcome or reference evidence that is missing, conflicting, ambiguous,
 stale or from another Case fails before rendering. Audit adds no second

@@ -10,7 +10,7 @@ namespace Pegasus.Core.Operations;
 /// </summary>
 /// <param name="NewCases">Cases created, excluding Triage Cases, as the New cases list counts them.</param>
 /// <param name="SentToEngineer">Cases first sent to Engineer: each Case counted once, on its first entry into With Engineer.</param>
-/// <param name="ReportsSent">Cases whose first report was sent: each Case counted once, on its first Sent evidence (operator, 11 October 2026).</param>
+/// <param name="ReportsSent">Reports first sent, each once (<see cref="Pegasus.Core.Reports.ReportSendPolicy"/>): an Inspection + Audit Case's two reports count two, even when one e-mail carried both, and a re-send is not counted (R673).</param>
 /// <param name="EmailsReceived">Mailbox receipts; an upload is also a receipt and is not counted.</param>
 public sealed record WorkCentreActivityCounts(
     WorkCentreActivityFigure NewCases,

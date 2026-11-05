@@ -315,36 +315,43 @@ month (MI-02), Outcomes (MI-06) and Turnaround (MI-03); Queues holds Queues
 **Download CSV** in its head. No MI label is drawn
 ([v41 A26](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
-Reports and fees are counted per report: the first confirmed report of the
-Inspection and, once created, of the Audit of an Inspection + Audit Case
-each count once, with their own agreed fee. An email that carried both
-reports is a send of each. An Audit report is the report
-of a standalone Audit Case or the Audit of an Inspection + Audit Case.
+Reports are counted by sending, never by Generate
+([R673](../rulings.md)). A report is one work's report: the Inspection
+report, or the Audit report of a standalone Audit Case or of an Inspection +
+Audit Case. So an Inspection + Audit Case has two reports. A report counts
+once in **Reports sent**, at its first send: the first Pegasus report e-mail
+that carried it, seen in Sent Items. An e-mail that carried both reports is
+a send of each. Every later send of a report is a **Re-send**, counted on
+its own and never as another report sent. Generating a report again changes
+no figure. A report's agreed fee and outcome are the ones frozen in the
+report its first send carried, and they count in the period of that send.
 
 - **Engineer activity** counts each person's queries (a dispute or an
   amendment request is a query), credited to the Case's assigned
-  Engineer; the reports sent, credited to their recorded sender; the Audit
-  reports sent (the Audit uplift); and the turnaround to sent, from the
+  Engineer. It counts the reports sent, split into Inspection and Audit
+  (the Audit share is the Audit uplift), and the re-sends, each credited to
+  who sent it. Its turnaround runs to each report's first send, from the
   instruction's receipt or, for the Audit of an Inspection + Audit Case,
   from Create audit. Automation's report sends are a row of their own, so
-  Reports sent here agrees with Reports by Principal. **Person**, in the
-  section head, lists the people with activity in the period and narrows
-  this report and its CSV and workbook sheet only.
-- **Reports by Principal** shows reports produced, reports sent and agreed
-  fees per Principal; a Principal with nothing produced and nothing sent is
-  left out. **By month** shows reports and fee notes produced, reports sent
-  and agreed fees per Principal and London month, newest first, for
-  invoice generation. Each has a **Work** choice (All, Inspection or Audit)
-  that picks the figures shown. Their CSVs and workbook sheets keep every
-  total beside its Inspection and Audit columns. There is no count of
+  Reports sent here agrees with Reports by Principal and the Work Centre.
+  **Person**, in the section head, lists the people with activity in the
+  period and narrows this report and its CSV and workbook sheet only. A
+  send is a first send or a re-send whoever made the sends before it.
+- **Reports by Principal** shows reports sent, re-sends and agreed fees per
+  Principal; a Principal with no report sent and no re-send is left out.
+  **By month** shows the same per Principal and London month, newest first,
+  for invoice generation. Each has a **Work** choice (All, Inspection or
+  Audit) that picks the figures shown. Their CSVs and workbook sheets keep
+  every total beside its Inspection and Audit columns. There is no count of
   report kinds per Principal.
-- **Outcomes** counts the reports produced in the period by the outcome
-  each was frozen with (Repairable, Total loss, Cash in lieu, Contract
-  repair), so the counts add up to Reports produced, and the Audit reports
-  that **Agrees** or **Differs** with the recorded outcome of the report
-  they review (the Case list's rule).
-- **Turnaround** shows each Principal's average time from the instruction's
-  receipt to produced, ready and sent in the period.
+- **Outcomes** counts the reports sent in the period by the outcome each was
+  sent with (Repairable, Total loss, Cash in lieu, Contract repair), so the
+  counts add up to Reports sent, and the Audit reports that **Agrees** or
+  **Differs** with the recorded outcome of the report they review (the Case
+  list's rule).
+- **Turnaround** shows each Principal's average time to send: from the
+  instruction's receipt or, for the Audit of an Inspection + Audit Case,
+  from Create audit, to each report's first send in the period.
 - **Queues** is now, whatever the period: Cases currently held and open
   Triages per Principal, with the oldest of each, and the open Unidentified
   items with the oldest. When no Principal holds either, its table says
@@ -352,8 +359,8 @@ of a standalone Audit Case or the Audit of an Inspection + Audit Case.
 
 Engineer activity's and Reports by Principal's columns sort: a name's first
 click sorts A to Z, a count's largest first, and a second click reverses.
-A meter beside the queries, reports produced and reports sent shows each
-against its column's largest. The
+A meter beside the queries, reports sent and re-sends shows each against
+its column's largest. The
 sorts, the Work choices, Person and the period are kept by every link and
 form on the page, and a CSV comes out in the order the page shows. Each
 total in those two reports has the same figure for the period just before
@@ -362,37 +369,48 @@ headings and write a turnaround as the page does. A report whose query
 fails or returns invalid data renders an unavailable state, never a false
 zero, and refuses only its own CSV; the workbook needs every report.
 
-**MI-04 Case list** downloads one row per Case, open or closed, as a CSV or a
-one-sheet .xlsx. It has its own filter: received date from and to (the
-Case's received date), or **All time**. Triage Cases are left out unless
-**Include Triage Cases** is ticked. The Administrator ticks the columns, in
-groups: Case, Outcomes, Engineers, Claim and vehicle, Money, and Parties and
-activity. The Case group is ticked by default. Columns always come out in
-the list's own order.
+**MI-04 Case list** downloads one row per report, open or closed, as a CSV
+or a one-sheet .xlsx ([R673](../rulings.md)). It has its own filter:
+received date from and to (the Case's received date), or **All time**.
+Triage Cases are left out unless **Include Triage Cases** is ticked. The
+Administrator ticks the columns, in groups: Case, Outcomes, Engineers, Claim
+and vehicle, Money, and Parties and activity. The Case group is ticked by
+default. Columns always come out in the list's own order.
 
-- An Inspection + Audit Case is one row. A measure that belongs to a work
-  (outcome, salvage category, report first sent, report sent by, agreed fee,
-  values, repair cost, salvage value, charges) has an Inspection column and
-  an Audit column.
-- **N/A** means the column does not apply to the Case's type: the Audit
-  columns of an Inspection Case, the Inspection columns of a standalone
-  Audit, every work column of a Triage Case. A blank cell means the column
-  applies but nothing is recorded yet, such as the Audit of an Inspection +
-  Audit Case before Create audit.
-- **Original firm** and **Original outcome** are the reviewed report's: on a
-  standalone Audit, the Original report section's assessor and repairable
-  status; on an Inspection + Audit Case, Collision Engineers Ltd and the
-  Inspection's own outcome; N/A otherwise. **Audit agrees with original**
-  reads Agrees or Differs once both outcomes are recorded.
+- An Inspection + Audit Case has two rows, its Inspection's and then its
+  Audit's; every other Case has one. **Report** says which report a row is.
+  The Audit's row is listed before Create audit, with its report cells
+  blank. Case/PO, Principal, Case type, Received date, Stage and Assigned
+  engineer are the Case's own on each of its rows. **Audit reference** is
+  on the Audit's row only.
+- A report's measures (outcome, salvage category, report first sent,
+  re-sends, report sent by, agreed fee, values, repair cost, salvage value,
+  charges) and its claim, vehicle and party details are the row's report's
+  own. Create audit gives the Audit its own copy of the Case's values.
+- The Case-wide counts (images, documents, queries, e-mails sent, chases,
+  open tasks and notes) are on the Case's own row. An Inspection + Audit
+  Case's Audit row reads them N/A, so a total counts each Case once.
+- **N/A** means the column does not apply to the row: the review columns
+  below on an Inspection row, the Case-wide counts on an Inspection + Audit
+  Case's Audit row, every report column on a Triage Case's row. A blank cell
+  means the column applies but nothing is recorded yet, such as the Audit's
+  row before Create audit, or Re-sends before the report is first sent.
+- **Original firm** and **Original outcome** are the reviewed report's, on
+  an Audit row: on a standalone Audit, the Original report section's
+  assessor and repairable status; on an Inspection + Audit Case, Collision
+  Engineers Ltd and the Inspection's own outcome. **Audit agrees with
+  original** reads Agrees or Differs once both outcomes are recorded.
 - An outcome reads Repairable, Total loss, Cash in lieu or Contract repair.
-  A salvage category of N/A reads **Not categorised**.
-- **Agreed fee** is the fee frozen in the work's first confirmed report, the
-  same fee MI-02 adds up; it is blank before a report. **Repair cost** is the
-  latest confirmed report's.
+  A salvage category of N/A reads **Not categorised**. **Outcome** is the
+  outcome recorded on the work now, so it can differ from the one Outcomes
+  counts, which the report was sent with.
+- **Agreed fee** is the fee frozen in the report the first send carried,
+  the same fee MI-02 adds up; it is blank until the report is sent.
+  **Repair cost** is the latest confirmed report's.
 - **Assigned engineer** is the Case's assigned Engineer. **Sign-off
-  engineer** is the signatory of the latest confirmed report, or the
-  signatory the Case would use now. **Report sent by** is who made the
-  work's first report send.
+  engineer** is the signatory of the report's latest confirmed generation,
+  or the signatory the Case would use now. **Report sent by** is who made
+  the report's first send. **Re-sends** counts its later sends.
 - Queries (a dispute or an amendment request is a query) are `CaseQueries`
   rows that are open or Done, not withdrawn, counted as MI-01 counts them
   (operator, 27 October 2026).
@@ -403,7 +421,9 @@ changed for one download. **Save as new preset** keeps the ticked columns
 under the name given, **Save preset** replaces the chosen preset's name and
 columns, and **Remove preset** removes it. Each acts on the click with the
 version the page rendered. A refused download or preset change says why and
-keeps the form as it was.
+keeps the form as it was. A column a preset saved that the list no longer
+has, such as a paired Inspection and Audit column from before R673, is not
+ticked; the Administrator ticks its replacement and saves the preset.
 
 ### Release notes
 
