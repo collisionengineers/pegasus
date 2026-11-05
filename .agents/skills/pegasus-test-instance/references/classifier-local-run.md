@@ -10,8 +10,10 @@ otherwise.
 ## Prerequisites on the instance
 
 The settings file carries `Features__AutomationMcp=true`,
-`AutomationMcp__UseDevelopmentKeys=true` and an `AutomationMcp__ClientSecret`
-of at least 32 characters (section 2 of the skill). The lifecycle sets
+`AutomationMcp__UseDevelopmentKeys=true`, `AutomationMcp__ClientId=pegasus-automation`
+and an `AutomationMcp__ClientSecret` of at least 32 characters (section 2 of
+the skill); the Web refuses to start with the flag on and either of the last
+two missing. The lifecycle sets
 `AutomationMcp__PublicOrigin` to the run's public origin. The client
 `pegasus-automation` is created, enabled with every scope, on its first token
 request; development keys are made at each Web start, so a token does not
@@ -50,11 +52,63 @@ npm ci && npm run build
 npm start            # one sweep, then exit
 ```
 
-Dry run logs each proposal and writes nothing to Pegasus. Read the log with
-the operator; turning `CLASSIFIER_DRY_RUN` to `false` is their call, and in
-write mode the agent sets categories and links on the instance only. For a
-repeating run, a cron line or a systemd timer calling `npm start` stands in
-for the Azure timer; the Azure cron is every 15 minutes.
+Dry run logs each proposal and writes nothing to Pegasus. Turning
+`CLASSIFIER_DRY_RUN` to `false` is the operator's call; in write mode the agent
+sets categories and links and creates Cases (R714) on the instance only. The
+operator chose write mode for the instance on 5 November 2026.
+
+A systemd user timer stands in for the Azure timer (every 15 minutes), in
+`~/.config/systemd/user/`:
+
+```ini
+# pegasus-classifier.service
+[Service]
+Type=oneshot
+WorkingDirectory=<primary checkout>/src/pegasus-classifier-agent
+ExecStart=<node> --env-file-if-exists=.env dist/cli.js
+Environment=PATH=<node's directory>:/usr/local/bin:/usr/bin:/bin
+TimeoutStartSec=14min
+
+# pegasus-classifier.timer
+[Timer]
+OnCalendar=*:0/15
+[Install]
+WantedBy=timers.target
+```
+
+`systemctl --user enable --now pegasus-classifier.timer` starts it;
+`journalctl --user -u pegasus-classifier` is its log. Rebuild (`npm ci && npm
+run build`) after each move of the checkout (skill section 6).
+
+## Claude Code on the instance's MCP
+
+The MCP serves tailnet agents as well as the classifier (R679), with no
+connector redirect, so Claude Code reaches it with a client-credentials token
+from a `headersHelper`. The helper prints one JSON object of headers:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+origin=https://<host>.<tailnet>.ts.net
+curl -fsS -X POST "$origin/connect/token" \
+  -d grant_type=client_credentials -d client_id=pegasus-automation \
+  --data-urlencode "scope=${PEGASUS_TEST_MCP_SCOPES:-automation.cases automation.intake automation.mail automation.documents automation.assessment automation.jobs}" \
+  --data-urlencode "client_secret=$PEGASUS_TEST_MCP_SECRET" \
+  | python3 -c 'import json,sys; print(json.dumps({"Authorization": "Bearer " + json.load(sys.stdin)["access_token"]}))'
+```
+
+```bash
+claude mcp add-json -s user pegasus-test \
+  '{"type":"http","url":"https://<host>.<tailnet>.ts.net/mcp","headersHelper":"<path to the helper>"}'
+claude mcp list    # pegasus-test ... Connected
+```
+
+A token without a scope is refused (403), so the helper names them.
+`automation.send` is left out by default because a send from the instance
+reaches real recipients; add it to `PEGASUS_TEST_MCP_SCOPES` only for a send
+the operator names. Tokens last ten minutes and the development keys change
+at each Web start; the helper runs again on reconnect (`/mcp` in Claude
+Code). Calls are attributed to `pegasus-automation`, as the classifier's are.
 
 ## What to watch
 

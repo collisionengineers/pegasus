@@ -5,6 +5,26 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Test instance Automation MCP and classifier - 5 November 2026
+
+- Run `83ec377dd6f249d59c2e8ae8e96459c3` (at `a6b5cd387`) had never run the
+  classifier: `automationMcp` was off and there was no agent `.env`. Of its 33
+  received e-mails, 9 waited in No Case Found, among them three Robert James
+  instructions blocked by their `Re:` subject (R713) and two repairer jobs from
+  a sender with no route.
+- The settings file gained `Features__AutomationMcp=true`,
+  `AutomationMcp__UseDevelopmentKeys=true`, `AutomationMcp__ClientId=pegasus-automation`
+  and a fresh `AutomationMcp__ClientSecret`. The first Start failed on the
+  missing ClientId, which the skill's list omitted. Then Stop, Start
+  `-RunId` and Smoke passed with `automationMcp` on, and a
+  client-credentials token was issued on the public origin.
+- The classifier's ignored `.env` points at the instance's `/mcp` in write
+  mode (operator, 5 November 2026). Its systemd user timer
+  `pegasus-classifier.timer` (every 15 minutes) waits for the operator's
+  Anthropic key. Claude Code on this host connects as `pegasus-test`
+  through a client-credentials `headersHelper`, without `automation.send`
+  (R679).
+
 ## Test Case removal - 5 November 2026
 
 - Approved one-off removal of the test Cases `QCL26005-p`, `AB12CDE-p` and
