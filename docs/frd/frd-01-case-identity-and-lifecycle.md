@@ -15,7 +15,9 @@
 - An Inspection + Audit Case keeps its Audit on the same Case. Create audit
   adds it while the Case is in work, whether or not the Inspection report
   has been sent; its report reference is `a.{Case/PO}` and uses no new
-  number.
+  number. Not every such Case needs an Audit: its Inspection report may be
+  sent alone ([FRD-13](frd-13-case-lifecycle-and-workflow.md); operator,
+  5 November 2026; R675).
 - A Case is never deleted. A Case opened under the wrong Principal is marked
   Created in error and linked to its replacement.
 - Each Case keeps its own copy of the parties and addresses agreed for it.

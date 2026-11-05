@@ -609,20 +609,21 @@ public sealed class CaseViewsWebTests
     }
 
     /// <summary>
-    /// Once the Inspection report is stored, Create audit is the Next action
-    /// of an Inspection + Audit Case that has no Audit yet, whether or not the
-    /// report is sent, with the Actions menu's own control: live, or greyed
-    /// with Core's reason (operator, 2 and 12 October 2026). Any other Case
-    /// sends its stored report, and once it is sent and has no open query it
-    /// has none (operator, 11 October 2026).
+    /// Once the Inspection report is stored and until it is sent, the Next
+    /// action of an Inspection + Audit Case that has no Audit yet is Create
+    /// audit with the Actions menu's own control, live or greyed with Core's
+    /// reason (operator, 2 and 12 October 2026), and Send report beside it for
+    /// a Case that needs no Audit (operator, 5 November 2026). Any other Case
+    /// sends its stored report. Once the report is sent and the Case has no
+    /// open query, neither has a step (operator, 11 October and 5 November 2026).
     /// </summary>
     [Theory]
     [InlineData(CaseType.InspectionAndAudit, true, true, null)]
     [InlineData(CaseType.InspectionAndAudit, false, true, null)]
-    [InlineData(CaseType.InspectionAndAudit, true, false, "Report preparation requires an assigned Engineer.")]
+    [InlineData(CaseType.InspectionAndAudit, false, false, "Report preparation requires an assigned Engineer.")]
     [InlineData(CaseType.Inspection, true, true, null)]
     [InlineData(CaseType.Inspection, false, true, null)]
-    public async Task CreateAuditIsTheNextActionOnceTheInspectionReportIsStored(
+    public async Task CreateAuditBesideSendReportIsTheNextActionUntilTheInspectionReportIsSent(
         CaseType caseType, bool sent, bool engineerAssigned, string? condition)
     {
         var store = new RecordingCaseDetailsStore
@@ -642,7 +643,7 @@ public sealed class CaseViewsWebTests
 
         var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
 
-        if (caseType != CaseType.InspectionAndAudit && sent)
+        if (sent)
         {
             AssertNoNextActionCard(html);
             return;
@@ -660,8 +661,13 @@ public sealed class CaseViewsWebTests
             return;
         }
         // The step is Create audit's own control, not its words beside it
-        // (operator, 8 October 2026).
+        // (operator, 8 October 2026), with Send report beside it; reading,
+        // Send report jumps to the Report section.
         Assert.DoesNotContain("data-next-label", next, StringComparison.Ordinal);
+        Assert.Contains("data-next-audit-or-send", next, StringComparison.Ordinal);
+        var sendReport = Regex.Match(next, $"<a [^>]*data-next-send-report[^>]*>{CaseWorkspaceLabels.ReportDelivery.SendReport}</a>");
+        Assert.True(sendReport.Success, "Send report is not drawn beside Create audit.");
+        Assert.Contains("data-section-jump=\"report\"", sendReport.Value, StringComparison.Ordinal);
         if (condition is null)
         {
             Assert.Contains(

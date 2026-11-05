@@ -64,7 +64,7 @@ Case (below).
 _Avoid_: Triage, sorting
 
 **Inspection + Audit**:
-One Case holding an Inspection and its Audit. Collision Engineers completes its standard Inspection on the Case (for example `QDOS26001`). Create audit, available while the Case is in work whether or not the Inspection report has been sent, adds the Audit to the same Case: a separate copy of the Case's values that only the Audit edits, with its own report under the Audit reference `a.` plus the same Case/PO (`a.QDOS26001`), its own fee note and an `a.` Box subfolder. The Case keeps one state, one Files and one Notes; no second Case and no second number is created ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
+One Case holding an Inspection and its Audit, where one is needed: not every Inspection + Audit Case requires an Audit, so its Inspection report can be sent alone (operator, 5 November 2026). Collision Engineers completes its standard Inspection on the Case (for example `QDOS26001`). Create audit, available while the Case is in work whether or not the Inspection report has been sent, adds the Audit to the same Case: a separate copy of the Case's values that only the Audit edits, with its own report under the Audit reference `a.` plus the same Case/PO (`a.QDOS26001`), its own fee note and an `a.` Box subfolder. The Case keeps one state, one Files and one Notes; no second Case and no second number is created ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
 _Avoid_: Combined report, two-spec Inspection, linked Audit Case
 
 **Triage**:
@@ -213,9 +213,8 @@ The word “intake” never appears in operator-facing text (operator decision
 
 **Report sent**:
 The Case's last stage, entered when the report's Sent evidence is linked,
-except that an Inspection + Audit Case with no Audit yet stays With Engineer
-when its Inspection report's evidence is linked (operator, 13 October 2026);
-still editable, and never a closure. There is no Completed state and no Mark
+an Inspection + Audit Case's Inspection report with no Audit included
+(operator, 5 November 2026); still editable, and never a closure. There is no Completed state and no Mark
 completed (operator, 11 October 2026;
 [FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
 _Avoid_: Completed, Complete, Post-report, Closed

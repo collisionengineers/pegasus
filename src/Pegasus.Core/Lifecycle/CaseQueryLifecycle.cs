@@ -9,9 +9,8 @@ namespace Pegasus.Core.Lifecycle;
 /// Case, never a state: an e-mail that matches query criteria joining a Case
 /// whose report is sent opens one, staff or Automation open one, and each open
 /// query is marked done on its own. "Report is sent" is
-/// <see cref="CaseLifecycleRules.ReportIsSent(CaseWorkflowRecord)"/>: Report
-/// sent, or With Engineer holding the Inspection report's Sent item while the
-/// Audit is still to come. The stores apply these answers inside the
+/// <see cref="CaseLifecycleRules.ReportIsSent(CaseWorkflowRecord)"/>: the
+/// Case is Report sent. The stores apply these answers inside the
 /// transaction that links, unlinks or sends. A classification correction does
 /// not open or withdraw a query. Query acts take no edit
 /// lease, expected version or reason.
@@ -69,7 +68,7 @@ public static class CaseQueryRules
     /// A received message has joined the Case, by automatic match or staff
     /// link: it opens a query when the Case's report is sent
     /// (<paramref name="reportIsSent"/>, the Case's
-    /// <see cref="CaseLifecycleRules.ReportIsSent(CaseLifecycleState, bool, CaseType, bool)"/>),
+    /// <see cref="CaseLifecycleRules.ReportIsSent(CaseWorkflowRecord)"/>),
     /// the classification decision says the message opens a query, and that
     /// message does not already hold a query on the Case. A category correction
     /// does not open or withdraw one.

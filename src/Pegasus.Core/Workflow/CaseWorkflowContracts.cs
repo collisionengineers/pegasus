@@ -175,11 +175,7 @@ public sealed record CaseWorkflowRecord(
 
     public Guid? SignOffEngineerId { get; init; }
 
-    /// <summary>
-    /// The Case's type, which with <see cref="CaseIdentity.AuditReference"/>
-    /// answers whether a report's send ends the Case's work
-    /// (<see cref="Lifecycle.CaseLifecycleRules.SendEndsTheWork(CaseWorkflowRecord)"/>).
-    /// </summary>
+    /// <summary>The Case's type.</summary>
     public CaseType CaseType { get; init; }
 
     /// <summary>When the current hold was placed; null unless the Case is Held.</summary>
@@ -432,18 +428,12 @@ public enum AutoLinkReportEvidenceDisposition
 /// Minimal committed association returned to the Worker without exposing the broader
 /// case projection or requiring unrelated Case/Principal reads.
 /// </summary>
-/// <param name="EndsTheWork">
-/// Whether the current work's send ended the Case's work, so the link set
-/// Report sent; false when an Inspection + Audit Case with no Audit stays
-/// With Engineer (operator, 13 October 2026). Meaningless for a past work's link.
-/// </param>
 public sealed record AutoLinkedReportEvidence(
     Guid CaseId,
     Guid EvidenceId,
     CaseLifecycleState State,
     long Version,
-    bool OfCurrentWork = true,
-    bool EndsTheWork = true);
+    bool OfCurrentWork = true);
 
 /// <summary>
 /// A policy denial or a concurrent staff change is a retained, visible non-link rather

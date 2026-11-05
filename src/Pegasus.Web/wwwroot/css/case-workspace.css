@@ -73,7 +73,8 @@
 .next-step>*+.next-step-go,.next-step>*+form,.next-step>*+.menu-gated{margin-top:6px}
 .next-step form,.next-step .menu-gated{display:block}
 /* An Unassigned Case (v41 K9): Assign Engineer takes the row's room and Take keeps its own width beside it. */
-[data-next-assign] .next-step-go{flex:1 1 auto;width:auto}
+[data-next-assign] .next-step-go,[data-next-audit-or-send] .next-step-go{flex:1 1 auto;width:auto}
+[data-next-audit-or-send]>.menu-gated{display:flex;flex:1 1 auto}
 [data-next-assign] form{flex:none;margin:0}
 /* An open task in Next action is the link that opens the Tasks dialog (v41 K3): the row's padding moves to the link, so the whole row is the target. */
 [data-open-tasks] .blocker{padding:0}
