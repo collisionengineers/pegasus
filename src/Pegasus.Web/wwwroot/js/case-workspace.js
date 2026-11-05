@@ -3141,8 +3141,8 @@
             }
 
             // Previous total loss: the tick box offers −10 % and −20 %, the
-            // field's own radios. Ticking it starts at −10 %; unticking clears
-            // the percentage, so none is posted.
+            // field's own radios. Ticking it starts at −20 % (R710); unticking
+            // clears the percentage, so none is posted.
             function paintPriorTotalLoss() {
                 if (!ptlToggle) { return; }
                 section.querySelectorAll('[data-valuation-ptl]').forEach(function (radio) {
@@ -3154,8 +3154,8 @@
                     var radios = section.querySelectorAll('[data-valuation-ptl]');
                     var picked = section.querySelector('[data-valuation-ptl]:checked');
                     if (ptlToggle.checked && !picked && radios.length) {
-                        radios[0].checked = true;
-                        picked = radios[0];
+                        picked = section.querySelector('[data-valuation-ptl][value="20"]') || radios[0];
+                        picked.checked = true;
                     } else if (!ptlToggle.checked) {
                         radios.forEach(function (radio) { radio.checked = false; });
                         picked = radios[0];
