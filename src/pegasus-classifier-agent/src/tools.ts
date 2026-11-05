@@ -309,7 +309,7 @@ export function createClassifierServer(options: {
           return text(read, true);
         }
         const { detail } = read;
-        if (!detail.canLinkCase || detail.intakeVersion === null) {
+        if (!detail.canLinkCase || detail.intakeVersion == null) {
           return text("The e-mail can no longer be linked to a Case.", true);
         }
         log("link", { messageId: args.messageId, caseReference: destination.reference, reason: args.reason, dryRun });
@@ -410,7 +410,7 @@ export function createClassifierServer(options: {
           return text(read, true);
         }
         const { detail } = read;
-        if (detail.summary.caseId !== null) {
+        if (detail.summary.caseId != null) {
           return text("The e-mail already has a Case.", true);
         }
         const current = detail.classification!.current;
@@ -425,7 +425,7 @@ export function createClassifierServer(options: {
           return text("The e-mail has no received item to create a Case from; it waits for staff.", true);
         }
         let intake = await pegasus.intakeGet(receiptId);
-        if (intake.caseId !== null) {
+        if (intake.caseId != null) {
           return text(`The received item already has Case ${intake.caseReference ?? intake.caseId}.`, true);
         }
         const fields = missingOnly(intake.draft, args);
