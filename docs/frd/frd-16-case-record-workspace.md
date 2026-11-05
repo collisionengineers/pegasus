@@ -683,7 +683,7 @@ Reading lists only what the recorded calculation applied, each with a tick,
 and the calculator opens on that applied selection while the Engineer's Value
 holds that calculation's figure. The deductions are the **Condition
 deduction**, then a **Previous total loss** tick box with a −10 % / −20 %
-switch, live only while ticked; ticking starts at −10 %, and its amount
+switch, live only while ticked; ticking starts at −20 % (operator, 5 November 2026; R710), and its amount
 stands beside it. The calculation shows what the save will use, from the
 retail as typed and the claimant's VAT as the form holds it: its result fills
 Engineer's Value, which is the one place the figure stands, and beside it the
