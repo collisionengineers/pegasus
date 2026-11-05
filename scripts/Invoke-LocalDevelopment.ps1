@@ -1633,7 +1633,7 @@ function Start-LocalRun {
             if ($copyRecords.Count -gt 0) {
                 $latestCopy = Get-Content -LiteralPath $copyRecords[-1] -Raw | ConvertFrom-Json
                 if (($latestCopy.PSObject.Properties.Name -contains 'statementsCompleted') -and -not [bool]$latestCopy.statementsCompleted) {
-                    throw "Run '$RunId' holds a production copy whose post-copy statements did not complete ($([System.IO.Path]::GetFileName($copyRecords[-1]))): its mailboxes, subscriptions, Principal API keys and pending instruction tidies are still production's. Re-run scripts/Copy-ProductionDatabaseToRun.ps1 -RunId $RunId before Start."
+                    throw "Run '$RunId' holds a production copy whose post-copy statements did not complete ($([System.IO.Path]::GetFileName($copyRecords[-1]))): its mailboxes, subscriptions, Principal API keys, pending instruction tidies and external credentials are still production's. Re-run scripts/Copy-ProductionDatabaseToRun.ps1 -RunId $RunId before Start."
                 }
             }
             if ($null -ne (Get-RunPublicOrigin -Manifest $manifest)) {

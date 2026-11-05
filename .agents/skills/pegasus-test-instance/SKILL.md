@@ -10,7 +10,7 @@ Tailscale network. It is the `DevelopmentOffline` lifecycle the runbook owns
 ([local live-integration run](../../../docs/runbook.md#local-live-integration-run))
 with every opt-in on, so the procedure here is the order of the runbook's
 commands and the approvals between them. [ADR-0088](../../../docs/adr/0088-one-hosted-test-instance.md)
-and rulings R623 to R629, R675 to R680 and R693 to R696 decided its shape; this skill
+and rulings R623 to R629, R675 to R680, R693 to R696 and R708 decided its shape; this skill
 invents none of it.
 
 What it is for (R624): the operator's and agents' QA walks, staff UAT rounds,
@@ -277,17 +277,19 @@ extract of production to a `.dacpac` under the run's `state/`, published over
 the run database with users, logins, role memberships, permissions and
 database options left out, every approved
 mailbox deactivated (R627), the copied subscription rows cleared (R678), the
-copied Principal API keys paused (R679) and the copied pending
-answered-instruction tidies closed (R680), so the instance subscribes under
-its own webhook, authenticates no production key and moves only what its own
-sends answered. The extract is removed once published, whether or not the publish succeeded,
+copied Principal API keys paused (R679), the copied pending
+answered-instruction tidies closed (R680) and the copied Glass's logins
+cleared (R708), so the instance subscribes under its own webhook,
+authenticates no production key, moves only what its own sends answered and
+never tries to decrypt what production's key ring protects. The extract is removed once published, whether or not the publish succeeded,
 so the run database is the only copy of production on the machine (R696);
 the record `state/production-copy-<utc>.json` holds the extract's size and
-SHA-256, the migration head, the Case count and the four counts; `statementsCompleted:
+SHA-256, the migration head, the Case count and the five counts; `statementsCompleted:
 false` in it means the publish replaced the database but those statements did
 not run, and Start refuses the run until the copy is re-run. The copy carries
 production's mailbox rows and not the instance's, so `pegasustest@` is added
-again in Administration > Mailboxes after the next Start (R693). The
+again in Administration > Mailboxes after the next Start (R693), and
+Glass's logins are re-entered in Administration > Accounts (R708). The
 rehearsal is then the next Start: the checked-out revision's migrations run
 against production's schema and data. The rehearsal runs at the candidate's
 tip, the branch about to land on `dev` (checked out detached at its SHA when
