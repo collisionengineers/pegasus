@@ -64,7 +64,24 @@
         return type === 'video/mp4' || type === 'video/quicktime' ? 'video' : '';
     }
 
-    window.pegasusUi = { glyph: glyph, iconHref: iconHref, inertOutside: inertOutside, previewKind: previewKind };
+    // A click on a backdrop counts only when the press began on it too (R711):
+    // a text selection dragged out of the dialog and released on the
+    // backdrop fires its click there, and must not close the dialog.
+    function onBackdropClick(backdrop, handler) {
+        var pressedOnBackdrop = false;
+        backdrop.addEventListener('pointerdown', function (event) {
+            pressedOnBackdrop = event.target === backdrop;
+        });
+        backdrop.addEventListener('click', function (event) {
+            var pressed = pressedOnBackdrop;
+            pressedOnBackdrop = false;
+            if (pressed && event.target === backdrop) {
+                handler(event);
+            }
+        });
+    }
+
+    window.pegasusUi = { glyph: glyph, iconHref: iconHref, inertOutside: inertOutside, previewKind: previewKind, onBackdropClick: onBackdropClick };
 })();
 
 (function () {
@@ -1056,13 +1073,11 @@
             }
             bindCloseControls();
 
-            dialog.addEventListener('click', function (event) {
-                if (event.target === dialog) {
-                    if (cancel()) {
-                        return;
-                    }
-                    close();
+            window.pegasusUi.onBackdropClick(dialog, function () {
+                if (cancel()) {
+                    return;
                 }
+                close();
             });
 
             dialogOpeners[dialogId] = open;
@@ -1548,11 +1563,7 @@
         viewer.querySelectorAll('[data-evidence-close]').forEach(function (control) {
             control.addEventListener('click', close);
         });
-        viewer.addEventListener('click', function (event) {
-            if (event.target === viewer) {
-                close();
-            }
-        });
+        window.pegasusUi.onBackdropClick(viewer, close);
 
         // Root-scoped for the same reason as the dialog openers: a Files body
         // mounted as the reader reaches it must open its own viewer.
