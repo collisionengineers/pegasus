@@ -2244,7 +2244,14 @@
             var focusSelector = focusedHost && (focused.name ? '[name="' + focused.name + '"]' : focused.tagName.toLowerCase());
             [nextLaunch, nextOutcome, nextSession].forEach(function (next) {
                 var old = record.querySelector('[data-glass-controls="' + next.dataset.glassControls + '"]');
-                if (old) { old.replaceWith(next); bindMounted(next); }
+                if (!old) { return; }
+                // The Close dialog lives in the session host: it closes
+                // before the host goes, so nothing stays inert behind it.
+                old.querySelectorAll('[data-dialog]:not([hidden])').forEach(function (dialog) {
+                    if (typeof dialog.pegasusClose === 'function') { dialog.pegasusClose(); }
+                });
+                old.replaceWith(next);
+                bindMounted(next);
             });
             if (focusSelector) {
                 var replacement = record.querySelector('[data-glass-controls="' + focusedHost.dataset.glassControls + '"] ' + focusSelector);

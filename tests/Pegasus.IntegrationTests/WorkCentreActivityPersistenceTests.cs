@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure.Persistence;
 
@@ -8,7 +9,8 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// The Activity figures read from the real stores (FRD-15, v32 items C to H):
 /// each figure counts only its own facts, only inside its own window, and
-/// the sources settled with the operator on 5 October 2026.
+/// the sources settled with the operator on 5 October 2026. Reports sent
+/// counts reports on their first observed send (R673).
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class WorkCentreActivityPersistenceTests
@@ -21,7 +23,7 @@ public sealed class WorkCentreActivityPersistenceTests
     private static readonly WorkCentreActivityCounts SeededCounts = new(
         NewCases: new(Today: 2, ThisWeek: 3),
         SentToEngineer: new(Today: 1, ThisWeek: 2),
-        ReportsSent: new(Today: 1, ThisWeek: 2),
+        ReportsSent: new(Today: 3, ThisWeek: 4),
         EmailsReceived: new(Today: 2, ThisWeek: 3));
 
     [Fact]
@@ -97,19 +99,41 @@ public sealed class WorkCentreActivityPersistenceTests
                 Event(lastWeek.Id, "state_ReportPreparation", WeekStart.AddDays(-1), version: 4),
                 Event(lastWeek.Id, "state_ReportPreparation", DayStart.AddHours(2), version: 5));
 
-            // Reports sent: a Case's first linked report-Sent evidence, by staff
-            // or by the Worker, once per Case (operator, 11 October 2026): one
-            // today, one earlier this week whose second link today is not a
-            // second report, and one first reported last week whose link this
-            // week counts for nothing. A query is not a report.
+            // Reports sent: each report once, on its first observed send, by
+            // whoever sent it (R673): one first sent today, whose re-send later
+            // today is not a second report; one first sent earlier this week,
+            // re-sent today; one first sent last week, whose re-send today
+            // counts for nothing; and an Inspection + Audit Case, created last
+            // week, whose two reports went in one e-mail today and are two. A
+            // report e-mail not yet seen in Sent Items is not a send, and a
+            // reply on a Case is not a report.
+            var inspectionAndAudit = Case(Guid.NewGuid(), principal, 6, WeekStart.AddDays(-3));
+            inspectionAndAudit.Type = "inspection_and_audit";
+            var auditWork = new CaseWorkEntity
+            {
+                Id = Guid.NewGuid(),
+                CaseId = inspectionAndAudit.Id,
+                Kind = CaseWorkKinds.Audit,
+                CreatedAtUtc = WeekStart.AddDays(-1)
+            };
+            context.AddRange(inspectionAndAudit, auditWork);
+            var todayReport = Generation(today.Id, today.Id, DayStart.AddHours(3));
+            var todayTooReport = Generation(todayToo.Id, todayToo.Id, DayStart.AddHours(6));
+            var thisWeekReport = Generation(thisWeek.Id, thisWeek.Id, WeekStart.AddHours(19));
+            var lastWeekReport = Generation(lastWeek.Id, lastWeek.Id, WeekStart.AddDays(-1).AddHours(-1));
+            var inspectionReport = Generation(inspectionAndAudit.Id, inspectionAndAudit.Id, WeekStart.AddDays(-2));
+            var auditReport = Generation(inspectionAndAudit.Id, auditWork.Id, DayStart.AddHours(5));
+            context.AddRange(todayReport, todayTooReport, thisWeekReport, lastWeekReport, inspectionReport, auditReport);
             context.AddRange(
-                Event(today.Id, "report_evidence_linked", DayStart.AddHours(4), version: 6),
-                Event(today.Id, "report_evidence_linked", DayStart.AddHours(9), version: 7),
-                Event(thisWeek.Id, "report_evidence_auto_linked", WeekStart.AddHours(20), version: 6),
-                Event(thisWeek.Id, "report_evidence_linked", DayStart.AddHours(10), version: 7),
-                Event(lastWeek.Id, "report_evidence_auto_linked", WeekStart.AddDays(-1), version: 6),
-                Event(lastWeek.Id, "report_evidence_linked", DayStart.AddHours(3), version: 7),
-                Event(todayToo.Id, "case_query_received", DayStart.AddHours(7)));
+                Send(todayReport.Id, DayStart.AddHours(4)),
+                Send(todayReport.Id, DayStart.AddHours(9)),
+                Send(thisWeekReport.Id, WeekStart.AddHours(20)),
+                Send(thisWeekReport.Id, DayStart.AddHours(10)),
+                Send(lastWeekReport.Id, WeekStart.AddDays(-1)),
+                Send(lastWeekReport.Id, DayStart.AddHours(3)),
+                Send(auditReport.Id, DayStart.AddHours(6), secondReportId: inspectionReport.Id),
+                Send(todayTooReport.Id, DayStart.AddHours(7), observed: false),
+                Send(todayToo.Id, DayStart.AddHours(8), purpose: StaffMailPurpose.GeneralCorrespondence));
 
             // E-mails received: mailbox receipts; an upload is also a receipt
             // and is not counted; yesterday's mail is this week's, not today's,
@@ -173,6 +197,67 @@ public sealed class WorkCentreActivityPersistenceTests
         BeforeVersion = version - 1,
         AfterVersion = version
     };
+
+    /// <summary>A report: one generation of one work.</summary>
+    private static CaseReportGenerationEntity Generation(Guid caseId, Guid workId, DateTimeOffset generatedAtUtc)
+    {
+        var id = Guid.NewGuid();
+        return new()
+        {
+            Id = id,
+            CaseId = caseId,
+            WorkId = workId,
+            SnapshotHash = $"{id:N}{id:N}",
+            SnapshotJson = "{}",
+            TemplateVersion = "1",
+            RendererVersion = "1",
+            State = "Confirmed",
+            GeneratedAtUtc = generatedAtUtc
+        };
+    }
+
+    /// <summary>
+    /// A Pegasus e-mail: by default a report e-mail seen in Sent Items,
+    /// carrying the generation <paramref name="contextId"/> names and, when
+    /// it carried both works' reports, <paramref name="secondReportId"/>.
+    /// </summary>
+    private static StaffMailSendOperationEntity Send(
+        Guid contextId,
+        DateTimeOffset sentAtUtc,
+        Guid? secondReportId = null,
+        StaffMailPurpose purpose = StaffMailPurpose.CaseReport,
+        bool observed = true)
+    {
+        var id = Guid.NewGuid();
+        return new()
+        {
+            Id = id,
+            ActorKind = ActorKind.Staff,
+            ActorSubjectId = Guid.NewGuid().ToString("D"),
+            MailboxId = Guid.NewGuid(),
+            MailboxGeneration = 1,
+            OperationKey = $"send:{id:N}",
+            PayloadHash = new string('7', 64),
+            Purpose = purpose,
+            ContextId = contextId,
+            ContextVersion = 1,
+            SecondContextId = secondReportId,
+            SecondContextVersion = secondReportId is null ? null : 1,
+            ComposeMode = StaffMailComposeMode.New,
+            RecipientsJson = "[]",
+            Subject = "report",
+            Body = "report",
+            AttachmentsJson = "[]",
+            State = observed ? StaffMailState.Sent : StaffMailState.Submitted,
+            CorrelationMarker = $"mail:{id:N}",
+            CreatedAtUtc = sentAtUtc,
+            RequestedAtUtc = sentAtUtc,
+            SubmittedAtUtc = sentAtUtc,
+            ObservedSentAtUtc = observed ? sentAtUtc : null,
+            Version = 1,
+            ConcurrencyToken = Guid.NewGuid()
+        };
+    }
 
     private static IntakeReceiptEntity Receipt(string channel, DateTimeOffset receivedAtUtc)
     {

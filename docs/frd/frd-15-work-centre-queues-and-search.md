@@ -72,7 +72,7 @@ when that tab is shown. The definitions:
 | --- | --- |
 | New cases | Cases created in the window, excluding Triage Cases, as the New cases list counts them |
 | Sent to Engineer | Cases whose first entry into With Engineer (`First sent to Engineer`, [FRD-13](frd-13-case-lifecycle-and-workflow.md#assign-engineer)) falls in the window; a later return to With Engineer is not counted |
-| Reports sent | Cases whose first report was sent in the window, each once: the first link of report-Sent evidence, by staff or the Worker; a re-send is not a second report (operator, 11 October 2026). MI-01 counts every sent report e-mail ([FRD-17](frd-17-administration-workspace.md#management-reports)), so the two can differ in a week with a re-send |
+| Reports sent | Reports whose first send falls in the window, each once: an Inspection + Audit Case's Inspection report and Audit report are two, even when one e-mail carried both. A send is a Pegasus report e-mail seen in Sent Items, and a re-send is not counted here ([R673](../rulings.md)). Reports sent in Management Reports counts the same sends, so the two agree ([FRD-17](frd-17-administration-workspace.md#management-reports)) |
 | E-mails received | Mailbox receipts; an upload is also a receipt and is not counted |
 
 The figures are their own section with their own refresh state: a failed

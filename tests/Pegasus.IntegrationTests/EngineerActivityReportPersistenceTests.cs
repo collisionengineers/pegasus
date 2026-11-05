@@ -5,11 +5,13 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// MI-01. The Engineer Report counts against a real database:
-/// reports are case-linked Sent evidence on the Engineer's cases, queries are
-/// CaseQueries rows that are open or Done, not withdrawn (operator, 27 October
-/// 2026), both bounded by the half-open period. A mailbox receipt is not a query. Classified
-/// mail does not count. Automation's report sends are a row of their own.
+/// MI-01. The Engineer Report counts against a real database: each report
+/// counts once, on its first observed send, for whoever made that send, and
+/// every later send of it is a re-send counted for its own sender (R673);
+/// queries are CaseQueries rows that are open or Done, not withdrawn
+/// (operator, 27 October 2026); both bounded by the half-open period. A
+/// mailbox receipt is not a query. Classified mail does not count.
+/// Automation's report sends are a row of their own.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class EngineerActivityReportPersistenceTests
@@ -27,20 +29,29 @@ public sealed class EngineerActivityReportPersistenceTests
         var caseA = await estate.SeedCaseAsync(engineerA, engineerB, 1);
         var caseB = await estate.SeedCaseAsync(engineerB, engineerA, 2);
         var unassigned = await estate.SeedCaseAsync(null, null, 3);
+        // Each send carries a report of its own, from a Case with no Engineer,
+        // so each is its report's first send. The send actor is the
+        // engineering-history dimension: it is deliberately neither the case's
+        // assigned engineer nor its signatory.
+        var sentByBEarly = await estate.SeedReportAsync(4);
+        var sentByA = await estate.SeedReportAsync(5);
+        var sentByBLate = await estate.SeedReportAsync(6);
+        var sentAtTheEnd = await estate.SeedReportAsync(7);
+        var sentBeforeTheStart = await estate.SeedReportAsync(8);
+        var sentByUnknownActor = await estate.SeedReportAsync(9);
+        var sentByAutomation = await estate.SeedReportAsync(10);
 
         await using (var context = await database.CreateContextAsync())
         {
-            // The send actor is the engineering-history dimension. It is deliberately
-            // neither the case's assigned engineer nor its signatory.
             context.Set<StaffMailSendOperationEntity>().AddRange(
-                SentOperation(engineerB, From.AddDays(3)),
-                SentOperation(engineerA, From.AddDays(10)),
-                SentOperation(engineerB, To.AddSeconds(-1)),
-                SentOperation(engineerA, To),
-                SentOperation(engineerA, From.AddSeconds(-1)),
-                SentOperation("not-a-staff-id", From.AddDays(5)),
+                SentOperation(engineerB, From.AddDays(3), sentByBEarly),
+                SentOperation(engineerA, From.AddDays(10), sentByA),
+                SentOperation(engineerB, To.AddSeconds(-1), sentByBLate),
+                SentOperation(engineerA, To, sentAtTheEnd),
+                SentOperation(engineerA, From.AddSeconds(-1), sentBeforeTheStart),
+                SentOperation("not-a-staff-id", From.AddDays(5), sentByUnknownActor),
                 // Item J: Automation's send is its own row, so the total is every send.
-                SentOperation("connector", From.AddDays(6), Pegasus.Core.Identity.ActorKind.Automation));
+                SentOperation("connector", From.AddDays(6), sentByAutomation, kind: Pegasus.Core.Identity.ActorKind.Automation));
             context.IntakeReceipts.AddRange(
                 Query(From.AddDays(1), "cancellation", caseA, active: true),
                 Query(From.AddDays(2), "cancellation", caseA, active: true),
@@ -64,10 +75,23 @@ public sealed class EngineerActivityReportPersistenceTests
 
         var all = await queries.GetAsync(From, To, null, CancellationToken.None);
 
+        // Every report was received at From: each sender's time to send is the
+        // average of their first sends' times from it.
         Assert.Equal(
-            new[] { new EngineerActivityCounts(engineerA, 1, 2), new EngineerActivityCounts(engineerB, 2, 1) }
+            new[]
+            {
+                new EngineerActivityCounts(engineerA, 1, 2, AverageReceivedToSent: TimeSpan.FromDays(10)),
+                new EngineerActivityCounts(
+                    engineerB,
+                    2,
+                    1,
+                    AverageReceivedToSent: (TimeSpan.FromDays(3) + (To.AddSeconds(-1) - From)) / 2)
+            }
                 .OrderBy(item => item.EngineerId)
-                .Append(new EngineerActivityCounts(Guid.Empty, 1, 0) { SenderKind = Pegasus.Core.Identity.ActorKind.Automation }),
+                .Append(new EngineerActivityCounts(Guid.Empty, 1, 0, AverageReceivedToSent: TimeSpan.FromDays(6))
+                {
+                    SenderKind = Pegasus.Core.Identity.ActorKind.Automation
+                }),
             all);
 
         // F254 (R326): one staff member asked for is exactly that sender's row of
@@ -105,13 +129,10 @@ public sealed class EngineerActivityReportPersistenceTests
                 Generation(inspectionGeneration, inspection, From.AddDays(1)),
                 Generation(auditGeneration, audit, From.AddDays(2)),
                 Generation(inspectionAndAuditGeneration, inspectionAndAudit, From.AddDays(3)));
-            var inspectionSend = SentOperation(engineer, From.AddDays(2));
-            inspectionSend.ContextId = inspectionGeneration;
-            var auditSend = SentOperation(engineer, From.AddDays(4));
-            auditSend.ContextId = auditGeneration;
-            var inspectionAndAuditSend = SentOperation(engineer, From.AddDays(3));
-            inspectionAndAuditSend.ContextId = inspectionAndAuditGeneration;
-            context.Set<StaffMailSendOperationEntity>().AddRange(inspectionSend, auditSend, inspectionAndAuditSend);
+            context.Set<StaffMailSendOperationEntity>().AddRange(
+                SentOperation(engineer, From.AddDays(2), inspectionGeneration),
+                SentOperation(engineer, From.AddDays(4), auditGeneration),
+                SentOperation(engineer, From.AddDays(3), inspectionAndAuditGeneration));
             context.IntakeReceipts.AddRange(
                 Query(From.AddDays(1), "cancellation", inspection, active: true),
                 Query(From.AddDays(2), "cancellation", inspection, active: true),
@@ -129,6 +150,7 @@ public sealed class EngineerActivityReportPersistenceTests
 
         Assert.Equal(3, row.ReportsSent);
         Assert.Equal(1, row.AuditReportsSent);
+        Assert.Equal(0, row.Resends);
         Assert.Equal(3, row.QueriesReceived);
         // All Cases were received at From; sent two, three and four days later.
         Assert.Equal(TimeSpan.FromDays(3), row.AverageReceivedToSent);
@@ -138,6 +160,8 @@ public sealed class EngineerActivityReportPersistenceTests
     /// MI-01 per work: once an Inspection + Audit Case has its Audit, the
     /// Audit work's report is an Audit report and its turnaround runs from the
     /// Audit's creation; the Inspection report keeps its receipt turnaround.
+    /// Two e-mails on different days are one report sent each, each in the
+    /// period of its own e-mail (R673).
     /// </summary>
     [Fact]
     public async Task AnAuditWorksReportIsAnAuditReportTimedFromTheAuditsCreation()
@@ -149,23 +173,16 @@ public sealed class EngineerActivityReportPersistenceTests
         var auditWorkId = Guid.NewGuid();
         var inspectionGeneration = Guid.NewGuid();
         var auditGeneration = Guid.NewGuid();
+        var createAudit = From.AddDays(5);
         await using (var context = await database.CreateContextAsync())
         {
-            context.CaseWorks.Add(new CaseWorkEntity
-            {
-                Id = auditWorkId,
-                CaseId = caseId,
-                Kind = CaseWorkKinds.Audit,
-                CreatedAtUtc = From.AddDays(5)
-            });
+            context.CaseWorks.Add(AuditWork(auditWorkId, caseId, createAudit));
             context.AddRange(
                 Generation(inspectionGeneration, caseId, From.AddDays(1)),
                 Generation(auditGeneration, caseId, From.AddDays(6), auditWorkId));
-            var inspectionSend = SentOperation(engineer, From.AddDays(2));
-            inspectionSend.ContextId = inspectionGeneration;
-            var auditSend = SentOperation(engineer, From.AddDays(8));
-            auditSend.ContextId = auditGeneration;
-            context.Set<StaffMailSendOperationEntity>().AddRange(inspectionSend, auditSend);
+            context.Set<StaffMailSendOperationEntity>().AddRange(
+                SentOperation(engineer, From.AddDays(2), inspectionGeneration),
+                SentOperation(engineer, From.AddDays(8), auditGeneration));
             await context.SaveChangesAsync();
         }
 
@@ -175,9 +192,153 @@ public sealed class EngineerActivityReportPersistenceTests
 
         Assert.Equal(2, row.ReportsSent);
         Assert.Equal(1, row.AuditReportsSent);
+        Assert.Equal(0, row.Resends);
         // The Inspection report was sent two days after the receipt; the
         // Audit's three days after the Audit was created.
         Assert.Equal(TimeSpan.FromHours(60), row.AverageReceivedToSent);
+
+        Assert.Equal(
+            new EngineerActivityCounts(engineer, 1, 0, AverageReceivedToSent: TimeSpan.FromDays(2)),
+            Assert.Single(await queries.GetAsync(From, createAudit, null, CancellationToken.None)));
+        Assert.Equal(
+            new EngineerActivityCounts(engineer, 1, 0, AuditReportsSent: 1, AverageReceivedToSent: TimeSpan.FromDays(3)),
+            Assert.Single(await queries.GetAsync(createAudit, To, null, CancellationToken.None)));
+    }
+
+    /// <summary>
+    /// R673: one e-mail that carried both of an Inspection + Audit Case's
+    /// reports is a send of each: two reports sent, one of them the Audit's,
+    /// and no re-send. Each is timed from its own start: the Inspection
+    /// report from the receipt, the Audit report from Create audit.
+    /// </summary>
+    [Fact]
+    public async Task OneEmailCarryingBothReportsIsTwoReportsSentOneOfThemTheAudit()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var engineer = Guid.NewGuid();
+        var estate = await SeedEstateAsync(database);
+        var caseId = await estate.SeedCaseAsync(engineer, null, 1, "inspection_and_audit");
+        var auditWorkId = Guid.NewGuid();
+        var inspectionGeneration = Guid.NewGuid();
+        var auditGeneration = Guid.NewGuid();
+        await using (var context = await database.CreateContextAsync())
+        {
+            context.CaseWorks.Add(AuditWork(auditWorkId, caseId, From.AddDays(5)));
+            context.AddRange(
+                Generation(inspectionGeneration, caseId, From.AddDays(2)),
+                Generation(auditGeneration, caseId, From.AddDays(7), auditWorkId));
+            context.Set<StaffMailSendOperationEntity>().Add(
+                SentOperation(engineer, From.AddDays(8), auditGeneration, inspectionGeneration));
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
+        var row = Assert.Single(await queries.GetAsync(From, To, null, CancellationToken.None));
+
+        // The Inspection report eight days after the receipt, the Audit
+        // report three days after Create audit.
+        Assert.Equal(
+            new EngineerActivityCounts(engineer, 2, 0, AuditReportsSent: 1, AverageReceivedToSent: TimeSpan.FromHours(132)),
+            row);
+    }
+
+    /// <summary>
+    /// R673: a re-send is counted on its own, for whoever made it, and is
+    /// never another report sent. First send and re-send are told apart over
+    /// every sender's sends before the period or the Person narrows them, so
+    /// a report first sent before the period, or by someone else, is a
+    /// re-send in it.
+    /// </summary>
+    [Fact]
+    public async Task AResendIsCountedForItsOwnSenderAndIsNeverAnotherReportSent()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var firstSender = Guid.NewGuid();
+        var resender = Guid.NewGuid();
+        var estate = await SeedEstateAsync(database);
+        var sentInPeriod = await estate.SeedReportAsync(1);
+        var sentBeforePeriod = await estate.SeedReportAsync(2);
+        var periodStart = From.AddDays(10);
+        await using (var context = await database.CreateContextAsync())
+        {
+            context.Set<StaffMailSendOperationEntity>().AddRange(
+                // First sent in the period, then re-sent by someone else.
+                SentOperation(firstSender, periodStart.AddDays(2), sentInPeriod),
+                SentOperation(resender, periodStart.AddDays(5), sentInPeriod),
+                // First sent before the period by the re-sender, then re-sent
+                // in it by the first sender.
+                SentOperation(resender, From.AddDays(3), sentBeforePeriod),
+                SentOperation(firstSender, periodStart.AddDays(4), sentBeforePeriod));
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
+
+        // Three sends in the period are one report sent, twelve days after
+        // the receipt, and two re-sends, one for each sender.
+        var firstSenderRow = new EngineerActivityCounts(firstSender, 1, 0, AverageReceivedToSent: TimeSpan.FromDays(12), Resends: 1);
+        var resenderRow = new EngineerActivityCounts(resender, 0, 0, Resends: 1);
+        Assert.Equal(
+            new[] { firstSenderRow, resenderRow }.OrderBy(item => item.EngineerId),
+            await queries.GetAsync(periodStart, To, null, CancellationToken.None));
+
+        // The Person who only re-sent in the period has their re-send and no
+        // report sent; each Person's row is theirs in the unfiltered read.
+        Assert.Equal(resenderRow, Assert.Single(await queries.GetAsync(periodStart, To, resender, CancellationToken.None)));
+        Assert.Equal(firstSenderRow, Assert.Single(await queries.GetAsync(periodStart, To, firstSender, CancellationToken.None)));
+
+        // Over the whole month each report counts once, for whoever first sent it.
+        Assert.Equal(
+            new[]
+            {
+                firstSenderRow,
+                new EngineerActivityCounts(resender, 1, 0, AverageReceivedToSent: TimeSpan.FromDays(3), Resends: 1)
+            }.OrderBy(item => item.EngineerId),
+            await queries.GetAsync(From, To, null, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// R673: after Create audit, one e-mail that carried the Audit report for
+    /// the first time and the Inspection report again is one report sent, the
+    /// Audit's, timed from Create audit, and one re-send, the Inspection's.
+    /// </summary>
+    [Fact]
+    public async Task AnEmailThatResendsTheInspectionAndFirstSendsTheAuditIsOneReportSentAndOneResend()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var engineer = Guid.NewGuid();
+        var estate = await SeedEstateAsync(database);
+        var caseId = await estate.SeedCaseAsync(engineer, null, 1, "inspection_and_audit");
+        var auditWorkId = Guid.NewGuid();
+        var inspectionGeneration = Guid.NewGuid();
+        var auditGeneration = Guid.NewGuid();
+        var createAudit = From.AddDays(10);
+        await using (var context = await database.CreateContextAsync())
+        {
+            context.CaseWorks.Add(AuditWork(auditWorkId, caseId, createAudit));
+            context.AddRange(
+                Generation(inspectionGeneration, caseId, From.AddDays(1)),
+                Generation(auditGeneration, caseId, createAudit.AddDays(1), auditWorkId));
+            context.Set<StaffMailSendOperationEntity>().AddRange(
+                SentOperation(engineer, From.AddDays(2), inspectionGeneration),
+                SentOperation(engineer, createAudit.AddDays(3), auditGeneration, inspectionGeneration));
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
+
+        Assert.Equal(
+            new EngineerActivityCounts(engineer, 1, 0, AuditReportsSent: 1, AverageReceivedToSent: TimeSpan.FromDays(3), Resends: 1),
+            Assert.Single(await queries.GetAsync(createAudit, To, null, CancellationToken.None)));
+
+        // Over the month each report counts once: the Inspection report two
+        // days after the receipt, the Audit report three days after Create audit.
+        Assert.Equal(
+            new EngineerActivityCounts(engineer, 2, 0, AuditReportsSent: 1, AverageReceivedToSent: TimeSpan.FromHours(60), Resends: 1),
+            Assert.Single(await queries.GetAsync(From, To, null, CancellationToken.None)));
     }
 
     private static CaseReportGenerationEntity Generation(
@@ -189,12 +350,20 @@ public sealed class EngineerActivityReportPersistenceTests
         Id = id,
         CaseId = caseId,
         WorkId = workId ?? caseId,
-        SnapshotHash = new string('a', 64),
+        SnapshotHash = $"{id:N}{id:N}",
         SnapshotJson = "{}",
         TemplateVersion = "1",
         RendererVersion = "1",
         State = "Generated",
         GeneratedAtUtc = generatedAtUtc
+    };
+
+    private static CaseWorkEntity AuditWork(Guid id, Guid caseId, DateTimeOffset createdAtUtc) => new()
+    {
+        Id = id,
+        CaseId = caseId,
+        Kind = CaseWorkKinds.Audit,
+        CreatedAtUtc = createdAtUtc
     };
 
     [Fact]
@@ -210,9 +379,16 @@ public sealed class EngineerActivityReportPersistenceTests
         Assert.Empty(await queries.GetAsync(From, To, null, CancellationToken.None));
     }
 
+    /// <summary>
+    /// A report e-mail seen in Sent Items, carrying the report generation
+    /// <paramref name="report"/> and, when it carried both works' reports,
+    /// <paramref name="secondReport"/>.
+    /// </summary>
     private static StaffMailSendOperationEntity SentOperation(
         object actor,
         DateTimeOffset sentAtUtc,
+        Guid report,
+        Guid? secondReport = null,
         Pegasus.Core.Identity.ActorKind kind = Pegasus.Core.Identity.ActorKind.Staff)
     {
         var id = Guid.NewGuid();
@@ -226,8 +402,10 @@ public sealed class EngineerActivityReportPersistenceTests
             OperationKey = $"send:{id:N}",
             PayloadHash = new string('7', 64),
             Purpose = Pegasus.Core.Operations.StaffMailPurpose.CaseReport,
-            ContextId = Guid.NewGuid(),
+            ContextId = report,
             ContextVersion = 1,
+            SecondContextId = secondReport,
+            SecondContextVersion = secondReport is null ? null : 1,
             ComposeMode = Pegasus.Core.Operations.StaffMailComposeMode.New,
             RecipientsJson = "[]",
             Subject = "report",
@@ -400,6 +578,17 @@ public sealed class EngineerActivityReportPersistenceTests
                 });
             await context.SaveChangesAsync();
             return caseId;
+        }
+
+        /// <summary>An Inspection Case with no Engineer, received at From, and its report; returns the report's generation.</summary>
+        public async Task<Guid> SeedReportAsync(int sequence)
+        {
+            var caseId = await SeedCaseAsync(null, null, sequence);
+            var generationId = Guid.NewGuid();
+            await using var context = await Database.CreateContextAsync();
+            context.Add(Generation(generationId, caseId, From));
+            await context.SaveChangesAsync();
+            return generationId;
         }
     }
 }

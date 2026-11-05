@@ -137,7 +137,7 @@
                             var unavailable = Model.EngineerActivityUnavailable;
                             Metric(AdministrationReportHeadings.QueriesReceived, unavailable ? OperatorLabels.Reports.Unavailable : engineerRows.Sum(row => row.QueriesReceived).ToString(invariant), unavailable ? null : previousEngineer?.Sum(row => row.QueriesReceived).ToString(invariant));
                             Metric(AdministrationReportHeadings.ReportsSent, unavailable ? OperatorLabels.Reports.Unavailable : engineerRows.Sum(row => row.ReportsSent).ToString(invariant), unavailable ? null : previousEngineer?.Sum(row => row.ReportsSent).ToString(invariant));
-                            Metric(AdministrationReportHeadings.AuditReportsSent, unavailable ? OperatorLabels.Reports.Unavailable : engineerRows.Sum(row => row.AuditReportsSent).ToString(invariant), unavailable ? null : previousEngineer?.Sum(row => row.AuditReportsSent).ToString(invariant));
+                            Metric(AdministrationReportHeadings.Resends, unavailable ? OperatorLabels.Reports.Unavailable : engineerRows.Sum(row => row.Resends).ToString(invariant), unavailable ? null : previousEngineer?.Sum(row => row.Resends).ToString(invariant));
                         }
                     </div>
                     <div class="table-wrap section-gap">
@@ -147,18 +147,20 @@
                                     @{ SortHeader(AdministrationReportHeadings.Person, "person", numeric: false, principal: false); }
                                     @{ SortHeader(AdministrationReportHeadings.QueriesReceived, "queries", numeric: true, principal: false); }
                                     @{ SortHeader(AdministrationReportHeadings.ReportsSent, "reports", numeric: true, principal: false); }
-                                    <th scope="col" class="num">@AdministrationReportHeadings.AuditReportsSent</th>
+                                    <th scope="col" class="num">@ReportColumnTitles.Inspection(AdministrationReportHeadings.ReportsSent)</th>
+                                    <th scope="col" class="num">@ReportColumnTitles.Audit(AdministrationReportHeadings.ReportsSent)</th>
+                                    <th scope="col" class="num">@AdministrationReportHeadings.Resends</th>
                                     <th scope="col">@AdministrationReportHeadings.ReceivedToSent</th>
                                 </tr>
                             </thead>
                             <tbody>
                             @if (Model.EngineerActivityUnavailable)
                             {
-                                <tr><td colspan="5" class="muted">@OperatorLabels.Reports.Unavailable</td></tr>
+                                <tr><td colspan="7" class="muted">@OperatorLabels.Reports.Unavailable</td></tr>
                             }
                             else if (engineerRows.Count == 0)
                             {
-                                <tr><td colspan="5" class="muted">@OperatorLabels.Reports.NoEngineerActivity</td></tr>
+                                <tr><td colspan="7" class="muted">@OperatorLabels.Reports.NoEngineerActivity</td></tr>
                             }
                             else
                             {
@@ -170,7 +172,9 @@
                                         <td>@row.DisplayName</td>
                                         <td class="num">@Measure(row.QueriesReceived, mostQueries)</td>
                                         <td class="num">@Measure(row.ReportsSent, mostSent)</td>
+                                        <td class="num tabular">@row.InspectionReportsSent</td>
                                         <td class="num tabular">@row.AuditReportsSent</td>
+                                        <td class="num tabular">@row.Resends</td>
                                         <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>
                                     </tr>
                                 }
@@ -198,8 +202,8 @@
                 <div class="panel-body">
                     <div class="metric-strip metric-strip--3" aria-label="@OperatorLabels.Reports.ReportsByPrincipalTotals">
                         @{
-                            Metric(AdministrationReportHeadings.ReportsProduced, principal is null ? OperatorLabels.Reports.Unavailable : principal.Rows.Sum(row => row.ReportsProduced).ToString(invariant), principal is null ? null : previousPrincipal?.Sum(row => row.ReportsProduced).ToString(invariant));
                             Metric(AdministrationReportHeadings.ReportsSent, principal is null ? OperatorLabels.Reports.Unavailable : principal.Rows.Sum(row => row.Sent).ToString(invariant), principal is null ? null : previousPrincipal?.Sum(row => row.Sent).ToString(invariant));
+                            Metric(AdministrationReportHeadings.Resends, principal is null ? OperatorLabels.Reports.Unavailable : principal.Rows.Sum(row => row.Resends).ToString(invariant), principal is null ? null : previousPrincipal?.Sum(row => row.Resends).ToString(invariant));
                             Metric(AdministrationReportHeadings.AgreedFees, principal is null ? OperatorLabels.Reports.Unavailable : Money(principal.Rows.Sum(row => row.AgreedFeeTotal)), principal is null || previousPrincipal is null ? null : Money(previousPrincipal.Sum(row => row.AgreedFeeTotal)));
                         }
                     </div>
@@ -208,8 +212,8 @@
                             <thead>
                                 <tr>
                                     @{ SortHeader(AdministrationReportHeadings.Principal, "code", numeric: false, principal: true); }
-                                    @{ SortHeader(AdministrationReportHeadings.ReportsProduced, "produced", numeric: true, principal: true); }
                                     @{ SortHeader(AdministrationReportHeadings.ReportsSent, "sent", numeric: true, principal: true); }
+                                    @{ SortHeader(AdministrationReportHeadings.Resends, "resends", numeric: true, principal: true); }
                                     @{ SortHeader(AdministrationReportHeadings.AgreedFees, "fees", numeric: true, principal: true); }
                                 </tr>
                             </thead>
@@ -224,14 +228,14 @@
                             }
                             else
                             {
-                                var mostProduced = principalRows.Max(Model.Produced);
                                 var mostPrincipalSent = principalRows.Max(Model.Sent);
+                                var mostResends = principalRows.Max(Model.Resends);
                                 @foreach (var row in principalRows)
                                 {
                                     <tr>
                                         <td class="mono">@row.PrincipalCode</td>
-                                        <td class="num">@Measure(Model.Produced(row), mostProduced)</td>
                                         <td class="num">@Measure(Model.Sent(row), mostPrincipalSent)</td>
+                                        <td class="num">@Measure(Model.Resends(row), mostResends)</td>
                                         <td class="num tabular">@Money(Model.Fees(row))</td>
                                     </tr>
                                 }
@@ -253,15 +257,15 @@
                 <div class="panel-body">
                     <div class="table-wrap">
                         <table class="table table--compact" aria-labelledby="months-title" data-reports-by-month>
-                            <thead><tr><th scope="col">@AdministrationReportHeadings.Month</th><th scope="col">@AdministrationReportHeadings.Principal</th><th scope="col" class="num">@AdministrationReportHeadings.ReportsProduced</th><th scope="col" class="num">@AdministrationReportHeadings.FeeNotesProduced</th><th scope="col" class="num">@AdministrationReportHeadings.ReportsSent</th><th scope="col" class="num">@AdministrationReportHeadings.AgreedFees</th></tr></thead>
+                            <thead><tr><th scope="col">@AdministrationReportHeadings.Month</th><th scope="col">@AdministrationReportHeadings.Principal</th><th scope="col" class="num">@AdministrationReportHeadings.ReportsSent</th><th scope="col" class="num">@AdministrationReportHeadings.Resends</th><th scope="col" class="num">@AdministrationReportHeadings.AgreedFees</th></tr></thead>
                             <tbody>
                             @if (Model.Monthly is not { } months)
                             {
-                                <tr><td colspan="6" class="muted">@OperatorLabels.Reports.Unavailable</td></tr>
+                                <tr><td colspan="5" class="muted">@OperatorLabels.Reports.Unavailable</td></tr>
                             }
                             else if (months.Count == 0)
                             {
-                                <tr><td colspan="6" class="muted">@OperatorLabels.Reports.NoReports</td></tr>
+                                <tr><td colspan="5" class="muted">@OperatorLabels.Reports.NoReports</td></tr>
                             }
                             else
                             {
@@ -271,9 +275,8 @@
                                     <tr>
                                         <td>@row.MonthLabel</td>
                                         <td class="mono">@row.PrincipalCode</td>
-                                        <td class="num tabular">@figures.Produced</td>
-                                        <td class="num tabular">@figures.FeeNotes</td>
                                         <td class="num tabular">@figures.Sent</td>
+                                        <td class="num tabular">@figures.Resends</td>
                                         <td class="num tabular">@Money(figures.Fees)</td>
                                     </tr>
                                 }
@@ -341,11 +344,11 @@
                 <div class="panel-body">
                     <div class="table-wrap">
                         <table class="table table--compact">
-                            <thead><tr><th scope="col">@AdministrationReportHeadings.Principal</th><th scope="col">@AdministrationReportHeadings.TimeToProduce</th><th scope="col">@AdministrationReportHeadings.TimeToReady</th><th scope="col">@AdministrationReportHeadings.TimeToSend</th></tr></thead>
+                            <thead><tr><th scope="col">@AdministrationReportHeadings.Principal</th><th scope="col">@AdministrationReportHeadings.TimeToSend</th></tr></thead>
                             <tbody>
                             @if (principal is null)
                             {
-                                <tr><td colspan="4" class="muted">@OperatorLabels.Reports.Unavailable</td></tr>
+                                <tr><td colspan="2" class="muted">@OperatorLabels.Reports.Unavailable</td></tr>
                             }
                             else
                             {
@@ -354,12 +357,10 @@
                                 {
                                     <tr>
                                         <td class="mono">@row.PrincipalCode</td>
-                                        <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToGeneration, "—")</td>
-                                        <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToReady, "—")</td>
                                         <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>
                                     </tr>
                                 }
-                                @if (turnaroundRows.Length == 0) { <tr><td colspan="4" class="muted">@OperatorLabels.Reports.NoTurnaround</td></tr> }
+                                @if (turnaroundRows.Length == 0) { <tr><td colspan="2" class="muted">@OperatorLabels.Reports.NoTurnaround</td></tr> }
                             }
                             </tbody>
                         </table>

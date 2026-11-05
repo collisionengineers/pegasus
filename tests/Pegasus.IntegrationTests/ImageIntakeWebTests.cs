@@ -483,6 +483,56 @@ public sealed class ImageIntakeWebTests
         Assert.Equal(VehicleCaptureFill.RecorderId, vin.RecordedBy);
     }
 
+    /// <summary>
+    /// A capture e-mail whose printed registration no Case holds registers
+    /// nothing: no Image intake, no Case and no Unidentified item. It stays
+    /// image-only and NeedsSorting, waiting in No Case Found with its
+    /// photographs (operator, 4 November 2026, R663; FRD-02 EXT-17).
+    /// </summary>
+    [Fact]
+    public async Task ACaptureEmailNoCaseHoldsRegistersNothingAndIsNotUnidentified()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine("ZZ99ZZZ"));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var email = IntakeTestEvidence.CreateEmail(
+            "tractable-no-case.eml",
+            "New completed lead",
+            senderAddress: "noreply@tractable.ai",
+            subject: "New completed lead: Book Test in today",
+            attachments:
+            [
+                ("LINE_LEVEL_ESTIMATE.pdf", "application/pdf", CapturePdf(
+                    CaptureImage(800, 600, seed: 1, noisy: false),
+                    CaptureImage(400, 533, seed: 2, noisy: true)))
+            ]);
+        var receiptId = await AllocationTestData.SubmitAndProcessAsync(
+            services,
+            new IntakeSource(
+                email.FileName,
+                email.MediaType,
+                email.Content,
+                services.GetRequiredService<TimeProvider>().GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, $"capture-no-case:{Guid.NewGuid():N}")),
+            $"mailbox-capture-no-case:{Guid.NewGuid():N}");
+
+        var receipt = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        Assert.Null(receipt!.CurrentCaseId);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.True(ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
+        Assert.Null(await services.GetRequiredService<IImageIntakeQueries>()
+            .GetByOriginReceiptAsync(receiptId, CancellationToken.None));
+        await using var context = await (await factory.DatabaseAsync).CreateContextAsync();
+        Assert.False(await context.UnidentifiedItems.AsNoTracking()
+            .AnyAsync(item => item.OriginId == receiptId));
+    }
+
     private static async Task<Dictionary<string, string?>> CurrentCaseDataAsync(
         IntakeWebApplicationFactory factory,
         Guid caseId,
