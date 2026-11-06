@@ -640,7 +640,6 @@ public sealed partial class StagedArtifactReconciliationFunction(
                     caseFilingsLevel,
                     caseFilings.Candidates,
                     caseFilings.Filed,
-                    caseFilings.Deferred,
                     caseFilings.Failures,
                     caseFilings.Exhausted);
             }
@@ -973,13 +972,12 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int failures);
 
     [LoggerMessage(
-        Message = "Replayed Case filings: {Candidates} candidates, {Filed} filed, {Deferred} waiting for an editor, {Failures} failures, {Exhausted} exhausted.")]
+        Message = "Replayed Case filings: {Candidates} candidates, {Filed} filed, {Failures} failures, {Exhausted} exhausted.")]
     private static partial void LogCaseFilingReplay(
         ILogger logger,
         LogLevel level,
         int candidates,
         int filed,
-        int deferred,
         int failures,
         int exhausted);
 

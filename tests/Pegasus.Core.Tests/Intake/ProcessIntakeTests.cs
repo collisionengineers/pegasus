@@ -818,7 +818,6 @@ public sealed class ProcessIntakeTests
     [InlineData(false, IntakeDecision.ImageIntakeRegistered, AutomaticCaseEvidencePromotionOutcome.NotApplicable, false)]
     [InlineData(false, IntakeDecision.NeedsSorting, AutomaticCaseEvidencePromotionOutcome.Confirmed, false)]
     [InlineData(false, IntakeDecision.NeedsSorting, AutomaticCaseEvidencePromotionOutcome.Pending, false)]
-    [InlineData(false, IntakeDecision.NeedsSorting, AutomaticCaseEvidencePromotionOutcome.Deferred, false)]
     public async Task OnlyIntakeNoAutomaticDestinationFilesIsHeld(
         bool allocated,
         IntakeDecision decision,

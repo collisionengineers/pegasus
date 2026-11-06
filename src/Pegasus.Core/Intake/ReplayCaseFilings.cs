@@ -3,7 +3,6 @@ namespace Pegasus.Core.Intake;
 public sealed record ReplayCaseFilingsResult(
     int Candidates,
     int Filed,
-    int Deferred,
     int Failures,
     int Exhausted);
 
@@ -64,9 +63,9 @@ public interface ICaseFilingReplayStore
     /// One page, in one statement, of up to <paramref name="maximumItems"/>
     /// receipts strictly after <paramref name="after"/> in
     /// (<c>LinkedAtUtc</c>, receipt) order: each actively associated with a
-    /// Case <see cref="CaseFilingTargetRule"/> answers Current for at
-    /// <paramref name="nowUtc"/>, with a completed evaluation and a retained
-    /// source the filer can file, not a discarded group's member, and with
+    /// Case <see cref="CaseFilingTargetRule"/> answers Current for, with a
+    /// completed evaluation and a retained source the filer can file, not a
+    /// discarded group's member, and with
     /// neither a completed filing on that Case nor a <c>replay_exhausted</c>
     /// row since the association was made. A pipeline association made at or
     /// before <paramref name="systemAssociationCutoff"/> is not listed (FRD-22); a
@@ -75,11 +74,9 @@ public interface ICaseFilingReplayStore
     /// clock of its own.
     /// </summary>
     /// <param name="systemAssociationCutoff">The latest association whose replay window has closed, from Core's clock (<see cref="IntakeEscapeWindow.LatestClosedStart"/>).</param>
-    /// <param name="nowUtc">The time the edit lease is judged at, the clock the filer's own check reads.</param>
     Task<IReadOnlyList<CaseFilingReplayCandidate>> ListDueAsync(
         CaseFilingReplayCursor? after,
         DateTimeOffset systemAssociationCutoff,
-        DateTimeOffset nowUtc,
         int maximumItems,
         CancellationToken cancellationToken);
 
@@ -91,8 +88,8 @@ public interface ICaseFilingReplayStore
 
 /// <summary>
 /// Files the retained evidence of a receipt that is associated with a Case
-/// but whose filing did not complete in the receipt's own processing pass: a
-/// filing that waited for a Case editor, or one that failed. It calls the
+/// but whose filing did not complete in the receipt's own processing pass,
+/// such as one that failed or one linked by staff afterwards. It calls the
 /// filer (<see cref="PromoteAssociatedIntakeCaseEvidence"/>) directly; the
 /// receipt's other replay steps already ran (operator, 22 October 2026;
 /// R367).
@@ -100,10 +97,9 @@ public interface ICaseFilingReplayStore
 /// <remarks>
 /// A pipeline association is filed only inside the replay window the
 /// grouped-image sweep already has, two hours from the association; after it
-/// the mail stays No Case Found for a person, and a filing still waiting for
-/// an editor then is not filed and leaves no row. A member of staff's
-/// association keeps FRD-22's rule: it waits for a live edit lease and
-/// retries (R189, R377).
+/// the mail stays No Case Found for a person. A member of staff's
+/// association has no window. No filing waits for a Case editor (R189,
+/// R377, R727, R728).
 /// <para>
 /// Each attempt that fails with a fault worth retrying records a
 /// <c>replay_failed</c> row and is tried again after the live filing path's
@@ -134,7 +130,6 @@ public sealed class ReplayCaseFilings(
         var due = await ListDueAsync(maximumItems, nowUtc, cancellationToken);
 
         var filed = 0;
-        var deferred = 0;
         var failures = 0;
         var exhausted = 0;
         foreach (var candidate in due)
@@ -152,11 +147,7 @@ public sealed class ReplayCaseFilings(
                 }
 
                 var outcome = await filer.ExecuteAsync(receipt, cancellationToken);
-                if (outcome == AutomaticCaseEvidencePromotionOutcome.Deferred)
-                {
-                    deferred++;
-                }
-                else if (outcome == AutomaticCaseEvidencePromotionOutcome.Failed)
+                if (outcome == AutomaticCaseEvidencePromotionOutcome.Failed)
                 {
                     // A stored terminal custody state: retrying cannot change it.
                     failure = new(candidate, CaseFilingReplayEvent.Exhausted, attempt, "case_custody_failed", nowUtc);
@@ -200,7 +191,7 @@ public sealed class ReplayCaseFilings(
             }
         }
 
-        return new(due.Count, filed, deferred, failures, exhausted);
+        return new(due.Count, filed, failures, exhausted);
     }
 
     /// <summary>
@@ -251,7 +242,7 @@ public sealed class ReplayCaseFilings(
         while (true)
         {
             var page = await store.ListDueAsync(
-                cursor, systemAssociationCutoff, nowUtc, maximumItems, cancellationToken);
+                cursor, systemAssociationCutoff, maximumItems, cancellationToken);
             foreach (var candidate in page)
             {
                 if (IsDue(candidate, nowUtc))

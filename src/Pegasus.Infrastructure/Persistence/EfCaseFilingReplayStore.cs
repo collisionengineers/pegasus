@@ -13,8 +13,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// The Case-filing replay's page and history rows. The page's eligibility
 /// predicate is <see cref="CaseFilingTargetRule"/> in SQL, built from the same
 /// state list (<see cref="IntakePromotionTarget.AutomaticPromotionEligibleStates"/>).
-/// The replay window's cutoff and the edit lease's time are both the ones
-/// Core passes in, so this adapter reads no clock of its own (R191).
+/// The replay window's cutoff is the one Core passes in, so this adapter
+/// reads no clock of its own (R191).
 /// </summary>
 internal sealed class EfCaseFilingReplayStore(
     IDbContextFactory<PegasusDbContext> contextFactory) : ICaseFilingReplayStore
@@ -28,7 +28,6 @@ internal sealed class EfCaseFilingReplayStore(
     public async Task<IReadOnlyList<CaseFilingReplayCandidate>> ListDueAsync(
         CaseFilingReplayCursor? after,
         DateTimeOffset systemAssociationCutoff,
-        DateTimeOffset nowUtc,
         int maximumItems,
         CancellationToken cancellationToken)
     {
@@ -55,18 +54,16 @@ internal sealed class EfCaseFilingReplayStore(
                         && association.LinkedAtUtc > systemAssociationCutoff)
                     || association.ActorKind != SystemWorkerKind)
                 // CaseFilingTargetRule: not the Case's own origin receipt; a
-                // workflow Case that is not archived, in a state the
-                // association files into and not being edited; or a Triage
-                // Case a member of staff linked.
+                // workflow Case that is not archived and in a state the
+                // association files into, whether or not it is being edited
+                // (R727, R728); or a Triage Case a member of staff linked.
                 && !context.Cases.Any(caseRow => caseRow.Id == association.CaseId
                     && caseRow.OriginIntakeReceiptId == receipt.Id)
                 && ((workflow != null
                         && workflow.ArchivedAtUtc == null
                         && (association.ActorKind != SystemWorkerKind
                             || (automaticStates.Contains(workflow.State)
-                                && workflow.ReportSentEvidenceId == null))
-                        && (workflow.EditLeaseExpiresAtUtc == null
-                            || workflow.EditLeaseExpiresAtUtc <= nowUtc))
+                                && workflow.ReportSentEvidenceId == null)))
                     || (workflow == null
                         && association.ActorKind != SystemWorkerKind
                         && context.Triage.Any(triage => triage.CaseId == association.CaseId)))

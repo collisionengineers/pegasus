@@ -885,7 +885,7 @@ public sealed class ProcessQueuedIntake(
                 completedReceipt = await ReloadAsync(completedReceipt, cancellationToken);
             }
             var replayPromotion = await PromoteAssociatedCaseEvidenceAsync(
-                completedReceipt, cancellationToken, throwOnDeferred: false);
+                completedReceipt, cancellationToken);
 
             // Completed redelivery replays destination operation identities.
             var replayAllocation = await allocateIntake.AttemptAutomaticAsync(
@@ -910,7 +910,7 @@ public sealed class ProcessQueuedIntake(
             {
                 // Images filed on a matched Case: no record, so file them there.
                 replayPromotion = await PromoteAssociatedCaseEvidenceAsync(
-                    replayImageOutcome.Receipt, cancellationToken, throwOnDeferred: false);
+                    replayImageOutcome.Receipt, cancellationToken);
             }
             if (replayImageOutcome.AwaitingStaffDecision)
             {
@@ -933,9 +933,7 @@ public sealed class ProcessQueuedIntake(
                 replayTriage,
                 replayImageOutcome,
                 cancellationToken);
-            return new(replayPromotion == AutomaticCaseEvidencePromotionOutcome.Deferred
-                ? QueuedIntakeProcessingOutcome.RetryScheduled
-                : QueuedIntakeProcessingOutcome.NoOp);
+            return new(QueuedIntakeProcessingOutcome.NoOp);
         }
 
         var (workItem, stagedReceipt) = claimed.Value;
@@ -1391,31 +1389,12 @@ public sealed class ProcessQueuedIntake(
         return outcome is AutomaticCaseAssociationOutcome.Associated or AutomaticCaseAssociationOutcome.AlreadyAssociated;
     }
 
-    private async Task<AutomaticCaseEvidencePromotionOutcome> PromoteAssociatedCaseEvidenceAsync(
+    private Task<AutomaticCaseEvidencePromotionOutcome> PromoteAssociatedCaseEvidenceAsync(
         IntakeReceipt receipt,
-        CancellationToken cancellationToken,
-        bool throwOnDeferred = true)
-    {
-        if (promoteAssociatedCaseEvidence is null)
-        {
-            return AutomaticCaseEvidencePromotionOutcome.NotApplicable;
-        }
-
-        var outcome = await promoteAssociatedCaseEvidence.ExecuteAsync(receipt, cancellationToken);
-        if (outcome == AutomaticCaseEvidencePromotionOutcome.Deferred && throwOnDeferred)
-        {
-            // The live path only: an active staff edit is a temporary
-            // Case-target guard, so the claimed work item keeps the receipt
-            // and retries it after its ordinary bounded delay instead of
-            // filing against a moving Case. A completed-evaluation replay
-            // passes throwOnDeferred: false and returns RetryScheduled; its
-            // later attempts belong to ReplayCaseFilings.
-            throw new IntakeDependencyUnavailableException(
-                "Automatic Case evidence promotion is waiting for the Case editor.");
-        }
-
-        return outcome;
-    }
+        CancellationToken cancellationToken) =>
+        promoteAssociatedCaseEvidence is null
+            ? Task.FromResult(AutomaticCaseEvidencePromotionOutcome.NotApplicable)
+            : promoteAssociatedCaseEvidence.ExecuteAsync(receipt, cancellationToken);
 
     /// <summary>
     /// Holds the receipt's files once its destination is known, and only when

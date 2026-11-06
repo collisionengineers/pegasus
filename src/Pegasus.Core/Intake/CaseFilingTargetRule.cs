@@ -7,9 +7,6 @@ public enum CaseFilingTargetDisposition
     /// <summary>No filing is due: the Case's own origin receipt, an archived Case, an automatic association the Case's state no longer accepts, or a Triage Case the pipeline associated.</summary>
     NotApplicable,
 
-    /// <summary>The Case is being edited; filing waits for the editor.</summary>
-    Deferred,
-
     /// <summary>The Case may receive the receipt's evidence now.</summary>
     Current
 }
@@ -28,8 +25,7 @@ public sealed record CaseFilingTargetFacts(
 public sealed record CaseFilingWorkflowFacts(
     bool IsArchived,
     CaseLifecycleState? State,
-    bool HasReportSentEvidence,
-    DateTimeOffset? EditLeaseExpiresAtUtc);
+    bool HasReportSentEvidence);
 
 /// <summary>
 /// The one rule for whether a receipt's retained evidence may be filed on the
@@ -39,8 +35,9 @@ public sealed record CaseFilingWorkflowFacts(
 /// pipeline's own association files only while the Case is in a state
 /// automatic association accepts and no report has been sent
 /// (<see cref="CaseAssociationEligibility.IsFormalCaseEligible"/>), and
-/// never on a Triage Case. An archived Case never files. A live Case edit
-/// lease defers filing rather than refusing it.
+/// never on a Triage Case. An archived Case never files. No filing waits for
+/// a Case edit lease, whoever holds it: it moves the Case version under the
+/// lease like other system work (FRD-14; R727, R728).
 /// </summary>
 /// <remarks>
 /// The plan, every custody step and the Case-filing replay listing all answer
@@ -55,9 +52,7 @@ public static class CaseFilingTargetRule
             .Where(state => CaseAssociationEligibility.IsFormalCaseEligible(state, false))
             .ToArray();
 
-    public static CaseFilingTargetDisposition Decide(
-        CaseFilingTargetFacts facts,
-        DateTimeOffset nowUtc)
+    public static CaseFilingTargetDisposition Decide(CaseFilingTargetFacts facts)
     {
         ArgumentNullException.ThrowIfNull(facts);
         if (facts.IsOriginReceipt)
@@ -76,9 +71,7 @@ public static class CaseFilingTargetRule
                 return CaseFilingTargetDisposition.NotApplicable;
             }
 
-            return CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, nowUtc)
-                ? CaseFilingTargetDisposition.Deferred
-                : CaseFilingTargetDisposition.Current;
+            return CaseFilingTargetDisposition.Current;
         }
 
         return facts.IsStaffAssociation && facts.HasTriage

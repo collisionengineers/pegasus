@@ -96,8 +96,9 @@ upload rather than chosen after it:
 - After posting, the operator returns to the Case's Files panel with a
   one-time notice, "N files received for {reference}. They appear under
   Files once processed." A replay of the same upload says "Already received
-  for {reference}." The files are in Files within seconds; while the Case
-  is being edited, filing waits for the editor and retries.
+  for {reference}." The files are in Files within seconds, also while the
+  Case is being edited, whoever holds its lease (operator, 6 November 2026;
+  [R727](../rulings.md)).
 - Only when the declared Case is gone or archived by the time processing
   runs does the file stay unlinked: an image is then held and becomes an
   Unidentified item, from which staff link it by hand. Only images become

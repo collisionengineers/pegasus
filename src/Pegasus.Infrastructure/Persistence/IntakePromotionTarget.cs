@@ -34,7 +34,6 @@ internal static class IntakePromotionTarget
         PegasusDbContext db,
         Guid caseId,
         Guid receiptId,
-        DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(db);
@@ -61,8 +60,7 @@ internal static class IntakePromotionTarget
                         row.Version,
                         row.ArchivedAtUtc,
                         row.State,
-                        row.ReportSentEvidenceId,
-                        row.EditLeaseExpiresAtUtc
+                        row.ReportSentEvidenceId
                     })
                     .FirstOrDefault()
             })
@@ -91,25 +89,23 @@ internal static class IntakePromotionTarget
                     : new(
                         workflow.ArchivedAtUtc is not null,
                         Enum.TryParse<CaseLifecycleState>(workflow.State, out var state) ? state : null,
-                        workflow.ReportSentEvidenceId is not null,
-                        workflow.EditLeaseExpiresAtUtc),
-                triageVersion is not null),
-            nowUtc);
+                        workflow.ReportSentEvidenceId is not null),
+                triageVersion is not null));
         return new(disposition, workflow?.Version ?? triageVersion ?? 0, isStaffDecision);
     }
 
     /// <summary>
     /// Whether the Case may receive the receipt's evidence now: the
-    /// association, the archive, the Case's state and a live edit lease are
-    /// read again. The Case version is not: it only rises, so a sibling's
-    /// filing never makes this one stale.
+    /// association, the archive and the Case's state are read again; an edit
+    /// lease is not a reason to wait (R727, R728). The Case version is not
+    /// read either: it only rises, so a sibling's filing never makes this one
+    /// stale.
     /// </summary>
     public static async Task<bool> IsCurrentAsync(
         PegasusDbContext db,
         Guid caseId,
         Guid receiptId,
-        DateTimeOffset nowUtc,
         CancellationToken cancellationToken) =>
-        (await EvaluateAsync(db, caseId, receiptId, nowUtc, cancellationToken)).Disposition
+        (await EvaluateAsync(db, caseId, receiptId, cancellationToken)).Disposition
             == CaseFilingTargetDisposition.Current;
 }

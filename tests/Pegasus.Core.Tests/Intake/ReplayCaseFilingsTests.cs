@@ -52,7 +52,7 @@ public sealed class ReplayCaseFilingsTests
                 : $"intake-replay-failed:{candidate.ReceiptId:N}:{candidate.CaseId:N}:{candidate.AssociationVersion}:{priorFailures + 1}",
             record.OperationKey);
         Assert.True(record.OperationKey.Length <= 100);
-        Assert.Equal(new ReplayCaseFilingsResult(1, 0, 0, 1, expected == CaseFilingReplayEvent.Exhausted ? 1 : 0), result);
+        Assert.Equal(new ReplayCaseFilingsResult(1, 0, 1, expected == CaseFilingReplayEvent.Exhausted ? 1 : 0), result);
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public sealed class ReplayCaseFilingsTests
     }
 
     [Fact]
-    public async Task TheStoreIsAskedForTheTwoHourCutoffAndTheSweepsOwnTime()
+    public async Task TheStoreIsAskedForTheTwoHourCutoffFromTheSweepsOwnTime()
     {
         var harness = new Harness();
         harness.Add();
@@ -115,7 +115,6 @@ public sealed class ReplayCaseFilingsTests
         var page = Assert.Single(harness.Store.Pages);
         Assert.Null(page.After);
         Assert.Equal(Now.AddHours(-2), page.Cutoff);
-        Assert.Equal(Now, page.NowUtc);
         Assert.Equal(5, page.MaximumItems);
     }
 
@@ -164,20 +163,7 @@ public sealed class ReplayCaseFilingsTests
         var result = await harness.Sweep.ExecuteAsync(5);
 
         Assert.Single(harness.Promotion.Prepared);
-        Assert.Equal(new ReplayCaseFilingsResult(1, 0, 0, 0, 0), result);
-        Assert.Empty(harness.Store.Records);
-    }
-
-    [Fact]
-    public async Task ADeferredFilingIsCountedAndRecordsNothing()
-    {
-        var harness = new Harness();
-        harness.Add();
-        harness.Promotion.Disposition = AutomaticCaseEvidencePromotionPreparationDisposition.Deferred;
-
-        var result = await harness.Sweep.ExecuteAsync(5);
-
-        Assert.Equal(new ReplayCaseFilingsResult(1, 0, 1, 0, 0), result);
+        Assert.Equal(new ReplayCaseFilingsResult(1, 0, 0, 0), result);
         Assert.Empty(harness.Store.Records);
     }
 
@@ -192,7 +178,7 @@ public sealed class ReplayCaseFilingsTests
 
         Assert.Empty(harness.Promotion.Prepared);
         Assert.Empty(harness.Store.Records);
-        Assert.Equal(new ReplayCaseFilingsResult(1, 0, 0, 0, 0), result);
+        Assert.Equal(new ReplayCaseFilingsResult(1, 0, 0, 0), result);
     }
 
     private static CaseFilingReplayCandidate Candidate(int failedAttempts, DateTimeOffset? lastFailedAtUtc) =>
@@ -229,7 +215,6 @@ public sealed class ReplayCaseFilingsTests
     private sealed record ListedPage(
         CaseFilingReplayCursor? After,
         DateTimeOffset Cutoff,
-        DateTimeOffset NowUtc,
         int MaximumItems);
 
     private sealed class FakeReplayStore : ICaseFilingReplayStore
@@ -241,11 +226,10 @@ public sealed class ReplayCaseFilingsTests
         public Task<IReadOnlyList<CaseFilingReplayCandidate>> ListDueAsync(
             CaseFilingReplayCursor? after,
             DateTimeOffset systemAssociationCutoff,
-            DateTimeOffset nowUtc,
             int maximumItems,
             CancellationToken cancellationToken)
         {
-            Pages.Add(new(after, systemAssociationCutoff, nowUtc, maximumItems));
+            Pages.Add(new(after, systemAssociationCutoff, maximumItems));
             IReadOnlyList<CaseFilingReplayCandidate> page = Candidates
                 .OrderBy(candidate => candidate.LinkedAtUtc)
                 .ThenBy(candidate => candidate.ReceiptId)

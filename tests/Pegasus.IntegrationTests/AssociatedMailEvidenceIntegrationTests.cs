@@ -215,8 +215,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
     [InlineData("archive")]
     [InlineData("report-sent-state")]
     [InlineData("report-sent")]
-    [InlineData("editor")]
-    public async Task DelayedCustodyRechecksAssociationCaseEligibilityAndActiveEditor(string change)
+    public async Task DelayedCustodyRechecksAssociationAndCaseEligibility(string change)
     {
         using var factory = new IntakeWebApplicationFactory();
         var caseId = await SeedCaseAsync(factory, hasCustodyRoot: false);
@@ -256,12 +255,6 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                     };
                     db.Add(workflow.ReportSentEvidence);
                     break;
-                case "editor":
-                    workflow.EditLeaseHolder = Guid.NewGuid().ToString();
-                    workflow.EditLeaseHolderKind = nameof(ActorKind.Staff);
-                    workflow.EditLeaseTokenHash = new string('A', 64);
-                    workflow.EditLeaseExpiresAtUtc = DateTimeOffset.MaxValue;
-                    break;
             }
             await db.SaveChangesAsync();
             await AgePastInlineFilingGraceAsync(db);
@@ -273,18 +266,6 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Pending);
         await using var verify = await (await factory.DatabaseAsync).CreateContextAsync();
         Assert.False((await verify.Cases.SingleAsync(value => value.Id == caseId)).ImagesComplete);
-        if (change == "editor")
-        {
-            await verify.CaseWorkflows.Where(value => value.CaseId == caseId).ExecuteUpdateAsync(update => update
-                .SetProperty(value => value.EditLeaseExpiresAtUtc, (DateTimeOffset?)null)
-                .SetProperty(value => value.EditLeaseTokenHash, (string?)null)
-                .SetProperty(value => value.EditLeaseHolder, (string?)null)
-                .SetProperty(value => value.EditLeaseHolderKind, (string?)null));
-            var resumed = await scope.ServiceProvider.GetRequiredService<ReconcilePendingArtifactCustody>()
-                .ExecuteAsync(20, default);
-            Assert.Equal(6, resumed.Confirmed);
-            Assert.True(await verify.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync());
-        }
     }
 
     [Theory]
@@ -599,21 +580,19 @@ public sealed class AssociatedMailEvidenceIntegrationTests
     }
 
     /// <summary>
-    /// A linked receipt replayed while its Case holds an active edit lease
-    /// returns <see cref="QueuedIntakeProcessingOutcome.RetryScheduled"/>
-    /// without faulting or copying its files into Box holding, and the
-    /// Case-filing replay does not list it while the lease is live. Once the
-    /// edit lease clears, the replay files its evidence on the Case (#1462,
-    /// #1498).
+    /// A linked receipt replayed while a member of staff edits its Case files
+    /// its evidence there without waiting for the editor, and the editor's
+    /// lease stands (R728, 6 November 2026; #1852).
     /// </summary>
     [Fact]
-    public async Task AnEditedCaseDefersReplayFilingWithoutHoldingAndTheCaseFilingReplayCompletesItAfterTheLeaseClears()
+    public async Task AnEditedCaseReceivesItsLinkedEvidenceAndTheLeaseStands()
     {
         using var factory = new IntakeWebApplicationFactory();
         var caseId = await SeedCaseAsync(factory);
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var (receipt, stagedReceiptId) = await LinkWithoutFilingAsync(services, caseId);
+        var holder = Guid.NewGuid().ToString();
 
         await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
         {
@@ -623,52 +602,26 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                 .SetProperty(value => value.BoxFileId, (string?)null)
                 .SetProperty(value => value.BoxVersionId, (string?)null));
             await db.CaseWorkflows.Where(value => value.CaseId == caseId).ExecuteUpdateAsync(update => update
-                .SetProperty(value => value.EditLeaseHolder, Guid.NewGuid().ToString())
+                .SetProperty(value => value.EditLeaseHolder, holder)
                 .SetProperty(value => value.EditLeaseHolderKind, nameof(ActorKind.Staff))
                 .SetProperty(value => value.EditLeaseTokenHash, new string('A', 64))
                 .SetProperty(value => value.EditLeaseExpiresAtUtc, DateTimeOffset.MaxValue));
         }
 
         Assert.Equal(
-            QueuedIntakeProcessingOutcome.RetryScheduled,
+            QueuedIntakeProcessingOutcome.NoOp,
             await IntakeWebDriver.CreateProcessor(services).ExecuteAsync(stagedReceiptId, default));
-        Assert.DoesNotContain(
-            await services.GetRequiredService<ICaseFilingReplayStore>().ListDueAsync(
-                null,
-                IntakeEscapeWindow.LatestClosedStart(services.GetRequiredService<TimeProvider>().GetUtcNow()),
-                services.GetRequiredService<TimeProvider>().GetUtcNow(),
-                20,
-                default),
-            candidate => candidate.ReceiptId == receipt.Id);
-
-        await using (var whileEdited = await (await factory.DatabaseAsync).CreateContextAsync())
-        {
-            Assert.False(await whileEdited.Set<CaseDocumentEntity>().AnyAsync(value => value.CaseId == caseId));
-            var assets = await whileEdited.IntakeAssets.AsNoTracking()
-                .Where(value => value.IntakeReceiptId == receipt.Id)
-                .ToArrayAsync();
-            Assert.NotEmpty(assets);
-            Assert.All(assets, asset =>
-            {
-                Assert.Null(asset.CustodyStatus);
-                Assert.Null(asset.BoxParentFolderId);
-            });
-        }
-
-        await using (var clearLease = await (await factory.DatabaseAsync).CreateContextAsync())
-        {
-            await clearLease.CaseWorkflows.Where(value => value.CaseId == caseId).ExecuteUpdateAsync(update => update
-                .SetProperty(value => value.EditLeaseExpiresAtUtc, (DateTimeOffset?)null)
-                .SetProperty(value => value.EditLeaseTokenHash, (string?)null)
-                .SetProperty(value => value.EditLeaseHolder, (string?)null)
-                .SetProperty(value => value.EditLeaseHolderKind, (string?)null));
-        }
-
         await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(services);
 
         await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Confirmed);
         await using var verify = await (await factory.DatabaseAsync).CreateContextAsync();
         Assert.True((await verify.Cases.SingleAsync(value => value.Id == caseId)).ImagesComplete);
+        var lease = await verify.CaseWorkflows.AsNoTracking()
+            .Where(value => value.CaseId == caseId)
+            .Select(value => new { value.EditLeaseHolder, value.EditLeaseExpiresAtUtc })
+            .SingleAsync();
+        Assert.Equal(holder, lease.EditLeaseHolder);
+        Assert.Equal(DateTimeOffset.MaxValue, lease.EditLeaseExpiresAtUtc);
     }
 
     /// <summary>

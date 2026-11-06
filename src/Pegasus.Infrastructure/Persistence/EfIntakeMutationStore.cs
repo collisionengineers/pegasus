@@ -59,7 +59,7 @@ internal sealed class EfIntakeMutationStore(
         // decision files on any Case in any state, the pipeline's own only
         // where automatic association is accepted.
         var target = await IntakePromotionTarget.EvaluateAsync(
-            context, request.CaseId, request.IntakeReceiptId, timeProvider.GetUtcNow(), cancellationToken);
+            context, request.CaseId, request.IntakeReceiptId, cancellationToken);
         if (target.Disposition == CaseFilingTargetDisposition.NotApplicable)
         {
             return new(AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable);
@@ -83,14 +83,7 @@ internal sealed class EfIntakeMutationStore(
             {
                 return new(AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable);
             }
-        }
 
-        if (target.Disposition == CaseFilingTargetDisposition.Deferred)
-        {
-            return new(AutomaticCaseEvidencePromotionPreparationDisposition.Deferred);
-        }
-        if (replay is not null)
-        {
             return new(AutomaticCaseEvidencePromotionPreparationDisposition.Ready, request.CaseId, target.Version);
         }
 

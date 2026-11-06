@@ -269,6 +269,47 @@ public sealed class UploadConfirmationWebTests
     }
 
     /// <summary>
+    /// Files added from a Case are on it in the same processing pass while
+    /// the Case is being edited, whoever holds the lease, and the lease is
+    /// left standing (operator, 6 November 2026; R727).
+    /// </summary>
+    [Fact]
+    public async Task AFileAddedFromACaseBeingEditedIsFiledAtOnceAndTheLeaseStands()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "DECLARED-LEASE-01");
+        var holder = Guid.NewGuid().ToString();
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            await db.CaseWorkflows.Where(value => value.CaseId == caseId).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.EditLeaseHolder, holder)
+                .SetProperty(value => value.EditLeaseHolderKind, nameof(ActorKind.Staff))
+                .SetProperty(value => value.EditLeaseTokenHash, new string('A', 64))
+                .SetProperty(value => value.EditLeaseExpiresAtUtc, DateTimeOffset.MaxValue));
+        }
+
+        var upload = await IntakeWebDriver.UploadAsync(
+            client,
+            "letter.pdf",
+            "application/pdf",
+            IntakeTestEvidence.CreatePhotographPdf(1),
+            declaredCaseId: caseId);
+        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+
+        Assert.NotEmpty(await FiledDocumentsAsync(factory, IntakeWebDriver.ReceiptId(processed), caseId));
+        await using var verify = await (await factory.DatabaseAsync).CreateContextAsync();
+        var lease = await verify.CaseWorkflows.AsNoTracking()
+            .Where(value => value.CaseId == caseId)
+            .Select(value => new { value.EditLeaseHolder, value.EditLeaseExpiresAtUtc })
+            .SingleAsync();
+        Assert.Equal(holder, lease.EditLeaseHolder);
+        Assert.Equal(DateTimeOffset.MaxValue, lease.EditLeaseExpiresAtUtc);
+    }
+
+    /// <summary>
     /// The picker's words (operator, 26 September 2026): no subtitle under
     /// Upload and no sentence under the declared Case, whose card alone says
     /// where the files go; the limits read in megabytes through the one size
