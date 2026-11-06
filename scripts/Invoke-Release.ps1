@@ -686,6 +686,12 @@ function Invoke-Migration {
         Cazana__CompanionAccount__Password = $placeholder
         Brego__ValuationAccount__Email = $placeholder
         Brego__ValuationAccount__Password = $placeholder
+        Experian__BaseUri = $placeholder
+        Experian__TokenUri = $placeholder
+        Experian__Account__ClientId = $placeholder
+        Experian__Account__ClientSecret = $placeholder
+        Experian__Account__Username = $placeholder
+        Experian__Account__Password = $placeholder
         GitHub__ProblemReports__Token = $placeholder
         GitHub__ProblemReports__Repository = $values['GITHUB_PROBLEM_REPORT_REPOSITORY']
     }

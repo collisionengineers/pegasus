@@ -85,6 +85,7 @@ does for `Features:LocalIntake`.
 | `Features:LiveBoxCustody` | Both hosts compose the production storage shape (blob-backed intake artifacts, cached document reads, Box case custody) over the run's Azurite `transient-intake` container, with the fenced local-test Box root `425169015650`. It cannot be combined with `Features:LocalDocumentCustody`. |
 | `Features:LiveGlass` | The Web composes the Glass's gateway from `Glass:*` at start. Without it, or in any host without Glass's, the Case page offers no Glass's control and refuses the command. |
 | `Features:LiveGuideValuation` | The Web composes the Glass's, Cazana and Brego guide valuations, as Production does, from production's accounts (`Glass:ValuationAccount:*`, `Cazana:CompanionAccount:*`, `Brego:ValuationAccount:*`), each checked at start naming the key; it requires `Features:LiveGlass`, whose options Glass's valuation reads. There is no Brego session store offline, so each Brego valuation signs in afresh (R709). Without it an offline host offers no Get valuation. |
+| `Features:LiveExperian` | The Web composes the Experian vehicle history check, as Production does, from `Experian:*` (read on each check; ADR-0089), so the hosted test instance can run it against the Experian sandbox. Without it an offline host says Experian is not connected. |
 | `Features:LiveGraphMail` | Both hosts compose Production's Graph mail side (the mail client, the Inbox and Sent sources and their pollers, staff and report send and the answered-instruction move in the Worker; the mailbox resolver, access check, search and staff send in the Web) over a `ClientSecretCredential` built from `Graph:TenantId`, `Graph:ClientId` and `Graph:ClientSecret`, parsed at start. The Worker maintains change subscriptions only when `Graph:ChangeNotificationUrl` (the Funnelled webhook path on the instance's public host) and `Graph:ChangeNotificationClientState` are both set, checked at start: one without the other fails the start naming the missing key, and neither leaves the five-minute recovery poll to carry mail (ADR-0088 as amended, R675 to R677). |
 | `Features:PasswordSignIn` | The automatic offline sign-in stops answering; the Identity cookie and `/Account/SignIn` are used, and `--initialize-development` sets `DevelopmentOffline:AdministratorPassword` on the local Administrator each time it runs. The lifecycle requires it for a run with a public origin. |
 
@@ -143,3 +144,25 @@ answer unavailable rather than stopping the host. Rotating the password is a
 new secret version and a configuration read-back, not a release.
 `DevelopmentOffline` composes no Brego valuation, so its Brego card says the
 source is unavailable.
+
+## Experian vehicle history check
+
+`Experian:BaseUri` and `Experian:TokenUri` are Experian's API root and OAuth2
+token endpoint, and `Experian:Account:ClientId`, `Experian:Account:ClientSecret`,
+`Experian:Account:Username` and `Experian:Account:Password` the account Run
+Experian check signs in with
+([ADR-0089](../adr/0089-experian-vehicle-history-check.md)). All six are
+Production required settings (R749). Both addresses must be HTTPS on an
+`experian.com` host; the sandbox is
+`https://sandbox-uk-api.experian.com/ukci/automotive` and
+`https://sandbox-uk-api.experian.com/oauth2/v1/token`. The four account
+values are held in Key Vault as `experian-client-id`, `experian-client-secret`,
+`experian-username` and `experian-password` and delivered to Web as
+`Experian__Account__*` through versioned secret URI references, each read
+through its own secret-scoped grant; the addresses are plain settings
+(`Experian__BaseUri`, `Experian__TokenUri`). The Worker receives none. They
+are read on each check, never at startup, so an unresolved reference makes
+the check unavailable rather than stopping the host. Rotating a secret is a
+new secret version and a configuration read-back, not a release.
+`DevelopmentOffline` composes no Experian unless `Features:LiveExperian` is
+set, so its Vehicle history area says Experian is not connected.

@@ -138,6 +138,7 @@ var liveVehicleLookup = builder.Configuration.GetValue<bool>("Features:LiveVehic
 var liveBoxCustody = builder.Configuration.GetValue<bool>("Features:LiveBoxCustody");
 var liveGlass = builder.Configuration.GetValue<bool>("Features:LiveGlass");
 var liveGuideValuation = builder.Configuration.GetValue<bool>("Features:LiveGuideValuation");
+var liveExperian = builder.Configuration.GetValue<bool>("Features:LiveExperian");
 var passwordSignIn = builder.Configuration.GetValue<bool>("Features:PasswordSignIn");
 var liveGraphMail = builder.Configuration.GetValue<bool>(LocalGraphCredential.FeatureKey);
 foreach (var (featureKey, enabled) in new[]
@@ -146,6 +147,7 @@ foreach (var (featureKey, enabled) in new[]
     ("Features:LiveBoxCustody", liveBoxCustody),
     ("Features:LiveGlass", liveGlass),
     ("Features:LiveGuideValuation", liveGuideValuation),
+    ("Features:LiveExperian", liveExperian),
     ("Features:PasswordSignIn", passwordSignIn),
     (LocalGraphCredential.FeatureKey, liveGraphMail),
 })
@@ -225,6 +227,13 @@ if (productionProfile)
         // Brego valuation account (ADR-0084), read on each Get valuation.
         "Brego:ValuationAccount:Email",
         "Brego:ValuationAccount:Password",
+        // Experian's account and endpoints (ADR-0089), read on each check.
+        "Experian:BaseUri",
+        "Experian:TokenUri",
+        "Experian:Account:ClientId",
+        "Experian:Account:ClientSecret",
+        "Experian:Account:Username",
+        "Experian:Account:Password",
         "GitHub:ProblemReports:Token",
         "GitHub:ProblemReports:Repository"
     })
@@ -776,6 +785,16 @@ if (productionProfile || liveGuideValuation)
     builder.Services.AddBregoGuideValuation(
         _ => Pegasus.Infrastructure.Brego.BregoValuationAccount.Create(key => builder.Configuration[key]),
         provider => provider.GetService<Pegasus.Infrastructure.Brego.IBregoSessionStore>());
+}
+
+// Experian's vehicle history check (ADR-0089): Production, and an offline
+// host (the hosted test instance) under Features:LiveExperian; any other
+// offline host says Experian is not connected. The account is read on each
+// check for the same unresolved-Key-Vault-reference reason as Box's.
+if (productionProfile || liveExperian)
+{
+    builder.Services.AddExperianVehicleHistoryCheck(
+        _ => Pegasus.Infrastructure.Experian.ExperianAccount.Create(key => builder.Configuration[key]));
 }
 
 builder.Services.AddPegasusReportRendering();

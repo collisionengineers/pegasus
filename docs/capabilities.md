@@ -121,6 +121,7 @@ exclusion.
 | EXT-03 | Deterministic Case export: ordered 13-key JSON and eligible images | [Export case](frd/frd-07-case-export.md#export-case) |
 | EXT-14 | Manual addition of relevant WhatsApp material | [Staging and custody](frd/frd-05-documents-extraction-and-custody.md#staging-and-custody) |
 | EXT-18 | Operator-confirmed inspection address, never inferred | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
+| EXT-20 | Experian write-off history check recorded as the Vehicle history text | [Vehicle data and MOT enrichment](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment) |
 | MCP-01 | Controlled MCP ingress for one named Automation Actor | [MCP automation and actor boundary](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary) |
 | MCP-02 | Automation Actor Case actions through Core use cases | [MCP automation and actor boundary](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary) |
 | MCP-03 | Automation Actor intake-queue actions through Core use cases | [MCP automation and actor boundary](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary) |

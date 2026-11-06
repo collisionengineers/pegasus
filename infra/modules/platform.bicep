@@ -54,6 +54,14 @@ param cazanaCompanionPasswordSecretUri string
 // identity reads each secret through its own secret-scoped grant.
 param bregoValuationEmailSecretUri string
 param bregoValuationPasswordSecretUri string
+// ADR-0089. Experian's endpoints and the account Run Experian check signs in
+// with; the Web identity reads each secret through its own secret-scoped grant.
+param experianBaseUri string
+param experianTokenUri string
+param experianClientIdSecretUri string
+param experianClientSecretSecretUri string
+param experianUsernameSecretUri string
+param experianPasswordSecretUri string
 
 var suffix =take(uniqueString(subscription().subscriptionId, resourceGroup().id, 'prod'), 10)
 var prefix = 'pegasus-prod'
@@ -488,6 +496,13 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
         // ADR-0084 Brego valuation account, read on each Get valuation.
         { name: 'Brego__ValuationAccount__Email', value: '@Microsoft.KeyVault(SecretUri=${bregoValuationEmailSecretUri})' }
         { name: 'Brego__ValuationAccount__Password', value: '@Microsoft.KeyVault(SecretUri=${bregoValuationPasswordSecretUri})' }
+        // ADR-0089 Experian endpoints and account, read on each Run Experian check.
+        { name: 'Experian__BaseUri', value: experianBaseUri }
+        { name: 'Experian__TokenUri', value: experianTokenUri }
+        { name: 'Experian__Account__ClientId', value: '@Microsoft.KeyVault(SecretUri=${experianClientIdSecretUri})' }
+        { name: 'Experian__Account__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${experianClientSecretSecretUri})' }
+        { name: 'Experian__Account__Username', value: '@Microsoft.KeyVault(SecretUri=${experianUsernameSecretUri})' }
+        { name: 'Experian__Account__Password', value: '@Microsoft.KeyVault(SecretUri=${experianPasswordSecretUri})' }
       ], automationMcpSigningCertificateEnvironment, automationMcpEncryptionCertificateEnvironment)
     }
   }

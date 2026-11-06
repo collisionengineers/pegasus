@@ -559,11 +559,16 @@ Registered (operator, 2 November 2026; R598). One **Look up DVLA & MOT** action
 that neither staff nor the Automation Actor has recorded, and records the
 lookup's own facts. It never overwrites an extracted, staff-entered or
 Automation-recorded value. There is no checks panel and
-no suggestion table. The Experian seam is stated once, on the Vehicle history
-area (v36 item K, 9 October 2026); the section head carries no pill. The
+no suggestion table. Experian is stated once, on the Vehicle history area
+(v36 item K, 9 October 2026); the section head carries no pill. The
 Vehicle history area holds the history-check narrative as read-only text,
 editable in edit mode
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
+While that text is editable and the Case has a registration, the area's
+heading carries **Run Experian check**, which replaces the text with
+Experian's answer; otherwise the button is absent. A host without Experian
+composed says "Experian is not connected" there instead (operator, 6
+November 2026; R746).
 A **DVLA & MOT lookup** outcome line says what the lookup itself did (looked
 up and current, or a failure reason), separately from whether it filled a
 field.

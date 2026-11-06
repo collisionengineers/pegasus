@@ -846,11 +846,10 @@ disabled, and states the condition on the control ("Available in Review").
 
 **Amended 2026-08-28.** A disabled control for an *uncomposed
 integration* is permitted only for a named integration seam drawn in the
-approved design:
-
-| Seam | Control |
-| --- | --- |
-| Experian | Vehicle checks → Run Experian check |
+approved design. Experian was the one such seam; it is connected (6 November
+2026, [ADR-0089](../adr/0089-experian-vehicle-history-check.md)): Run Experian
+check stands on the Vehicle history area, and a host that does not compose
+Experian says "Experian is not connected" there instead.
 
 **Narrowed 2026-09-01.** An excluded capability is absent, never drawn as
 a disabled control. The direct Audatex service-launch control is removed on

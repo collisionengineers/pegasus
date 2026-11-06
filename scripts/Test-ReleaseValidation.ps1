@@ -108,6 +108,16 @@ function New-ValidPreProvisionEnvironment {
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/brego-valuation-email/version-one'
         BREGO_VALUATION_PASSWORD_SECRET_URI =
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/brego-valuation-password/version-one'
+        EXPERIAN_BASE_URI = 'https://sandbox-uk-api.experian.com/ukci/automotive'
+        EXPERIAN_TOKEN_URI = 'https://sandbox-uk-api.experian.com/oauth2/v1/token'
+        EXPERIAN_CLIENT_ID_SECRET_URI =
+            'https://pegasusprodkv252ow37g.vault.azure.net/secrets/experian-client-id/version-one'
+        EXPERIAN_CLIENT_SECRET_SECRET_URI =
+            'https://pegasusprodkv252ow37g.vault.azure.net/secrets/experian-client-secret/version-one'
+        EXPERIAN_USERNAME_SECRET_URI =
+            'https://pegasusprodkv252ow37g.vault.azure.net/secrets/experian-username/version-one'
+        EXPERIAN_PASSWORD_SECRET_URI =
+            'https://pegasusprodkv252ow37g.vault.azure.net/secrets/experian-password/version-one'
         ANTHROPIC_API_KEY_SECRET_URI =
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/anthropic-api-key/version-one'
         AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS =
@@ -756,7 +766,9 @@ try {
         'GITHUB_PROBLEM_REPORT_REPOSITORY', 'GLASS_VALUATION_USERNAME_SECRET_URI',
         'GLASS_VALUATION_PASSWORD_SECRET_URI', 'CAZANA_COMPANION_EMAIL_SECRET_URI',
         'CAZANA_COMPANION_PASSWORD_SECRET_URI', 'BREGO_VALUATION_EMAIL_SECRET_URI',
-        'BREGO_VALUATION_PASSWORD_SECRET_URI', 'ANTHROPIC_API_KEY_SECRET_URI',
+        'BREGO_VALUATION_PASSWORD_SECRET_URI', 'EXPERIAN_BASE_URI', 'EXPERIAN_TOKEN_URI',
+        'EXPERIAN_CLIENT_ID_SECRET_URI', 'EXPERIAN_CLIENT_SECRET_SECRET_URI',
+        'EXPERIAN_USERNAME_SECRET_URI', 'EXPERIAN_PASSWORD_SECRET_URI', 'ANTHROPIC_API_KEY_SECRET_URI',
         'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
         'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS') {
         foreach ($value in @($null, '', '   ')) {
@@ -774,6 +786,8 @@ try {
         'GLASS_VALUATION_USERNAME_SECRET_URI', 'GLASS_VALUATION_PASSWORD_SECRET_URI',
         'CAZANA_COMPANION_EMAIL_SECRET_URI', 'CAZANA_COMPANION_PASSWORD_SECRET_URI',
         'BREGO_VALUATION_EMAIL_SECRET_URI', 'BREGO_VALUATION_PASSWORD_SECRET_URI',
+        'EXPERIAN_CLIENT_ID_SECRET_URI', 'EXPERIAN_CLIENT_SECRET_SECRET_URI',
+        'EXPERIAN_USERNAME_SECRET_URI', 'EXPERIAN_PASSWORD_SECRET_URI',
         'ANTHROPIC_API_KEY_SECRET_URI') {
         foreach ($value in @(
             'http://pegasusprodkv252ow37g.vault.azure.net/secrets/a-secret/version-one',
