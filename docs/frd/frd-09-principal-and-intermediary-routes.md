@@ -198,7 +198,10 @@ widening is allowed.
 
 **One sender.** Exactly one consistent transport sender is required. A
 Collision Engineers staff forward must also prove one external original
-sender. An intermediary is a Claim Source linked to a Principal. Mail from
+sender. When the forward's body has a forwarded-message header, that
+header's sender is the one original, and an e-mail the forwarded message
+carried as an attachment is just an attachment (operator, 6 November 2026,
+[R716](../rulings.md)). An intermediary is a Claim Source linked to a Principal. Mail from
 the exact domain of its e-mail needs one agreeing instruction profile of that
 Principal; an intermediary is not a direct identity (operator, 15 October
 2026). On a shared mail domain only the Claim Source's own mailbox matches,
