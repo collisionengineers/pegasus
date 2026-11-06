@@ -101,6 +101,24 @@
     "bregoValuationPasswordSecretUri": {
       "value": "${BREGO_VALUATION_PASSWORD_SECRET_URI}"
     },
+    "experianBaseUri": {
+      "value": "${EXPERIAN_BASE_URI}"
+    },
+    "experianTokenUri": {
+      "value": "${EXPERIAN_TOKEN_URI}"
+    },
+    "experianClientIdSecretUri": {
+      "value": "${EXPERIAN_CLIENT_ID_SECRET_URI}"
+    },
+    "experianClientSecretSecretUri": {
+      "value": "${EXPERIAN_CLIENT_SECRET_SECRET_URI}"
+    },
+    "experianUsernameSecretUri": {
+      "value": "${EXPERIAN_USERNAME_SECRET_URI}"
+    },
+    "experianPasswordSecretUri": {
+      "value": "${EXPERIAN_PASSWORD_SECRET_URI}"
+    },
     "dvsaApiKeySecretUri": {
       "value": "${DVSA_API_KEY_SECRET_URI}"
     },

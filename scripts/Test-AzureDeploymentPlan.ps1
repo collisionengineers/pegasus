@@ -340,6 +340,10 @@ if ($Mode -eq 'PreProvision') {
         'CAZANA_COMPANION_PASSWORD_SECRET_URI',
         'BREGO_VALUATION_EMAIL_SECRET_URI',
         'BREGO_VALUATION_PASSWORD_SECRET_URI',
+        'EXPERIAN_CLIENT_ID_SECRET_URI',
+        'EXPERIAN_CLIENT_SECRET_SECRET_URI',
+        'EXPERIAN_USERNAME_SECRET_URI',
+        'EXPERIAN_PASSWORD_SECRET_URI',
         'ANTHROPIC_API_KEY_SECRET_URI')) {
         $secretUri = $null
         if (-not [Uri]::TryCreate([string]$environmentValues[$key], [UriKind]::Absolute, [ref]$secretUri) -or

@@ -504,6 +504,9 @@ public sealed class ProductionCompositionTests
         Assert.Equal(
             [ValuationSource.Glasses, ValuationSource.Cazana, ValuationSource.Brego],
             factory.Services.GetServices<IGuideValuationProvider>().Select(provider => provider.Source));
+        // It connects Experian as the vehicle history check (ADR-0089).
+        Assert.IsType<Pegasus.Infrastructure.Experian.ExperianVehicleHistoryProvider>(
+            Assert.Single(factory.Services.GetServices<Pegasus.Core.Vehicle.IVehicleHistoryCheckProvider>()));
     }
 
     [Fact]

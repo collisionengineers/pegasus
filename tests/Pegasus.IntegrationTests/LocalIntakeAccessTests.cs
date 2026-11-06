@@ -110,6 +110,12 @@ public sealed class LocalIntakeAccessTests
     [InlineData("Cazana:CompanionAccount:Password")]
     [InlineData("Brego:ValuationAccount:Email")]
     [InlineData("Brego:ValuationAccount:Password")]
+    [InlineData("Experian:BaseUri")]
+    [InlineData("Experian:TokenUri")]
+    [InlineData("Experian:Account:ClientId")]
+    [InlineData("Experian:Account:ClientSecret")]
+    [InlineData("Experian:Account:Username")]
+    [InlineData("Experian:Account:Password")]
     [InlineData("GitHub:ProblemReports:Token")]
     [InlineData("GitHub:ProblemReports:Repository")]
     public void ProductionFailsClosedWithoutTheExternalConfigurationItComposes(string missingKey)
@@ -144,6 +150,12 @@ public sealed class LocalIntakeAccessTests
             ["Cazana:CompanionAccount:Password"] = "synthetic-cazana-password",
             ["Brego:ValuationAccount:Email"] = "brego@example.test",
             ["Brego:ValuationAccount:Password"] = "synthetic-brego-password",
+            ["Experian:BaseUri"] = "https://sandbox-uk-api.experian.com/ukci/automotive",
+            ["Experian:TokenUri"] = "https://sandbox-uk-api.experian.com/oauth2/v1/token",
+            ["Experian:Account:ClientId"] = "experian-client",
+            ["Experian:Account:ClientSecret"] = "synthetic-experian-secret",
+            ["Experian:Account:Username"] = "experian-user",
+            ["Experian:Account:Password"] = "synthetic-experian-password",
             ["GitHub:ProblemReports:Token"] = "inert-test-token",
             ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports"
         };

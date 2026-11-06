@@ -98,6 +98,18 @@ param cazanaCompanionPasswordSecretUri string
 param bregoValuationEmailSecretUri string
 @description('Versioned Key Vault secret URI containing the Brego valuation account password (ADR-0084).')
 param bregoValuationPasswordSecretUri string
+@description('Experian Automotive API root, for example https://sandbox-uk-api.experian.com/ukci/automotive (ADR-0089).')
+param experianBaseUri string
+@description('Experian OAuth2 token endpoint, for example https://sandbox-uk-api.experian.com/oauth2/v1/token (ADR-0089).')
+param experianTokenUri string
+@description('Versioned Key Vault secret URI containing the Experian client ID (ADR-0089).')
+param experianClientIdSecretUri string
+@description('Versioned Key Vault secret URI containing the Experian client secret (ADR-0089).')
+param experianClientSecretSecretUri string
+@description('Versioned Key Vault secret URI containing the Experian account user name (ADR-0089).')
+param experianUsernameSecretUri string
+@description('Versioned Key Vault secret URI containing the Experian account password (ADR-0089).')
+param experianPasswordSecretUri string
 @description('Versioned Key Vault secret URI containing the DVSA API key.')
 param dvsaApiKeySecretUri string
 @description('Approved DVSA OAuth token endpoint.')
@@ -155,6 +167,12 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     cazanaCompanionPasswordSecretUri: cazanaCompanionPasswordSecretUri
     bregoValuationEmailSecretUri: bregoValuationEmailSecretUri
     bregoValuationPasswordSecretUri: bregoValuationPasswordSecretUri
+    experianBaseUri: experianBaseUri
+    experianTokenUri: experianTokenUri
+    experianClientIdSecretUri: experianClientIdSecretUri
+    experianClientSecretSecretUri: experianClientSecretSecretUri
+    experianUsernameSecretUri: experianUsernameSecretUri
+    experianPasswordSecretUri: experianPasswordSecretUri
     dvsaApiKeySecretUri: dvsaApiKeySecretUri
     dvsaTokenUri: dvsaTokenUri
     dvsaScope: dvsaScope

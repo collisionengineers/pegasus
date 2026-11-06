@@ -368,6 +368,12 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Cazana:CompanionAccount:Password"] = "synthetic-cazana-password",
             ["Brego:ValuationAccount:Email"] = "brego@example.test",
             ["Brego:ValuationAccount:Password"] = "synthetic-brego-password",
+            ["Experian:BaseUri"] = "https://sandbox-uk-api.experian.com/ukci/automotive",
+            ["Experian:TokenUri"] = "https://sandbox-uk-api.experian.com/oauth2/v1/token",
+            ["Experian:Account:ClientId"] = "experian-client",
+            ["Experian:Account:ClientSecret"] = "synthetic-experian-secret",
+            ["Experian:Account:Username"] = "experian-user",
+            ["Experian:Account:Password"] = "synthetic-experian-password",
             ["GitHub:ProblemReports:Token"] = "inert-test-token",
             ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports",
             // The startup warm-up reads in the background; a test host skips

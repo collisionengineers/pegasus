@@ -2,7 +2,8 @@
     Vehicle (v26): the vehicle's identity and the lookup's provenance rows as
     one geometry, one mileage box with its source chip (v25 decision 6), the
     pre-incident condition and the history check. The head carries the lookup
-    line and the lookup itself; Experian is a seam and reads as one.
+    line and the lookup itself. The Vehicle history area carries Run Experian
+    check where Experian is connected, else says it is not (ADR-0089).
 
     WP6: the vehicle's identity is edited where it is read. The controls
     belong to the record's one Save form, as every other section's do, and
@@ -68,6 +69,10 @@
     // The lookup fills the current work: the Inspection view offers it once
     // the lookup names the work it was asked from.
     var offersLookup = mayEdit && !string.IsNullOrWhiteSpace(registration) && !Model.IsInspectionView;
+    // Run Experian check replaces the Vehicle history text, so it is offered
+    // only where that text is editable and there is a registration to check
+    // (R746); otherwise it is absent, never disabled.
+    var offersExperianCheck = Model.ExperianConnected && canEditHistory && !string.IsNullOrWhiteSpace(registration);
 
     string Value(string? text) => string.IsNullOrWhiteSpace(text) ? OperatorLabels.CaseWorkspace.AbsentValue : text;
     string ValueClass(string? text) => string.IsNullOrWhiteSpace(text) ? "fv empty" : "fv";
@@ -119,7 +124,7 @@
                     </button>
                 </form>
             }
-            @* The Experian seam is stated once, on the Vehicle history sub-panel (v36 item K, 9 October 2026). *@
+            @* Experian is stated once, on the Vehicle history sub-panel (v36 item K, 9 October 2026). *@
             <partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" />
         </div>
     </div>
@@ -246,7 +251,19 @@
 
         @* The history check is prose about the vehicle rather than one of its
            facts, so it reads as its own area under the grid. *@
-        <div class="sub-panel vehicle-history @Model.CollapsedClass("case.vehicle.history")" data-collapse="case.vehicle.history" data-vehicle-history><h3>@VehicleLabels.History <span class="rt">@OperatorLabels.CaseWorkspace.ExperianSeamCondition</span> <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.vehicle.history")" /></h3>
+        <div class="sub-panel vehicle-history @Model.CollapsedClass("case.vehicle.history")" data-collapse="case.vehicle.history" data-vehicle-history><h3>@VehicleLabels.History @if (!Model.ExperianConnected) { <span class="rt">@OperatorLabels.CaseWorkspace.ExperianSeamCondition</span> } else if (offersExperianCheck) { <span class="rt"><button type="submit" form="vehicle-experian-check" data-busy-label="@OperatorLabels.Busy.LookingUp" class="btn btn--small"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-search")" /></svg><span>@VehicleLabels.RunExperianCheck</span></button></span> } <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.vehicle.history")" /></h3>
+            @if (offersExperianCheck)
+            {
+                @* The button sits in the heading; its form stands beside it, since a heading holds no form. *@
+                <form id="vehicle-experian-check" method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="RunExperianCheck" data-vehicle-experian-check>
+                    <input type="hidden" name="id" value="@workflow.CaseId" />
+                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                    <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                    <input type="hidden" name="registration" value="@registration" />
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
+                </form>
+            }
             <div class="fc @Ro(canEditHistory)" data-field="@AssessmentVocabulary.HistoryCheck">
                 @{ Lbl(canEditHistory, "edit-vehicle-history", VehicleLabels.History, Model.AssessmentSourceTag(AssessmentVocabulary.HistoryCheck)); }
                 <div class="@ValueClass(Model.AssessmentEditorValue(AssessmentVocabulary.HistoryCheck)) multi">@Model.AssessmentValue(AssessmentVocabulary.HistoryCheck)</div>
