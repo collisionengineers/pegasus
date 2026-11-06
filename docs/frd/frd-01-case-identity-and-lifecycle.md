@@ -150,6 +150,15 @@ Inspection report has been sent
   and the applied Engineer's Value, and report wording. Open AI proposals
   and estimate revision snapshots are not copied; files
   are shared, not copied;
+- starts with the decisions the Audit makes again left open, from the
+  Inspection's outcome (operator, 6 November 2026;
+  [R729](../rulings.md)): after a Total loss no valuation is Selected (the
+  guide cards keep their values; Retail, Trade and Engineer's Value start
+  empty) and the Salvage value is empty, the Salvage category kept; after
+  Repairable, Cash in lieu or Contract repair every estimate is copied and
+  none is Current, as an AI draft arrives. With no outcome nothing is left
+  open. The Audit's report readiness then names what is still to be made,
+  and its Next action follows;
 - is edited on its own. Audit edits change only the Audit's values, and the
   Inspection's values and its sent report become read-only;
 - has its own report under the Audit reference `a.{Case/PO}`, printed as Our

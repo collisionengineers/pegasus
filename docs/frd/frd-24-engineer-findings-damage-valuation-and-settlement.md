@@ -58,6 +58,9 @@ existing state, lease and version rules. On an Inspection + Audit Case with
 an Audit, the Audit's findings, damage, valuation and settlement are
 recorded on the Audit's values; the Inspection's stay as its report was
 sent ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
+After a Total loss Inspection the Audit starts with every guide card and
+its values but no valuation Selected, empty Retail, Trade and Engineer's
+Value, and no Salvage value (operator, 6 November 2026; [R729](../rulings.md)).
 
 Report narratives derive from the Engineer's figures (final value,
 deductions, outcome, salvage and roadworthiness) without retyping (operator

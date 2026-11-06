@@ -101,6 +101,94 @@ public sealed class CreateAuditPersistenceTests
         await AssertTheAuditIsAFullCopyAsync(context, harness, audit.Id);
     }
 
+    /// <summary>
+    /// A Total loss Inspection (operator, 6 November 2026; R729): the Audit
+    /// keeps every guide card with its values but has no valuation Selected,
+    /// no Retail, Trade or Engineer's Value and no Salvage value; the Salvage
+    /// category and the Current repair spec carry over, and the Inspection is
+    /// untouched.
+    /// </summary>
+    [Fact]
+    public async Task ATotalLossInspectionGivesTheAuditItsGuideCardsWithNoValuationSelectedAndNoSalvageValue()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.AddAssessmentFieldsAsync(
+            (AssessmentVocabulary.Outcome, "total_loss"),
+            (AssessmentVocabulary.ValueRetail, "12500.00"),
+            (AssessmentVocabulary.ValueTrade, "11000.00"),
+            (AssessmentVocabulary.ValueEngineer, "12000.00"),
+            (AssessmentVocabulary.SalvageCategory, "S"),
+            (AssessmentVocabulary.SalvageValue, "2400.00"));
+
+        var result = await harness.CreateAudit.ExecuteAsync(
+            await harness.RequestAsync("create-audit-total-loss"), default);
+
+        await using var context = await harness.ContextAsync();
+        var auditFields = await context.CaseAssessmentFields.AsNoTracking()
+            .Where(item => item.WorkId == result.AuditWorkId)
+            .ToDictionaryAsync(item => item.FieldPath, item => item.Value);
+        Assert.Equal("total_loss", auditFields[AssessmentVocabulary.Outcome]);
+        Assert.Equal("S", auditFields[AssessmentVocabulary.SalvageCategory]);
+        Assert.Equal("150.00", auditFields["assessment.fee"]);
+        Assert.DoesNotContain(AssessmentVocabulary.ValueRetail, auditFields.Keys);
+        Assert.DoesNotContain(AssessmentVocabulary.ValueTrade, auditFields.Keys);
+        Assert.DoesNotContain(AssessmentVocabulary.ValueEngineer, auditFields.Keys);
+        Assert.DoesNotContain(AssessmentVocabulary.SalvageValue, auditFields.Keys);
+
+        var guide = await context.CaseValuations.AsNoTracking().SingleAsync(item => item.WorkId == result.AuditWorkId);
+        Assert.Equal(12500m, guide.RetailValue);
+        Assert.Equal(11000m, guide.TradeValue);
+        Assert.False(await context.Set<AppliedValuationSnapshotEntity>()
+            .AnyAsync(item => item.WorkId == result.AuditWorkId));
+        var current = await context.CaseRepairSpecifications.AsNoTracking()
+            .SingleAsync(item => item.WorkId == result.AuditWorkId && item.IsCurrent);
+        Assert.Equal(2, current.Version);
+
+        Assert.Equal(7, await context.CaseAssessmentFields.CountAsync(item => item.WorkId == harness.CaseId));
+        Assert.True(await context.Set<AppliedValuationSnapshotEntity>()
+            .AnyAsync(item => item.WorkId == harness.CaseId));
+    }
+
+    /// <summary>
+    /// A Repairable, Cash in lieu or Contract repair Inspection (operator,
+    /// 6 November 2026; R729): the Audit gets every repair spec and none is
+    /// Current, as an AI draft arrives; the valuation and the Inspection's
+    /// Current spec are unchanged.
+    /// </summary>
+    [Theory]
+    [InlineData("repairable")]
+    [InlineData("cash_in_lieu")]
+    [InlineData("contract_repair")]
+    public async Task ARepairableInspectionGivesTheAuditEveryRepairSpecWithNoneCurrent(string outcome)
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.AddAssessmentFieldsAsync(
+            (AssessmentVocabulary.Outcome, outcome),
+            (AssessmentVocabulary.ValueRetail, "12500.00"),
+            (AssessmentVocabulary.ValueEngineer, "12000.00"));
+
+        var result = await harness.CreateAudit.ExecuteAsync(
+            await harness.RequestAsync($"create-audit-{outcome}"), default);
+
+        await using var context = await harness.ContextAsync();
+        var auditSpecifications = await context.CaseRepairSpecifications.AsNoTracking()
+            .Where(item => item.WorkId == result.AuditWorkId)
+            .ToListAsync();
+        Assert.Equal(CopiedSpecificationVersions, auditSpecifications.Select(item => item.Version).Order());
+        Assert.DoesNotContain(auditSpecifications, item => item.IsCurrent);
+        var inspectionCurrent = await context.CaseRepairSpecifications.AsNoTracking()
+            .SingleAsync(item => item.WorkId == harness.CaseId && item.IsCurrent);
+        Assert.Equal(2, inspectionCurrent.Version);
+
+        var auditFields = await context.CaseAssessmentFields.AsNoTracking()
+            .Where(item => item.WorkId == result.AuditWorkId)
+            .ToDictionaryAsync(item => item.FieldPath, item => item.Value);
+        Assert.Equal("12500.00", auditFields[AssessmentVocabulary.ValueRetail]);
+        Assert.Equal("12000.00", auditFields[AssessmentVocabulary.ValueEngineer]);
+        Assert.True(await context.Set<AppliedValuationSnapshotEntity>()
+            .AnyAsync(item => item.WorkId == result.AuditWorkId));
+    }
+
     [Fact]
     public async Task AReplayReturnsTheCommittedAuditAndASecondCreateIsRefused()
     {
@@ -872,6 +960,26 @@ public sealed class CreateAuditPersistenceTests
         public Task<PegasusDbContext> ContextAsync() => database.CreateContextAsync();
 
         public Task ExecuteSqlAsync(string sql) => database.ExecuteAsync(sql);
+
+        /// <summary>Adds assessment fields to the Inspection's work, as its Engineer recorded them.</summary>
+        public async Task AddAssessmentFieldsAsync(params (string Path, string Value)[] fields)
+        {
+            await using var context = await database.CreateContextAsync();
+            foreach (var (path, value) in fields)
+            {
+                context.CaseAssessmentFields.Add(new CaseAssessmentFieldEntity
+                {
+                    WorkId = CaseId,
+                    FieldPath = path,
+                    Value = value,
+                    RecordedByKind = nameof(ActorKind.Staff),
+                    RecordedBy = EngineerId.ToString("D"),
+                    RecordedAtUtc = DateTimeOffset.UtcNow.AddDays(-4)
+                });
+            }
+
+            await context.SaveChangesAsync();
+        }
 
         public async Task SetEngineerEnabledAsync(bool isEnabled)
         {

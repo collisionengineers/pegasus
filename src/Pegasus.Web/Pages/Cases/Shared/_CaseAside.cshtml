@@ -139,7 +139,9 @@
        Audit view of an Inspection + Audit Case, the Inspection report as
        generated: its printed repair cost, its salvage value when it was a
        Total loss, and the Engineer's Value it printed with the guide its
-       basis card came from (none for a typed value). Every figure is the
+       basis card came from (none for a typed value), then a Total loss
+       report's printed settlement, pre-accident value less salvage
+       (operator, 6 November 2026; R730). Every figure is the
        absent glyph until an Inspection report exists. The id of the
        standalone Audit's Original report section is never reused here. *@
     @if (Model.DrawsOriginalReport)
@@ -155,6 +157,10 @@
                         <div class="figure"><dt>@CaseWorkspaceLabels.Settlement.SalvageValue</dt><dd class="mono" data-original-salvage-value>@FormatMoney(salvage)</dd></div>
                     }
                     <div class="figure"><dt>@Frame.EngineersValue</dt><dd class="mono @(original is null ? "absent" : null)" data-original-engineers-value>@(original is { } o2 ? FormatMoney(o2.EngineerValue) + (o2.Guide is { } guide ? $" ({guide})" : string.Empty) : "—")</dd></div>
+                    @if (original is { Settlement: { } settlement })
+                    {
+                        <div class="figure"><dt>@CaseWorkspaceLabels.Settlement.RecommendedSettlement</dt><dd class="mono" data-original-settlement>@FormatMoney(settlement)</dd></div>
+                    }
                 </dl>
             </div>
         </section>

@@ -154,12 +154,25 @@ public sealed class EfCreateAuditStore(
         CaseChaseState.Stop(workflow);
         caseEntity.AuditReference = auditReference;
 
+        // The Inspection's outcome decides which of its decisions the Audit
+        // makes again (R729).
+        var inspectionOutcome = await context.CaseAssessmentFields.AsNoTracking()
+            .Where(item => item.WorkId == primary.Id && item.FieldPath == AssessmentVocabulary.Outcome)
+            .Select(item => item.Value)
+            .SingleOrDefaultAsync(cancellationToken);
+        var resets = AuditPolicy.ResetsFor(inspectionOutcome);
+
         await CopyDataAsync(context, primary.Id, auditWork.Id, cancellationToken);
-        await CopyAssessmentFieldsAsync(context, primary.Id, auditWork.Id, cancellationToken);
-        await CopySpecificationsAsync(context, primary.Id, auditWork.Id, cancellationToken);
+        await CopyAssessmentFieldsAsync(
+            context, primary.Id, auditWork.Id, AuditPolicy.OpenedFieldPaths(resets), cancellationToken);
+        await CopySpecificationsAsync(context, primary.Id, auditWork.Id, resets.OpenRepairSpec, cancellationToken);
         var guideValuationIds = await CopyValuationsAsync(context, primary.Id, auditWork.Id, cancellationToken);
-        await CopyAppliedValuationsAsync(
-            context, caseEntity.Id, primary.Id, auditWork.Id, guideValuationIds, cancellationToken);
+        if (!resets.OpenValuation)
+        {
+            await CopyAppliedValuationsAsync(
+                context, caseEntity.Id, primary.Id, auditWork.Id, guideValuationIds, cancellationToken);
+        }
+
         await CopyReportWordingsAsync(context, primary.Id, auditWork.Id, cancellationToken);
 
         var custodyWork = new ExternalWorkItemEntity
@@ -282,17 +295,21 @@ public sealed class EfCreateAuditStore(
         context.CaseDataSnapshots.Add(snapshot);
     }
 
-    /// <summary>The assessment fields: fee, damage, decisions and report switches included.</summary>
+    /// <summary>
+    /// The assessment fields: fee, damage, decisions and report switches
+    /// included, except the paths the Audit starts without (R729).
+    /// </summary>
     private static async Task CopyAssessmentFieldsAsync(
         PegasusDbContext context,
         Guid sourceWorkId,
         Guid auditWorkId,
+        IReadOnlySet<string> openedPaths,
         CancellationToken cancellationToken)
     {
         var fields = await context.CaseAssessmentFields.AsNoTracking()
             .Where(item => item.WorkId == sourceWorkId)
             .ToListAsync(cancellationToken);
-        foreach (var field in fields)
+        foreach (var field in fields.Where(item => !openedPaths.Contains(item.FieldPath)))
         {
             context.CaseAssessmentFields.Add(new CaseAssessmentFieldEntity
             {
@@ -309,12 +326,14 @@ public sealed class EfCreateAuditStore(
     /// <summary>
     /// Every repair specification with its lines, every column: new ids.
     /// The supplementary is not copied (its base version belongs to the
-    /// source Case). Specification snapshots are not copied.
+    /// source Case). Specification snapshots are not copied. With
+    /// <paramref name="openRepairSpec"/> none of the copies is Current (R729).
     /// </summary>
     private static async Task CopySpecificationsAsync(
         PegasusDbContext context,
         Guid sourceWorkId,
         Guid auditWorkId,
+        bool openRepairSpec,
         CancellationToken cancellationToken)
     {
         var specifications = await context.CaseRepairSpecifications.AsNoTracking()
@@ -355,7 +374,7 @@ public sealed class EfCreateAuditStore(
                 SpecialistVatApplicable = source.SpecialistVatApplicable,
                 RepairerVatStatus = source.RepairerVatStatus,
                 VatPercent = source.VatPercent,
-                IsCurrent = source.IsCurrent,
+                IsCurrent = source.IsCurrent && !openRepairSpec,
                 AiJobId = source.AiJobId,
                 LastOperationKey = source.LastOperationKey,
                 // A supplementary names a frozen version, and the Audit copies

@@ -315,8 +315,11 @@ asks for no reason and no outcome.
 or one claimed for the action) and the current version, Create audit:
 
 - adds the Audit to the Case under the Audit reference `a.{Case/PO}` and
-  copies the Inspection's values into it
-  ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity));
+  copies the Inspection's values into it, leaving open the valuation and
+  Salvage value of a Total loss, or the Current repair spec otherwise, so
+  the Audit's Next action asks for them before Generate report
+  ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity);
+  operator, 6 November 2026; [R729](../rulings.md));
 - moves the Case to With Engineer before the report, keeping the assigned
   Engineer and the Sign-off Engineer;
 - keeps the Inspection's report approval and Sent evidence, where they
