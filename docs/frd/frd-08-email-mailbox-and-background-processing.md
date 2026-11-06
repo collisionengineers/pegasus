@@ -188,17 +188,44 @@ old-system Box folder (operator, 30 October 2026, R561;
 e-mail that chases or refers to a case by reference, registration, claimant
 or claim number, matches no suggested Case, and has earlier mail about it in
 the approved mailboxes is a Pre-Pegasus case; the lookups are supporting
-evidence, not a precondition (operator, 2 November 2026, R583). The
+evidence, not a precondition (operator, 2 November 2026, R583). Earlier mail
+is the firm's own dealings with the job from before this conversation; the
+conversation's own messages and the run's other e-mails do not count
+(operator, 6 November 2026, [R735](../rulings.md)). The
 old-system folders are named by the firm's own Case reference, so the folder
-search is made with that reference and a reference-shaped term matches a
-folder name only as a whole token (operator, 2 November 2026, R592). Every
+search is made with that reference, which for a PRIVATE one-off is the
+registration, and a reference-shaped term matches a folder name only as a
+whole token (operator, 2 November 2026, R592; 6 November 2026, R734); the
+search filters by that token before it caps its hits. Every
 Unclassified e-mail the agent reviews and leaves is recorded as
 correspondence with its one-sentence reason (operator, 2 November 2026,
-R584). The agent reads each listed e-mail in full before deciding it, may
-read the text the intake reader extracted from an attachment
-(`pegasus_mail_attachment_text`, [FRD-10](frd-10-mcp-automation-and-actor-boundary.md#tool-inventory)),
-and counts an e-mail reviewed only once it has given it a verdict; a run
-that decides nothing is retried.
+R584); the agent's never-guess rule, correspondence when evidence is missing
+or only quoted text supports a category, decides Unclassified mail only, and
+an e-mail that already has a type keeps it unless another clearly fits its
+fresh text (operator, 6 November 2026, R737). An Unclassified e-mail the
+agent cannot decide because both lookups are unavailable is left unchanged
+and looked at again on the next run, with no attempt counted (operator,
+6 November 2026, R736). For a Triage request with no Case, the agent opens
+the Triage as staff **Open the Triage** does (`pegasus_intake_action`
+`open_triage`) with the registration written in its subject, body or an
+attachment's extracted text, or the one Pegasus's plate reader agreed on in
+its photographs (`pegasus_mail_photo_registrations`); it never reads a plate
+from a photograph itself, and a request with no such registration waits for
+staff (operator, 4 and 6 November 2026, R729, R730, R732;
+[FRD-03](frd-03-triage.md)). The agent reads each listed e-mail in full
+before deciding it, may read the text the intake reader extracted from an
+attachment (`pegasus_mail_attachment_text`,
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#tool-inventory)), and
+counts an e-mail reviewed only once it has given it a verdict, which may be
+to leave an e-mail that already has a type; a run that decides nothing is
+retried, and an e-mail with no verdict in three completed runs while
+unchanged is not looked at again until it changes. A write whose answer is
+lost is settled by reading the e-mail again: the write's own effect there is
+a done write. The list's first page carries Pegasus's count of Inbox mail
+the pipeline decided that is Unclassified or has no Case, computed outside
+the list's filters; a run that lists no candidate while that count is above
+zero logs `warning: candidates hidden`, and four such runs in a row end
+`failed: candidates hidden` (operator, 4 November 2026, R733).
 
 **History.** Every automated or human classification decision keeps the
 source identity, policy key and version, outcome, evidence references,
@@ -239,8 +266,10 @@ holds a Triage links to the Triage as a reply links to a Case (operator,
   and an equal date wins when exactly one remains. A date that leaves no
   candidate removes the registration from the decision; it never vetoes
   another agreeing signal. A message that names no registration of its own
-  has the one the photographs inside its PDF read, text layer or images
-  only (operator, 28 October 2026, R474).
+  has the one its photographs read: those inside its PDF, text layer or
+  images only, and those attached beside it, or, for a classified message
+  with no document, its photographs alone (operator, 28 October 2026,
+  R474; 6 November 2026, R731).
 
 Pegasus abstains when no signal has a candidate, when the intersection is not
 exactly one Case — signals that disagree, or a set that stays several — or when

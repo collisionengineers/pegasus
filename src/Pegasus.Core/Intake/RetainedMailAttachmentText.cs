@@ -3,14 +3,16 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// The search documents the intake reader produced for one receipt (FRD-08):
-/// the body row, then one row per attachment by the attachment's ordinal.
-/// Read-only; the projection itself is written by intake.
+/// What the store reads for one attachment's text: the message's attachment
+/// count, the named attachment's file name and media type, and that
+/// attachment's search-document text, trimmed and cut at one character past
+/// the caller's cap so a longer text shows as such.
 /// </summary>
-public interface IIntakeSearchDocumentReader
-{
-    Task<IReadOnlyList<IntakeSearchDocument>> ReadAsync(Guid intakeReceiptId, CancellationToken cancellationToken);
-}
+public sealed record RetainedMailAttachmentTextRead(
+    int AttachmentCount,
+    string? FileName,
+    string? MediaType,
+    string? Text);
 
 /// <summary>
 /// One attachment's extracted text, cut at the caller's cap. Text is null when
@@ -30,16 +32,12 @@ public sealed record RetainedMailAttachmentText(
 /// by its position in the message's attachment list, which is the ordinal the
 /// search projection keys on. Nothing is written.
 /// </summary>
-public sealed class GetRetainedMailAttachmentText(
-    GetRetainedMail getRetainedMail,
-    IIntakeSearchDocumentReader documents)
+public sealed class GetRetainedMailAttachmentText(IRetainedMailQueries queries)
 {
     public const int MaximumCharacters = 20_000;
 
-    private readonly GetRetainedMail getRetainedMail =
-        getRetainedMail ?? throw new ArgumentNullException(nameof(getRetainedMail));
-    private readonly IIntakeSearchDocumentReader documents =
-        documents ?? throw new ArgumentNullException(nameof(documents));
+    private readonly IRetainedMailQueries queries =
+        queries ?? throw new ArgumentNullException(nameof(queries));
 
     /// <returns>Null when the message is not retained.</returns>
     public async Task<RetainedMailAttachmentText?> ExecuteAsync(
@@ -53,33 +51,36 @@ public sealed class GetRetainedMailAttachmentText(
         ArgumentOutOfRangeException.ThrowIfNegative(attachmentOrdinal);
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumCharacters, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumCharacters, MaximumCharacters);
+        if (messageId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A retained message identifier is required.",
+                nameof(messageId));
+        }
 
-        var detail = await getRetainedMail.ExecuteAsync(actor, messageId, cancellationToken);
-        if (detail is null)
+        var read = await queries.ReadAttachmentTextAsync(
+            messageId, attachmentOrdinal, maximumCharacters, cancellationToken);
+        if (read is null)
         {
             return null;
         }
 
-        if (attachmentOrdinal >= detail.Attachments.Count)
+        if (attachmentOrdinal >= read.AttachmentCount
+            || read.FileName is not { } fileName
+            || read.MediaType is not { } mediaType)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(attachmentOrdinal),
                 attachmentOrdinal,
-                $"The message has {detail.Attachments.Count} attachment(s); positions count from 0.");
+                $"The message has {read.AttachmentCount} attachment(s); positions count from 0.");
         }
 
-        var attachment = detail.Attachments[attachmentOrdinal];
-        var text = detail.Summary.IntakeReceiptId is { } receiptId
-            ? (await documents.ReadAsync(receiptId, cancellationToken))
-                .FirstOrDefault(document => document.AttachmentOrdinal == attachmentOrdinal)
-                ?.Text
-            : null;
-        text = string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+        var text = string.IsNullOrWhiteSpace(read.Text) ? null : read.Text;
         var isTruncated = text is not null && text.Length > maximumCharacters;
         return new(
             attachmentOrdinal,
-            attachment.FileName,
-            attachment.MediaType,
+            fileName,
+            mediaType,
             isTruncated ? text![..maximumCharacters] : text,
             isTruncated);
     }

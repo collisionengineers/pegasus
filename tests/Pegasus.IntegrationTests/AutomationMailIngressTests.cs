@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Presentation;
@@ -147,6 +148,9 @@ public sealed class AutomationMailIngressTests
                 .GetProperty("id").GetGuid();
             continuation = structured.GetProperty("continuation").GetString()!;
             Assert.False(string.IsNullOrWhiteSpace(continuation));
+            // The first page counts the pipeline-decided message with no Case
+            // (#1892); the unreceipted one is not the pipeline's decision.
+            Assert.Equal(1, structured.GetProperty("awaitingDecisionCount").GetInt32());
         }
         using (var secondPage = await PostMcpAsync(client, token,
             ToolCallPayload(21, "pegasus_mail_list", new { pageSize = 1, continuation })))
@@ -157,6 +161,9 @@ public sealed class AutomationMailIngressTests
             Assert.NotEqual(firstPageId, secondId);
             Assert.True(!structured.TryGetProperty("continuation", out var terminal)
                 || terminal.ValueKind == System.Text.Json.JsonValueKind.Null);
+            // A continuation page does not repeat the count.
+            Assert.True(!structured.TryGetProperty("awaitingDecisionCount", out var count)
+                || count.ValueKind == System.Text.Json.JsonValueKind.Null);
         }
         using (var foreignFilter = await PostMcpAsync(client, token,
             ToolCallPayload(22, "pegasus_mail_list", new { folder = "sent", continuation })))
@@ -780,6 +787,105 @@ public sealed class AutomationMailIngressTests
             using var document = await ReadJsonRpcAsync(refused);
             Assert.True(document.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
             Assert.Contains("1 attachment(s)", document.RootElement.ToString(), StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// The plate reads the Worker recorded for a message's photographs, read
+    /// back without any recognition (R730 to R732): the one registration they
+    /// agree on is read, a message with no reads is none.
+    /// </summary>
+    [Fact]
+    public async Task ThePhotoRegistrationsAreTheRecordedReadsBehindTheMailScope()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var ids = await SeedRetainedAsync(mcpFactory, count: 2);
+        await SeedClassificationAsync(mcpFactory, $"{MailboxId}-0");
+        await SeedClassificationAsync(mcpFactory, $"{MailboxId}-1", sourceHash: 'F');
+        var receiptId = await ReceiptIdAsync(mcpFactory, $"{MailboxId}-0");
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var suggestions = scope.ServiceProvider.GetRequiredService<IVrmSuggestionStore>();
+            foreach (var (fileName, hash) in new[] { ("front.jpg", 'A'), ("rear.jpg", 'B') })
+            {
+                var assetId = Guid.NewGuid();
+                var storageKey = $"test:{assetId:N}";
+                await using (var context = await contextFactory.CreateDbContextAsync())
+                {
+                    context.IntakeAssets.Add(new()
+                    {
+                        Id = assetId,
+                        IntakeReceiptId = receiptId,
+                        SourceLabel = $"message, {fileName}",
+                        FileName = fileName,
+                        MediaType = "image/jpeg",
+                        Kind = "attachment",
+                        Disposition = "attachment",
+                        ContentLength = 2048,
+                        ContentHash = new string(hash, 64),
+                        StorageKey = storageKey
+                    });
+                    await context.SaveChangesAsync();
+                }
+                await suggestions.RecordAsync(
+                    new(
+                        receiptId,
+                        assetId,
+                        storageKey,
+                        new string(hash, 64),
+                        "fast-alpr-onnx",
+                        "1",
+                        string.Empty,
+                        VrmRecognitionOutcomeKind.Suggested,
+                        "SH65HTL",
+                        0.95,
+                        null,
+                        null,
+                        $"vrm-scan:{receiptId:N}:{assetId:N}"),
+                    CancellationToken.None);
+            }
+        }
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        // SeedRetainedAsync lists newest first: ids[1] is message 0.
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(1, "pegasus_mail_photo_registrations", new { messageId = ids[1] })))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal(ids[1], structured.GetProperty("messageId").GetGuid());
+            Assert.Equal("read", structured.GetProperty("state").GetString());
+            Assert.Equal("SH65HTL", structured.GetProperty("registration").GetString());
+            Assert.Equal(
+                "SH65HTL",
+                Assert.Single(structured.GetProperty("readRegistrations").EnumerateArray()).GetString());
+        }
+
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(2, "pegasus_mail_photo_registrations", new { messageId = ids[0] })))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal("none", structured.GetProperty("state").GetString());
+            Assert.True(!structured.TryGetProperty("registration", out var registration)
+                || registration.ValueKind == System.Text.Json.JsonValueKind.Null);
+            Assert.Empty(structured.GetProperty("readRegistrations").EnumerateArray());
+        }
+
+        using (var refused = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(3, "pegasus_mail_photo_registrations", new { messageId = Guid.NewGuid() })))
+        {
+            using var document = await ReadJsonRpcAsync(refused);
+            Assert.True(document.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
+            Assert.Contains("not found", document.RootElement.ToString(), StringComparison.Ordinal);
         }
     }
 

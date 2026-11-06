@@ -552,6 +552,27 @@ public interface IRetainedMailQueries
 
     Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// One attachment's extracted text with the attachment's name, or null when
+    /// the message is not retained. Only that attachment's search-document row
+    /// is read, its text cut at <paramref name="maximumCharacters"/> plus one.
+    /// </summary>
+    Task<RetainedMailAttachmentTextRead?> ReadAttachmentTextAsync(
+        Guid id,
+        int attachmentOrdinal,
+        int maximumCharacters,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The Inbox messages, not dismissed, whose classification the pipeline
+    /// decided and that are Unclassified or hold no Case: what the classifier
+    /// agent may decide (#1892). Counted from the receipt and association
+    /// tables, outside the workspace scopes, so a scope that hides mail does
+    /// not hide it from this count.
+    /// </summary>
+    Task<int> CountAwaitingAutomationDecisionAsync(
+        CancellationToken cancellationToken);
 }
 
 public sealed class ListRetainedMail(IRetainedMailQueries queries)
@@ -593,6 +614,14 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
         return await queries.CountManyAsync(
             scopes.Select(scope => Normalize(scope)).ToArray(),
             cancellationToken);
+    }
+
+    public Task<int> CountAwaitingAutomationDecisionAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return queries.CountAwaitingAutomationDecisionAsync(cancellationToken);
     }
 
     public async Task<RetainedMailCursorPage> ExecuteCursorAsync(

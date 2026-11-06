@@ -43,7 +43,8 @@ internal sealed record MailToolPage(
     string? Continuation,
     bool HasUnretainedHistory,
     IReadOnlyList<MailToolMailbox> Mailboxes,
-    MailToolFreshness Freshness);
+    MailToolFreshness Freshness,
+    int? AwaitingDecisionCount);
 
 internal sealed record MailToolPredicate(
     string Key,
@@ -111,6 +112,13 @@ internal sealed record MailToolAttachmentText(
     string MediaType,
     string? Text,
     bool IsTruncated,
+    string CorrelationId);
+
+internal sealed record MailToolPhotoRegistrations(
+    Guid MessageId,
+    string State,
+    string? Registration,
+    IReadOnlyList<string> ReadRegistrations,
     string CorrelationId);
 
 internal sealed record MailToolLinkDestination(
@@ -213,7 +221,8 @@ internal sealed class MailMcpTools(
     ICursorProtector cursors,
     SearchApprovedMailboxes searchMailboxes,
     SearchOldSystemCaseFolders searchOldSystemFolders,
-    GetRetainedMailAttachmentText attachmentText)
+    GetRetainedMailAttachmentText attachmentText,
+    GetRetainedMailPhotoRegistrations photoRegistrations)
 {
     [McpServerTool(
         Name = "pegasus_mail_mailbox_search",
@@ -307,7 +316,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists the retained mail workspace, newest first: one page of messages with the mailboxes that hold retained mail and how fresh the workspace is. Each message names its Case by caseId and caseReference; isTriageCase is true when that Case is a Triage Case, whose reference starts t. and which is not an instruction Case. Defaults to every mailbox and the inbox scope. Reads the retained record only; nothing is marked read in any mailbox.")]
+    [Description("Lists the retained mail workspace, newest first: one page of messages with the mailboxes that hold retained mail and how fresh the workspace is. Each message names its Case by caseId and caseReference; isTriageCase is true when that Case is a Triage Case, whose reference starts t. and which is not an instruction Case. Defaults to every mailbox and the inbox scope. The first page, called without a continuation, also carries awaitingDecisionCount: the Inbox messages the pipeline decided that are Unclassified or have no Case, counted outside this list's filters. Reads the retained record only; nothing is marked read in any mailbox.")]
     public async Task<MailToolPage> ListAsync(
         [Description("Optional exact mailbox identity from the mailboxes list. Omit for every mailbox.")] string? mailbox = null,
         [Description("Optional folder scope: inbox, sent, or dismissed. Defaults to inbox.")] string? folder = null,
@@ -359,6 +368,11 @@ internal sealed class MailMcpTools(
                     context.Actor,
                     cancellationToken);
                 var freshness = await getFreshness.ExecuteAsync(context.Actor, cancellationToken);
+                // On the first page only: a caller compares it with what its
+                // scan found, once per scan (#1892).
+                int? awaitingDecisionCount = string.IsNullOrWhiteSpace(continuation)
+                    ? await listRetainedMail.CountAwaitingAutomationDecisionAsync(context.Actor, cancellationToken)
+                    : null;
                 return new MailToolPage(
                     page.Items.Select(Map).ToArray(),
                     next,
@@ -369,7 +383,8 @@ internal sealed class MailMcpTools(
                         item.IsPolled)).ToArray(),
                     new(
                         IndexModel.FreshnessStatus(freshness.State),
-                        freshness.LastSuccessfulUpdateAtUtc));
+                        freshness.LastSuccessfulUpdateAtUtc),
+                    awaitingDecisionCount);
             }),
             cancellationToken);
     }
@@ -657,6 +672,45 @@ internal sealed class MailMcpTools(
                     text.MediaType,
                     text.Text,
                     text.IsTruncated,
+                    context.TraceIdentifier);
+            }),
+            cancellationToken);
+    }
+
+    [McpServerTool(
+        Name = "pegasus_mail_photo_registrations",
+        Title = "Read the plate reads recorded for a message's photographs",
+        ReadOnly = true,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Read-only. Returns the plate reads the Worker recorded for a retained message's photographs when it arrived (the photographs inside a mailed PDF and those attached beside it, and a Triage request's photographs), and the one registration they agree on at the accepted automatic bar: state read, none (nothing read, or not read) or disagree. No image is read or returned and nothing is written.")]
+    public async Task<MailToolPhotoRegistrations> PhotoRegistrationsAsync(
+        [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync("pegasus_mail_photo_registrations", cancellationToken);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_mail_photo_registrations",
+            messageId.ToString("D"),
+            null,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                var id = AutomationMcpErrors.RequireId(messageId, "retained message identifier");
+                var reads = await photoRegistrations.ExecuteAsync(context.Actor, id, cancellationToken)
+                    ?? throw new McpException("The retained message was not found.");
+                return new MailToolPhotoRegistrations(
+                    id,
+                    reads.State switch
+                    {
+                        RetainedMailPhotoReadState.Read => "read",
+                        RetainedMailPhotoReadState.Disagree => "disagree",
+                        _ => "none"
+                    },
+                    reads.Registration,
+                    reads.ReadRegistrations,
                     context.TraceIdentifier);
             }),
             cancellationToken);

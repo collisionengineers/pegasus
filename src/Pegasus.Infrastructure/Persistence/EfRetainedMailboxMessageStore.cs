@@ -42,6 +42,8 @@ internal sealed class EfRetainedMailboxMessageStore(
     private const int BodyHeadLength = ExcerptLength * 2;
     /// <summary>The retained column's length (<see cref="MailboxModelConfiguration"/>); the read paths excerpt the receipt's body head instead.</summary>
     internal const int StoredExcerptLength = 400;
+    /// <summary>The pipeline's actor kind as <see cref="MailClassificationActor"/> packs it.</summary>
+    private const string PipelineActorPrefix = "system-worker:";
     private static readonly char[] LineOrSpace = [' ', '\n'];
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -662,6 +664,73 @@ internal sealed class EfRetainedMailboxMessageStore(
                 item.LastFailureCode,
                 item.DueAtUtc))
             .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// One attachment's name and extracted text in one statement. Retention
+    /// numbers a message's attachments from 0 in list order, so the ordinal is
+    /// the attachment's position in <see cref="GetAsync"/>'s list and the key
+    /// the search projection writes. Only that attachment's row is read, first
+    /// by ordinal as the projection wrote them, its text trimmed and cut in
+    /// SQL. SQL's trim removes spaces only; the projection already stores each
+    /// attachment's text trimmed (<see cref="IntakeSearchProjection"/>).
+    /// </summary>
+    public async Task<RetainedMailAttachmentTextRead?> ReadAttachmentTextAsync(
+        Guid id,
+        int attachmentOrdinal,
+        int maximumCharacters,
+        CancellationToken cancellationToken)
+    {
+        var length = maximumCharacters + 1;
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.RetainedMailboxMessages
+            .AsNoTracking()
+            .Where(item => item.Id == id)
+            .Select(item => new RetainedMailAttachmentTextRead(
+                item.Attachments.Count,
+                item.Attachments
+                    .Where(attachment => attachment.Ordinal == attachmentOrdinal)
+                    .Select(attachment => attachment.FileName)
+                    .FirstOrDefault(),
+                item.Attachments
+                    .Where(attachment => attachment.Ordinal == attachmentOrdinal)
+                    .Select(attachment => attachment.MediaType)
+                    .FirstOrDefault(),
+                context.IntakeReceipts
+                    .Where(receipt => receipt.SourceChannel == "mailbox"
+                        && receipt.ExternalReceiptToken == item.ExternalReceiptToken)
+                    .SelectMany(receipt => receipt.SearchDocuments)
+                    .Where(document => document.AttachmentOrdinal == attachmentOrdinal)
+                    .OrderBy(document => document.Ordinal)
+                    .Select(document => document.Text == null
+                        ? null
+                        : document.Text.Trim().Substring(0, length))
+                    .FirstOrDefault()))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<int> CountAwaitingAutomationDecisionAsync(CancellationToken cancellationToken)
+    {
+        const string unclassified = "unclassified";
+        var inbox = ToCode(MailFolderScope.Inbox);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // Not through ApplyWorkspaceFilter, which this count guards; only the
+        // no-Case predicate is shared. Pre-Pegasus mail is not excluded as No
+        // Case Found excludes it: staff or the agent set that category, never
+        // the pipeline, so such a decision is not counted anyway.
+        var holdingNoCase = ReceiptsHoldingNoCase(context);
+        return await context.RetainedMailboxMessages
+            .AsNoTracking()
+            .Where(message => message.FolderScope == inbox && message.DismissedAtUtc == null)
+            .CountAsync(
+                message => context.IntakeReceipts.Any(receipt =>
+                    receipt.SourceChannel == "mailbox"
+                    && receipt.ExternalReceiptToken == message.ExternalReceiptToken
+                    && receipt.MailClassificationDecision != null
+                    && receipt.MailClassificationDecision.DecidedByActor.StartsWith(PipelineActorPrefix)
+                    && (receipt.MailClassificationDecision.Outcome == unclassified
+                        || holdingNoCase.Any(held => held.Id == receipt.Id))),
+                cancellationToken);
     }
 
     public async Task<MailClassificationDossier?> GetClassificationAsync(
@@ -1345,28 +1414,13 @@ internal sealed class EfRetainedMailboxMessageStore(
 
         if (scope.NoCaseFound)
         {
-            // No Case Found: received mail whose receipt stands linked to no Case.
-            // The same order the summaries read the Case in (MapSummariesAsync):
-            // an active association; else an accepted link when no association
-            // row exists; else the Case the latest allocation created, unless an
-            // association was reversed; else the Triage the receipt opened. A
-            // message decided to be a Pre-Pegasus case has left the scope
-            // (operator, 30 October 2026, R561).
-            return messages.Where(message => context.IntakeReceipts.Any(receipt =>
+            // No Case Found: received mail whose receipt stands linked to no
+            // Case. A message decided to be a Pre-Pegasus case has left the
+            // scope (operator, 30 October 2026, R561).
+            var holdingNoCase = ReceiptsHoldingNoCase(context);
+            return messages.Where(message => holdingNoCase.Any(receipt =>
                 receipt.SourceChannel == "mailbox"
                 && receipt.ExternalReceiptToken == message.ExternalReceiptToken
-                && !context.IntakeManualAssociations.Any(association =>
-                    association.IntakeReceiptId == receipt.Id && association.IsActive)
-                && (context.IntakeManualAssociations.Any(association => association.IntakeReceiptId == receipt.Id)
-                    || !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == receipt.Id))
-                && (context.IntakeManualAssociations.Any(association =>
-                        association.IntakeReceiptId == receipt.Id && !association.IsActive)
-                    || context.IntakeAllocationAttempts
-                        .Where(attempt => attempt.IntakeReceiptId == receipt.Id)
-                        .OrderByDescending(attempt => attempt.AttemptNumber)
-                        .Select(attempt => attempt.CaseId)
-                        .FirstOrDefault() == null)
-                && !context.Triage.Any(triage => triage.OriginReceiptId == receipt.Id)
                 && !(receipt.MailClassificationDecision != null
                     && receipt.MailClassificationDecision.Outcome == classified
                     && receipt.MailClassificationDecision.Category == prePegasusCase)));
@@ -1376,6 +1430,29 @@ internal sealed class EfRetainedMailboxMessageStore(
         // Found mail included (operator, 30 October 2026, R570).
         return messages;
     }
+
+    /// <summary>
+    /// The receipts that stand linked to no Case, read in the order the
+    /// summaries read the Case in (<see cref="MapSummariesAsync"/>): an active
+    /// association; else an accepted link when no association row exists; else
+    /// the Case the latest allocation created, unless an association was
+    /// reversed; else the Triage the receipt opened. A query to compose into
+    /// one statement.
+    /// </summary>
+    private static IQueryable<IntakeReceiptEntity> ReceiptsHoldingNoCase(PegasusDbContext context) =>
+        context.IntakeReceipts.Where(receipt =>
+            !context.IntakeManualAssociations.Any(association =>
+                association.IntakeReceiptId == receipt.Id && association.IsActive)
+            && (context.IntakeManualAssociations.Any(association => association.IntakeReceiptId == receipt.Id)
+                || !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == receipt.Id))
+            && (context.IntakeManualAssociations.Any(association =>
+                    association.IntakeReceiptId == receipt.Id && !association.IsActive)
+                || context.IntakeAllocationAttempts
+                    .Where(attempt => attempt.IntakeReceiptId == receipt.Id)
+                    .OrderByDescending(attempt => attempt.AttemptNumber)
+                    .Select(attempt => attempt.CaseId)
+                    .FirstOrDefault() == null)
+            && !context.Triage.Any(triage => triage.OriginReceiptId == receipt.Id));
 
     /// <summary>
     /// The excerpt as the sender wrote it, line breaks kept: runs of spaces

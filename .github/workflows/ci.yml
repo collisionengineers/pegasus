@@ -174,9 +174,10 @@ jobs:
         run: ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local
 
   classifier:
-    # The classifier agent is a Node Functions app; it typechecks and compiles
-    # here and nowhere else. Gated on its own path flag: it costs about a
-    # minute and reads nothing the .NET lanes build.
+    # The classifier agent is a Node Functions app; it typechecks, compiles
+    # and runs its unit tests (node:test, no model call) here and nowhere
+    # else. Gated on its own path flag: it costs about a minute and reads
+    # nothing the .NET lanes build.
     needs: [changes, invariants]
     if: needs.changes.outputs.classifier == 'true'
     runs-on: ubuntu-latest
@@ -197,6 +198,8 @@ jobs:
         run: npm run typecheck
       - name: Build
         run: npm run build
+      - name: Test
+        run: npm test
 
   unit:
     # Both projects run whole and unfiltered. Core's Category=Corpus theories

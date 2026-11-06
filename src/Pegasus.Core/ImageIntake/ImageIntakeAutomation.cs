@@ -80,12 +80,14 @@ public interface IImageIntakeAutomation
     Task<ImageIntakeAutomationOutcome> ApplyAsync(IntakeReceipt receipt, CancellationToken cancellationToken);
 
     /// <summary>
-    /// The one registration the photographs inside an e-mail's PDF read, text
-    /// layer or images only, for mail linking (operator, 28 October 2026,
-    /// R474); null when the e-mail is not filed as a file, or its PDF's
+    /// The one registration an e-mail's photographs read for mail linking:
+    /// those inside its PDF, text layer or images only (operator, 28 October
+    /// 2026, R474), and those attached beside it (6 November 2026, R731).
+    /// It also reads a photos-only e-mail the pipeline classified (R731,
+    /// "Also photos-only mail"). Null when the e-mail is neither, or its
     /// photographs read none or disagree.
     /// </summary>
-    Task<string?> ReadMailedPdfPhotographsAsync(IntakeReceipt receipt, CancellationToken cancellationToken);
+    Task<string?> ReadMailedPhotographsAsync(IntakeReceipt receipt, CancellationToken cancellationToken);
 }
 
 public sealed class ImageIntakeAutomation(
@@ -102,7 +104,8 @@ public sealed class ImageIntakeAutomation(
     IAutomaticCaseAssociationStore associationStore,
     IIntakeSubmissionGroupStore? groupStore = null,
     ICaseStaffNotifier? caseNotifier = null,
-    RecordedVehicleCaptureReading? captureReadings = null) : IImageIntakeAutomation
+    RecordedVehicleCaptureReading? captureReadings = null,
+    Pegasus.Core.Triage.ITriageQueries? triageQueries = null) : IImageIntakeAutomation
 {
     public const string ActorId = "image-intake-automation";
     public const string MatchPolicyKey = "image_registration_match";
@@ -116,10 +119,18 @@ public sealed class ImageIntakeAutomation(
         ArgumentNullException.ThrowIfNull(receipt);
         if (ImageIntakeLifecycleRules.IsPhotographReadEligible(receipt))
         {
-            // An e-mail's PDF photographs were read before mail linking (R474).
+            // An e-mail's photographs were read before mail linking (R474, R731).
             return receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
                 ? await ReadFiledUploadPhotographsAsync(receipt, cancellationToken)
                 : new(receipt);
+        }
+
+        if (ImageIntakeLifecycleRules.IsTriageRequestPhotographReadEligible(receipt))
+        {
+            // After Triage opening, on the first pass and on replay alike, so
+            // a request that opened its Triage is known and not read (R732).
+            await ReadTriageRequestPhotographsAsync(receipt, cancellationToken);
+            return new(receipt);
         }
 
         if (!ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt)
@@ -230,28 +241,52 @@ public sealed class ImageIntakeAutomation(
     }
 
     /// <summary>
-    /// An e-mail filed as a file has the photographs inside its PDF read, and
-    /// every one gets its durable recognition outcome; the one registration
-    /// they agree on is a mail-linking signal (operator, 28 October 2026,
-    /// R474). Only the PDF's photographs are read: R474 names them, and a
-    /// photograph attached beside the PDF is filed with it, never read. The
-    /// read itself registers, links and holds nothing.
+    /// A Triage request that opened no Triage has its photographs read and
+    /// every read recorded, for the classifier agent (operator, 6 November
+    /// 2026, R732). Nothing is returned: the read feeds neither mail linking
+    /// nor Triage opening (R588). Without a Triage read to ask, it is not read.
     /// </summary>
-    public async Task<string?> ReadMailedPdfPhotographsAsync(
+    private async Task ReadTriageRequestPhotographsAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (triageQueries is null
+            || await triageQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken) is not null)
+        {
+            return;
+        }
+
+        await ScanAsync(
+            receipt,
+            ImageIntakeLifecycleRules.MailedPhotographCandidates(receipt),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// An e-mail filed as a file has the photographs inside its PDF read
+    /// (operator, 28 October 2026, R474) and those attached beside it
+    /// (6 November 2026, R731), and so does a photos-only e-mail the pipeline
+    /// classified (R731, "Also photos-only mail"). Every photograph gets its
+    /// durable recognition outcome; the one registration they agree on is a
+    /// mail-linking signal. The read itself registers, links and holds
+    /// nothing.
+    /// </summary>
+    public async Task<string?> ReadMailedPhotographsAsync(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(receipt);
         if (receipt.SourceIdentity.Channel != IntakeSourceChannel.Mailbox
-            || !ImageIntakeLifecycleRules.IsPhotographReadEligible(receipt))
+            || !(ImageIntakeLifecycleRules.IsPhotographReadEligible(receipt)
+                || ImageIntakeLifecycleRules.IsPhotographOnlyMailReadEligible(receipt)))
         {
             return null;
         }
 
-        // An image the reader took from a PDF page.
+        // The selection keeps only the photographs among the candidates.
         var suggestions = await ScanAsync(
             receipt,
-            receipt.AssetRecords.Where(asset => asset is { Kind: IntakeAssetKind.EmbeddedImage, PageNumber: not null }),
+            ImageIntakeLifecycleRules.MailedPhotographCandidates(receipt),
             cancellationToken);
         return VrmRecognitionProvisionalBar.SingleAcceptedRegistration(suggestions);
     }

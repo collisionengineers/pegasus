@@ -65,7 +65,12 @@ is not offered on a Triage Case.
   material as Triage with **Open the Triage** on the message classified, or
   corrected to, Triage request; the Automation Actor does so with
   `pegasus_intake_action` `open_triage`, and a correction to Triage request
-  opens nothing by itself (operator, 22 October 2026; R223);
+  opens nothing by itself (operator, 22 October 2026; R223); the classifier
+  agent does so for a Triage request with no Case when the registration is
+  written in the e-mail's subject, body or an attachment's extracted text, or
+  Pegasus's plate reader agreed on it in the e-mail's photographs
+  ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction);
+  operator, 4 and 6 November 2026, R729, R730, R732);
 - an authorised staff member chooses Triage in **Create case**, giving only
   the Principal and the registration.
 

@@ -546,6 +546,77 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         Assert.All(detail.Attachments, attachment => Assert.Null(attachment.IntakeAssetId));
     }
 
+    /// <summary>
+    /// The attachment-text read takes the one attachment's row, cut in SQL at
+    /// one character past the caller's cap; the body row and the other
+    /// attachments' text are not read (#1917).
+    /// </summary>
+    [Fact]
+    public async Task AttachmentTextReadsOnlyTheAskedAttachmentsRowCutAtTheCap()
+    {
+        const string wordMediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        const string secondText = "Second attachment text.";
+        var database = await shared.FreshAsync();
+        await SeedPollStateAsync(database);
+        var message = Message("attachment-text") with
+        {
+            Metadata = Message("attachment-text").Metadata with
+            {
+                Attachments =
+                [
+                    new("first.pdf", "application/pdf", 11),
+                    new("second.docx", wordMediaType, 22),
+                    new("third.pdf", "application/pdf", 33)
+                ]
+            }
+        };
+        await RetainAsync(database, message);
+        await using (var context = await database.CreateContextAsync())
+        {
+            var receipt = Receipt(Guid.NewGuid(), message.ExternalReceiptToken);
+            receipt.SourceChannel = "mailbox";
+            receipt.SearchDocuments.AddRange(
+            [
+                new IntakeSearchDocumentEntity
+                {
+                    Id = Guid.NewGuid(),
+                    IntakeReceiptId = receipt.Id,
+                    IntakeReceipt = receipt,
+                    Ordinal = 0,
+                    SourceLabel = "message body",
+                    Text = "The body text."
+                },
+                SearchDocument(receipt, 1, "message, attachment 1", "first.pdf", "First attachment text.", 0),
+                SearchDocument(receipt, 2, "message, attachment 2", "second.docx", secondText, 1),
+                SearchDocument(receipt, 3, "message, attachment 3", "third.pdf", "Third attachment text.", 2)
+            ]);
+            context.IntakeReceipts.Add(receipt);
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var messageId = await RetainedIdAsync(database, message);
+        var automation = ActionActor.Automation("pegasus-automation");
+        var attachmentText = scope.ServiceProvider.GetRequiredService<GetRetainedMailAttachmentText>();
+
+        Assert.Equal(
+            new RetainedMailAttachmentTextRead(3, "second.docx", wordMediaType, "Second "),
+            await scope.ServiceProvider
+                .GetRequiredService<IRetainedMailQueries>()
+                .ReadAttachmentTextAsync(messageId, 1, 6, CancellationToken.None));
+        Assert.Equal(
+            new RetainedMailAttachmentText(1, "second.docx", wordMediaType, "Second", true),
+            await attachmentText.ExecuteAsync(automation, messageId, 1, 6));
+        // Exactly the cap is the whole text, not truncated.
+        Assert.Equal(
+            new RetainedMailAttachmentText(1, "second.docx", wordMediaType, secondText, false),
+            await attachmentText.ExecuteAsync(automation, messageId, 1, secondText.Length));
+        Assert.Equal(
+            "Third attachment text.",
+            (await attachmentText.ExecuteAsync(automation, messageId, 2))?.Text);
+        Assert.Null(await attachmentText.ExecuteAsync(automation, Guid.NewGuid(), 0));
+    }
+
     [Fact]
     public async Task OriginMailboxReceiptResolvesItsExactRetainedMessage()
     {
@@ -1022,6 +1093,107 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         Assert.Equal([4, 4, 0, 1, 4, 0], batchCounts);
         Assert.Equal(batchCounts[1], batchCounts[4]);
         Assert.Equal(0, batchCounts[5]);
+    }
+
+    /// <summary>
+    /// The count the classifier agent compares its scan with (#1892): Inbox
+    /// mail the pipeline decided that is Unclassified or holds no Case, read
+    /// outside the workspace scopes. A staff or Automation decision, a
+    /// classified Case-linked message, a Sent item, a dismissed message and an
+    /// unreceipted one are not counted; each step below removes one.
+    /// </summary>
+    [Fact]
+    public async Task TheAwaitingDecisionCountIsPipelineDecidedInboxMailThatIsUnclassifiedOrHoldsNoCase()
+    {
+        var database = await shared.FreshAsync();
+        await SeedPollStateAsync(database);
+        var (caseId, otherCaseId) = await SeedQueryCasesAsync(database);
+        var unclassified = MailClassificationResult.Unclassified([], "fixture", "test", 1);
+        var cancellation = MailClassificationResult.Classified(
+            MailCategory.Cancellation, [], "fixture", "test", 1);
+        var instruction = MailClassificationResult.Classified(
+            MailCategory.NewInstruction, [], "fixture", "test", 1);
+        var staffDecided = Message("awaiting-staff");
+        var automationDecided = Message("awaiting-automation");
+        var linkedClassified = Message("awaiting-linked");
+        var linkedUnclassified = Message("awaiting-linked-unclassified");
+        var dismissed = Message("awaiting-dismissed");
+        (RetainedMailboxMessage Message, MailClassificationResult? Classification)[] fixtures =
+        [
+            (Message("awaiting-unclassified"), unclassified),
+            (Message("awaiting-caseless"), cancellation),
+            (staffDecided, unclassified),
+            (automationDecided, unclassified),
+            (linkedClassified, instruction),
+            (linkedUnclassified, unclassified),
+            (dismissed, unclassified),
+            (Message("awaiting-sent") with { Folder = MailFolderScope.Sent }, unclassified),
+            (Message("awaiting-unreceipted"), null)
+        ];
+        foreach (var (message, classification) in fixtures)
+        {
+            await RetainAsync(database, message);
+            if (classification is not null)
+            {
+                await StoreClassifiedReceiptAsync(database, message, classification);
+            }
+        }
+
+        async Task<int> AwaitingCountAsync()
+        {
+            await using var scope = database.CreateAsyncScope();
+            return await scope.ServiceProvider
+                .GetRequiredService<IRetainedMailQueries>()
+                .CountAwaitingAutomationDecisionAsync(CancellationToken.None);
+        }
+
+        async Task CorrectAsync(RetainedMailboxMessage message, ActionActor actor)
+        {
+            await using var scope = database.CreateAsyncScope();
+            await scope.ServiceProvider
+                .GetRequiredService<IRetainedMailClassificationStore>()
+                .AppendCorrectionAsync(
+                    await RetainedIdAsync(database, message),
+                    1,
+                    unclassified,
+                    cancellation,
+                    actor,
+                    "Decided outside the pipeline.",
+                    ReceivedAtUtc.AddMinutes(10),
+                    CancellationToken.None);
+        }
+
+        // Every Inbox message with a pipeline decision: not the Sent item, not
+        // the unreceipted one.
+        Assert.Equal(7, await AwaitingCountAsync());
+        await CorrectAsync(staffDecided, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]));
+        Assert.Equal(6, await AwaitingCountAsync());
+        await CorrectAsync(automationDecided, ActionActor.Automation("pegasus-automation"));
+        Assert.Equal(5, await AwaitingCountAsync());
+
+        // A Case-linked message leaves the count unless it is Unclassified.
+        await using (var context = await database.CreateContextAsync())
+        {
+            var receipts = await context.IntakeReceipts
+                .Where(item => item.SourceChannel == "mailbox")
+                .ToDictionaryAsync(item => item.ExternalReceiptToken, StringComparer.Ordinal);
+            AddAssociation(context, receipts[linkedClassified.ExternalReceiptToken], caseId, true);
+            AddAssociation(context, receipts[linkedUnclassified.ExternalReceiptToken], otherCaseId, true);
+            await context.SaveChangesAsync();
+        }
+        Assert.Equal(4, await AwaitingCountAsync());
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            var row = await context.RetainedMailboxMessages.SingleAsync(item =>
+                item.ImmutableMessageId == dismissed.ImmutableMessageId);
+            row.DismissedAtUtc = ReceivedAtUtc.AddMinutes(1);
+            row.DismissedBySubjectId = "fixture-staff";
+            await context.SaveChangesAsync();
+        }
+        // What stays: the Unclassified one, the classified one with no Case and
+        // the Unclassified one with a Case.
+        Assert.Equal(3, await AwaitingCountAsync());
     }
 
     [Fact]

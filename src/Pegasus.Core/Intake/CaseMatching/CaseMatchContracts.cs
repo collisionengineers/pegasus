@@ -117,8 +117,9 @@ public sealed record CaseMatchEvaluationResult(
 /// write re-reads the evidence and yields when it differs.
 /// </param>
 /// <param name="PhotographRegistration">
-/// Retained mail only: the registration the photographs inside the message's
-/// PDF read (R474), which the evidence is re-read with.
+/// Retained mail only: the registration the message's photographs read,
+/// inside its PDF or attached beside it (R474, R731), which the evidence is
+/// re-read with.
 /// </param>
 public sealed record AutomaticCaseAssociationRequest(
     Guid IntakeReceiptId,

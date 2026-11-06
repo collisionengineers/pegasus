@@ -390,8 +390,8 @@ public sealed class AutomaticImageIntakeTests
     [InlineData(IntakeSourceChannel.ManualUpload, true)]
     public async Task AFiledPdfIsReadOnlyAsAnUndeclaredManualUpload(IntakeSourceChannel channel, bool declared)
     {
-        // Mail reads its PDF's photographs before mail linking, not here
-        // (R474), and a declared destination needs no identification (FRD-18).
+        // Mail reads its photographs before mail linking, not here (R474,
+        // R731), and a declared destination needs no identification (FRD-18).
         var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
         var photograph = Asset(
             "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
@@ -411,42 +411,162 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
-    public async Task AMailedPdfsPhotographsAreReadForMailLinkingAndItsLoosePhotographIsNot()
+    public async Task AMailedPdfsPhotographsAndThoseBesideItAreReadForMailLinking()
     {
         // An e-mail carrying a PDF is filed as a file; the plate the
         // photographs inside the PDF read is a mail-linking signal (operator,
-        // 28 October 2026, R474). R474 names the PDF's photographs, so the
-        // photograph attached beside it is not read. The read itself
-        // registers, links and holds nothing.
+        // 28 October 2026, R474), and so is the plate of a photograph attached
+        // beside it (6 November 2026, R731). Every read is recorded, and the
+        // read itself registers, links and holds nothing.
         var email = Asset("vehicle-images.eml", "message/rfc822", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
         var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment);
         var photograph = Asset(
             "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
             IntakeAssetDisposition.Embedded, contentLength: 26_700, width: 576, height: 768, pageNumber: 1);
-        var loose = Asset(
+        var beside = Asset(
             "vehicle.jpg", "image/jpeg", IntakeAssetKind.Attachment,
             IntakeAssetDisposition.Attachment, width: 800, height: 600);
         var harness = new Harness(
             sourceChannel: IntakeSourceChannel.Mailbox,
-            retainedAssets: [email, pdf, photograph, loose],
+            retainedAssets: [email, pdf, photograph, beside],
             evidence: [FiledDocument()]);
         harness.Engine.Enqueue(Suggested("SH65HTL", 0.95));
+        harness.Engine.Enqueue(Suggested("SH65HTL", 0.95));
 
-        var registration = await harness.ReadMailedPdfPhotographsAsync();
+        var registration = await harness.ReadMailedPhotographsAsync();
 
         Assert.Equal("SH65HTL", registration);
-        Assert.Equal(1, harness.Engine.Calls);
-        Assert.Equal(photograph.Id, Assert.Single(harness.SuggestionStore.Records).IntakeAssetId);
+        Assert.Equal(2, harness.Engine.Calls);
+        Assert.Equal(
+            new[] { beside.Id, photograph.Id }.Order().ToArray(),
+            harness.SuggestionStore.Records.Select(record => record.IntakeAssetId).Order().ToArray());
         Assert.Empty(harness.Register.Requests);
         Assert.Empty(harness.AssociationStore.Requests);
         Assert.Empty(harness.MutationStore.AutoLinks);
 
         // Image automation does not read the e-mail a second time.
         var outcome = await harness.ApplyAsync();
-        Assert.Equal(1, harness.Engine.Calls);
+        Assert.Equal(2, harness.Engine.Calls);
         Assert.False(outcome.AssociatedCase);
         Assert.Null(outcome.UnidentifiedGroup);
     }
+
+    [Fact]
+    public async Task APhotographBesideAMailedPdfThatReadsAnotherPlateLeavesNoRegistration()
+    {
+        // The beside photograph joins the PDF's in the one agreement (R731):
+        // two plates disagree, so mail linking has no registration from them.
+        var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment);
+        var photograph = Asset(
+            "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 26_700, width: 576, height: 768, pageNumber: 1);
+        var beside = Asset(
+            "vehicle.jpg", "image/jpeg", IntakeAssetKind.Attachment,
+            IntakeAssetDisposition.Attachment, width: 800, height: 600);
+        var harness = new Harness(
+            sourceChannel: IntakeSourceChannel.Mailbox,
+            retainedAssets: [pdf, photograph, beside],
+            evidence: [FiledDocument()]);
+        harness.Engine.Enqueue(Suggested("SH65HTL", 0.95));
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+
+        Assert.Null(await harness.ReadMailedPhotographsAsync());
+        Assert.Equal(2, harness.SuggestionStore.Records.Count);
+        Assert.Equal(
+            ["AB12CDE", "SH65HTL"],
+            VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(harness.SuggestionStore.Records)
+                .Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task ATriageRequestThatOpenedNoTriageHasItsPhotographsReadAndRecordedOnly()
+    {
+        // The Worker reads a Triage request's photographs once Triage opening
+        // has run and records the reads for the classifier agent (operator,
+        // 6 November 2026, R732). The read opens no Triage, links nothing and
+        // gives mail linking nothing: the request stays in No Case Found (R588).
+        var harness = PhotosOnlyMail(TriageRequest());
+        harness.Engine.Enqueue(Suggested("SH65HTL", 0.95));
+
+        Assert.Null(await harness.ReadMailedPhotographsAsync());
+        Assert.Equal(0, harness.Engine.Calls);
+
+        var outcome = await harness.ApplyAsync();
+
+        Assert.Equal(1, harness.Engine.Calls);
+        var read = Assert.Single(harness.SuggestionStore.Records);
+        Assert.Equal("SH65HTL", read.SuggestedRegistration);
+        Assert.Equal(harness.Receipt.Id, Assert.Single(harness.TriageQueries.OriginReads));
+        Assert.Same(harness.Receipt, outcome.Receipt);
+        Assert.False(outcome.AssociatedCase);
+        Assert.False(outcome.WaitsInNoCaseFound);
+        Assert.Null(outcome.UnidentifiedGroup);
+        Assert.Empty(harness.Register.Requests);
+        Assert.Empty(harness.AssociationStore.Requests);
+        Assert.Empty(harness.MutationStore.AutoLinks);
+    }
+
+    [Fact]
+    public async Task ATriageRequestThatOpenedItsTriageIsNotRead()
+    {
+        var harness = PhotosOnlyMail(TriageRequest());
+        harness.TriageQueries.SummariesByOriginReceipt[harness.Receipt.Id] = new(
+            Guid.NewGuid(), "SH65HTL", Pegasus.Core.Triage.TriageState.Open, null, null,
+            DateTimeOffset.UtcNow, 0, "t.QDOS26001", "QDOS");
+
+        await harness.ApplyAsync();
+
+        Assert.Equal(0, harness.Engine.Calls);
+        Assert.Empty(harness.SuggestionStore.Records);
+    }
+
+    [Fact]
+    public async Task AClassifiedPhotosOnlyEmailWithNoCaseIsReadForMailLinking()
+    {
+        // An e-mail that carries photographs instead of a PDF and that the
+        // pipeline classified has them read like a filed e-mail's, and the
+        // plate they agree on is a mail-linking signal (operator, 6 November
+        // 2026, R731, "Also photos-only mail"). Image automation leaves it.
+        var harness = PhotosOnlyMail(MailClassificationResult.Classified(
+            MailCategory.Cancellation, [], "The mailbox classifier identified a cancellation.", "test", 1));
+        harness.Engine.Enqueue(Suggested("SH65HTL", 0.95));
+
+        Assert.Equal("SH65HTL", await harness.ReadMailedPhotographsAsync());
+        Assert.Equal(1, harness.Engine.Calls);
+        Assert.Single(harness.SuggestionStore.Records);
+
+        var outcome = await harness.ApplyAsync();
+        Assert.Equal(1, harness.Engine.Calls);
+        Assert.Null(outcome.UnidentifiedGroup);
+        Assert.Empty(harness.Register.Requests);
+        Assert.Empty(harness.AssociationStore.Requests);
+    }
+
+    [Fact]
+    public async Task AnUnclassifiedPhotosOnlyEmailIsLeftToImageAutomation()
+    {
+        // Unclassified mail of photographs is image automation's own route,
+        // so the mail-linking read does not read it as well.
+        var harness = PhotosOnlyMail(MailClassificationResult.Unclassified([], "No category matched.", "test", 1));
+
+        Assert.Null(await harness.ReadMailedPhotographsAsync());
+        Assert.Equal(0, harness.Engine.Calls);
+        Assert.Empty(harness.SuggestionStore.Records);
+    }
+
+    /// <summary>An e-mail whose only evidence is one photograph attached to it.</summary>
+    private static Harness PhotosOnlyMail(MailClassificationResult classification) => new(
+        sourceChannel: IntakeSourceChannel.Mailbox,
+        retainedAssets:
+        [
+            Asset("vehicle-images.eml", "message/rfc822", IntakeAssetKind.Source, IntakeAssetDisposition.Source),
+            Asset("vehicle.jpg", "image/jpeg", IntakeAssetKind.Attachment,
+                IntakeAssetDisposition.Attachment, width: 800, height: 600)
+        ],
+        classification: classification);
+
+    private static MailClassificationResult TriageRequest() => MailClassificationResult.Classified(
+        MailCategory.TriageRequest, [], "The mailbox classifier identified a Triage request.", "test", 1);
 
     private static readonly string[] TwoPdfPhotographs = ["page-1-image-1.jpg", "page-1-image-2.jpg"];
 
@@ -482,7 +602,7 @@ public sealed class AutomaticImageIntakeTests
             harness.Engine.Enqueue(Suggested(read, 0.95));
         }
 
-        var registration = await harness.ReadMailedPdfPhotographsAsync();
+        var registration = await harness.ReadMailedPhotographsAsync();
 
         Assert.True(registration is null, $"{row}: read {registration}.");
         Assert.Equal(expectedReads, harness.Engine.Calls);
@@ -1377,7 +1497,8 @@ public sealed class AutomaticImageIntakeTests
             string? printedRegistration = null,
             IReadOnlyList<IntakeEvidence>? evidence = null,
             Guid? declaredCaseId = null,
-            int expectedMemberCount = 1)
+            int expectedMemberCount = 1,
+            MailClassificationResult? classification = null)
         {
             var assets = retainedAssets?.ToArray() ?? Enumerable.Range(0, assetCount)
                 .Select(index =>
@@ -1431,6 +1552,7 @@ public sealed class AutomaticImageIntakeTests
                 assets,
                 ManualLinkedCaseId: manualLinkedCaseId,
                 ManualAssociationVersion: manualLinkedCaseId is null ? null : 0,
+                MailClassificationDecision: classification,
                 DeclaredCaseId: declaredCaseId);
             foreach (var asset in assets)
             {
@@ -1475,6 +1597,7 @@ public sealed class AutomaticImageIntakeTests
                 TimeProvider.System,
                 AssociationStore,
                 inGroup ? GroupStore : null,
+                triageQueries: TriageQueries,
                 captureReadings: printedRegistration is null
                     ? null
                     : new RecordedVehicleCaptureReading(new VehicleCaptureFixture.Analyses().Record(
@@ -1507,6 +1630,8 @@ public sealed class AutomaticImageIntakeTests
 
         public FakeReceiptQueries ReceiptQueries { get; } = new();
 
+        public Pegasus.Core.Tests.Intake.ReconcileUnidentifiedDestinationsTests.FakeTriageQueries TriageQueries { get; } = new();
+
         public ImageIntakeAutomation Automation { get; }
 
         public Task<ImageIntakeAutomationOutcome> ApplyAsync()
@@ -1520,8 +1645,8 @@ public sealed class AutomaticImageIntakeTests
             return Automation.ApplyAsync(Receipt, CancellationToken.None);
         }
 
-        public Task<string?> ReadMailedPdfPhotographsAsync() =>
-            Automation.ReadMailedPdfPhotographsAsync(Receipt, CancellationToken.None);
+        public Task<string?> ReadMailedPhotographsAsync() =>
+            Automation.ReadMailedPhotographsAsync(Receipt, CancellationToken.None);
     }
 
     private sealed class FakeEngine : IVrmRecognitionEngine

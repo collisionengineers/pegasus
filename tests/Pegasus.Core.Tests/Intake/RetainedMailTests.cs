@@ -4,6 +4,7 @@ using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Notifications;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Intake;
@@ -712,6 +713,83 @@ public sealed class RetainedMailTests
             GetRetainedMailFreshness.Evaluate(
                 [new(MailboxA, null, null, NowUtc)],
                 NowUtc));
+    /// <summary>
+    /// The photo registrations read back what the Worker recorded: one agreed
+    /// read at the bar, none, or a disagreement; a read below the bar is none
+    /// (R730 to R732). Nothing is recognised or written.
+    /// </summary>
+    [Theory]
+    [InlineData("", RetainedMailPhotoReadState.None, null, 0)]
+    [InlineData("SH65HTL:0.95|SH65HTL:0.91", RetainedMailPhotoReadState.Read, "SH65HTL", 1)]
+    [InlineData("SH65HTL:0.95|AB12CDE:0.95", RetainedMailPhotoReadState.Disagree, null, 2)]
+    [InlineData("SH65HTL:0.95|AB12CDE:0.40", RetainedMailPhotoReadState.Read, "SH65HTL", 1)]
+    public async Task PhotoRegistrationsAreTheRecordedReadsAtTheAcceptedBar(
+        string reads,
+        RetainedMailPhotoReadState expectedState,
+        string? expectedRegistration,
+        int expectedReadCount)
+    {
+        var receiptId = Guid.NewGuid();
+        var detail = Detail(
+            "mailbox-a",
+            new(1, MailClassificationResult.Unclassified([], "Fixture.", "test", 1),
+                "system-worker:poll", NowUtc, []));
+        detail = detail with { Summary = detail.Summary with { IntakeReceiptId = receiptId } };
+        var queries = new Queries { DetailToReturn = detail };
+        var suggestions = new RecordedSuggestions(
+            receiptId, reads.Split('|', StringSplitOptions.RemoveEmptyEntries));
+        var photoRegistrations = new GetRetainedMailPhotoRegistrations(queries, suggestions);
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            photoRegistrations.ExecuteAsync(ActionActor.Principal(Guid.NewGuid()), detail.Summary.Id));
+        var result = Assert.IsType<RetainedMailPhotoRegistrations>(
+            await photoRegistrations.ExecuteAsync(Caseworker(), detail.Summary.Id));
+
+        Assert.Equal(expectedState, result.State);
+        Assert.Equal(expectedRegistration, result.Registration);
+        Assert.Equal(expectedReadCount, result.ReadRegistrations.Count);
+        Assert.Equal(0, suggestions.Writes);
+
+        queries.DetailToReturn = null;
+        Assert.Null(await photoRegistrations.ExecuteAsync(Caseworker(), detail.Summary.Id));
+    }
+
+    private sealed class RecordedSuggestions(Guid receiptId, string[] reads) : IVrmSuggestionStore
+    {
+        internal int Writes { get; private set; }
+
+        public Task<ImageVrmSuggestion> RecordAsync(
+            ImageVrmSuggestionDraft draft,
+            CancellationToken cancellationToken)
+        {
+            Writes++;
+            throw new NotSupportedException();
+        }
+
+        public Task<IReadOnlyList<ImageVrmSuggestion>> ListForReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ImageVrmSuggestion>>(intakeReceiptId != receiptId
+                ? []
+                : reads.Select(read => read.Split(':')).Select(parts => new ImageVrmSuggestion(
+                    Guid.NewGuid(), receiptId, Guid.NewGuid(), "storage", new string('a', 64),
+                    "fast-alpr-onnx", "1", string.Empty, VrmRecognitionOutcomeKind.Suggested,
+                    parts[0], double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture),
+                    null, null, NowUtc, ImageVrmSuggestionDisposition.Pending, null, null, null)).ToArray());
+
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>> ListForReceiptsAsync(
+            IReadOnlyCollection<Guid> intakeReceiptIds,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ImageVrmSuggestion> SetDispositionAsync(
+            ImageVrmSuggestionDispositionRequest request,
+            CancellationToken cancellationToken)
+        {
+            Writes++;
+            throw new NotSupportedException();
+        }
+    }
 
     private static ActionActor Caseworker() =>
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
@@ -841,6 +919,16 @@ public sealed class RetainedMailTests
         public Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<MailPollHealth>>([]);
+
+        public Task<RetainedMailAttachmentTextRead?> ReadAttachmentTextAsync(
+            Guid id,
+            int attachmentOrdinal,
+            int maximumCharacters,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<int> CountAwaitingAutomationDecisionAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
 

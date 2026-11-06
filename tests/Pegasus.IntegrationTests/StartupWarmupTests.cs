@@ -1105,6 +1105,13 @@ public sealed class StartupWarmupTests
             string externalReceiptToken, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<RetainedMailAttachmentTextRead?> ReadAttachmentTextAsync(
+            Guid id, int attachmentOrdinal, int maximumCharacters, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<int> CountAwaitingAutomationDecisionAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task WarmAsync(CancellationToken cancellationToken = default)
         {
             Note("renderer");

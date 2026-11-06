@@ -1468,7 +1468,7 @@ public sealed class QdosAllocationRecoveryTests
             return Task.FromResult(new ImageIntakeAutomationOutcome(receipt));
         }
 
-        public Task<string?> ReadMailedPdfPhotographsAsync(IntakeReceipt receipt, CancellationToken cancellationToken) =>
+        public Task<string?> ReadMailedPhotographsAsync(IntakeReceipt receipt, CancellationToken cancellationToken) =>
             Task.FromResult<string?>(null);
     }
 

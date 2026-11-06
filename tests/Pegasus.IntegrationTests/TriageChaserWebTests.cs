@@ -1379,6 +1379,13 @@ public sealed partial class QdosTriageIntegrationTests
         public Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(
             CancellationToken cancellationToken) =>
             inner.ListPollHealthAsync(cancellationToken);
+
+        public Task<RetainedMailAttachmentTextRead?> ReadAttachmentTextAsync(
+            Guid id, int attachmentOrdinal, int maximumCharacters, CancellationToken cancellationToken) =>
+            inner.ReadAttachmentTextAsync(id, attachmentOrdinal, maximumCharacters, cancellationToken);
+
+        public Task<int> CountAwaitingAutomationDecisionAsync(CancellationToken cancellationToken) =>
+            inner.CountAwaitingAutomationDecisionAsync(cancellationToken);
     }
 
     private sealed class RecordingStaffMailSend : IStaffMailSend

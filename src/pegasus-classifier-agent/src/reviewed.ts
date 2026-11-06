@@ -5,11 +5,15 @@
 //
 // One row per message, replaced whole on every write:
 //   fingerprint  what the message's list row said when the agent last looked
-//   outcome      reviewed: looked at, and dealt with or left alone
-//                failed:   a write kept failing; given up, never retried
-//                retrying: a write failed this many runs; looked at again
-//   attempts     runs in which a write to the message failed, at that
-//                fingerprint
+//   outcome      reviewed: looked at, and dealt with or deliberately left
+//                failed:   no verdict in MaxFailedAttempts runs; given up
+//                          until the message changes
+//                retrying: no verdict yet; looked at again next run
+//   attempts     runs in which a write to the message failed, or that left
+//                it without a verdict, at that fingerprint
+//
+// One more row, partition meta, row hidden-ticks: how many runs in a row
+// listed no candidate while Pegasus counted mail awaiting a decision (#1892).
 
 import { TableClient } from "@azure/data-tables";
 import { ManagedIdentityCredential } from "@azure/identity";
@@ -25,6 +29,9 @@ export interface ReviewedRecord {
 export interface ReviewedStore {
   get(messageId: string): Promise<ReviewedRecord | undefined>;
   set(messageId: string, record: ReviewedRecord): Promise<void>;
+  /** Consecutive runs that found the list hiding mail; 0 when none. */
+  hiddenTicks(): Promise<number>;
+  setHiddenTicks(ticks: number): Promise<void>;
 }
 
 /** Looked at, with nothing left to do, and the message reads the same now. */
@@ -43,6 +50,8 @@ export function attemptsAt(record: ReviewedRecord | undefined, fingerprint: stri
 }
 
 const Partition = "mail";
+const MetaPartition = "meta";
+const HiddenTicksRow = "hidden-ticks";
 
 export class TableReviewedStore implements ReviewedStore {
   private readonly table: TableClient;
@@ -69,6 +78,22 @@ export class TableReviewedStore implements ReviewedStore {
   async set(messageId: string, record: ReviewedRecord): Promise<void> {
     await this.table.upsertEntity({ partitionKey: Partition, rowKey: messageId, ...record }, "Replace");
   }
+
+  async hiddenTicks(): Promise<number> {
+    try {
+      const entity = await this.table.getEntity<{ ticks: number }>(MetaPartition, HiddenTicksRow);
+      return entity.ticks;
+    } catch (error) {
+      if ((error as { statusCode?: number }).statusCode === 404) {
+        return 0;
+      }
+      throw error;
+    }
+  }
+
+  async setHiddenTicks(ticks: number): Promise<void> {
+    await this.table.upsertEntity({ partitionKey: MetaPartition, rowKey: HiddenTicksRow, ticks }, "Replace");
+  }
 }
 
 export class MemoryReviewedStore implements ReviewedStore {
@@ -80,5 +105,15 @@ export class MemoryReviewedStore implements ReviewedStore {
 
   async set(messageId: string, record: ReviewedRecord): Promise<void> {
     this.entries.set(messageId, { ...record });
+  }
+
+  private ticks = 0;
+
+  async hiddenTicks(): Promise<number> {
+    return this.ticks;
+  }
+
+  async setHiddenTicks(ticks: number): Promise<void> {
+    this.ticks = ticks;
   }
 }

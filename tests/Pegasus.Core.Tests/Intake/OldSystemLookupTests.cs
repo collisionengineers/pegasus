@@ -29,7 +29,8 @@ public sealed class OldSystemLookupTests
         await new SearchOldSystemCaseFolders(folders).ExecuteAsync(Automation, "  QDOS26070 ", 10);
         await new SearchApprovedMailboxes(mailboxes).ExecuteAsync(Automation, null, " AB12 CDE ", 25);
 
-        Assert.Equal(("QDOS26070", 10), Assert.Single(folders.Terms));
+        // A reference-shaped term asks the source for the full cap (#1917).
+        Assert.Equal(("QDOS26070", OldSystemLookupBounds.MaximumItems), Assert.Single(folders.Terms));
         Assert.Equal(("AB12 CDE", 25), Assert.Single(mailboxes.Terms));
         await new SearchOldSystemCaseFolders(folders).ExecuteAsync(
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), "QDOS26070");
@@ -147,6 +148,34 @@ public sealed class OldSystemLookupTests
         Assert.Equal(OldSystemLookupState.Available, result.State);
     }
 
+    // #1917: the source's first hits may all be near-misses, so the filter
+    // runs before the caller's cap rather than after the source's.
+    [Fact]
+    public async Task TheExactFolderIsFoundBehindTheCallersCapOfNearMisses()
+    {
+        var folders = new RecordingFolderSearch
+        {
+            Hits = [.. Enumerable.Range(0, 10).Select(index => $"QDOS26112{index}"), "a.QDOS26112 Smith"],
+        };
+
+        var result = await new SearchOldSystemCaseFolders(folders).ExecuteAsync(Automation, "QDOS26112", 10);
+
+        Assert.Equal("a.QDOS26112 Smith", Assert.Single(result.Items).Name);
+        Assert.False(result.IsTruncated);
+        Assert.Equal(("QDOS26112", OldSystemLookupBounds.MaximumItems), Assert.Single(folders.Terms));
+    }
+
+    [Fact]
+    public async Task MoreMatchesThanTheCallersCapAreReportedTruncated()
+    {
+        var folders = new RecordingFolderSearch { Hits = ["QDOS26112", "a.QDOS26112 Smith", "QDOS26112 Jones"] };
+
+        var result = await new SearchOldSystemCaseFolders(folders).ExecuteAsync(Automation, "QDOS26112", 2);
+
+        Assert.Equal(new[] { "QDOS26112", "a.QDOS26112 Smith" }, result.Items.Select(folder => folder.Name).ToArray());
+        Assert.True(result.IsTruncated);
+    }
+
     [Fact]
     public void AMailboxSearchIsAvailableWhenAnyMailboxAnswered()
     {
@@ -172,10 +201,11 @@ public sealed class OldSystemLookupTests
             CancellationToken cancellationToken)
         {
             Terms.Add((term, maximumItems));
+            // Honours the count asked for, as Box's limit does.
             return Task.FromResult(new OldSystemCaseFolderSearchResult(
-                Hits.Select((name, index) => new OldSystemCaseFolder(
+                Hits.Take(maximumItems).Select((name, index) => new OldSystemCaseFolder(
                     index.ToString(System.Globalization.CultureInfo.InvariantCulture), name, null)).ToArray(),
-                IsTruncated));
+                IsTruncated || Hits.Length > maximumItems));
         }
     }
 

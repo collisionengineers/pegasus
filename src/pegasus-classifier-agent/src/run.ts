@@ -17,17 +17,42 @@ import {
   TableReviewedStore,
   type ReviewedStore,
 } from "./reviewed.js";
-import { createClassifierServer, ServerName, ToolNames, type Candidate, type Logger } from "./tools.js";
+import {
+  createClassifierServer,
+  newOutcomes,
+  ServerName,
+  ToolNames,
+  type Candidate,
+  type Logger,
+  type RunOutcomes,
+} from "./tools.js";
 
 const RunTimeLimitMs = 12 * 60 * 1000;
 
 // A message whose write failed, or that a completed run gave no verdict, is
 // looked at again on the next run. After this many such runs, with the
 // message unchanged, it is closed as failed and not looked at again unless it
-// changes.
-const MaxFailedAttempts = 3;
+// changes. A message left while the lookups were unavailable counts no run.
+export const MaxFailedAttempts = 3;
 
 const NoVerdict = "no verdict in a completed run";
+
+// Runs in a row that list no candidate while Pegasus counts mail awaiting a
+// decision before the run's outcome reads failed: an hour at the 15-minute
+// schedule (#1892).
+export const HiddenTicksToFail = 4;
+
+/**
+ * The model's calls per e-mail: a read, an attachment read, a photo read, up
+ * to two lookups (R561), a Case search, a classification or a leave, and one
+ * of a link, a Case (R714), a Triage or a query.
+ */
+export const TurnsPerEmail = 8;
+
+/** The run's turn cap: the e-mails' calls beside the list and the closing summary. */
+export function turnBudget(batchSize: number): number {
+  return batchSize * TurnsPerEmail + 5;
+}
 
 // Host variables the Claude subprocess needs; the Windows ones serve local runs.
 const PassedThrough = ["PATH", "LANG", "PATHEXT", "SystemRoot", "ComSpec", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP"];
@@ -47,17 +72,35 @@ export interface AgentResult {
   summary: string | undefined;
 }
 
-async function collectBatch(
-  config: ClassifierConfig,
-  pegasus: PegasusMail,
+/** The scan's batch, with what it saw of the list so a hiding list shows. */
+export interface CollectedBatch {
+  batch: Map<string, Candidate>;
+  /** List rows that read as candidates, closed ones included. */
+  candidatesListed: number;
+  /** Pegasus's own count of mail awaiting a decision, from the first page. */
+  awaitingDecisionCount: number;
+}
+
+export async function collectBatch(
+  config: Pick<ClassifierConfig, "scanPages" | "batch">,
+  pegasus: Pick<PegasusMail, "list" | "get" | "linkDestinations">,
   reviewed: ReviewedStore,
-): Promise<Map<string, Candidate>> {
+): Promise<CollectedBatch> {
   const batch = new Map<string, Candidate>();
+  let candidatesListed = 0;
+  let awaitingDecisionCount = 0;
   let continuation: string | null = null;
   for (let page = 0; page < config.scanPages; page++) {
     const listed = await pegasus.list(continuation);
+    if (page === 0) {
+      awaitingDecisionCount = listed.awaitingDecisionCount ?? 0;
+    }
     for (const summary of listed.items) {
-      if (!isCandidate(summary) || isClosedAt(await reviewed.get(summary.id), fingerprint(summary))) {
+      if (!isCandidate(summary)) {
+        continue;
+      }
+      candidatesListed++;
+      if (isClosedAt(await reviewed.get(summary.id), fingerprint(summary))) {
         continue;
       }
       const detail = await pegasus.get(summary.id);
@@ -68,7 +111,7 @@ async function collectBatch(
       const destinations = detail.canLinkCase ? await pegasus.linkDestinations(summary.id) : [];
       batch.set(summary.id, { detail, destinations });
       if (batch.size >= config.batch) {
-        return batch;
+        return { batch, candidatesListed, awaitingDecisionCount };
       }
     }
     continuation = listed.continuation;
@@ -76,12 +119,86 @@ async function collectBatch(
       break;
     }
   }
-  return batch;
+  return { batch, candidatesListed, awaitingDecisionCount };
+}
+
+/**
+ * Whether this run's list hid mail Pegasus counts as awaiting a decision, and
+ * how many runs in a row it has. A run that lists a candidate resets it.
+ */
+export async function checkHidden(
+  collected: CollectedBatch,
+  reviewed: ReviewedStore,
+  log: Logger,
+): Promise<{ hidden: boolean; ticks: number }> {
+  const previous = await reviewed.hiddenTicks();
+  if (collected.candidatesListed > 0 || collected.awaitingDecisionCount === 0) {
+    if (previous !== 0) {
+      await reviewed.setHiddenTicks(0);
+    }
+    return { hidden: false, ticks: 0 };
+  }
+  const ticks = previous + 1;
+  await reviewed.setHiddenTicks(ticks);
+  log("warning: candidates hidden", {
+    awaitingDecisionCount: collected.awaitingDecisionCount,
+    consecutiveRuns: ticks,
+    reason: "the mail list showed no candidate while Pegasus counts mail the pipeline decided that is Unclassified or has no Case",
+  });
+  return { hidden: true, ticks };
+}
+
+/**
+ * Marks each message of the batch from what the run came to. A verdict marks
+ * it reviewed at what its list row reads now, after the run's own writes; a
+ * message left while the lookups were unavailable is left as it was; a failed
+ * write, or no verdict from a completed run, counts one failed attempt, and
+ * MaxFailedAttempts of them while unchanged close it as failed. A run cut
+ * short by its turn, budget or time cap writes nothing for the messages it did
+ * not reach, so they are tried again next time.
+ */
+export async function recordOutcomes(
+  batch: Map<string, Candidate>,
+  outcomes: RunOutcomes,
+  completed: boolean,
+  reviewed: ReviewedStore,
+  pegasus: Pick<PegasusMail, "get">,
+  log: Logger,
+): Promise<void> {
+  for (const { detail } of batch.values()) {
+    const messageId = detail.summary.id;
+    const seen = fingerprint(detail.summary);
+    if (outcomes.verdicts.has(messageId)) {
+      let now = seen;
+      if (outcomes.written.has(messageId)) {
+        try {
+          now = fingerprint((await pegasus.get(messageId)).summary);
+        } catch (error) {
+          log("reviewed at the listed fingerprint", { messageId, error: (error as Error).message });
+        }
+      }
+      await reviewed.set(messageId, reviewedAt(now));
+      continue;
+    }
+    if (outcomes.deferred.has(messageId)) {
+      continue;
+    }
+    const lastError = outcomes.failed.get(messageId) ?? (completed ? NoVerdict : undefined);
+    if (lastError === undefined) {
+      continue;
+    }
+    const attempts = attemptsAt(await reviewed.get(messageId), seen) + 1;
+    const giveUp = attempts >= MaxFailedAttempts;
+    await reviewed.set(messageId, { fingerprint: seen, outcome: giveUp ? "failed" : "retrying", attempts });
+    if (giveUp) {
+      log("closed as failed: no accepted verdict in any attempt", { messageId, attempts, lastError });
+    }
+  }
 }
 
 /**
  * Calls the model once over the server's batch and reports how the call
- * ended. The caller owns the batch, the failed map and the verdict set.
+ * ended. The caller owns the batch and the run's outcomes.
  */
 export async function runAgent(
   config: ClassifierConfig,
@@ -116,10 +233,7 @@ export async function runAgent(
         permissionMode: "dontAsk",
         settingSources: [],
         persistSession: false,
-        // Per e-mail: a read, an attachment read, up to two lookups (R561),
-        // a Case search, a classification and a link or a Case (R714),
-        // beside the list.
-        maxTurns: batchSize * 8 + 5,
+        maxTurns: turnBudget(batchSize),
         maxBudgetUsd: config.maxBudgetUsd,
         abortController,
         cwd: tmpdir(),
@@ -171,48 +285,31 @@ export async function runClassifier(log: Logger): Promise<RunSummary> {
     throw error;
   }
   try {
-    const batch = await collectBatch(config, pegasus, reviewed);
+    const collected = await collectBatch(config, pegasus, reviewed);
+    const { batch } = collected;
+    const hidden = await checkHidden(collected, reviewed, log);
     if (batch.size === 0) {
+      if (hidden.ticks >= HiddenTicksToFail) {
+        return { eligible: 0, outcome: "failed: candidates hidden", costUsd: 0 };
+      }
       log("nothing eligible");
-      return { eligible: 0, outcome: "nothing eligible", costUsd: 0 };
+      return { eligible: 0, outcome: hidden.hidden ? "nothing eligible: candidates hidden" : "nothing eligible", costUsd: 0 };
     }
     log("eligible", { count: batch.size, dryRun: config.dryRun });
 
-    const failed = new Map<string, string>();
-    const verdicts = new Set<string>();
-    const server = createClassifierServer({ pegasus, batch, failed, verdicts, dryRun: config.dryRun, log });
+    const outcomes = newOutcomes();
+    const server = createClassifierServer({ pegasus, batch, outcomes, dryRun: config.dryRun, log });
     const result = await runAgent(config, server, batch.size, log);
     let { outcome } = result;
 
     // A completed run that decided nothing, with eligible mail and no refused
-    // write, is a failed run: the model did not read the batch (#1829).
-    if (result.completed && verdicts.size === 0 && failed.size === 0) {
+    // or deferred write, is a failed run: the model did not read the batch (#1829).
+    if (result.completed && outcomes.verdicts.size === 0 && outcomes.failed.size === 0 && outcomes.deferred.size === 0) {
       outcome = "failed: no verdicts";
       log("failed", { reason: "the run completed without a verdict on any eligible e-mail", eligible: batch.size, summary: result.summary });
     }
 
-    // A message is marked reviewed only on a verdict. A message whose write
-    // failed, or that a completed run left without a verdict, counts one
-    // failed attempt and is looked at again next run until it has failed
-    // MaxFailedAttempts runs while unchanged; then it is closed as failed. A
-    // run cut short by its turn, budget or time cap writes nothing for the
-    // messages it did not reach, so they are tried again next time.
-    for (const { detail } of batch.values()) {
-      const messageId = detail.summary.id;
-      const seen = fingerprint(detail.summary);
-      const lastError = failed.get(messageId)
-        ?? (result.completed && !verdicts.has(messageId) ? NoVerdict : undefined);
-      if (lastError !== undefined) {
-        const attempts = attemptsAt(await reviewed.get(messageId), seen) + 1;
-        const giveUp = attempts >= MaxFailedAttempts;
-        await reviewed.set(messageId, { fingerprint: seen, outcome: giveUp ? "failed" : "retrying", attempts });
-        if (giveUp) {
-          log("closed as failed: no accepted verdict in any attempt", { messageId, attempts, lastError });
-        }
-      } else if (verdicts.has(messageId)) {
-        await reviewed.set(messageId, reviewedAt(seen));
-      }
-    }
+    await recordOutcomes(batch, outcomes, result.completed, reviewed, pegasus, log);
     return { eligible: batch.size, outcome, costUsd: result.costUsd };
   } finally {
     await pegasus.close();
