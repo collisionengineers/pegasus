@@ -51,6 +51,10 @@
                       LogicalName="Pegasus.Infrastructure.Reports.Assets.fonts.LiberationSans-BoldItalic.ttf" />
     <EmbeddedResource Include="Reports\Fonts\LICENSE"
                       LogicalName="Pegasus.Infrastructure.Reports.Assets.fonts.LICENSE" />
+    <EmbeddedResource Include="Reports\Images\eva-header.jpg"
+                      LogicalName="Pegasus.Infrastructure.Reports.Assets.eva.header.jpg" />
+    <EmbeddedResource Include="Reports\Images\eva-footer.jpg"
+                      LogicalName="Pegasus.Infrastructure.Reports.Assets.eva.footer.jpg" />
     <EmbeddedResource Include="..\..\docs\design\brand\logos\logo_no_margin.png">
       <Link>Reports\Assets\brand\logo.png</Link>
       <LogicalName>Pegasus.Infrastructure.Reports.Assets.brand.logo.png</LogicalName>

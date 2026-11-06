@@ -245,8 +245,47 @@ signature image.
 **Page style.** The renderer follows the template, `reference/rendererref1`
 Design I (operator, 27 September 2026). Every page carries the header, which
 is the logo and the company block, and the footer. The margins, type and
-colours are the template's. The Repair Spec printout takes the same page
-style.
+colours are the template's.
+
+**Repair Spec printout.** The Repair Spec printout, the figure breakdown, is
+set as the EVA breakdown the operator supplied, not in the report's page style
+(operator, 6 November 2026; R750).
+- **Page 1.** Page 1 opens with the logo band. Beneath it, at the right, are
+  the lines Date, Our Ref (the Case reference), Claimant, Vehicle and
+  Registration. Its foot is the EVA band, the EVA mark and the website line,
+  printed as the example prints them (R752).
+- **Line table.** One rounded grey table follows, its rows bold and shaded
+  alternately, with the columns Qty, Description, Type, Labour, Paint, Litres,
+  Mat Price, Anti-C, A/C Price and Price.
+  - Type is New, Repair, R & R, Paint, Blend, Specialist or Check.
+  - Labour is the line's hours, Paint its paint hours and Mat Price its
+    materials.
+  - Price is its unit amount times its quantity.
+  - Litres, Anti-C and A/C Price stay blank, as does any figure that is nought
+    or not recorded.
+- **Summary.** Three rows of boxes follow the table:
+  - the hours: New, Repair, Paint, R & R, Blend, Specialist, Check and Total
+    Hours;
+  - the Labour Rate and the Labour, Material and Parts discount rates, beside
+    Labour, Materials, Parts and Other;
+  - the four discount amounts, beside Total Disc, Nett, Vat and Gross.
+- **Discounts.** Labour, Materials, Parts and Other (the Specialist category)
+  are the amounts before discount. Each discount box is what that category's
+  discounts took off it, its share of the overall discount included. Total
+  Disc is their sum, and Nett is the categories less Total Disc. The Labour
+  discount rate is 0.00% (R751).
+- **Nothing else prints.** The printout leaves out:
+  - part numbers;
+  - the estimate's name, version, status and source;
+  - Your Ref and the repairer's VAT position;
+  - "To be confirmed" (an unpriced line's cells are blank);
+  - unpriced Specialist hours;
+  - the VAT categories;
+  - an adjustments section (an adjustment totals in Other);
+  - page numbers (R753).
+- **Long tables.** A table too long for page 1 continues on the next page with
+  its heading repeated and without the logo band, identity lines or EVA band.
+  The summary boxes follow the table whole (R754).
 
 **Report For.** The report is addressed to the principal: its name, then its
 address line by line, then its postcode. A postcode the address already ends
@@ -647,7 +686,7 @@ section shows the date the current report carries, so the screen and the
 document agree (v28 P40).
 
 The Repair Spec section offers **Print Repair Spec**, an unretained Estimate
-document in the report's page style for any saved estimate version from
+document in the EVA breakdown layout (R750) for any saved estimate version from
 `EstimateTotals`. Viewing it records `case_estimate_document_previewed`. It
 is not a report, approval, delivery or correspondence.
 

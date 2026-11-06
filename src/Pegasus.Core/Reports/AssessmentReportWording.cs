@@ -99,10 +99,6 @@ public static class AssessmentReportWording
         return FooterParts(snapshot.Vehicle.Registration, snapshot.OurReference, feeNote);
     }
 
-    /// <summary>The footer as one line.</summary>
-    public static string Footer(string registration, string ourReference, bool feeNote) =>
-        string.Join(FooterSeparator, FooterParts(registration, ourReference, feeNote));
-
     /// <summary>The report's footer as one line.</summary>
     public static string Footer(AssessmentReportSnapshot snapshot, bool feeNote) =>
         string.Join(FooterSeparator, FooterParts(snapshot, feeNote));
