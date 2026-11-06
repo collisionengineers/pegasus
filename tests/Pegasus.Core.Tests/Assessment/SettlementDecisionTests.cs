@@ -23,6 +23,8 @@ public sealed class SettlementDecisionTests
         Assert.Equal(7, UnroadworthyReasonBank.Standard.Count);
         Assert.All(UnroadworthyReasonBank.Standard, wording =>
             Assert.Equal(wording, UnroadworthyReasonBank.Normalize(wording)));
+        Assert.All(UnroadworthyReasonBank.Standard, wording =>
+            Assert.StartsWith("as ", wording, StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -51,7 +53,7 @@ public sealed class SettlementDecisionTests
         // The same wording again, and one the standard list already offers, add nothing.
         Assert.Null(await save.ExecuteAsync(new("QDOS", "the wheels are missing", Engineer), CancellationToken.None));
         Assert.Null(await save.ExecuteAsync(
-            new("QDOS", "There is a loss of essential fluids.", Engineer), CancellationToken.None));
+            new("QDOS", "As there is a loss of essential fluids.", Engineer), CancellationToken.None));
         Assert.Single(store.Rows);
 
         var automated = await save.ExecuteAsync(

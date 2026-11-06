@@ -147,7 +147,8 @@ internal static class TemplateSampleJobs
     /// <summary>
     /// The template's own Engineer's Comments for an unroadworthy sample, as
     /// the Engineer's wording: the template prints "unroadworthy due to" and
-    /// Pegasus composes "unroadworthy as" (operator, 2 November 2026; R607),
+    /// Pegasus composes "unroadworthy {reason}" (operator, 2 and 6 November
+    /// 2026; R607, R741),
     /// so the samples keep the template's words and the comparison stays with
     /// the template's letters. A roadworthy sample holds no wording.
     /// </summary>

@@ -385,10 +385,11 @@ public static class ReportWordingComposition
     /// <summary>
     /// The opening of the unroadworthy sentence, the same words the Case page
     /// shows before the reason box so the Engineer finishes the sentence
-    /// (operator, 2 November 2026; R607, R612). "as" fits the clause-shaped
-    /// bank wordings that "due to" did not.
+    /// (operator, 2 November 2026; R607, R612). It ends at "unroadworthy"
+    /// so the Engineer's reason chooses its own joining word (operator,
+    /// 6 November 2026; R741).
     /// </summary>
-    public const string UnroadworthyOpening = "Please note the vehicle is unroadworthy as";
+    public const string UnroadworthyOpening = "Please note the vehicle is unroadworthy";
 
     /// <summary>
     /// The unroadworthy sentence as printed: the opening, the reason, one full
