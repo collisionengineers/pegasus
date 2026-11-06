@@ -372,8 +372,13 @@ public sealed class PrincipalMailRoutePolicyTests
         Assert.Equal(PrincipalMailRoutePolicy.Version, result.PolicyVersion);
     }
 
+    /// <summary>
+    /// R716 (6 November 2026): a staff inline forward's header names the
+    /// original; an e-mail the forwarded message carried is an attachment,
+    /// not a second original (the Tawqir Ahmed audit e-mail).
+    /// </summary>
     [Fact]
-    public void StaffForwardWithConflictingAttachedAndInlineOriginalsFailsClosed()
+    public void StaffForwardInlineOriginalWinsOverACarriedAttachedEmail()
     {
         var result = new PrincipalMailRoutePolicy().Evaluate(
             Readable(
@@ -383,22 +388,48 @@ public sealed class PrincipalMailRoutePolicyTests
                         IntakeEvidenceSource.Sender,
                         "staff@collisionengineers.co.uk",
                         IntakeSenderIdentityKind.Transport,
-                        "outer message"),
+                        "message"),
                     new(
                         IntakeEvidenceSource.Sender,
                         "first@qdosassist.co.uk",
                         IntakeSenderIdentityKind.AttachedOriginal,
-                        "attached original"),
+                        "message, attached email 1"),
                     new(
                         IntakeEvidenceSource.Sender,
                         "second@qdosassist.co.uk",
                         IntakeSenderIdentityKind.InlineForwardedOriginal,
-                        "inline forwarded-message header")
+                        "message, inline forwarded-message header")
                 ]));
 
-        Assert.Equal(MailRouteDisposition.NeedsSorting, result.Disposition);
-        Assert.Null(result.EffectiveSender);
-        Assert.Equal(2, result.OriginalIdentities.Count);
+        Assert.Equal(MailRouteDisposition.Accepted, result.Disposition);
+        Assert.Equal("QDOS", result.SelectedRoute?.PrincipalCode);
+        Assert.Equal("second@qdosassist.co.uk", Assert.Single(result.OriginalIdentities).Address);
+        Assert.Equal("second@qdosassist.co.uk", result.EffectiveSender?.Address);
+        Assert.Contains(
+            result.Predicates,
+            predicate => predicate.Key == "forward.original-exactly-one" && predicate.Matched);
+    }
+
+    [Fact]
+    public void StaffInlineForwardCurrentContentExcludesTheCarriedAttachedEmail()
+    {
+        var read = Readable(
+            transport:
+            [
+                new(IntakeEvidenceSource.Sender, "staff@collisionengineers.co.uk", IntakeSenderIdentityKind.Transport, "message"),
+                new(IntakeEvidenceSource.Sender, "first@qdosassist.co.uk", IntakeSenderIdentityKind.AttachedOriginal, "message, attached email 1"),
+                new(IntakeEvidenceSource.Sender, "second@qdosassist.co.uk", IntakeSenderIdentityKind.InlineForwardedOriginal, "message, inline forwarded-message header")
+            ]) with
+        {
+            Content =
+            [
+                new(IntakeEvidenceSource.DocumentContent, "message, attachment 1: LtrtoAuditEngin.pdf, page 1", "Audit instruction"),
+                new(IntakeEvidenceSource.EmailBody, "message, attached email 1, message body", "New claim")
+            ]
+        };
+
+        var current = Assert.Single(PrincipalMailRoutePolicy.CurrentInstructionContent(read));
+        Assert.Equal("message, attachment 1: LtrtoAuditEngin.pdf, page 1", current.SourceLabel);
     }
 
     [Fact]
