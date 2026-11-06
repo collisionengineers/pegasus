@@ -647,7 +647,7 @@ internal sealed class EfCaseArtifactCustody(
         HttpRequestException exception) =>
         new("The Case artifact content store is unavailable.", exception);
 
-    private async Task RequireAutomaticPromotionTargetAsync(
+    private static async Task RequireAutomaticPromotionTargetAsync(
         PegasusDbContext db,
         Guid caseId,
         CaseArtifactCustodyRequest request,
@@ -1455,7 +1455,7 @@ public sealed partial class ReconcilePendingArtifactCustody
             .ToArray();
     }
 
-    private async Task<AutomaticPromotionTarget?> AutomaticPromotionTargetAsync(
+    private static async Task<AutomaticPromotionTarget?> AutomaticPromotionTargetAsync(
         PegasusDbContext db,
         Guid caseId,
         string operationKey,
