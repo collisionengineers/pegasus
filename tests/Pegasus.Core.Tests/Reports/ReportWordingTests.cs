@@ -111,7 +111,7 @@ public sealed class ReportWordingTests
     /// <summary>
     /// The sentence the report prints opens with the words the Case page
     /// shows before the reason box, and the reason supplies its own joining
-    /// word (R607, R612, R741).
+    /// word (R607, R612, R750).
     /// </summary>
     [Fact]
     public void TheUnroadworthySentenceOpensWithTheWordsTheCasePageShows()
