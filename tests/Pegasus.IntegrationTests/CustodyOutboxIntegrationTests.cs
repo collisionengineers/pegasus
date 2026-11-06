@@ -1709,6 +1709,146 @@ public sealed class CustodyOutboxIntegrationTests
             filed["53364_1_LtrtoEngineerIn.pdf"].Sha256);
     }
 
+    [Fact]
+    public async Task AnUnfiledDocumentOnInitialCustodysNumbersMovesAfterItsFiles()
+    {
+        // #1964: the automatic Glass's valuation filed its report as
+        // document 2 while initial custody was still uploading files it had
+        // numbered 2 and 3. The report could not reach Box (the Case had no
+        // folder), so custody moves it to 4 instead of failing on the
+        // duplicate. A Case that already failed on it recovers when staff retry.
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var letter = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: $"Valuation First {fixtureId}", claimNumber: $"VAL-{fixtureId}");
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS test instruction";
+        var builder = new MimeKit.BodyBuilder { TextBody = "Please see the attached instruction." };
+        builder.Attachments.Add(
+            "43127_1_LtrtoAuditEngin.pdf", letter, MimeKit.ContentType.Parse("application/pdf"));
+        builder.Attachments.Add(
+            "Bodyshopreport236502-V1.pdf",
+            "%PDF-1.4 synthetic bodyshop report"u8.ToArray(),
+            MimeKit.ContentType.Parse("application/pdf"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                $"custody-valuation-first-{fixtureId}.eml",
+                "message/rfc822",
+                output.ToArray(),
+                FixedUtcNow,
+                "custody-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"custody-valuation-first:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        var outcome = await AcceptAsync(services, receipt.Id);
+        var caseId = outcome.Identity.CaseId;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+
+        // The report, recorded as artifact custody records it before the
+        // Case has a folder: number 2, pending, no Box file.
+        var reportDocumentId = Guid.NewGuid();
+        await using (var seed = await contextFactory.CreateDbContextAsync())
+        {
+            var reportVersionId = Guid.NewGuid();
+            const string reportKey = "guide-valuation-report:Glasses:glass-stock:1964";
+            seed.Add(new CaseDocumentEntity
+            {
+                Id = reportDocumentId,
+                CaseId = caseId,
+                Ordinal = 2,
+                SourceOccurrenceIdentity = reportKey,
+                SeriesIdentity = "guide-valuation-report:Glasses:EG23FRR"
+            });
+            seed.Add(new DocumentVersionEntity
+            {
+                Id = reportVersionId,
+                DocumentId = reportDocumentId,
+                Version = 1,
+                FileName = "Glass's valuation EG23FRR 2026-11.pdf",
+                MediaType = "application/pdf",
+                ContentLength = 4,
+                Sha256 = new string('a', 64),
+                PendingContentStorageKey = $"pending/{reportVersionId:N}",
+                CustodyStatus = DocumentCustodyStatus.Pending,
+                CreatedAtUtc = FixedUtcNow,
+                CreatedBy = "automation:glass-valuation",
+                IsCurrent = true
+            });
+            seed.Add(new DocumentOccurrenceEntity
+            {
+                Id = Guid.NewGuid(),
+                CaseId = caseId,
+                DocumentId = reportDocumentId,
+                VersionId = reportVersionId,
+                Ordinal = 2,
+                SemanticRole = DocumentSemanticRole.ValuationEvidence,
+                Source = DocumentSource.Generated,
+                SourceOccurrenceIdentity = reportKey,
+                RecordedAtUtc = FixedUtcNow,
+                OperationKey = reportKey
+            });
+            await seed.SaveChangesAsync();
+        }
+
+        EfQueuedCustodyProcessor ProcessorWith(ICaseCustody custody) => new(
+            contextFactory,
+            services.GetRequiredService<IExternalWorkStore>(),
+            custody,
+            services.GetRequiredService<TimeProvider>(),
+            null);
+
+        // The Case's custody fails first, as a.PCH26006-p's did, and staff retry it.
+        var throttled = new CustodyBatchProbe(services.GetRequiredService<ICaseCustody>())
+        {
+            Failure = ordinal => ordinal == 3 ? new Pegasus.Infrastructure.Custody.BoxThrottledException(TimeSpan.FromSeconds(1)) : null
+        };
+        await Assert.ThrowsAsync<Pegasus.Infrastructure.Custody.BoxThrottledException>(() =>
+            ProcessorWith(throttled).ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None));
+        Assert.Equal("failed", await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+        await RetryFailedCustodyAsync(
+            services,
+            new(caseId, outcome.CustodyWorkId, receipt.Id, output.ToArray()),
+            "custody-valuation-first-retry");
+
+        await ProcessorWith(services.GetRequiredService<ICaseCustody>())
+            .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+
+        Assert.Equal("completed", await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.Equal(
+            "confirmed",
+            await context.Cases.AsNoTracking()
+                .Where(item => item.Id == caseId)
+                .Select(item => item.CustodyState)
+                .SingleAsync());
+        var documents = await (
+                from document in context.Set<CaseDocumentEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on document.Id equals version.DocumentId
+                join occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                    on version.Id equals occurrence.VersionId
+                where document.CaseId == caseId
+                select new { version.FileName, DocumentOrdinal = document.Ordinal, occurrence.Ordinal, version.CustodyStatus })
+            .ToDictionaryAsync(item => item.FileName);
+        Assert.Equal(2, documents["43127_1_LtrtoAuditEngin.pdf"].Ordinal);
+        Assert.Equal(3, documents["Bodyshopreport236502-V1.pdf"].Ordinal);
+        var report = documents["Glass's valuation EG23FRR 2026-11.pdf"];
+        Assert.Equal(4, report.DocumentOrdinal);
+        Assert.Equal(4, report.Ordinal);
+        // It stays pending: the custody sweep files it into the new folder.
+        Assert.Equal(DocumentCustodyStatus.Pending, report.CustodyStatus);
+    }
+
     /// <summary>
     /// The attachments of one accepted instruction are filed three at a time,
     /// after the source, and each keeps the ordinal its place in the file-name

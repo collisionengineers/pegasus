@@ -556,6 +556,61 @@ internal sealed class EfQueuedCustodyProcessor(
     }
 
     /// <summary>
+    /// Moves a document another filing recorded on one of initial custody's
+    /// numbers to the Case's next free number (R718, 6 November 2026; #1964).
+    /// Initial custody numbers the instruction's files from 2 and puts those
+    /// numbers in their Box names before it records them. A filing made in
+    /// between, such as the automatic Glass's valuation report, takes the
+    /// next number, which is 2. It cannot have reached Box, because the
+    /// Case has no folder until this completion, so its number is in no Box
+    /// name and it can move. A document with a Box file keeps its number,
+    /// and the insert then fails on the duplicate as before.
+    /// </summary>
+    private static async Task MoveUnfiledDocumentsOffRetainedNumbersAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        IReadOnlyList<RetainedCaseFile> retainedFiles,
+        CancellationToken cancellationToken)
+    {
+        if (retainedFiles.Count == 0)
+        {
+            return;
+        }
+
+        var claimed = retainedFiles.Select(file => file.Ordinal).Distinct().ToArray();
+        var unfiled = await context.Set<CaseDocumentEntity>()
+            .Where(document => document.CaseId == caseId
+                && claimed.Contains(document.Ordinal)
+                && !context.Set<DocumentVersionEntity>().Any(
+                    version => version.DocumentId == document.Id && version.BoxFileId != null))
+            .OrderBy(document => document.Ordinal)
+            .Select(document => document.Id)
+            .ToListAsync(cancellationToken);
+        if (unfiled.Count == 0)
+        {
+            return;
+        }
+
+        var next = Math.Max(
+            claimed.Max() + 1,
+            await EfDocumentCustodyStore.NextDocumentOrdinalAsync(context, caseId, cancellationToken));
+        foreach (var documentId in unfiled)
+        {
+            var ordinal = next++;
+            await context.Set<CaseDocumentEntity>()
+                .Where(document => document.Id == documentId)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(document => document.Ordinal, ordinal),
+                    cancellationToken);
+            await context.Set<DocumentOccurrenceEntity>()
+                .Where(occurrence => occurrence.DocumentId == documentId)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(occurrence => occurrence.Ordinal, ordinal),
+                    cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// A file a completion has just filed: the identity it is read by (a new
     /// Case document version, or a Vehicle images asset), and the copy intake
     /// retained of the file, which is what the Box upload was read from. The
@@ -799,6 +854,8 @@ internal sealed class EfQueuedCustodyProcessor(
             workflow.State = CaseLifecycleState.Review.ToString();
         }
         var recorded = new List<FiledRetainedContent>(retainedFiles.Count);
+        await MoveUnfiledDocumentsOffRetainedNumbersAsync(
+            context, caseEntity.Id, retainedFiles, cancellationToken);
         await RecordRetainedCaseFilesAsync(
             context, caseEntity.Id, root.RemoteId, retainedFiles, now, cancellationToken, recorded);
         authority.CompleteSystemMutation();
@@ -958,7 +1015,10 @@ internal sealed class EfQueuedCustodyProcessor(
         OperationCanceledException => "custody_cancelled",
         HttpRequestException or IOException => "custody_dependency_failure",
         // Another filing took the Case document number first. The files are
-        // already in the Case folder, so the work retries and takes the next.
+        // already in the Case folder, so image custody retries and takes the
+        // next. Initial case custody is never retried automatically (FRD-05);
+        // it moves an unfiled document off its numbers instead, and a document
+        // already in Box stays a failure that staff or the Automation Actor retry.
         DbUpdateException collision when IsDocumentOrdinalCollision(collision) =>
             "custody_dependency_failure",
         _ => Truncate($"{UnexpectedFailureCode}:{exception.GetType().Name}")

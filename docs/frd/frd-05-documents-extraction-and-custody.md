@@ -141,6 +141,11 @@ repeat every minute.
   retry or recovery started by staff or the Automation Actor recorded. The
   reference is not rolled back, reused or reallocated. No background or
   automatic business retry is allowed.
+- Initial custody numbers the instruction's files from 2, and the numbers
+  are part of their Box names. A document filed on the Case before initial
+  custody completes cannot reach Box, because the Case has no folder yet. If
+  it holds one of those numbers, it moves to the Case's next free number when
+  custody completes (R718, 6 November 2026).
 - Staff may add manually received WhatsApp evidence with its source and
   channel provenance. That does not switch on a WhatsApp integration.
 - Case and file changes use the normal role, lease and version guards.
