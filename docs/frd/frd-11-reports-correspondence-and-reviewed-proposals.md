@@ -637,7 +637,9 @@ it never competes with the request still producing it.
 **A regeneration in Box.** A regenerated report, fee note or image pack of
 the same work, and a regenerated Repair Spec of the same estimate, goes into
 Box as the next version of the earlier file and keeps its first name
-(operator, 4 November 2026; R664). The rule and its limits are in
+(operator, 4 November 2026; R664), unless the report's own name changed,
+when the file takes the new one (operator, 6 November 2026; R755). The rule
+and its limits are in
 [FRD-05](frd-05-documents-extraction-and-custody.md).
 
 **Retry.** A retry asks what was filed before it draws anything. It never

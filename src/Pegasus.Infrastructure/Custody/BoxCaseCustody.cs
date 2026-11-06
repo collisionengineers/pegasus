@@ -863,7 +863,11 @@ internal sealed partial class BoxContentClient(
     /// Uploads verified content as the next version of
     /// <paramref name="fileId"/>, a file directly in the proved
     /// <paramref name="folder"/>, keeping the file's name (operator,
-    /// 4 November 2026). The caller's guarantees are those of
+    /// 4 November 2026) unless the document's own <paramref name="fileName"/>
+    /// differs from the one the file carries after its document number: then
+    /// the version renames the file <paramref name="flatName"/>, so Box, Case
+    /// documents and the e-mail name a renamed report alike (operator,
+    /// 6 November 2026; R755). The caller's guarantees are those of
     /// <see cref="UploadVerifiedAsync"/>.
     /// </summary>
     /// <remarks>
@@ -879,6 +883,8 @@ internal sealed partial class BoxContentClient(
     internal async Task<BoxUpload?> UploadNextVersionVerifiedAsync(
         ProvedFolder folder,
         string fileId,
+        string fileName,
+        string flatName,
         Stream content,
         long contentLength,
         string mediaType,
@@ -886,6 +892,8 @@ internal sealed partial class BoxContentClient(
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(flatName);
         var startPosition = content.Position;
         try
         {
@@ -901,16 +909,20 @@ internal sealed partial class BoxContentClient(
                     return new(current, Created: false);
                 }
                 content.Position = startPosition;
+                var name = string.Equals(NameAfterNumber(current.Name), fileName, StringComparison.Ordinal)
+                    ? current.Name
+                    : flatName;
                 using var response = contentLength > SinglePartUploadLimit
                     ? await UploadSessionAsync(
                         new Uri(options.UploadUri, $"files/{Uri.EscapeDataString(current.Id)}/upload_sessions"),
-                        new { file_size = contentLength },
+                        new { file_size = contentLength, file_name = name },
                         current.ETag,
                         contentLength,
                         PartsOf(content),
                         cancellationToken)
                     : await UploadVersionInOneRequestAsync(
                         current,
+                        name,
                         new StreamContent(new BoundedReadStream(content, contentLength))
                         {
                             Headers = { ContentLength = contentLength }
@@ -1002,20 +1014,31 @@ internal sealed partial class BoxContentClient(
     }
 
     /// <summary>
+    /// A flat case folder file's own name after its document number:
+    /// <c>007 report.pdf</c> is <c>report.pdf</c>.
+    /// </summary>
+    private static string NameAfterNumber(string? name) =>
+        name is { } value && value.IndexOf(' ', StringComparison.Ordinal) is var space and > 0
+            && value[..space].All(char.IsAsciiDigit)
+            ? value[(space + 1)..]
+            : name ?? string.Empty;
+
+    /// <summary>
     /// The direct upload of a new version: one multipart request carrying the
-    /// file's own name, so the name stays, and the file's etag. Sending the
-    /// request disposes the content.
+    /// name the file keeps or takes, and the file's etag. Sending the request
+    /// disposes the content.
     /// </summary>
     private Task<HttpResponseMessage> UploadVersionInOneRequestAsync(
         BoxItem current,
+        string name,
         HttpContent file,
         string mediaType,
         CancellationToken cancellationToken)
     {
         var multipart = new MultipartFormDataContent();
-        multipart.Add(JsonContent.Create(new { name = current.Name }), "attributes");
+        multipart.Add(JsonContent.Create(new { name }), "attributes");
         file.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
-        multipart.Add(file, "file", current.Name);
+        multipart.Add(file, "file", name);
         return SendAsync(
             HttpMethod.Post,
             new Uri(options.UploadUri,

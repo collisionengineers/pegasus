@@ -1098,8 +1098,9 @@ public sealed class BoxDocumentContentStoreTests
     /// <summary>
     /// A regenerated document goes into Box as the next version of its
     /// series' file: the same file, a new version, the first file's name kept
-    /// and no file of its own, and the earlier version still reads as it was
-    /// (operator, 4 November 2026). The upload names the file's etag.
+    /// while the document's own name is the same, and no file of its own, and
+    /// the earlier version still reads as it was (operator, 4 November 2026).
+    /// The upload names the file's etag.
     /// </summary>
     [Fact]
     public async Task ARegenerationIsTheNextVersionOfItsSeriesFileAndKeepsItsName()
@@ -1125,6 +1126,44 @@ public sealed class BoxDocumentContentStoreTests
         Assert.Equal("002 report.pdf", upload.Name);
         await using (var read = await store.OpenReadVersionAsync(
             Persisted(Address(2, "report.pdf"), first), Sha256(earlier), earlier.Length, CancellationToken.None))
+        {
+            Assert.Equal(earlier, await ReadAllAsync(read));
+        }
+        await using (var read = await store.OpenReadVersionAsync(
+            Persisted(nextAddress, next), Sha256(later), later.Length, CancellationToken.None))
+        {
+            Assert.Equal(later, await ReadAllAsync(read));
+        }
+    }
+
+    /// <summary>
+    /// A regenerated document whose own name differs from its series file's
+    /// renames the file with its new version: the file takes the document's
+    /// name and number, so Box names it as Case documents do (operator,
+    /// 6 November 2026; R755). The earlier version still reads as it was.
+    /// </summary>
+    [Fact]
+    public async Task ARegenerationUnderANewNameRenamesItsSeriesFile()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var earlier = Encoding.UTF8.GetBytes("the first report");
+        var later = Encoding.UTF8.GetBytes("the renamed report");
+        var first = await store.StoreVersionAsync(
+            Address(2, "QDOS26001 AB12CDE Repairable report.pdf"), earlier, Sha256(earlier), CancellationToken.None);
+        var nextAddress = SeriesAddress(3, "AB12CDE_QDOS26001_AUDIT.pdf", first.RemoteId!);
+
+        var next = await store.StoreVersionAsync(nextAddress, later, Sha256(later), CancellationToken.None);
+
+        Assert.Equal(DocumentContentWriteDisposition.Created, next.Disposition);
+        Assert.Equal(first.RemoteId, next.RemoteId);
+        Assert.Equal("003 AB12CDE_QDOS26001_AUDIT.pdf", Assert.Single(box.VersionUploads).Name);
+        Assert.True(box.PathExists($"{CaseReference}/003 AB12CDE_QDOS26001_AUDIT.pdf"));
+        Assert.False(box.PathExists($"{CaseReference}/002 QDOS26001 AB12CDE Repairable report.pdf"));
+        await using (var read = await store.OpenReadVersionAsync(
+            Persisted(Address(2, "QDOS26001 AB12CDE Repairable report.pdf"), first), Sha256(earlier), earlier.Length,
+            CancellationToken.None))
         {
             Assert.Equal(earlier, await ReadAllAsync(read));
         }
@@ -1639,6 +1678,14 @@ public sealed class BoxDocumentContentStoreTests
                         part.Headers.ContentDisposition?.Name?.Trim('"') == "file")
                     .ReadAsByteArrayAsync().GetAwaiter().GetResult();
                 var versionId = AddVersionOf(id, bytes);
+                // A version's name renames the file, as Box does.
+                if (attributes.RootElement.TryGetProperty("name", out var renamed)
+                    && renamed.GetString() is { Length: > 0 } newName
+                    && newName != nodes[id].Name)
+                {
+                    nodes[id] = nodes[id] with { Name = newName };
+                }
+                node = nodes[id];
                 if (LoseNextVersionUploadResponse)
                 {
                     LoseNextVersionUploadResponse = false;
