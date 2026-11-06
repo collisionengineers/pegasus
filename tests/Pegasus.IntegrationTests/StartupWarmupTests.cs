@@ -1,11 +1,14 @@
+using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Diagnostics;
 using System.Threading.Channels;
+using Azure.Core;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
@@ -97,6 +100,29 @@ public sealed class StartupWarmupTests
         store.Complete(new OAuthCertificateSet([], []));
         await run.WaitAsync(TimeSpan.FromMinutes(1));
 
+        Assert.True(state.IsReady);
+        await warmup.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task TheWarmUpFetchesTheGraphTokenBeforeReadiness()
+    {
+        var credential = new RecordingCredential();
+        var services = new ServiceCollection();
+        services.AddSingleton<TokenCredential>(credential);
+        await using var provider = services.BuildServiceProvider();
+        var state = new StartupWarmupState(warms: true, keepWarmInterval: TimeSpan.Zero);
+        using var warmup = new StartupWarmup(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            state,
+            TimeProvider.System,
+            NullLogger<StartupWarmup>.Instance);
+
+        await warmup.StartAsync(CancellationToken.None);
+        await Assert.IsAssignableFrom<Task>(warmup.ExecuteTask).WaitAsync(TimeSpan.FromMinutes(1));
+
+        var request = Assert.Single(credential.Requests);
+        Assert.Equal(GraphToken.Context.Scopes, request.Scopes);
         Assert.True(state.IsReady);
         await warmup.StopAsync(CancellationToken.None);
     }
@@ -1185,6 +1211,23 @@ public sealed class StartupWarmupTests
             Interlocked.Increment(ref loads);
             return new EphemeralDataProtectionProvider().CreateProtector(purpose);
         }
+    }
+
+    private sealed class RecordingCredential : TokenCredential
+    {
+        private readonly ConcurrentQueue<TokenRequestContext> requests = new();
+
+        public IReadOnlyCollection<TokenRequestContext> Requests => requests;
+
+        public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken)
+        {
+            requests.Enqueue(requestContext);
+            return new AccessToken("token", DateTimeOffset.UtcNow.AddHours(1));
+        }
+
+        public override ValueTask<AccessToken> GetTokenAsync(
+            TokenRequestContext requestContext, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(GetToken(requestContext, cancellationToken));
     }
 
     private sealed class OverlappingSubscriptionStore(RecordingReads reads) : IApprovedMailboxSubscriptionStore

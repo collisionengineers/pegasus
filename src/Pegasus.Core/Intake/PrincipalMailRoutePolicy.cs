@@ -62,8 +62,7 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
     internal static IEnumerable<IntakeContentFragment> CurrentInstructionContent(IntakeSourceReadResult readResult)
     {
         var transport = SenderIdentities(readResult.TransportEvidence, IntakeSenderIdentityKind.Transport);
-        var originals = SenderIdentities(readResult.TransportEvidence,
-            IntakeSenderIdentityKind.AttachedOriginal, IntakeSenderIdentityKind.InlineForwardedOriginal);
+        var originals = OriginalIdentities(readResult.TransportEvidence);
         var staffForward = transport.Length == 1 && originals.Length == 1
             && TryGetMailboxDomain(transport[0].Address, out var domain)
             && string.Equals(domain, StaffTransportDomain, StringComparison.OrdinalIgnoreCase);
@@ -174,10 +173,7 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
         var transportIdentities = SenderIdentities(
             readResult.TransportEvidence,
             IntakeSenderIdentityKind.Transport);
-        var originalIdentities = SenderIdentities(
-            readResult.TransportEvidence,
-            IntakeSenderIdentityKind.AttachedOriginal,
-            IntakeSenderIdentityKind.InlineForwardedOriginal);
+        var originalIdentities = OriginalIdentities(readResult.TransportEvidence);
         var hasOneTransportSender = transportIdentities.Length == 1;
         var transportDomain = string.Empty;
         var hasValidTransportSender = hasOneTransportSender
@@ -356,6 +352,22 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
             transportIdentities,
             originalIdentities,
             effectiveSender);
+    }
+
+    /// <summary>
+    /// The original sender of a staff forward. A forwarded-message header in
+    /// the forward's body names it; an e-mail the forwarded message carried
+    /// as an attachment is then just an attachment, not a second original
+    /// (operator, 6 November 2026, R718). Without such a header, the e-mail
+    /// staff attached is the original.
+    /// </summary>
+    private static MailRouteIdentity[] OriginalIdentities(
+        IReadOnlyList<IntakeTransportEvidence> transportEvidence)
+    {
+        var inline = SenderIdentities(transportEvidence, IntakeSenderIdentityKind.InlineForwardedOriginal);
+        return inline.Length > 0
+            ? inline
+            : SenderIdentities(transportEvidence, IntakeSenderIdentityKind.AttachedOriginal);
     }
 
     private static MailRouteIdentity[] SenderIdentities(

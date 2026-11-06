@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using Azure.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Pegasus.Core.AiWork;
@@ -10,6 +11,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Microsoft.AspNetCore.DataProtection;
+using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Mcp;
 
@@ -124,7 +126,8 @@ internal sealed class StartupWarmupHealthCheck(StartupWarmupState state) : IHeal
 
 /// <summary>
 /// Runs when Web starts: loads the data-protection key ring, waits for the
-/// Automation OAuth certificates, builds the EF model and runs the Work
+/// Automation OAuth certificates, fetches the Graph token that staff sends
+/// use, builds the EF model and runs the Work
 /// Centre's, the Case page's and the Graph mail webhook's hot read shapes, so
 /// the first request after a deploy does not pay for them. It is a hosted
 /// service, so it begins with the host's start, a few seconds before
@@ -446,8 +449,18 @@ internal sealed partial class StartupWarmup(
                 : Task.CompletedTask,
             stoppingToken,
             cancellationToken);
+        // The credential caches the token per scope. Without this, the first
+        // staff send after a start fetched it and waited 2 to 14 s (issue
+        // 1948). The key ring's Blob read has already warmed the storage scope.
+        var graphToken = StepAsync(
+            "graph-token",
+            () => services.GetService<TokenCredential>() is { } credential
+                ? credential.GetTokenAsync(GraphToken.Context, cancellationToken).AsTask()
+                : Task.CompletedTask,
+            stoppingToken,
+            cancellationToken);
         await WarmDatabaseAsync(services, now, cancellationToken, stoppingToken);
-        await Task.WhenAll(keyRing, certificates);
+        await Task.WhenAll(keyRing, certificates, graphToken);
     }
 
     private async Task WarmDatabaseAsync(
