@@ -57,9 +57,12 @@ a generated report stale, and the numbered versions below keep the history.
 **Discard** deletes a spec that is not Current, with its lines and numbered
 versions; the Case history keeps who discarded it, when and why (operator,
 11 October 2026). A report already generated or sent keeps its own copy.
-Create audit copies every estimate, with its lines and its Current choice,
-into the Audit; revision snapshots are not copied
-([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
+Create audit copies every estimate, with its lines, into the Audit;
+revision snapshots are not copied. The Current choice is copied after a
+Total loss; after Repairable, Cash in lieu or Contract repair no copy is
+Current and staff press **Use repair spec** on the Audit (operator,
+6 November 2026; [R729](../rulings.md);
+[FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 From then on the Inspection and the Audit each have their own Current spec,
 feeding their own report. Every estimate edit, import, Glass's return and
 Use repair spec acts on the Audit's estimates; the Inspection's stay as its

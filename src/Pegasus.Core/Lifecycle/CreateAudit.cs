@@ -1,3 +1,4 @@
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
@@ -9,9 +10,10 @@ namespace Pegasus.Core.Lifecycle;
 /// Create audit: an Inspection + Audit Case in work gains its Audit work
 /// under the same Case, whether or not its Inspection report has been sent
 /// (operator, 1 October 2026). The Inspection's data is copied into the Audit
-/// work, the Case moves straight to Report preparation with the same
-/// Engineers, and the Audit report is referenced <c>a.{Case/PO}</c>. No
-/// reason is asked: the action is its own record.
+/// work, with the decisions <see cref="AuditPolicy.ResetsFor"/> names left
+/// open for the Audit to make again (R729); the Case moves straight to Report
+/// preparation with the same Engineers, and the Audit report is referenced
+/// <c>a.{Case/PO}</c>. No reason is asked: the action is its own record.
 /// </summary>
 /// <remarks>
 /// <c>EditLeaseToken</c> is a non-nullable string, the lease-token type every
@@ -35,6 +37,21 @@ public sealed record CreateAuditResult(
 /// creates the Audit's <c>a.</c> folder, published after the commit.
 /// </summary>
 public sealed record CreateAuditOutcome(CreateAuditResult Result, Guid CustodyWorkId);
+
+/// <summary>
+/// The Inspection decisions the Audit's copy starts without, so that the
+/// Audit's report waits for them to be made again (R729).
+/// </summary>
+/// <param name="OpenValuation">
+/// No valuation is Selected: the guide cards keep their values, the applied
+/// valuations are not copied and Retail, Trade and Engineer's Value start empty.
+/// </param>
+/// <param name="ClearSalvageValue">The Salvage value starts empty; the category is kept.</param>
+/// <param name="OpenRepairSpec">Every repair spec is copied and none is Current.</param>
+public sealed record AuditStartingResets(bool OpenValuation, bool ClearSalvageValue, bool OpenRepairSpec)
+{
+    public static readonly AuditStartingResets None = new(false, false, false);
+}
 
 public enum AuditRefusal
 {
@@ -136,6 +153,40 @@ public static class AuditPolicy
         AuditRefusal.NoAssignedEngineer => CaseLifecycleRules.AssignedEngineerRequired,
         _ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, null)
     };
+
+    /// <summary>
+    /// What the Audit's copy leaves open, from the Inspection's outcome when
+    /// Create audit runs (operator, 6 November 2026; R729). A Total loss opens
+    /// the valuation and the Salvage value; Repairable, Cash in lieu and
+    /// Contract repair open the repair spec; no outcome copies everything.
+    /// </summary>
+    public static AuditStartingResets ResetsFor(string? inspectionOutcome) => inspectionOutcome switch
+    {
+        "total_loss" => new AuditStartingResets(OpenValuation: true, ClearSalvageValue: true, OpenRepairSpec: false),
+        "repairable" or "cash_in_lieu" or "contract_repair" =>
+            new AuditStartingResets(OpenValuation: false, ClearSalvageValue: false, OpenRepairSpec: true),
+        _ => AuditStartingResets.None
+    };
+
+    /// <summary>The assessment field paths the Audit's copy starts without.</summary>
+    public static IReadOnlySet<string> OpenedFieldPaths(AuditStartingResets resets)
+    {
+        ArgumentNullException.ThrowIfNull(resets);
+        var paths = new HashSet<string>(StringComparer.Ordinal);
+        if (resets.OpenValuation)
+        {
+            paths.Add(AssessmentVocabulary.ValueRetail);
+            paths.Add(AssessmentVocabulary.ValueTrade);
+            paths.Add(AssessmentVocabulary.ValueEngineer);
+        }
+
+        if (resets.ClearSalvageValue)
+        {
+            paths.Add(AssessmentVocabulary.SalvageValue);
+        }
+
+        return paths;
+    }
 
     /// <summary>The history line: "Audit a.QDOS26214 created by {name}".</summary>
     public static string HistoryLine(string auditReference, string actorName) =>

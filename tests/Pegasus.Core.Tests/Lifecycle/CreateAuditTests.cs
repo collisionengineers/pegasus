@@ -1,3 +1,4 @@
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
@@ -28,6 +29,43 @@ public sealed class CreateAuditTests
         Assert.Null(AuditPolicy.Refusal(CaseType.InspectionAndAudit, Workflow(state), PrimaryOnly()));
         Assert.Null(AuditPolicy.Refusal(CaseType.InspectionAndAudit, Workflow(state), works: null));
         Assert.Null(AuditPolicy.Refusal(CaseType.InspectionAndAudit, Workflow(state, sent: false), PrimaryOnly()));
+    }
+
+    /// <summary>
+    /// The Audit's copy leaves open what the Inspection's outcome names
+    /// (operator, 6 November 2026; R729).
+    /// </summary>
+    [Theory]
+    [InlineData("total_loss", true, true, false)]
+    [InlineData("repairable", false, false, true)]
+    [InlineData("cash_in_lieu", false, false, true)]
+    [InlineData("contract_repair", false, false, true)]
+    [InlineData(null, false, false, false)]
+    [InlineData("unknown", false, false, false)]
+    public void TheInspectionsOutcomeDecidesWhatTheAuditStartsWithout(
+        string? outcome,
+        bool openValuation,
+        bool clearSalvageValue,
+        bool openRepairSpec)
+    {
+        Assert.Equal(
+            new AuditStartingResets(openValuation, clearSalvageValue, openRepairSpec),
+            AuditPolicy.ResetsFor(outcome));
+    }
+
+    [Fact]
+    public void ATotalLossOpensTheThreeValuesAndTheSalvageValueOnly()
+    {
+        Assert.Equal(
+            new[]
+            {
+                AssessmentVocabulary.SalvageValue,
+                AssessmentVocabulary.ValueEngineer,
+                AssessmentVocabulary.ValueRetail,
+                AssessmentVocabulary.ValueTrade
+            },
+            AuditPolicy.OpenedFieldPaths(AuditPolicy.ResetsFor("total_loss")).Order(StringComparer.Ordinal));
+        Assert.Empty(AuditPolicy.OpenedFieldPaths(AuditPolicy.ResetsFor("repairable")));
     }
 
     [Fact]
