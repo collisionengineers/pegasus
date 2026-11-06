@@ -113,7 +113,9 @@ public sealed class EfOrganizationAdministration(
             request.PrincipalId,
             request.ExpectedVersion,
             request.ExpectedContactVersion,
-            request.Reason
+            request.Reason,
+            request.DefaultFee,
+            request.ReportNames
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
@@ -138,9 +140,11 @@ public sealed class EfOrganizationAdministration(
         var result = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             before,
             request.ExpectedVersion,
-            request.DefaultFee);
+            request.DefaultFee,
+            request.ReportNames);
 
         entity.DefaultFee = result.DefaultFee;
+        WriteReportNames(entity, result.ReportNames);
         entity.Version = result.Version;
 
         var now = _timeProvider.GetUtcNow();
@@ -474,6 +478,10 @@ public sealed class EfOrganizationAdministration(
             SalvageMatrixJson = ToSalvageMatrixJson(result.SalvageMatrix),
             DefaultFee = result.DefaultFee,
             ReportSendingRulesJson = ToReportSendingJson(result.ReportSending),
+            InspectionReportNameFirst = result.ReportNames.InspectionFirst,
+            InspectionReportNameResend = result.ReportNames.InspectionResend,
+            AuditReportNameFirst = result.ReportNames.AuditFirst,
+            AuditReportNameResend = result.ReportNames.AuditResend,
             // A successor code keeps the way its Cases are referenced, so a
             // replaced Private customer code still gives registration references.
             ReferenceScheme = predecessor.ReferenceScheme,
@@ -577,7 +585,8 @@ public sealed class EfOrganizationAdministration(
             entity.DefaultInspectionSourceVersion,
             notesOnEveryCase,
             ReadSalvageMatrix(entity.SalvageMatrixJson),
-            entity.DefaultFee);
+            entity.DefaultFee,
+            ReadReportNames(entity));
 
     internal static Principal ToPrincipal(PrincipalEntity entity) =>
         new(
@@ -593,7 +602,24 @@ public sealed class EfOrganizationAdministration(
             ReadReportSending(entity.ReportSendingRulesJson),
             entity.Organization?.NotesOnEveryCase,
             ReadSalvageMatrix(entity.SalvageMatrixJson),
-            entity.DefaultFee);
+            entity.DefaultFee,
+            ReadReportNames(entity));
+
+    /// <summary>A Principal's report names as its four columns hold them.</summary>
+    internal static PrincipalReportNames ReadReportNames(PrincipalEntity entity) =>
+        new(
+            entity.InspectionReportNameFirst,
+            entity.InspectionReportNameResend,
+            entity.AuditReportNameFirst,
+            entity.AuditReportNameResend);
+
+    private static void WriteReportNames(PrincipalEntity entity, PrincipalReportNames names)
+    {
+        entity.InspectionReportNameFirst = names.InspectionFirst;
+        entity.InspectionReportNameResend = names.InspectionResend;
+        entity.AuditReportNameFirst = names.AuditFirst;
+        entity.AuditReportNameResend = names.AuditResend;
+    }
 
     /// <summary>The stored bands, or null for a principal without a matrix.</summary>
     internal static string? ToSalvageMatrixJson(SalvageMatrix? matrix) =>

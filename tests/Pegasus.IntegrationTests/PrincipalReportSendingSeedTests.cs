@@ -127,8 +127,7 @@ public sealed class PrincipalReportSendingSeedTests
                     new(RuleMatch.Any,
                         [new(Kind.Mentions, ["audit"]), new(Kind.RefPrefix, ["a"]), new(Kind.PreviousJob, [])],
                         new([], ["repairs@irevolutionrepairnetwork.co.uk"]))
-                ],
-                AttachmentName = new("{reg} Initial", "{reg} Supplementary")
+                ]
             },
             ["QCL"] = sop with
             {
@@ -276,6 +275,15 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Equal("00000000-0000-4000-8000-00000000f00b", ClaimSource("iRevolution Repair Network"));
         Assert.Equal("PCH / Connexus", organizations[principals["PCH"].Principal.OrganizationId].Name);
         Assert.Equal(["Ontrack789@gmail.com"], principals["SWADE"].Rules.SendTo.ToArray());
+
+        // PCH's seeded attachment name became its report names, for both of
+        // its reports, in the new tokens (R740); no other Principal names any.
+        Assert.Equal(
+            new PrincipalReportNames("{REG} Initial", "{REG} Supplementary", "{REG} Initial", "{REG} Supplementary"),
+            EfOrganizationAdministration.ReadReportNames(principals["PCH"].Principal));
+        Assert.All(
+            principals.Where(pair => pair.Key != "PCH"),
+            pair => Assert.Equal(PrincipalReportNames.None, EfOrganizationAdministration.ReadReportNames(pair.Value.Principal)));
     }
 
     /// <summary>

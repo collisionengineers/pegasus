@@ -218,6 +218,15 @@ public sealed record CaseReportGenerationSnapshot(
 {
     /// <summary>The exact Current repair specification used by this generation.</summary>
     public required RepairSpecificationVersion CurrentEstimate { get; init; }
+
+    /// <summary>
+    /// The name the report is filed under, its extension included: the
+    /// Principal's name for this report, or the standard name, as the work's
+    /// sends stood when it was frozen (R740). Frozen so a retried filing
+    /// names the same file. Null only on a snapshot frozen before report
+    /// names, whose report keeps the renderer's name it was first filed under.
+    /// </summary>
+    public string? ReportFileName { get; init; }
 }
 
 /// <summary>
@@ -366,7 +375,9 @@ public sealed record ConfirmCaseReportArtifactRequest(
     Guid VersionId,
     string Sha256,
     long ContentLength,
-    string FileName,
+    // The name the file was filed under, for the history row; null when the
+    // confirming caller did not file it and custody's record holds the name.
+    string? FileName,
     string MediaType,
     string? BoxFileId,
     string? BoxVersionId,
@@ -951,7 +962,10 @@ public sealed class GenerateCaseReport(
                 .ConfigureAwait(false);
             if (status is { Disposition: CaseArtifactCustodyDisposition.Confirmed })
             {
-                return Result(await ConfirmAsync(request, generation, artifact, status, cancellationToken)
+                // Custody's record holds the name; the report's is frozen.
+                var filedName = artifact.FileName
+                    ?? (artifactKind == CaseReportArtifactKind.AssessmentReport ? generation.Snapshot.ReportFileName : null);
+                return Result(await ConfirmAsync(request, generation, artifact, status, filedName, cancellationToken)
                     .ConfigureAwait(false));
             }
             if (status is not null)
@@ -967,6 +981,11 @@ public sealed class GenerateCaseReport(
             : await RenderFromSnapshotAsync(request, generation, artifactKind, cancellationToken)
                 .ConfigureAwait(false);
 
+        // The report is filed under its frozen name; its companions keep the
+        // names their renderer gives them.
+        var fileName = artifactKind == CaseReportArtifactKind.AssessmentReport
+            ? generation.Snapshot.ReportFileName ?? rendered.SuggestedFileName
+            : rendered.SuggestedFileName;
         await using var content = new MemoryStream(rendered.Pdf, writable: false);
         var retained = await custody.RetainAsync(
             new CaseArtifactCustodyRequest(
@@ -975,7 +994,7 @@ public sealed class GenerateCaseReport(
                 IntakeReceiptId: null,
                 OccurrenceIdentity: OccurrenceIdentityOf(generation.Id, artifactKind),
                 OperationKey: artifact.OperationKey,
-                FileName: rendered.SuggestedFileName,
+                FileName: fileName,
                 MediaType: "application/pdf",
                 ContentLength: rendered.Pdf.LongLength,
                 Sha256: rendered.Sha256,
@@ -989,7 +1008,7 @@ public sealed class GenerateCaseReport(
 
         if (retained.Disposition == CaseArtifactCustodyDisposition.Confirmed)
         {
-            return Result(await ConfirmAsync(request, generation, artifact, retained, cancellationToken)
+            return Result(await ConfirmAsync(request, generation, artifact, retained, fileName, cancellationToken)
                 .ConfigureAwait(false));
         }
 
@@ -1107,6 +1126,7 @@ public sealed class GenerateCaseReport(
         CaseReportGenerationRecord generation,
         CaseReportArtifactRecord artifact,
         CaseArtifactCustodyResult custodyResult,
+        string? fileName,
         CancellationToken cancellationToken) => store.ConfirmArtifactAsync(
             new ConfirmCaseReportArtifactRequest(
                 request.Actor,
@@ -1121,25 +1141,12 @@ public sealed class GenerateCaseReport(
                     "A confirmed case artifact must carry its content hash."),
                 custodyResult.ContentLength ?? throw new InvalidOperationException(
                     "A confirmed case artifact must carry its content length."),
-                FileNameOf(generation, artifact.Kind),
+                fileName,
                 custodyResult.MediaType ?? "application/pdf",
                 custodyResult.BoxFileId,
                 custodyResult.BoxVersionId,
                 timeProvider.GetUtcNow()),
             cancellationToken);
-
-    private static string FileNameOf(CaseReportGenerationRecord generation, CaseReportArtifactKind kind) =>
-        $"{Slug(generation.Snapshot.CaseReference)}_{kind switch
-        {
-            CaseReportArtifactKind.AssessmentReport => "report",
-            CaseReportArtifactKind.FeeNote => "fee_note",
-            CaseReportArtifactKind.RepairSpecification => "repair_specification",
-            CaseReportArtifactKind.ImagePack => "images",
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported report artifact kind."),
-        }}.pdf";
-
-    private static string Slug(string value) =>
-        new(value.ToUpperInvariant().Select(character => char.IsLetterOrDigit(character) ? character : '_').ToArray());
 
     private static CaseReportGenerationResult Result(CaseReportGenerationRecord generation) =>
         new(CaseReportGenerationOutcome.Generated, generation, []);

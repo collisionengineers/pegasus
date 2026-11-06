@@ -121,8 +121,12 @@ public sealed partial class OrganizationAdministrationWebTests
             ["ReportSettingsOperationKey"] = InputValue(reportSettingsHtml, "ReportSettingsOperationKey"),
             ["PrincipalExpectedVersion"] = InputValue(reportSettingsHtml, "PrincipalExpectedVersion"),
             ["ExpectedVersion"] = InputValue(reportSettingsHtml, "ExpectedVersion"),
-            ["DefaultFee"] = "205.00"
+            ["DefaultFee"] = "205.00",
+            ["AuditReportNameFirst"] = "{REG}_{CASE REF}_AUDIT"
         };
+        // Each report name greys the standard name it stands for and offers its tokens (R740).
+        Assert.Contains("placeholder=\"{CASE REF} {REG} {OUTCOME} report\"", reportSettingsHtml, StringComparison.Ordinal);
+        Assert.Contains("data-insert-placeholder=\"{CASE REF}\" data-insert-target=\"report-name-audit-first report-name-audit-resend\"", reportSettingsHtml, StringComparison.Ordinal);
         using var reportSettingsPost = await client.PostAsync(
             $"{reportSettingsPath}?handler=UpdateReportSettings",
             new FormUrlEncodedContent(reportSettingsForm));
@@ -135,6 +139,32 @@ public sealed partial class OrganizationAdministrationWebTests
             1,
             await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT CASE WHEN DefaultFee = 205.00 THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
+        Assert.Equal(
+            "{REG}_{CASE REF}_AUDIT",
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
+                $"SELECT AuditReportNameFirst FROM Principals WHERE Id = '{principalId:D}';"));
+        Assert.Contains(
+            "value=\"{REG}_{CASE REF}_AUDIT\"",
+            await EditContactAsync(client, reportSettingsPath, "report-generation"),
+            StringComparison.Ordinal);
+
+        // A name with a token the report cannot fill is refused, naming the report, and kept as typed.
+        var refusedHtml = await EditContactAsync(client, reportSettingsPath, "report-generation");
+        using var refusedPost = await client.PostAsync(
+            $"{reportSettingsPath}?handler=UpdateReportSettings",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(refusedHtml, "__RequestVerificationToken"),
+                ["ReportSettingsOperationKey"] = InputValue(refusedHtml, "ReportSettingsOperationKey"),
+                ["PrincipalExpectedVersion"] = InputValue(refusedHtml, "PrincipalExpectedVersion"),
+                ["ExpectedVersion"] = InputValue(refusedHtml, "ExpectedVersion"),
+                ["DefaultFee"] = "205.00",
+                ["InspectionReportNameFirst"] = "{VRM} Initial"
+            }));
+        Assert.Equal(HttpStatusCode.OK, refusedPost.StatusCode);
+        var refusedBody = WebUtility.HtmlDecode(await refusedPost.Content.ReadAsStringAsync());
+        Assert.Contains("Inspection report name: use only {REG}, {CASE REF} and {OUTCOME}.", refusedBody, StringComparison.Ordinal);
+        Assert.Contains("value=\"{VRM} Initial\"", refusedBody, StringComparison.Ordinal);
 
         var locationHtml = await EditContactAsync(client, reportSettingsPath, "default-inspection-location");
         using var locationPost = await client.PostAsync(
@@ -341,7 +371,6 @@ public sealed partial class OrganizationAdministrationWebTests
                 new("RsSendTo", "to@example.com"), new("RsCc", "cc@example.com"), new("RsNeverCc", "never@example.com"),
                 new("RsReplyAll", "true"), new("RsFeeNoteSeparate", "true"), new("RsReportImages", "true"),
                 new("RsHold", "Check first."), new("RsReminders", "Authorise the garage."),
-                new("RsNameFirst", "{reg} Initial"), new("RsNameResend", "{reg} Supplementary"),
                 new("RuleIndex", "0"), new("Rule0Match", "Any"),
                 new("Rule0Cond0Kind", "Outcome"), new("Rule0Cond0Outcome", "repairable"),
                 new("Rule0Cond1Kind", "Mentions"), new("Rule0Cond1Text", "Luton, Dunstable"),
@@ -368,7 +397,8 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Contains("value=\"Luton, Dunstable\"", reloaded, StringComparison.Ordinal);
         Assert.Contains("value=\"Easdons, James Claims\"", reloaded, StringComparison.Ordinal);
         Assert.Contains("value=\"x@example.com, y@example.com\"", reloaded, StringComparison.Ordinal);
-        Assert.Contains("value=\"{reg} Initial\"", reloaded, StringComparison.Ordinal);
+        // What a report is called is no sending rule (R740).
+        Assert.DoesNotContain("RsName", reloaded, StringComparison.Ordinal);
         // The saved rule and one spare blank rule.
         Assert.Equal(2, Regex.Count(reloaded, "name=\"RuleIndex\""));
 

@@ -663,25 +663,47 @@ public sealed class CaseReportGenerationTests
         Assert.Empty(store.Outcomes);
     }
 
+    /// <summary>
+    /// The report is filed under the name frozen with its snapshot, the
+    /// Principal's or the standard one (R740); each companion under the name
+    /// its renderer gives it.
+    /// </summary>
     [Theory]
-    [InlineData(CaseReportArtifactKind.AssessmentReport, "CE_100_report.pdf")]
-    [InlineData(CaseReportArtifactKind.FeeNote, "CE_100_fee_note.pdf")]
-    [InlineData(CaseReportArtifactKind.RepairSpecification, "CE_100_repair_specification.pdf")]
-    [InlineData(CaseReportArtifactKind.ImagePack, "CE_100_images.pdf")]
+    [InlineData(CaseReportArtifactKind.AssessmentReport, "AB12CDE_CE-100_AUDIT.pdf")]
+    [InlineData(CaseReportArtifactKind.FeeNote, "FeeNote.pdf")]
+    [InlineData(CaseReportArtifactKind.RepairSpecification, "CE_100_estimate.pdf")]
+    [InlineData(CaseReportArtifactKind.ImagePack, "ImagePack.pdf")]
     public async Task EveryArtifactKindGetsItsOwnCustodyFileName(
         CaseReportArtifactKind kind, string expectedFileName)
     {
-        var store = new FakeStore();
+        var store = new FakeStore { ReportFileName = "AB12CDE_CE-100_AUDIT.pdf" };
+        var custody = new RecordingCustody();
         var documents = kind == CaseReportArtifactKind.RepairSpecification
             ? new RenderedRepairSpecificationDocuments()
             : null;
 
         var result = await Use(
-                store, new RecordingRenderer(), new RecordingCustody(), repairSpecificationDocuments: documents)
+                store, new RecordingRenderer(), custody, repairSpecificationDocuments: documents)
             .ExecuteAsync(Request(kind), default);
 
         Assert.Equal(CaseReportGenerationOutcome.Generated, result.Outcome);
+        Assert.Equal(expectedFileName, custody.LastRequest!.FileName);
+        // The history records the name the file was filed under.
         Assert.Equal(expectedFileName, Assert.Single(store.Confirmations).FileName);
+    }
+
+    /// <summary>
+    /// A snapshot frozen before report names keeps the renderer's name its
+    /// report was first filed under, so a retried filing names the same file.
+    /// </summary>
+    [Fact]
+    public async Task AReportFrozenBeforeReportNamesKeepsItsRenderersName()
+    {
+        var custody = new RecordingCustody();
+
+        await Use(new FakeStore(), new RecordingRenderer(), custody).ExecuteAsync(Request(), default);
+
+        Assert.Equal("AssessmentReport.pdf", custody.LastRequest!.FileName);
     }
 
     /// <summary>
@@ -943,14 +965,16 @@ public sealed class CaseReportGenerationTests
     /// drawn, the Repair Spec's own document included.
     /// </summary>
     [Theory]
-    [InlineData(CaseReportArtifactKind.AssessmentReport, "CE_100_report.pdf")]
-    [InlineData(CaseReportArtifactKind.FeeNote, "CE_100_fee_note.pdf")]
-    [InlineData(CaseReportArtifactKind.RepairSpecification, "CE_100_repair_specification.pdf")]
-    [InlineData(CaseReportArtifactKind.ImagePack, "CE_100_images.pdf")]
+    [InlineData(CaseReportArtifactKind.AssessmentReport, "CE-100 PK12TMZ Repairable report.pdf")]
+    [InlineData(CaseReportArtifactKind.FeeNote, null)]
+    [InlineData(CaseReportArtifactKind.RepairSpecification, null)]
+    [InlineData(CaseReportArtifactKind.ImagePack, null)]
     public async Task ARetryOfEveryArtifactKindConfirmsTheStoredFileWithoutDrawingIt(
-        CaseReportArtifactKind kind, string expectedFileName)
+        CaseReportArtifactKind kind, string? expectedFileName)
     {
-        var store = new FakeStore();
+        // Nothing is drawn, so the history takes the report's frozen name and
+        // leaves a companion's to custody's own record.
+        var store = new FakeStore { ReportFileName = "CE-100 PK12TMZ Repairable report.pdf" };
         var renderer = new RecordingRenderer();
         var custody = new RecordingCustody();
         var status = new RecordingCustodyStatus
@@ -1232,6 +1256,9 @@ public sealed class CaseReportGenerationTests
             return Task.CompletedTask;
         }
 
+        /// <summary>The report's frozen file name; null as on a snapshot frozen before report names.</summary>
+        public string? ReportFileName { get; init; }
+
         private CaseReportGenerationRecord Record(CaseReportArtifactKind kind) => new(
             GenerationId, CaseId, 7, 1, new string('c', 64), Snapshot(),
             AssessmentReportContract.TemplateVersion, "fake", CaseReportGenerationState.Pending,
@@ -1242,7 +1269,7 @@ public sealed class CaseReportGenerationTests
                     PendingDocumentId, PendingVersionId, null, null, null, null, null, null, null, null),
             ]);
 
-        private static CaseReportGenerationSnapshot Snapshot()
+        private CaseReportGenerationSnapshot Snapshot()
         {
             var estimate = Estimate();
             return new(
@@ -1254,7 +1281,8 @@ public sealed class CaseReportGenerationTests
                 AssessmentReportContract.TemplateVersion, "fake",
                 AssessmentReportRenderingTests.Snapshot(AssessmentReportOutcome.Repairable))
             {
-                CurrentEstimate = estimate
+                CurrentEstimate = estimate,
+                ReportFileName = ReportFileName
             };
         }
     }

@@ -144,17 +144,22 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The name the report would be attached under
-    /// (v28 P23), read from the same policy the send
+    /// (v28 P23), read from the same policy and the same generation the send
     /// names it with, so the form states what pressing Send report will send.
     /// </summary>
-    public string ReportDeliveryFileName => CaseReportDeliveryNaming.ReportName(
-        // The generation's own reference: a. + the Case/PO for an Audit report.
-        CurrentReportGeneration?.Snapshot.CaseReference ?? Case?.Summary.Reference ?? "—",
-        Case?.Summary.Registration,
-        RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
-        ReportSendHistory.SentCount,
-        // The Principal's own name for its reports, when its rules set one.
-        DeliveryRecipientSuggestions?.Rules.AttachmentName) + ".pdf";
+    public string ReportDeliveryFileName => (CurrentReportGeneration is { } generation
+        ? CaseReportDeliveryNaming.ReportName(
+            generation.Snapshot,
+            ReportSendHistory.SentCount,
+            // The Principal's own name for this report, when it sets one (R740).
+            DeliveryRecipientSuggestions?.ReportNames ?? PrincipalReportNames.None,
+            DeliveryRecipientSuggestions?.CaseType,
+            generation.WorkKind)
+        : CaseReportDeliveryNaming.ReportName(
+            Case?.Summary.Reference ?? "—",
+            Case?.Summary.Registration,
+            RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
+            ReportSendHistory.SentCount)) + CaseReportDeliveryNaming.Extension;
 
     /// <summary>
     /// The other work's current report, read once the Case has its Audit: the
@@ -178,7 +183,12 @@ public sealed partial class DetailsModel
 
     /// <summary>The name the other work's report would be attached under, as the send names it.</summary>
     public string? OtherReportDeliveryFileName => OtherReportGeneration is { } other
-        ? CaseReportDeliveryNaming.ReportName(other.Snapshot, OtherReportSendHistory.SentCount) + ".pdf"
+        ? CaseReportDeliveryNaming.ReportName(
+            other.Snapshot,
+            OtherReportSendHistory.SentCount,
+            DeliveryRecipientSuggestions?.ReportNames ?? PrincipalReportNames.None,
+            DeliveryRecipientSuggestions?.CaseType,
+            other.WorkKind) + CaseReportDeliveryNaming.Extension
         : null;
 
     /// <summary>

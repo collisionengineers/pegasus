@@ -25,7 +25,9 @@ public sealed record Principal(
     // The Principal's salvage matrix (29 September 2026); null when it has none.
     SalvageMatrix? SalvageMatrix = null,
     // The agreed fee a new Case of this Principal starts with (5 October 2026).
-    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard)
+    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard,
+    // What its reports are called (6 November 2026, R740); none means the standard names.
+    PrincipalReportNames? ReportNames = null)
 {
     /// <summary>
     /// The Principal's report sending rules (Report Sending SOP v8). Every
@@ -33,6 +35,10 @@ public sealed record Principal(
     /// </summary>
     public PrincipalReportSendingRules ReportSending { get; init; } =
         ReportSending ?? PrincipalReportSendingRules.Default;
+
+    /// <summary>What the Principal's reports are called; <see cref="PrincipalReportNames.None"/> when it names none.</summary>
+    public PrincipalReportNames ReportNames { get; init; } =
+        ReportNames ?? PrincipalReportNames.None;
 }
 
 public enum CaseType
@@ -251,8 +257,9 @@ public interface ILinkedCaseReplacementStore
 
 
 /// <summary>
-/// Change an existing principal's report settings: the default fee. The notes
-/// shown on every Case belong to the contact and its Save.
+/// Change an existing principal's report settings: the default fee and what
+/// its reports are called (R740). The notes shown on every Case belong to the
+/// contact and its Save.
 /// </summary>
 public sealed record UpdatePrincipalReportSettingsRequest(
     Guid PrincipalId,
@@ -261,7 +268,8 @@ public sealed record UpdatePrincipalReportSettingsRequest(
     string OperationKey,
     string? Reason,
     decimal DefaultFee,
-    long ExpectedContactVersion);
+    long ExpectedContactVersion,
+    PrincipalReportNames? ReportNames = null);
 
 public sealed record ReplacePrincipalRequest(
     Guid PrincipalId,

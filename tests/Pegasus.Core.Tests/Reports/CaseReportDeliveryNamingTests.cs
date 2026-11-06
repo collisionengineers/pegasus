@@ -302,45 +302,75 @@ public sealed class CaseReportDeliveryNamingTests
             [Artifact(CaseReportArtifactKind.AssessmentReport, ReportAttachment)],
             [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.RepairSpecification]));
 
-    private static readonly ReportAttachmentNamePattern PchPattern =
-        new("{reg} Initial", "{reg} Supplementary");
+    private static readonly PrincipalReportNames PchNames = new(
+        "{REG} Initial", "{REG} Supplementary", "{REG}_{CASE REF}_AUDIT", null);
 
+    /// <summary>
+    /// The Principal's names (R740): the Inspection report's and the Audit
+    /// report's, each its First on a first send and its Re-send on every later
+    /// one; a Re-send left empty is the standard name, dots included.
+    /// </summary>
     [Fact]
-    public void APrincipalsPatternNamesTheFirstSendAndEveryLaterOne()
+    public void APrincipalsNamesNameEachReportForItsSends()
     {
         Assert.Equal(
             "PK12TMZ Initial",
-            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Repairable", 0, PchPattern));
-        // A re-send carries its own pattern, not the dots of the default naming.
+            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Repairable", 0, PchNames.For(auditReport: false, resend: false)));
+        // A re-send carries its own name, not the dots of the standard name.
         Assert.Equal(
             "PK12TMZ Supplementary",
-            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Repairable", 1, PchPattern));
+            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Repairable", 3, PchNames.For(auditReport: false, resend: true)));
+        // The operator's example: a QDOS Audit named {REG}_{CASE REF}_AUDIT.
         Assert.Equal(
-            "PK12TMZ Supplementary",
-            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Repairable", 3, PchPattern));
+            "AB12CDE_a.QDOS26101-p_AUDIT",
+            CaseReportDeliveryNaming.ReportName("a.QDOS26101-p", "AB12CDE", "Total loss", 0, PchNames.For(auditReport: true, resend: false)));
+        Assert.Equal(
+            "a.QDOS26101-p AB12CDE Total loss report.",
+            CaseReportDeliveryNaming.ReportName("a.QDOS26101-p", "AB12CDE", "Total loss", 1, PchNames.For(auditReport: true, resend: true)));
     }
 
+    /// <summary>A standalone Audit's report and the Audit work's report take the Audit names; every other report the Inspection names.</summary>
+    [Theory]
+    [InlineData(CaseType.Inspection, CaseWorkKind.Primary, "PK12TMZ Initial")]
+    [InlineData(CaseType.InspectionAndAudit, CaseWorkKind.Primary, "PK12TMZ Initial")]
+    [InlineData(CaseType.InspectionAndAudit, CaseWorkKind.Audit, "PK12TMZ_QDOS26001_AUDIT")]
+    [InlineData(CaseType.Audit, CaseWorkKind.Primary, "PK12TMZ_QDOS26001_AUDIT")]
+    public void EachWorksReportTakesItsOwnName(CaseType caseType, CaseWorkKind workKind, string expected) =>
+        Assert.Equal(
+            expected,
+            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Repairable", 0, PchNames.For(caseType, workKind, 0)));
+
     [Fact]
-    public void APatternFillsTheReferenceRegistrationAndOutcomeAndClosesUpAMissingOne()
+    public void ANameFillsTheReferenceRegistrationAndOutcomeInAnyCaseAndClosesUpAMissingOne()
     {
-        var pattern = new ReportAttachmentNamePattern("{ref} {reg} {outcome}", "{ref} {outcome} again");
+        const string name = "{case ref} {Reg} {OUTCOME}";
 
         Assert.Equal(
             "QDOS26001 PK12TMZ Total loss",
-            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Total loss", 0, pattern));
+            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Total loss", 0, name));
         Assert.Equal(
             "QDOS26001 Total loss",
-            CaseReportDeliveryNaming.ReportName("QDOS26001", " ", "Total loss", 0, pattern));
+            CaseReportDeliveryNaming.ReportName("QDOS26001", " ", "Total loss", 0, name));
         Assert.Equal(
             "QDOS26001 PK12TMZ",
-            CaseReportDeliveryNaming.ReportName(" QDOS26001 ", "PK12TMZ", null, 0, pattern));
-        Assert.Equal(
-            "QDOS26001 Total loss again",
-            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Total loss", 2, pattern));
+            CaseReportDeliveryNaming.ReportName(" QDOS26001 ", "PK12TMZ", null, 0, name));
     }
 
     [Fact]
-    public void WithNoPatternTheDefaultNamingIsUnchanged() =>
+    public void ANameWhoseTokensAreAllEmptyIsTheStandardName() =>
+        Assert.Equal(
+            "QDOS26001 report",
+            CaseReportDeliveryNaming.ReportName("QDOS26001", null, null, 0, "{REG} {OUTCOME}"));
+
+    /// <summary>A character no file name holds becomes _, as custody files it.</summary>
+    [Fact]
+    public void ANameKeepsOnlyCharactersAFileNameCanHold() =>
+        Assert.Equal(
+            "PK12TMZ_ QDOS26001_ final_",
+            CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", null, 0, "{REG}/ {CASE REF}: final?"));
+
+    [Fact]
+    public void WithNoNameTheStandardNamingIsUnchanged() =>
         Assert.Equal(
             "QDOS26001 PK12TMZ Repairable report.",
             CaseReportDeliveryNaming.ReportName("QDOS26001", "PK12TMZ", "Repairable", 1, null));

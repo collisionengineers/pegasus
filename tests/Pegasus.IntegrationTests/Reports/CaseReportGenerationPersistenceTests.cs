@@ -781,7 +781,7 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         Assert.Equal(later, confirmed.OccurredAtUtc);
         Assert.Equal(harness.OperationKey, confirmed.CorrelationId);
         using var after = JsonDocument.Parse(confirmed.AfterJson!);
-        Assert.Equal("AssessmentReport.pdf", after.RootElement.GetProperty("fileName").GetString());
+        Assert.Equal(generation.Snapshot.ReportFileName, after.RootElement.GetProperty("fileName").GetString());
         Assert.Equal(
             custody.VersionId,
             Guid.Parse(after.RootElement.GetProperty("versionId").GetString()!));
@@ -1240,6 +1240,45 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         await harness.SetReportImagesRuleAsync(false);
 
         Assert.False((await harness.ReadSourceAsync())!.Projection.IncludeVehicleImages);
+    }
+
+    /// <summary>
+    /// The report is filed under the name frozen with it (R740): the
+    /// Principal's Inspection name on a first send when it sets one, else the
+    /// standard name, and a later change to the name does not rename it.
+    /// </summary>
+    [Fact]
+    public async Task TheReportIsFiledUnderTheNameFrozenWithIt()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var standard = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        var snapshot = standard.Generation!.Snapshot;
+        var standardName = CaseReportDeliveryNaming.ReportName(
+            snapshot.CaseReference,
+            snapshot.Report.Vehicle.Registration,
+            CaseReportDeliveryNaming.OutcomeWords(snapshot.Report.Outcome),
+            0) + ".pdf";
+        Assert.Equal(standardName, snapshot.ReportFileName);
+        Assert.Equal(
+            standardName,
+            standard.Generation.Artifacts.Single(artifact => artifact.Kind == CaseReportArtifactKind.AssessmentReport).FileName);
+
+        await harness.SetReportNamesAsync(new("{REG}_{case ref}_INSPECTION", null, "{REG}_AUDIT", null));
+        await harness.Store.MarkStaleAsync(harness.CaseId, "test-material-change", CancellationToken.None);
+        var named = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(operationKey: harness.Key("report-named")), CancellationToken.None);
+
+        var expected = $"{snapshot.Report.Vehicle.Registration}_{snapshot.CaseReference}_INSPECTION.pdf";
+        Assert.Equal(expected, named.Generation!.Snapshot.ReportFileName);
+        Assert.Equal(
+            expected,
+            named.Generation.Artifacts.Single(artifact => artifact.Kind == CaseReportArtifactKind.AssessmentReport).FileName);
+
+        await harness.SetReportNamesAsync(PrincipalReportNames.None);
+        var reloaded = await harness.Store.GetAsync(
+            harness.StaffActor, harness.CaseId, named.Generation.Id, CancellationToken.None);
+        Assert.Equal(expected, reloaded!.Snapshot.ReportFileName);
     }
 
     /// <summary>
@@ -1764,8 +1803,9 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
                 CancellationToken.None));
     }
 
+    /// <summary>The report is filed and sent under one standard name (R740).</summary>
     [Fact]
-    public async Task GeneratedReportKeepsCustodyNameAndTheSendNamesItForItsReaders()
+    public async Task GeneratedReportIsFiledAndSentUnderOneName()
     {
         await using var harness = await Harness.CreateAsync(database);
         var generated = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
@@ -1775,14 +1815,13 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         var command = await harness.SendReportAsync(generation);
 
         var custodyAttachment = Assert.Single(command.Report.Artifacts);
-        Assert.Equal("AssessmentReport.pdf", custodyAttachment.FileName);
         var expectedReportName = CaseReportDeliveryNaming.ReportName(
             generation.Snapshot.CaseReference,
             generation.Snapshot.Report.Vehicle.Registration,
             CaseReportDeliveryNaming.OutcomeWords(generation.Snapshot.Report.Outcome),
-            0);
-        Assert.Equal(expectedReportName + ".pdf", Assert.Single(command.Mail.Attachments).FileName);
-        Assert.NotEqual(custodyAttachment.FileName, command.Mail.Attachments[0].FileName);
+            0) + ".pdf";
+        Assert.Equal(expectedReportName, custodyAttachment.FileName);
+        Assert.Equal(expectedReportName, Assert.Single(command.Mail.Attachments).FileName);
     }
 
     /// <summary>
@@ -2362,6 +2401,23 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         /// Stores the Principal's report sending rules with the given images
         /// rule, and has every later freeze read it, as the real source does.
         /// </summary>
+        /// <summary>Stores the Principal's report names, which every later freeze reads.</summary>
+        public async Task SetReportNamesAsync(PrincipalReportNames names)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var principalId = await context.Cases
+                .Where(item => item.Id == CaseId)
+                .Select(item => item.PrincipalId)
+                .SingleAsync();
+            await context.Set<PrincipalEntity>()
+                .Where(item => item.Id == principalId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.InspectionReportNameFirst, names.InspectionFirst)
+                    .SetProperty(item => item.InspectionReportNameResend, names.InspectionResend)
+                    .SetProperty(item => item.AuditReportNameFirst, names.AuditFirst)
+                    .SetProperty(item => item.AuditReportNameResend, names.AuditResend));
+        }
+
         public async Task SetReportImagesRuleAsync(bool reportImages)
         {
             await using var context = await Factory.CreateDbContextAsync();

@@ -81,6 +81,11 @@ public sealed class EditModel(
 
     [BindProperty] public long PrincipalExpectedVersion { get; set; }
     [BindProperty] public decimal? DefaultFee { get; set; }
+    // What the Principal's reports are called (R740); empty is the standard name.
+    [BindProperty] public string? InspectionReportNameFirst { get; set; }
+    [BindProperty] public string? InspectionReportNameResend { get; set; }
+    [BindProperty] public string? AuditReportNameFirst { get; set; }
+    [BindProperty] public string? AuditReportNameResend { get; set; }
     [BindProperty] public string? ReportSettingsOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public string? SalvageMatrixOperationKey { get; set; } = NewOperationKey();
     // The salvage matrix rows as shown: the stored bands, or what was typed
@@ -168,6 +173,10 @@ public sealed class EditModel(
         Tab = ReportGenerationTab;
         ClearModelStatePreservingErrors(
             nameof(DefaultFee),
+            nameof(InspectionReportNameFirst),
+            nameof(InspectionReportNameResend),
+            nameof(AuditReportNameFirst),
+            nameof(AuditReportNameResend),
             nameof(PrincipalExpectedVersion),
             nameof(ExpectedVersion),
             nameof(ReportSettingsOperationKey));
@@ -182,18 +191,24 @@ public sealed class EditModel(
                     Principal!.Id, expectedVersion, actor, ReportSettingsOperationKey!,
                     "Updated report settings",
                     DefaultFee ?? 0m,
-                    ExpectedVersion), cancellationToken);
+                    ExpectedVersion,
+                    new PrincipalReportNames(
+                        InspectionReportNameFirst,
+                        InspectionReportNameResend,
+                        AuditReportNameFirst,
+                        AuditReportNameResend)), cancellationToken);
                 TempData["AdministrationStatus"] = OperatorLabels.PrincipalAdministration.ReportSettingsUpdated;
                 return RedirectToPage(new { id = ContactId, tab = Tab });
             }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
+            catch (ReportNamesException exception) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.ReportNameRefused(exception.AuditReport, exception.Rule)); }
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.SettingsNotAccepted); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
-        var typedFee = DefaultFee;
+        var typed = (DefaultFee, InspectionReportNameFirst, InspectionReportNameResend, AuditReportNameFirst, AuditReportNameResend);
         await PopulateAsync(actor, cancellationToken);
         // What was typed stays.
-        DefaultFee = typedFee;
+        (DefaultFee, InspectionReportNameFirst, InspectionReportNameResend, AuditReportNameFirst, AuditReportNameResend) = typed;
         return Page();
     }
 
@@ -476,6 +491,10 @@ public sealed class EditModel(
         PrincipalExpectedVersion = Principal.Version;
         ReplacementExpectedVersion = Principal.Version;
         DefaultFee = Principal.DefaultFee;
+        InspectionReportNameFirst = Principal.ReportNames.InspectionFirst;
+        InspectionReportNameResend = Principal.ReportNames.InspectionResend;
+        AuditReportNameFirst = Principal.ReportNames.AuditFirst;
+        AuditReportNameResend = Principal.ReportNames.AuditResend;
         LocationIsImageBasedAssessment = Principal.DefaultInspectionAddress is null;
         LocationLabel = Principal.DefaultInspectionLocationLabel;
         LocationAddress = Principal.DefaultInspectionAddress;
@@ -567,8 +586,6 @@ public sealed class EditModel(
             rules.Add(new(match, conditions, actions));
         }
 
-        var first = Text("RsNameFirst");
-        var resend = Text("RsNameResend");
         return new(
             Text("RsSendFrom"),
             Many("RsSendTo"),
@@ -586,8 +603,7 @@ public sealed class EditModel(
             Flag("RsGarageFigures"),
             Text("RsHold"),
             Many("RsReminders"),
-            rules,
-            first is null && resend is null ? null : new ReportAttachmentNamePattern(first ?? string.Empty, resend ?? string.Empty));
+            rules);
     }
 
     private void CopyFrom(ContactDirectoryRecord contact)
@@ -623,7 +639,7 @@ public sealed class EditModel(
                 nameof(PrincipalReportSendingRules.NeverCc) => OperatorLabels.PrincipalAdministration.NeverCc,
                 nameof(PrincipalReportSendingRules.Hold) => OperatorLabels.PrincipalAdministration.Hold,
                 nameof(PrincipalReportSendingRules.Reminders) => OperatorLabels.PrincipalAdministration.Reminders,
-                _ => OperatorLabels.PrincipalAdministration.AttachmentName
+                _ => OperatorLabels.PrincipalAdministration.ReportSending
             };
         return exception.Rule switch
         {
@@ -638,7 +654,6 @@ public sealed class EditModel(
             ReportSendingRulesRule.EmptyRule => $"{where}: add at least one condition.",
             ReportSendingRulesRule.EmptyCondition => $"{where}: a condition needs a value.",
             ReportSendingRulesRule.EmptyActions => $"{where}: add at least one action.",
-            ReportSendingRulesRule.UnknownNameToken => "Attachment name: use only {ref}, {reg} and {outcome}.",
             _ => OperatorLabels.PrincipalAdministration.SettingsNotAccepted
         };
     }

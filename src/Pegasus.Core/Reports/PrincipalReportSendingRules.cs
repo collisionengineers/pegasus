@@ -1,6 +1,5 @@
 using System.Net.Mail;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 
@@ -130,16 +129,6 @@ public sealed record ReportSendingAttachments(
     public static ReportSendingAttachments Default { get; } = new();
 }
 
-/// <summary>
-/// How the attached report is named for this Principal, with the tokens
-/// <c>{ref}</c>, <c>{reg}</c> and <c>{outcome}</c>: <see cref="First"/> on a
-/// first send, <see cref="Resend"/> on every later one.
-/// </summary>
-public sealed record ReportAttachmentNamePattern(string First, string Resend)
-{
-    public static IReadOnlyList<string> Tokens { get; } = ["ref", "reg", "outcome"];
-}
-
 public enum ReportSendingRulesRule
 {
     InvalidAddress,
@@ -152,8 +141,7 @@ public enum ReportSendingRulesRule
     InvalidRefPrefix,
     EmptyRule,
     EmptyCondition,
-    EmptyActions,
-    UnknownNameToken
+    EmptyActions
 }
 
 public sealed class ReportSendingRulesException(
@@ -182,6 +170,7 @@ public sealed class ReportSendingRulesException(
 /// <param name="GarageFigures">On a repairable outcome, staff send the figures to the garage after sending.</param>
 /// <param name="Hold">Text staff must tick as done before Send.</param>
 /// <param name="Reminders">After-sending tasks created when Report sent is recorded.</param>
+/// <remarks>What the report is called is the Principal's report names (<see cref="PrincipalReportNames"/>), not a sending rule (R740).</remarks>
 public sealed record PrincipalReportSendingRules(
     string? SendFromMailbox,
     IReadOnlyList<string> SendTo,
@@ -193,12 +182,11 @@ public sealed record PrincipalReportSendingRules(
     bool GarageFigures,
     string? Hold,
     IReadOnlyList<string> Reminders,
-    IReadOnlyList<ReportSendingRule> Rules,
-    ReportAttachmentNamePattern? AttachmentName)
+    IReadOnlyList<ReportSendingRule> Rules)
 {
     /// <summary>The SOP's defaults: reply to the original sender, keep their Cc list, separate fee note.</summary>
     public static PrincipalReportSendingRules Default { get; } = new(
-        null, [], false, true, [], [], ReportSendingAttachments.Default, false, null, [], [], null);
+        null, [], false, true, [], [], ReportSendingAttachments.Default, false, null, [], []);
 
     public bool Equals(PrincipalReportSendingRules? other) =>
         other is not null && string.Equals(Canonical(), other.Canonical(), StringComparison.Ordinal);
@@ -234,9 +222,7 @@ public sealed record PrincipalReportSendingRules(
             GarageFigures,
             Hold,
             List(Reminders),
-            string.Join("\u001b", rules),
-            AttachmentName?.First,
-            AttachmentName?.Resend);
+            string.Join("\u001b", rules));
     }
 
     /// <summary>
@@ -244,7 +230,7 @@ public sealed record PrincipalReportSendingRules(
     /// without case; texts trimmed and present where given; contact ids
     /// parseable; outcome codes known; reference prefixes letters only; every
     /// rule with a condition and an action, and an attach override only when
-    /// it names a flag; name tokens known.
+    /// it names a flag.
     /// </summary>
     public static PrincipalReportSendingRules Normalize(PrincipalReportSendingRules rules)
     {
@@ -269,15 +255,10 @@ public sealed record PrincipalReportSendingRules(
             .Select(text => RequiredText(text, nameof(Reminders)))
             .ToArray();
         var ruleList = (rules.Rules ?? []).Select(NormalizeRule).ToArray();
-        var name = rules.AttachmentName is { } pattern
-            ? new ReportAttachmentNamePattern(
-                NamePattern(pattern.First, nameof(ReportAttachmentNamePattern.First)),
-                NamePattern(pattern.Resend, nameof(ReportAttachmentNamePattern.Resend)))
-            : null;
         return new(
             sendFrom, sendTo, rules.SendToOnly, rules.ReplyAll, cc, neverCc,
             rules.Attach ?? ReportSendingAttachments.Default, rules.GarageFigures,
-            hold, reminders, ruleList, name);
+            hold, reminders, ruleList);
     }
 
     private static ReportSendingRule NormalizeRule(ReportSendingRule rule, int index)
@@ -377,19 +358,6 @@ public sealed record PrincipalReportSendingRules(
         if (string.IsNullOrEmpty(trimmed))
         {
             throw new ReportSendingRulesException(ReportSendingRulesRule.TextRequired, field, ruleIndex);
-        }
-        return trimmed;
-    }
-
-    private static string NamePattern(string? value, string field)
-    {
-        var trimmed = RequiredText(value, field);
-        foreach (Match match in Regex.Matches(trimmed, @"\{([^{}]*)\}"))
-        {
-            if (!ReportAttachmentNamePattern.Tokens.Contains(match.Groups[1].Value, StringComparer.Ordinal))
-            {
-                throw new ReportSendingRulesException(ReportSendingRulesRule.UnknownNameToken, field);
-            }
         }
         return trimmed;
     }

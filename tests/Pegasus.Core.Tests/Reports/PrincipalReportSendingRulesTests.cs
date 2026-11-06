@@ -39,7 +39,6 @@ public sealed class PrincipalReportSendingRulesTests
         Assert.False(normalized.GarageFigures);
         Assert.Null(normalized.Hold);
         Assert.Empty(normalized.Rules);
-        Assert.Null(normalized.AttachmentName);
     }
 
     [Fact]
@@ -387,23 +386,6 @@ public sealed class PrincipalReportSendingRulesTests
     }
 
     [Fact]
-    public void AttachmentNamesTakeOnlyTheKnownTokens()
-    {
-        var normalized = PrincipalReportSendingRules.Normalize(Rules() with
-        {
-            AttachmentName = new(" {reg} Initial ", "{reg} Supplementary {ref} {outcome}")
-        });
-        Assert.Equal("{reg} Initial", normalized.AttachmentName!.First);
-
-        Assert.Equal(
-            ReportSendingRulesRule.UnknownNameToken,
-            Refused(Rules() with { AttachmentName = new("{reg} Initial", "{vrm} Supplementary") }).Rule);
-        Assert.Equal(
-            ReportSendingRulesRule.TextRequired,
-            Refused(Rules() with { AttachmentName = new("{reg} Initial", " ") }).Rule);
-    }
-
-    [Fact]
     public void NormalizeIsIdempotent()
     {
         var once = PrincipalReportSendingRules.Normalize(Rules() with
@@ -457,8 +439,7 @@ public sealed class PrincipalReportSendingRulesTests
             Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], match: ReportSendingRuleMatch.Any)] },
             Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], RateCard: true))] },
             Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], Attach: new(Estimate: true)))] },
-            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], Attach: new(Estimate: false)))] },
-            Rules() with { AttachmentName = new("{reg} Initial", "{reg} Supplementary") }
+            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], Attach: new(Estimate: false)))] }
         };
 
         Assert.All(changes, changed => Assert.NotEqual(baseline, changed.Canonical()));

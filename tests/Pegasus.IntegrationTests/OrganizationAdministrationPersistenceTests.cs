@@ -43,12 +43,17 @@ public sealed class OrganizationAdministrationPersistenceTests
             operationKey,
             "Confirm contact-owned report settings",
             205.00m,
-            contactVersion);
+            contactVersion,
+            new PrincipalReportNames(null, null, " {REG}_{CASE REF}_AUDIT ", null));
 
         var updated = await update.ExecuteAsync(
             Request(principal.Version, principal.ContactVersion, "principal:report-settings:direct"), default);
         Assert.Equal(principal.Version + 1, updated.Version);
         Assert.Equal(205.00m, updated.DefaultFee);
+        // The report names are saved with the fee, trimmed (R740).
+        Assert.Equal(new PrincipalReportNames(null, null, "{REG}_{CASE REF}_AUDIT", null), updated.ReportNames);
+        Assert.Equal("{REG}_{CASE REF}_AUDIT", await (await factory.DatabaseAsync).ScalarAsync<string>(
+            $"SELECT AuditReportNameFirst FROM Principals WHERE Id = '{principal.Id:D}';"));
         Assert.Equal(205.00m, await (await factory.DatabaseAsync).ScalarAsync<decimal>(
             $"SELECT DefaultFee FROM Principals WHERE Id = '{principal.Id:D}';"));
         Assert.Equal(
@@ -97,8 +102,7 @@ public sealed class OrganizationAdministrationPersistenceTests
                         new(ReportSendingConditionKind.Mentions, ["Luton"])
                     ],
                     new(["rule@example.com"], [], Stop: "Stop."))
-            ],
-            AttachmentName = new("{reg} Initial", "{reg} Supplementary")
+            ]
         };
 
         UpdatePrincipalReportSendingRequest Request(
@@ -232,7 +236,9 @@ public sealed class OrganizationAdministrationPersistenceTests
             .SingleAsync(item => item.Code == QdosPrincipal.Code);
         await seedContext.Principals
             .Where(item => item.Id == predecessor.Id)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.DefaultFee, 210.00m));
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.DefaultFee, 210.00m)
+                .SetProperty(item => item.InspectionReportNameFirst, "{REG} Initial"));
         var initialContactVersion = await seedContext.Organizations.AsNoTracking()
             .Where(item => item.Id == predecessor.OrganizationId)
             .Select(item => item.Version)
@@ -309,6 +315,8 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Equal(salvageMatrix, persistedSuccessor.SalvageMatrix);
         Assert.Equal(salvageMatrix, persistedPredecessor.SalvageMatrix);
         Assert.Equal(210.00m, persistedSuccessor.DefaultFee);
+        // A successor code is named as its predecessor was (R740).
+        Assert.Equal("{REG} Initial", persistedSuccessor.ReportNames.InspectionFirst);
         var caseMatrices = scope.ServiceProvider.GetRequiredService<IPrincipalSalvageMatrixQueries>();
         Assert.Equal(salvageMatrix, await caseMatrices.GetForCaseAsync(accepted.Identity.CaseId, default));
         Assert.Null(await caseMatrices.GetForCaseAsync(Guid.NewGuid(), default));

@@ -80,4 +80,19 @@ internal sealed class EfCaseReportSendHistoryQueries(
             [.. (recipients?.To ?? []).Select(recipient => recipient.Address)],
             [.. (recipients?.Cc ?? []).Select(recipient => recipient.Address)]);
     }
+
+    /// <summary>
+    /// How many of the work's reports were observed sent, the count the
+    /// re-send name follows: a report frozen after one is filed under its
+    /// Re-send name (R740).
+    /// </summary>
+    internal static Task<int> SentCountAsync(PegasusDbContext context, Guid workId, CancellationToken cancellationToken) =>
+        (from send in context.Set<StaffMailSendOperationEntity>().AsNoTracking()
+         from generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
+         where (generation.Id == send.ContextId || generation.Id == send.SecondContextId)
+             && generation.WorkId == workId
+             && send.Purpose == StaffMailPurpose.CaseReport
+             && send.State == StaffMailState.Sent
+         select send.Id)
+            .CountAsync(cancellationToken);
 }

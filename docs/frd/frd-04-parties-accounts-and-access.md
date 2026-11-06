@@ -179,6 +179,15 @@ The Principal section of a Contact carries:
   predecessor's. A new Case starts with its Principal's default fee as its
   agreed fee
   ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness));
+- the report names (operator, 6 November 2026; R740), saved with the report
+  settings: what an Inspection report and an Audit report are called, each
+  for a first send and for a re-send, in text with the tokens `{REG}`,
+  `{CASE REF}` and `{OUTCOME}` in any letter case. One name covers the filed
+  copy and the attachment
+  ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)).
+  An empty name is the standard name. A name with another token, or one
+  whose longest result could not be filed (120 characters), is refused. A
+  successor code inherits its predecessor's;
 - the salvage matrix (operator, 29 September 2026): for each salvage
   category (A, B, S and N) the bands of Engineer's Value, From £ to To £
   inclusive, and the percentage of that value paid. It fills the Case's
@@ -210,9 +219,8 @@ The Principal section of a Contact carries:
     breakdown is required first. Garage figures reminds staff, on a
     repairable outcome, to send the figures to the garage after sending;
   - Hold is text staff must tick as done before Send. Reminders become tasks
-    when the report is recorded as sent. Attachment name sets the report's
-    file name with `{ref}`, `{reg}` and `{outcome}`, once for a first
-    send and once for a re-send;
+    when the report is recorded as sent. What the report is called is the
+    report names above, not a sending rule (R740);
   - Rules add Cc or remove Cc, remind, hold or stop when their conditions
     hold. A rule may also set the five Attach choices other than report
     images for that send, each As the Principal, Attach or Do not attach;
