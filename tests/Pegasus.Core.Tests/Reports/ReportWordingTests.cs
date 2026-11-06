@@ -70,7 +70,7 @@ public sealed class ReportWordingTests
         var snapshot = Repairable() with
         {
             LegalStatus = "unroadworthy",
-            UnroadworthyReason = "the illegal offside front tyre",
+            UnroadworthyReason = "due to the illegal offside front tyre",
             EngineerComments = "The repairer has the vehicle.",
         };
 
@@ -80,7 +80,7 @@ public sealed class ReportWordingTests
 
         Assert.Equal(
             "The mileage has been calculated from online data."
-            + "\n\nPlease note the vehicle is unroadworthy as the illegal offside front tyre."
+            + "\n\nPlease note the vehicle is unroadworthy due to the illegal offside front tyre."
             + "\n\nThe repairer has the vehicle.",
             comments.Text);
     }
@@ -95,7 +95,7 @@ public sealed class ReportWordingTests
         var snapshot = Repairable() with
         {
             LegalStatus = "unroadworthy",
-            UnroadworthyReason = "the rear body has been compromised.",
+            UnroadworthyReason = "as the rear body has been compromised.",
         };
 
         var comments = ReportWordingComposition
@@ -110,12 +110,13 @@ public sealed class ReportWordingTests
 
     /// <summary>
     /// The sentence the report prints opens with the words the Case page
-    /// shows before the reason box (R607, R612).
+    /// shows before the reason box, and the reason supplies its own joining
+    /// word (R607, R612, R756).
     /// </summary>
     [Fact]
     public void TheUnroadworthySentenceOpensWithTheWordsTheCasePageShows()
     {
-        var sentence = ReportWordingComposition.UnroadworthySentence("  the vehicle has no MOT  ");
+        var sentence = ReportWordingComposition.UnroadworthySentence("  as the vehicle has no MOT  ");
 
         Assert.StartsWith(ReportWordingComposition.UnroadworthyOpening + " ", sentence, StringComparison.Ordinal);
         Assert.Equal("Please note the vehicle is unroadworthy as the vehicle has no MOT.", sentence);

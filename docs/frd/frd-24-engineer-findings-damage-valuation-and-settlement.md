@@ -410,9 +410,11 @@ only to completeness. Outcome meanings are owned by
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes).
 
 The report prints the outcome, the roadworthiness and the unroadworthy
-reason as one sentence, `Please note the vehicle is unroadworthy as
+reason as one sentence, `Please note the vehicle is unroadworthy
 {reason}.`, with one full stop whether or not the Engineer typed one
-(operator, 2 November 2026; R607). On a total loss it prints the category and the salvage value. On a
+(operator, 2 November 2026; R607). The reason supplies its own joining
+word, and the standard bank wordings open with "as"; reasons saved before
+the change are left as written (operator, 6 November 2026; R756). On a total loss it prints the category and the salvage value. On a
 contract repair it prints the agreed contract sum. The other settlement
 fields are recorded on the Case and not printed (operator, 27 September
 2026).

@@ -21,23 +21,25 @@ public static class UnroadworthyReasonBank
 
     /// <summary>
     /// The wordings every firm starts with, in the operator's own words. A
-    /// firm's saved wordings are offered after these.
+    /// firm's saved wordings are offered after these. Each opens with "as"
+    /// because the report's opening no longer supplies it (operator,
+    /// 6 November 2026; R756).
     /// </summary>
     public static IReadOnlyList<string> Standard { get; } =
     [
-        "the steering and suspension geometry has been compromised",
-        "the rear lamp assemblies are inoperative",
-        "the headlamp assemblies are inoperative",
-        "the vehicle presents sharp edges likely to cause injury",
-        "the supplementary restraint systems have deployed",
-        "structural distortion is evident to the body shell",
-        "there is a loss of essential fluids",
+        "as the steering and suspension geometry has been compromised",
+        "as the rear lamp assemblies are inoperative",
+        "as the headlamp assemblies are inoperative",
+        "as the vehicle presents sharp edges likely to cause injury",
+        "as the supplementary restraint systems have deployed",
+        "as structural distortion is evident to the body shell",
+        "as there is a loss of essential fluids",
     ];
 
     /// <summary>
     /// The one shape a bank wording takes: trimmed, single-spaced, no
-    /// trailing stop and starting lower case, so inserting it after "and"
-    /// reads as one sentence.
+    /// trailing stop and starting lower case, so inserting it after the
+    /// report's opening or after "and" reads as one sentence.
     /// </summary>
     public static string Normalize(string? text)
     {
