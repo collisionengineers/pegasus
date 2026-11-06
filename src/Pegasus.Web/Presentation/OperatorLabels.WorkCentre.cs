@@ -93,11 +93,9 @@ public static partial class OperatorLabels
         public const string ActionColumn = "Action";
         public const string CaseColumn = "Case";
         public const string SystemActionColumn = "System action";
-        public const string MatchedDetailColumn = "Matched detail & signal";
         public const string WhenColumn = "When";
         public const string AiActionColumn = "AI action";
         public const string SummaryColumn = "Summary / output";
-        public const string SignalLabel = "Signal";
         public const string DetailColumn = "Detail";
         public const string ArrivalColumn = "Arrival";
         public const string JobColumn = "Job";
@@ -164,7 +162,6 @@ public static partial class OperatorLabels
         public const string All = "All";
         public const string AutoMatched = "Auto-matched";
         public const string ImagesPaired = "Images paired";
-        public const string RulesAndQueries = "Rules & queries";
         public const string EstimateDone = "Estimate done";
         public const string DraftToQuery = "Draft to a query";
         public const string Failed = "Failed";

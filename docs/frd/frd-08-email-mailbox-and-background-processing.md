@@ -101,7 +101,10 @@ Classification may use mailbox and message identity, direction, headers,
 sender and domain, fresh body text, attachment and document evidence,
 Principal-route tells, reply and thread signals, and a separately produced
 Case correlation. `In-Reply-To` and `References` establish reply context.
-`RE:` is a fallback. `FW:` or `FWD:` alone does not make a reply. A reply is
+`RE:` is a fallback. A `RE:` subject on a message that carries neither header
+does not stop a selected Principal instruction that proves its work, as on
+Robert James's `Re:<file number>/<client>` instructions (operator, 5 November
+2026, [R713](../rulings.md)). `FW:` or `FWD:` alone does not make a reply. A reply is
 not a category of its own. Quoted or attached old content is not evidence of
 fresh work. A deterministic rule names its policy, version and predicates.
 Otherwise an authorised staff member records the decision and the reason.
@@ -164,10 +167,19 @@ the receipt's accepted Triage match, so Open the Triage reads one fact. A
 re-evaluation reads a corrected classification in place of the classifier and
 never removes or overwrites it or its history.
 
-The mail classifier agent is an Automation MCP client under `automation.mail`;
-it classifies and links only mail that is Unclassified or has no Case and was
-decided by the pipeline, and leaves a decision by staff, an Automation caller
-or a Principal alone (operator, 15 October 2026). It may set Pre-Pegasus case
+The mail classifier agent is an Automation MCP client under `automation.mail`
+and `automation.intake`; it classifies, links and creates Cases only for mail
+that is Unclassified or has no Case and was decided by the pipeline, and leaves
+a decision by staff, an Automation caller or a Principal alone (operator,
+15 October 2026). It searches Cases to link as the staff Link to case dialog
+does (`pegasus_mail_link_destinations` with a query). For an unlinked e-mail it
+classifies New instruction, it creates the Case as staff **Create case** does on
+the received item (`pegasus_intake_action` `accept`), with the classified work
+type, the draft's suggested Principal, and identity facts the instruction states
+only where the draft lacks them; it accepts the inspection address Pegasus
+suggested and never supplies or corrects one. When Pegasus refuses the Case
+for a missing fact or an unsettled address, the e-mail stays New instruction
+in No Case Found for staff (operator, 5 November 2026, [R714](../rulings.md)). It may set Pre-Pegasus case
 when the e-mail chases or refers to a case Pegasus does not hold, and it has
 two read-only lookups for that: `pegasus_mail_mailbox_search` over the
 approved mailboxes and `pegasus_old_system_folder_search` under the

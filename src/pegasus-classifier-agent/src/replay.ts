@@ -16,11 +16,26 @@
 //                  term matches a folder whose name contains it as a whole
 //                  token, as Pegasus matches a reference-shaped term (R592).
 //                  Absent: the search is unavailable.
+//   cases          what search_cases may find: link destinations; a term
+//                  matches a reference, registration, claimant or claim
+//                  number containing it, case-insensitively. Absent: none.
+//   intake         per intakeReceiptId, what pegasus_intake_get returns for
+//                  create_case. Absent: a draft with every identity fact and
+//                  a settled inspection address, so create_case succeeds.
 
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { ClassifierConfig } from "./config.js";
-import type { MailAttachmentText, MailboxSearch, MailClassification, MailDetail, OldSystemFolderSearch } from "./pegasus.js";
+import type {
+  IntakeActionResult,
+  IntakeDetail,
+  LinkDestination,
+  MailAttachmentText,
+  MailboxSearch,
+  MailClassification,
+  MailDetail,
+  OldSystemFolderSearch,
+} from "./pegasus.js";
 import { runAgent } from "./run.js";
 import { createClassifierServer, type Candidate, type ClassifierPegasus } from "./tools.js";
 
@@ -34,10 +49,12 @@ interface Fixture {
   candidates: FixtureCandidate[];
   mailboxCorpus?: CorpusItem[];
   folders?: { name: string; modifiedAtUtc: string | null }[];
+  cases?: (LinkDestination & { claimNumber?: string | null })[];
+  intake?: Record<string, Partial<IntakeDetail>>;
 }
 
 interface Write {
-  kind: "classify" | "link" | "query";
+  kind: "classify" | "link" | "query" | "case";
   messageId: string;
   detail: string;
 }
@@ -45,6 +62,7 @@ interface Write {
 class ReplayPegasus implements ClassifierPegasus {
   readonly writes: Write[] = [];
   private readonly details = new Map<string, MailDetail>();
+  private readonly created = new Map<string, string>();
 
   constructor(private readonly fixture: Fixture) {
     for (const candidate of fixture.candidates) {
@@ -104,7 +122,9 @@ class ReplayPegasus implements ClassifierPegasus {
   }): Promise<MailDetail> {
     const detail = await this.require(args.messageId);
     const candidate = this.fixture.candidates.find((item) => item.detail.summary.id === args.messageId);
-    const destination = candidate?.destinations.find((item) => item.caseId === args.caseId);
+    const destination = candidate?.destinations.find((item) => item.caseId === args.caseId)
+      ?? candidate?.found?.find((item) => item.caseId === args.caseId)
+      ?? this.fixture.cases?.find((item) => item.caseId === args.caseId);
     if (!destination) {
       throw new Error("That Case is not a link destination for the message.");
     }
@@ -166,6 +186,69 @@ class ReplayPegasus implements ClassifierPegasus {
     const mailboxes = [...new Map(corpus.map((item) => [item.mailboxAddress, item.mailboxId])).entries()]
       .map(([mailboxAddress, mailboxId]) => ({ mailboxId, mailboxAddress, state: "available" as const }));
     return { query, items: hits.slice(0, pageSize), mailboxes, isTruncated: hits.length > pageSize, state: "available" };
+  }
+
+  async linkDestinations(_messageId: string, query?: string): Promise<LinkDestination[]> {
+    const wanted = (query ?? "").trim().toLowerCase();
+    if (!wanted) {
+      return [];
+    }
+    return (this.fixture.cases ?? [])
+      .filter((item) => [item.reference, item.registration, item.claimant, item.claimNumber]
+        .some((value) => (value ?? "").toLowerCase().includes(wanted)))
+      .map(({ claimNumber: _claimNumber, ...item }) => item);
+  }
+
+  async intakeGet(receiptId: string): Promise<IntakeDetail> {
+    const given = this.fixture.intake?.[receiptId] ?? {};
+    const created = this.created.get(receiptId);
+    return {
+      receiptId,
+      version: 1,
+      decision: "needs_sorting",
+      caseId: created ?? null,
+      caseReference: created ? `REPLAY-${created.slice(0, 8)}` : null,
+      classifiedCaseType: null,
+      draft: { claimantName: "Replay", claimNumber: "Replay", vehicleRegistration: "AB12CDE", dateOfIncident: "2026-01-01" },
+      missingIdentityFields: [],
+      inspectionAddressState: "Accepted",
+      inspectionAddressSuggestion: null,
+      inspectionAddressSuggestionFingerprint: null,
+      ...given,
+    };
+  }
+
+  async intakeAction(args: {
+    receiptId: string;
+    action: "accept" | "resolve_inspection_address";
+    expectedReceiptVersion: number;
+    operationKey: string;
+    claimantName?: string;
+    claimNumber?: string;
+    vehicleRegistration?: string;
+    incidentDate?: string;
+  }): Promise<IntakeActionResult> {
+    const intake = await this.intakeGet(args.receiptId);
+    if (args.action === "resolve_inspection_address") {
+      return { receiptId: args.receiptId, action: args.action, allocationStatus: null, caseId: null, caseReference: null, safeReason: null };
+    }
+    if (intake.missingIdentityFields.length > 0 && !args.claimantName && !args.claimNumber && !args.vehicleRegistration) {
+      throw new Error(`The draft lacks ${intake.missingIdentityFields.join(", ")}.`);
+    }
+    const caseId = randomUUID();
+    this.created.set(args.receiptId, caseId);
+    const detail = [...this.details.values()].find((item) => item.summary.intakeReceiptId === args.receiptId);
+    if (detail) {
+      detail.summary.caseId = caseId;
+      detail.summary.caseReference = `REPLAY-${caseId.slice(0, 8)}`;
+      detail.canLinkCase = false;
+      this.writes.push({
+        kind: "case",
+        messageId: detail.summary.id,
+        detail: JSON.stringify({ claimantName: args.claimantName, claimNumber: args.claimNumber, vehicleRegistration: args.vehicleRegistration, incidentDate: args.incidentDate }),
+      });
+    }
+    return { receiptId: args.receiptId, action: args.action, allocationStatus: "Succeeded", caseId, caseReference: `REPLAY-${caseId.slice(0, 8)}`, safeReason: null };
   }
 
   private async require(messageId: string): Promise<MailDetail> {

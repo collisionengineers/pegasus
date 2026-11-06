@@ -507,6 +507,11 @@ replays by its operation key.
   `unavailable`, never as nothing found. They exist so the classifier
   agent can tell a Pre-Pegasus case from correspondence
   ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)).
+  The classifier agent also calls `pegasus_mail_link_destinations` with a
+  query to find a Case to link, and `pegasus_intake_get` and
+  `pegasus_intake_action` (`accept`, and `resolve_inspection_address` with
+  Pegasus's own suggestion only) to create the Case for an unlinked e-mail it
+  classifies New instruction (operator, 5 November 2026, R714).
 - `pegasus_work_centre_dismiss` dismisses a record from the Work Centre for
   everyone, as a row's **Dismiss** does. The record id is the Case, the
   Unidentified item, the AI job, or — for a System Action — the underlying

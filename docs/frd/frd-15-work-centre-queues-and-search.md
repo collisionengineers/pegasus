@@ -213,16 +213,17 @@ the Case's New cases row:
 
 | Kind | Record | Record id |
 | --- | --- | --- |
-| Auto-matched e-mail | An `intake_case_linked_automatic` history row joined to its association. The signal is the association reason, which names the agreeing signals, or the match policy key when no reason was recorded | The receipt |
+| Auto-matched e-mail | An `intake_case_linked_automatic` history row joined to its association | The receipt |
 | Vehicle images paired | A Case workflow event `image_initiated_case_merged`. The image intake id is read from the after payload the merge writes | The image intake |
 | Query opened automatically | A Case query raised by the Worker or the Automation actor. Open query, and Take when unassigned | The query |
 | Cancellation matched | The newest receipt currently linked to the Case whose category is cancellation, by the same link rule as the Case's cancellation notice | The receipt |
 
 A receipt whose current category is cancellation is the cancellation row, not
 also an auto-matched row: both would dismiss the same receipt. Sub-filters are
-All, Auto-matched, Images paired, and Rules & queries (the query and the
-cancellation). Columns are System action, Case, Matched detail & signal, When,
-and Action with Dismiss.
+All, Auto-matched, Images paired, Query opened automatically and Cancellation
+matched, one kind each. Columns are System action, Case, When, and Action with
+Dismiss; Find matches the reference, the registration and the vehicle
+(operator, 5 November 2026; R717).
 
 **AI Actions.** The office's unfinished AI jobs (Queued, Taken with its lease
 expiry, Draft ready), those that completed in the same 7 days, and those that

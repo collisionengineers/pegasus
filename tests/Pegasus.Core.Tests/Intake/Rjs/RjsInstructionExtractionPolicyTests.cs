@@ -34,10 +34,70 @@ public sealed class RjsInstructionExtractionPolicyTests
         Assert.Equal(address, Field(result, "Claimant address").SuggestedValue);
         Assert.Equal(mobile, Field(result, "Claimant mobile").SuggestedValue);
         Assert.Equal(circumstances, draft.AccidentCircumstances);
-        Assert.Null(draft.InspectionAddress);
+        // R715: where the letter says the client "is available at" the address,
+        // that address is the inspection address, one line per comma.
+        if (text.Contains("available at", StringComparison.OrdinalIgnoreCase))
+            Assert.Equal(address, Spaced(draft.InspectionAddress));
+        else
+            Assert.Null(draft.InspectionAddress);
         Assert.Null(draft.InspectionDate);
         Assert.Null(draft.VatStatus);
     }
+
+    [Fact]
+    public void TheAddressTheClientIsAvailableAtIsTheInspectionAddress()
+    {
+        var draft = Assert.IsType<InstructionDraft>(Extract(Letter(vehicleLocation: null)).InstructionDraft);
+
+        Assert.Equal("1 Example Close, Crawley, Sussex, RH10 1AA", draft.InspectionAddress);
+    }
+
+    [Fact]
+    public void ALetterNamingTheVehicleLocationKeepsThatAsTheInspectionAddress()
+    {
+        var draft = Assert.IsType<InstructionDraft>(Extract(Letter(vehicleLocation: "Example Storage, Priestley Way, RH10 9AA")).InstructionDraft);
+
+        Assert.Equal("Example Storage, Priestley Way, RH10 9AA", draft.InspectionAddress);
+    }
+
+    [Fact]
+    public void OnlyTheAddressAfterIsAvailableAtIsTheInspectionAddress()
+    {
+        var result = Extract(Letter(vehicleLocation: null, laterAddress: true));
+
+        var inspection = Field(result, "Inspection address");
+        Assert.False(inspection.HasConflict);
+        Assert.Equal("1 Example Close, Crawley, Sussex, RH10 1AA", inspection.SuggestedValue);
+    }
+
+    /// <summary>Invented values in the layout of Robert James's November 2026 letters.</summary>
+    private static string Letter(string? vehicleLocation, bool laterAddress = false) => string.Join('\n',
+        "Collision Engineers Ltd",
+        "Our Reference: 900001.001/AB/AB",
+        "URGENT VEHICLE INSPECTION REQUIRED",
+        "Dear Sirs",
+        "Our Client:\tMr Alex Example",
+        "Accident:\t24th October 2026",
+        "Client vehicle registration:AB12CDE ",
+        "Client vehicle make:none ",
+        "Client vehicle model: Corolla ",
+        "The circumstances of the accident are The defendant collided with the claimant's vehicle.",
+        "Please arrange an inspection of my client's vehicle as soon as possible.",
+        vehicleLocation is null ? string.Empty : $"Vehicle location: {vehicleLocation}",
+        "I have advised my client of your instruction. Please make arrangements for the inspection with my client. Mr Alex Example is available at:",
+        "",
+        "Address:\t1 Example Close ",
+        "\tCrawley ",
+        "\tSussex ",
+        "\tRH10 1AA ",
+        "\t ",
+        "Work Tel:\t01234 000000 ",
+        "Mobile Tel:\t07000 000000  ",
+        laterAddress ? "Our client's employer is:\nAddress:\t2 Sample Road \n\tHorsham \n\tRH12 2BB \n\t \nWork Tel:\t01234 111111 " : string.Empty,
+        "Yours faithfully",
+        "Robert James Solicitors");
+
+    private static string? Spaced(string? value) => value?.Replace(",", string.Empty, StringComparison.Ordinal);
 
     private static InstructionExtractionResult Extract(string text) => new RjsInstructionExtractionPolicy().Extract(
         new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "RJS instruction.DOC", text)], [], [], RequiresOcr: false),

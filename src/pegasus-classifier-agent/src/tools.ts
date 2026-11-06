@@ -1,23 +1,31 @@
-// The agent's eight tools, served in-process: one list, two reads, three
-// writes and two read-only lookups. The list carries headers only, so its
+// The agent's ten tools, served in-process: one list, two reads, four
+// writes and three read-only lookups. The list carries headers only, so its
 // result stays small at any batch size; the reads return one e-mail's text
 // and one attachment's extracted text (#1829, #1891). Each write re-reads the message from Pegasus and refuses it,
 // without calling Pegasus, when staff have decided it or its classification
 // version or linked Case differs from what this run listed (or last wrote
 // itself); Pegasus then applies its own checks (versions, leases, link rules)
 // as it does for staff. The lookups read the old system's Box folders and the
-// approved mailboxes through Pegasus's own read-only tools.
+// approved mailboxes through Pegasus's own read-only tools, and search Pegasus's
+// Cases as the staff Link to case dialog does. create_case is staff Create case
+// on the received item (R714), for an unlinked e-mail classified New
+// instruction; Pegasus refuses it while identity facts or the inspection
+// address are missing, and the e-mail then waits for staff.
 
 import { randomUUID } from "node:crypto";
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { hasChangedSince, isStillWritable, stateOf, type MessageState } from "./eligibility.js";
-import type { LinkDestination, MailDetail, PegasusMail } from "./pegasus.js";
+import type { InstructionDraft, LinkDestination, MailDetail, PegasusMail } from "./pegasus.js";
 import { CorrespondenceCode, MailCategoryCodes, WorkTypes } from "./prompt.js";
 
 export interface Candidate {
   detail: MailDetail;
+  // The matcher's suggested Cases, shown to the model as suggestedCases.
   destinations: LinkDestination[];
+  // Cases search_cases found for the e-mail: link_case accepts them too, but
+  // they are not matcher suggestions and are never shown as such.
+  found?: LinkDestination[];
 }
 
 export interface Logger {
@@ -27,7 +35,8 @@ export interface Logger {
 /** What the tools need of Pegasus; the replay harness supplies a recording one. */
 export type ClassifierPegasus = Pick<
   PegasusMail,
-  "get" | "attachmentText" | "correct" | "link" | "openQuery" | "searchOldSystemFolders" | "searchMailboxes"
+  | "get" | "attachmentText" | "correct" | "link" | "openQuery" | "searchOldSystemFolders" | "searchMailboxes"
+  | "linkDestinations" | "intakeGet" | "intakeAction"
 >;
 
 export const ServerName = "classifier";
@@ -40,6 +49,8 @@ export const ToolNames = [
   "open_query",
   "search_old_system_folders",
   "search_mailboxes",
+  "search_cases",
+  "create_case",
 ] as const;
 
 /** Hits per lookup: enough to tell whether the old system holds the case, not a listing. */
@@ -138,6 +149,10 @@ export function createClassifierServer(options: {
   log: Logger;
 }) {
   const { pegasus, batch, failed, verdicts, dryRun, log } = options;
+
+  // A dry run writes no classification, so create_case reads the type this
+  // run would have given: the work type for new-instruction, null otherwise.
+  const proposed = new Map<string, string | null>();
 
   // What this run last knew of each listed message: its classification version
   // and linked Case id as listed, then as this run's own writes left them.
@@ -256,6 +271,7 @@ export function createClassifierServer(options: {
         log("classify", { messageId: args.messageId, from: classification.current.category, to: args.category, workType: args.workType, reason: args.reason, dryRun });
         if (dryRun) {
           verdicts.add(args.messageId);
+          proposed.set(args.messageId, args.category === "new-instruction" ? args.workType! : null);
           return text(`Dry run: would classify as ${args.category}.`);
         }
         // The key is only an audit correlation here: Pegasus guards a
@@ -280,14 +296,16 @@ export function createClassifierServer(options: {
 
   const link = tool(
     "link_case",
-    "Links one listed e-mail to one of the Cases suggested for it, with a one-sentence reason naming the matching evidence.",
+    "Links one listed e-mail to one of the Cases suggested for it or found for it by search_cases, with a one-sentence reason naming the matching evidence.",
     {
       messageId: z.guid().describe("messageId from list_eligible_emails"),
-      caseId: z.guid().describe("caseId of one of that e-mail's suggestedCases"),
+      caseId: z.guid().describe("caseId of one of that e-mail's suggestedCases, or one search_cases returned for it"),
       reason: z.string().min(1).max(450),
     },
     async (args) => {
-      const destination = batch.get(args.messageId)?.destinations.find((item) => item.caseId === args.caseId);
+      const candidate = batch.get(args.messageId);
+      const destination = candidate?.destinations.find((item) => item.caseId === args.caseId)
+        ?? candidate?.found?.find((item) => item.caseId === args.caseId);
       if (!destination) {
         return text("That Case is not one of the e-mail's suggested Cases.", true);
       }
@@ -297,7 +315,7 @@ export function createClassifierServer(options: {
           return text(read, true);
         }
         const { detail } = read;
-        if (!detail.canLinkCase || detail.intakeVersion === null) {
+        if (!detail.canLinkCase || detail.intakeVersion == null) {
           return text("The e-mail can no longer be linked to a Case.", true);
         }
         log("link", { messageId: args.messageId, caseReference: destination.reference, reason: args.reason, dryRun });
@@ -341,10 +359,141 @@ export function createClassifierServer(options: {
       }
     });
 
+  const searchCases = tool(
+    "search_cases",
+    "Read-only. Searches Pegasus's Cases and Triage Cases a listed e-mail may be linked to, as the staff Link to case dialog does: by reference, registration, claimant or claim number. A Case found here may be linked with link_case.",
+    {
+      messageId: z.guid().describe("messageId from list_eligible_emails"),
+      query: z.string().min(1).max(200).describe("A Case reference, registration, claimant or claim number"),
+    },
+    async (args) => {
+      const candidate = batch.get(args.messageId);
+      if (!candidate) {
+        return text(NotListed, true);
+      }
+      if (!candidate.detail.canLinkCase) {
+        return text("The e-mail cannot be linked to a Case.", true);
+      }
+      try {
+        const found = await pegasus.linkDestinations(args.messageId, args.query);
+        // Found Cases are kept apart from the matcher's suggestions, so
+        // link_case accepts them without the model reading them as suggested.
+        candidate.found ??= [];
+        for (const item of found) {
+          if (!candidate.found.some((known) => known.caseId === item.caseId)) {
+            candidate.found.push(item);
+          }
+        }
+        log("search cases", { messageId: args.messageId, query: args.query, hits: found.length });
+        return text(found.map((item) => ({
+          caseId: item.caseId,
+          reference: item.reference,
+          registration: item.registration,
+          claimant: item.claimant,
+          principal: item.principal,
+          state: item.isTriageCase ? `Triage ${item.triageState}` : item.state,
+        })));
+      } catch (error) {
+        log("search cases failed", { messageId: args.messageId, query: args.query, error: (error as Error).message });
+        return text(`Pegasus refused the search: ${(error as Error).message}`, true);
+      }
+    },
+    { annotations: { readOnlyHint: true, openWorldHint: false } });
+
+  const createCase = tool(
+    "create_case",
+    "Creates the Case for a listed e-mail that is classified new-instruction and has no Case, as staff Create case does on the received item: the e-mail becomes the Case's instruction. The work type is the classification's. Give claimantName, claimNumber, vehicleRegistration or incidentDate only when the instruction states them and Pegasus's draft lacks them; Pegasus keeps the values it extracted. Pegasus refuses the Case while an identity fact or the inspection address is missing, and the e-mail then waits for staff. A Case is never deleted.",
+    {
+      messageId: z.guid().describe("messageId from list_eligible_emails"),
+      reason: z.string().min(1).max(450),
+      claimantName: z.string().min(1).max(200).optional(),
+      claimNumber: z.string().min(1).max(100).optional(),
+      vehicleRegistration: z.string().min(1).max(20).optional(),
+      incidentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("yyyy-MM-dd"),
+    },
+    async (args) => {
+      try {
+        const read = await reread(args.messageId);
+        if (typeof read === "string") {
+          return text(read, true);
+        }
+        const { detail } = read;
+        if (detail.summary.caseId != null) {
+          return text("The e-mail already has a Case.", true);
+        }
+        const current = detail.classification!.current;
+        const isInstruction = proposed.has(args.messageId)
+          ? proposed.get(args.messageId) !== null
+          : current.outcome === "Classified" && current.category === "new-instruction";
+        if (!isInstruction) {
+          return text("Only an e-mail classified new-instruction can become a Case; classify it first.", true);
+        }
+        const receiptId = detail.summary.intakeReceiptId;
+        if (!receiptId) {
+          return text("The e-mail has no received item to create a Case from; it waits for staff.", true);
+        }
+        let intake = await pegasus.intakeGet(receiptId);
+        if (intake.caseId != null) {
+          return text(`The received item already has Case ${intake.caseReference ?? intake.caseId}.`, true);
+        }
+        const fields = missingOnly(intake.draft, args);
+        // Nothing is written while an identity fact stays missing: the
+        // address would be settled for a Case Pegasus then refuses.
+        const supplied = (["claimantName", "claimNumber", "vehicleRegistration"] as const)
+          .filter((key) => fields[key] !== undefined).length;
+        if ((intake.missingIdentityFields ?? []).length > supplied) {
+          verdicts.add(args.messageId);
+          log("create case left for staff", { messageId: args.messageId, missing: intake.missingIdentityFields });
+          return text(`Pegasus would refuse the Case: ${intake.missingIdentityFields.join(", ")} missing. The e-mail waits for staff.`, true);
+        }
+        log("create case", { messageId: args.messageId, receiptId, fields: Object.keys(fields), reason: args.reason, dryRun });
+        if (dryRun) {
+          verdicts.add(args.messageId);
+          return text("Dry run: would create the Case.");
+        }
+        // Pegasus's own suggested inspection address is accepted, as staff
+        // accept it on Create case; the agent never supplies or corrects one.
+        if (["Unresolved", "Suggested"].includes(intake.inspectionAddressState) && intake.inspectionAddressSuggestionFingerprint) {
+          await pegasus.intakeAction({
+            receiptId,
+            action: "resolve_inspection_address",
+            expectedReceiptVersion: intake.version,
+            operationKey: operationKey("case-address", args.messageId, intake.version),
+            addressSuggestionFingerprint: intake.inspectionAddressSuggestionFingerprint,
+          });
+          intake = await pegasus.intakeGet(receiptId);
+        }
+        const created = await pegasus.intakeAction({
+          receiptId,
+          action: "accept",
+          expectedReceiptVersion: intake.version,
+          operationKey: operationKey("case", args.messageId, intake.version),
+          ...fields,
+        });
+        if (!created.caseId) {
+          throw new Error(created.safeReason ?? `The Case was not created (${created.allocationStatus ?? "no allocation"}).`);
+        }
+        const landed = await pegasus.get(args.messageId);
+        const state = stateOf(landed);
+        if (state) {
+          known.set(args.messageId, state);
+        }
+        verdicts.add(args.messageId);
+        return text(`Created Case ${created.caseReference ?? created.caseId}.`);
+      } catch (error) {
+        // create_case follows an accepted new-instruction verdict; a refused
+        // Case leaves the e-mail for staff Create case, which is that verdict's
+        // outcome, not a failed attempt to retry every run.
+        verdicts.add(args.messageId);
+        log("create case refused", { messageId: args.messageId, error: (error as Error).message });
+        return text(`Pegasus refused the Case: ${(error as Error).message}. The e-mail waits for staff.`, true);
+      }
+    });
+
   return createSdkMcpServer({
     name: ServerName,
     version: "1.0.0",
-    tools: [listEligible, readEmail, readAttachment, classify, link, tool(
+    tools: [listEligible, readEmail, readAttachment, classify, link, searchCases, createCase, tool(
       "open_query",
       "Opens a query on a listed e-mail that is linked to a Case whose report is sent, when the fresh text is a question about or challenge to that report.",
       { messageId: z.guid().describe("messageId from list_eligible_emails") },
@@ -418,4 +567,18 @@ export function createClassifierServer(options: {
       { annotations: { readOnlyHint: true, openWorldHint: true } })],
     alwaysLoad: true,
   });
+}
+
+/** The identity facts the agent read, kept only where Pegasus's draft has none. */
+function missingOnly(
+  draft: InstructionDraft | null,
+  args: { claimantName?: string; claimNumber?: string; vehicleRegistration?: string; incidentDate?: string },
+): { claimantName?: string; claimNumber?: string; vehicleRegistration?: string; incidentDate?: string } {
+  const blank = (value: string | null | undefined) => value === null || value === undefined || value.trim() === "";
+  return {
+    ...(args.claimantName && blank(draft?.claimantName) ? { claimantName: args.claimantName } : {}),
+    ...(args.claimNumber && blank(draft?.claimNumber) ? { claimNumber: args.claimNumber } : {}),
+    ...(args.vehicleRegistration && blank(draft?.vehicleRegistration) ? { vehicleRegistration: args.vehicleRegistration } : {}),
+    ...(args.incidentDate && blank(draft?.dateOfIncident) ? { incidentDate: args.incidentDate } : {}),
+  };
 }

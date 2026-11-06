@@ -125,6 +125,7 @@ Then append by hand, in the same file:
 Features__PrincipalApi=true
 Features__AutomationMcp=true
 AutomationMcp__UseDevelopmentKeys=true
+AutomationMcp__ClientId=pegasus-automation
 AutomationMcp__ClientSecret=<32+ characters the operator chooses>
 Features__LiveGraphMail=true
 Graph__BaseUri=https://graph.microsoft.com/v1.0/
@@ -304,12 +305,13 @@ The first run on this machine (3 November 2026,
 another machine the first run is again a test of it, so read its output
 before trusting the copy.
 
-## 8. The classifier agent, locally
+## 8. The classifier agent, and Claude Code on the MCP
 
 Read [references/classifier-local-run.md](references/classifier-local-run.md).
 It runs one sweep per `npm start` against the instance's `/mcp` on the public
-origin, in dry run first (`CLASSIFIER_DRY_RUN=true`), with the operator's
-Anthropic key in an ignored `.env`.
+origin, with the operator's Anthropic key in an ignored `.env`; a systemd user
+timer repeats it every 15 minutes. The same reference connects Claude Code on a
+tailnet machine to the instance's MCP (R679).
 
 ## 9. Stop
 

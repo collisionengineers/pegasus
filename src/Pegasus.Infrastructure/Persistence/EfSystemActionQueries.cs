@@ -18,8 +18,6 @@ internal sealed class EfSystemActionQueries(
 {
     private const string AutoLinkEvent = "intake_case_linked_automatic";
     private const string MergeEvent = "merged_into_instruction_case";
-    private const string QueryReceivedEvent = "case_query_received";
-    private const string QueryLoggedEvent = "case_query_logged";
     private static readonly string SystemWorkerActorKind = nameof(ActorKind.SystemWorker);
     private static readonly string AutomationActorKind = nameof(ActorKind.Automation);
     private static readonly string CancellationCategory = MailCategories.Code(MailCategory.Cancellation);
@@ -71,10 +69,9 @@ internal sealed class EfSystemActionQueries(
     }
 
     /// <summary>
-    /// An e-mail the matcher linked by itself. The signal is the association
-    /// reason (it names the agreeing signals) or, when none was recorded, the
-    /// match policy key. A receipt whose current category is cancellation is the
-    /// cancellation row, not also this one: both would dismiss the same receipt.
+    /// An e-mail the matcher linked by itself. A receipt whose current category
+    /// is cancellation is the cancellation row, not also this one: both would
+    /// dismiss the same receipt.
     /// </summary>
     private async Task<Raw[]> ReadMailAsync(DateTimeOffset sinceUtc, CancellationToken cancellationToken)
     {
@@ -95,9 +92,6 @@ internal sealed class EfSystemActionQueries(
             join decisionCandidate in context.IntakeMailClassificationDecisions.AsNoTracking()
                 on receipt.Id equals decisionCandidate.IntakeReceiptId into decisions
             from decision in decisions.DefaultIfEmpty()
-            join messageCandidate in context.RetainedMailboxMessages.AsNoTracking()
-                on receipt.ExternalReceiptToken equals messageCandidate.ExternalReceiptToken into messages
-            from message in messages.DefaultIfEmpty()
             where (decision == null || decision.Category != CancellationCategory)
                 && !dismissals.Any(dismissal => dismissal.RecordId == receipt.Id
                     && dismissal.DismissedAtUtc >= history.OccurredAtUtc)
@@ -107,8 +101,6 @@ internal sealed class EfSystemActionQueries(
                 caseEntity.Id,
                 caseEntity.Reference,
                 history.OccurredAtUtc,
-                message == null || message.Subject == null ? association.Reason ?? association.MatchPolicyKey! : message.Subject,
-                association.Reason ?? association.MatchPolicyKey!,
                 null,
                 false))
             .ToArrayAsync(cancellationToken);
@@ -138,8 +130,6 @@ internal sealed class EfSystemActionQueries(
                 caseEntity.Id,
                 caseEntity.Reference,
                 merged.OccurredAtUtc,
-                intake.ImageIntakeReference,
-                merged.Reason ?? string.Empty,
                 null,
                 false))
             .ToArrayAsync(cancellationToken);
@@ -155,16 +145,6 @@ internal sealed class EfSystemActionQueries(
             where query.RaisedAtUtc >= sinceUtc
                 && (query.RaisedByKind == SystemWorkerActorKind || query.RaisedByKind == AutomationActorKind)
             join caseEntity in context.Cases.AsNoTracking() on query.CaseId equals caseEntity.Id
-            join receiptCandidate in context.IntakeReceipts.AsNoTracking()
-                on query.IntakeReceiptId equals (Guid?)receiptCandidate.Id into receipts
-            from receipt in receipts.DefaultIfEmpty()
-            join messageCandidate in context.RetainedMailboxMessages.AsNoTracking()
-                on receipt.ExternalReceiptToken equals messageCandidate.ExternalReceiptToken into messages
-            from message in messages.DefaultIfEmpty()
-            join eventCandidate in context.CaseWorkflowEvents.AsNoTracking()
-                    .Where(item => item.EventType == QueryReceivedEvent || item.EventType == QueryLoggedEvent)
-                on query.RaisedOperationKey equals eventCandidate.OperationKey into events
-            from raised in events.DefaultIfEmpty()
             where !dismissals.Any(dismissal => dismissal.RecordId == query.Id
                 && dismissal.DismissedAtUtc >= query.RaisedAtUtc)
             select new Raw(
@@ -173,10 +153,6 @@ internal sealed class EfSystemActionQueries(
                 caseEntity.Id,
                 caseEntity.Reference,
                 query.RaisedAtUtc,
-                message != null && message.Subject != null
-                    ? message.Subject
-                    : query.Details ?? string.Empty,
-                raised != null && raised.Reason != null ? raised.Reason : string.Empty,
                 query.Id,
                 query.AssigneeStaffId == null))
             .ToArrayAsync(cancellationToken);
@@ -211,10 +187,8 @@ internal sealed class EfSystemActionQueries(
                 association.CaseId,
                 message.Id,
                 message.ReceivedAtUtc,
-                message.Subject,
                 association.LinkedAtUtc,
-                receipt.MailClassificationDecision!.DecidedAtUtc,
-                association.Reason ?? receipt.MailClassificationDecision.Reason))
+                receipt.MailClassificationDecision!.DecidedAtUtc))
             .ToArrayAsync(cancellationToken);
         var accepted = await (
             from link in context.CaseIntakeLinks.AsNoTracking()
@@ -231,10 +205,8 @@ internal sealed class EfSystemActionQueries(
                 link.CaseId,
                 message.Id,
                 message.ReceivedAtUtc,
-                message.Subject,
                 link.LinkedAtUtc,
-                receipt.MailClassificationDecision!.DecidedAtUtc,
-                receipt.MailClassificationDecision.Reason))
+                receipt.MailClassificationDecision!.DecidedAtUtc))
             .ToArrayAsync(cancellationToken);
         var candidates = associated.Concat(accepted).ToArray();
 
@@ -272,8 +244,6 @@ internal sealed class EfSystemActionQueries(
                 item.CaseId,
                 references[item.CaseId],
                 MatchAt(item),
-                item.Subject ?? string.Empty,
-                item.Signal,
                 null,
                 false))
             .ToArray();
@@ -321,8 +291,6 @@ internal sealed class EfSystemActionQueries(
             vehicle?.Registration,
             vehicle?.Make,
             vehicle?.Model,
-            row.Summary,
-            row.Signal,
             row.OccurredAtUtc,
             row.QueryId,
             row.QueryUnassigned);
@@ -334,8 +302,6 @@ internal sealed class EfSystemActionQueries(
         Guid CaseId,
         string Reference,
         DateTimeOffset OccurredAtUtc,
-        string Summary,
-        string Signal,
         Guid? QueryId,
         bool QueryUnassigned);
 
@@ -344,10 +310,8 @@ internal sealed class EfSystemActionQueries(
         Guid CaseId,
         Guid MessageId,
         DateTimeOffset ReceivedAtUtc,
-        string? Subject,
         DateTimeOffset LinkedAtUtc,
-        DateTimeOffset DecidedAtUtc,
-        string Signal);
+        DateTimeOffset DecidedAtUtc);
 
     private sealed record VehicleFields(string? Registration, string? Make, string? Model);
 }

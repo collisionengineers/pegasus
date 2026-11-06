@@ -32,13 +32,14 @@ flowchart LR
 The mail classifier agent (`src/pegasus-classifier-agent`, TypeScript on its
 own Flex Consumption Function App from `infra/modules/classifier.bicep`) is an
 Automation MCP client, not a composition root. It reaches Pegasus only through
-`/mcp` under `automation.mail` and calls the mail tools as any Automation
-caller does, so Pegasus applies the same checks to its writes. Its eight tools
-list and read mail that is Unclassified or has no Case, read an attachment's
-extracted text, classify and link the mail, open a query, and look up the old
-system's Box folders and the approved mailboxes through Pegasus's read-only
-tools (R561); they leave any message staff or an Automation caller has
-decided. `src/replay.ts` runs the
+`/mcp` under `automation.mail` and `automation.intake` and calls the mail and
+intake tools as any Automation caller does, so Pegasus applies the same checks
+to its writes. Its ten tools list and read mail that is Unclassified or has no
+Case, read an attachment's extracted text, search Cases to link, classify and
+link the mail, create the Case for an unlinked New instruction as staff Create
+case does (R714), open a query, and look up the old system's Box folders and
+the approved mailboxes through Pegasus's read-only tools (R561); they leave any
+message staff or an Automation caller has decided. `src/replay.ts` runs the
 same agent over a fixture file with a recording stand-in for Pegasus, so a
 prompt change is shown on exported mail before it is released.
 

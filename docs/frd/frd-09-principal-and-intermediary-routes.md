@@ -297,7 +297,7 @@ classify worse than one carrying either.
 Garage allocation, repairs authorised, report chase and automatic replies are
 plain correspondence. They are not categories. The pre-accident-value dispute
 sentence is a query criterion: it sets `OpensQuery` and is not a category
-(`principal_mail_classification` v4;
+(`principal_mail_classification` v5, which adds R713;
 [QDOS profile](../principal-profiles/qdos.md)).
 
 The classification decision is itself the Triage-match evidence, stamped with

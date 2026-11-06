@@ -5826,7 +5826,7 @@
         host.querySelector('[data-viewer-crop-reset]').addEventListener('click', cropReset);
         host.querySelector('[data-viewer-crop-save]').addEventListener('click', saveCrop);
         host.querySelector('[data-viewer-crop-cancel]').addEventListener('click', cancelCrop);
-        host.addEventListener('click', function (event) { if (event.target === host) { close(); } });
+        window.pegasusUi.onBackdropClick(host, close);
         window.addEventListener('resize', function () { if (state.open) { fit(); } });
 
         return {

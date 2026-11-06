@@ -23,11 +23,12 @@ public sealed class SystemActionsTests
     [InlineData(SystemActionFilter.AutoMatched, SystemActionKind.CancellationMatched, false)]
     [InlineData(SystemActionFilter.ImagesPaired, SystemActionKind.VehicleImagesPaired, true)]
     [InlineData(SystemActionFilter.ImagesPaired, SystemActionKind.AutoMatchedMail, false)]
-    [InlineData(SystemActionFilter.RulesAndQueries, SystemActionKind.QueryOpenedAutomatically, true)]
-    [InlineData(SystemActionFilter.RulesAndQueries, SystemActionKind.CancellationMatched, true)]
-    [InlineData(SystemActionFilter.RulesAndQueries, SystemActionKind.VehicleImagesPaired, false)]
+    [InlineData(SystemActionFilter.QueryOpened, SystemActionKind.QueryOpenedAutomatically, true)]
+    [InlineData(SystemActionFilter.QueryOpened, SystemActionKind.CancellationMatched, false)]
+    [InlineData(SystemActionFilter.CancellationMatched, SystemActionKind.CancellationMatched, true)]
+    [InlineData(SystemActionFilter.CancellationMatched, SystemActionKind.QueryOpenedAutomatically, false)]
     [InlineData(SystemActionFilter.All, SystemActionKind.CancellationMatched, true)]
-    public void TheSubFilterNamesTheKindOrTheRuleKinds(SystemActionFilter filter, SystemActionKind kind, bool expected)
+    public void EachSubFilterNamesOneKind(SystemActionFilter filter, SystemActionKind kind, bool expected)
     {
         Assert.Equal(expected, SystemActionsPolicy.Matches(filter, kind));
     }
@@ -37,19 +38,15 @@ public sealed class SystemActionsTests
     [InlineData("AB12 CDE", true)]
     [InlineData("ab12-cde", true)]
     [InlineData("Focus", true)]
-    [InlineData("conversation thread", true)]
-    [InlineData("storage", true)]
     [InlineData("Nope", false)]
-    public void FindMatchesTheReferenceTheVehicleTheSummaryOrTheSignal(string search, bool expected)
+    public void FindMatchesTheReferenceOrTheVehicle(string search, bool expected)
     {
         var row = Row(SystemActionKind.AutoMatchedMail, Now) with
         {
             Reference = "QDOS26190",
             Registration = "AB12 CDE",
             VehicleMake = "Ford",
-            VehicleModel = "Focus",
-            Summary = "Storage charges dispute",
-            Signal = "Automatic association from conversation thread."
+            VehicleModel = "Focus"
         };
 
         Assert.Equal(expected, SystemActionsPolicy.MatchesSearch(row, search));
@@ -62,11 +59,11 @@ public sealed class SystemActionsTests
         var queries = new StubQueries(page);
 
         var result = await new ListSystemActions(queries, new FixedTime(Now))
-            .ExecuteAsync(Staff, SystemActionFilter.RulesAndQueries, "AB12", 2, default);
+            .ExecuteAsync(Staff, SystemActionFilter.QueryOpened, "AB12", 2, default);
 
         Assert.Same(page, result);
         Assert.Equal(RecentCasesPolicy.WindowStart(Now), queries.Since);
-        Assert.Equal(SystemActionFilter.RulesAndQueries, queries.Filter);
+        Assert.Equal(SystemActionFilter.QueryOpened, queries.Filter);
         Assert.Equal("AB12", queries.Search);
         Assert.Equal(2, queries.Page);
         Assert.Equal(SystemActionsPolicy.PageSize, queries.PageSize);
@@ -110,8 +107,6 @@ public sealed class SystemActionsTests
             null,
             null,
             null,
-            "Summary",
-            "Signal",
             occurredAtUtc,
             kind == SystemActionKind.QueryOpenedAutomatically ? recordId : null,
             false);
