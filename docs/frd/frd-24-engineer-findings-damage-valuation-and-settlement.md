@@ -414,7 +414,7 @@ reason as one sentence, `Please note the vehicle is unroadworthy
 {reason}.`, with one full stop whether or not the Engineer typed one
 (operator, 2 November 2026; R607). The reason supplies its own joining
 word, and the standard bank wordings open with "as"; reasons saved before
-the change are left as written (operator, 6 November 2026; R750). On a total loss it prints the category and the salvage value. On a
+the change are left as written (operator, 6 November 2026; R756). On a total loss it prints the category and the salvage value. On a
 contract repair it prints the agreed contract sum. The other settlement
 fields are recorded on the Case and not printed (operator, 27 September
 2026).
