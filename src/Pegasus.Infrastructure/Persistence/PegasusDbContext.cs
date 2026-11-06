@@ -541,6 +541,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.DefaultFee)
                 .HasPrecision(18, 2)
                 .HasDefaultValue(Pegasus.Core.Cases.PrincipalDefaultFeePolicy.Standard);
+            entity.Property(item => item.InspectionReportNameFirst).HasMaxLength(Pegasus.Core.Reports.PrincipalReportNames.MaximumFileNameLength);
+            entity.Property(item => item.InspectionReportNameResend).HasMaxLength(Pegasus.Core.Reports.PrincipalReportNames.MaximumFileNameLength);
+            entity.Property(item => item.AuditReportNameFirst).HasMaxLength(Pegasus.Core.Reports.PrincipalReportNames.MaximumFileNameLength);
+            entity.Property(item => item.AuditReportNameResend).HasMaxLength(Pegasus.Core.Reports.PrincipalReportNames.MaximumFileNameLength);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => item.Code).IsUnique();
             entity.HasIndex(item => item.PredecessorId).IsUnique();
@@ -1218,6 +1222,11 @@ internal sealed class PrincipalEntity
     public string? SalvageMatrixJson { get; set; }
     public decimal DefaultFee { get; set; } = Pegasus.Core.Cases.PrincipalDefaultFeePolicy.Standard;
     public string ReportSendingRulesJson { get; set; } = EfOrganizationAdministration.DefaultReportSendingJson;
+    // What its reports are called (R740); null is the standard name.
+    public string? InspectionReportNameFirst { get; set; }
+    public string? InspectionReportNameResend { get; set; }
+    public string? AuditReportNameFirst { get; set; }
+    public string? AuditReportNameResend { get; set; }
     public long Version { get; set; }
     public List<ContactPrincipalLinkEntity> ContactLinks { get; set; } = [];
     public List<CaseEntity> Cases { get; set; } = [];

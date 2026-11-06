@@ -195,6 +195,35 @@ public sealed class EfCaseReportGenerationStore(
         }
 
         var snapshot = BuildSnapshot(request, reportInputs, readiness, projected.Snapshot, reportDate, now, operationKey);
+        // The report's file name is frozen with it, read under the same lock:
+        // the Principal's name for this report as the work's sends stand (R740).
+        var naming = await context.Cases.AsNoTracking()
+            .Where(item => item.Id == request.CaseId)
+            .Select(item => new
+            {
+                item.Type,
+                item.Principal.InspectionReportNameFirst,
+                item.Principal.InspectionReportNameResend,
+                item.Principal.AuditReportNameFirst,
+                item.Principal.AuditReportNameResend,
+            })
+            .SingleAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var sentCount = await EfCaseReportSendHistoryQueries.SentCountAsync(context, workId, cancellationToken)
+            .ConfigureAwait(false);
+        snapshot = snapshot with
+        {
+            ReportFileName = CaseReportDeliveryNaming.ReportName(
+                snapshot,
+                sentCount,
+                new PrincipalReportNames(
+                    naming.InspectionReportNameFirst,
+                    naming.InspectionReportNameResend,
+                    naming.AuditReportNameFirst,
+                    naming.AuditReportNameResend),
+                CaseTypeCodes.Parse(naming.Type),
+                reportInputs.WorkKind) + CaseReportDeliveryNaming.Extension,
+        };
         var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken).ConfigureAwait(false);
         if (!await SignatoryMatchesAsync(context, snapshot, CaseSignOffEngineerResolver.Resolve(
                 workflow.SignOffEngineerId, workflow.AssignedEngineerId, profiles), [], cancellationToken).ConfigureAwait(false))

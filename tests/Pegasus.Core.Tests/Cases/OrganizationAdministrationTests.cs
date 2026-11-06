@@ -295,14 +295,46 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            defaultFee: 200.00m);
+            defaultFee: 200.00m,
+            reportNames: null);
 
         Assert.Equal(200.00m, updated.DefaultFee);
         Assert.Equal(4, updated.Version);
         Assert.Equal(4, OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             updated,
             expectedVersion: 4,
-            defaultFee: 200m).Version);
+            defaultFee: 200m,
+            reportNames: null).Version);
+    }
+
+    /// <summary>
+    /// The report names are saved with the report settings, normalized, and
+    /// move the version only when they change (R740).
+    /// </summary>
+    [Fact]
+    public void TheReportNamesChangeWithTheReportSettings()
+    {
+        var current = Principal(version: 3);
+
+        var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+            current,
+            expectedVersion: 3,
+            defaultFee: current.DefaultFee,
+            reportNames: new(null, null, " {REG}_{CASE REF}_AUDIT ", ""));
+
+        Assert.Equal(new Pegasus.Core.Reports.PrincipalReportNames(null, null, "{REG}_{CASE REF}_AUDIT", null), updated.ReportNames);
+        Assert.Equal(4, updated.Version);
+        Assert.Equal(4, OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+            updated,
+            expectedVersion: 4,
+            defaultFee: current.DefaultFee,
+            reportNames: updated.ReportNames).Version);
+        Assert.Throws<Pegasus.Core.Reports.ReportNamesException>(() =>
+            OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+                updated,
+                expectedVersion: 4,
+                defaultFee: current.DefaultFee,
+                reportNames: new("{ref}", null, null, null)));
     }
 
     /// <summary>
@@ -325,7 +357,8 @@ public sealed class OrganizationAdministrationTests
             OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 Principal(version: 3),
                 expectedVersion: 3,
-                defaultFee: request.DefaultFee));
+                defaultFee: request.DefaultFee,
+                reportNames: null));
     }
 
     [Fact]
@@ -522,7 +555,8 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            defaultFee: 215.00m);
+            defaultFee: 215.00m,
+            reportNames: null);
 
         Assert.Equal(215.00m, updated.DefaultFee);
         Assert.Equal(4, updated.Version);
@@ -544,7 +578,8 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            defaultFee: PrincipalDefaultFeePolicy.Standard);
+            defaultFee: PrincipalDefaultFeePolicy.Standard,
+            reportNames: null);
 
         Assert.Equal(3, updated.Version);
     }
@@ -574,7 +609,8 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            defaultFee: 215.00m);
+            defaultFee: 215.00m,
+            reportNames: null);
 
         Assert.Equal("Always copy the fleet manager.", updated.NotesOnEveryCase);
         Assert.Equal(4, updated.Version);
@@ -587,7 +623,8 @@ public sealed class OrganizationAdministrationTests
             OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 Principal(version: 4),
                 expectedVersion: 3,
-                defaultFee: PrincipalDefaultFeePolicy.Standard));
+                defaultFee: PrincipalDefaultFeePolicy.Standard,
+                reportNames: null));
 
         Assert.Equal(OrganizationAdministrationError.StaleVersion, error.Error);
     }
@@ -603,7 +640,8 @@ public sealed class OrganizationAdministrationTests
             OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 Principal(version: 3) with { IsActive = false },
                 expectedVersion: 3,
-                defaultFee: PrincipalDefaultFeePolicy.Standard));
+                defaultFee: PrincipalDefaultFeePolicy.Standard,
+                reportNames: null));
 
         Assert.Equal(OrganizationAdministrationError.PrincipalInactive, error.Error);
     }

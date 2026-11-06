@@ -9,8 +9,8 @@ using Pegasus.Core.Reports;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// Reads the report dispatch facts of a Case: the Principal and its report
-/// sending rules, the retained instruction e-mail and the mailbox holding it,
+/// Reads the report dispatch facts of a Case: the Principal, its report
+/// sending rules and its report names, the retained instruction e-mail and the mailbox holding it,
 /// the Case's Claim Source, Repairer, type and outcome, the work whose report
 /// is being sent, the filed estimates, and whether the vehicle is a previous
 /// job.
@@ -46,6 +46,10 @@ public sealed class EfReportRecipientSuggestionQueries(
                              PrincipalCode = principal.Code,
                              PrincipalName = principal.Organization.Name,
                              principal.ReportSendingRulesJson,
+                             principal.InspectionReportNameFirst,
+                             principal.InspectionReportNameResend,
+                             principal.AuditReportNameFirst,
+                             principal.AuditReportNameResend,
                              ReceiptChannel = receipt == null ? null : receipt.SourceChannel,
                              ReceiptToken = receipt == null ? null : receipt.ExternalReceiptToken,
                              // The route's own effective sender only: an unresolved
@@ -179,6 +183,11 @@ public sealed class EfReportRecipientSuggestionQueries(
         {
             OriginalSender = row.EffectiveSender,
             CaseType = CaseTypeCodes.Parse(row.Type),
+            ReportNames = new(
+                row.InspectionReportNameFirst,
+                row.InspectionReportNameResend,
+                row.AuditReportNameFirst,
+                row.AuditReportNameResend),
             ReportWork = workKind,
             InstructionText = instructionText,
             FiledEstimates = await EfFiledEstimateAttachmentQueries.ReadAsync(context, caseId, cancellationToken),

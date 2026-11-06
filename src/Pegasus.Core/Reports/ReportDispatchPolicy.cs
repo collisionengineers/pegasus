@@ -78,6 +78,9 @@ public sealed record ReportDispatchFacts(
     /// <summary>The Case's type, which "Case type" conditions compare.</summary>
     public CaseType? CaseType { get; init; }
 
+    /// <summary>What the Principal's reports are called (R740); not part of <see cref="Fingerprint"/>, since no rule reads it.</summary>
+    public PrincipalReportNames ReportNames { get; init; } = PrincipalReportNames.None;
+
     /// <summary>
     /// The work whose report is being sent: the primary work's is the
     /// Inspection report and the Audit work's the Audit report. On an

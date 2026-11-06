@@ -205,8 +205,8 @@ report from the Inspection's values and, after Create audit, the Audit report
 from the Audit's values, on the same Case. Each report is generated,
 approved and sent on its own: current, superseded and stale are decided for
 each separately, and an Audit edit never makes the Inspection report stale.
-The Audit report's reference is its Our Ref and its file name (for example
-`A_QDOS26001_report.pdf`), and its re-sends are
+The Audit report's reference is its Our Ref and is in its file name (for
+example `a.QDOS26001 AB12CDE Repairable report.pdf`; R740), and its re-sends are
 counted among Audit sends only. It has its own fee note and fee, counted
 separately. Report image choices are shared, because they belong to the
 Case's files. Once the Audit exists, the Inspection report is generated,
@@ -342,7 +342,21 @@ Automation actor as the sender (operator, 7 October 2026;
 **What a delivery is called (v28 P23).** The attached report is named for the
 people who read it — the Case's reference, the vehicle's registration and the
 outcome — and one dot is added for each report of this Case already sent, so
-a re-issue is distinguishable at a glance. Companion documents keep the names
+a re-issue is distinguishable at a glance. That standard name is also the name
+the report is filed under in Box and Case documents, fixed when the report is
+generated. A Principal's report names
+([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration))
+replace it: the Inspection report's for an Inspection Case and the Inspection
+report of an Inspection + Audit Case, the Audit report's for a standalone
+Audit and the Audit report of an Inspection + Audit Case. A report generated
+after its work was sent is filed under its Re-send name, and the attachment
+takes its Re-send name whenever its work was sent before. `{CASE REF}` prints
+the report's Our Ref, `a.` and `-p` included; a token with no value leaves
+nothing and the spaces around it close up, and a name whose every token is
+empty is the standard name. A character no file name can hold becomes `_`.
+Each report a send carries is named by its own work's name and sends. A
+report filed before 6 November 2026 keeps its name (operator, 6 November
+2026; R740). Companion documents keep the names
 custody gave them. That is each document's policy name, and the composer's
 Files rows start on it; staff may rename any of the generation's documents
 for the send, the report included, the stem alone, since every delivered
@@ -527,10 +541,10 @@ same click as Send report (operator, 4 November 2026, R665).
   outcome when the Principal asks for it are shown on the form and recorded
   with the send. They become Case tasks when Report sent is recorded
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
-- **Name.** A Principal may set the report's name: one pattern for a first send
-  and one for every later send, using {ref}, {reg} and {outcome}. Without one,
-  the default naming above applies. The other work's report a send also
-  carries keeps its default name.
+- **Name.** What the report is called is the Principal's report names, not a
+  sending rule
+  ([What a delivery is called](#companion-documents-and-what-a-delivery-attaches);
+  R740).
 - **Changes.** A send carries the rules and Case facts its form was drawn from
   (the rules, the instruction, its sender, the Claim Source, the Repairer, the
   outcome and the instruction text). If any changed since, the send is refused

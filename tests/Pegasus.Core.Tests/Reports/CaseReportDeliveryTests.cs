@@ -658,13 +658,10 @@ public sealed class CaseReportDeliveryTests
     [Theory]
     [InlineData(0, "PK12 TMZ Initial.pdf")]
     [InlineData(1, "PK12 TMZ Supplementary.pdf")]
-    public async Task SendNamesTheReportByThePrincipalsPattern(int sentCount, string expected)
+    public async Task SendNamesTheReportByThePrincipalsName(int sentCount, string expected)
     {
         var send = new RecordingSend();
-        var facts = Facts(PrincipalReportSendingRules.Default with
-        {
-            AttachmentName = new("{reg} Initial", "{reg} Supplementary")
-        });
+        var facts = Facts() with { ReportNames = new("{REG} Initial", "{REG} Supplementary", null, null) };
 
         await Use(
                 new FixedGenerations(Generation()), send, facts: facts,
@@ -678,21 +675,23 @@ public sealed class CaseReportDeliveryTests
     }
 
     /// <summary>
-    /// The Principal's pattern names the send's own report only: the other
-    /// work's report keeps its standard name, so the two never share one.
+    /// Each report a send carries is named by the Principal's name for it
+    /// (R740): the Audit report by the Audit name and the Inspection report
+    /// beside it by the Inspection name.
     /// </summary>
     [Fact]
-    public async Task ThePrincipalsPatternNamesOnlyTheSendsOwnReport()
+    public async Task EachReportOfASendIsNamedByThePrincipalsNameForIt()
     {
         var inspection = OtherGeneration();
         var send = new RecordingSend();
-        var facts = Facts(PrincipalReportSendingRules.Default with
+        var facts = Facts() with
         {
-            AttachmentName = new("{reg} Initial", "{reg} Supplementary")
-        });
+            CaseType = CaseType.InspectionAndAudit,
+            ReportNames = new("{REG} Initial", "{REG} Supplementary", "{REG}_{CASE REF}_AUDIT", null),
+        };
 
         await new SendCaseReport(
-                new GenerationsById(Generation(), inspection),
+                new GenerationsById(Generation() with { WorkKind = CaseWorkKind.Audit }, inspection),
                 new FixedSendHistory(CaseReportSendHistory.None),
                 new FixedSuggestions(facts),
                 Senders(null, Mailbox()),
@@ -703,7 +702,7 @@ public sealed class CaseReportDeliveryTests
                 CancellationToken.None);
 
         Assert.Equal(
-            ["PK12 TMZ Initial.pdf", "DVR-31001 PK12 TMZ Repairable report.pdf"],
+            ["PK12 TMZ_DVR-31001_AUDIT.pdf", "PK12 TMZ Initial.pdf"],
             Assert.Single(send.Commands).Mail.Attachments.Select(attachment => attachment.FileName).ToArray());
     }
 

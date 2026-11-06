@@ -181,45 +181,52 @@ public static class CaseReportDeliveryNaming
     };
 
     /// <summary>
-    /// The attached report's own name for one generation, without its
-    /// extension, after <paramref name="sentCount"/> sends of its work, in the
-    /// Principal's own <paramref name="pattern"/> when it has one.
+    /// A report's own name for one generation, without its extension, after
+    /// <paramref name="sentCount"/> sends of its work, in the Principal's own
+    /// name for this report when it has one (R740). It names the filed copy
+    /// and the attachment alike.
     /// </summary>
     public static string ReportName(
-        CaseReportGenerationSnapshot snapshot, int sentCount, ReportAttachmentNamePattern? pattern = null)
+        CaseReportGenerationSnapshot snapshot,
+        int sentCount,
+        PrincipalReportNames names,
+        CaseType? caseType,
+        CaseWorkKind workKind)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(names);
         return ReportName(
             snapshot.CaseReference,
             snapshot.Report.Vehicle.Registration,
             OutcomeWords(snapshot.Report.Outcome),
             sentCount,
-            pattern);
+            names.For(caseType, workKind, sentCount));
     }
 
-    /// <summary>The attached report's own name, without its extension.</summary>
+    /// <summary>
+    /// A report's own name, without its extension. The Principal's
+    /// <paramref name="name"/> has its tokens filled; a token with no value
+    /// leaves nothing and the spaces around it close up. Without one, or when
+    /// every token in it is empty, the standard name applies: the reference,
+    /// the registration and the outcome, with one dot for each earlier send.
+    /// A character no file name can hold becomes <c>_</c>, as custody files
+    /// it, so the filed copy and the attachment share one name.
+    /// </summary>
     public static string ReportName(
         string caseReference, string? registration, string? outcome, int sentCount,
-        ReportAttachmentNamePattern? pattern = null)
+        string? name = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(caseReference);
         ArgumentOutOfRangeException.ThrowIfNegative(sentCount);
-        if (pattern is not null)
+        if (!string.IsNullOrWhiteSpace(name))
         {
-            // The Principal's own pattern: its First on a first send, its
-            // Resend on every later one. The tokens are {ref}, {reg} and
-            // {outcome}; a token with no value leaves nothing, and the
-            // spaces around it close up.
-            var text = (sentCount == 0 ? pattern.First : pattern.Resend)
-                .Replace("{ref}", caseReference.Trim(), StringComparison.Ordinal)
-                .Replace("{reg}", registration?.Trim() ?? string.Empty, StringComparison.Ordinal)
-                .Replace("{outcome}", outcome?.Trim() ?? string.Empty, StringComparison.Ordinal);
+            var text = PrincipalReportNames.Fill(name, caseReference, registration, outcome);
             var named = string.Join(" ", text.Split(' ', StringSplitOptions.RemoveEmptyEntries));
             if (named.Length > 0)
             {
-                return named;
+                return FileSafe(named);
             }
-            // A pattern whose every token is empty names nothing, so the
+            // A name whose every token is empty names nothing, so the
             // standard name below applies.
         }
         // A one-off Case's reference is its registration, printed once
@@ -233,9 +240,19 @@ public static class CaseReportDeliveryNaming
                 : registration?.Trim(),
             string.IsNullOrWhiteSpace(outcome) ? "report" : $"{outcome.Trim()} report",
         };
-        return string.Join(" ", parts.Where(part => !string.IsNullOrWhiteSpace(part)))
-            + new string('.', sentCount);
+        return FileSafe(string.Join(" ", parts.Where(part => !string.IsNullOrWhiteSpace(part)))
+            + new string('.', sentCount));
     }
+
+    /// <summary>
+    /// The characters custody replaces in a file name (<c>CustodyNames</c>),
+    /// replaced the same way here.
+    /// </summary>
+    private static string FileSafe(string name) =>
+        new(name.Select(character =>
+            character < ' ' || character is '"' or '<' or '>' or '|' or ':' or '*' or '?' or '\\' or '/'
+                ? '_'
+                : character).ToArray());
 
     /// <summary>The extension every delivered document keeps.</summary>
     public const string Extension = ".pdf";
@@ -825,14 +842,14 @@ public sealed class SendCaseReport(
         ];
         IReadOnlyList<StaffMailAttachment> named = CaseReportDeliveryNaming.Named(
             attachments,
-            CaseReportDeliveryNaming.ReportName(generation.Snapshot, history.SentCount, facts.Rules.AttachmentName),
+            CaseReportDeliveryNaming.ReportName(
+                generation.Snapshot, history.SentCount, facts.ReportNames, facts.CaseType, generation.WorkKind),
             CaseReportDeliveryPolicy.AttachedKinds(generation.Id, generation.Artifacts, attachChoice),
             request.AttachmentNames);
 
         // The other work's report the same email carries: deliverable on its
-        // own work under the same lease, and named by its own work's sends.
-        // The Principal's attachment name pattern names this send's own
-        // report only, so the two reports never share a name.
+        // own work under the same lease, and named by its own work's sends
+        // and the Principal's name for that report (R740).
         CaseReportGenerationRecord? second = null;
         IReadOnlyList<StaffMailAttachment> secondAttachments = [];
         if (request.SecondReport is { } secondReport)
@@ -868,7 +885,8 @@ public sealed class SendCaseReport(
                 .. named,
                 .. CaseReportDeliveryNaming.Named(
                     secondAttachments,
-                    CaseReportDeliveryNaming.ReportName(second.Snapshot, secondHistory.SentCount),
+                    CaseReportDeliveryNaming.ReportName(
+                        second.Snapshot, secondHistory.SentCount, facts.ReportNames, facts.CaseType, second.WorkKind),
                     CaseReportDeliveryPolicy.AttachedKinds(second.Id, second.Artifacts, secondChoice),
                     secondReport.AttachmentNames)
             ];

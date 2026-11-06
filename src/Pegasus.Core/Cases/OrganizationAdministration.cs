@@ -43,11 +43,16 @@ public sealed record PrincipalAdministrationSummary(
     long? DefaultInspectionSourceVersion = null,
     string? NotesOnEveryCase = null,
     SalvageMatrix? SalvageMatrix = null,
-    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard)
+    decimal DefaultFee = PrincipalDefaultFeePolicy.Standard,
+    PrincipalReportNames? ReportNames = null)
 {
     /// <summary>The Principal's report sending rules; the defaults when none were named.</summary>
     public PrincipalReportSendingRules ReportSending { get; init; } =
         ReportSending ?? PrincipalReportSendingRules.Default;
+
+    /// <summary>What the Principal's reports are called; none when it names none (R740).</summary>
+    public PrincipalReportNames ReportNames { get; init; } =
+        ReportNames ?? PrincipalReportNames.None;
 }
 
 public sealed record PrincipalAdministrationDetails(
@@ -277,7 +282,8 @@ public static class OrganizationAdministrationPolicy
                 predecessor.InspectionMode,
                 predecessor.ReportSending,
                 SalvageMatrix: predecessor.SalvageMatrix,
-                DefaultFee: predecessor.DefaultFee));
+                DefaultFee: predecessor.DefaultFee,
+                ReportNames: predecessor.ReportNames));
     }
 
     public static void RequireUniquePrincipalCode(bool alreadyExists)
@@ -299,6 +305,7 @@ public static class OrganizationAdministrationPolicy
         PrincipalDefaultFeePolicy.Require(request.DefaultFee, nameof(request.DefaultFee));
         return request with
         {
+            ReportNames = PrincipalReportNames.Normalize(request.ReportNames),
             OperationKey = NormalizeRequiredText(
                 request.OperationKey,
                 MaximumOperationKeyLength,
@@ -403,14 +410,15 @@ public static class OrganizationAdministrationPolicy
     }
 
     /// <summary>
-    /// The default fee changes, and nothing else does. The code, the
-    /// organization, its notes, the lineage and the allocation history are
-    /// untouched.
+    /// The default fee and the report names change, and nothing else does.
+    /// The code, the organization, its notes, the lineage and the allocation
+    /// history are untouched.
     /// </summary>
     public static Principal PlanPrincipalReportSettingsUpdate(
         Principal current,
         long expectedVersion,
-        decimal defaultFee)
+        decimal defaultFee,
+        PrincipalReportNames? reportNames)
     {
         ArgumentNullException.ThrowIfNull(current);
         RequireExpectedVersion(expectedVersion, nameof(expectedVersion));
@@ -430,10 +438,12 @@ public static class OrganizationAdministrationPolicy
         }
 
         PrincipalDefaultFeePolicy.Require(defaultFee, nameof(defaultFee));
-        var changed = current.DefaultFee != defaultFee;
+        var names = PrincipalReportNames.Normalize(reportNames);
+        var changed = current.DefaultFee != defaultFee || current.ReportNames != names;
         return current with
         {
             DefaultFee = defaultFee,
+            ReportNames = names,
             Version = changed ? checked(current.Version + 1) : current.Version
         };
     }

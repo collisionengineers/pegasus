@@ -276,6 +276,23 @@ public static partial class OperatorLabels
         public const string RemoveSalvageBand = "Remove";
         public const string SaveSalvageMatrix = "Save salvage matrix";
         public const string DefaultFee = "Default fee (£)";
+        // What the Principal's reports are called, filed and sent (operator, 6 November 2026; R740).
+        public const string InspectionReportName = "Inspection report name";
+        public const string AuditReportName = "Audit report name";
+        public const string ReportNameFirst = "First send";
+        public const string ReportNameResend = "Re-send";
+        public const string ReportNameHint = "Use {REG}, {CASE REF} and {OUTCOME}. Empty: the standard name.";
+        /// <summary>The standard names an empty box stands for, shown greyed in it.</summary>
+        public const string ReportNameFirstStandard = "{CASE REF} {REG} {OUTCOME} report";
+        public const string ReportNameResendStandard = "{CASE REF} {REG} {OUTCOME} report.";
+
+        /// <summary>A report name the save refused, naming the report it is for.</summary>
+        public static string ReportNameRefused(bool auditReport, Pegasus.Core.Reports.ReportNamesRule rule) =>
+            (auditReport ? AuditReportName : InspectionReportName) + rule switch
+            {
+                Pegasus.Core.Reports.ReportNamesRule.TooLong => ": too long to name a file.",
+                _ => ": use only {REG}, {CASE REF} and {OUTCOME}.",
+            };
         public const string ReportSending = "Report sending";
         public const string SaveReportSending = "Save report sending";
         public const string SendFrom = "Send from";
@@ -297,10 +314,6 @@ public static partial class OperatorLabels
         public const string Hold = "Hold";
         public const string HoldHint = "Send stays off until staff tick this as done.";
         public const string Reminders = "Reminders";
-        public const string AttachmentName = "Attachment name";
-        public const string AttachmentNameFirst = "First send";
-        public const string AttachmentNameResend = "Re-send";
-        public const string AttachmentNameHint = "Use {ref}, {reg} and {outcome}. Empty: the standard name.";
         public const string AddAddress = "Add address";
         public const string AddReminder = "Add reminder";
         public const string Rules = "Rules";
