@@ -56,8 +56,9 @@ internal sealed class EfCaseFilingReplayStore(
                     || association.ActorKind != SystemWorkerKind)
                 // CaseFilingTargetRule: not the Case's own origin receipt; a
                 // workflow Case that is not archived, in a state the
-                // association files into and not being edited; or a Triage
-                // Case a member of staff linked.
+                // association files into and, for the pipeline's own
+                // association, not being edited (R727); or a Triage Case a
+                // member of staff linked.
                 && !context.Cases.Any(caseRow => caseRow.Id == association.CaseId
                     && caseRow.OriginIntakeReceiptId == receipt.Id)
                 && ((workflow != null
@@ -65,7 +66,8 @@ internal sealed class EfCaseFilingReplayStore(
                         && (association.ActorKind != SystemWorkerKind
                             || (automaticStates.Contains(workflow.State)
                                 && workflow.ReportSentEvidenceId == null))
-                        && (workflow.EditLeaseExpiresAtUtc == null
+                        && (association.ActorKind != SystemWorkerKind
+                            || workflow.EditLeaseExpiresAtUtc == null
                             || workflow.EditLeaseExpiresAtUtc <= nowUtc))
                     || (workflow == null
                         && association.ActorKind != SystemWorkerKind

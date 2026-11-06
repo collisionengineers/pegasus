@@ -1405,11 +1405,13 @@ public sealed class ProcessQueuedIntake(
         if (outcome == AutomaticCaseEvidencePromotionOutcome.Deferred && throwOnDeferred)
         {
             // The live path only: an active staff edit is a temporary
-            // Case-target guard, so the claimed work item keeps the receipt
-            // and retries it after its ordinary bounded delay instead of
-            // filing against a moving Case. A completed-evaluation replay
-            // passes throwOnDeferred: false and returns RetryScheduled; its
-            // later attempts belong to ReplayCaseFilings.
+            // Case-target guard for the pipeline's own association (a
+            // member of staff's never defers, R727), so the claimed work
+            // item keeps the receipt and retries it after its ordinary
+            // bounded delay instead of filing against a moving Case. A
+            // completed-evaluation replay passes throwOnDeferred: false and
+            // returns RetryScheduled; its later attempts belong to
+            // ReplayCaseFilings.
             throw new IntakeDependencyUnavailableException(
                 "Automatic Case evidence promotion is waiting for the Case editor.");
         }

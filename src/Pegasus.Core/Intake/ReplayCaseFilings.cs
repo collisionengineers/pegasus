@@ -102,8 +102,8 @@ public interface ICaseFilingReplayStore
 /// grouped-image sweep already has, two hours from the association; after it
 /// the mail stays No Case Found for a person, and a filing still waiting for
 /// an editor then is not filed and leaves no row. A member of staff's
-/// association keeps FRD-22's rule: it waits for a live edit lease and
-/// retries (R189, R377).
+/// association has no window and never waits for an editor (R189, R377,
+/// R727).
 /// <para>
 /// Each attempt that fails with a fault worth retrying records a
 /// <c>replay_failed</c> row and is tried again after the live filing path's

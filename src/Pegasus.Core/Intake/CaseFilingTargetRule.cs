@@ -7,7 +7,7 @@ public enum CaseFilingTargetDisposition
     /// <summary>No filing is due: the Case's own origin receipt, an archived Case, an automatic association the Case's state no longer accepts, or a Triage Case the pipeline associated.</summary>
     NotApplicable,
 
-    /// <summary>The Case is being edited; filing waits for the editor.</summary>
+    /// <summary>The Case is being edited and the pipeline made the association; filing waits for the editor.</summary>
     Deferred,
 
     /// <summary>The Case may receive the receipt's evidence now.</summary>
@@ -40,7 +40,9 @@ public sealed record CaseFilingWorkflowFacts(
 /// automatic association accepts and no report has been sent
 /// (<see cref="CaseAssociationEligibility.IsFormalCaseEligible"/>), and
 /// never on a Triage Case. An archived Case never files. A live Case edit
-/// lease defers filing rather than refusing it.
+/// lease defers the pipeline's filing rather than refusing it; a member of
+/// staff's filing never waits for an editor, whoever holds the lease, and
+/// moves the Case version under it like other system work (FRD-14; R727).
 /// </summary>
 /// <remarks>
 /// The plan, every custody step and the Case-filing replay listing all answer
@@ -76,7 +78,8 @@ public static class CaseFilingTargetRule
                 return CaseFilingTargetDisposition.NotApplicable;
             }
 
-            return CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, nowUtc)
+            return !facts.IsStaffAssociation
+                && CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, nowUtc)
                 ? CaseFilingTargetDisposition.Deferred
                 : CaseFilingTargetDisposition.Current;
         }
