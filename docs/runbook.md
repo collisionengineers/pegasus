@@ -1195,8 +1195,9 @@ Automation OAuth certificates are read after it
 listens, because each waits on a managed-identity token. The first Web telemetry
 has arrived about 100 s after container start, beginning with `/msi/token`; the
 phase timings below show where that time goes. `/health/warm` (the App Service start-up
-ping) answers 200 once the warm-up has loaded the key ring and the certificates
-and run the hot reads, or after 45 s.
+ping) answers 200 once the warm-up has loaded the key ring and the certificates,
+fetched the Graph token (`graph-token`, so the first staff send after a start
+does not wait for it, issue 1948) and run the hot reads, or after 45 s.
 
 Every start prints `[startup] +<ms since process start> ms (+<ms since previous
 mark>) <phase>` lines to stdout (`Main entered`, `configuration loaded`,

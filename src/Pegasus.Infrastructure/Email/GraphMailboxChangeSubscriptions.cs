@@ -11,9 +11,6 @@ public sealed class GraphMailboxChangeSubscriptions(
     GraphApprovedMailboxOptions options,
     HttpClient httpClient)
 {
-    private static readonly TokenRequestContext TokenContext =
-        new(["https://graph.microsoft.com/.default"]);
-
     public async Task<ApprovedMailboxSubscription> MaintainAsync(
         ApprovedMailboxSubscriptionMaintenanceCandidate candidate,
         Uri callbackUri,
@@ -46,7 +43,7 @@ public sealed class GraphMailboxChangeSubscriptions(
                 includeResourceData = false
             }
             : (object)new { expirationDateTime = expiry });
-        var token = await credential.GetTokenAsync(TokenContext, cancellationToken);
+        var token = await credential.GetTokenAsync(GraphToken.Context, cancellationToken);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
         using var response = await httpClient.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();

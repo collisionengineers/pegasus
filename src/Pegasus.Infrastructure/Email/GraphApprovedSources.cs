@@ -62,9 +62,6 @@ internal sealed partial class GraphApprovedMailboxResolver(
     HttpClient httpClient,
     ILogger<GraphApprovedMailboxResolver> logger) : IResolveApprovedMailboxIdentity, ICheckApprovedMailboxAccess
 {
-    private static readonly TokenRequestContext TokenContext =
-        new(["https://graph.microsoft.com/.default"]);
-
     public async Task<ApprovedMailboxIdentityResolution?> ResolveAsync(
         string address,
         CancellationToken cancellationToken)
@@ -115,7 +112,7 @@ internal sealed partial class GraphApprovedMailboxResolver(
     private async Task<string?> GetIdAsync(Uri uri, CancellationToken cancellationToken)
     {
         ValidateGraphOrigin(uri);
-        var token = await credential.GetTokenAsync(TokenContext, cancellationToken);
+        var token = await credential.GetTokenAsync(GraphToken.Context, cancellationToken);
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
         using var response = await httpClient.SendAsync(request, cancellationToken);
@@ -145,7 +142,7 @@ internal sealed partial class GraphApprovedMailboxResolver(
                 $"users/{Uri.EscapeDataString(mailbox.MailboxIdentity)}/mailFolders/" +
                 $"{Uri.EscapeDataString(mailbox.InboxFolderIdentity)}/messages?$select=id&$top=1");
             ValidateGraphOrigin(uri);
-            var token = await credential.GetTokenAsync(TokenContext, cancellationToken);
+            var token = await credential.GetTokenAsync(GraphToken.Context, cancellationToken);
             using var request = new HttpRequestMessage(HttpMethod.Get, uri);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
             request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
@@ -219,9 +216,6 @@ internal sealed class GraphMailClient(
             slots.Release();
         }
     }
-
-    private static readonly TokenRequestContext TokenContext =
-        new(["https://graph.microsoft.com/.default"]);
 
     public Uri InitialDeltaUri(string mailboxId, string folderId, int maximumItems) => new(
         baseUri,
@@ -471,7 +465,7 @@ internal sealed class GraphMailClient(
             throw new UnauthorizedAccessException(
                 "The Microsoft Graph request escaped the configured origin.");
         }
-        var token = await credential.GetTokenAsync(TokenContext, cancellationToken);
+        var token = await credential.GetTokenAsync(GraphToken.Context, cancellationToken);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
         return await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
     }
