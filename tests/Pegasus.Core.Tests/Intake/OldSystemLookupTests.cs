@@ -172,7 +172,7 @@ public sealed class OldSystemLookupTests
 
         var result = await new SearchOldSystemCaseFolders(folders).ExecuteAsync(Automation, "QDOS26112", 2);
 
-        Assert.Equal(new[] { "QDOS26112", "a.QDOS26112 Smith" }, result.Items.Select(folder => folder.Name).ToArray());
+        Assert.Equal(["QDOS26112", "a.QDOS26112 Smith"], result.Items.Select(folder => folder.Name));
         Assert.True(result.IsTruncated);
     }
 
