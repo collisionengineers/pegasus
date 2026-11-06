@@ -456,6 +456,7 @@ public sealed class AutomaticImageIntakeTests
     {
         // The beside photograph joins the PDF's in the one agreement (R733):
         // two plates disagree, so mail linking has no registration from them.
+        var email = Asset("vehicle-images.eml", "message/rfc822", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
         var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment);
         var photograph = Asset(
             "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
@@ -465,7 +466,7 @@ public sealed class AutomaticImageIntakeTests
             IntakeAssetDisposition.Attachment, width: 800, height: 600);
         var harness = new Harness(
             sourceChannel: IntakeSourceChannel.Mailbox,
-            retainedAssets: [pdf, photograph, beside],
+            retainedAssets: [email, pdf, photograph, beside],
             evidence: [FiledDocument()]);
         harness.Engine.Enqueue(Suggested("SH65HTL", 0.95));
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
