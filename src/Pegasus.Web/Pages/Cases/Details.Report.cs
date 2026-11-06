@@ -261,11 +261,17 @@ public sealed partial class DetailsModel
                 guide = card is null ? null : CaseWorkspaceLabels.Valuation.SourceLabel(card.Details.Source);
             }
         }
+        var totalLoss = snapshot.Report.Outcome == AssessmentReportOutcome.TotalLoss;
         return new(
             snapshot.Costs.Printed.Gross,
-            snapshot.Report.Outcome == AssessmentReportOutcome.TotalLoss ? snapshot.Report.SalvageValue : null,
+            totalLoss ? snapshot.Report.SalvageValue : null,
             snapshot.EngineerValue,
-            guide);
+            guide,
+            // The settlement the Total loss report printed: pre-accident value
+            // less salvage (operator, 6 November 2026; R730).
+            totalLoss && snapshot.Report.SalvageValue is not null
+                ? snapshot.Report.Presentation().RecommendedSettlement
+                : null);
     }
 
     /// <summary>
@@ -343,11 +349,13 @@ public sealed partial class DetailsModel
 
 /// <summary>
 /// The Original report card (v48): the Inspection report's printed repair
-/// cost, its salvage value when that report was a Total loss, and the
-/// Engineer's Value it printed with the guide its basis card came from.
+/// cost, its salvage value when that report was a Total loss, the
+/// Engineer's Value it printed with the guide its basis card came from, and
+/// the settlement a Total loss report printed (R730).
 /// </summary>
 public sealed record OriginalReportFigures(
     decimal RepairCostIncVat,
     decimal? SalvageValue,
     decimal EngineerValue,
-    string? Guide);
+    string? Guide,
+    decimal? Settlement);

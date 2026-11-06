@@ -373,6 +373,9 @@ public static class CaseWorkspaceLabels
         public const string ValuationLink = "Valuation";
         public const string EngineersValue = "Engineer's Value";
         public const string SalvageValue = "Salvage value";
+
+        /// <summary>The settlement a Total loss report prints under its own heading (R730).</summary>
+        public const string RecommendedSettlement = "Settlement";
         public const string Equity = "Equity";
         public const string RepairCostIncVat = "Repair cost inc VAT";
         public const string CashInLieu = "Cash in lieu";

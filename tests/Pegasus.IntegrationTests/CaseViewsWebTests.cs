@@ -1271,6 +1271,7 @@ public sealed class CaseViewsWebTests
                 Report = inspection.Snapshot.Report with
                 {
                     Outcome = AssessmentReportOutcome.TotalLoss,
+                    EngineerValue = 5000m,
                     SalvageCategory = "S",
                     SalvageValue = 1250m
                 }
@@ -1294,6 +1295,12 @@ public sealed class CaseViewsWebTests
         Assert.Contains($"<dt>{Frame.RepairCostIncVat}</dt><dd class=\"mono\" data-original-repair-cost>{gross}</dd>", card, StringComparison.Ordinal);
         Assert.Contains($"<dt>{CaseWorkspaceLabels.Settlement.SalvageValue}</dt><dd class=\"mono\" data-original-salvage-value>£1,250.00</dd>", card, StringComparison.Ordinal);
         Assert.Contains($"<dt>{Frame.EngineersValue}</dt><dd class=\"mono\" data-original-engineers-value>£5,000.00 (Cazana)</dd>", card, StringComparison.Ordinal);
+        // The settlement the Total loss report printed: pre-accident value less salvage (R730).
+        Assert.Contains($"<dt>{CaseWorkspaceLabels.Settlement.RecommendedSettlement}</dt><dd class=\"mono\" data-original-settlement>£3,750.00</dd>", card, StringComparison.Ordinal);
+        Assert.True(
+            card.IndexOf("data-original-engineers-value", StringComparison.Ordinal)
+                < card.IndexOf("data-original-settlement", StringComparison.Ordinal),
+            "Settlement follows the Engineer's Value.");
         Assert.Equal([CaseWorkSelector.Primary], valuations.AppliedReads);
         Assert.Equal([CaseWorkSelector.Primary], valuations.CardReads);
         Assert.DoesNotContain("id=\"section-original-report\"", html, StringComparison.Ordinal);
@@ -1331,6 +1338,7 @@ public sealed class CaseViewsWebTests
             Assert.True(cardAt >= 0, "The Audit view draws the Original report card.");
             var card = html[cardAt..html.IndexOf("</section>", cardAt, StringComparison.Ordinal)];
             Assert.DoesNotContain("data-original-salvage-value", card, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-original-settlement", card, StringComparison.Ordinal);
             Assert.Contains("data-original-engineers-value>£4,200.00</dd>", card, StringComparison.Ordinal);
             // A typed value names no calculation row, so nothing is read for it.
             Assert.Empty(valuations.AppliedReads);
@@ -1343,6 +1351,7 @@ public sealed class CaseViewsWebTests
             Assert.Contains("<dd class=\"mono absent\" data-original-repair-cost>—</dd>", absent, StringComparison.Ordinal);
             Assert.Contains("<dd class=\"mono absent\" data-original-engineers-value>—</dd>", absent, StringComparison.Ordinal);
             Assert.DoesNotContain("data-original-salvage-value", absent, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-original-settlement", absent, StringComparison.Ordinal);
         }
 
         var single = new RecordingCaseDetailsStore { SummaryCaseType = CaseType.InspectionAndAudit };
