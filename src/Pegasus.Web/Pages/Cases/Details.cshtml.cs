@@ -84,6 +84,7 @@ public sealed partial class DetailsModel(
     IFetchGuideValuation fetchGuideValuation,
     IListValuationPresets listValuationPresets,
     IListAppliedValuations listAppliedValuations,
+    Pegasus.Core.Vehicle.RunVehicleHistoryCheck runVehicleHistoryCheck,
     ILogger<DetailsModel> logger,
     IGetCaseKind getCaseKind,
     IValidateCaseRenderLease? validateCaseRenderLease = null,
@@ -635,6 +636,12 @@ public sealed partial class DetailsModel(
     public bool CanEditEngineering => CanEditCaseData && AssessmentCanOpen && !AssessmentIsReadOnly;
 
     public bool CanEditAssessmentField(string path) => CanEditEngineering;
+
+    /// <summary>
+    /// Whether this host has Experian connected: the Vehicle history area offers
+    /// Run Experian check, else says Experian is not connected (ADR-0089).
+    /// </summary>
+    public bool ExperianConnected => runVehicleHistoryCheck.IsConnected;
 
     /// <summary>The value a field's control opens with: the same value its box shows.</summary>
     public string? AssessmentEditorValue(string path) => ShownAssessment(path)?.Value;

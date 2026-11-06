@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Vehicle;
@@ -431,13 +432,13 @@ public sealed class CaseVehicleWebTests
     }
 
     /// <summary>
-    /// Operator decisions D7/D22: Experian is not connected, so the seam is
-    /// named where its control would sit — a <c>.gated</c> pill carrying the
-    /// reason in its text — with no button, no handler and (v26) no
-    /// <c>data-condition</c> tooltip behind it. It is drawn, never claimed.
+    /// A host without Experian connected still names it where its control
+    /// would sit (operator decisions D7/D22): the Vehicle history sub-panel's
+    /// `.rt` line says Experian is not connected, with no button, no handler
+    /// and no <c>data-condition</c> tooltip behind it.
     /// </summary>
     [Fact]
-    public async Task ExperianRendersAsANamedDisabledSeamWithNoHandler()
+    public async Task WithoutExperianConnectedTheSeamIsNamedWithNoHandler()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, _ => { });
@@ -450,9 +451,128 @@ public sealed class CaseVehicleWebTests
         Assert.Contains("class=\"rt\"", seam, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.CaseWorkspace.ExperianSeamCondition, seam, StringComparison.Ordinal);
         Assert.DoesNotContain("<button", seam, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=", seam, StringComparison.Ordinal);
         Assert.DoesNotContain("data-condition", seam, StringComparison.Ordinal);
-        Assert.DoesNotContain("Run Experian check", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=RunExperianCheck", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Vehicle.RunExperianCheck, html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// With Experian connected (ADR-0089), Run Experian check stands on the
+    /// Vehicle history sub-panel while its text is editable and there is a
+    /// registration to check (R746); reading, the area carries neither the
+    /// button nor the not-connected line.
+    /// </summary>
+    [Fact]
+    public async Task AConnectedExperianOffersTheCheckOnlyWhileTheHistoryIsEditable()
+    {
+        var store = new RecordingCaseDetailsStore();
+        static void Connect(IServiceCollection services) =>
+            services.AddSingleton<IVehicleHistoryCheckProvider>(new ScriptedHistoryCheck(VehicleHistoryCheckResult.Found([])));
+
+        var readOnly = await ReadOnlyVehicleSectionAsync(store, Connect);
+        Assert.DoesNotContain("handler=RunExperianCheck", readOnly, StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Vehicle.RunExperianCheck, readOnly, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.CaseWorkspace.ExperianSeamCondition, readOnly, StringComparison.Ordinal);
+
+        using var workspace = await EnterEditModeAsync(store, Connect);
+        var editing = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
+        var seam = ExperianSeam(editing);
+
+        Assert.Contains("<button type=\"submit\" form=\"vehicle-experian-check\"", seam, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Vehicle.RunExperianCheck, seam, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.CaseWorkspace.ExperianSeamCondition, editing, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(editing, $"/Cases/{store.CaseId:D}/Vehicle?handler=RunExperianCheck"));
+        var form = ExperianCheckForm(editing);
+        Assert.Contains("id=\"vehicle-experian-check\"", form, StringComparison.Ordinal);
+        Assert.Contains("name=\"registration\" value=\"AB12CDE\"", form, StringComparison.Ordinal);
+        Assert.Contains($"name=\"editLeaseToken\" value=\"{store.LeaseToken}\"", form, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WithoutARegistrationThereIsNoExperianCheck()
+    {
+        var store = new RecordingCaseDetailsStore { OmitVehicleValues = true };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            services.AddSingleton<IVehicleHistoryCheckProvider>(new ScriptedHistoryCheck(VehicleHistoryCheckResult.Found([]))));
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
+
+        Assert.DoesNotContain("handler=RunExperianCheck", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Vehicle.RunExperianCheck, html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Run Experian check replaces the Vehicle history text with Experian's
+    /// wording through one assessment save under the editor's lease (R744).
+    /// </summary>
+    [Fact]
+    public async Task RunExperianCheckRecordsTheWordingAsTheVehicleHistory()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var assessments = new RecordingAssessmentSaves();
+        using var workspace = await EnterEditModeAsync(store, services => ConnectExperian(
+            services, store, assessments, new ScriptedHistoryCheck(VehicleHistoryCheckResult.Found(
+                [new("Category S", "Accident", new DateOnly(2021, 3, 12), "Aviva", "123456")]))));
+
+        using var checkedResponse = await workspace.PostAsync(
+            "Vehicle?handler=RunExperianCheck",
+            workspace.MutationForm("experian-check", "unused", ("registration", "AB12CDE")));
+
+        AssertPrg(checkedResponse, store.CaseId, "?section=vehicle");
+        var save = Assert.Single(assessments.Saves);
+        AssertClaimant(workspace, save.Actor);
+        Assert.Equal(store.CaseVersion, save.ExpectedVersion);
+        Assert.Equal(store.LeaseToken, save.EditLeaseToken);
+        Assert.Equal("experian-check", save.OperationKey);
+        Assert.Equal(RunVehicleHistoryCheck.Reason, save.Reason);
+        Assert.Equal(
+            VehicleHistoryCheckNarrative.FoundLead + "\nWrite-off: Category S, Accident, loss date 12/03/2021, Aviva, claim 123456",
+            Assert.Single(save.Fields, field => field.Key == AssessmentVocabulary.HistoryCheck).Value);
+    }
+
+    /// <summary>A vehicle Experian does not hold says so as information and writes nothing (R748).</summary>
+    [Fact]
+    public async Task AVehicleExperianDoesNotHoldIsStatedAndNothingIsWritten()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var assessments = new RecordingAssessmentSaves();
+        using var workspace = await EnterEditModeAsync(store, services => ConnectExperian(
+            services, store, assessments, new ScriptedHistoryCheck(VehicleHistoryCheckResult.NotFound)));
+
+        using var checkedResponse = await workspace.PostAsync(
+            "Vehicle?handler=RunExperianCheck",
+            workspace.MutationForm("experian-not-found", "unused", ("registration", "AB12CDE")));
+
+        AssertPrg(checkedResponse, store.CaseId, "?section=vehicle");
+        Assert.Empty(assessments.Saves);
+        var html = await workspace.GetWorkspaceAsync();
+        Assert.Contains(
+            System.Net.WebUtility.HtmlEncode(CaseWorkspaceLabels.Vehicle.ExperianNoVehicleData),
+            html,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>A check Experian could not answer says it is unavailable and writes nothing (R747).</summary>
+    [Fact]
+    public async Task AnUnavailableCheckSaysSoAndNothingIsWritten()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var assessments = new RecordingAssessmentSaves();
+        using var workspace = await EnterEditModeAsync(store, services => ConnectExperian(
+            services, store, assessments, new ScriptedHistoryCheck(null)));
+
+        using var checkedResponse = await workspace.PostAsync(
+            "Vehicle?handler=RunExperianCheck",
+            workspace.MutationForm("experian-unavailable", "unused", ("registration", "AB12CDE")));
+
+        AssertPrg(checkedResponse, store.CaseId, "?section=vehicle");
+        Assert.Empty(assessments.Saves);
+        var html = await workspace.GetWorkspaceAsync();
+        Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            System.Net.WebUtility.HtmlEncode(CaseWorkspaceLabels.Vehicle.ExperianCheckUnavailable),
+            html,
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -625,7 +745,9 @@ public sealed class CaseVehicleWebTests
     }
 
     /// <summary>The case's vehicle section as an operator without the lease sees it.</summary>
-    private static async Task<string> ReadOnlyVehicleSectionAsync(RecordingCaseDetailsStore store)
+    private static async Task<string> ReadOnlyVehicleSectionAsync(
+        RecordingCaseDetailsStore store,
+        Action<IServiceCollection>? substitutePorts = null)
     {
         using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var readOnlyFactory = baseFactory.WithWebHostBuilder(builder =>
@@ -635,6 +757,7 @@ public sealed class CaseVehicleWebTests
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
+                substitutePorts?.Invoke(services);
             }));
         using var readOnlyClient = readOnlyFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -746,6 +869,63 @@ public sealed class CaseVehicleWebTests
         var end = html.IndexOf("</form>", start, StringComparison.Ordinal);
         Assert.True(end > start, "The vehicle lookup form must close.");
         return html[start..(end + "</form>".Length)];
+    }
+
+    /// <summary>The Run Experian check form, which stands beside its heading button.</summary>
+    private static string ExperianCheckForm(string html)
+    {
+        var start = html.IndexOf("data-vehicle-experian-check", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Experian check form must render.");
+        start = html.LastIndexOf("<form", start, StringComparison.Ordinal);
+        var end = html.IndexOf("</form>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The Experian check form must close.");
+        return html[start..(end + "</form>".Length)];
+    }
+
+    /// <summary>
+    /// Experian connected with a scripted answer, the check reading the
+    /// fixture's registration and recording its one save.
+    /// </summary>
+    private static void ConnectExperian(
+        IServiceCollection services,
+        RecordingCaseDetailsStore store,
+        RecordingAssessmentSaves assessments,
+        ScriptedHistoryCheck provider)
+    {
+        services.AddSingleton<IVehicleHistoryCheckProvider>(provider);
+        services.AddScoped(_ => new RunVehicleHistoryCheck([provider], store, new SaveAssessment(assessments)));
+    }
+
+    /// <summary>A scripted Experian answer; none is a check that could not answer.</summary>
+    private sealed class ScriptedHistoryCheck(VehicleHistoryCheckResult? result) : IVehicleHistoryCheckProvider
+    {
+        public Task<VehicleHistoryCheckResult> CheckAsync(string registration, CancellationToken cancellationToken) =>
+            result is null
+                ? throw new VehicleHistoryCheckUnavailableException()
+                : Task.FromResult(result);
+    }
+
+    private sealed class RecordingAssessmentSaves : ICaseAssessmentStore
+    {
+        public List<SaveAssessmentRequest> Saves { get; } = [];
+
+        public Task<CaseAssessmentProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseAssessmentProjection> SaveAsync(SaveAssessmentRequest request, CancellationToken cancellationToken)
+        {
+            Saves.Add(request);
+            return Task.FromResult(new CaseAssessmentProjection(
+                request.CaseId,
+                "CASE-1",
+                request.ExpectedVersion + 1,
+                CaseLifecycleState.Review,
+                null,
+                [.. request.Fields.Select(item => new AssessmentFieldValue(
+                    item.Key, item.Value!, request.Actor.Kind, request.Actor.SubjectId, DateTimeOffset.UnixEpoch))],
+                [],
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 9, 21), null, null, null, null, null)));
+        }
     }
 
     private static int CountOccurrences(string html, string value)

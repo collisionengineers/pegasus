@@ -312,7 +312,7 @@ try {
     if ($web.Contains('Dvla__ApiKey') -or -not $web.Contains('Glass__RepairProfileId') -or -not $web.Contains('Graph__TenantId') -or
         -not $web.Contains('DevelopmentOffline__AdministratorPassword') -or -not $web.Contains('Box__ConfigJson') -or
         -not $web.Contains('Brego__ValuationAccount__Email')) {
-        throw 'The Web split must carry Features, Box, Glass, Cazana, Brego, Graph, GitHub, DevelopmentOffline and AutomationMcp keys only.'
+        throw 'The Web split must carry Features, Box, Glass, Cazana, Brego, Experian, Graph, GitHub, DevelopmentOffline and AutomationMcp keys only.'
     }
     if ($worker.Contains('Glass__RepairProfileId') -or $worker.Contains('DevelopmentOffline__AdministratorPassword') -or
         $worker.Contains('Brego__ValuationAccount__Email') -or

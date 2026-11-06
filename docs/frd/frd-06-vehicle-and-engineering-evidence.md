@@ -1,6 +1,6 @@
 # FRD-06: Vehicle and engineering evidence
 
-> Owner capabilities: AI-05, AI-06, CASE-29, CASE-34, DATA-02, EXT-01, EXT-02, EXT-18, INT-17 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: AI-05, AI-06, CASE-29, CASE-34, DATA-02, EXT-01, EXT-02, EXT-18, EXT-20, INT-17 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -296,7 +296,30 @@ the facts only the lookup holds.
   from Look up DVLA & MOT.
 - There are no per-field suggestion chips and no suggestion table.
 - The Model comes from the DVSA MOT history vehicle record. DVLA supplies no
-  model. Experian stays a disabled seam.
+  model.
+
+**Run Experian check** (`EXT-20`; operator, 6 November 2026;
+[ADR-0089](../adr/0089-experian-vehicle-history-check.md)). Experian's
+answer is the Vehicle history text, which the report prints verbatim.
+
+- The check asks Experian for the write-off (condition) records of the
+  current work's accepted registration and nothing else (R741).
+- With no current record it records "We confirm having checked this vehicle
+  on the Experian database and there is no record of any adverse history."
+  Otherwise it records "We confirm having checked this vehicle on the Experian
+  database, which records:" and one line per record, "Write-off: {category},
+  {cause}, loss date {dd/MM/yyyy}, {insurer}, claim {number}", leaving an
+  absent value out (R742). A record the insurer has removed is left out, so a
+  vehicle whose only records were removed reads as clean (R743).
+- The answer replaces whatever the Vehicle history text held, through the
+  same save, history and report staleness as a staff edit; staff may edit it
+  afterwards (R744). It never ticks Previous total loss (R745).
+- A vehicle Experian holds no data for writes nothing and says "Experian
+  cannot check this vehicle: it holds no data for its registration." (R748).
+  A check that could not answer writes nothing and says "The Experian check
+  is unavailable. Contact an administrator or report a problem." (R747).
+- Staff and the Automation Actor may run it (ADR-0064). A host without
+  Experian composed offers no check.
 
 **Glass's VIN.** DVLA and DVSA supply no VIN; Glass's names one. It appears
 on the vehicle a Get valuation saves to the Glass's stock list, which Glass's

@@ -22,6 +22,7 @@ internal sealed record CaseActionToolResult(
     Guid? AuditWorkId,
     string? AuditReference,
     Guid? VehicleLookupWorkItemId,
+    [property: Description("vehicle_history_check: recorded (the Vehicle history text now holds Experian's wording) or not_found (Experian holds no vehicle for the registration; nothing was written).")] string? VehicleHistoryCheck,
     string OperationKey,
     string CorrelationId);
 
@@ -46,6 +47,7 @@ internal sealed class CaseLifecycleMcpTools(
     IArchiveCase archiveCase,
     ICreateAudit createAudit,
     IRequestVehicleLookup requestVehicleLookup,
+    RunVehicleHistoryCheck runVehicleHistoryCheck,
     IRecordManualCaseChase recordManualChase,
     ICaseWorkflowQueries workflowQueries,
     TimeProvider timeProvider,
@@ -57,7 +59,7 @@ internal sealed class CaseLifecycleMcpTools(
     [
         "hold", "release_hold", "return_to_review", "assign_engineer", "return_to_engineer",
         "close", "reopen", "archive", "create_linked_replacement", "create_audit",
-        "vehicle_lookup", "manual_chase",
+        "vehicle_lookup", "vehicle_history_check", "manual_chase",
     ];
 
     [McpServerTool(
@@ -68,19 +70,19 @@ internal sealed class CaseLifecycleMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Takes one Case lifecycle act a member of staff takes from the Case's Actions menu, through the same Core command and guards: hold (reason, optional reviewOn), release_hold (reason), return_to_review (reason; from With Engineer or Report sent, when the Case's own completeness facts allow), assign_engineer (optional engineerId, omitted for Unassigned; from Review, moving the Case to With Engineer, or within With Engineer; no reason, Core records who it went to), return_to_engineer (reason; from Report sent), close (reason, outcome), reopen (reason, destination), archive (reason; a closed Case whose custody is confirmed), create_linked_replacement (reason, replacementPrincipalCode; for a Case created in error), create_audit (an Inspection + Audit Case gains its Audit work), vehicle_lookup (registration; queues one DVLA/DVSA lookup) or manual_chase (chaseChannel, chaseRecipient, chaseOutcome, optional chaseNote; a Not ready Case's due work). Queries are pegasus_case_query. A Case is never deleted. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command); each act ends the lease it ran under. Returns the Case's new version and state and any identifier the act created.")]
+    [Description("Takes one Case lifecycle act a member of staff takes from the Case's Actions menu, through the same Core command and guards: hold (reason, optional reviewOn), release_hold (reason), return_to_review (reason; from With Engineer or Report sent, when the Case's own completeness facts allow), assign_engineer (optional engineerId, omitted for Unassigned; from Review, moving the Case to With Engineer, or within With Engineer; no reason, Core records who it went to), return_to_engineer (reason; from Report sent), close (reason, outcome), reopen (reason, destination), archive (reason; a closed Case whose custody is confirmed), create_linked_replacement (reason, replacementPrincipalCode; for a Case created in error), create_audit (an Inspection + Audit Case gains its Audit work), vehicle_lookup (registration; queues one DVLA/DVSA lookup), vehicle_history_check (registration; runs one Experian check of the current work's accepted registration for write-off records and replaces its Vehicle history text with the result, as the Case page's Run Experian check does; fails when Experian is not connected or cannot answer) or manual_chase (chaseChannel, chaseRecipient, chaseOutcome, optional chaseNote; a Not ready Case's due work). Queries are pegasus_case_query. A Case is never deleted. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command); each act ends the lease it ran under. Returns the Case's new version and state and any identifier the act created.")]
     public async Task<CaseActionToolResult> ActAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key with the same inputs returns the same outcome.")] string operationKey,
-        [Description("The act: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup or manual_chase.")] string action,
-        [Description("Why (case history reason, at most 500 characters). Required for every act except assign_engineer, create_audit, vehicle_lookup and manual_chase, which take none.")] string? reason = null,
+        [Description("The act: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, vehicle_history_check or manual_chase.")] string action,
+        [Description("Why (case history reason, at most 500 characters). Required for every act except assign_engineer, create_audit, vehicle_lookup, vehicle_history_check and manual_chase, which take none.")] string? reason = null,
         [Description("assign_engineer: the staff identifier of the Engineer to assign, from pegasus_vocabulary_get staff; the account must exist and be enabled. Omitted, the Case is Unassigned.")] Guid? engineerId = null,
         [Description("hold: the optional date, yyyy-MM-dd (Europe/London, today or later), to look at the Case again; it is the held Case's due date in the Work Centre. Nothing is sent on it.")] string? reviewOn = null,
         [Description("close: the terminal outcome, one of PrincipalCancelled, CollisionEngineersRejected, CreatedInError or SourceEmailUnlinked. Which outcomes the Case's state allows is Core's decision.")] string? outcome = null,
         [Description("reopen: where the closed Case goes, one of NotReady, Review, ReportPreparation (Unassigned when the Case has no Engineer) or ReportSent (needs linked report-Sent evidence). A Case created in error is never reopened.")] string? destination = null,
         [Description("create_linked_replacement: the Principal code of the corrected replacement Case.")] string? replacementPrincipalCode = null,
-        [Description("vehicle_lookup: the registration to look up.")] string? registration = null,
+        [Description("vehicle_lookup and vehicle_history_check: the Case's accepted registration.")] string? registration = null,
         [Description("manual_chase: how the chase was made, for example phone or email (at most 100 characters).")] string? chaseChannel = null,
         [Description("manual_chase: who or which address was chased (at most 500 characters).")] string? chaseRecipient = null,
         [Description("manual_chase: what the chase achieved (at most 500 characters).")] string? chaseOutcome = null,
@@ -109,7 +111,7 @@ internal sealed class CaseLifecycleMcpTools(
                 var reasonText = verb switch
                 {
                     // Core composes Assign Engineer's history reason.
-                    "create_audit" or "vehicle_lookup" or "manual_chase" or "assign_engineer" => string.Empty,
+                    "create_audit" or "vehicle_lookup" or "vehicle_history_check" or "manual_chase" or "assign_engineer" => string.Empty,
                     _ => string.IsNullOrWhiteSpace(reason)
                         ? throw new McpException($"The {verb} action needs a reason.")
                         : reason,
@@ -126,9 +128,9 @@ internal sealed class CaseLifecycleMcpTools(
                         ? throw new McpException("The create_linked_replacement action needs replacementPrincipalCode.")
                         : replacementPrincipalCode
                     : string.Empty;
-                var lookupRegistration = verb == "vehicle_lookup"
+                var lookupRegistration = verb is "vehicle_lookup" or "vehicle_history_check"
                     ? string.IsNullOrWhiteSpace(registration)
-                        ? throw new McpException("The vehicle_lookup action needs registration.")
+                        ? throw new McpException($"The {verb} action needs registration.")
                         : registration
                     : string.Empty;
                 if (verb == "manual_chase"
@@ -223,6 +225,24 @@ internal sealed class CaseLifecycleMcpTools(
                                     new(caseId, expectedVersion, lookupRegistration, actor, key, token),
                                     cancellationToken);
                                 return Created.None with { VehicleLookupWorkItemId = lookup.WorkItemId };
+                            case "vehicle_history_check":
+                                VehicleHistoryCheckOutcome checkOutcome;
+                                try
+                                {
+                                    checkOutcome = await runVehicleHistoryCheck.ExecuteAsync(
+                                        new(caseId, expectedVersion, actor, key, token, lookupRegistration),
+                                        cancellationToken);
+                                }
+                                catch (VehicleHistoryCheckUnavailableException)
+                                {
+                                    throw new McpException(CaseWorkspaceLabels.Vehicle.ExperianCheckUnavailable);
+                                }
+                                return Created.None with
+                                {
+                                    VehicleHistoryCheck = checkOutcome == VehicleHistoryCheckOutcome.NotFound
+                                        ? "not_found"
+                                        : "recorded",
+                                };
                             default:
                                 // The attempt time is the server's, as the staff
                                 // Tasks page records it: a chase is recorded as
@@ -248,6 +268,7 @@ internal sealed class CaseLifecycleMcpTools(
                     created.AuditWorkId,
                     created.AuditReference,
                     created.VehicleLookupWorkItemId,
+                    created.VehicleHistoryCheck,
                     key,
                     AutomationMcpAuditor.CorrelationId(context, key));
             }),
@@ -284,8 +305,9 @@ internal sealed class CaseLifecycleMcpTools(
         string? ReplacementReference,
         Guid? AuditWorkId,
         string? AuditReference,
-        Guid? VehicleLookupWorkItemId)
+        Guid? VehicleLookupWorkItemId,
+        string? VehicleHistoryCheck)
     {
-        public static readonly Created None = new(null, null, null, null, null);
+        public static readonly Created None = new(null, null, null, null, null, null);
     }
 }

@@ -111,6 +111,7 @@ Records whose status is superseded live in `superseded/` with their IDs unchange
 | [ADR-0086](0086-work-centre-views-are-computed-on-read.md) | Work Centre views are computed on read | accepted | — | UI-04, UI-05 |
 | [ADR-0087](0087-one-automation-mcp-server-with-per-scope-consent.md) | One Automation MCP server with per-scope consent | accepted | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06 |
 | [ADR-0088](0088-one-hosted-test-instance.md) | One hosted test instance | accepted | — | OPS-10, OPS-11, OPS-28 |
+| [ADR-0089](0089-experian-vehicle-history-check.md) | Experian vehicle history check | accepted | — | EXT-20 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.
