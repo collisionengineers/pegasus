@@ -373,7 +373,7 @@ public sealed class PrincipalMailRoutePolicyTests
     }
 
     /// <summary>
-    /// R716 (6 November 2026): a staff inline forward's header names the
+    /// R718 (6 November 2026): a staff inline forward's header names the
     /// original; an e-mail the forwarded message carried is an attachment,
     /// not a second original (the Tawqir Ahmed audit e-mail).
     /// </summary>

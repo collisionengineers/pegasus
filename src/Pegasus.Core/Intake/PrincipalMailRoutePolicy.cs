@@ -358,7 +358,7 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
     /// The original sender of a staff forward. A forwarded-message header in
     /// the forward's body names it; an e-mail the forwarded message carried
     /// as an attachment is then just an attachment, not a second original
-    /// (operator, 6 November 2026, R716). Without such a header, the e-mail
+    /// (operator, 6 November 2026, R718). Without such a header, the e-mail
     /// staff attached is the original.
     /// </summary>
     private static MailRouteIdentity[] OriginalIdentities(
