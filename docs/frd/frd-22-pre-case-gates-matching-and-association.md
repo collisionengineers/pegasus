@@ -229,10 +229,11 @@ has one (12 October 2026); a multi-file upload's item is settled once, by its
 last link (operator, 13 October 2026);
 filing then continues in the Worker's replay of the receipt, and the request
 never touches Box (operator, 11 October 2026). A staff decision files on any Case or Triage Case in any
-state; only an archived Case never files. It never waits for an edit
-lease, whoever holds it: the material is on the Case at once and the Case
-version moves under the lease (operator, 6 November 2026;
-[R727](../rulings.md)). A failed filing retries. Five attempts, then record and keep completed: a
+state; only an archived Case never files. No filing, by a member of staff
+or by the pipeline, waits for an edit lease, whoever holds it: the material
+is on the Case at once and the Case version moves under the lease
+(operator, 6 November 2026; [R727, R728](../rulings.md)). A failed filing
+retries. Five attempts, then record and keep completed: a
 replay's attempts are bound at the existing transient-failure class count
 (five), spaced like the live filing path, from 30 seconds out to two hours,
 so a short Box or SQL outage does not exhaust them; a non-transient fault
@@ -244,16 +245,16 @@ the upload (Add evidence on a Case page,
 decision made first: processing records it as that member of staff's
 association and files the material in the same pass. Filed on an open Audit
 awaiting its original report, the material is read for that report, however
-it was associated ([FRD-16](frd-16-case-record-workspace.md#original-report)).
+it was associated ([FRD-16](frd-16-case-record-workspace.md#original-report));
+while the Case is being edited, recording that report waits for the editor
+and retries (R728).
 Automatic Image-initiated
 association checks the current Case version and yields to an active staff
 lease; the later image merge also yields to a live lease and rechecks the
 current associations in its own transaction. Filing the automatically
-associated mail's evidence is a separate Case mutation: it yields to a live
-editor and rechecks
-the association, the archive, the Case's state and a live edit lease before
-each custody attempt and confirmation. A later retry finds the lease released,
-so a finished staff edit never strands retained files. Retroactive filing
+associated mail's evidence is a separate Case mutation: it does not wait for
+an editor, and it rechecks the association, the archive and the Case's state
+before each custody attempt and confirmation. Retroactive filing
 within the replay window only: the sweep files to a Case that becomes eligible
 inside the bounded replay window it already has, the existing two hours
 ([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface)) from the

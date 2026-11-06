@@ -299,8 +299,7 @@ public sealed class ProcessIntake(
         receipt.AcceptedCaseId is null
         && receipt.Decision != IntakeDecision.ImageIntakeRegistered
         && promotion is not (AutomaticCaseEvidencePromotionOutcome.Confirmed
-            or AutomaticCaseEvidencePromotionOutcome.Pending
-            or AutomaticCaseEvidencePromotionOutcome.Deferred);
+            or AutomaticCaseEvidencePromotionOutcome.Pending);
 
     /// <summary>
     /// Ensures every eligible retained intake asset has confirmed holding

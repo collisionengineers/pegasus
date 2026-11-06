@@ -1057,12 +1057,11 @@ public sealed class CaseArtifactCustodyRecoveryTests
 
     /// <summary>
     /// A member of staff who takes the Case's edit lease while an automatic
-    /// filing writes its bytes defers the filing: the version stays Pending,
-    /// and once the lease is released the Worker's reconciliation confirms it
-    /// (FRD-22, the recheck before each custody attempt and confirmation).
+    /// filing writes its bytes does not hold it back: the version is
+    /// confirmed in the same call and the lease stands (R728; FRD-22).
     /// </summary>
     [Fact]
-    public async Task ALeaseTakenMidFilingLeavesTheVersionPendingUntilItIsReleased()
+    public async Task ALeaseTakenMidFilingDoesNotHoldItBack()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var caseId = await SeedCaseAsync(database);
@@ -1071,7 +1070,6 @@ public sealed class CaseArtifactCustodyRecoveryTests
             "leased evidence"u8.ToArray(), planned: true);
         await using var scope = database.CreateAsyncScope();
         var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        var artifacts = new MemoryArtifactStore();
         var content = new SuccessfulContentStore(async () =>
         {
             await using var editor = await database.CreateContextAsync();
@@ -1083,29 +1081,18 @@ public sealed class CaseArtifactCustodyRecoveryTests
                     .SetProperty(item => item.EditLeaseTokenHash, new string('A', 64))
                     .SetProperty(item => item.EditLeaseExpiresAtUtc, DateTimeOffset.UtcNow.AddHours(1)));
         });
-        var custody = new EfCaseArtifactCustody(factory, content, artifacts, TimeProvider.System);
+        var custody = new EfCaseArtifactCustody(factory, content, new MemoryArtifactStore(), TimeProvider.System);
 
-        var deferred = await custody.RetainAsync(request, default);
+        var filed = await custody.RetainAsync(request, default);
 
-        Assert.Equal(CaseArtifactCustodyDisposition.Pending, deferred.Disposition);
-        await using (var editor = await database.CreateContextAsync())
-        {
-            await editor.CaseWorkflows
-                .Where(item => item.CaseId == caseId)
-                .ExecuteUpdateAsync(update => update
-                    .SetProperty(item => item.EditLeaseHolder, (string?)null)
-                    .SetProperty(item => item.EditLeaseHolderKind, (string?)null)
-                    .SetProperty(item => item.EditLeaseTokenHash, (string?)null)
-                    .SetProperty(item => item.EditLeaseExpiresAtUtc, (DateTimeOffset?)null));
-        }
-        var reconciled = await new ReconcilePendingArtifactCustody(factory, content, artifacts, PastInlineFilingGrace())
-            .ExecuteAsync(10, default);
-
-        Assert.Equal(1, reconciled.Confirmed);
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, filed.Disposition);
         await using var db = await database.CreateContextAsync();
         Assert.Equal(
             DocumentCustodyStatus.Confirmed,
             (await db.Set<DocumentVersionEntity>().SingleAsync()).CustodyStatus);
+        Assert.Equal(
+            "staff:test",
+            await db.CaseWorkflows.Where(item => item.CaseId == caseId).Select(item => item.EditLeaseHolder).SingleAsync());
     }
 
     /// <summary>

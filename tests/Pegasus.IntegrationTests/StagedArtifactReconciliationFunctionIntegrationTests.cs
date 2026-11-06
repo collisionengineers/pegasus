@@ -431,7 +431,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         public Task<IReadOnlyList<CaseFilingReplayCandidate>> ListDueAsync(
             CaseFilingReplayCursor? after,
             DateTimeOffset systemAssociationCutoff,
-            DateTimeOffset nowUtc,
             int maximumItems,
             CancellationToken cancellationToken)
         {

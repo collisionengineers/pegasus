@@ -45,8 +45,7 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
         }
 
         var outcome = await FileAsync(receipt, caseId, cancellationToken);
-        if (outcome is not (AutomaticCaseEvidencePromotionOutcome.Deferred
-                or AutomaticCaseEvidencePromotionOutcome.Failed))
+        if (outcome != AutomaticCaseEvidencePromotionOutcome.Failed)
         {
             if (recogniseOriginalReport is not null)
             {
@@ -94,9 +93,7 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
             cancellationToken);
         if (preparation.Disposition != AutomaticCaseEvidencePromotionPreparationDisposition.Ready)
         {
-            return preparation.Disposition == AutomaticCaseEvidencePromotionPreparationDisposition.Deferred
-                ? AutomaticCaseEvidencePromotionOutcome.Deferred
-                : AutomaticCaseEvidencePromotionOutcome.NotApplicable;
+            return AutomaticCaseEvidencePromotionOutcome.NotApplicable;
         }
 
         var pending = false;
@@ -181,7 +178,6 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
 public enum AutomaticCaseEvidencePromotionOutcome
 {
     NotApplicable,
-    Deferred,
     Pending,
     Failed,
     Confirmed
@@ -190,7 +186,6 @@ public enum AutomaticCaseEvidencePromotionOutcome
 public enum AutomaticCaseEvidencePromotionPreparationDisposition
 {
     NotApplicable,
-    Deferred,
     Ready
 }
 

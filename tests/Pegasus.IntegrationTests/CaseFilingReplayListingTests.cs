@@ -180,7 +180,7 @@ public sealed class CaseFilingReplayListingTests
         {
             foreach (var (caseId, receiptId) in pairs)
             {
-                var target = await IntakePromotionTarget.EvaluateAsync(db, caseId, receiptId, now, default);
+                var target = await IntakePromotionTarget.EvaluateAsync(db, caseId, receiptId, default);
                 if (target.Disposition == CaseFilingTargetDisposition.Current)
                 {
                     current.Add(receiptId);
@@ -211,7 +211,7 @@ public sealed class CaseFilingReplayListingTests
 
         var first = await sweep.ExecuteAsync(20);
 
-        Assert.Equal(new ReplayCaseFilingsResult(1, 0, 0, 1, 1), first);
+        Assert.Equal(new ReplayCaseFilingsResult(1, 0, 1, 1), first);
         Assert.Equal(1, promotion.Calls);
         await using (var verify = await harness.Database.CreateContextAsync())
         {
@@ -246,7 +246,7 @@ public sealed class CaseFilingReplayListingTests
 
         var first = await sweep.ExecuteAsync(20);
 
-        Assert.Equal(new ReplayCaseFilingsResult(1, 0, 0, 1, 0), first);
+        Assert.Equal(new ReplayCaseFilingsResult(1, 0, 1, 0), first);
         var listed = Assert.Single(await harness.ListAsync());
         Assert.Equal(1, listed.FailedAttempts);
         Assert.NotNull(listed.LastFailedAtUtc);
@@ -386,7 +386,6 @@ public sealed class CaseFilingReplayListingTests
             Store.ListDueAsync(
                 null,
                 IntakeEscapeWindow.LatestClosedStart(DateTimeOffset.UtcNow),
-                DateTimeOffset.UtcNow,
                 maximumItems,
                 default);
 

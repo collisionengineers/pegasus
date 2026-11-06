@@ -180,8 +180,8 @@ internal sealed class EfCaseArtifactCustody(
             return Pending(version, occurrence.Id, auditFolder ? "audit_custody_pending" : "case_custody_pending");
         }
 
-        // An automatic promotion's target (its association, the archive, the
-        // Case's state and a live edit lease) was checked before the version
+        // An automatic promotion's target (its association, the archive and
+        // the Case's state) was checked before the version
         // was recorded and is checked again inside the confirmation below; a
         // target that stops accepting the filing in between leaves the
         // version pending there.
@@ -449,7 +449,7 @@ internal sealed class EfCaseArtifactCustody(
         // confirmed against it.
         var promotionTargetCurrent = !request.IsAutomaticIntakeEvidencePromotion
             || await IntakePromotionTarget.IsCurrentAsync(
-                db, caseId, request.IntakeReceiptId!.Value, timeProvider.GetUtcNow(), cancellationToken);
+                db, caseId, request.IntakeReceiptId!.Value, cancellationToken);
         var changed = await db.Set<DocumentVersionEntity>()
             .Where(value => value.Id == version.Id
                 && value.CustodyStatus == DocumentCustodyStatus.Pending
@@ -655,8 +655,7 @@ internal sealed class EfCaseArtifactCustody(
     {
         if (request.Actor.Kind != ActorKind.SystemWorker
             || request.IntakeReceiptId is not { } receiptId
-            || !await IntakePromotionTarget.IsCurrentAsync(
-                db, caseId, receiptId, timeProvider.GetUtcNow(), cancellationToken))
+            || !await IntakePromotionTarget.IsCurrentAsync(db, caseId, receiptId, cancellationToken))
         {
             throw new IntakeDependencyUnavailableException(
                 "The associated Case is no longer safe for evidence filing.");
@@ -1333,8 +1332,7 @@ public sealed partial class ReconcilePendingArtifactCustody
                     update, candidate.Case.Id, cancellationToken);
                 if (automaticPromotion is { } promotion
                     && !await IntakePromotionTarget.IsCurrentAsync(
-                        update, candidate.Case.Id, promotion.ReceiptId,
-                        timeProvider.GetUtcNow(), cancellationToken))
+                        update, candidate.Case.Id, promotion.ReceiptId, cancellationToken))
                 {
                     await RecordAttemptAsync(candidate.Version.Id, RetainedOutcome, "AutomaticPromotionTargetChanged");
                     retained++;
@@ -1475,8 +1473,7 @@ public sealed partial class ReconcilePendingArtifactCustody
         {
             return new(receiptId, 0, false);
         }
-        var target = await IntakePromotionTarget.EvaluateAsync(
-            db, caseId, receiptId, timeProvider.GetUtcNow(), cancellationToken);
+        var target = await IntakePromotionTarget.EvaluateAsync(db, caseId, receiptId, cancellationToken);
         return target.Disposition == CaseFilingTargetDisposition.Current
             ? new(receiptId, target.Version, true)
             : new(receiptId, 0, false);
