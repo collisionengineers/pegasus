@@ -151,7 +151,17 @@ public sealed partial class EstimateDocumentRendererTests
         Assert.Contains("Registration:", texts[0], StringComparison.Ordinal);
         for (var index = 0; index < pages.Count; index++)
         {
-            Assert.Contains(ColumnHeadings, texts[index], StringComparison.Ordinal);
+            // A page the table runs onto repeats its heading; the summary, moved
+            // whole, may stand on a page of its own, as the example's page 2 does.
+            if (texts[index].Contains("Repair line", StringComparison.Ordinal))
+            {
+                Assert.Contains(ColumnHeadings, texts[index], StringComparison.Ordinal);
+            }
+            else
+            {
+                Assert.Equal(pages.Count - 1, index);
+                Assert.DoesNotContain(ColumnHeadings, texts[index], StringComparison.Ordinal);
+            }
             if (index > 0)
             {
                 Assert.Empty(pages[index].Images);
