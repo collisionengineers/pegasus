@@ -61,9 +61,9 @@ public sealed record AutomaticMailCaseAssociationEvidence(
 public interface IAutomaticMailCaseAssociationEvidenceQueries
 {
     /// <param name="photographRegistration">
-    /// The registration the photographs inside the message's PDF read
-    /// (operator, 28 October 2026, R474): the message's registration when it
-    /// names none of its own.
+    /// The registration the message's photographs read, inside its PDF or
+    /// attached beside it (operator, 28 October and 6 November 2026, R474,
+    /// R733): the message's registration when it names none of its own.
     /// </param>
     Task<AutomaticMailCaseAssociationEvidence?> GetAsync(
         Guid intakeReceiptId,
@@ -83,9 +83,10 @@ public interface IAutomaticMailCaseAssociationEvidenceQueries
 /// eliminated is never the target, and an Ambiguous decision links nothing
 /// (FRD-09 shared eliminator; FRD-22; R35, operator, 15 October 2026). The
 /// target may be a Triage Case: a reply links to the Triage as a reply links
-/// to a Case (operator, 28 October 2026; R469). The plate the photographs
-/// inside the message's PDF read is its registration when it names none
-/// (operator, 28 October 2026; R474).
+/// to a Case (operator, 28 October 2026; R469). The plate the message's
+/// photographs read, inside its PDF or attached beside it, is its
+/// registration when it names none (operator, 28 October and 6 November
+/// 2026; R474, R733).
 /// </summary>
 public sealed class AssociateRetainedMailWithCase(
     IAutomaticMailCaseAssociationEvidenceQueries evidenceQueries,

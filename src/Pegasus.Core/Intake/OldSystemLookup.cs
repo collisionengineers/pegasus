@@ -196,15 +196,19 @@ public sealed class SearchOldSystemCaseFolders(IOldSystemCaseFolderSearch source
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         var trimmed = OldSystemLookupBounds.RequireTerm(term, nameof(term));
         OldSystemLookupBounds.RequireMaximum(maximumItems, nameof(maximumItems));
-        var result = await source.SearchAsync(trimmed, maximumItems, cancellationToken);
         if (!OldSystemFolderNameMatch.IsReferenceShaped(trimmed))
         {
-            return result;
+            return await source.SearchAsync(trimmed, maximumItems, cancellationToken);
         }
 
+        // The filter runs before the caller's cap: the source's first hits
+        // may all be near-misses, so it is asked for the full cap.
+        var result = await source.SearchAsync(trimmed, OldSystemLookupBounds.MaximumItems, cancellationToken);
+        var matches = result.Items.Where(folder => OldSystemFolderNameMatch.Matches(folder.Name, trimmed)).ToArray();
         return result with
         {
-            Items = result.Items.Where(folder => OldSystemFolderNameMatch.Matches(folder.Name, trimmed)).ToArray(),
+            Items = matches.Take(maximumItems).ToArray(),
+            IsTruncated = matches.Length > maximumItems || result.IsTruncated,
         };
     }
 }

@@ -1501,8 +1501,8 @@ internal sealed class EfIntakeMutationStore(
             return null;
         }
 
-        // A message that names no registration has the one its PDF's
-        // photographs read (operator, 28 October 2026, R474).
+        // A message that names no registration has the one its photographs
+        // read, inside its PDF or attached beside it (R474, R733).
         var normalizedRegistration = Pegasus.Core.Cases.CaseRegistration.Normalize(
             receipt.VehicleRegistration ?? photographRegistration);
         var registrationCandidates = await RegistrationCandidatesAsync(

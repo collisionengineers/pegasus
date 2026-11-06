@@ -1,6 +1,6 @@
 // The Pegasus Automation MCP server, reached as the pegasus-automation client
 // with the automation.mail scope, and automation.intake for creating a Case from
-// a received instruction (R714). Tokens last ten minutes, so each request
+// a received instruction (R714) and opening a Triage from a Triage request. Tokens last ten minutes, so each request
 // carries a token refreshed shortly before it expires.
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -45,6 +45,12 @@ export interface MailSummary {
 export interface MailPage {
   items: MailSummary[];
   continuation: string | null;
+  /**
+   * On the first page only: Inbox mail the pipeline decided that is
+   * Unclassified or has no Case, counted outside the list's own filters, so a
+   * list that hides mail can be told from a quiet Inbox (#1892).
+   */
+  awaitingDecisionCount?: number | null;
 }
 
 export interface MailDetail {
@@ -114,6 +120,19 @@ export interface IntakeActionResult {
   caseId: string | null;
   caseReference: string | null;
   safeReason: string | null;
+}
+
+/**
+ * The plate Pegasus's own reader agreed on across an e-mail's photographs, as
+ * the Worker recorded it at intake (pegasus_mail_photo_registrations). read:
+ * one registration at the accepted bar; none: nothing read, or not read yet;
+ * disagree: more than one.
+ */
+export interface MailPhotoRegistrations {
+  messageId: string;
+  state: "read" | "none" | "disagree";
+  registration: string | null;
+  readRegistrations: string[];
 }
 
 export interface OldSystemFolderSearch {
@@ -208,10 +227,11 @@ export class PegasusMail {
   /**
    * accept: Create case on the received item, as staff do (R714).
    * resolve_inspection_address: accept Pegasus's own suggested address, no other.
+   * open_triage: Open the Triage on a Triage request, with the registration read.
    */
   intakeAction(args: {
     receiptId: string;
-    action: "accept" | "resolve_inspection_address";
+    action: "accept" | "resolve_inspection_address" | "open_triage";
     expectedReceiptVersion: number;
     operationKey: string;
     claimantName?: string;
@@ -241,6 +261,11 @@ export class PegasusMail {
   /** The text the intake reader extracted from one attachment, bounded; never the bytes. */
   attachmentText(messageId: string, attachmentOrdinal: number, maximumCharacters: number): Promise<MailAttachmentText> {
     return this.call("pegasus_mail_attachment_text", { messageId, attachmentOrdinal, maximumCharacters });
+  }
+
+  /** The plate reads the Worker recorded for the e-mail's photographs; nothing is read here. */
+  photoRegistrations(messageId: string): Promise<MailPhotoRegistrations> {
+    return this.call("pegasus_mail_photo_registrations", { messageId });
   }
 
   /** The read-only old-system folder search (R561): names and identities only. */
