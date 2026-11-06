@@ -12,7 +12,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// re-send. A Principal whose rules set an attachment name has its First and
 /// Re-send copied into both, with <c>{ref}</c>, <c>{reg}</c> and
 /// <c>{outcome}</c> rewritten as <c>{CASE REF}</c>, <c>{REG}</c> and
-/// <c>{OUTCOME}</c>. Additive: nullable columns and the rows' copy into them;
+/// <c>{OUTCOME}</c>; PCH's into its Inspection names only, so its Audit
+/// report keeps the standard name and a send carrying both of its reports
+/// never attaches two files of one name (operator, 6 November 2026; R755). Additive: nullable columns and the rows' copy into them;
 /// the stored rules are not rewritten, and the old attachment name in them is
 /// never read again.
 /// </summary>
@@ -57,8 +59,8 @@ public partial class PrincipalReportNameColumns : Migration
         UPDATE [p]
         SET [InspectionReportNameFirst] = [n].[First],
             [InspectionReportNameResend] = [n].[Resend],
-            [AuditReportNameFirst] = [n].[First],
-            [AuditReportNameResend] = [n].[Resend]
+            [AuditReportNameFirst] = CASE WHEN [p].[Code] = N'PCH' THEN NULL ELSE [n].[First] END,
+            [AuditReportNameResend] = CASE WHEN [p].[Code] = N'PCH' THEN NULL ELSE [n].[Resend] END
         FROM [dbo].[Principals] AS [p]
         CROSS APPLY (SELECT
             REPLACE(REPLACE(REPLACE(JSON_VALUE([p].[ReportSendingRulesJson], '$.attachmentName.first'),

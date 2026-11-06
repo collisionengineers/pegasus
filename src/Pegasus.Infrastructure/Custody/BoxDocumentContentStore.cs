@@ -158,6 +158,8 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                 return await client.UploadNextVersionVerifiedAsync(
                     folder,
                     seriesFileId,
+                    CustodyNames.SafeName(address.FileName),
+                    FlatFileName(address),
                     stream,
                     content.Length,
                     address.MediaType,
@@ -221,6 +223,8 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             (folder, seriesFileId) => client.UploadNextVersionVerifiedAsync(
                 folder,
                 seriesFileId,
+                CustodyNames.SafeName(address.FileName),
+                FlatFileName(address),
                 verified,
                 contentLength,
                 address.MediaType,
@@ -269,7 +273,8 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         // that proof (FRD-05); outside one every write proves it.
         // A document that replaces an earlier one of its series goes in as
         // the next version of that one's Box file, keeping its name (operator,
-        // 4 November 2026). A series file no longer live in the folder leaves
+        // 4 November 2026) unless the document's own name differs, when the
+        // file takes the document's name (R755). A series file no longer live in the folder leaves
         // the document to be filed as a file of its own. A new version is never
         // rolled back: removing it would need Box to drop the file's current
         // version, so it is not remembered as a created file.

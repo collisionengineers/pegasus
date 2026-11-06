@@ -276,10 +276,11 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Equal("PCH / Connexus", organizations[principals["PCH"].Principal.OrganizationId].Name);
         Assert.Equal(["Ontrack789@gmail.com"], principals["SWADE"].Rules.SendTo.ToArray());
 
-        // PCH's seeded attachment name became its report names, for both of
-        // its reports, in the new tokens (R740); no other Principal names any.
+        // PCH's seeded attachment name became its Inspection report names, in
+        // the new tokens (R740); its Audit report keeps the standard name
+        // (R755). No other Principal names any.
         Assert.Equal(
-            new PrincipalReportNames("{REG} Initial", "{REG} Supplementary", "{REG} Initial", "{REG} Supplementary"),
+            new PrincipalReportNames("{REG} Initial", "{REG} Supplementary", null, null),
             EfOrganizationAdministration.ReadReportNames(principals["PCH"].Principal));
         Assert.All(
             principals.Where(pair => pair.Key != "PCH"),
