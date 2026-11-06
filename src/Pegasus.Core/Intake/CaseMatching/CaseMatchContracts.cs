@@ -118,7 +118,7 @@ public sealed record CaseMatchEvaluationResult(
 /// </param>
 /// <param name="PhotographRegistration">
 /// Retained mail only: the registration the message's photographs read,
-/// inside its PDF or attached beside it (R474, R731), which the evidence is
+/// inside its PDF or attached beside it (R474, R733), which the evidence is
 /// re-read with.
 /// </param>
 public sealed record AutomaticCaseAssociationRequest(

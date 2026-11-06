@@ -175,10 +175,10 @@ inside its PDF, text layer or images only, and those attached beside it, or,
 for a classified e-mail with no Case and no document, its photographs alone,
 is a mail-linking signal
 ([FRD-08](frd-08-email-mailbox-and-background-processing.md#automatic-case-association-of-retained-mail);
-operator, 28 October 2026, R474; 6 November 2026, R731). The photographs of a
+operator, 28 October 2026, R474; 6 November 2026, R733). The photographs of a
 Triage request that opened no Triage are read and recorded too, for the
 classifier agent's Open the Triage; the pipeline still leaves the request in
-No Case Found (operator, 6 November 2026, R732; R588). An image-only PDF attached to an
+No Case Found (operator, 6 November 2026, R734; R588). An image-only PDF attached to an
 e-mail is treated as a document too, never Unidentified. An e-mail carrying a
 PDF is a document carrier: its loose photograph attachments open no Image
 Intake or Unidentified item and are filed with it once the Case is matched;

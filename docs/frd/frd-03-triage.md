@@ -70,7 +70,7 @@ is not offered on a Triage Case.
   written in the e-mail's subject, body or an attachment's extracted text, or
   Pegasus's plate reader agreed on it in the e-mail's photographs
   ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction);
-  operator, 4 and 6 November 2026, R729, R730, R732);
+  operator, 4 and 6 November 2026, R731, R732, R734);
 - an authorised staff member chooses Triage in **Create case**, giving only
   the Principal and the registration.
 

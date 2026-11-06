@@ -28,9 +28,9 @@ public sealed record RetainedMailPhotoRegistrations(
 
 /// <summary>
 /// Reads what the Worker recorded when it read a retained message's
-/// photographs at intake (R474, R731, R732), for a caseworker or the
+/// photographs at intake (R474, R733, R734), for a caseworker or the
 /// Automation actor: the classifier agent opens a Triage only with the agreed
-/// read (R730). No recognition runs, no image is read and nothing is written.
+/// read (R732). No recognition runs, no image is read and nothing is written.
 /// </summary>
 public sealed class GetRetainedMailPhotoRegistrations(
     IRetainedMailQueries queries,

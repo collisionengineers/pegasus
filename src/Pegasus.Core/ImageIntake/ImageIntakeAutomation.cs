@@ -82,8 +82,8 @@ public interface IImageIntakeAutomation
     /// <summary>
     /// The one registration an e-mail's photographs read for mail linking:
     /// those inside its PDF, text layer or images only (operator, 28 October
-    /// 2026, R474), and those attached beside it (6 November 2026, R731).
-    /// It also reads a photos-only e-mail the pipeline classified (R731,
+    /// 2026, R474), and those attached beside it (6 November 2026, R733).
+    /// It also reads a photos-only e-mail the pipeline classified (R733,
     /// "Also photos-only mail"). Null when the e-mail is neither, or its
     /// photographs read none or disagree.
     /// </summary>
@@ -119,7 +119,7 @@ public sealed class ImageIntakeAutomation(
         ArgumentNullException.ThrowIfNull(receipt);
         if (ImageIntakeLifecycleRules.IsPhotographReadEligible(receipt))
         {
-            // An e-mail's photographs were read before mail linking (R474, R731).
+            // An e-mail's photographs were read before mail linking (R474, R733).
             return receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
                 ? await ReadFiledUploadPhotographsAsync(receipt, cancellationToken)
                 : new(receipt);
@@ -128,7 +128,7 @@ public sealed class ImageIntakeAutomation(
         if (ImageIntakeLifecycleRules.IsTriageRequestPhotographReadEligible(receipt))
         {
             // After Triage opening, on the first pass and on replay alike, so
-            // a request that opened its Triage is known and not read (R732).
+            // a request that opened its Triage is known and not read (R734).
             await ReadTriageRequestPhotographsAsync(receipt, cancellationToken);
             return new(receipt);
         }
@@ -243,7 +243,7 @@ public sealed class ImageIntakeAutomation(
     /// <summary>
     /// A Triage request that opened no Triage has its photographs read and
     /// every read recorded, for the classifier agent (operator, 6 November
-    /// 2026, R732). Nothing is returned: the read feeds neither mail linking
+    /// 2026, R734). Nothing is returned: the read feeds neither mail linking
     /// nor Triage opening (R588). Without a Triage read to ask, it is not read.
     /// </summary>
     private async Task ReadTriageRequestPhotographsAsync(
@@ -265,8 +265,8 @@ public sealed class ImageIntakeAutomation(
     /// <summary>
     /// An e-mail filed as a file has the photographs inside its PDF read
     /// (operator, 28 October 2026, R474) and those attached beside it
-    /// (6 November 2026, R731), and so does a photos-only e-mail the pipeline
-    /// classified (R731, "Also photos-only mail"). Every photograph gets its
+    /// (6 November 2026, R733), and so does a photos-only e-mail the pipeline
+    /// classified (R733, "Also photos-only mail"). Every photograph gets its
     /// durable recognition outcome; the one registration they agree on is a
     /// mail-linking signal. The read itself registers, links and holds
     /// nothing.

@@ -391,7 +391,7 @@ public sealed class AutomaticImageIntakeTests
     public async Task AFiledPdfIsReadOnlyAsAnUndeclaredManualUpload(IntakeSourceChannel channel, bool declared)
     {
         // Mail reads its photographs before mail linking, not here (R474,
-        // R731), and a declared destination needs no identification (FRD-18).
+        // R733), and a declared destination needs no identification (FRD-18).
         var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
         var photograph = Asset(
             "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
@@ -416,7 +416,7 @@ public sealed class AutomaticImageIntakeTests
         // An e-mail carrying a PDF is filed as a file; the plate the
         // photographs inside the PDF read is a mail-linking signal (operator,
         // 28 October 2026, R474), and so is the plate of a photograph attached
-        // beside it (6 November 2026, R731). Every read is recorded, and the
+        // beside it (6 November 2026, R733). Every read is recorded, and the
         // read itself registers, links and holds nothing.
         var email = Asset("vehicle-images.eml", "message/rfc822", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
         var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment);
@@ -454,7 +454,7 @@ public sealed class AutomaticImageIntakeTests
     [Fact]
     public async Task APhotographBesideAMailedPdfThatReadsAnotherPlateLeavesNoRegistration()
     {
-        // The beside photograph joins the PDF's in the one agreement (R731):
+        // The beside photograph joins the PDF's in the one agreement (R733):
         // two plates disagree, so mail linking has no registration from them.
         var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment);
         var photograph = Asset(
@@ -483,7 +483,7 @@ public sealed class AutomaticImageIntakeTests
     {
         // The Worker reads a Triage request's photographs once Triage opening
         // has run and records the reads for the classifier agent (operator,
-        // 6 November 2026, R732). The read opens no Triage, links nothing and
+        // 6 November 2026, R734). The read opens no Triage, links nothing and
         // gives mail linking nothing: the request stays in No Case Found (R588).
         var harness = PhotosOnlyMail(TriageRequest());
         harness.Engine.Enqueue(Suggested("SH65HTL", 0.95));
@@ -526,7 +526,7 @@ public sealed class AutomaticImageIntakeTests
         // An e-mail that carries photographs instead of a PDF and that the
         // pipeline classified has them read like a filed e-mail's, and the
         // plate they agree on is a mail-linking signal (operator, 6 November
-        // 2026, R731, "Also photos-only mail"). Image automation leaves it.
+        // 2026, R733, "Also photos-only mail"). Image automation leaves it.
         var harness = PhotosOnlyMail(MailClassificationResult.Classified(
             MailCategory.Cancellation, [], "The mailbox classifier identified a cancellation.", "test", 1));
         harness.Engine.Enqueue(Suggested("SH65HTL", 0.95));

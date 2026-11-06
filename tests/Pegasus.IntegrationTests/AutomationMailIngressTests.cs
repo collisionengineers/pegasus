@@ -792,7 +792,7 @@ public sealed class AutomationMailIngressTests
 
     /// <summary>
     /// The plate reads the Worker recorded for a message's photographs, read
-    /// back without any recognition (R730 to R732): the one registration they
+    /// back without any recognition (R732 to R734): the one registration they
     /// agree on is read, a message with no reads is none.
     /// </summary>
     [Fact]

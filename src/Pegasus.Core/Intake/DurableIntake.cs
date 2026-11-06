@@ -1379,7 +1379,7 @@ public sealed class ProcessQueuedIntake(
         }
 
         // The plate its photographs read, inside its PDF or attached beside
-        // it, is a mail-linking signal (R474, R731), so they are read first.
+        // it, is a mail-linking signal (R474, R733), so they are read first.
         var photographRegistration = imageIntakeAutomation is null
             ? null
             : await imageIntakeAutomation.ReadMailedPhotographsAsync(receipt, cancellationToken);

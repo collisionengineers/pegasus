@@ -63,7 +63,7 @@ public interface IAutomaticMailCaseAssociationEvidenceQueries
     /// <param name="photographRegistration">
     /// The registration the message's photographs read, inside its PDF or
     /// attached beside it (operator, 28 October and 6 November 2026, R474,
-    /// R731): the message's registration when it names none of its own.
+    /// R733): the message's registration when it names none of its own.
     /// </param>
     Task<AutomaticMailCaseAssociationEvidence?> GetAsync(
         Guid intakeReceiptId,
@@ -86,7 +86,7 @@ public interface IAutomaticMailCaseAssociationEvidenceQueries
 /// to a Case (operator, 28 October 2026; R469). The plate the message's
 /// photographs read, inside its PDF or attached beside it, is its
 /// registration when it names none (operator, 28 October and 6 November
-/// 2026; R474, R731).
+/// 2026; R474, R733).
 /// </summary>
 public sealed class AssociateRetainedMailWithCase(
     IAutomaticMailCaseAssociationEvidenceQueries evidenceQueries,

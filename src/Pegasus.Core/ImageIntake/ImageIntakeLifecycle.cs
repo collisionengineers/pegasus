@@ -135,7 +135,7 @@ public static class ImageIntakeLifecycleRules
     /// (operator, 28 October 2026, R472). Its photographs are read for a
     /// registration: the upload offers the Cases the read matches (R473), and
     /// on mail the plate its photographs read, inside the PDF or attached
-    /// beside it, is a mail-linking signal (R474, R731). The file itself never
+    /// beside it, is a mail-linking signal (R474, R733). The file itself never
     /// registers an Image intake or an Unidentified item (R296). A declared
     /// destination needs no identification.
     /// </summary>
@@ -154,7 +154,7 @@ public static class ImageIntakeLifecycleRules
 
     /// <summary>
     /// An e-mail that carries photographs instead of a PDF and that the
-    /// pipeline classified (operator, 6 November 2026, R731, "Also photos-only
+    /// pipeline classified (operator, 6 November 2026, R733, "Also photos-only
     /// mail"): no recognised document, no Case and no instruction draft, with
     /// a category, so it is not the Unclassified mail image automation reads
     /// (<see cref="IsImageAutomationEligible"/>). Its photographs are read as
@@ -181,7 +181,7 @@ public static class ImageIntakeLifecycleRules
     /// <summary>
     /// A Triage request with no Case whose e-mail carries photographs: they
     /// are read and the reads recorded, for the classifier agent to open the
-    /// Triage with the agreed read (operator, 6 November 2026, R732). The read
+    /// Triage with the agreed read (operator, 6 November 2026, R734). The read
     /// feeds neither mail linking nor Triage opening; the pipeline still
     /// leaves the request in No Case Found (R588). A request that opened its
     /// Triage is not read; the caller asks, since the receipt does not say.
@@ -197,7 +197,7 @@ public static class ImageIntakeLifecycleRules
 
     /// <summary>
     /// The assets an e-mail's photograph read selects from: the images the
-    /// reader took from a PDF's pages and the attachments (R474, R731).
+    /// reader took from a PDF's pages and the attachments (R474, R733).
     /// </summary>
     internal static IEnumerable<IntakeAssetRecord> MailedPhotographCandidates(IntakeReceipt receipt) =>
         receipt.AssetRecords.Where(asset =>

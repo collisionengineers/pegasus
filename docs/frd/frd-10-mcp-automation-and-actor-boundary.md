@@ -475,7 +475,7 @@ replays by its operation key.
   page also carries `awaitingDecisionCount`: the Inbox messages, not
   dismissed, whose classification the pipeline decided and that are
   Unclassified or have no Case, counted outside the list's own filters so
-  that a list hiding mail shows (operator, 4 November 2026, R733).
+  that a list hiding mail shows (operator, 4 November 2026, R735).
 - `pegasus_mail_correct_classification` takes `correspondence`, one of the
   four category codes, or `new-instruction:Inspection` (and Audit,
   InspectionAndAudit), with a reason, as the staff Type select does
@@ -499,7 +499,7 @@ replays by its operation key.
   registration they agree on at the accepted bar (`read`), none (`none`) or
   more than one (`disagree`); it reads no image and writes nothing. It exists
   so the classifier agent can open a Triage whose registration is only in
-  photographs (operator, 6 November 2026, R730 to R732).
+  photographs (operator, 6 November 2026, R732 to R734).
 - `pegasus_mail_mailbox_search` and `pegasus_old_system_folder_search` are
   the Actor's two read-only lookups outside Pegasus's retained records
   (operator, 30 October 2026, R561): the first searches one or every
@@ -525,7 +525,7 @@ replays by its operation key.
   classifies New instruction (operator, 5 November 2026, R714), and
   `pegasus_intake_action` `open_triage` to open the Triage for an unlinked
   Triage request whose registration it read (operator, 4 and 6 November
-  2026, R729, R730).
+  2026, R731, R732).
 - `pegasus_work_centre_dismiss` dismisses a record from the Work Centre for
   everyone, as a row's **Dismiss** does. The record id is the Case, the
   Unidentified item, the AI job, or — for a System Action — the underlying
@@ -671,7 +671,7 @@ its one command when none is given.
 | `automation.mail` | `pegasus_mail_action` | `dismiss` or `restore` in Pegasus | key |
 | `automation.mail` | `pegasus_mail_mailbox_search` | Read-only: message headers (subject, sender, received time, preview) matching a term in one or every approved mailbox; a mailbox the tenant has not admitted reports unavailable (R561) | none |
 | `automation.mail` | `pegasus_mail_attachment_text` | Read-only: the text the intake reader extracted from one attachment of a retained message, by the attachment's position, cut at the caller's cap (at most 20,000 characters); null when the reader produced none; never the bytes (#1891) | none |
-| `automation.mail` | `pegasus_mail_photo_registrations` | Read-only: the plate reads recorded for a retained message's photographs and the registration they agree on at the accepted bar; no image (R730 to R732) | none |
+| `automation.mail` | `pegasus_mail_photo_registrations` | Read-only: the plate reads recorded for a retained message's photographs and the registration they agree on at the accepted bar; no image (R732 to R734) | none |
 | `automation.mail` | `pegasus_old_system_folder_search` | Read-only: folder names and identities matching a term below the old system's Box folder; a reference-shaped term matches a folder name only as a whole token (R592); unavailable until that folder is configured (R561) | none |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does | one-command lease |

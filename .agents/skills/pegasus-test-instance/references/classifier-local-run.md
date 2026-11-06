@@ -59,7 +59,7 @@ reaches `failed: candidates hidden`.
 
 Dry run logs each proposal and writes nothing to Pegasus. Turning
 `CLASSIFIER_DRY_RUN` to `false` is the operator's call; in write mode the agent
-sets categories and links, creates Cases (R714) and opens Triages (R729) on
+sets categories and links, creates Cases (R714) and opens Triages (R731) on
 the instance only. The
 operator chose write mode for the instance on 5 November 2026.
 

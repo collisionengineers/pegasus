@@ -716,7 +716,7 @@ public sealed class RetainedMailTests
     /// <summary>
     /// The photo registrations read back what the Worker recorded: one agreed
     /// read at the bar, none, or a disagreement; a read below the bar is none
-    /// (R730 to R732). Nothing is recognised or written.
+    /// (R732 to R734). Nothing is recognised or written.
     /// </summary>
     [Theory]
     [InlineData("", RetainedMailPhotoReadState.None, null, 0)]
