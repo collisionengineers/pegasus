@@ -42,7 +42,7 @@ public sealed record PrincipalReportNames(
     public const int MaximumFileNameLength = 120;
 
     /// <summary>The longest value each token can print.</summary>
-    private static readonly IReadOnlyDictionary<string, int> LongestValue = new Dictionary<string, int>(StringComparer.Ordinal)
+    private static readonly Dictionary<string, int> LongestValue = new(StringComparer.Ordinal)
     {
         [Registration] = CaseDataLimits.VehicleRegistration,
         // An Audit report's reference: a. + the Case/PO and its -p suffix.
