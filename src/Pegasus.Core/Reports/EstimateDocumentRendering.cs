@@ -7,12 +7,18 @@ namespace Pegasus.Core.Reports;
 
 public static class EstimateDocumentContract
 {
-    public const string PayloadVersion = "estimate-payload-v1";
     /// <summary>
-    /// v2 (27 September 2026): the Repair Spec printout takes the report's
-    /// header, footer, margins and heading style.
+    /// v2 (6 November 2026): the snapshot carries the EVA breakdown's
+    /// figures, and no longer the claim number, part numbers, source route,
+    /// discounts, other costs or unpriced count, which the printout does not
+    /// print.
     /// </summary>
-    public const string TemplateVersion = "estimate-v2";
+    public const string PayloadVersion = "estimate-payload-v2";
+    /// <summary>
+    /// v3 (6 November 2026): the Repair Spec printout is the EVA breakdown
+    /// (R750 to R754), not the report's page.
+    /// </summary>
+    public const string TemplateVersion = "estimate-v3";
     public const int MaximumLines = 250;
     public const int MaximumAggregateCharacters = 80_000;
     public const int MaximumFieldCharacters = 4_000;
@@ -22,18 +28,23 @@ public sealed record EstimateDocumentLine(
     int Position,
     int Quantity,
     string Description,
-    string? PartNumber,
     string LineType,
     EstimateOperation Operation,
     decimal? Hours,
     decimal? PaintHours,
     decimal? Materials,
     decimal? UnitPrice,
-    bool Unpriced);
+    bool Unpriced)
+{
+    /// <summary>
+    /// The line's Price column: its unit amount times its quantity, the amount
+    /// <see cref="EstimateTotals"/> counts. An unpriced line has none.
+    /// </summary>
+    public decimal? Price => Unpriced || UnitPrice is not { } unit ? null : unit * Quantity;
+}
 
 public sealed record EstimateDocumentSnapshot(
     string OurReference,
-    string? YourReference,
     DateOnly DocumentDate,
     string ClaimantName,
     string VehicleDescription,
@@ -43,20 +54,16 @@ public sealed record EstimateDocumentSnapshot(
     string EstimateName,
     RepairSpecificationState State,
     bool IsCurrent,
-    RepairSpecificationSourceRoute Route,
     IReadOnlyList<EstimateDocumentLine> Lines,
     EstimateHours Hours,
     decimal HourlyRate,
-    EstimateDiscounts Discounts,
-    decimal? OtherCosts,
     EstimateTotals Totals,
-    int UnpricedItemCount,
+    EstimatePrintedBreakdown Breakdown,
     string PayloadVersion = EstimateDocumentContract.PayloadVersion)
 {
     public static EstimateDocumentSnapshot For(
         RepairSpecificationVersion estimate,
         string ourReference,
-        string? yourReference,
         DateOnly documentDate,
         string claimantName,
         string vehicleDescription,
@@ -70,7 +77,6 @@ public sealed record EstimateDocumentSnapshot(
                 line.Quantity is > 0 ? line.Quantity.Value : 1,
                 !string.IsNullOrWhiteSpace(line.Description) ? line.Description.Trim()
                     : line.GuideCode?.Trim() ?? string.Empty,
-                string.IsNullOrWhiteSpace(line.PartNumber) ? null : line.PartNumber.Trim(),
                 line.Type,
                 EstimateOperations.FromLineType(line.Type),
                 line.WorkUnits,
@@ -79,10 +85,8 @@ public sealed record EstimateDocumentSnapshot(
                 line.Price,
                 line.Unpriced))
             .ToArray();
-        var totals = EstimateTotals.Compute(estimate);
         return new(
             ourReference.Trim(),
-            string.IsNullOrWhiteSpace(yourReference) ? null : yourReference.Trim(),
             documentDate,
             string.IsNullOrWhiteSpace(claimantName) ? "—" : claimantName.Trim(),
             string.IsNullOrWhiteSpace(vehicleDescription) ? "—" : vehicleDescription.Trim(),
@@ -92,14 +96,11 @@ public sealed record EstimateDocumentSnapshot(
             estimate.Details.Name.Trim(),
             estimate.State,
             estimate.IsCurrent,
-            estimate.Source.Route,
             lines,
             EstimateHours.Of(estimate),
             estimate.Details.HourlyRate,
-            estimate.Details.AppliedDiscounts,
-            estimate.Details.OtherCosts,
-            totals,
-            lines.Count(line => line.Unpriced));
+            EstimateTotals.Compute(estimate),
+            EstimateTotals.Breakdown(estimate));
     }
 
     public string Status => IsCurrent ? "CURRENT" : State switch
@@ -139,7 +140,7 @@ public sealed record EstimateDocumentSnapshot(
             throw new ReportRenderRejectedException("Estimate hours cannot be negative.");
         }
         var characters = OurReference.Length + Registration.Length + EstimateName.Length
-            + ClaimantName.Length + VehicleDescription.Length + (YourReference?.Length ?? 0);
+            + ClaimantName.Length + VehicleDescription.Length;
         foreach (var line in Lines)
         {
             Required(line.Description, $"Estimate line {line.Position} requires a description or guide code.");
@@ -153,9 +154,8 @@ public sealed record EstimateDocumentSnapshot(
                 throw new ReportRenderRejectedException(
                     $"Estimate line {line.Position} cannot be both unpriced and carry a unit amount.");
             }
-            characters += line.Description.Length + (line.PartNumber?.Length ?? 0);
-            if (line.Description.Length > EstimateDocumentContract.MaximumFieldCharacters
-                || (line.PartNumber?.Length ?? 0) > EstimateDocumentContract.MaximumFieldCharacters)
+            characters += line.Description.Length;
+            if (line.Description.Length > EstimateDocumentContract.MaximumFieldCharacters)
             {
                 throw new ReportRenderRejectedException(
                     $"Estimate line {line.Position} contains a field which is too long to render.");
@@ -168,7 +168,9 @@ public sealed record EstimateDocumentSnapshot(
         var printed = Totals.Printed;
         if (printed.Parts + printed.PanelLabour + printed.PaintLabour
                 + printed.Materials + printed.Specialist != printed.Net
-            || printed.Net + printed.Vat != printed.Gross)
+            || printed.Net + printed.Vat != printed.Gross
+            || Breakdown.Labour + Breakdown.Materials + Breakdown.Parts + Breakdown.Other
+                - Breakdown.TotalDiscount != printed.Net)
         {
             throw new ReportRenderRejectedException("The estimate's printed components do not reconcile.");
         }
@@ -271,7 +273,6 @@ public sealed class RenderCaseEstimateDocument(
                 var snapshot = EstimateDocumentSnapshot.For(
                     estimate,
                     workspace.Header.Reference,
-                    workspace.Data.Claim.Number.Current?.Value,
                     LondonCalendar.DateAt(clock.GetUtcNow()),
                     workspace.Data.Claimant.Name.Current?.Value ?? "—",
                     description,

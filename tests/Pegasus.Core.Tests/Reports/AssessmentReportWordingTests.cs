@@ -58,10 +58,6 @@ public sealed class AssessmentReportWordingTests
         Assert.Equal(
             ["PK12 TMZ · ap.qdos261789", "Collision Engineers Ltd", "www.CollisionEngineers.co.uk"],
             AssessmentReportWording.FooterParts(snapshot, feeNote: false));
-        // The Repair Spec printout carries the same footer.
-        Assert.Equal(
-            AssessmentReportWording.Footer(snapshot, feeNote: false),
-            AssessmentReportWording.Footer("PK12 TMZ", "ap.qdos261789", feeNote: false));
         Assert.Equal(
             "Page 1 of 7",
             AssessmentReportWording.PageNumberLead + "1" + AssessmentReportWording.PageNumberJoin + "7");

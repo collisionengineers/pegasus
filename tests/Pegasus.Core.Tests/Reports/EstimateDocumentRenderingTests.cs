@@ -10,7 +10,7 @@ public sealed class EstimateDocumentRenderingTests
     private static readonly DateTimeOffset Now = new(2026, 9, 16, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public void ForMapsEveryDocumentColumnAdjustmentAndCompletenessFact()
+    public void ForMapsEveryDocumentColumnAndCountsTheAdjustmentAsOther()
     {
         var estimate = Estimate(
             Details(rate: 50m, otherCosts: 8.76m),
@@ -19,29 +19,104 @@ public sealed class EstimateDocumentRenderingTests
             Line("specialist_fixed", 2, description: "Tyre", workUnits: 1m, price: null, unpriced: true));
 
         var snapshot = EstimateDocumentSnapshot.For(
-            estimate, "QDOS26001", "CLAIM-1", new(2026, 9, 16),
+            estimate, "QDOS26001", new(2026, 9, 16),
             "Alex Example", "Ford Focus", "AB12 CDE");
 
         Assert.Equal(3.21m, snapshot.Totals.Printed.Materials);
-        Assert.Equal(8.76m, snapshot.OtherCosts);
-        Assert.Equal(1, snapshot.UnpricedItemCount);
+        Assert.Equal(8.76m, snapshot.Breakdown.Other);
         Assert.Collection(snapshot.Lines,
             line =>
             {
                 Assert.Equal(1, line.Quantity);
                 Assert.Equal("PANEL", line.Description);
-                Assert.Equal("PN-42", line.PartNumber);
                 Assert.Equal(EstimateOperation.Replace, line.Operation);
                 Assert.Equal(0.25m, line.Hours);
                 Assert.Equal(3.21m, line.Materials);
                 Assert.Equal(20m, line.UnitPrice);
+                Assert.Equal(20m, line.Price);
             },
             line =>
             {
                 Assert.Equal(EstimateOperation.Specialist, line.Operation);
                 Assert.True(line.Unpriced);
+                Assert.Null(line.Price);
             });
         snapshot.Validate();
+    }
+
+    [Fact]
+    public void ALinesPriceIsItsUnitAmountTimesItsQuantity()
+    {
+        var snapshot = Snapshot(Estimate(
+            Details(rate: 50m),
+            Line("new_part", 1, quantity: 3, price: 12.5m)));
+
+        Assert.Equal(37.5m, Assert.Single(snapshot.Lines).Price);
+        Assert.Equal(37.5m, snapshot.Totals.Printed.Parts);
+    }
+
+    /// <summary>
+    /// The EVA example's figures (R751): with no discounts each category
+    /// prints as the totals do, labour as its panel and paint parts each
+    /// rounded, and every discount is nought.
+    /// </summary>
+    [Fact]
+    public void TheBreakdownWithoutDiscountsIsThePrintedCategories()
+    {
+        var estimate = Estimate(
+            Details(rate: 103.06m),
+            Line("rnr", 1, workUnits: 9.6m),
+            Line("paint_repair", 2, paintWorkUnits: 11.1m, materials: 1_432.44m),
+            Line("new_part", 3, price: 338.90m),
+            Line("specialist_fixed", 4, price: 426.07m));
+
+        var breakdown = EstimateTotals.Breakdown(estimate);
+        var printed = EstimateTotals.Compute(estimate).Printed;
+
+        Assert.Equal(
+            (2_133.35m, 1_432.44m, 338.90m, 426.07m),
+            (breakdown.Labour, breakdown.Materials, breakdown.Parts, breakdown.Other));
+        Assert.Equal(0m, breakdown.TotalDiscount);
+        Assert.Equal(4_330.76m, printed.Net);
+        Assert.Equal(866.15m, printed.Vat);
+        Assert.Equal(5_196.91m, printed.Gross);
+    }
+
+    /// <summary>
+    /// Each discount box is what the category's discounts took off it, the
+    /// overall discount's share included, so the categories less the Total
+    /// Disc are the printed Net to the penny (R751).
+    /// </summary>
+    [Fact]
+    public void TheBreakdownsDiscountsReconcileToThePrintedNet()
+    {
+        var estimate = Estimate(
+            Details(rate: 83.33m, otherCosts: 12.34m) with
+            {
+                Discounts = new EstimateDiscounts(0.125m, 0.07m, 0.033m, 0.0275m),
+            },
+            Line("repair", 1, workUnits: 3.3m),
+            Line("paint_repair", 2, workUnits: 0.4m, paintWorkUnits: 2.7m, materials: 101.01m),
+            Line("new_part", 3, quantity: 3, price: 33.33m),
+            Line("specialist_fixed", 4, price: 77.77m),
+            Line("specialist_wu", 5, workUnits: 1m, price: 9.99m));
+
+        var breakdown = EstimateTotals.Breakdown(estimate);
+        var printed = EstimateTotals.Compute(estimate).Printed;
+
+        Assert.Equal(printed.Labour, breakdown.Labour - breakdown.LabourDiscount);
+        Assert.Equal(printed.Materials, breakdown.Materials - breakdown.MaterialsDiscount);
+        Assert.Equal(printed.Parts, breakdown.Parts - breakdown.PartsDiscount);
+        Assert.Equal(printed.Specialist, breakdown.Other - breakdown.OtherDiscount);
+        Assert.Equal(
+            printed.Net,
+            breakdown.Labour + breakdown.Materials + breakdown.Parts + breakdown.Other - breakdown.TotalDiscount);
+        Assert.All(
+            new[] { breakdown.LabourDiscount, breakdown.MaterialsDiscount, breakdown.PartsDiscount, breakdown.OtherDiscount },
+            discount => Assert.True(discount > 0m));
+        Assert.Equal((0m, 0.07m, 0.125m),
+            (breakdown.LabourDiscountRate, breakdown.MaterialsDiscountRate, breakdown.PartsDiscountRate));
+        Snapshot(estimate).Validate();
     }
 
     [Fact]
@@ -191,7 +266,7 @@ public sealed class EstimateDocumentRenderingTests
 
     private static EstimateDocumentSnapshot Snapshot(RepairSpecificationVersion estimate) =>
         EstimateDocumentSnapshot.For(
-            estimate, "QDOS26001", "CLAIM-1", new(2026, 9, 16),
+            estimate, "QDOS26001", new(2026, 9, 16),
             "Alex Example", "Ford Focus", "AB12 CDE");
 
     private static EstimateDetails Details(

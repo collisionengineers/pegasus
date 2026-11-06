@@ -427,6 +427,27 @@ public sealed record EstimatePrintedTotals(
 }
 
 /// <summary>
+/// The figures the EVA breakdown prints (<see cref="EstimateTotals.Breakdown"/>):
+/// the four categories before any discount, what the discounts took off each,
+/// and the three discount rates as fractions. Other is the Specialist category.
+/// </summary>
+public sealed record EstimatePrintedBreakdown(
+    decimal Labour,
+    decimal Materials,
+    decimal Parts,
+    decimal Other,
+    decimal LabourDiscount,
+    decimal MaterialsDiscount,
+    decimal PartsDiscount,
+    decimal OtherDiscount,
+    decimal LabourDiscountRate,
+    decimal MaterialsDiscountRate,
+    decimal PartsDiscountRate)
+{
+    public decimal TotalDiscount => LabourDiscount + MaterialsDiscount + PartsDiscount + OtherDiscount;
+}
+
+/// <summary>
 /// The one classification of estimate hours. Only hours which the calculation
 /// prices at the estimate rate are included in <see cref="PricedTotal"/>;
 /// fixed-price Specialist hours remain visible separately.
@@ -517,10 +538,95 @@ public sealed record EstimateTotals(
         var rate = details.HourlyRate;
         var anomalies = new List<EstimateAnomaly>();
         var hours = EstimateHours.Of(estimate);
+        var (parts, materials, specialist, offPattern) = Sum(estimate, anomalies);
 
+        var panelLabour = hours.PricedPanel * rate;
+        var paintLabour = hours.PricedPaint * rate;
+        var discountedParts = parts * (1m - discounts.Parts);
+        var discountedMaterials = materials * (1m - discounts.Materials);
+        var discountedSpecialist = (specialist + offPattern) * (1m - discounts.Specialist);
+        var category = discountedParts + panelLabour + paintLabour + discountedMaterials + discountedSpecialist;
+        var overall = 1m - discounts.Overall;
+
+        var rawParts = discountedParts * overall;
+        var rawPanelLabour = panelLabour * overall;
+        var rawPaintLabour = paintLabour * overall;
+        var rawMaterials = discountedMaterials * overall;
+        var rawSpecialist = discountedSpecialist * overall;
+        var net = category * overall;
+
+        var policy = details.VatPolicy;
+        var taxable =
+            (policy.Charges(EstimateVatCategories.Parts) ? rawParts : 0m)
+            + (policy.Charges(EstimateVatCategories.Labour) ? rawPanelLabour + rawPaintLabour : 0m)
+            + (policy.Charges(EstimateVatCategories.Materials) ? rawMaterials : 0m)
+            + (policy.Charges(EstimateVatCategories.Specialist) ? rawSpecialist : 0m);
+        var vat = taxable * details.VatPercent / 100m;
+
+        var raw = new EstimateRawTotals(
+            rawParts, rawPanelLabour, rawPaintLabour, rawMaterials, rawSpecialist,
+            offPattern, category, net, taxable, vat, net + vat);
+
+        var printedParts = Pence(rawParts);
+        var printedPanelLabour = Pence(rawPanelLabour);
+        var printedPaintLabour = Pence(rawPaintLabour);
+        var printedMaterials = Pence(rawMaterials);
+        var printedSpecialist = Pence(rawSpecialist);
+        var printedNet = printedParts + printedPanelLabour + printedPaintLabour
+            + printedMaterials + printedSpecialist;
+        var printedVat = Pence(vat);
+        var printed = new EstimatePrintedTotals(
+            printedParts, printedPanelLabour, printedPaintLabour, printedMaterials,
+            printedSpecialist, printedNet, printedVat, printedNet + printedVat);
+
+        return new(
+            raw, printed, policy, details.VatPercent,
+            RepairSpecificationPolicy.PolicyVersion, anomalies);
+    }
+
+    /// <summary>
+    /// The EVA breakdown's figures (operator, 6 November 2026; R751): each
+    /// category before any discount, printed to the penny, and what its
+    /// discounts took off it, its share of the overall discount included.
+    /// Each discount is the category before discount less the printed
+    /// component, so the categories less the Total Disc are the printed Net
+    /// exactly. Labour carries no discount of its own, so its rate is nought.
+    /// </summary>
+    public static EstimatePrintedBreakdown Breakdown(RepairSpecificationVersion estimate)
+    {
+        ArgumentNullException.ThrowIfNull(estimate);
+        var details = estimate.Details;
+        var discounts = details.AppliedDiscounts;
+        var hours = EstimateHours.Of(estimate);
+        var (parts, materials, specialist, offPattern) = Sum(estimate, []);
+        var printed = Compute(estimate).Printed;
+
+        var labour = Pence(hours.PricedPanel * details.HourlyRate) + Pence(hours.PricedPaint * details.HourlyRate);
+        var beforeMaterials = Pence(materials);
+        var beforeParts = Pence(parts);
+        var other = Pence(specialist + offPattern);
+        return new(
+            labour, beforeMaterials, beforeParts, other,
+            labour - printed.Labour,
+            beforeMaterials - printed.Materials,
+            beforeParts - printed.Parts,
+            other - printed.Specialist,
+            LabourDiscountRate: 0m,
+            MaterialsDiscountRate: discounts.Materials,
+            PartsDiscountRate: discounts.Parts);
+    }
+
+    /// <summary>
+    /// The undiscounted parts, materials, fixed Specialist (the header's other
+    /// costs included) and off-pattern amounts of an estimate's lines, noting
+    /// each value its line type does not price.
+    /// </summary>
+    private static (decimal Parts, decimal Materials, decimal Specialist, decimal OffPattern) Sum(
+        RepairSpecificationVersion estimate, List<EstimateAnomaly> anomalies)
+    {
         decimal parts = 0m;
         decimal materials = 0m;
-        decimal specialist = details.OtherCosts ?? 0m;
+        decimal specialist = estimate.Details.OtherCosts ?? 0m;
         decimal offPattern = 0m;
         foreach (var line in estimate.Lines)
         {
@@ -566,49 +672,7 @@ public sealed record EstimateTotals(
                     "Paint hours on a line that is not Paint or Blend are retained but not priced."));
             }
         }
-
-        var panelLabour = hours.PricedPanel * rate;
-        var paintLabour = hours.PricedPaint * rate;
-        var discountedParts = parts * (1m - discounts.Parts);
-        var discountedMaterials = materials * (1m - discounts.Materials);
-        var discountedSpecialist = (specialist + offPattern) * (1m - discounts.Specialist);
-        var category = discountedParts + panelLabour + paintLabour + discountedMaterials + discountedSpecialist;
-        var overall = 1m - discounts.Overall;
-
-        var rawParts = discountedParts * overall;
-        var rawPanelLabour = panelLabour * overall;
-        var rawPaintLabour = paintLabour * overall;
-        var rawMaterials = discountedMaterials * overall;
-        var rawSpecialist = discountedSpecialist * overall;
-        var net = category * overall;
-
-        var policy = details.VatPolicy;
-        var taxable =
-            (policy.Charges(EstimateVatCategories.Parts) ? rawParts : 0m)
-            + (policy.Charges(EstimateVatCategories.Labour) ? rawPanelLabour + rawPaintLabour : 0m)
-            + (policy.Charges(EstimateVatCategories.Materials) ? rawMaterials : 0m)
-            + (policy.Charges(EstimateVatCategories.Specialist) ? rawSpecialist : 0m);
-        var vat = taxable * details.VatPercent / 100m;
-
-        var raw = new EstimateRawTotals(
-            rawParts, rawPanelLabour, rawPaintLabour, rawMaterials, rawSpecialist,
-            offPattern, category, net, taxable, vat, net + vat);
-
-        var printedParts = Pence(rawParts);
-        var printedPanelLabour = Pence(rawPanelLabour);
-        var printedPaintLabour = Pence(rawPaintLabour);
-        var printedMaterials = Pence(rawMaterials);
-        var printedSpecialist = Pence(rawSpecialist);
-        var printedNet = printedParts + printedPanelLabour + printedPaintLabour
-            + printedMaterials + printedSpecialist;
-        var printedVat = Pence(vat);
-        var printed = new EstimatePrintedTotals(
-            printedParts, printedPanelLabour, printedPaintLabour, printedMaterials,
-            printedSpecialist, printedNet, printedVat, printedNet + printedVat);
-
-        return new(
-            raw, printed, policy, details.VatPercent,
-            RepairSpecificationPolicy.PolicyVersion, anomalies);
+        return (parts, materials, specialist, offPattern);
     }
 
     private static decimal OffPatternAmount(

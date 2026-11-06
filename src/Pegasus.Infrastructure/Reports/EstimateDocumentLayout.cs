@@ -1,309 +1,360 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Reports;
-using QuestPDF.Elements.Table;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using static Pegasus.Core.Reports.AssessmentReportWording;
-using static Pegasus.Infrastructure.Reports.ReportChrome;
 
 namespace Pegasus.Infrastructure.Reports;
 
 /// <summary>
-/// The Repair Spec printout. It takes the report's running header, footer,
-/// margins, title and heading style (operator, 27 September 2026); its own
-/// tables and its own wording are as they were.
+/// The Repair Spec printout, set as the EVA breakdown (operator, 6 November
+/// 2026; R750 to R754). Every measurement is the EVA example's, in
+/// millimetres from the page's top left. The logo band, the identity lines
+/// and the EVA band print on the first page only; the line table's heading
+/// repeats on each page it runs to; the summary boxes follow the table whole.
 /// </summary>
 internal static class EstimateDocumentLayout
 {
-    // The printout's own tables, as they were before it took the report's page.
-    private const float TableRegister = 8.8f;
-    private const float TableLineHeight = 1.22f;
-    private static readonly Color Zebra = Color.FromHex("#f5f5f5");
+    private const float PageWidth = 210f;
+    private const float PageHeight = 297f;
 
-    internal static Document Compose(EstimateDocumentSnapshot snapshot, Image logo, PageCountProbe pageCount) =>
-        Document.Create(document => document.Page(page => Page(
-            page,
-            logo,
-            CompanyBlock(feeNote: false),
-            Footer(snapshot.Registration, snapshot.OurReference, feeNote: false),
-            pageCount,
-            ReportBodyTop,
-            column => Content(column, snapshot),
-            identity => identity
-                .PaddingBottom(2, Unit.Millimetre)
-                .DefaultTextStyle(style => style.FontSize(TableRegister).LineHeight(TableLineHeight))
+    // Liberation Sans sets its baseline this fraction of the type size below
+    // the top of a line.
+    private const float Ascent = 0.905f;
+    private const float PointToMillimetre = 25.4f / 72f;
+
+    private const float LineSize = 7.44f;
+    private const float IdentitySize = 10.08f;
+    private const float SummarySize = 7.92f;
+
+    private static readonly Color Rule = Color.FromHex("#a9a9a9");
+    private static readonly Color Zebra = Color.FromHex("#dcdcdc");
+    private const float RuleWidth = 0.5f;
+
+    // The bands: the logo band at the top of the first page, the EVA band at its foot,
+    // each stretched to its rectangle as the example stretches it.
+    private const float BandLeft = 5.08f;
+    private const float BandWidth = 194.99f;
+    private const float HeaderBandHeight = 44.03f;
+    private const float FooterBandTop = 264.08f;
+    private const float FooterBandHeight = 25.99f;
+    private const float BottomMargin = PageHeight - FooterBandTop - FooterBandHeight;
+
+    // The identity lines: labels end at 140.40, values start at 141.56.
+    private const float IdentityLabelRight = 140.40f;
+    private const float IdentityValueLeft = 141.56f;
+    private static readonly float[] IdentityBaselines = [46.23f, 53.25f, 60.20f, 67.22f, 73.24f];
+
+    // The line table: from 6.01 to 203.03, its heading from 84.07, 4 mm rows.
+    private const float TableLeft = 6.01f;
+    private const float TableRight = 203.03f;
+    private const float TableTop = 84.07f;
+    private const float TableHeadingHeight = 3.98f;
+    private const float RowHeight = 4f;
+    private const float TableRadius = 3f;
+    private const float RowBaseline = 2.37f;
+    private const float DescriptionIndent = 17.44f - 12.55f;
+
+    /// <summary>The line table's column edges; Qty and the figures sit against the right edge.</summary>
+    private static readonly float[] Edges =
+        [TableLeft, 12.55f, 70.44f, 86.0f, 100.60f, 116.61f, 132.61f, 148.61f, 164.62f, 180.53f, 199.58f, TableRight];
+
+    private static readonly string[] ColumnHeadings =
+        ["Qty", "Description", "Type", "Labour", "Paint", "Litres", "Mat Price", "Anti-C", "A/C Price", "Price", ""];
+
+    private const int Description = 1;
+    private const int Type = 2;
+
+    // The summary boxes, from the top of the summary: 64.01 tall (with 1 spare for the
+    // outline), 1.95 below the table.
+    // On a page of their own they open at 9.06, so a continuation page's body opens at 7.11.
+    private const float SummaryGap = 1.95f;
+    private const float ContinuationTop = 9.06f - SummaryGap;
+    private const float SummaryHeight = 65.01f;
+
+    internal static Document Compose(EstimateDocumentSnapshot snapshot, PageCountProbe pageCount) =>
+        Document.Create(document => document.Page(page =>
+        {
+            page.Size(PageWidth, PageHeight, Unit.Millimetre);
+            page.Margin(0);
+            page.MarginBottom(BottomMargin, Unit.Millimetre);
+            page.DefaultTextStyle(style => style
+                .FontFamily(ReportChrome.FontFamily)
+                .FontColor(Colors.Black)
+                .FontSize(LineSize));
+            page.Header().Column(header =>
+            {
+                header.Item().ShowOnce().Height(TableTop, Unit.Millimetre).Layers(layers =>
+                {
+                    layers.PrimaryLayer()
+                        .PaddingLeft(BandLeft, Unit.Millimetre)
+                        .Width(BandWidth, Unit.Millimetre)
+                        .Height(HeaderBandHeight, Unit.Millimetre)
+                        .Image(ReportResources.EvaHeader())
+                        .FitUnproportionally();
+                    Identity(layers, snapshot);
+                });
+                header.Item().SkipOnce().Height(ContinuationTop, Unit.Millimetre);
+            });
+            page.Content().Column(content =>
+            {
+                content.Item()
+                    .PaddingLeft(TableLeft, Unit.Millimetre)
+                    .Width(TableRight - TableLeft, Unit.Millimetre)
+                    .Element(table => LineTable(table, snapshot.Lines));
+                content.Item()
+                    .ShowEntire()
+                    .PaddingTop(SummaryGap, Unit.Millimetre)
+                    .Height(SummaryHeight, Unit.Millimetre)
+                    .Layers(layers => Summary(layers, snapshot));
+            });
+            page.Footer().Column(footer =>
+            {
+                footer.Item().ShowOnce()
+                    .PaddingLeft(BandLeft, Unit.Millimetre)
+                    .Width(BandWidth, Unit.Millimetre)
+                    .Height(FooterBandHeight, Unit.Millimetre)
+                    .Image(ReportResources.EvaFooter())
+                    .FitUnproportionally();
+                footer.Item().Height(0).Dynamic(pageCount);
+            });
+        }));
+
+    private static void Identity(LayersDescriptor layers, EstimateDocumentSnapshot snapshot)
+    {
+        (string Label, string Value)[] lines =
+        [
+            ("Date:", Date(snapshot.DocumentDate)),
+            ("Our Ref:", snapshot.OurReference),
+            ("Claimant:", snapshot.ClaimantName),
+            ("Vehicle:", snapshot.VehicleDescription),
+            ("Registration:", snapshot.Registration),
+        ];
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var (label, value) = lines[index];
+            layers.Layer()
+                .PaddingTop(TopFor(IdentityBaselines[index], IdentitySize), Unit.Millimetre)
+                .DefaultTextStyle(style => style.FontSize(IdentitySize))
                 .Row(row =>
                 {
-                    row.RelativeItem().Text(text =>
-                        text.Span($"{snapshot.EstimateName} · v{snapshot.EstimateVersion}")
-                            .Bold()
-                            .BreakAnywhere());
-                    row.AutoItem().Text(snapshot.Status).Bold().FontColor(Brand);
-                }))));
+                    row.ConstantItem(IdentityLabelRight, Unit.Millimetre).AlignRight().Text(label);
+                    row.ConstantItem(IdentityValueLeft - IdentityLabelRight, Unit.Millimetre);
+                    row.RelativeItem()
+                        .PaddingRight(PageWidth - TableRight, Unit.Millimetre)
+                        .Text(value)
+                        .ClampLines(1);
+                });
+        }
+    }
 
-    private static void Content(ColumnDescriptor column, EstimateDocumentSnapshot snapshot)
-    {
-        Title(column, "ESTIMATE", italic: true, ReportTitle);
-        column.Item()
-            .PaddingTop(ReportTitle.Beneath, Unit.Millimetre)
-            .AlignRight()
-            .MaxWidth(110, Unit.Millimetre)
-            .Column(lines =>
-            {
-                Reference(lines, "Date:", Date(snapshot.DocumentDate));
-                Reference(lines, "Our Ref:", snapshot.OurReference);
-                Reference(lines, "Your Ref:", snapshot.YourReference ?? "—");
-                Reference(
-                    lines,
-                    "Estimate:",
-                    $"{snapshot.EstimateName} · {snapshot.Status} (v{snapshot.EstimateVersion})");
-            });
-        column.Item().PaddingTop(4, Unit.Millimetre).PaddingBottom(4, Unit.Millimetre).Row(row =>
-        {
-            row.Spacing(3, Unit.Millimetre);
-            Badge(row.AutoItem(), snapshot.Status, Charcoal);
-            Badge(row.AutoItem(), Route(snapshot.Route), Brand);
-            if (snapshot.UnpricedItemCount > 0)
-            {
-                Badge(row.AutoItem(), $"Unpriced items: {snapshot.UnpricedItemCount}", Charcoal);
-            }
-        });
-
-        column.Item()
-            .DefaultTextStyle(style => style.FontSize(TableRegister).LineHeight(TableLineHeight))
-            .Column(tables =>
-            {
-                IdentityTable(tables.Item(), snapshot);
-                LineTable(tables.Item(), snapshot.Lines);
-            });
-
-        if (snapshot.OtherCosts is not null)
-        {
-            OwnSection(column, "Adjustments", section => section.Table(table =>
+    private static void LineTable(IContainer container, IReadOnlyList<EstimateDocumentLine> lines) =>
+        container
+            .Border(RuleWidth, Unit.Millimetre)
+            .BorderColor(Rule)
+            .CornerRadius(TableRadius, Unit.Millimetre)
+            .DefaultTextStyle(style => style.FontSize(LineSize).Bold())
+            .Table(table =>
             {
                 table.ColumnsDefinition(columns =>
                 {
-                    columns.RelativeColumn();
-                    columns.ConstantColumn(38, Unit.Millimetre);
+                    for (var index = 1; index < Edges.Length; index++)
+                    {
+                        columns.RelativeColumn(Edges[index] - Edges[index - 1]);
+                    }
                 });
-                HeaderCell(table.Cell(), "Recorded adjustment");
-                HeaderCell(table.Cell(), "Amount", alignRight: true);
-                if (snapshot.OtherCosts is { } costs)
+                table.Header(header =>
                 {
-                    BodyCell(table.Cell(), false).Text("Additional costs");
-                    BodyCell(table.Cell(), false).AlignRight().Text(Money(costs));
+                    for (var column = 0; column < ColumnHeadings.Length; column++)
+                    {
+                        LineCell(
+                            header.Cell()
+                                .Height(TableHeadingHeight, Unit.Millimetre)
+                                .BorderBottom(RuleWidth, Unit.Millimetre)
+                                .BorderColor(Colors.Black),
+                            column,
+                            ColumnHeadings[column]);
+                    }
+                });
+                for (var index = 0; index < lines.Count; index++)
+                {
+                    var line = lines[index];
+                    string[] cells =
+                    [
+                        line.Quantity.ToString(CultureInfo.InvariantCulture),
+                        line.Description,
+                        Operation(line.Operation),
+                        OptionalHours(line.Hours),
+                        OptionalHours(line.PaintHours),
+                        string.Empty,
+                        OptionalMoney(line.Materials),
+                        string.Empty,
+                        string.Empty,
+                        OptionalMoney(line.Price),
+                        string.Empty,
+                    ];
+                    for (var column = 0; column < cells.Length; column++)
+                    {
+                        IContainer cell = table.Cell();
+                        if (index % 2 == 1)
+                        {
+                            cell = cell.Background(Zebra);
+                        }
+                        LineCell(cell.MinHeight(RowHeight, Unit.Millimetre), column, cells[column]);
+                    }
                 }
-            }));
-        }
+            });
 
-        OwnSection(column, "Hours", section => HoursTable(section, snapshot.Hours));
-        OwnSection(column, "Rate and discounts", section => RateTable(section, snapshot));
-        OwnSection(column, "Totals", section => Totals(section, snapshot));
+    private static void LineCell(IContainer cell, int column, string text)
+    {
+        cell = cell.PaddingTop(TopFor(RowBaseline, LineSize), Unit.Millimetre);
+        cell = column switch
+        {
+            Description => cell.PaddingLeft(DescriptionIndent, Unit.Millimetre).AlignLeft(),
+            Type => cell.AlignLeft(),
+            _ => cell.AlignRight(),
+        };
+        cell.Text(text);
     }
 
     /// <summary>
-    /// One of the printout's sections: the report's heading over the
-    /// printout's own table. The printout is a page of tables, as the fee
-    /// note is, and its headings are set as closely as the fee note's.
+    /// The three rows of boxes: the hours; the rate and discount rates beside
+    /// the four categories before discount; the discounts beside the totals.
     /// </summary>
-    private static void OwnSection(ColumnDescriptor column, string title, Action<IContainer> table) =>
-        column.Item().ShowEntire().Column(whole =>
-            Section(whole, title, FeeNoteRhythm, opensPage: false, Brand, section => table(section.Item()
-                .DefaultTextStyle(style => style.FontSize(TableRegister).LineHeight(TableLineHeight)))));
-
-    private static void Reference(ColumnDescriptor column, string label, string value) =>
-        column.Item().Text(text =>
-        {
-            text.AlignRight();
-            text.DefaultTextStyle(style => style.FontSize(TableSize));
-            text.Span(label).Bold();
-            text.Span("   ");
-            text.Span(value).BreakAnywhere();
-        });
-
-    private static void HeaderCell(IContainer cell, string text, bool alignRight = false)
+    private static void Summary(LayersDescriptor layers, EstimateDocumentSnapshot snapshot)
     {
-        var box = cell.Background(Brand).Padding(1.4f, Unit.Millimetre);
-        if (alignRight)
-        {
-            box = box.AlignRight();
-        }
-        box.Text(text).Bold().FontColor(Colors.White);
+        layers.PrimaryLayer();
+        var hours = snapshot.Hours;
+        var breakdown = snapshot.Breakdown;
+        var printed = snapshot.Totals.Printed;
+
+        Box(layers, 14.05f, 0f, [22f, 22f, 22f, 22f, 22f, 22f, 22f, 22.03f], 2f,
+        [
+            Headings(3.55f, "New", "Repair", "Paint", "R & R", "Blend", "Specialist", "Check", "Total Hours"),
+            Values(3.64f,
+                SummaryHours(hours.Replace), SummaryHours(hours.Repair), SummaryHours(hours.PaintTotal),
+                SummaryHours(hours.RemoveAndRefit), SummaryHours(hours.BlendTotal),
+                SummaryHours(hours.SpecialistPriced), SummaryHours(hours.Check), Hours(hours.PricedTotal)),
+        ], [7.96f, 8.04f], centreShift: 0.55f);
+
+        Box(layers, 12.02f, 17.95f, [22.02f, 22.01f, 22.01f, 22.02f], 2f,
+        [
+            Headings(3.64f, "Labour Rate", "Labour Disc", "Material Dis", "Parts Dis"),
+            Values(3.56f,
+                Money(snapshot.HourlyRate),
+                Percent(breakdown.LabourDiscountRate),
+                Percent(breakdown.MaterialsDiscountRate),
+                Percent(breakdown.PartsDiscountRate)),
+        ], [8.04f, 7.96f], centreShift: 0.55f);
+
+        Box(layers, 104.06f, 17.95f, [22.01f, 22.01f, 21.93f, 22.01f], 2f,
+        [
+            Headings(3.64f, "Labour", "Materials", "Parts", "Other"),
+            Values(3.56f,
+                Money(breakdown.Labour), Money(breakdown.Materials),
+                Money(breakdown.Parts), Money(breakdown.Other)),
+        ], [8.04f, 7.96f], centreShift: 0.55f);
+
+        Box(layers, 7.03f, 35.98f, [32f, 32f, 32.01f, 32f], 2f,
+        [
+            Headings(3.56f, "Labour Discount", "Materials Discount", "Parts Discount", "Other Discounts"),
+            Values(2.63f,
+                Money(breakdown.LabourDiscount), Money(breakdown.MaterialsDiscount),
+                Money(breakdown.PartsDiscount), Money(breakdown.OtherDiscount)),
+        ], [7.96f, 8.04f]);
+
+        BoxCell[] Total(string label, decimal value) =>
+            [new(label, Bold: true, 3.56f), new(Money(value), Bold: true, 3.56f, RightInset: 3.53f)];
+        Box(layers, 149.01f, 35.98f, [23.03f, 23.03f], 1f,
+        [
+            Total("Total Disc", breakdown.TotalDiscount),
+            Total("Nett", printed.Net),
+            Total("Vat", printed.Vat),
+            Total("Gross", printed.Gross),
+        ], [7.03f, 7.0f, 7.0f, 7.0f], centreShift: -0.9f);
     }
 
-    private static IContainer BodyCell(ITableCellContainer cell, bool even) => cell
-        .Border(0.4f)
-        .BorderColor(Grid)
-        .Background(even ? Zebra : Colors.White)
-        .Padding(1.4f, Unit.Millimetre);
-
-    private static void IdentityTable(IContainer container, EstimateDocumentSnapshot snapshot) => container
-        .PaddingBottom(3, Unit.Millimetre)
-        .Table(table =>
-        {
-            table.ColumnsDefinition(columns =>
+    /// <summary>
+    /// One box of the summary: a rounded grey outline with grey rules between
+    /// its cells. A cell's text sits on the baseline it names, measured from
+    /// the top of its row, centred unless it is set in from the right.
+    /// </summary>
+    private static void Box(
+        LayersDescriptor layers,
+        float left,
+        float top,
+        float[] widths,
+        float radius,
+        BoxCell[][] rows,
+        float[] heights,
+        float centreShift = 0f) =>
+        layers.Layer()
+            .PaddingLeft(left, Unit.Millimetre)
+            .PaddingTop(top, Unit.Millimetre)
+            .AlignLeft()
+            .AlignTop()
+            .Width(widths.Sum(), Unit.Millimetre)
+            .Border(RuleWidth, Unit.Millimetre)
+            .BorderColor(Rule)
+            .CornerRadius(radius, Unit.Millimetre)
+            .DefaultTextStyle(style => style.FontSize(SummarySize))
+            .Table(table =>
             {
-                columns.ConstantColumn(26, Unit.Millimetre);
-                columns.RelativeColumn();
-                columns.ConstantColumn(30, Unit.Millimetre);
-                columns.RelativeColumn();
-            });
-            IdentityRow(table, "Claimant", snapshot.ClaimantName, "Registration", snapshot.Registration);
-            IdentityRow(table, "Vehicle", snapshot.VehicleDescription, "Repairer VAT", VatStatus(snapshot.Totals.VatPolicy.RepairerStatus));
-        });
-
-    private static void IdentityRow(
-        TableDescriptor table,
-        string firstLabel,
-        string firstValue,
-        string secondLabel,
-        string secondValue)
-    {
-        IdentityLabel(table.Cell(), firstLabel);
-        IdentityValue(table.Cell(), firstValue);
-        IdentityLabel(table.Cell(), secondLabel);
-        IdentityValue(table.Cell(), secondValue);
-    }
-
-    private static void IdentityLabel(IContainer cell, string value) => cell
-        .Border(0.4f).BorderColor(Grid).Background(LabelShade).Padding(1.6f, Unit.Millimetre)
-        .Text(value).Bold();
-
-    private static void IdentityValue(IContainer cell, string value) => cell
-        .Border(0.4f).BorderColor(Grid).Padding(1.6f, Unit.Millimetre).Text(value);
-
-    private static void LineTable(IContainer container, IReadOnlyList<EstimateDocumentLine> lines) =>
-        container.Table(table =>
-        {
-            table.ColumnsDefinition(columns =>
-            {
-                columns.ConstantColumn(10, Unit.Millimetre);
-                columns.RelativeColumn(4);
-                columns.RelativeColumn(1.35f);
-                columns.ConstantColumn(17, Unit.Millimetre);
-                columns.ConstantColumn(17, Unit.Millimetre);
-                columns.ConstantColumn(20, Unit.Millimetre);
-                columns.ConstantColumn(22, Unit.Millimetre);
-            });
-            table.Header(header =>
-            {
-                HeaderCell(header.Cell(), "Qty");
-                HeaderCell(header.Cell(), "Description");
-                HeaderCell(header.Cell(), "Type");
-                HeaderCell(header.Cell(), "Hours", alignRight: true);
-                HeaderCell(header.Cell(), "Paint", alignRight: true);
-                HeaderCell(header.Cell(), "Materials", alignRight: true);
-                HeaderCell(header.Cell(), "Unit price", alignRight: true);
-            });
-            for (var index = 0; index < lines.Count; index++)
-            {
-                var line = lines[index];
-                var even = index % 2 == 1;
-                BodyCell(table.Cell(), even).AlignRight().Text(line.Quantity.ToString(CultureInfo.InvariantCulture));
-                BodyCell(table.Cell(), even).Text(text =>
+                table.ColumnsDefinition(columns =>
                 {
-                    text.Line(line.Description);
-                    if (line.PartNumber is { } partNumber)
+                    foreach (var width in widths)
                     {
-                        text.Span(partNumber).FontSize(7.5f).FontColor(Muted);
+                        columns.RelativeColumn(width);
                     }
                 });
-                BodyCell(table.Cell(), even).Text(Operation(line.Operation));
-                BodyCell(table.Cell(), even).AlignRight().Text(OptionalHours(line.Hours));
-                BodyCell(table.Cell(), even).AlignRight().Text(OptionalHours(line.PaintHours));
-                BodyCell(table.Cell(), even).AlignRight().Text(OptionalMoney(line.Materials));
-                BodyCell(table.Cell(), even).AlignRight().Text(
-                    line.Unpriced ? "To be confirmed" : OptionalMoney(line.UnitPrice));
-            }
-        });
-
-    private static void HoursTable(IContainer container, EstimateHours hours)
-    {
-        var entries = new List<(string Label, decimal Value)>
-        {
-            ("New", hours.Replace), ("Repair", hours.Repair),
-            ("R & R", hours.RemoveAndRefit), ("Paint", hours.PaintTotal),
-            ("Blend", hours.BlendTotal), ("Specialist", hours.SpecialistPriced),
-            ("Check", hours.Check), ("Total", hours.PricedTotal),
-        };
-        if (hours.UnpricedSpecialist != 0m)
-        {
-            entries.Add(("Specialist (not priced)", hours.UnpricedSpecialist));
-        }
-        TileTable(container, entries.Select(entry => (entry.Label, Hours(entry.Value))).ToArray());
-    }
-
-    private static void RateTable(IContainer container, EstimateDocumentSnapshot snapshot) =>
-        TileTable(container,
-        [
-            ("Labour rate", Money(snapshot.HourlyRate)),
-            ("Parts discount", Percent(snapshot.Discounts.Parts)),
-            ("Materials discount", Percent(snapshot.Discounts.Materials)),
-            ("Specialist discount", Percent(snapshot.Discounts.Specialist)),
-            ("Overall discount", Percent(snapshot.Discounts.Overall)),
-        ]);
-
-    private static void TileTable(IContainer container, IReadOnlyList<(string Label, string Value)> entries) =>
-        container.Table(table =>
-        {
-            table.ColumnsDefinition(columns =>
-            {
-                foreach (var _ in entries)
+                for (var row = 0; row < rows.Length; row++)
                 {
-                    columns.RelativeColumn();
+                    for (var column = 0; column < widths.Length; column++)
+                    {
+                        var cell = table.Cell().Height(heights[row], Unit.Millimetre);
+                        if (column > 0)
+                        {
+                            cell = cell.BorderLeft(RuleWidth, Unit.Millimetre).BorderColor(Rule);
+                        }
+                        if (row > 0)
+                        {
+                            cell = cell.BorderTop(RuleWidth, Unit.Millimetre).BorderColor(Rule);
+                        }
+                        var content = rows[row][column];
+                        cell = cell.PaddingTop(TopFor(content.Baseline, SummarySize), Unit.Millimetre);
+                        cell = content.RightInset is { } inset
+                            ? cell.PaddingRight(inset, Unit.Millimetre).AlignRight()
+                            : Centred(cell, centreShift);
+                        var text = cell.Text(content.Text);
+                        if (content.Bold)
+                        {
+                            text.Bold();
+                        }
+                    }
                 }
             });
-            foreach (var entry in entries)
-            {
-                table.Cell().Border(0.4f).BorderColor(Grid).Background(LabelShade)
-                    .Padding(1.2f, Unit.Millimetre).AlignCenter().Text(entry.Label).FontSize(7.3f).Bold();
-            }
-            foreach (var entry in entries)
-            {
-                table.Cell().Border(0.4f).BorderColor(Grid)
-                    .Padding(1.5f, Unit.Millimetre).AlignCenter().Text(entry.Value).Bold();
-            }
-        });
 
-    private static void Totals(IContainer container, EstimateDocumentSnapshot snapshot)
-    {
-        var printed = snapshot.Totals.Printed;
-        container.Row(row =>
-        {
-            row.RelativeItem().PaddingRight(4, Unit.Millimetre).Element(left => TileTable(left,
-            [
-                ("Labour", Money(printed.PanelLabour + printed.PaintLabour)),
-                ("Materials", Money(printed.Materials)),
-                ("Parts", Money(printed.Parts)),
-                ("Specialist / Other", Money(printed.Specialist)),
-            ]));
-            row.ConstantItem(64, Unit.Millimetre).Column(totals =>
-            {
-                TotalRow(totals.Item(), "Net", Money(printed.Net));
-                TotalRow(totals.Item(), VatLabel(snapshot.Totals), Money(printed.Vat));
-                TotalRow(
-                    totals.Item().BorderTop(1.2f).BorderColor(Brand).Background(LabelShade),
-                    "Gross",
-                    Money(printed.Gross),
-                    bold: true);
-            });
-        });
-    }
+    /// <summary>
+    /// Centres a box's text as the example does, which differs by box: up to
+    /// 0.55 left (a positive shift) or 0.9 right of the middle of its cell.
+    /// </summary>
+    private static IContainer Centred(IContainer cell, float shift) => shift >= 0f
+        ? cell.PaddingRight(2 * shift, Unit.Millimetre).AlignCenter()
+        : cell.PaddingLeft(-2 * shift, Unit.Millimetre).AlignCenter();
 
-    private static void TotalRow(IContainer container, string label, string value, bool bold = false)
-    {
-        if (bold)
-        {
-            container = container.DefaultTextStyle(style => style.Bold());
-        }
-        container.Padding(1.6f, Unit.Millimetre).Row(content =>
-        {
-            content.RelativeItem().Text(label);
-            content.AutoItem().Text(value);
-        });
-    }
+    private readonly record struct BoxCell(string Text, bool Bold, float Baseline, float? RightInset = null);
+
+    private static BoxCell[] Headings(float baseline, params string[] labels) =>
+        labels.Select(label => new BoxCell(label, Bold: true, baseline)).ToArray();
+
+    private static BoxCell[] Values(float baseline, params string[] values) =>
+        values.Select(value => new BoxCell(value, Bold: false, baseline)).ToArray();
+
+    /// <summary>How far below the top of its box a line of text starts, to sit on the baseline given.</summary>
+    private static float TopFor(float baseline, float size) =>
+        Math.Max(0f, baseline - Ascent * size * PointToMillimetre);
 
     private static string Operation(EstimateOperation operation) => operation switch
     {
@@ -317,38 +368,11 @@ internal static class EstimateDocumentLayout
         _ => throw new ReportRenderRejectedException("The estimate document has an unsupported operation."),
     };
 
-    private static string Route(RepairSpecificationSourceRoute route) => route switch
-    {
-        RepairSpecificationSourceRoute.Manual => "Manual",
-        RepairSpecificationSourceRoute.Glasses => "Glass's",
-        RepairSpecificationSourceRoute.AudatexPdf => "Audatex",
-        RepairSpecificationSourceRoute.AiDraft => "AI",
-        RepairSpecificationSourceRoute.Json => "JSON",
-        _ => throw new ReportRenderRejectedException("The estimate document has an unsupported source route."),
-    };
+    // The example leaves a figure that is nought, or not recorded, blank.
+    private static string OptionalHours(decimal? value) => value is { } amount && amount != 0m ? Hours(amount) : string.Empty;
+    private static string OptionalMoney(decimal? value) => value is { } amount && amount != 0m ? Money(amount) : string.Empty;
+    private static string SummaryHours(decimal value) => value != 0m ? Hours(value) : string.Empty;
 
-    private static string VatStatus(RepairerVatStatus status) => status switch
-    {
-        RepairerVatStatus.Registered => "Registered",
-        RepairerVatStatus.NotRegistered => "Not registered",
-        _ => "Unknown",
-    };
-
-    private static string VatLabel(EstimateTotals totals)
-    {
-        var categories = new[]
-        {
-            (EstimateVatCategories.Labour, "labour"),
-            (EstimateVatCategories.Parts, "parts"),
-            (EstimateVatCategories.Materials, "materials"),
-            (EstimateVatCategories.Specialist, "specialist"),
-        }.Where(item => totals.VatPolicy.Charges(item.Item1)).Select(item => item.Item2).ToArray();
-        var charged = categories.Length == 0 ? "nothing" : string.Join(", ", categories);
-        return $"VAT ({totals.VatPercent.ToString("0.##", CultureInfo.InvariantCulture)} %) on {charged}";
-    }
-
-    private static string OptionalHours(decimal? value) => value is { } amount ? Hours(amount) : string.Empty;
-    private static string OptionalMoney(decimal? value) => value is { } amount ? Money(amount) : string.Empty;
     private static string Percent(decimal fraction) =>
-        (fraction * 100m).ToString("0.##", CultureInfo.InvariantCulture) + " %";
+        (fraction * 100m).ToString("0.00", CultureInfo.InvariantCulture) + "%";
 }

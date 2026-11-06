@@ -50,13 +50,27 @@ internal static class ReportResources
     /// </summary>
     internal static Image Logo() => SharedLogo.Value;
 
-    private static readonly Lazy<Image> SharedLogo = new(() =>
+    private static readonly Lazy<Image> SharedLogo = new(() => Shared("brand.logo.png"));
+
+    /// <summary>
+    /// The EVA breakdown's header and footer bands, the images its example
+    /// carries (operator, 6 November 2026; R752): the logo band, and the EVA
+    /// mark with the website line. Shared as the logo is.
+    /// </summary>
+    internal static Image EvaHeader() => SharedEvaHeader.Value;
+
+    internal static Image EvaFooter() => SharedEvaFooter.Value;
+
+    private static readonly Lazy<Image> SharedEvaHeader = new(() => Shared("eva.header.jpg"));
+    private static readonly Lazy<Image> SharedEvaFooter = new(() => Shared("eva.footer.jpg"));
+
+    private static Image Shared(string suffix)
     {
-        using var stream = Open("brand.logo.png");
+        using var stream = Open(suffix);
         using var memory = new MemoryStream();
         stream.CopyTo(memory);
         return Image.FromBinaryData(memory.ToArray());
-    });
+    }
 
     private static Stream Open(string suffix)
     {

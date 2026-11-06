@@ -22,7 +22,7 @@ internal sealed class QuestPdfEstimateDocumentRenderer(ReportRenderGate gate) : 
         ReportResources.RegisterFonts();
         var pageCount = new PageCountProbe();
         var pdf = await gate.RunAsync(
-            _ => Task.FromResult(EstimateDocumentLayout.Compose(snapshot, ReportResources.Logo(), pageCount).GeneratePdf()),
+            _ => Task.FromResult(EstimateDocumentLayout.Compose(snapshot, pageCount).GeneratePdf()),
             cancellationToken).ConfigureAwait(false);
         if (pdf.Length > MaximumPdfBytes)
         {

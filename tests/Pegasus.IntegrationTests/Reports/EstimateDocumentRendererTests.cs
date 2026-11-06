@@ -11,8 +11,34 @@ using static Pegasus.IntegrationTests.Reports.PrintedPages;
 
 namespace Pegasus.IntegrationTests.Reports;
 
+/// <summary>
+/// The Repair Spec printout is the EVA breakdown (operator, 6 November 2026;
+/// R750 to R754). Its measurements are the EVA example's, in millimetres from
+/// the page's top left.
+/// </summary>
 public sealed partial class EstimateDocumentRendererTests
 {
+    private const string ColumnHeadings = "Qty Description Type Labour Paint Litres Mat Price Anti-C A/C Price Price";
+
+    private static readonly string[] IdentityLines =
+        ["Date:16/09/2026", "OurRef:QDOS26001", "Claimant:AlexExample", "Vehicle:FordFocus", "Registration:AB12CDE"];
+
+    private static readonly double[] IdentityBaselines = [46.23, 53.25, 60.20, 67.22, 73.24];
+
+    private static readonly string[] SummaryLabels =
+    [
+        "New", "Repair", "Paint", "R & R", "Blend", "Specialist", "Check", "Total Hours",
+        "Labour Rate", "Labour Disc", "Material Dis", "Parts Dis", "Labour", "Materials", "Parts", "Other",
+        "Labour Discount", "Materials Discount", "Parts Discount", "Other Discounts",
+        "Total Disc", "Nett", "Vat", "Gross",
+    ];
+
+    private static readonly string[] SnapshotFigures = ["Door skin", "Paint door", "1.00", "£160.63", "£4.00"];
+
+    /// <summary>The logo band and the EVA band: left, top, width and height.</summary>
+    private static readonly (double, double, double, double)[] Bands =
+        [(5.1, 0.0, 195.0, 44.0), (5.1, 264.1, 195.0, 26.0)];
+
     [Fact]
     public async Task TheRendererPublishesItsEngineVersionWithoutRendering()
     {
@@ -24,156 +50,166 @@ public sealed partial class EstimateDocumentRendererTests
     }
 
     [Fact]
-    public async Task TheEstimateDocumentRendersEveryOwnedBlock()
+    public async Task TheEstimateDocumentPrintsTheEvaBlocksAndNothingElse()
     {
         await using var provider = Provider();
         var renderer = provider.GetRequiredService<IEstimateDocumentRenderer>();
-        var snapshot = Snapshot();
 
-        var artifact = await renderer.RenderAsync(snapshot);
+        var artifact = await renderer.RenderAsync(Snapshot());
 
-        Assert.Equal(1, artifact.PageCount);
         Assert.Equal(EstimateDocumentContract.TemplateVersion, artifact.TemplateVersion);
         Assert.Equal(renderer.EngineVersion, artifact.EngineVersion);
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(artifact.Pdf)), artifact.Sha256);
         Assert.EndsWith("_estimate.pdf", artifact.SuggestedFileName, StringComparison.Ordinal);
         var text = string.Join(" ", PageTexts(artifact.Pdf));
-        // The title's letters are spaced, so it is looked for with the spaces taken out.
-        Assert.Contains("ESTIMATE", Squeeze(text), StringComparison.Ordinal);
-        foreach (var expected in new[]
-        {
-            "QDOS26001", "CLAIM-1", "Alex Example", "Ford Focus",
-            "AB12 CDE", "Estimate 1", "DRAFT", "Door skin", "PN-42",
-            "Additional costs", "Hours", "Rate and discounts",
-            "Labour", "Materials", "Parts", "Specialist / Other", "Net", "Gross",
-        })
+        Assert.Contains(ColumnHeadings, text, StringComparison.Ordinal);
+        foreach (var expected in SummaryLabels.Concat(SnapshotFigures))
         {
             Assert.Contains(expected, text, StringComparison.Ordinal);
         }
-        Assert.Contains("1.75", text, StringComparison.Ordinal);
-        Assert.Contains("2.75", text, StringComparison.Ordinal);
+        // What the EVA breakdown has no place for is not printed (R753).
+        foreach (var absent in new[] { "PN-42", "CLAIM-1", "Your Ref", "Estimate 1", "DRAFT", "Manual", "Page 1" })
+        {
+            Assert.DoesNotContain(absent, text, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
-    /// The Repair Spec printout takes the report's running header, footer,
-    /// margins, title and heading style (operator, 27 September 2026), on
-    /// every page it runs to.
+    /// The example's own estimate prints the example's figures, and the
+    /// first page is laid out as the example's is.
     /// </summary>
     [Fact]
-    public async Task ThePrintoutTakesTheReportsPage()
+    public async Task TheEvaExamplesEstimatePrintsTheExamplesBreakdown()
     {
         await using var provider = Provider();
         var renderer = provider.GetRequiredService<IEstimateDocumentRenderer>();
-        var snapshot = Document(Estimate(Enumerable.Range(1, 120)
-            .Select(index => Line(index, $"Repair line {index:000}"))
-            .ToArray()) with
+        var estimate = Estimate(
+            new EstimateDetails("EVA estimate", 103.06m, null, 20m,
+                EstimateDiscounts.None, EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+            EvaExampleLines());
+
+        var artifact = await renderer.RenderAsync(Document(estimate));
+
+        Assert.Equal(2, artifact.PageCount);
+        var texts = PageTexts(artifact.Pdf);
+        Assert.Contains("1 Rear Bumper New £277.36", texts[0], StringComparison.Ordinal);
+        Assert.Contains("1 Rear Bumper New Part Paint K1r Paint 1.80 £232.29", texts[0], StringComparison.Ordinal);
+        Assert.Contains("1 Pre-Painting Sundry Materials Paint 1 Preparation", texts[0], StringComparison.Ordinal);
+        foreach (var expected in new[]
         {
-            Details = DefaultDetails() with { OtherCosts = 25m },
-        });
-
-        var artifact = await renderer.RenderAsync(snapshot);
-
-        Assert.Equal("estimate-v2", artifact.TemplateVersion);
-        var pages = Read(artifact.Pdf);
-        Assert.True(pages.Count > 1);
-        Assert.Equal(pages.Count, artifact.PageCount);
-        for (var index = 0; index < pages.Count; index++)
+            "11.10", "9.60", "20.70", "£103.06", "0.00%",
+            "£2,133.35", "£1,432.44", "£338.90", "£426.07",
+            "Total Disc £0.00", "Nett £4,330.76", "Vat £866.15", "Gross £5,196.91",
+        })
         {
-            var page = pages[index];
-            // The company block against the right edge, 190 mm, and the logo at the left.
-            var block = Lines(page.Letters.Where(letter => letter.Baseline < 36));
-            Assert.Equal(
-                AssessmentReportWording.CompanyBlock(feeNote: false).Select(Squeeze),
-                block.Select(line => line.Text));
-            Assert.All(block, line => Assert.InRange(line.Right, 189.5, 190.5));
-            var logo = Assert.Single(page.Images);
-            Assert.Equal((20.0, 8.2, 44.0), (Math.Round(logo.Left, 1), Math.Round(logo.Top, 1), Math.Round(logo.Width, 1)));
-
-            // The footer beneath its red rule, centred, and the page number at the right.
-            var foot = Lines(page.Letters.Where(letter => letter.Baseline > 280));
-            Assert.Equal(
-                [
-                    Squeeze(AssessmentReportWording.Footer("AB12 CDE", "QDOS26001", feeNote: false)),
-                    Squeeze(PageNumber(index + 1, pages.Count)),
-                ],
-                foot.OrderBy(line => line.Left).Select(line => line.Text));
-            Assert.All(foot, line => Assert.Equal("#777777", line.Colour));
-            var footer = foot.MinBy(line => line.Left)!;
-            Assert.InRange((footer.Left + footer.Right) / 2, 104.5, 105.5);
-            Assert.Contains(page.Shapes, shape =>
-                shape.Stroke == "#c80a32" && Math.Abs(shape.Left - 39) < 0.5 && Math.Abs(shape.Right - 171) < 0.5
-                && Math.Abs(shape.Top - 282.26) < 0.5);
-
-            // The body keeps the report's margins.
-            var body = page.Letters.Where(letter => letter.Baseline is > 36 and < 280).ToArray();
-            Assert.InRange(body.Min(letter => letter.Left), 22.0, 22.3);
-            Assert.InRange(body.Max(letter => letter.Right), 22.0, 188.0);
+            Assert.Contains(expected, texts[1], StringComparison.Ordinal);
         }
 
-        // The title and the headings are the report's: 16 point bold italic
-        // and 11 point bold, red, with no rule beneath a heading.
-        var title = Assert.Single(Lines(pages[0].Letters.Where(letter => letter.Size == 16)));
-        Assert.Equal(("ESTIMATE", "#c80a32", true, true), (title.Text, title.Colour, title.Bold, title.Italic));
-        Assert.InRange((title.Left + title.Right) / 2, 104.5, 105.5);
-        var headings = pages.SelectMany(page => Lines(page.Letters.Where(letter => letter.Size == 11))).ToArray();
-        Assert.Equal(["Adjustments", "Hours", "Rateanddiscounts", "Totals"], headings.Select(line => line.Text));
-        Assert.All(headings, heading =>
+        var page = Read(artifact.Pdf)[0];
+        Assert.Equal(
+            Bands,
+            page.Images.OrderBy(image => image.Top)
+                .Select(image => (Math.Round(image.Left, 1), Math.Round(image.Top, 1),
+                    Math.Round(image.Width, 1), Math.Round(image.Height, 1))));
+        var identity = Lines(page.Letters.Where(letter => letter.Size == 10.08));
+        Assert.Equal(IdentityLines, identity.Select(line => line.Text));
+        for (var index = 0; index < identity.Count; index++)
         {
-            Assert.Equal(("#c80a32", true, false), (heading.Colour, heading.Bold, heading.Italic));
-            Assert.InRange(heading.Left, 22.0, 22.3);
-        });
+            Assert.InRange(identity[index].Baseline, IdentityBaselines[index] - 0.2, IdentityBaselines[index] + 0.2);
+        }
+        var rows = Lines(page.Letters.Where(letter => letter.Size == 7.44));
+        Assert.All(rows, row => Assert.True(row.Bold));
+        var heading = rows[0];
+        Assert.Equal(Squeeze(ColumnHeadings), heading.Text);
+        Assert.InRange(heading.Baseline, 86.2, 86.6);
+        Assert.InRange(rows[1].Baseline, 90.2, 90.6);
+        Assert.InRange(rows[^1].Baseline - rows[1].Baseline, 159.8, 160.2);
+        Assert.Contains(page.Shapes, shape => shape.Fill == "#dcdcdc" && Math.Abs(shape.Top - 92.05) < 0.1);
     }
 
+    /// <summary>
+    /// The logo band, the identity lines and the EVA band print on the first
+    /// page only; the line table's heading repeats on every page it runs to,
+    /// and the summary prints once, after the table (R754).
+    /// </summary>
     [Fact]
-    public async Task ALongEstimatePaginatesWithRepeatedIdentityAndHeaders()
+    public async Task ALongEstimateContinuesWithTheTableAloneAndOneSummary()
     {
         await using var provider = Provider();
         var renderer = provider.GetRequiredService<IEstimateDocumentRenderer>();
         var source = Estimate(Enumerable.Range(1, 120)
             .Select(index => Line(index, $"Repair line {index:000} with a retained description that wraps across the available cell width"))
             .ToArray());
-        var snapshot = Document(source);
 
-        var artifact = await renderer.RenderAsync(snapshot);
-        var pages = PageTexts(artifact.Pdf);
+        var artifact = await renderer.RenderAsync(Document(source));
 
-        Assert.True(pages.Length > 1);
-        Assert.All(pages, page =>
+        var texts = PageTexts(artifact.Pdf);
+        var pages = Read(artifact.Pdf);
+        Assert.True(pages.Count > 1);
+        Assert.Equal(pages.Count, artifact.PageCount);
+        Assert.Equal(2, pages[0].Images.Count);
+        Assert.Contains("Registration:", texts[0], StringComparison.Ordinal);
+        for (var index = 0; index < pages.Count; index++)
         {
-            Assert.Contains("Estimate 1 · v1", page, StringComparison.Ordinal);
-            Assert.Contains("DRAFT", page, StringComparison.Ordinal);
-            Assert.Contains("Qty Description Type Hours Paint Materials Unit price", page, StringComparison.Ordinal);
-        });
-        var all = string.Join(" ", pages);
+            // A page the table runs onto repeats its heading; the summary, moved
+            // whole, may stand on a page of its own, as the example's page 2 does.
+            if (texts[index].Contains("Repair line", StringComparison.Ordinal))
+            {
+                Assert.Contains(ColumnHeadings, texts[index], StringComparison.Ordinal);
+            }
+            else
+            {
+                Assert.Equal(pages.Count - 1, index);
+                Assert.DoesNotContain(ColumnHeadings, texts[index], StringComparison.Ordinal);
+            }
+            if (index > 0)
+            {
+                Assert.Empty(pages[index].Images);
+                Assert.DoesNotContain("Registration:", texts[index], StringComparison.Ordinal);
+            }
+        }
+        var all = string.Join(" ", texts);
         for (var index = 1; index <= 120; index++)
         {
             Assert.Equal(1, Regex.Count(all, $"Repair line {index:000}"));
         }
-        Assert.Equal(1, Regex.Count(all, "Rate and discounts"));
+        Assert.Equal(1, Regex.Count(all, "Total Hours"));
         Assert.Equal(1, Regex.Count(all, "Gross"));
+        Assert.Contains("Total Hours", texts[^1], StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The category boxes print before discount, each discount box what its
+    /// discounts took off it, and the Nett is the categories less the Total
+    /// Disc (R751).
+    /// </summary>
     [Fact]
-    public async Task AMaximumLengthSavedEstimateNameWrapsWithinTheBody()
+    public async Task DiscountsPrintAsTheCategoriesBeforeDiscountLessWhatTheyTookOff()
     {
         await using var provider = Provider();
         var renderer = provider.GetRequiredService<IEstimateDocumentRenderer>();
-        var estimateName = new string('W', EstimatePolicy.MaximumNameLength);
-        var estimate = Estimate(Line(1, "Repair line")) with
-        {
-            Details = DefaultDetails() with { Name = estimateName },
-        };
+        var estimate = Estimate(
+            DefaultDetails() with
+            {
+                LabourRate = 100m,
+                OtherCosts = null,
+                Discounts = new EstimateDiscounts(0.1m, 0.05m, 0m, 0.03m),
+            },
+            Line(1, "Panel") with { Type = "rnr", WorkUnits = 2m },
+            Line(2, "Part") with { Type = "new_part", WorkUnits = null, Price = 100m });
 
         var artifact = await renderer.RenderAsync(Document(estimate));
         var text = string.Join(" ", PageTexts(artifact.Pdf));
 
-        Assert.Equal(1, artifact.PageCount);
-        Assert.Equal(EstimatePolicy.MaximumNameLength * 2, text.Count(character => character == 'W'));
-        Assert.Contains("Estimate:", text, StringComparison.Ordinal);
-        // Both printings of the name wrap between the body's margins.
-        var name = Assert.Single(Read(artifact.Pdf)).Letters.Where(letter => letter.Value == "W").ToArray();
-        Assert.InRange(name.Min(letter => letter.Left), 22.0, 188.0);
-        Assert.InRange(name.Max(letter => letter.Right), 22.0, 188.0);
+        // Labour £200 less 3 % is £194; parts £100 less 10 % then 3 % is £87.30.
+        foreach (var expected in new[]
+        {
+            "0.00% 5.00% 10.00%", "£200.00 £0.00 £100.00 £0.00",
+            "£6.00 £0.00 £12.70 £0.00", "Total Disc £18.70", "Nett £281.30",
+        })
+        {
+            Assert.Contains(expected, text, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -198,7 +234,6 @@ public sealed partial class EstimateDocumentRendererTests
             Assert.Contains(expected, text, StringComparison.Ordinal);
         }
         Assert.Contains("17.00", text, StringComparison.Ordinal);
-        Assert.Contains("5.00", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -238,7 +273,7 @@ public sealed partial class EstimateDocumentRendererTests
 
     private static EstimateDocumentSnapshot Document(RepairSpecificationVersion estimate) =>
         EstimateDocumentSnapshot.For(
-            estimate, "QDOS26001", "CLAIM-1", new(2026, 9, 16),
+            estimate, "QDOS26001", new(2026, 9, 16),
             "Alex Example", "Ford Focus", "AB12 CDE");
 
     private static RepairSpecificationVersion Estimate(params CaseEstimateLineRecord[] lines) =>
@@ -251,6 +286,64 @@ public sealed partial class EstimateDocumentRendererTests
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         lines, "engineer", new(2026, 9, 16, 12, 0, 0, TimeSpan.Zero),
         details);
+
+    /// <summary>The EVA example's 41 lines, at its £103.06 rate.</summary>
+    private static CaseEstimateLineRecord[] EvaExampleLines()
+    {
+        var position = 0;
+        CaseEstimateLineRecord Part(string description, decimal price) =>
+            Line(++position, description) with { Type = "new_part", WorkUnits = null, Price = price };
+        CaseEstimateLineRecord Refit(string description, decimal hours) =>
+            Line(++position, description) with { Type = "rnr", WorkUnits = hours };
+        CaseEstimateLineRecord Paint(string type, string description, decimal? hours = null, decimal? materials = null) =>
+            Line(++position, description) with { Type = type, WorkUnits = null, PaintWorkUnits = hours, Materials = materials };
+        CaseEstimateLineRecord Fixed(string description, decimal price) =>
+            Line(++position, description) with { Type = "specialist_fixed", WorkUnits = null, Price = price };
+        return
+        [
+            Part("Rear Bumper", 277.36m),
+            Part("L/R S/Panel Protect", 30.77m),
+            Part("R/R S/Panel Protect", 30.77m),
+            Refit("Renew L/R Side Panel Protector", 0.10m),
+            Refit("Renew R/R Side Panel Protector", 0.10m),
+            Refit("Renew Rear Bumper", 0.90m),
+            Refit("Inner End Panel Trim", 0.30m),
+            Refit("L/Load Compartment Trim", 0.30m),
+            Refit("L/Outer Rear Lamp", 0.10m),
+            Refit("R/Outer Rear Lamp", 0.10m),
+            Refit("Ramp Load & Unload", 0.20m),
+            Refit("Bumper To Stand", 0.20m),
+            Refit("Specialist Qc And Road Test", 1.00m),
+            Refit("Specialist Pre Repair Clean", 0.50m),
+            Refit("Specialist Post Repair Check", 1.00m),
+            Refit("Specialist Pre Repair Check", 1.00m),
+            Refit("Specialist Wash And Vacuum", 1.00m),
+            Refit("Specialist Standard Shutdown", 1.00m),
+            Refit("Specialist Yard Charge", 1.00m),
+            Refit("Specialist Ev / Hybrid Risk", 0.50m),
+            Refit("Rr Bumper 2Nd Man Lift", 0.30m),
+            Paint("paint_new", "Rear Bumper New Part Paint K1r", 1.80m, 232.29m),
+            Paint("paint_repair", "L/Upp A-Pillar Surface Paint", 0.60m, 77.43m),
+            Paint("paint_repair", "R/Upp A-Pillar Surface Paint", 0.60m, 77.43m),
+            Paint("paint_repair", "L/Roof Section Surface Paint", 0.70m, 90.33m),
+            Paint("paint_repair", "R/Roof Section Surface Paint", 0.70m, 90.33m),
+            Paint("paint_repair", "L/R Side Panel Surface Paint", 1.00m, 129.05m),
+            Paint("paint_repair", "R/R Side Panel Surface Paint", 1.00m, 129.05m),
+            Paint("paint_repair", "Denib / Polish Paint", 1.50m, 193.57m),
+            Paint("paint_repair", "Additional Mask Frt Screen", 0.20m, 25.81m),
+            Paint("paint_repair", "Additional Mask Fuel Aperature", 0.20m, 25.81m),
+            Paint("paint_repair", "Additional Masking Rr Screen", 0.30m, 38.71m),
+            Fixed("Assessment Fee", 176.96m),
+            Fixed("Epa Charge", 31.23m),
+            Fixed("Vehicle Care Kit", 10.41m),
+            Fixed("Paint Consumable", 30.00m),
+            Fixed("Collect/Deliver", 150.00m),
+            Fixed("Glass Lifting Tape", 15.61m),
+            Paint("paint_prep", "Pre-Painting Sundry Materials"),
+            Paint("paint_prep", "Preparation for Pre-Painting", 2.50m, 322.63m),
+            Fixed("Sundry Part", 11.86m),
+        ];
+    }
 
     private static CaseEstimateLineRecord[] EvaEstimateLines(string timedOperationType) =>
     [
@@ -297,7 +390,6 @@ public sealed partial class EstimateDocumentRendererTests
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Whitespace();
-
 
     private static ServiceProvider Provider()
     {
