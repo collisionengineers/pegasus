@@ -47,17 +47,99 @@ function Get-PegasusPlatform {
     throw "Pegasus supports Windows and Linux with PowerShell 7. It does not support $described."
 }
 
+function Test-PegasusMigrationSource {
+    # A migration source is named yyyyMMddHHmmss_Name.cs; its Designer file,
+    # the model snapshot and any other file beside them are not.
+    param([Parameter(Mandatory)][string] $Name)
+    return $Name -match '^\d{14}_[A-Za-z0-9]+\.cs$'
+}
+
 function Get-PegasusMigrationIdentity {
     # The newest migration in the folder, by its timestamped file name: only a
-    # migration source (yyyyMMddHHmmss_Name.cs) can name the release identity,
-    # never its Designer file, the model snapshot or any other file beside them.
+    # migration source can name the release identity.
     param([Parameter(Mandatory)][string] $MigrationsDirectory)
     $migration = Get-ChildItem -LiteralPath $MigrationsDirectory -Filter '*.cs' -File |
-        Where-Object { $_.Name -match '^\d{14}_[A-Za-z0-9]+\.cs$' } |
+        Where-Object { Test-PegasusMigrationSource -Name $_.Name } |
         Sort-Object Name |
         Select-Object -Last 1
     if (-not $migration) { throw "No migration source found under $MigrationsDirectory." }
     return $migration.BaseName
+}
+
+function Get-PegasusMigrationClass {
+    <#
+        .SYNOPSIS
+        Classifies a migration source by the operations its Up method runs.
+
+        .DESCRIPTION
+        Returns Class, one of Additive, NonAdditive or Undetermined, and
+        Operations, the operations that made it other than additive in the
+        order Up first runs them (engineering#migrations, R605, R761; #1845).
+        Only Up is read: a Down routinely drops what its Up added, and a
+        forward-only Down throws. Comments and string literals are blanked
+        first, so SQL text and a commented-out call are never read as an
+        operation and a brace inside them never unbalances the body; SQL held
+        in a constant outside Up is reached only through Up's Sql call.
+        A Drop, Rename or AlterColumn is non-additive whatever else Up runs;
+        Sql, and any operation not named below, cannot be classified by
+        keyword and leaves the class Undetermined.
+    #>
+    param([Parameter(Mandatory)][string] $Path)
+
+    # Adds a table, column, index, key, constraint, sequence, schema or rows.
+    # DropIndex is here too: a DropIndex and CreateIndex pair that swaps an
+    # index for its filtered form is additive (R432).
+    $additive = @(
+        'AddCheckConstraint', 'AddColumn', 'AddForeignKey', 'AddPrimaryKey', 'AddUniqueConstraint',
+        'CreateIndex', 'CreateSequence', 'CreateTable', 'DropIndex', 'EnsureSchema', 'InsertData')
+    # Drops, renames or may narrow: an AlterColumn's name cannot tell a
+    # narrowing from a widening (R761).
+    $nonAdditive = @(
+        'AlterColumn', 'DropCheckConstraint', 'DropColumn', 'DropForeignKey', 'DropPrimaryKey',
+        'DropSchema', 'DropSequence', 'DropTable', 'DropUniqueConstraint',
+        'RenameColumn', 'RenameIndex', 'RenameSequence', 'RenameTable')
+
+    $source = Get-Content -LiteralPath $Path -Raw
+    if ($null -eq $source) { $source = '' }
+    # Comments, then raw ("""), verbatim (@", $@, @$), regular and character
+    # literals; each becomes one space.
+    $literal = '//[^\r\n]*|/\*[\s\S]*?\*/|(?<quotes>"{3,})[\s\S]*?\k<quotes>|(?:@\$*|\$+@)"(?:[^"]|"")*"|"(?:[^"\\\r\n]|\\.)*"|''(?:[^''\\\r\n]|\\.)+'''
+    $code = [regex]::Replace($source, $literal, ' ')
+
+    $signatures = [regex]::Matches($code, '\bvoid\s+Up\s*\(\s*MigrationBuilder\s+(?<builder>[A-Za-z_]\w*)\s*\)')
+    if ($signatures.Count -ne 1) {
+        throw "$Path has no single Up(MigrationBuilder) method to classify."
+    }
+    $signature = $signatures[0]
+    $bodyStart = $signature.Index + $signature.Length
+    # A block body ends at its matching brace; an expression body (=> ...;) at
+    # the first semicolon outside parentheses, brackets and braces.
+    $block = [regex]::new('\G\s*\{(?>[^{}]+|(?<open>\{)|(?<-open>\}))*(?(open)(?!))\}')
+    $expression = [regex]::new('\G\s*=>(?>[^;(){}\[\]]+|(?<open>[({\[])|(?<-open>[)}\]])|(?(open);|(?!)))*(?(open)(?!));')
+    $body = $block.Match($code, $bodyStart)
+    if (-not $body.Success) { $body = $expression.Match($code, $bodyStart) }
+    if (-not $body.Success) {
+        throw "$Path has an Up method whose body cannot be read."
+    }
+
+    # Every call on the builder, with or without a type argument
+    # (AddColumn<string>(...)), including calls inside a loop or a condition.
+    $builder = [regex]::Escape($signature.Groups['builder'].Value)
+    $calls = [regex]::Matches($body.Value, "\b$builder\s*\.\s*(?<operation>[A-Za-z_]\w*)\s*(?:<[^<>()]*>\s*)?\(")
+    $class = 'Additive'
+    $operations = [Collections.Generic.List[string]]::new()
+    foreach ($call in $calls) {
+        $operation = $call.Groups['operation'].Value
+        if ($operation -cin $additive -or $operations.Contains($operation)) { continue }
+        $operations.Add($operation)
+        if ($operation -cin $nonAdditive) { $class = 'NonAdditive' }
+        elseif ($class -ne 'NonAdditive') { $class = 'Undetermined' }
+    }
+
+    return [pscustomobject]@{
+        Class = $class
+        Operations = [string[]] $operations.ToArray()
+    }
 }
 
 function Get-PegasusMigrationBundle {

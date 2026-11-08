@@ -68,7 +68,10 @@ is set only when an approval names a Web region other than the platform region.
   outside typical usage (R605); this procedure invents no standing hours.
 
 The preflight prints the live head, the candidate's identity and the migration
-sources the range adds. The agent reads those sources and classifies them by
+sources the range adds. CI's migration class check
+(`scripts/Test-MigrationClass.ps1`) is the first reader of each one's class,
+and its pull request body's `## Migration` section records it (R760); the
+agent still confirms it here. The agent reads those sources and classifies them by
 the rule in [engineering](../../../docs/engineering.md#migrations) (R605):
 additive runs on the normal route; non-additive runs only on the destructive
 route, and the agent names each non-additive operation, the capability it
