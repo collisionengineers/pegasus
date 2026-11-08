@@ -883,6 +883,14 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                 SourceIdentity = "mileage", SourceLabel = "associated mail fixture",
                 PolicyKey = "associated-mail-fixture", PolicyVersion = 1,
                 ConfirmedByActor = "staff", ConfirmedAtUtc = now
+            },
+            new CaseDataFieldEntity
+            {
+                WorkId = id, FieldName = CaseDataFieldNames.VehicleMileageUnit, ValueKind = CaseDataCodes.Confirmed,
+                ValueType = CaseDataCodes.Text, Value = "miles", SourceKind = "intake_evidence",
+                SourceIdentity = "mileage-unit", SourceLabel = "associated mail fixture",
+                PolicyKey = "associated-mail-fixture", PolicyVersion = 1,
+                ConfirmedByActor = "staff", ConfirmedAtUtc = now
             });
         await db.SaveChangesAsync();
         return id;

@@ -2054,6 +2054,8 @@ public sealed class ImageCaseCustodyIntegrationTests
         // The Case has its mileage: no mileage would keep it Not ready (R759).
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_mileage"}, {"confirmed"}, {"integer"}, {"41200"}, {"intake_evidence"}, {"mileage"}, {"image case custody fixture"}, {"image-case-custody-fixture"}, {1}, {"staff"}, {now})");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_mileage_unit"}, {"confirmed"}, {"text"}, {"miles"}, {"intake_evidence"}, {"mileage-unit"}, {"image case custody fixture"}, {"image-case-custody-fixture"}, {1}, {"staff"}, {now})");
         return caseId;
     }
 
