@@ -843,15 +843,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
         // Reconstruct the store under the real Web runtime role. The replay
         // must read its permanent action result after LastOperationKey moved.
         await using var context = await harness.Factory.CreateDbContextAsync();
-        await context.Database.OpenConnectionAsync();
         await context.Database.ExecuteSqlRawAsync(
             "CREATE USER [estimate_replay_web] WITHOUT LOGIN; ALTER ROLE [pegasus_web_runtime_role] ADD MEMBER [estimate_replay_web];");
-        await context.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'estimate_replay_web';");
-        try
+        await harness.Database.AsDatabaseUserAsync("estimate_replay_web", async connection =>
         {
-            var runtimeFactory = new PooledDbContextFactory<PegasusDbContext>(
-                new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(context.Database.GetDbConnection()).Options);
-            var resumed = new SaveEstimate(new EfRepairSpecificationStore(runtimeFactory, harness.Clock), jobs);
+            var resumed = new SaveEstimate(
+                new EfRepairSpecificationStore(new ConnectedContextFactory(connection), harness.Clock), jobs);
             var replay = await resumed.ExecuteAsync(update, default);
             Assert.Equal(first.SpecificationId, replay.SpecificationId);
             Assert.Equal(third.Details.Name, replay.Details.Name);
@@ -864,11 +861,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             // on the old page is refused for its lease before its version.
             await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
                 resumed.ExecuteAsync(update with { OperationKey = "new-stale-operation" }, default));
-        }
-        finally
-        {
-            await context.Database.ExecuteSqlRawAsync("REVERT;");
-        }
+        });
         Assert.Equal(3, await context.CaseWorkflowEvents.CountAsync(item => item.CaseId == caseId && item.EventType.StartsWith("estimate_")));
         Assert.Equal(3, await context.ActionHistory.CountAsync(item => item.AggregateId == caseId.ToString("D") && item.EventKind.StartsWith("estimate_")));
         Assert.Equal(3, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
@@ -1227,31 +1220,23 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
         }
         await SetReportPreparationAsync(harness.Factory, caseId);
         await using var context = await harness.Factory.CreateDbContextAsync();
-        await context.Database.OpenConnectionAsync();
         await context.Database.ExecuteSqlRawAsync(
             "CREATE USER [estimate_import_web] WITHOUT LOGIN; ALTER ROLE [pegasus_web_runtime_role] ADD MEMBER [estimate_import_web];");
-        await context.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'estimate_import_web';");
-        RepairSpecificationVersion imported;
-        try
+        var imported = await harness.Database.AsDatabaseUserAsync("estimate_import_web", async connection =>
         {
-            var runtimeFactory = new PooledDbContextFactory<PegasusDbContext>(
-                new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(context.Database.GetDbConnection()).Options);
-            var store = new EfRepairSpecificationStore(runtimeFactory, harness.Clock);
+            var store = new EfRepairSpecificationStore(new ConnectedContextFactory(connection), harness.Clock);
             await store.RequireImportAuthorityAsync(authority, default);
             await store.RequireImportAuthorityAsync(authority, default);
-            imported = await store.SaveImportedEstimateAsync(request, default);
+            var saved = await store.SaveImportedEstimateAsync(request, default);
             // A staff member's import is the repair spec the Case uses at once.
-            Assert.Equal(RepairSpecificationState.Draft, imported.State);
-            Assert.True(imported.IsCurrent);
-            Assert.Equal(imported.SpecificationId, (await store.GetCurrentAsync(caseId, default))!.SpecificationId);
+            Assert.Equal(RepairSpecificationState.Draft, saved.State);
+            Assert.True(saved.IsCurrent);
+            Assert.Equal(saved.SpecificationId, (await store.GetCurrentAsync(caseId, default))!.SpecificationId);
             // The import ended the lease it was made under.
             await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() => store.RequireImportAuthorityAsync(authority, default));
             await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() => store.SaveImportedEstimateAsync(request, default));
-        }
-        finally
-        {
-            await context.Database.ExecuteSqlRawAsync("REVERT;");
-        }
+            return saved;
+        });
 
         var visibleHistoryBeforeBinding = await new EfCaseQueryStore(harness.Factory, harness.Clock)
             .ListHistoryAsync(caseId, default);
@@ -1797,22 +1782,15 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             discardLease.Token, first.SpecificationId);
 
         await using var context = await harness.Factory.CreateDbContextAsync();
-        await context.Database.OpenConnectionAsync();
         await context.Database.ExecuteSqlRawAsync(
             "CREATE USER [estimate_discard_web] WITHOUT LOGIN; ALTER ROLE [pegasus_web_runtime_role] ADD MEMBER [estimate_discard_web];");
-        await context.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'estimate_discard_web';");
-        try
+        await harness.Database.AsDatabaseUserAsync("estimate_discard_web", async connection =>
         {
-            var runtimeFactory = new PooledDbContextFactory<PegasusDbContext>(
-                new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(context.Database.GetDbConnection()).Options);
-            var discard = new DiscardEstimate(new EfRepairSpecificationStore(runtimeFactory, harness.Clock));
+            var discard = new DiscardEstimate(
+                new EfRepairSpecificationStore(new ConnectedContextFactory(connection), harness.Clock));
             await discard.ExecuteAsync(discardRequest, CancellationToken.None);
             await discard.ExecuteAsync(discardRequest, CancellationToken.None);
-        }
-        finally
-        {
-            await context.Database.ExecuteSqlRawAsync("REVERT;");
-        }
+        });
 
         Assert.False(await context.CaseRepairSpecifications.AsNoTracking()
             .AnyAsync(item => item.Id == first.SpecificationId));
