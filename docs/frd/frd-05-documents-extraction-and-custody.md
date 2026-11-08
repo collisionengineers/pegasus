@@ -414,7 +414,8 @@ Tags carry meaning for the report (operator, 26 September 2026). A new
 image is in the report. The first image in the report tagged Overview prints
 as the Overview, at place 1, and the first other one tagged Close-up as the
 Close-up, at place 2; the rest print as supporting images (operator,
-7 October 2026). Tagging an
+7 October 2026). The Overview prints again first on the image pages, before
+the Close-up and the supporting images (R660, 4 November 2026; #1902). Tagging an
 image Third party or Reflection takes it out of the report; staff may put it
 back in ([FRD-06](frd-06-vehicle-and-engineering-evidence.md)).
 

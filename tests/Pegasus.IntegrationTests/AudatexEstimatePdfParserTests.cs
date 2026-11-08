@@ -275,11 +275,17 @@ public sealed class AudatexEstimatePdfParserTests
     public void AValuesAsteriskJoinedToItReadsAsTheSameValue()
     {
         // "12.0*" printed as one word imports as "12.0" with a separate "*" (R659).
+        // The fixture joins the mark on both paths a value takes to
+        // ParseLineValue: the labour value on its own baseline one point below
+        // its description (TryAttachValueRow) and the Extras price on its
+        // description's baseline (ReadLineRow) (#1921).
         var joined = Parse(AudatexEstimateFixture.Build(joinedAsterisk: true));
         var apart = Parse(AudatexEstimateFixture.Build());
 
         Assert.Equal(1.2m, joined.Lines[1].WorkUnits);
+        Assert.Equal(110.00m, joined.Lines[5].Price);
         Assert.Equal(apart.Lines.Select(line => line.WorkUnits), joined.Lines.Select(line => line.WorkUnits));
+        Assert.Equal(apart.Lines.Select(line => line.Price), joined.Lines.Select(line => line.Price));
         Assert.Equal(apart.SourceTotals, joined.SourceTotals);
     }
 
