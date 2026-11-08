@@ -629,6 +629,13 @@ public sealed class CaseDataCompletenessPersistenceTests
             var principalId = principal.Id;
             var fieldsJson =
                 """{"version":1,"data":[{"name":"Claimant name","suggestedValue":"Jane Example","candidates":[{"value":"Jane Example","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Claim number","suggestedValue":"QDOS-123","candidates":[{"value":"QDOS-123","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Vehicle registration","suggestedValue":"AB12 CDE","candidates":[{"value":"AB12 CDE","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection address","suggestedValue":"1 Test Street, London","candidates":[{"value":"1 Test Street, London","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection date","suggestedValue":"2031-05-20","candidates":[{"value":"2031-05-20","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false}]}""";
+            // The draft's mileage carries its review field, as an extracted
+            // value must (R759: without one the Case is created Not ready).
+            if (mileage is { } miles)
+            {
+                fieldsJson = fieldsJson[..^2]
+                    + $$""",{"name":"Vehicle mileage","suggestedValue":"{{miles}}","candidates":[{"value":"{{miles}}","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false}]}""";
+            }
             var emptyEnvelope = """{"version":1,"data":[]}""";
 
             await context.Database.ExecuteSqlInterpolatedAsync(
