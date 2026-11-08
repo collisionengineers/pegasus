@@ -476,14 +476,14 @@ public sealed class CaseDataCompletenessPersistenceTests
         /// The accepted Case in the class's database, removed with the intake it
         /// came from when the harness is disposed.
         /// </summary>
-        public static Task<CaseDataHarness> CreateAsync(CaseWorkspaceDatabase shared) =>
+        public static Task<CaseDataHarness> CreateAsync(CaseWorkspaceDatabase shared, long? mileage = FixtureMileage) =>
             OpenAsync(
                 shared.Database,
                 shared,
                 shared.Factory,
                 InspectionAddressStaffDecision.AcceptSuggestion,
                 correctedAddress: null,
-                FixtureMileage);
+                mileage);
 
         private static async Task<CaseDataHarness> OpenAsync(
             LocalDbTestDatabase database,

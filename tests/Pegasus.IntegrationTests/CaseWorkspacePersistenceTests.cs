@@ -1894,7 +1894,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
     [Fact]
     public async Task ACalculationRecordsWithoutTheCaseMileage()
     {
-        await using var harness = await Harness.CreateAsync(database);
+        await using var harness = await Harness.CreateAsync(database, mileage: null);
         var april = new DateOnly(2030, 4, 1);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
