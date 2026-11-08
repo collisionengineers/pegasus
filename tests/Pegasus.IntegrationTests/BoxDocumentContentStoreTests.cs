@@ -1207,7 +1207,8 @@ public sealed class BoxDocumentContentStoreTests
     /// <summary>
     /// A version Box took between the read and the upload makes the upload a
     /// 412. The file is read again and the upload made once more; a second
-    /// 412 is a 409 failure, which leaves the document pending.
+    /// 412 files nothing and answers Deferred, which leaves the document
+    /// pending (R764).
     /// </summary>
     [Fact]
     public async Task AVersionTakenMeanwhileIsReadAgainOnceAndThenLeftPending()
@@ -1232,20 +1233,25 @@ public sealed class BoxDocumentContentStoreTests
 
         var last = Encoding.UTF8.GetBytes("the last valuation");
         box.AdvanceBeforeNextVersionUploads = 2;
-        var refused = await Assert.ThrowsAsync<HttpRequestException>(() => store.StoreVersionAsync(
-            SeriesAddress(4, "valuation.pdf", first.RemoteId!), last, Sha256(last), CancellationToken.None));
+        var deferred = await store.StoreVersionAsync(
+            SeriesAddress(4, "valuation.pdf", first.RemoteId!), last, Sha256(last), CancellationToken.None);
 
-        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal(DocumentContentWriteDisposition.Deferred, deferred.Disposition);
+        Assert.Null(deferred.RemoteId);
+        Assert.Null(deferred.BoxVersionId);
         Assert.Equal(4, box.VersionUploadCount);
+        Assert.False(box.PathExists($"{CaseReference}/004 valuation.pdf"));
     }
 
     /// <summary>
-    /// A series file that is gone or in the trash leaves the regenerated
-    /// document to be filed as a file of its own, as before.
+    /// A series file that is gone, in the trash or moved out of the Case
+    /// folder leaves the regenerated document to be filed as a file of its
+    /// own, as before.
     /// </summary>
     [Theory]
     [InlineData("missing")]
     [InlineData("trashed")]
+    [InlineData("moved")]
     public async Task ASeriesFileNoLongerLiveInTheFolderLeavesTheDocumentAFileOfItsOwn(string state)
     {
         var box = new InMemoryBox();
@@ -1258,6 +1264,10 @@ public sealed class BoxDocumentContentStoreTests
         if (state == "trashed")
         {
             box.SetTrashed(first.RemoteId!, trashed: true);
+        }
+        if (state == "moved")
+        {
+            box.MoveOutsideApprovedRoot(first.RemoteId!);
         }
         var later = Encoding.UTF8.GetBytes("the regenerated image pack");
 
@@ -1455,16 +1465,16 @@ public sealed class BoxDocumentContentStoreTests
         }
 
         /// <summary>
-        /// Moves a folder under a new folder that is not below the approved
-        /// root, as someone could in Box itself.
+        /// Moves a folder or a file under a new folder that is not below the
+        /// approved root, as someone could in Box itself.
         /// </summary>
-        public void MoveOutsideApprovedRoot(string folderId)
+        public void MoveOutsideApprovedRoot(string id)
         {
             lock (gate)
             {
                 var outside = $"outside-{++nextId}";
                 nodes[outside] = new Node(outside, "outside", "folder", null);
-                nodes[folderId] = nodes[folderId] with { ParentId = outside };
+                nodes[id] = nodes[id] with { ParentId = outside };
             }
         }
 

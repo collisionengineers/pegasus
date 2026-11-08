@@ -1394,6 +1394,15 @@ public sealed class GlassRepairEstimateGatewayTests
                 GlassRepairEstimateGateway.PdfOccurrenceIdentity(session.Id),
             },
             harness.Custody.Retained.Select(item => item.OccurrenceIdentity));
+        // A later session on the same estimate files each as the next Box
+        // version of this one's file (operator, 4 November 2026).
+        Assert.Equal(
+            new string?[]
+            {
+                GlassRepairEstimateGateway.SeriesIdentity(EreId, "xml"),
+                GlassRepairEstimateGateway.SeriesIdentity(EreId, "pdf"),
+            },
+            harness.Custody.Retained.Select(item => item.SeriesIdentity));
         Assert.Equal(RetainedMediaTypes, harness.Custody.Retained.Select(item => item.MediaType));
         Assert.All(harness.Custody.Retained, item => Assert.Equal(DocumentSemanticRole.Estimate, item.SemanticRole));
 
@@ -1737,6 +1746,7 @@ public sealed class GlassRepairEstimateGatewayTests
         // vehicle, or carries no estimate.
         var kept = Assert.Single(harness.Custody.Retained);
         Assert.Equal(GlassRepairEstimateGateway.RejectedXmlOccurrenceIdentity(session.Id), kept.OccurrenceIdentity);
+        Assert.Equal(GlassRepairEstimateGateway.SeriesIdentity(EreId, "rejected-xml"), kept.SeriesIdentity);
         Assert.EndsWith("-rejected.xml", kept.FileName, StringComparison.Ordinal);
         Assert.Equal(Encoding.UTF8.GetBytes(xml), kept.Content);
         Assert.Contains("\"rejectedXml\":{", harness.Store.ResultsOf(session.Id)!, StringComparison.Ordinal);
@@ -1792,6 +1802,7 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Empty(harness.Import.Requests);
         var kept = Assert.Single(harness.Custody.Retained);
         Assert.Equal(GlassRepairEstimateGateway.RejectedXmlOccurrenceIdentity(session.Id), kept.OccurrenceIdentity);
+        Assert.Equal(GlassRepairEstimateGateway.SeriesIdentity(EreId, "rejected-xml"), kept.SeriesIdentity);
         Assert.EndsWith("-rejected.xml", kept.FileName, StringComparison.Ordinal);
         Assert.Equal("application/xml", kept.MediaType);
         Assert.Equal(DocumentSemanticRole.Estimate, kept.SemanticRole);
@@ -3474,7 +3485,8 @@ public sealed class GlassRepairEstimateGatewayTests
                 request.Sha256,
                 request.ContentLength,
                 buffer.ToArray(),
-                request.SemanticRole));
+                request.SemanticRole,
+                request.SeriesIdentity));
 
             var kind = request.OccurrenceIdentity[(request.OccurrenceIdentity.LastIndexOf(':') + 1)..];
             var identity = identities.TryGetValue(kind, out var existing)
@@ -3530,7 +3542,8 @@ public sealed class GlassRepairEstimateGatewayTests
             string Sha256,
             long ContentLength,
             byte[] Content,
-            DocumentSemanticRole SemanticRole);
+            DocumentSemanticRole SemanticRole,
+            string? SeriesIdentity);
     }
 
     private sealed class ImportDouble : IImportRawEstimate

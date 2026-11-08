@@ -756,6 +756,64 @@ public sealed class ProductionBoxCustodyTests
     }
 
     /// <summary>
+    /// A next version's commit that Box refuses with a 412, because it took
+    /// another version of the series file first, aborts that session; the
+    /// file is read again and the content goes up once more in a session of
+    /// its own. A second 412 aborts that session too and answers Deferred:
+    /// nothing is filed, the earlier version stays current and the document
+    /// stays pending (R764).
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task ANextVersionCommitRefusedForAnotherVersionIsSentOnceMoreThenLeftPending(int refusedCommits)
+    {
+        var box = new StatefulBox();
+        var caseId = Guid.NewGuid();
+        var custody = new BoxCaseCustody(new EmptyArtifactStore(), CreateClient(box));
+        var root = await custody.CreateCaseRootAsync(
+            caseId, "QDOS31001", "0123456789ABCDEFGHJKMNPQRS", "case-root", default);
+        var documents = new BoxDocumentContentStore(CreateClient(box));
+        var earlier = "earlier report"u8.ToArray();
+        var first = await documents.StoreVersionAsync(
+            Address(caseId, root.RemoteId, 2, 1, "large.pdf"), earlier, Sha256(earlier), default);
+        var bytes = OverTheSinglePartLimit();
+        using var stream = new MemoryStream(bytes, writable: false);
+        box.PreconditionFailNextVersionCommits = refusedCommits;
+        var before = box.Requests.Count;
+
+        var next = await documents.StoreVerifiedStreamAsync(
+            Address(caseId, root.RemoteId, 3, 1, "large.pdf") with { SeriesBoxFileId = first.RemoteId },
+            stream,
+            bytes.Length,
+            Sha256(bytes),
+            default);
+
+        var requests = box.Requests.Skip(before).ToArray();
+        Assert.Equal(2, requests.Count(request => request == $"POST /api/2.0/files/{first.RemoteId}/upload_sessions"));
+        Assert.DoesNotContain("POST /api/2.0/files/upload_sessions", requests);
+        Assert.DoesNotContain(requests, IsUpload);
+        Assert.Equal(2, requests.Count(IsCommit));
+        Assert.Equal(refusedCommits, requests.Count(IsSessionAbort));
+        Assert.Equal(new string?[] { "1", "1" }, box.VersionCommitIfMatches);
+        Assert.False(box.PathExists("QDOS31001/003 large.pdf"));
+        Assert.Equal(0L, stream.Position);
+        if (refusedCommits == 1)
+        {
+            Assert.Equal(DocumentContentWriteDisposition.Created, next.Disposition);
+            Assert.Equal(first.RemoteId, next.RemoteId);
+            Assert.Equal(Sha256(bytes), Sha256(box.ContentAt("QDOS31001/002 large.pdf")));
+        }
+        else
+        {
+            Assert.Equal(DocumentContentWriteDisposition.Deferred, next.Disposition);
+            Assert.Null(next.RemoteId);
+            Assert.Null(next.BoxVersionId);
+            Assert.Equal(Sha256(earlier), Sha256(box.ContentAt("QDOS31001/002 large.pdf")));
+        }
+    }
+
+    /// <summary>
     /// Up to and including the limit, a file is still one direct upload, from
     /// memory or from a stream.
     /// </summary>
@@ -1943,6 +2001,12 @@ public sealed class ProductionBoxCustodyTests
         /// <summary>The <c>If-Match</c> each next-version commit carried, in order.</summary>
         public List<string?> VersionCommitIfMatches { get; } = [];
 
+        /// <summary>
+        /// How many of the next next-version commits are answered 412, as when
+        /// Box took another version of the file first; nothing is committed.
+        /// </summary>
+        public int PreconditionFailNextVersionCommits { get; set; }
+
         public bool AllowDeletes { get; set; }
         public int RenameCount { get; private set; }
         public int MoveCount { get; private set; }
@@ -2291,6 +2355,11 @@ public sealed class ProductionBoxCustodyTests
                 {
                     VersionCommitIfMatches.Add(
                         request.Headers.TryGetValues("If-Match", out var ifMatch) ? ifMatch.Single() : null);
+                    if (PreconditionFailNextVersionCommits > 0)
+                    {
+                        PreconditionFailNextVersionCommits--;
+                        return new(HttpStatusCode.PreconditionFailed) { Content = new StringContent("etag changed") };
+                    }
                 }
                 using var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 var listed = body.RootElement.GetProperty("parts").EnumerateArray()
