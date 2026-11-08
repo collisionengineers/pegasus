@@ -641,7 +641,7 @@ function Publish-FunctionApp {
     if ($LASTEXITCODE -ne 0) { throw "$Label deployment failed." }
     $id = Get-DeploymentId (($lines | Where-Object { $_ -notmatch '^(WARNING|ERROR):' }) -join "`n")
     if ($id -eq '(not reported)') {
-        $reported = @($lines | ForEach-Object { if ($_ -match 'deployment id "?([0-9A-Fa-f-]{36})"?') { $Matches[1] } })
+        $reported = @($lines | ForEach-Object { if ($_ -match 'deployment id "?([^"\s]+)"?') { $Matches[1] } })
         if ($reported.Count -gt 0) { $id = $reported[0] }
     }
     Set-RecordValue "$Label deployment" $id
