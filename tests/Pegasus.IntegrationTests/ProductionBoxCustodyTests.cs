@@ -795,7 +795,10 @@ public sealed class ProductionBoxCustodyTests
         Assert.DoesNotContain(requests, IsUpload);
         Assert.Equal(2, requests.Count(IsCommit));
         Assert.Equal(refusedCommits, requests.Count(IsSessionAbort));
-        Assert.Equal(new string?[] { "1", "1" }, box.VersionCommitIfMatches);
+        Assert.Collection(
+            box.VersionCommitIfMatches,
+            ifMatch => Assert.Equal("1", ifMatch),
+            ifMatch => Assert.Equal("1", ifMatch));
         Assert.False(box.PathExists("QDOS31001/003 large.pdf"));
         Assert.Equal(0L, stream.Position);
         if (refusedCommits == 1)
