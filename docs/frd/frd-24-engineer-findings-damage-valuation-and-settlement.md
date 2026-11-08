@@ -153,7 +153,10 @@ smallest disc and no wider than half the vehicle — kept as drawn
 (`damage.impacts`). It records no area, severity or note, and no impact
 location or severity is derived from the markers. While the Damage section
 edits, pressing and dragging on the vehicle draws a marker and dragging one
-moves it; dragging never removes a marker, and **Clear markers** removes them
+moves it. A press within 12 plan units of the vehicle's outline counts as on
+the vehicle, and a marker's centre may sit up to 12 plan units past the body
+box, so damage at the edge can be marked around it (operator, 8 November
+2026, [R758](../rulings.md)); dragging never removes a marker, and **Clear markers** removes them
 all. There is no Reset. The report always needs at least one marker, whether
 or not Skip impacts is ticked (operator, 3 November 2026, R650): until one is
 drawn, readiness names **Damage markers** ("No damage marker is drawn.").

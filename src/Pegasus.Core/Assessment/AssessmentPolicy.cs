@@ -431,7 +431,8 @@ public static class AssessmentPolicy
         // reads "tbc" by construction and the report says it is to be
         // confirmed. The former item could only fire when staff recorded a
         // source for a mileage they had not entered, which is no longer
-        // possible.
+        // possible. A Case with no mileage is held before Review instead
+        // (R759, CaseCompletenessPolicy.MileageGateOpen).
 
         if (fields.TryGetValue(AssessmentVocabulary.LegalStatus, out var legalStatus)
             && string.Equals(legalStatus, "unroadworthy", StringComparison.Ordinal)
@@ -762,8 +763,8 @@ public static class AssessmentPolicy
 
     /// <summary>
     /// A drawn disc in unit-plan terms, rounded as it is stored: the centre
-    /// on the plan and the radius between the smallest and the largest disc
-    /// the plan allows.
+    /// on the plan or within its margin around it (R758) and the radius
+    /// between the smallest and the largest disc the plan allows.
     /// </summary>
     private static DamageDisc ReadDisc(JsonElement element)
     {
@@ -784,7 +785,8 @@ public static class AssessmentPolicy
         }
         (x, y, r) = (RoundDisc(x), RoundDisc(y), RoundDisc(r));
         if (!double.IsFinite(x) || !double.IsFinite(y) || !double.IsFinite(r)
-            || x is < 0 or > 1 || y is < 0 or > 1
+            || x < -RoundDisc(DamageAreaGeometry.MarginX) || x > 1 + RoundDisc(DamageAreaGeometry.MarginX)
+            || y < -RoundDisc(DamageAreaGeometry.MarginY) || y > 1 + RoundDisc(DamageAreaGeometry.MarginY)
             || r < RoundDisc(DamageAreaGeometry.MinRadius) || r > DamageAreaGeometry.MaxRadius)
         {
             throw new ArgumentException("A damage disc must lie on the plan and be no smaller or larger than the plan allows.", nameof(element));

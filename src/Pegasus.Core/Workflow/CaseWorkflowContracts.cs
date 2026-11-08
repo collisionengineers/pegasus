@@ -104,10 +104,32 @@ public sealed record CaseWorkflowConfiguration(
     /// <summary>An AI job in Draft ready is due this many days after the draft was written.</summary>
     public int AiDraftTargetDays { get; init; } = 1;
 
-    public IReadOnlyList<string> MissingRequirements(CaseCompleteness facts)
+    /// <summary>
+    /// The Case requirement a Case with no mileage names on its way into
+    /// Review, on every route (operator, 8 November 2026; R759).
+    /// </summary>
+    public const string VehicleMileageRequirement = "Vehicle mileage";
+
+    /// <param name="facts">The Case's stored instruction and image facts.</param>
+    /// <param name="mileageRecorded">
+    /// Whether the mileage gate is open (<see cref="CaseCompletenessPolicy.MileageGateOpen"/>).
+    /// It is not configuration: no mileage keeps a Case Not ready whatever
+    /// the required items are (R759).
+    /// </param>
+    public IReadOnlyList<string> MissingRequirements(CaseCompleteness facts, bool mileageRecorded)
     {
+        ArgumentNullException.ThrowIfNull(facts);
         List<string> missing = [];
-        if (RequireInstructions && !facts.InstructionComplete) missing.Add("Instructions");
+        if (RequireInstructions && !facts.InstructionComplete)
+        {
+            missing.Add("Instructions");
+        }
+        else if (!mileageRecorded)
+        {
+            // While the instruction is incomplete its row already names the
+            // mileage among its missing items.
+            missing.Add(VehicleMileageRequirement);
+        }
         if (RequireImages && !facts.ImagesComplete) missing.Add("Images");
         return missing;
     }

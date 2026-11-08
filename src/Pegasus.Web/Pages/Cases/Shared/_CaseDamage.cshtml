@@ -82,8 +82,9 @@
                 <svg class="damage-diagram" viewBox="@DamagePlanGeometry.ViewBox" role="group" aria-label="@DamageLabels.DiagramLabel">
                     <text class="damage-diagram-label" x="120" y="8" text-anchor="middle">@DamageLabels.Front</text>
                     @Html.Raw(DamagePlanGeometry.Artwork(profile))
-                    @* Where a press starts a new marker: the drawing's own outline. *@
-                    <g class="dv-hit" aria-hidden="true">
+                    @* Where a press starts a new marker: the drawing's own outline
+                       and the leeway around it, the outline's unpainted stroke (R758). *@
+                    <g class="dv-hit" aria-hidden="true" stroke-width="@(DamagePlanGeometry.PressLeeway * 2)">
                         @foreach (var hitPath in DamagePlanGeometry.HitPaths(profile))
                         {
                             <path d="@hitPath" />

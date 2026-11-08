@@ -234,6 +234,23 @@
                             {
                                 <partial name="Cases/Shared/_CaseBlockerEdit" model="new CaseBlockerEditView(Model, firstFocus, repairSpecLabel, StepButton)" />
                             }
+                            else if (firstSection is not null && first.Field == AssessmentVocabulary.DamageMarkers && Model.HasReadableImage)
+                            {
+                                @* Damage markers: View images beside the section's control,
+                                   opening the images window Pop out opens, so the damage
+                                   can be read while it is marked (operator, 8 November 2026; R757). *@
+                                <div class="next-row" data-next-damage-images>
+                                    <a class="@StepButton" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
+                                       asp-route-section="@firstSection" asp-route-view="@Model.ViewRoute" asp-fragment="section-@firstSection"
+                                       data-section-jump="@firstSection"
+                                       data-section-tab="@CaseWorkspaceLabels.Report.BlockerTab(first)"
+                                       data-section-field="@CaseWorkspaceLabels.Report.BlockerField(first)">@SectionLabel(firstSection)</a>
+                                    <a class="btn btn--small" href="@CaseFileAddresses.ImagesWindow(workflow.CaseId)" target="_blank" rel="noopener" data-images-popout data-next-view-images>
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-external-link")" /></svg>
+                                        <span>@Frame.ViewImages</span>
+                                    </a>
+                                </div>
+                            }
                             else if (firstSection is not null)
                             {
                                 <a class="@StepButton" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"

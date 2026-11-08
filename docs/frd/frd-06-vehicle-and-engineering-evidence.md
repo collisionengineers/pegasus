@@ -339,6 +339,10 @@ from where the Case mileage came from; it is not recorded separately.
 | Estimated from the MOT history: the Case page reads Estimated | `estimated` |
 | No mileage on the Case | `tbc` |
 
+A Case cannot reach Review without a mileage ([FRD-13](frd-13-case-lifecycle-and-workflow.md);
+[R759](../rulings.md)), so `tbc` is printed only for a Case that reached Review
+before that rule or whose mileage was cleared afterwards.
+
 The `owner`, `repairer` and `average` codes are still renderer sentences, but
 nothing derives them. Staff no longer record a separate mileage-source report
 field, and the Case page has no source to pick.

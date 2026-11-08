@@ -479,6 +479,23 @@ public sealed class AssessmentPolicyTests
         Assert.Equal("[]", AssessmentPolicy.SerializeMarkers([]));
     }
 
+    [Theory]
+    [InlineData(-0.07, 0.5)]
+    [InlineData(1.07, 0.5)]
+    [InlineData(0.5, -0.03)]
+    [InlineData(0.5, 1.03)]
+    public void AMarkerMaySitJustPastTheVehiclesEdge(double x, double y)
+    {
+        // The plan's margin around the body box (R758): damage at the
+        // vehicle's edge is marked around it.
+        var json = FormattableString.Invariant($"[{{\"x\":{x},\"y\":{y},\"r\":0.1}}]");
+
+        var normalized = AssessmentPolicy.ValidateAndNormalize(
+            Request(new() { [AssessmentVocabulary.DamageMarkers] = json }));
+
+        Assert.Equal([new DamageDisc(x, y, 0.1)], AssessmentPolicy.ParseMarkers(normalized.Fields[AssessmentVocabulary.DamageMarkers]));
+    }
+
     [Fact]
     public void TheMarkersFormatsExampleIsAccepted()
     {
@@ -501,7 +518,9 @@ public sealed class AssessmentPolicyTests
     [InlineData("[{\"x\":0.5,\"y\":0.1,\"r\":0.6}]")]
     [InlineData("[{\"x\":0.5,\"y\":0.1,\"r\":0.01}]")]
     [InlineData("[{\"x\":1.2,\"y\":0.1,\"r\":0.1}]")]
+    [InlineData("[{\"x\":-0.08,\"y\":0.1,\"r\":0.1}]")]
     [InlineData("[{\"x\":0.5,\"y\":-0.1,\"r\":0.1}]")]
+    [InlineData("[{\"x\":0.5,\"y\":1.04,\"r\":0.1}]")]
     [InlineData("[{\"x\":0.5,\"y\":0.1,\"r\":0.1,\"z\":1}]")]
     [InlineData("[{\"x\":\"0.5\",\"y\":0.1,\"r\":0.1}]")]
     [InlineData("[[0.5,0.1,0.1]]")]

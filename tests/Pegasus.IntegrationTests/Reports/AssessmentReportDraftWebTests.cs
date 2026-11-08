@@ -378,6 +378,59 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>
+    /// The Damage markers step offers View images beside the Damage control
+    /// once an image can be read: the images window Pop out opens (operator,
+    /// 8 November 2026; R757). Absent, never disabled, before.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TheDamageMarkersStepOffersViewImagesOnceAnImageCanBeRead(bool readableImage)
+    {
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        var caseId = Guid.NewGuid();
+        var source = new FakeProjectionSource(ReadyInput(caseId));
+        var full = FullAssessmentProjection(caseId);
+        source.Readiness = source.Readiness with
+        {
+            Assessment = full with
+            {
+                Fields = [.. full.Fields.Where(field => field.Path != AssessmentVocabulary.DamageMarkers)],
+            },
+        };
+        var readiness = CaseReportReadiness.Evaluate(source.Readiness);
+        Assert.Equal("Damage markers", CaseWorkspaceLabels.Report.InPageOrder(readiness.Reasons)[0].Requirement);
+        CaseDocument[] documents = readableImage
+            ? [Document(Guid.NewGuid(), Guid.NewGuid(), "damage.jpg", "image/jpeg", DocumentSemanticRole.Image)]
+            : [];
+        using var factory = Compose(
+            baseFactory, new FakeGetCase(caseId, documents: documents), full, source, new FakeRenderer([1]));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+
+        var panel = CaseWebTestSupport.NextActionRegex().Match(html).Value;
+        Assert.Contains("<strong data-next-label>Damage markers</strong>", panel, StringComparison.Ordinal);
+        Assert.Contains("data-section-jump=\"damage\"", panel, StringComparison.Ordinal);
+        if (readableImage)
+        {
+            Assert.Contains(
+                $"<a class=\"btn btn--small\" href=\"/Cases/{caseId:D}/Images\" target=\"_blank\" rel=\"noopener\" data-images-popout data-next-view-images>",
+                panel,
+                StringComparison.Ordinal);
+            Assert.Contains($"<span>{CaseWorkspaceLabels.Frame.ViewImages}</span>", panel, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain("data-next-view-images", panel, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
     /// Issue 898: the repairer VAT blocker opens the Repair Spec for editing
     /// on the Current spec, with the control that clears it named for focus,
     /// from the readiness list and from the Next action alike.
@@ -853,7 +906,9 @@ public sealed partial class AssessmentReportDraftWebTests
     private static partial Regex SectionJumpRegex();
 
     private sealed class FakeGetCase(
-        Guid caseId, CaseLifecycleState state = CaseLifecycleState.ReportPreparation) :
+        Guid caseId,
+        CaseLifecycleState state = CaseLifecycleState.ReportPreparation,
+        IReadOnlyList<CaseDocument>? documents = null) :
         IGetCasePageFrame,
         IGetCaseVehicleSection,
         IGetCaseValuationSection,
@@ -902,7 +957,7 @@ public sealed partial class AssessmentReportDraftWebTests
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CasePageFrame?>(Frame(query.CaseId) is { } frame
-                ? new(frame, [], [], new(null, null), Data(frame))
+                ? new(frame, documents ?? [], [], new(null, null), Data(frame))
                 : null);
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
@@ -935,7 +990,7 @@ public sealed partial class AssessmentReportDraftWebTests
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CaseFilesSection?>(Frame(query.CaseId) is { } frame
-                ? new(frame, [], null, CaseCustodyState.Pending, [])
+                ? new(frame, documents ?? [], null, CaseCustodyState.Pending, [])
                 : null);
 
         /// <summary>The Case's frame as a focused read returns it; null for any other Case.</summary>

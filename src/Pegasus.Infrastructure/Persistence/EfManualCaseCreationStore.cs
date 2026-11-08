@@ -117,7 +117,11 @@ public sealed class EfManualCaseCreationStore(
                 : request.Data, request.IsPrivateCustomer),
             ImagesComplete: false);
         var configuration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
-        var evaluation = CaseCompletenessPolicy.Evaluate(completeness, configuration);
+        // A new Case with no mileage is created Not ready (R759).
+        var evaluation = CaseCompletenessPolicy.Evaluate(
+            completeness,
+            configuration,
+            CaseCompletenessPolicy.MileageGateOpen(null, request.Data.VehicleMileage));
         var initialState = evaluation.SatisfiesPolicy
             ? CaseInitialState.Review
             : CaseInitialState.NotReady;

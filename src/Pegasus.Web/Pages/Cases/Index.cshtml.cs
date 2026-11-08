@@ -638,9 +638,12 @@ public sealed class IndexModel(
                 ? _caseDocuments.HasCurrentAuditReportAsync(caseId, cancellationToken)
                 : Task.FromResult(false);
             await Task.WhenAll(configurationRead, auditReportRead);
+            // The list row carries no mileage, so a Case waiting only for its
+            // mileage reads its stage here; the Case page names the mileage (R759).
             missingRequirements = CaseCompletenessPolicy.Evaluate(
                 new(summary.InstructionComplete ?? false, summary.ImagesComplete ?? false),
-                configurationRead.Result).MissingRequirements;
+                configurationRead.Result,
+                mileageRecorded: true).MissingRequirements;
             firstRequirement = OriginalReportPolicy.IsMissing(
                 summary.CaseType, frame.StandaloneAuditEvidenceId, auditReportRead.Result)
                 ? OperatorLabels.OriginalReportMissing

@@ -843,13 +843,16 @@ internal sealed class EfQueuedCustodyProcessor(
             caseEntity.AuditCustodyRemoteId = auditFolderRemoteId;
             caseEntity.AuditCustodyConfirmedAtUtc = now;
         }
-        // Use the same factual completeness rule as intake acceptance.
+        // Use the same factual completeness rule as intake acceptance, the
+        // mileage gate included (R759).
         var completeness = new CaseCompleteness(
             caseEntity.InstructionComplete,
             caseEntity.ImagesComplete);
         if (authority.Workflow is { } workflow
             && workflow.State == CaseLifecycleState.NotReady.ToString()
-            && completeness.IsReadyForReview())
+            && completeness.IsReadyForReview(
+                await CaseInstructionCompleteness.MileageGateOpenAsync(
+                    context, caseEntity.Id, workflow.State, cancellationToken)))
         {
             workflow.State = CaseLifecycleState.Review.ToString();
         }

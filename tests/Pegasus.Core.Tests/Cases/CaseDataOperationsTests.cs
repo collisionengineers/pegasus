@@ -42,7 +42,8 @@ public sealed class CaseDataOperationsTests
     {
         var evaluation = CaseCompletenessPolicy.Evaluate(
             new(true, true),
-            Configuration);
+            Configuration,
+            mileageRecorded: true);
 
         Assert.True(evaluation.SatisfiesPolicy);
         Assert.Equal("test-case-workflow", evaluation.PolicyKey);

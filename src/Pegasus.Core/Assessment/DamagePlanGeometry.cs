@@ -40,8 +40,8 @@ public static class DamagePlanGeometry
 
     /// <summary>
     /// The outline of each drawing as the union of its parts (body, tyres,
-    /// mirrors; for the motorbike its frame, bars and exhaust too): where a
-    /// press on the plan starts a new damage.
+    /// mirrors; for the motorbike its frame, bars and exhaust too): a press on
+    /// it, or within <see cref="PressLeeway"/> of it, starts a new damage.
     /// </summary>
     public static IReadOnlyList<string> HitPaths(string profile) => profile switch
     {
@@ -58,6 +58,13 @@ public static class DamagePlanGeometry
     public const int PlanTop = 16;
     public const int PlanWidth = 156;
     public const int PlanHeight = 394;
+
+    /// <summary>
+    /// The leeway around the drawing's outline, in plan units: a press this
+    /// close to the vehicle starts a marker, and a marker's centre may sit
+    /// this far past the body box (operator, 8 November 2026; R758).
+    /// </summary>
+    public const int PressLeeway = 12;
 
     /// <summary>The dashed band lines shown while editing: Core's bands on this plan.</summary>
     public static string GuidesPath { get; } = FormattableString.Invariant(

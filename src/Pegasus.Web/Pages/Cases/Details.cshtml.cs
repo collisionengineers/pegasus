@@ -315,6 +315,8 @@ public sealed partial class DetailsModel(
             // The instruction row names the items still missing, by their field
             // labels, in place of the chase reason (FRD-13; operator, 2 November 2026).
             var missingInstructionItems = data.Completeness.MissingInstructionItems;
+            // No mileage (R759) is cleared on the Vehicle section, where the
+            // Mileage box is; Instructions and Images on the overview.
             requirements.AddRange(data.Completeness.Evaluation.MissingRequirements
                 .Select(requirement => new CaseRequirement(
                     Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete(requirement),
@@ -322,7 +324,9 @@ public sealed partial class DetailsModel(
                     requirement == "Instructions" && missingInstructionItems.Count > 0
                         ? string.Join(", ", missingInstructionItems)
                         : why,
-                    "overview")));
+                    requirement == Pegasus.Core.Workflow.CaseWorkflowConfiguration.VehicleMileageRequirement
+                        ? "vehicle"
+                        : "overview")));
             return requirements;
         }
     }
