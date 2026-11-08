@@ -24,7 +24,11 @@ namespace Pegasus.Infrastructure.Custody;
 /// and the pass carries on. When every Case's folders carry the new name, one
 /// <c>ActionHistory</c> row records the pass done and later starts do
 /// nothing; a pass with any failure records nothing and runs again at the
-/// next start.
+/// next start. The pass runs only once the <c>CaseReferenceSuffix</c>
+/// migration is applied: the destructive release route stages the Worker
+/// before SQL, and a Worker started on the old schema found no <c>-p</c> Case
+/// and recorded the pass done on Release 140 (#1895). Until the row is in
+/// <c>__EFMigrationsHistory</c> it touches nothing and records nothing.
 /// </remarks>
 internal sealed partial class CaseReferenceSuffixBoxRename(
     IServiceProvider services,
@@ -34,6 +38,9 @@ internal sealed partial class CaseReferenceSuffixBoxRename(
 {
     internal const string AggregateType = "case_reference_suffix";
     internal const string CompletedEventKind = "case_reference_suffix_box_renamed";
+
+    /// <summary>The migration that rewrote the references this pass renames folders for.</summary>
+    internal const string RequiredMigrationId = "20261104120000_CaseReferenceSuffix";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -70,6 +77,15 @@ internal sealed partial class CaseReferenceSuffixBoxRename(
                     cancellationToken))
             {
                 return true;
+            }
+
+            // The Worker's role reads the history table (20261108120000_WorkerReadsMigrationHistory);
+            // without the row the schema is the old one and the -p Cases are not there yet.
+            var applied = await context.Database.GetAppliedMigrationsAsync(cancellationToken);
+            if (!applied.Contains(RequiredMigrationId, StringComparer.Ordinal))
+            {
+                LogMigrationPending(logger, RequiredMigrationId);
+                return false;
             }
 
             cases = await context.Cases
@@ -206,6 +222,11 @@ internal sealed partial class CaseReferenceSuffixBoxRename(
         Level = LogLevel.Error,
         Message = "The -p Box folder rename could not run; it runs again at the next start.")]
     private static partial void LogPassFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "The -p Box folder rename waits for the {MigrationId} migration; nothing is renamed or recorded until it is applied.")]
+    private static partial void LogMigrationPending(ILogger logger, string migrationId);
 }
 
 /// <summary>One rewritten Case's Box folders, by the ids it recorded.</summary>

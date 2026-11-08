@@ -5,7 +5,10 @@ using System.Text;
 using System.Text.Json;
 using System.Web;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
@@ -1700,6 +1703,58 @@ public sealed class ProductionBoxCustodyTests
 
         Assert.True(box.PathExists("QDOS26158"));
         Assert.Equal(renames, box.RenameCount);
+    }
+
+    /// <summary>
+    /// The pass waits for the <c>CaseReferenceSuffix</c> migration: a Worker
+    /// staged before SQL (Release 140, #1895) reads no Case, asks Box nothing
+    /// and records nothing; once the migration row is there the same pass
+    /// records itself done.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public async Task TheSuffixPassRecordsNothingUntilItsMigrationIsApplied()
+    {
+        var box = new StatefulBox();
+        var client = CreateClient(box);
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureServices: services => services.AddSingleton(client));
+        await using var scope = database.CreateAsyncScope();
+        using var lifetime = new FakeLifetime();
+        var pass = new CaseReferenceSuffixBoxRename(
+            scope.ServiceProvider, lifetime, TimeProvider.System, NullLogger<CaseReferenceSuffixBoxRename>.Instance);
+        const string completedRows =
+            "SELECT COUNT(*) FROM dbo.ActionHistory WHERE EventKind = N'case_reference_suffix_box_renamed'";
+        await database.ExecuteAsync(
+            $"DELETE FROM dbo.__EFMigrationsHistory WHERE MigrationId = N'{CaseReferenceSuffixBoxRename.RequiredMigrationId}'");
+        var requests = box.Requests.Count;
+
+        Assert.False(await pass.RunAsync(default));
+
+        Assert.Equal(0, await database.ScalarAsync<int>(completedRows));
+        Assert.Equal(requests, box.Requests.Count);
+
+        await database.ExecuteAsync(
+            $"INSERT INTO dbo.__EFMigrationsHistory (MigrationId, ProductVersion) VALUES (N'{CaseReferenceSuffixBoxRename.RequiredMigrationId}', N'10.0.0')");
+
+        Assert.True(await pass.RunAsync(default));
+
+        Assert.Equal(1, await database.ScalarAsync<int>(completedRows));
+    }
+
+    private sealed class FakeLifetime : IHostApplicationLifetime, IDisposable
+    {
+        private readonly CancellationTokenSource started = new();
+
+        public CancellationToken ApplicationStarted => started.Token;
+        public CancellationToken ApplicationStopping => CancellationToken.None;
+        public CancellationToken ApplicationStopped => CancellationToken.None;
+
+        public void StopApplication()
+        {
+        }
+
+        public void Dispose() => started.Dispose();
     }
 
     private static BoxCaseCustody Create(DelegateHandler handler, IIntakeArtifactStore? artifactStore = null) => new(
