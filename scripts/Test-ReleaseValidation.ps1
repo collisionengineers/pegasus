@@ -982,7 +982,8 @@ try {
     $case = 'Destructive route, old Web still serving after stop'
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
     Assert-True ($result.Output.Contains('did not read back Stopped and unserved')) $case 'did not name the containment failure.' $result.Diagnostic
-    Assert-NoCall -Result $result -Case $case -Patterns @('azd *', 'az webapp deploy*', 'az webapp start*', 'az functionapp start*')
+    # The environment is read before any write (#1931); nothing is set or provisioned after the containment failure.
+    Assert-NoCall -Result $result -Case $case -Patterns @('azd env set*', 'azd provision*', 'az webapp deploy*', 'az webapp start*', 'az functionapp start*')
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments ($executeDestructive + @('-ApprovedOldWebSourceSha', $oldWebSha)) `
         -Estate (New-Estate -NewSha $releaseSha -WebState 'Stopped' -WebServing $false -WorkerState 'Stopped' -WorkerDisabled 'true' -ClassifierState 'Stopped') -MigrationHead 'old'
