@@ -318,8 +318,10 @@ if ($joined.StartsWith('functionapp config appsettings list')) {
 }
 if ($joined.StartsWith('functionapp deployment source config-zip')) {
     # As the CLI does for a Flex Consumption app: the id is a stderr warning
-    # and stdout is the status poll's dictionary without one (#1932).
-    [Console]::Error.WriteLine("WARNING: Deployment endpoint responded with status code 202 for deployment id `"$name-deployment-1`"")
+    # and stdout is the status poll's dictionary without one (#1932). The
+    # error stream, not [Console]::Error, so the caller's 2>&1 sees it as it
+    # sees a native command's stderr.
+    Write-Error -Message "WARNING: Deployment endpoint responded with status code 202 for deployment id `"$name-deployment-1`"" -ErrorAction Continue
     '{"status":4}'; exit 0
 }
 [Console]::Error.WriteLine("fake az: unhandled call: $joined"); exit 2
