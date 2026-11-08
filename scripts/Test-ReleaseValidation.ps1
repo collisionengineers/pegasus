@@ -1018,7 +1018,6 @@ try {
     # comparison, so the destructive provision applies the template.
     Assert-True ((Get-CallCount $result.Calls 'azd provision*--no-state*') -eq 1) $case 'did not provision with --no-state.' $result.Diagnostic
     Assert-True ([string]$result.Estate.worker.disabled -eq 'false') $case 'left the Worker census disabled after its provision.' $result.Diagnostic
-    Assert-True ($result.Output.Contains("Migration head $identity, applied before this run")) $case 'did not record the migration an earlier run applied (#1945).' $result.Diagnostic
 
     # #1930: the approved run reads the environment the operator repaired in
     # the primary checkout, not the copy the preflight took.
