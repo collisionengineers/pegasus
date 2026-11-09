@@ -1307,11 +1307,11 @@ public sealed partial class AssessmentEstimateImportWebTests
 
     /// <summary>
     /// Issue 1994: save as you go posts the whole Case form, and the Repair
-    /// Spec grid binds nine inputs a line to it, so a spec at Core's 200-line
-    /// bound is 1,800 values before the rest of the form. The framework's
-    /// default accepted 1,024 and refused a 108-line spec as a bare 400 before
-    /// any handler ran. The page's limit is sized from the bound, so the save
-    /// reaches the store with every line.
+    /// Spec grid binds nine inputs a line to it, so a spec at Core's line
+    /// ceiling (R767) is nine values a line before the rest of the form. The
+    /// framework's default accepted 1,024 and refused a 108-line spec as a
+    /// bare 400 before any handler ran. The page's limit is sized from the
+    /// ceiling, so the save reaches the store with every line.
     /// </summary>
     [Fact]
     public async Task ASaveCarryingASpecAtCoresLineBoundReachesTheStore()
@@ -1357,7 +1357,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var saved = Assert.Single(store.SavedEstimates);
         Assert.Equal(AssessmentPolicy.MaximumEstimateLines, saved.Lines!.Count);
-        Assert.Equal("Repair panel 200", saved.Lines[^1].Description);
+        Assert.Equal($"Repair panel {AssessmentPolicy.MaximumEstimateLines}", saved.Lines[^1].Description);
     }
 
     [Fact]

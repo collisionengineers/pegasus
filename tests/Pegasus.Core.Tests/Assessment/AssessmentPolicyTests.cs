@@ -776,6 +776,22 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
+    public void ASpecAtTheLineCeilingIsKeptAndOneLineMoreIsRefused()
+    {
+        // R767: the ceiling is the most the Case form and the printout carry.
+        var atCeiling = Enumerable.Range(0, AssessmentPolicy.MaximumEstimateLines)
+            .Select(_ => Line("repair") with { WorkUnits = 0.5m })
+            .ToList();
+        Assert.Equal(
+            AssessmentPolicy.MaximumEstimateLines,
+            AssessmentPolicy.NormalizeRepairSpecificationLines(atCeiling).Count);
+
+        atCeiling.Add(Line("repair") with { WorkUnits = 0.5m });
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            AssessmentPolicy.NormalizeRepairSpecificationLines(atCeiling));
+    }
+
+    [Fact]
     public void APricedToBeConfirmedLineIsPriced()
     {
         // The price wins, as pricing a To be confirmed line on the Case does.
