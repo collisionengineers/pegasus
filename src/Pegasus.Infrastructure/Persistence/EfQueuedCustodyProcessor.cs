@@ -457,8 +457,9 @@ internal sealed class EfQueuedCustodyProcessor(
         var recordedKeys = alreadyRecorded.ToHashSet(StringComparer.Ordinal);
         var added = false;
 
-        // The intake assets, preparations and tags of the files still to be
-        // recorded are read once for the completion, not once for each file.
+        // The intake assets, preparations, tags and photo link arrivals of the
+        // files still to be recorded are read once for the completion, not
+        // once for each file.
         var pendingAssetIds = retainedFiles
             .Where(file => file.IntakeAssetId is not null && !recordedKeys.Contains(file.OperationKey))
             .Select(file => file.IntakeAssetId!.Value)
@@ -469,7 +470,7 @@ internal sealed class EfQueuedCustodyProcessor(
             : await context.Set<IntakeAssetEntity>()
                 .Where(value => pendingAssetIds.Contains(value.Id))
                 .ToDictionaryAsync(value => value.Id, cancellationToken);
-        var (preparationsByAsset, tagsByAsset) =
+        var (preparationsByAsset, tagsByAsset, arrivalsByAsset) =
             await EfPreCaseImagePreparationStore.LoadForAssetsAsync(
                 context, pendingAssetIds, cancellationToken);
 
@@ -539,12 +540,14 @@ internal sealed class EfQueuedCustodyProcessor(
             if (file.IntakeAssetId is { } preparedAssetId)
             {
                 // Crop, rotation and tags made on the image before it had a Case
-                // travel with it onto the Case document.
+                // travel with it onto the Case document, and a photo link's
+                // image arrives in its basket (FRD-28).
                 EfPreCaseImagePreparationStore.ApplyToOccurrence(
                     context,
                     occurrence,
                     preparationsByAsset.GetValueOrDefault(preparedAssetId),
-                    [.. tagsByAsset[preparedAssetId]]);
+                    [.. tagsByAsset[preparedAssetId]],
+                    arrivalsByAsset.GetValueOrDefault(preparedAssetId));
             }
         }
         if (added)
@@ -1828,7 +1831,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 photograph.ContentLength,
                 photograph.ContentHash,
                 DocumentSemanticRole.Image,
-                $"{foldOperationKey}:photograph:{photograph.Id:N}",
+                IntakeImageOccurrenceIdentity.Folded(foldOperationKey, photograph.Id),
                 file.BoxFileId
                     ?? throw new InvalidDataException("A folded photograph has no recorded file identity."),
                 file.BoxVersionId,

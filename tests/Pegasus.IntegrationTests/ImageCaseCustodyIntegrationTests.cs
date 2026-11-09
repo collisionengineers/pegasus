@@ -1200,6 +1200,125 @@ public sealed class ImageCaseCustodyIntegrationTests
     }
 
     /// <summary>
+    /// A photo link's record folded into its Case files each photograph in
+    /// its basket (FRD-28; R775): the scene and the other vehicle arrive out
+    /// of the report, the other vehicle tagged Third party as the routing's
+    /// work, and a tag staff gave on the record stays. The Case page reads
+    /// each photograph's asset back from the fold's identity, so the story
+    /// keeps them (F-R14).
+    /// </summary>
+    [Fact]
+    public async Task AFoldedPhotoLinkRecordKeepsItsBasketsAndTheTagsStaffGaveIt()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var processor = services.GetRequiredService<IProcessQueuedCustody>();
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        var photographIds = await PhotographIdsAsync(services, memberReceiptIds);
+        await processor.ExecuteAsync(
+            await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody),
+            CancellationToken.None);
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            // The two photographs came from a website capture: the first as
+            // the accident scene, the second as the other vehicle.
+            var captureId = Guid.NewGuid();
+            context.PhotoCaptures.Add(new PhotoCaptureEntity
+            {
+                Id = captureId,
+                Origin = "website",
+                Destination = "vehicle_images",
+                NormalizedRegistration = "AB12CDE",
+                DetailsJson = "{}",
+                Mode = "guided",
+                CreatedAtUtc = now,
+                ExpiresAtUtc = now.AddDays(7)
+            });
+            context.PhotoCaptureItems.AddRange(
+                CaptureItem(
+                    captureId, 0, "scene", Pegasus.Core.PhotoCapture.PhotoCaptureStory.SceneGroup,
+                    memberReceiptIds[0], photographIds[0], now),
+                CaptureItem(
+                    captureId, 1, "other_vehicle", Pegasus.Core.PhotoCapture.PhotoCaptureStory.OtherVehicleGroup,
+                    memberReceiptIds[1], photographIds[1], now));
+            await context.SaveChangesAsync();
+        }
+        await services.GetRequiredService<ITagPreCaseImage>().ExecuteAsync(
+            new(
+                photographIds[0],
+                ImageTagVocabulary.CloseUpId,
+                true,
+                StaffActor(),
+                $"record-close-up:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+
+        var (caseId, _) = await SeedCaseWithFolderAsync(services, memberReceiptIds[0], "IMG26010");
+        var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
+        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+
+        await using var after = await contextFactory.CreateDbContextAsync();
+        var images = await after.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .ToListAsync();
+        Assert.Equal(2, images.Count);
+        var assetsByOccurrence = images.ToDictionary(
+            image => image.Id,
+            image => IntakeImageOccurrenceIdentity.TryReadAssetId(image.SourceOccurrenceIdentity, out var assetId)
+                ? assetId
+                : Guid.Empty);
+        var scene = Assert.Single(images, image => assetsByOccurrence[image.Id] == photographIds[0]);
+        var otherVehicle = Assert.Single(images, image => assetsByOccurrence[image.Id] == photographIds[1]);
+        Assert.False(scene.InReport);
+        Assert.False(otherVehicle.InReport);
+        var tags = await after.Set<DocumentOccurrenceTagEntity>().AsNoTracking()
+            .Where(item => item.OccurrenceId == scene.Id || item.OccurrenceId == otherVehicle.Id)
+            .ToListAsync();
+        var staffTag = Assert.Single(tags, tag => tag.OccurrenceId == scene.Id);
+        Assert.Equal(ImageTagVocabulary.CloseUpId, staffTag.TagId);
+        Assert.Equal(nameof(ActorKind.Staff), staffTag.AppliedByKind);
+        var arrivalTag = Assert.Single(tags, tag => tag.OccurrenceId == otherVehicle.Id);
+        Assert.Equal(ImageTagVocabulary.ThirdPartyId, arrivalTag.TagId);
+        Assert.Equal(nameof(ActorKind.SystemWorker), arrivalTag.AppliedByKind);
+        Assert.Equal(
+            Pegasus.Core.PhotoCapture.PhotoCaptureIntakeRules.RoutingActorId,
+            arrivalTag.AppliedBySubjectId);
+    }
+
+    /// <summary>One additional-information photo link item received as the given retained photograph.</summary>
+    private static PhotoCaptureItemEntity CaptureItem(
+        Guid captureId,
+        int ordinal,
+        string kind,
+        int storyGroup,
+        Guid intakeReceiptId,
+        Guid intakeAssetId,
+        DateTimeOffset receivedAtUtc) => new()
+    {
+        Id = Guid.NewGuid(),
+        CaptureId = captureId,
+        ClientItemId = Guid.NewGuid(),
+        Kind = kind,
+        Position = 1,
+        Batch = 1,
+        Ordinal = ordinal,
+        StoryGroup = storyGroup,
+        StorySequence = 1,
+        FileName = string.Create(CultureInfo.InvariantCulture, $"{storyGroup:00}-01 {kind}.png"),
+        MediaType = "image/png",
+        InReportOnArrival = false,
+        ContentHash = new string('a', 64),
+        ContentLength = PngBytes.Length,
+        IntakeReceiptId = intakeReceiptId,
+        IntakeAssetId = intakeAssetId,
+        ReceivedAtUtc = receivedAtUtc
+    };
+
+    /// <summary>
     /// Two filings can take the same next Case document number. The one that
     /// loses has already moved its files, so its failure is one the image
     /// custody retry policy re-arms. Any other duplicate stays unclassified.

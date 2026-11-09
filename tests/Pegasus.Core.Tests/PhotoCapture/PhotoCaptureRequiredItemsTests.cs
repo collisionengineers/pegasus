@@ -8,6 +8,9 @@ public sealed class PhotoCaptureRequiredItemsTests
     private static readonly string[] EmptyCaptureCodes =
         ["overview", "damage:fd:overview", "damage:fd:closer", "damage:fd:close-up", "plate", "dashboard"];
 
+    private static readonly string[] MarkedAreaStageCodes =
+        ["damage:fd:overview", "damage:fd:closer", "damage:fd:close-up"];
+
     [Fact]
     public void AnEmptyCaptureIsMissingTheOverviewsEachMarkedAreasStagesThePlateAndTheDashboard()
     {
@@ -26,6 +29,28 @@ public sealed class PhotoCaptureRequiredItemsTests
         var capture = Capture(details: new PhotoCaptureDetails(DamageAreas: ["fd"]));
 
         Assert.Empty(PhotoCaptureRequiredItems.Evaluate(capture, CompleteItems("fd"), vinRequired: false));
+    }
+
+    /// <summary>
+    /// A damage photo taken outside the marked areas counts towards no
+    /// area's required stages, whatever stage it was sent with (operator,
+    /// 9 November 2026; R802).
+    /// </summary>
+    [Fact]
+    public void ALooseDamagePhotoCountsTowardsNoAreasStages()
+    {
+        var capture = Capture(details: new PhotoCaptureDetails(DamageAreas: ["fd"]));
+        var items = CompleteItems("fd")
+            .Where(item => item.Kind != PhotoCaptureItemKind.Damage)
+            .Append(Item(PhotoCaptureItemKind.Damage, 1, null, PhotoCaptureStage.Overview))
+            .Append(Item(PhotoCaptureItemKind.Damage, 1, null, PhotoCaptureStage.Closer))
+            .Append(Item(PhotoCaptureItemKind.Damage, 1, null, PhotoCaptureStage.CloseUp))
+            .Append(Item(PhotoCaptureItemKind.Damage, 2))
+            .ToList();
+
+        var missing = PhotoCaptureRequiredItems.Evaluate(capture, items, vinRequired: false);
+
+        Assert.Equal(MarkedAreaStageCodes, missing.Select(item => item.Code));
     }
 
     [Fact]

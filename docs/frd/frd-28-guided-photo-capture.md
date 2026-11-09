@@ -144,6 +144,12 @@ still missing, the app asks **Could you add a few more?**, lists them, and
 offers **Add more** and **That’s everything** (operator, 9 November 2026;
 R787).
 
+A damage photo taken outside the marked areas, from **Add more** or the
+phone's own camera, is accepted. It files in a **Damage** group after the
+areas, named as in `015 04-03 Damage.jpg`, and counts towards no area's
+required stages; the app keeps the handover's **Other photos** heading for
+it (operator, 9 November 2026; R802).
+
 ### Routing and filing
 
 Each item is its own intake receipt on the Photo capture channel. A
@@ -156,7 +162,11 @@ and a capture keeps receiving, so a capture is not one group from the start.
   Cases, its incident date not contradicting the typed one;
   [FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)),
   file each item on the Case as it arrives: a receipt for a declared
-  destination, recorded as the routing's system work (R776).
+  destination. A Case link is the decision of the member of staff who sent
+  it, so its photos file on any Case that is not archived, including a
+  report-sent, closed or Triage Case; only the standing capture Pegasus
+  routed is recorded as the routing's system work (operator, 9 November
+  2026; R790, amending R776 for a Case link).
 - **A standing capture with no such Case** waits. Its receipts are
   processed, with no identification, never Unidentified and never held in
   Box holding. When the capture settles they are formed into one submission
@@ -194,8 +204,9 @@ original's upload fail, the compressed picture stands.
 The Case's Box folder stays flat: no subfolders (R775). An item is named by
 the Case's document number, its story position and a plain label, as in
 `014 02-03 Front driver corner closer.jpg`. The label uses only the app's
-own words: the angle, the zone and the stage, or Number plate, VIN,
-Dashboard, Accident scene, Other vehicle, Paperwork or Walk-around video.
+own words: the angle, the zone and the stage, or Damage (operator,
+9 November 2026; R802), Number plate, VIN, Dashboard, Accident scene,
+Other vehicle, Paperwork or Walk-around video.
 
 The **inspection images** (overview, damage, number plate, VIN and
 dashboard) arrive In report. The **additional information** (the scene, the

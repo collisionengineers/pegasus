@@ -46,7 +46,8 @@
 
     // Photo links (FRD-28; R774): the Case's images stand in each link's
     // story, matched to their occurrence by the intake asset the occurrence
-    // was filed from; everything else follows under Other images. The story
+    // was filed from, directly or through a Vehicle images record's fold;
+    // everything else follows under Other images. The story
     // block is the one ordering scope the grid otherwise is: a drop or a
     // typed order renumbers the report's places and moves no tile out of
     // its story group (case-workspace.js, the images binder).
@@ -54,7 +55,7 @@
     var imagesByAsset = new Dictionary<Guid, Pegasus.Core.Documents.CaseFile>();
     foreach (var image in images)
     {
-        if (Guid.TryParseExact(image.Occurrence.SourceOccurrenceIdentity.Trim(), "N", out var assetId))
+        if (Pegasus.Core.Intake.IntakeImageOccurrenceIdentity.TryReadAssetId(image.Occurrence.SourceOccurrenceIdentity, out var assetId))
         {
             imagesByAsset.TryAdd(assetId, image);
         }

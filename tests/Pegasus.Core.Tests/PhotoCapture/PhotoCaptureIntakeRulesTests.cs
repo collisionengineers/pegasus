@@ -1,3 +1,4 @@
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.PhotoCapture;
 
@@ -16,6 +17,85 @@ public sealed class PhotoCaptureIntakeRulesTests
         Assert.Contains(
             PhotoCaptureIntakeRules.BatchToken(captureId, 2),
             GroupedIntakeMemberToken.ParentTokenCandidates(PhotoCaptureIntakeRules.MemberToken(captureId, 2, 3)));
+    }
+
+    /// <summary>
+    /// An item's receipt names the item by its member token, so an evaluation
+    /// that lands before the item has recorded its receipt can still find it.
+    /// </summary>
+    [Theory]
+    [InlineData(1, 0)]
+    [InlineData(1, 1)]
+    [InlineData(3, 14)]
+    public void AMemberTokenReadsBackItsCaptureBatchAndOrdinal(int batch, int ordinal)
+    {
+        var captureId = Guid.NewGuid();
+
+        Assert.True(PhotoCaptureIntakeRules.TryReadMemberToken(
+            PhotoCaptureIntakeRules.MemberToken(captureId, batch, ordinal),
+            out var readCapture,
+            out var readBatch,
+            out var readOrdinal));
+        Assert.Equal((captureId, batch, ordinal), (readCapture, readBatch, readOrdinal));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("11111111111111111111111111111111")]
+    [InlineData("11111111111111111111111111111111-0")]
+    [InlineData("11111111111111111111111111111111-x")]
+    [InlineData("11111111111111111111111111111111-1:0")]
+    [InlineData("11111111111111111111111111111111-1:x")]
+    [InlineData("not-a-capture-1")]
+    public void ATokenNoCaptureWroteReadsAsNoItem(string? token)
+    {
+        Assert.False(PhotoCaptureIntakeRules.TryReadMemberToken(token, out var captureId, out var batch, out var ordinal));
+        Assert.Equal((Guid.Empty, 0, 0), (captureId, batch, ordinal));
+    }
+
+    /// <summary>
+    /// A link sent from a Case is the decision of the member of staff who
+    /// sent it, so its photos file on any Case that is not archived; a
+    /// capture from a standing or website link that Pegasus routed is the
+    /// routing's system work. Each records its own reason (operator,
+    /// 9 November 2026; R790, R805).
+    /// </summary>
+    [Theory]
+    [InlineData(PhotoCaptureOrigin.CaseLink, true)]
+    [InlineData(PhotoCaptureOrigin.StandingStaff, false)]
+    [InlineData(PhotoCaptureOrigin.StandingForwarded, false)]
+    [InlineData(PhotoCaptureOrigin.Website, false)]
+    public void OnlyALinkSentFromACaseIsTheIssuingStaffMembersDecision(PhotoCaptureOrigin origin, bool staffDecides)
+    {
+        var issuer = Guid.NewGuid();
+        var capture = PhotoCaptureTestData.Capture(origin) with { IssuedByStaffId = issuer };
+
+        var decider = PhotoCaptureIntakeRules.DeclaredDestinationDecider(capture);
+        var reason = PhotoCaptureIntakeRules.DeclaredDestinationReason(capture);
+
+        if (staffDecides)
+        {
+            Assert.Equal(ActorKind.Staff, decider.Kind);
+            Assert.Equal(issuer.ToString("D"), decider.SubjectId);
+            Assert.Equal("Destination declared by the photo link sent from this Case.", reason);
+        }
+        else
+        {
+            Assert.Equal(ActorKind.SystemWorker, decider.Kind);
+            Assert.Equal(PhotoCaptureIntakeRules.RoutingActorId, decider.SubjectId);
+            Assert.Equal("Destination chosen from the registration typed on the photo link.", reason);
+        }
+    }
+
+    [Fact]
+    public void ACaptureThatCouldNotBeReadOrNamesNoIssuerIsTakenAsRouted()
+    {
+        Assert.Equal(ActorKind.SystemWorker, PhotoCaptureIntakeRules.DeclaredDestinationDecider(null).Kind);
+        Assert.Equal(
+            ActorKind.SystemWorker,
+            PhotoCaptureIntakeRules.DeclaredDestinationDecider(PhotoCaptureTestData.Capture()).Kind);
+        Assert.Equal(PhotoCaptureIntakeRules.RoutedDestinationReason, PhotoCaptureIntakeRules.DeclaredDestinationReason(null));
     }
 
     [Fact]

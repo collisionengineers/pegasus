@@ -805,11 +805,16 @@ public sealed class ProcessQueuedIntake(
     IIntakeSubmissionGroupStore? submissionGroups = null,
     ICaseStaffNotifier? caseNotifier = null,
     PromoteAssociatedIntakeCaseEvidence? promoteAssociatedCaseEvidence = null,
-    IIntakeMutationStore? mutationStore = null) : IProcessQueuedIntake
+    IIntakeMutationStore? mutationStore = null,
+    PhotoCapture.IPhotoCaptureStore? photoCaptures = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
 
-    /// <summary>The reason every declared-destination link records (FRD-18 Add evidence).</summary>
+    /// <summary>
+    /// The reason a staff upload's declared-destination link records (FRD-18
+    /// Add evidence); a photo link's names its own decider
+    /// (<see cref="PhotoCapture.PhotoCaptureIntakeRules.DeclaredDestinationReason"/>).
+    /// </summary>
     internal const string DeclaredDestinationReason = "Destination declared by staff on upload.";
 
     /// <summary>
@@ -1299,18 +1304,24 @@ public sealed class ProcessQueuedIntake(
         }
 
         // A member of staff declared the Case on upload (FRD-18); a photo
-        // link's capture declared it when HQ issued the link for the Case or
-        // when its typed registration routed to the one eligible Case
-        // (FRD-28), and the link is recorded as that routing's system work.
+        // link's capture declared it when HQ issued the link for the Case, the
+        // decision of the member of staff who sent it, or when its typed
+        // registration routed to the one eligible Case, the routing's system
+        // work (FRD-28; R790). The capture is read once, here, to tell which.
         ActionActor decider;
+        var reason = DeclaredDestinationReason;
         if (IntakeActorIdentity.TryParseStaff(stagedReceipt.Actor, out var staffSubjectId)
             && Guid.TryParse(staffSubjectId, out var staffId))
         {
             decider = ActionActor.Staff(staffId, [StaffRole.User]);
         }
-        else if (IntakeActorIdentity.TryParsePhotoCapture(stagedReceipt.Actor, out _))
+        else if (IntakeActorIdentity.TryParsePhotoCapture(stagedReceipt.Actor, out var captureId))
         {
-            decider = ActionActor.SystemWorker(PhotoCapture.PhotoCaptureIntakeRules.RoutingActorId);
+            var capture = photoCaptures is null
+                ? null
+                : await photoCaptures.GetAsync(captureId, cancellationToken);
+            decider = PhotoCapture.PhotoCaptureIntakeRules.DeclaredDestinationDecider(capture);
+            reason = PhotoCapture.PhotoCaptureIntakeRules.DeclaredDestinationReason(capture);
         }
         else
         {
@@ -1324,7 +1335,7 @@ public sealed class ProcessQueuedIntake(
                 declaredCaseId,
                 decider,
                 $"declared-destination:{receipt.Id:N}",
-                DeclaredDestinationReason),
+                reason),
             timeProvider.GetUtcNow(),
             cancellationToken);
         Activity.Current?.SetTag("intake.declared_destination", outcome.ToString());

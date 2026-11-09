@@ -1,4 +1,5 @@
 using System.Globalization;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.PhotoCapture;
@@ -13,12 +14,87 @@ public static class PhotoCaptureIntakeRules
     public const string SettleActorId = "photo-capture-settle";
     public const string RoutingActorId = "photo-capture-routing";
 
+    /// <summary>The Intake log's reason for a photo filed on the Case its link was sent from (operator, 9 November 2026; R805).</summary>
+    public const string CaseLinkDestinationReason = "Destination declared by the photo link sent from this Case.";
+
+    /// <summary>The Intake log's reason for a photo filed on the one Case its typed registration routed to (R805).</summary>
+    public const string RoutedDestinationReason = "Destination chosen from the registration typed on the photo link.";
+
+    /// <summary>The Intake log's reason for a photo that waits for its capture to be sent (R805).</summary>
+    public const string WaitingReason = "Photo link item: waiting for its capture to be sent; no identification ran.";
+
     /// <summary>The submission token of one capture's batch; its members follow <see cref="GroupedIntakeMemberToken"/>.</summary>
     public static string BatchToken(Guid captureId, int batch) =>
         string.Create(CultureInfo.InvariantCulture, $"{captureId:N}-{batch}");
 
     public static string MemberToken(Guid captureId, int batch, int ordinal) =>
         GroupedIntakeMemberToken.Create(BatchToken(captureId, batch), ordinal);
+
+    /// <summary>
+    /// The inverse of <see cref="MemberToken"/>: the capture, batch and
+    /// ordinal an item's receipt token names, so the item can be found by its
+    /// receipt before it has recorded which staged receipt it became.
+    /// </summary>
+    public static bool TryReadMemberToken(string? memberToken, out Guid captureId, out int batch, out int ordinal)
+    {
+        captureId = Guid.Empty;
+        batch = 0;
+        ordinal = 0;
+        if (string.IsNullOrWhiteSpace(memberToken))
+        {
+            return false;
+        }
+
+        var batchToken = memberToken;
+        var separator = memberToken.LastIndexOf(':');
+        if (separator >= 0)
+        {
+            // Create writes no ":0": the first member carries the batch token alone.
+            if (!int.TryParse(memberToken.AsSpan(separator + 1), NumberStyles.None, CultureInfo.InvariantCulture, out ordinal)
+                || ordinal < 1)
+            {
+                ordinal = 0;
+                return false;
+            }
+
+            batchToken = memberToken[..separator];
+        }
+
+        var dash = batchToken.IndexOf('-', StringComparison.Ordinal);
+        if (dash < 0
+            || !Guid.TryParseExact(batchToken[..dash], "N", out captureId)
+            || !int.TryParse(batchToken.AsSpan(dash + 1), NumberStyles.None, CultureInfo.InvariantCulture, out batch)
+            || batch < 1)
+        {
+            captureId = Guid.Empty;
+            batch = 0;
+            ordinal = 0;
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Who decided where a capture's photos file (operator, 9 November 2026;
+    /// R790): a link sent from a Case is the decision of the member of staff
+    /// who sent it, so its photos file on any Case that is not archived; a
+    /// capture Pegasus routed to its one Case is the routing's system work.
+    /// A capture that could not be read is taken as routed.
+    /// </summary>
+    public static ActionActor DeclaredDestinationDecider(PhotoCapture? capture) =>
+        IssuingStaffMember(capture) is { } staffId
+            ? ActionActor.Staff(staffId, [StaffRole.User])
+            : ActionActor.SystemWorker(RoutingActorId);
+
+    /// <summary>The Intake log's reason for <see cref="DeclaredDestinationDecider"/>'s decision: one per decider (R805).</summary>
+    public static string DeclaredDestinationReason(PhotoCapture? capture) =>
+        IssuingStaffMember(capture) is null ? RoutedDestinationReason : CaseLinkDestinationReason;
+
+    private static Guid? IssuingStaffMember(PhotoCapture? capture) =>
+        capture is { Origin: PhotoCaptureOrigin.CaseLink, IssuedByStaffId: { } staffId } && staffId != Guid.Empty
+            ? staffId
+            : null;
 
     /// <summary>The deterministic group id of one batch, so a settle that is retried creates no second group.</summary>
     public static Guid BatchGroupId(Guid captureId, int batch)

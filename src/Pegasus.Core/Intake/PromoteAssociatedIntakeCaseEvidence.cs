@@ -229,6 +229,42 @@ public static class AutomaticCaseEvidencePromotionOperationKey
 }
 
 /// <summary>
+/// The source-occurrence identity a received photograph takes on its Case,
+/// and its inverse. Filed by itself it is the intake asset's id
+/// (<see cref="PromoteAssociatedIntakeCaseEvidence"/>); folded in with a
+/// Vehicle images record it is the fold's own key for that photograph
+/// (FRD-19). The Case page reads the asset back from either, so a photo
+/// link's photographs keep their story on the Case however they came
+/// (FRD-28).
+/// </summary>
+public static class IntakeImageOccurrenceIdentity
+{
+    private const string FoldedPhotographSegment = ":photograph:";
+
+    public static string Folded(string foldOperationKey, Guid assetId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(foldOperationKey);
+        return $"{foldOperationKey}{FoldedPhotographSegment}{assetId:N}";
+    }
+
+    public static bool TryReadAssetId(string? occurrenceIdentity, out Guid assetId)
+    {
+        assetId = Guid.Empty;
+        if (string.IsNullOrWhiteSpace(occurrenceIdentity))
+        {
+            return false;
+        }
+
+        var identity = occurrenceIdentity.Trim();
+        var folded = identity.LastIndexOf(FoldedPhotographSegment, StringComparison.Ordinal);
+        return Guid.TryParseExact(
+            folded < 0 ? identity : identity[(folded + FoldedPhotographSegment.Length)..],
+            "N",
+            out assetId);
+    }
+}
+
+/// <summary>
 /// The role a retained intake file takes when it is filed on a Case, by this
 /// filer, by the image fold or by Case creation: a photograph is an image,
 /// even when it is the received file itself (a photograph uploaded to a

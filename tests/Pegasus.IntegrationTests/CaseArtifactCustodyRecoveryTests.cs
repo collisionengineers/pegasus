@@ -1259,6 +1259,68 @@ public sealed class CaseArtifactCustodyRecoveryTests
     }
 
     /// <summary>
+    /// A photo link's photographs complete the Case's images when its capture
+    /// settles, never as the first one files (R781): the filing plan keeps
+    /// the hold-back its request asked for, so the confirmed photograph
+    /// leaves the images incomplete. The same filing without the hold-back
+    /// completes them (FRD-13).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TheStoredPlanKeepsAPhotoLinksHoldBackOnTheCasesImages(bool defers)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using (var seed = await database.CreateContextAsync())
+        {
+            // Completing the images re-evaluates readiness from the Case's data.
+            seed.Add(new CaseDataSnapshotEntity
+            {
+                WorkId = caseId,
+                CompletenessPolicyKey = "case_completeness",
+                CompletenessPolicyVersion = 1,
+                CompletenessPolicySatisfied = false,
+                AcceptedAtUtc = DateTimeOffset.UtcNow
+            });
+            await seed.SaveChangesAsync();
+        }
+        var request = await AssociatedEvidenceRequestAsync(
+            database, caseId, ActorKind.SystemWorker, expectedCaseVersion: 0,
+            "photo link evidence"u8.ToArray());
+        var receiptId = request.IntakeReceiptId!.Value;
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+
+        var preparation = await new EfIntakeMutationStore(factory).PrepareAsync(
+            new(
+                receiptId,
+                caseId,
+                [Guid.ParseExact(request.OccurrenceIdentity, "N")],
+                HasSelectedPhotographs: true,
+                DefersCaseImageCompletion: defers),
+            default);
+        var filed = await new EfCaseArtifactCustody(
+                factory, new SuccessfulContentStore(), new MemoryArtifactStore(), TimeProvider.System)
+            .RetainAsync(request, default);
+
+        Assert.Equal(AutomaticCaseEvidencePromotionPreparationDisposition.Ready, preparation.Disposition);
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, filed.Disposition);
+        await using var db = await database.CreateContextAsync();
+        var plan = JsonSerializer.Deserialize<AutomaticCaseEvidencePromotionPlan>(
+            (await db.IntakeMutationHistory.AsNoTracking()
+                .SingleAsync(item => item.OperationKey == AutomaticCaseEvidencePromotionOperationKey.Plan(receiptId)))
+            .AfterJson!);
+        Assert.Equal(defers, plan!.DefersCaseImageCompletion);
+        Assert.True(plan.HasSelectedPhotographs);
+        Assert.True(await db.IntakeMutationHistory.AnyAsync(
+            item => item.OperationKey == $"case-intake-promotion-complete:{receiptId:N}"));
+        Assert.Equal(
+            !defers,
+            await db.Cases.Where(item => item.Id == caseId).Select(item => item.ImagesComplete).SingleAsync());
+    }
+
+    /// <summary>
     /// A deadlock in either custody step is retried by
     /// <c>StoreConcurrencyRetry</c> on a context of its own: the filing is
     /// confirmed, the bytes are written once, and the step that failed asked
