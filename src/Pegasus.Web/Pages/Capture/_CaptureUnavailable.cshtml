@@ -1,0 +1,23 @@
+@model Pegasus.Web.Pages.Capture.CaptureCardView
+@* The capture surface's card: the unavailable link, or a status code reached
+   on /c or /s. A whole document in the app's own styling (FRD-28); it leads
+   nowhere in the staff application. *@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Collision Engineers – Vehicle photo capture</title>
+    <link rel="stylesheet" href="~/capture/capture.css" asp-append-version="true">
+</head>
+<body>
+    <div class="app">
+        <header class="bar"><img src="~/capture/img/logo.webp" asp-append-version="true" alt="Collision Engineers" width="82" height="46"></header>
+        <main>
+            <h1>@Model.Heading</h1>
+            <p class="lede">@Model.Line</p>
+        </main>
+    </div>
+</body>
+</html>

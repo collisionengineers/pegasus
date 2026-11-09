@@ -3,7 +3,7 @@ using Pegasus.Web;
 
 namespace Pegasus.IntegrationTests;
 
-public sealed class GlassCallbackTelemetryInitializerTests
+public sealed class SecretPathTelemetryInitializerTests
 {
     [Fact]
     public void GlassCallbackRequestUrlDropsTheCorrelationQueryAndFragment()
@@ -17,7 +17,7 @@ public sealed class GlassCallbackTelemetryInitializerTests
         };
         telemetry.Context.Operation.Id = "operation-id";
 
-        new GlassCallbackTelemetryInitializer().Initialize(telemetry);
+        new SecretPathTelemetryInitializer().Initialize(telemetry);
 
         Assert.Equal(
             "https://pegasus.example/Integrations/Glass/Callback/%7Bcorrelation%7D",
@@ -28,12 +28,45 @@ public sealed class GlassCallbackTelemetryInitializerTests
     }
 
     [Fact]
+    public void PhotoLinkRequestDropsTheTokenFromTheUrlAndTheName()
+    {
+        const string token = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        var telemetry = new RequestTelemetry
+        {
+            Name = "GET /c/" + token,
+            ResponseCode = "404",
+            Url = new Uri("https://pegasus.example/c/" + token)
+        };
+
+        new SecretPathTelemetryInitializer().Initialize(telemetry);
+
+        Assert.Equal("https://pegasus.example/c/%7Btoken%7D", telemetry.Url.AbsoluteUri);
+        Assert.Equal("GET /c/{token}", telemetry.Name);
+        Assert.DoesNotContain(token, telemetry.Url.AbsoluteUri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StandingLinkRequestDropsTheSlugFromTheUrl()
+    {
+        var telemetry = new RequestTelemetry
+        {
+            Name = "GET /s/{slug}",
+            Url = new Uri("https://pegasus.example/s/abcdefghjkmn")
+        };
+
+        new SecretPathTelemetryInitializer().Initialize(telemetry);
+
+        Assert.Equal("https://pegasus.example/s/%7Bslug%7D", telemetry.Url.AbsoluteUri);
+        Assert.Equal("GET /s/{slug}", telemetry.Name);
+    }
+
+    [Fact]
     public void OtherRequestUrlsAreUnchanged()
     {
         var url = new Uri("https://pegasus.example/Cases/123?tab=documents");
         var telemetry = new RequestTelemetry { Url = url };
 
-        new GlassCallbackTelemetryInitializer().Initialize(telemetry);
+        new SecretPathTelemetryInitializer().Initialize(telemetry);
 
         Assert.Same(url, telemetry.Url);
     }
@@ -47,7 +80,7 @@ public sealed class GlassCallbackTelemetryInitializerTests
             Data = "https://api.box.com/2.0/files/content"
         };
 
-        new GlassCallbackTelemetryInitializer().Initialize(telemetry);
+        new SecretPathTelemetryInitializer().Initialize(telemetry);
 
         Assert.Equal("https://api.box.com/2.0/files/content", telemetry.Data);
     }

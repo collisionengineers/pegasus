@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Pegasus.Web.PhotoCapture;
 
 namespace Pegasus.Web.Pages;
 
@@ -24,9 +25,21 @@ public sealed class StatusCodeModel : PageModel, Pegasus.Web.Presentation.IShell
     public string Explanation { get; private set; } =
         "Try again, and if it keeps failing, tell your administrator.";
 
+    /// <summary>
+    /// Whether the status was reached on the public capture surface (a rate
+    /// limit on <c>/c</c> or <c>/s</c>): it is answered in the capture app's
+    /// own card, with nothing that leads into the staff application.
+    /// </summary>
+    public bool IsCaptureSurface { get; private set; }
+
     public void OnGet(int code)
     {
         var isSignInSurface = IsStaffSignInSurface();
+        IsCaptureSurface = IsCapturePath(OriginalPath());
+        if (IsCaptureSurface)
+        {
+            CaptureResponseHeaders.Apply(Response);
+        }
 
         switch (code)
         {
@@ -59,6 +72,11 @@ public sealed class StatusCodeModel : PageModel, Pegasus.Web.Presentation.IShell
 
     private bool IsStaffSignInSurface() =>
         string.Equals(OriginalPath(), "/Account/SignIn", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsCapturePath(string? path) =>
+        path is not null
+        && (path.StartsWith(PhotoCaptureSurface.LinkPathPrefix + "/", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(PhotoCaptureSurface.StandingPathPrefix + "/", StringComparison.OrdinalIgnoreCase));
 
     private string? OriginalPath() => HttpContext
         .Features

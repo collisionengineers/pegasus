@@ -1,0 +1,18 @@
+@* The markup of wwwroot/capture/shell.html, which owns it: the element ids
+   capture.js needs. The logo's placeholder is its fingerprinted address; the
+   two JSON blocks are emitted by _CaptureDocument. *@
+<div class="app" id="app">
+  <header class="bar">
+    <img id="logo" src="~/capture/img/logo.webp" asp-append-version="true" alt="Collision Engineers" width="82" height="46">
+    <span class="step" id="stepLabel"></span>
+  </header>
+  <div class="progress"><i id="prog"></i></div>
+  <main id="main"></main>
+  <footer class="cta" id="cta"></footer>
+</div>
+<div class="proto-note" id="note"></div>
+
+<input type="file" id="fileMulti" accept="image/*" capture="environment" multiple class="hidden">
+<input type="file" id="fileSingle" accept="image/*" capture="environment" class="hidden">
+<input type="file" id="fileVideo" accept="video/*" capture="environment" class="hidden">
+<input type="file" id="fileDocs" accept="application/pdf,image/*" multiple class="hidden">

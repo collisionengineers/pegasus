@@ -1,0 +1,40 @@
+<!--
+  Photo capture shell: the exact markup the Razor page emits inside <body>.
+  The page itself (not this file) supplies, in <head>: lang="en-GB" on <html>,
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">,
+  the title "Collision Engineers – Vehicle photo capture", the stylesheet
+  /capture/capture.css and /capture/capture.js as a deferred classic script
+  element. No site layout, no other CSS or script.
+
+  Placeholders the page fills:
+    __LOGO_URL__                 fingerprinted URL of img/logo.webp
+    __CAPTURE_ASSETS_JSON__      {"logo":"…","guide":"…","car-top":"…","1":"…",…,"8":"…","d/fd-1-o":"…",…}
+                                 keyed by the path under img/ without the extension (see README.md)
+    __CAPTURE_CONTEXT_JSON__     the link context (same shape as GET /capture/api/v1/context);
+                                 may be omitted, capture.js then waits for GET context
+  Both JSON blocks must be encoded so they cannot close the element early
+  (System.Text.Json's default encoder escapes < and > as < / >).
+
+  Element ids capture.js needs:
+    app (wrapper), logo, stepLabel, prog, main, cta, note,
+    fileMulti, fileSingle, fileVideo, fileDocs,
+    capture-assets, capture-context
+-->
+<div class="app" id="app">
+  <header class="bar">
+    <img id="logo" src="__LOGO_URL__" alt="Collision Engineers" width="82" height="46">
+    <span class="step" id="stepLabel"></span>
+  </header>
+  <div class="progress"><i id="prog"></i></div>
+  <main id="main"></main>
+  <footer class="cta" id="cta"></footer>
+</div>
+<div class="proto-note" id="note"></div>
+
+<input type="file" id="fileMulti" accept="image/*" capture="environment" multiple class="hidden">
+<input type="file" id="fileSingle" accept="image/*" capture="environment" class="hidden">
+<input type="file" id="fileVideo" accept="video/*" capture="environment" class="hidden">
+<input type="file" id="fileDocs" accept="application/pdf,image/*" multiple class="hidden">
+
+<script type="application/json" id="capture-assets">__CAPTURE_ASSETS_JSON__</script>
+<script type="application/json" id="capture-context">__CAPTURE_CONTEXT_JSON__</script>
