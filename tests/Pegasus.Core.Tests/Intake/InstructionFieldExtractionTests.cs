@@ -352,4 +352,36 @@ public sealed class InstructionFieldExtractionTests
         IReadOnlyList<InstructionReviewField> fields,
         string name) =>
         Assert.Single(Field(fields, name).Candidates);
+
+    /// <summary>
+    /// Every label pattern the engine scans a line with has a budget a
+    /// stalled host can meet: the patterns are bounded, and the 100 ms budget
+    /// they had timed out on a loaded CI runner (#1822).
+    /// </summary>
+    [Fact]
+    public void EveryLabelPatternHasAtLeastOneSecondToMatch()
+    {
+        InstructionFieldEngine.FieldDefinition[] definitions =
+            [ClaimNumber, Registration, VehicleModel, VatStatus, InstructionDate];
+        var cache = new InstructionFieldEngine.LabelRegexCache(definitions);
+
+        foreach (var definition in definitions)
+        {
+            for (var index = 0; index < definition.Labels.Length; index++)
+            {
+                foreach (var pattern in new[]
+                {
+                    cache.Candidate(definition, index, requiresExplicitSeparator: false),
+                    cache.Candidate(definition, index, requiresExplicitSeparator: true),
+                    cache.StartsWith(definition, index),
+                    cache.FollowingLabel(definition, index),
+                })
+                {
+                    Assert.True(
+                        pattern.MatchTimeout >= TimeSpan.FromSeconds(1),
+                        $"{definition.Labels[index]} matches within {pattern.MatchTimeout}.");
+                }
+            }
+        }
+    }
 }

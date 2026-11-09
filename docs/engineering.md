@@ -223,6 +223,17 @@ reference (30 October 2026):
   affects and the forward-only recovery boundary; uncertainty is resolved
   before approval. There are no expand/contract pairs
   ([ADR-0002](adr/0002-dotnet-modular-monolith-on-azure.md), amended by R605).
+- Declaration (8 November 2026, R760, R761, #1845). CI classifies each
+  migration a pull request changes from the operations its `Up` runs
+  (`scripts/Test-MigrationClass.ps1`). An additive one passes. One that drops,
+  renames or narrows (a Drop, a Rename or an `AlterColumn`; a `DropIndex` that
+  swaps an index for its filtered form stays additive, R432) fails unless the
+  body's `## Migration` section declares it non-additive and names the
+  destructive route, whatever else the section says. Raw SQL cannot be
+  classified by keyword, so a migration whose `Up` runs it fails until that
+  section declares its class. The body declares the class and the route only;
+  the window stays in the release approval (R605,
+  [ADR-0046](adr/0046-destructive-migration-runtime-shutdown.md)).
 
 `Invoke-ProductionAdministratorBootstrap.ps1` runs only when a release changes
 administrator bootstrap behaviour or the approved task requires administrator

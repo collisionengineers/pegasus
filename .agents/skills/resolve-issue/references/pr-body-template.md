@@ -23,6 +23,10 @@ Closes #<N>
 Each decision the investigation raised and the answer given, with the date
 and where (issue comment, chat). "None" if the path was clear.
 
+## Migration
+
+<!-- None, or: additive / non-additive (list the operations) and the destructive route (R760, R761; docs/engineering.md#migrations) -->
+
 ## How verified
 
 - What CI proves on this head: the lanes and the owning test classes

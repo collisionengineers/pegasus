@@ -438,6 +438,20 @@ internal sealed partial class BoxContentClient(
     /// </summary>
     internal sealed record BoxUpload(BoxItem File, bool Created);
 
+    /// <summary>
+    /// What an upload of a series file's next version came to: the version
+    /// (<paramref name="Upload"/>), or none, either because the file is no
+    /// longer live in the folder (<see cref="BoxNextVersion.NotLive"/>) or
+    /// because Box took another version of it during the upload twice over
+    /// (<see cref="BoxNextVersion.Contended"/>; R764).
+    /// </summary>
+    internal sealed record BoxNextVersion(BoxUpload? Upload, bool IsContended)
+    {
+        public static BoxNextVersion NotLive { get; } = new(null, IsContended: false);
+
+        public static BoxNextVersion Contended { get; } = new(null, IsContended: true);
+    }
+
     public string RootFolderId => options.RootFolderId;
 
     public Task<IReadOnlyList<BoxItem>> ListChildrenAsync(
@@ -875,12 +889,15 @@ internal sealed partial class BoxContentClient(
     /// bytes, this content was filed by an attempt whose answer was lost, and
     /// that version is the answer (<see cref="BoxUpload.Created"/> false).
     /// Otherwise the upload names the file's etag, so a version Box took in
-    /// between is a 412: the file is read again and compared once more, and a
-    /// second 412 is a 409 failure, which leaves the document pending for
-    /// reconciliation. Null means the file is no longer a live file in the
-    /// folder, and the caller files the content as a file of its own.
+    /// between is a 412: the file is read again and compared once more. There
+    /// are three answers: the version, uploaded or found; no version because
+    /// the file is no longer a live file in the folder
+    /// (<see cref="BoxNextVersion.NotLive"/>), when the caller files the
+    /// content as a file of its own; and no version because a second 412 came
+    /// back (<see cref="BoxNextVersion.Contended"/>), when nothing was filed
+    /// and the document stays pending for reconciliation (R764).
     /// </remarks>
-    internal async Task<BoxUpload?> UploadNextVersionVerifiedAsync(
+    internal async Task<BoxNextVersion> UploadNextVersionVerifiedAsync(
         ProvedFolder folder,
         string fileId,
         string fileName,
@@ -902,11 +919,11 @@ internal sealed partial class BoxContentClient(
                 var current = await ReadFileInFolderAsync(folder, fileId, cancellationToken);
                 if (current is null)
                 {
-                    return null;
+                    return BoxNextVersion.NotLive;
                 }
                 if (await HoldsContentAsync(current, folder, contentLength, normalizedHash, cancellationToken))
                 {
-                    return new(current, Created: false);
+                    return new(new BoxUpload(current, Created: false), IsContended: false);
                 }
                 content.Position = startPosition;
                 var name = string.Equals(NameAfterNumber(current.Name), fileName, StringComparison.Ordinal)
@@ -935,12 +952,11 @@ internal sealed partial class BoxContentClient(
                     {
                         continue;
                     }
-                    throw new HttpRequestException(
-                        "Box took another version of the series file during the upload; retry reconciliation later.",
-                        null,
-                        HttpStatusCode.Conflict);
+                    return BoxNextVersion.Contended;
                 }
-                return new(await ReadUploadedFileAsync(response, folder, cancellationToken), Created: true);
+                return new(
+                    new BoxUpload(await ReadUploadedFileAsync(response, folder, cancellationToken), Created: true),
+                    IsContended: false);
             }
         }
         finally

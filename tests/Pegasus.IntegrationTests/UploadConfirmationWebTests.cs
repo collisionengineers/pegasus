@@ -13,6 +13,7 @@ using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Presentation;
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -334,7 +335,9 @@ public sealed class UploadConfirmationWebTests
             Assert.Contains("200.0 MB per upload", picker, StringComparison.Ordinal);
             Assert.Contains("data-max-bytes=\"100000000\"", picker, StringComparison.Ordinal);
             Assert.Contains("data-max-total=\"200000000\"", picker, StringComparison.Ordinal);
-            Assert.DoesNotContain("MiB", picker, StringComparison.Ordinal);
+            // The visible copy only: the page also carries the anti-forgery token
+            // and asset hashes, random text that can spell "MiB" (#1978).
+            Assert.DoesNotContain("MiB", VisibleText(picker), StringComparison.Ordinal);
         }
 
         // The declared card still carries the reference, registration ·

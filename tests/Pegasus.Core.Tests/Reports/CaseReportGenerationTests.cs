@@ -666,14 +666,17 @@ public sealed class CaseReportGenerationTests
     /// <summary>
     /// The report is filed under the name frozen with its snapshot, the
     /// Principal's or the standard one (R740); each companion under the name
-    /// its renderer gives it.
+    /// its renderer gives it. Each kind is filed in the series of its work and
+    /// kind, and a repair specification in that of the estimate it prints as
+    /// well, so a regeneration is the next Box version of the same file
+    /// (operator, 4 November 2026).
     /// </summary>
     [Theory]
     [InlineData(CaseReportArtifactKind.AssessmentReport, "AB12CDE_CE-100_AUDIT.pdf")]
     [InlineData(CaseReportArtifactKind.FeeNote, "FeeNote.pdf")]
     [InlineData(CaseReportArtifactKind.RepairSpecification, "CE_100_estimate.pdf")]
     [InlineData(CaseReportArtifactKind.ImagePack, "ImagePack.pdf")]
-    public async Task EveryArtifactKindGetsItsOwnCustodyFileName(
+    public async Task EveryArtifactKindGetsItsOwnCustodyFileNameAndSeries(
         CaseReportArtifactKind kind, string expectedFileName)
     {
         var store = new FakeStore { ReportFileName = "AB12CDE_CE-100_AUDIT.pdf" };
@@ -690,6 +693,12 @@ public sealed class CaseReportGenerationTests
         Assert.Equal(expectedFileName, custody.LastRequest!.FileName);
         // The history records the name the file was filed under.
         Assert.Equal(expectedFileName, Assert.Single(store.Confirmations).FileName);
+        // The fake store's generation names no work, so its work is empty.
+        Assert.Equal(
+            documents is null
+                ? $"case-report:{Guid.Empty:D}:{kind}"
+                : $"case-report:{Guid.Empty:D}:{kind}:{documents.EstimateId:D}",
+            custody.LastRequest.SeriesIdentity);
     }
 
     /// <summary>
@@ -1076,14 +1085,20 @@ public sealed class CaseReportGenerationTests
 
     private sealed class RenderedRepairSpecificationDocuments : IRenderCaseEstimateDocument
     {
+        /// <summary>The estimate the last rendering printed: the one the generation pinned.</summary>
+        public Guid EstimateId { get; private set; }
+
         public Task<RenderCaseEstimateDocumentResult> ExecuteAsync(
-            Guid caseId, Guid estimateId, ActionActor actor, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new RenderCaseEstimateDocumentResult(
+            Guid caseId, Guid estimateId, ActionActor actor, CancellationToken cancellationToken = default)
+        {
+            EstimateId = estimateId;
+            return Task.FromResult(new RenderCaseEstimateDocumentResult(
                 RenderCaseEstimateDocumentOutcome.Rendered,
                 new RenderedReportArtifact(
                     "CE_100_estimate.pdf", [1, 2, 3], 1, Sha256Of([1, 2, 3]),
                     AssessmentReportContract.TemplateVersion, "fake"),
                 [], 2));
+        }
     }
 
     private static GenerateCaseReportRequest Request(
