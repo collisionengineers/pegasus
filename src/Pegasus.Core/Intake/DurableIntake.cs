@@ -620,11 +620,13 @@ public sealed class ReceiveIntake(
             nameof(source.SourceIdentity.ExternalReceiptToken));
         ValidateLength(operationKey, MaximumOperationKeyLength, nameof(operationKey));
         RequireDeclaredDocumentType(source.DeclaredCaseId, source.DeclaredDocumentType);
-        if (source.SourceIdentity.Channel != IntakeSourceChannel.ManualUpload)
+        // The streamed path is the staff upload's and the photo link's (FRD-28):
+        // both hand over one file whose bytes stay out of Web memory.
+        if (source.SourceIdentity.Channel is not (IntakeSourceChannel.ManualUpload or IntakeSourceChannel.PhotoCapture))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(source),
-                "Streamed intake is only supported for manual upload.");
+                "Streamed intake is only supported for manual upload and photo capture.");
         }
 
         if (source.ContentLength is <= 0 or > IntakeEnvelopeLimits.MaximumContentLength)
