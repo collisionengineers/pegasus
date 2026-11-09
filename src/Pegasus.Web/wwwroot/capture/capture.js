@@ -37,6 +37,8 @@ function setContext(ctx){
   if(!PRIOR || !JOBS.length) PRIOR = CTX.counts;
   LIVE = !!CTX.liveCameraOnly;
   GUIDED = CTX.mode !== 'quick';
+  /* originals are off while the capture has no Case (R801): what waits to go is dropped, and nothing more is sent */
+  if(!CTX.originals) JOBS.forEach(j=>{ if(j.original && j.state==='queued') dropOriginal(j); });
 }
 /* Which start screen and first form: replaces the prototype's #claimsco / #bodyshop / #client hash. */
 function mkSrc(kind, st){ return { kind, name:(st&&st.name)||'', addresses:(st&&Array.isArray(st.addresses))?st.addresses:[], lifetimeDays:(st&&st.lifetimeDays)||7 }; }
@@ -196,6 +198,8 @@ function gone(){
 
 /* ---------- upload queue: at most 2 in flight, retries with backoff, originals last ---------- */
 const ONE=4194304, MAXUP=2;
+/* an original over CaptureLimits.OriginalBytes is not sent; about 100 MB of originals wait to go at most, and one past that is not sent */
+const ORIGMAX=25000000, ORIGPENDING=100000000;
 const KINDAPI={overview:'overview', damage:'damage', plate:'plate', vin:'vin', dash:'dashboard', scene:'scene', other:'other-vehicle', docs:'paperwork', video:'video'};
 const JOBS=[]; let active=0, pumpT=null;
 const TAKEN={};
@@ -237,15 +241,27 @@ async function run(job){
   active--;
   const st=r.status, code=r.data&&r.data.code;
   if(st===200||st===201){ job.state='done'; job.tries=0;
-    if(!job.original){ job.p.uploaded=true; if(CTX.originals && job.p.file) enqueue(job.p,true); } }
+    if(!job.original){ job.p.uploaded=true; queueOriginal(job.p); } else job.p.file=null; }
   else if(st===404){ job.state='failed'; return; }
+  else if(job.original && !CTX.originals) dropOriginal(job);
   else if(st===0 || st===429 || st>=500 || (st===409 && code==='not_ready')){
     job.tries++; job.state='queued';
-    const d=r.retryAfter ? r.retryAfter*1000 : Math.min(30000, 1000*Math.pow(2, Math.min(job.tries,5))) + Math.random()*500;
+    /* an original waits for its photo to be filed: 15 seconds, doubling to 2 minutes */
+    const d=r.retryAfter ? r.retryAfter*1000 : (job.original && st===409) ? Math.min(120000, 15000*Math.pow(2, Math.min(job.tries-1,3))) : Math.min(30000, 1000*Math.pow(2, Math.min(job.tries,5))) + Math.random()*500;
     job.at=Date.now()+(st===409 ? Math.max(d,3000) : d); }
-  else { job.state='failed'; if(!job.original){ job.p.failed=true; problemNote(r.data); } }
+  else if(job.original) dropOriginal(job);  /* refused, as a capture that takes no originals answers 415: final, and nothing is said */
+  else { job.state='failed'; job.p.failed=true; problemNote(r.data); }
   upChanged(); pump();
 }
+/* A photo is uploaded: its original follows when the capture takes originals, it is not too large and not too much is already waiting; otherwise the compressed photo stands. */
+function queueOriginal(p){
+  if(!p.file || p.origQueued || p.cancelled) return;
+  const waiting=JOBS.reduce((a,j)=>a+(j.original && (j.state==='queued'||j.state==='busy') && j.p.file ? j.p.file.size : 0),0);
+  if(!CTX.originals || p.file.size>ORIGMAX || waiting+p.file.size>ORIGPENDING){ p.file=null; return; }
+  p.origQueued=true; enqueue(p,true);
+}
+function dropOriginal(job){ job.state='dropped'; job.p.file=null; }
+function origPending(){ return JOBS.some(j=>j.original && (j.state==='queued'||j.state==='busy')); }
 async function sendJob(job){
   const p=job.p, blob=job.original?p.file:p.blob, type=(job.original?p.file.type:p.type)||'application/octet-stream', q=itemQuery(p, job.original);
   if(blob.size<=ONE) return api('PUT','items/'+p.cid,{query:q, body:blob, type});
@@ -257,11 +273,13 @@ async function sendJob(job){
     job.partsDone=n; job.tries=0;
   }
   const r=await api('POST','items/'+p.cid+'/commit',{query:qt, json:{totalBytes:total, sha256:job.sha}, slow:true});
-  if(!r.ok && r.status>=400 && r.status<500 && r.status!==404 && r.status!==429) job.partsDone=0;
+  /* an original's commit that is not ready keeps its parts (the photo is still being filed); every fifth time running they go again, in case they were lost */
+  const keep=job.original && r.status===409 && r.data && r.data.code==='not_ready' && (job.tries+1)%5!==0;
+  if(!r.ok && r.status>=400 && r.status<500 && r.status!==404 && r.status!==429 && !keep) job.partsDone=0;
   return r;
 }
 async function sha256(blob){ const d=await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()); return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
-function cancelUpload(p){ if(!p) return; p.cancelled=true; if(p.job && p.job.state==='queued') p.job.state='cancelled'; if(p.url) URL.revokeObjectURL(p.url); upChanged(); }
+function cancelUpload(p){ if(!p) return; p.cancelled=true; p.file=null; if(p.job && p.job.state==='queued') p.job.state='cancelled'; if(p.url) URL.revokeObjectURL(p.url); upChanged(); }
 /* Upload state changed: refresh the "uploading / uploaded" lines in place (a full render would steal focus from a field being typed in); the review page re-renders for its Send button. */
 function upChanged(){
   upBusy=JOBS.filter(j=>!j.original && (j.state==='queued'||j.state==='busy')).length;
@@ -358,18 +376,29 @@ async function openCam2(kind){
     ov.remove(); document.documentElement.style.overflow=''; document.body.style.overflow=''; note('Rapid camera blocked here ('+(e&&e.name?e.name:'no camera access')+') – using the phone camera'); return pick(kind);
   }
   ov.querySelector('.shutter').onclick=()=>{
-    const w=video.videoWidth, h=video.videoHeight; if(!w) return;
-    const c=document.createElement('canvas'); const max=1600; const sc=Math.min(1,max/Math.max(w,h)); c.width=Math.round(w*sc); c.height=Math.round(h*sc);
-    c.getContext('2d').drawImage(video,0,0,c.width,c.height);
-    flash.classList.add('on'); setTimeout(()=>flash.classList.remove('on'),60);
-    if(navigator.vibrate) navigator.vibrate(25);
-    c.toBlob(b=>{
-      if(!b) return;
-      const p={url:URL.createObjectURL(b), blob:b, type:'image/jpeg', file:null, bytes:b.size, orig:b.size, w:c.width, h:c.height, t:Date.now(), live:true};
+    if(!shotFromVideo(video, p=>{
       if(ov._tag) ov._tag(p); addPhoto(kind,p); taken++; cnt.textContent=`${taken} taken`; if(ov._ovStep) ov._ovStep();
       const im=document.createElement('img'); im.src=p.url; strip.appendChild(im); strip.scrollLeft=strip.scrollWidth;
-    },'image/jpeg',0.85);
+    })) return;
+    flash.classList.add('on'); setTimeout(()=>flash.classList.remove('on'),60);
+    if(navigator.vibrate) navigator.vibrate(25);
   };
+}
+/* One shutter for both cameras: the photo is the frame at most 1600px on its long edge (JPEG 0.85). When the camera gives more and the capture takes originals,
+   the full-resolution frame (JPEG 0.92) is kept as the photo's original and follows once the photo itself is uploaded. */
+function shotFromVideo(video, take){
+  const w=video.videoWidth, h=video.videoHeight; if(!w) return false;
+  const sc=Math.min(1,1600/Math.max(w,h)), c=document.createElement('canvas'); c.width=Math.round(w*sc); c.height=Math.round(h*sc);
+  c.getContext('2d').drawImage(video,0,0,c.width,c.height);
+  let full=null; if(sc<1 && CTX.originals){ full=document.createElement('canvas'); full.width=w; full.height=h; full.getContext('2d').drawImage(video,0,0,w,h); }
+  const t=Date.now();
+  c.toBlob(b=>{
+    if(!b){ if(full) full.width=0; return; }
+    const p={url:URL.createObjectURL(b), blob:b, type:'image/jpeg', file:null, bytes:b.size, orig:b.size, w:c.width, h:c.height, t, live:true};
+    take(p);
+    if(full) full.toBlob(o=>{ full.width=0; if(o && !p.cancelled){ p.file=o; if(p.uploaded) queueOriginal(p); } },'image/jpeg',0.92);
+  },'image/jpeg',0.85);
+  return true;
 }
 let camStream=null;
 function pick(kind,id){ pending={kind,id}; const el=(kind==='damage'||kind==='scene'||kind==='other'||kind==='overview'?fileMulti:fileSingle); if(LIVE && !['scene','other','docs','video'].includes(kind)) el.setAttribute('capture','environment'); else el.removeAttribute('capture');  /* live-only covers the vehicle photos; scene and other-vehicle photos, paperwork and video can come from the camera roll */ el.click(); }
@@ -598,10 +627,8 @@ async function frameCam(key){
   ov.querySelector('.xbtn').onclick=close;
   try{ camStream=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:'environment'}, width:{ideal:2560}, height:{ideal:1920} }, audio:false }); video.srcObject=camStream; await video.play(); stopL=lightMeter(ov,video); }
   catch(e){ ov.remove(); document.documentElement.style.overflow=''; document.body.style.overflow=''; note('Camera blocked here – using the phone camera'); return pick(key); }
-  ov.querySelector('.shutter').onclick=()=>{ const w=video.videoWidth, h=video.videoHeight; if(!w) return;
-    const c=document.createElement('canvas'); const sc=Math.min(1,1600/Math.max(w,h)); c.width=Math.round(w*sc); c.height=Math.round(h*sc);
-    c.getContext('2d').drawImage(video,0,0,c.width,c.height); flash.classList.add('on'); setTimeout(()=>flash.classList.remove('on'),60); if(navigator.vibrate) navigator.vibrate(25);
-    c.toBlob(b=>{ if(!b) return; const p={url:URL.createObjectURL(b), blob:b, type:'image/jpeg', file:null, bytes:b.size, orig:b.size, w:c.width, h:c.height, t:Date.now(), live:true}; addPhoto(key,p); close(); },'image/jpeg',0.85); };
+  ov.querySelector('.shutter').onclick=()=>{ if(!shotFromVideo(video, p=>{ addPhoto(key,p); close(); })) return;
+    flash.classList.add('on'); setTimeout(()=>flash.classList.remove('on'),60); if(navigator.vibrate) navigator.vibrate(25); };
 }
 function sheet(inner){
   const sh=document.createElement('div'); sh.className='sheetwrap';
@@ -932,7 +959,7 @@ const R = {
     }
     if(!S._sent){
       $('#stepLabel').textContent='Sending';
-      const rows=[`${nPhotos(photosSent())}${S.video||rc('video')?' and a video':''} received`,'Your details saved',...(CTX.originals?['Full-quality originals carrying on in the background']:[]),'Sent to our engineering team'];
+      const rows=[`${nPhotos(photosSent())}${S.video||rc('video')?' and a video':''} received`,'Your details saved',...(origPending()?['Full-quality originals carrying on in the background']:[]),'Sent to our engineering team'];
       main.innerHTML=`<div class="sendwrap"><h2>Sending your photos</h2><p class="lede">Keep this page open for a moment.</p><ul class="stages">${rows.map(r=>`<li><span class="dot"></span>${r}</li>`).join('')}</ul></div>`;
       cta.innerHTML='';
       if(!S._sending){ S._sending=true; S._result=null; completeCapture().then(r=>{ S._result=r; }); }

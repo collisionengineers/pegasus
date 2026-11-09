@@ -29,6 +29,9 @@ public sealed partial class CaptureAssetContractTests
     [GeneratedRegex(@"\bconst ONE=(\d+)")]
     private static partial Regex SingleRequestConstant();
 
+    [GeneratedRegex(@"\bconst ORIGMAX=(\d+)")]
+    private static partial Regex OriginalConstant();
+
     [GeneratedRegex(@"<input type=""file""[^>]*>")]
     private static partial Regex FileInput();
 
@@ -96,6 +99,16 @@ public sealed partial class CaptureAssetContractTests
 
         Assert.True(match.Success, "capture.js no longer declares ONE.");
         Assert.Equal(CaptureLimits.SingleRequestBytes, int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>The app sends no original larger than the API takes, so one over the bound is never sent only to be refused.</summary>
+    [Fact]
+    public void TheAppsOriginalBoundIsTheApisOriginalBound()
+    {
+        var match = OriginalConstant().Match(Read(ScriptPath));
+
+        Assert.True(match.Success, "capture.js no longer declares ORIGMAX.");
+        Assert.Equal(CaptureLimits.OriginalBytes, int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture));
     }
 
     /// <summary>A link that dies while the app is open says what the page an unavailable link gets says (R789).</summary>

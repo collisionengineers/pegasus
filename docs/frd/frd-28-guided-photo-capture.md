@@ -201,7 +201,10 @@ registration. A full-size original files as the next version of the same
 Case image: the image keeps its tile, tags, report place and crop, Box shows
 the compressed picture as the earlier version of the one file (R664), and
 the report prints the original once it is filed. Until then, and should the
-original's upload fail, the compressed picture stands.
+original's upload fail, the compressed picture stands. A photo taken in the
+app's own camera has as its original the camera's full-resolution frame,
+sent after the photo itself; an original over 25 MB is not sent, and the
+compressed picture stands (operator, 9 November 2026; R780, R801).
 
 ### Baskets and names
 
