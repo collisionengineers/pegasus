@@ -124,8 +124,9 @@ public sealed record CaseCompleteness(
     bool InstructionComplete,
     bool ImagesComplete)
 {
-    public bool IsReadyForReview() =>
-        InstructionComplete && ImagesComplete;
+    /// <param name="mileageRecorded">Whether the mileage gate is open (<see cref="CaseCompletenessPolicy.MileageGateOpen"/>; R759).</param>
+    public bool IsReadyForReview(bool mileageRecorded) =>
+        InstructionComplete && ImagesComplete && mileageRecorded;
 }
 
 public sealed record CaseIdentity(

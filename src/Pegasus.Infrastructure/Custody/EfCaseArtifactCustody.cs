@@ -833,10 +833,8 @@ internal sealed class EfCaseArtifactCustody(
             DateTimeOffset nowUtc,
             CancellationToken cancellationToken)
     {
-        var snapshot = await db.Set<CaseDataSnapshotEntity>()
-            .Include(item => item.Work)
-            .ThenInclude(item => item.Case)
-            .ThenInclude(item => item.Principal)
+        // With its fields: readiness reads the Case's mileage (R759).
+        var snapshot = await EfCaseDataStore.SnapshotQuery(db, tracking: true)
             .SingleOrDefaultAsync(item => item.WorkId == workflow.CaseId, cancellationToken)
             ?? throw new InvalidDataException("The associated Case has no data snapshot.");
         var before = new CaseCompleteness(

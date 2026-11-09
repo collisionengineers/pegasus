@@ -28,6 +28,16 @@ public static class DamageAreaGeometry
     /// </summary>
     public const double MinRadius = 10d / 156d;
     public const double MaxRadius = 0.5;
+
+    /// <summary>
+    /// How far past the body box a marker's centre may sit, as fractions of
+    /// the plan's width and height: the workspace's press leeway
+    /// (<see cref="DamagePlanGeometry.PressLeeway"/>, twelve of its units) on
+    /// its 156 by 394 body box, so damage at the vehicle's edge can be marked
+    /// around it (operator, 8 November 2026; R758).
+    /// </summary>
+    public const double MarginX = DamagePlanGeometry.PressLeeway / (double)DamagePlanGeometry.PlanWidth;
+    public const double MarginY = DamagePlanGeometry.PressLeeway / (double)DamagePlanGeometry.PlanHeight;
 }
 
 /// <summary>
