@@ -135,9 +135,10 @@ internal sealed partial class CachedDocumentContentStore(
     /// The lookups for several versions of one Case in two SQL calls whatever
     /// their number: the authorised sources and the cache entries.
     /// Each handle then serves its own version as <see cref="OpenAsync"/> does,
-    /// one at a time, so a render still holds one source image at a time. A
-    /// version that cannot be served fails when its handle is opened, as a
-    /// single read of it would.
+    /// when it is opened, so a render holds only the few source images it is
+    /// preparing at that moment (two, the renderer's bound). A version that
+    /// cannot be served fails when its handle is opened, as a single read of it
+    /// would.
     /// </summary>
     public async Task<IReadOnlyList<PreparedLogicalDocumentRead>> PrepareAsync(
         ActionActor actor,

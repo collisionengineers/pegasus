@@ -7,8 +7,8 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests.Reports;
 
 /// <summary>
-/// The frozen snapshot's pinned images are reopened one at a time when the
-/// renderer prints them, and their lookups are made together, once.
+/// The frozen snapshot's pinned images are reopened when the renderer prints
+/// them, at most two at a time, and their lookups are made together, once.
 /// </summary>
 public sealed class CaseReportContentSourceTests
 {
