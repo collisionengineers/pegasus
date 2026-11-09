@@ -195,6 +195,37 @@ public sealed class PhotoCaptureSecurityTests
         Assert.Empty(baseFactory.DatabaseOpenAttempts);
     }
 
+    /// <summary>
+    /// A standing link whose contact is deactivated starts no captures and
+    /// answers like an unknown one (R796): its page is an unknown slug's
+    /// bytes, and its start call is the API's 404.
+    /// </summary>
+    [Fact]
+    public async Task AnInactiveContactsSlugAnswersLikeAnUnknownOne()
+    {
+        var inactiveSlug = PhotoLinkToken.CreateSlug();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = WithListedLinks(
+            baseFactory,
+            new ListedCaptures(),
+            new ListedStandingLinks(InactiveContactsLink(inactiveSlug)));
+        using var client = PhoneClient(factory);
+
+        var unknown = await UnavailableBytesAsync(client, $"/s/{PhotoLinkToken.CreateSlug()}");
+
+        Assert.Equal(unknown, await UnavailableBytesAsync(client, $"/s/{inactiveSlug}"));
+        using var start = new HttpRequestMessage(HttpMethod.Post, $"{PhotoCaptureSurface.ApiBasePath}/start")
+        {
+            Content = new StringContent("{\"registration\":\"AB12CDE\"}", System.Text.Encoding.UTF8, "application/json")
+        };
+        start.Headers.Add(PhotoCaptureSurface.CredentialHeader, PhotoCaptureAccess.StandingPrefix + inactiveSlug);
+        using var started = await client.SendAsync(start);
+        Assert.Equal(HttpStatusCode.NotFound, started.StatusCode);
+        using var problem = JsonDocument.Parse(await started.Content.ReadAsStringAsync());
+        Assert.Equal(PhotoCaptureRefusals.Unavailable, problem.RootElement.GetProperty("code").GetString());
+        Assert.Empty(baseFactory.DatabaseOpenAttempts);
+    }
+
     private static WebApplicationFactory<Program> WithListedLinks(
         IntakeWebApplicationFactory baseFactory,
         ListedCaptures captures,
@@ -286,6 +317,10 @@ public sealed class PhotoCaptureSecurityTests
         RetiredAtUtc: null,
         CreatedAtUtc: Now.AddDays(-30),
         Version: 1);
+
+    /// <summary>A contact's link that is neither paused nor retired, whose contact is deactivated.</summary>
+    private static StandingPhotoLink InactiveContactsLink(string slug) =>
+        PausedLink(slug) with { ContactActive = false, PausedAtUtc = null };
 
     private static NotSupportedException Outside() =>
         new("Only a presented token's capture or slug's standing link is read on the refused paths.");
