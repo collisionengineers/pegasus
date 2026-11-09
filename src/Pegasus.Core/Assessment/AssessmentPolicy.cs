@@ -29,7 +29,13 @@ public static class AssessmentPolicy
     public const string PolicyKey = "case-assessment-edit";
     public const int PolicyVersion = 1;
     public const int MaximumFieldsPerSave = 120;
-    public const int MaximumEstimateLines = 200;
+    /// <summary>
+    /// The most lines a Repair Spec carries on every path that records one:
+    /// a Case save, an MCP or AI-draft save, and every import. It is not a
+    /// business rule but the ceiling the Case page form and the printout
+    /// carry (R767, 9 November 2026).
+    /// </summary>
+    public const int MaximumEstimateLines = 500;
 
     public static SaveAssessmentRequest ValidateAndNormalize(SaveAssessmentRequest request)
     {
