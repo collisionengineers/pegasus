@@ -21,6 +21,7 @@ using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Operations;
+using Pegasus.Core.PhotoCapture;
 using Pegasus.Core.PrincipalApi;
 using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure.Intake;
@@ -182,6 +183,37 @@ public static class DependencyInjection
         services.TryAddSingleton<IVrmRecognitionEngine, OnnxVrmRecognitionEngine>();
         services.AddScoped<IImageIntakeAutomation, ImageIntakeAutomation>();
         services.AddScoped<IImageIntakeCasePairing, ImageIntakeCasePairing>();
+        // Photo links (FRD-28). Registered for both hosts: the Web gates its
+        // endpoints and pages, the Worker its settle sweep.
+        services.AddScoped<IPhotoCaptureStore, EfPhotoCaptureStore>();
+        services.AddScoped<IPhotoCaptureQueries, EfPhotoCaptureQueries>();
+        services.AddScoped<IStandingPhotoLinkStore, EfStandingPhotoLinkStore>();
+        services.AddScoped<IPhotoCaptureCaseWriter, EfPhotoCaptureCaseWriter>();
+        services.AddScoped<IPhotoCaptureCaseReader, EfPhotoCaptureCaseReader>();
+        // Case custody is composed by the host's document storage; without it
+        // an original is never filed and the phone is told to send it later.
+        services.AddScoped<IFilePhotoCaptureOriginal>(provider => new EfFilePhotoCaptureOriginal(
+            provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+            provider.GetService<ICaseArtifactCustody>()));
+        services.AddScoped<PhotoCaptureAccess>();
+        services.AddScoped<IssuePhotoLink>();
+        services.AddScoped<MintFromStandingLink>();
+        services.AddScoped<RecordPhotoCaptureDetails>();
+        services.AddScoped<RoutePhotoCapture>();
+        services.AddScoped<ReceivePhotoCaptureItem>();
+        services.AddScoped<CompletePhotoCapture>();
+        services.AddScoped<PhotoLinkActions>();
+        // A factory, because IProcessQueuedIntake is the Worker's own: the
+        // Web never resolves the settle, and its build-time validation does
+        // not ask for a dependency only the Worker composes.
+        services.AddScoped(provider => new SettlePhotoCaptures(
+            provider.GetRequiredService<IPhotoCaptureStore>(),
+            provider.GetRequiredService<IIntakeSubmissionGroupStore>(),
+            provider.GetRequiredService<IProcessQueuedIntake>(),
+            provider.GetRequiredService<IPhotoCaptureCaseWriter>(),
+            provider.GetRequiredService<IAddCaseNote>(),
+            provider.GetRequiredService<ICaseStaffNotifier>(),
+            provider.GetRequiredService<TimeProvider>()));
         services.AddScoped<EfUnidentifiedStore>();
         services.AddScoped<IUnidentifiedStore>(provider => provider.GetRequiredService<EfUnidentifiedStore>());
         services.AddScoped<ListUnidentifiedQueueByCursor>();

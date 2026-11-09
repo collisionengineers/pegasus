@@ -138,7 +138,7 @@ internal sealed class EfIntakeMutationStore(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.StaffSubjectId);
+        ArgumentNullException.ThrowIfNull(request.Decider);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);
         if (request.ReceiptId == Guid.Empty || request.CaseId == Guid.Empty)
@@ -150,7 +150,7 @@ internal sealed class EfIntakeMutationStore(
         {
             request.ReceiptId,
             request.CaseId,
-            StaffSubjectId = request.StaffSubjectId.Trim()
+            StaffSubjectId = request.Decider.SubjectId.Trim()
         }));
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -198,7 +198,8 @@ internal sealed class EfIntakeMutationStore(
         var beforeVersion = receipt.Version;
         var beforeJson = Snapshot(receipt);
         var reason = request.Reason.Trim();
-        var subjectId = request.StaffSubjectId.Trim();
+        var subjectId = request.Decider.SubjectId.Trim();
+        var actorKind = request.Decider.Kind.ToString();
         receipt.ManualAssociation = new IntakeManualAssociationEntity
         {
             IntakeReceiptId = receipt.Id,
@@ -208,7 +209,7 @@ internal sealed class EfIntakeMutationStore(
             IsActive = true,
             Version = 0,
             LinkedAtUtc = occurredAtUtc,
-            ActorKind = nameof(ActorKind.Staff),
+            ActorKind = actorKind,
             ActorSubjectId = subjectId,
             ActorRolesJson = "[]",
             Reason = reason,
@@ -225,7 +226,7 @@ internal sealed class EfIntakeMutationStore(
             CaseId = @case.Id,
             Case = @case,
             EventType = "intake_case_linked",
-            ActorKind = nameof(ActorKind.Staff),
+            ActorKind = actorKind,
             ActorSubjectId = subjectId,
             ActorRolesJson = "[]",
             Reason = reason,

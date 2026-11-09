@@ -71,6 +71,9 @@ pegasus_web_runtime_role,D,DELETE,OpenIddictScopes
 pegasus_web_runtime_role,D,DELETE,OpenIddictTokens
 pegasus_web_runtime_role,D,DELETE,OrganizationAdministrationOperations
 pegasus_web_runtime_role,D,DELETE,Organizations
+pegasus_web_runtime_role,D,DELETE,PhotoCaptureItems
+pegasus_web_runtime_role,D,DELETE,PhotoCaptureTokens
+pegasus_web_runtime_role,D,DELETE,PhotoCaptures
 pegasus_web_runtime_role,D,DELETE,PrincipalSequenceLineages
 pegasus_web_runtime_role,D,DELETE,Principals
 pegasus_web_runtime_role,D,DELETE,ProblemReports
@@ -82,6 +85,7 @@ pegasus_web_runtime_role,D,DELETE,SendToAiControl
 pegasus_web_runtime_role,D,DELETE,SentEmailEvidence
 pegasus_web_runtime_role,D,DELETE,StaffMailSendOperations
 pegasus_web_runtime_role,D,DELETE,StandaloneAuditEvidence
+pegasus_web_runtime_role,D,DELETE,StandingPhotoLinks
 pegasus_web_runtime_role,D,DELETE,Triage
 pegasus_web_runtime_role,D,DELETE,TriageFindings
 pegasus_web_runtime_role,D,DELETE,TriageHistory
@@ -187,6 +191,9 @@ pegasus_web_runtime_role,G,INSERT,OpenIddictAuthorizations
 pegasus_web_runtime_role,G,INSERT,OpenIddictTokens
 pegasus_web_runtime_role,G,INSERT,OrganizationAdministrationOperations
 pegasus_web_runtime_role,G,INSERT,Organizations
+pegasus_web_runtime_role,G,INSERT,PhotoCaptureItems
+pegasus_web_runtime_role,G,INSERT,PhotoCaptureTokens
+pegasus_web_runtime_role,G,INSERT,PhotoCaptures
 pegasus_web_runtime_role,G,INSERT,PrincipalApiCredentials
 pegasus_web_runtime_role,G,INSERT,PrincipalSequenceLineages
 pegasus_web_runtime_role,G,INSERT,PrincipalSubmissions
@@ -199,6 +206,7 @@ pegasus_web_runtime_role,G,INSERT,SendToAiControl
 pegasus_web_runtime_role,G,INSERT,StaffMailSendOperations
 pegasus_web_runtime_role,G,INSERT,StaffNotifications
 pegasus_web_runtime_role,G,INSERT,StandaloneAuditEvidence
+pegasus_web_runtime_role,G,INSERT,StandingPhotoLinks
 pegasus_web_runtime_role,G,INSERT,Triage
 pegasus_web_runtime_role,G,INSERT,TriageFindings
 pegasus_web_runtime_role,G,INSERT,TriageHistory
@@ -297,6 +305,9 @@ pegasus_web_runtime_role,G,SELECT,OpenIddictScopes
 pegasus_web_runtime_role,G,SELECT,OpenIddictTokens
 pegasus_web_runtime_role,G,SELECT,OrganizationAdministrationOperations
 pegasus_web_runtime_role,G,SELECT,Organizations
+pegasus_web_runtime_role,G,SELECT,PhotoCaptureItems
+pegasus_web_runtime_role,G,SELECT,PhotoCaptureTokens
+pegasus_web_runtime_role,G,SELECT,PhotoCaptures
 pegasus_web_runtime_role,G,SELECT,PrincipalApiCredentials
 pegasus_web_runtime_role,G,SELECT,PrincipalSequenceLineages
 pegasus_web_runtime_role,G,SELECT,PrincipalSubmissions
@@ -313,6 +324,7 @@ pegasus_web_runtime_role,G,SELECT,SentEmailEvidence
 pegasus_web_runtime_role,G,SELECT,StaffMailSendOperations
 pegasus_web_runtime_role,G,SELECT,StaffNotifications
 pegasus_web_runtime_role,G,SELECT,StandaloneAuditEvidence
+pegasus_web_runtime_role,G,SELECT,StandingPhotoLinks
 pegasus_web_runtime_role,G,SELECT,Triage
 pegasus_web_runtime_role,G,SELECT,TriageFindings
 pegasus_web_runtime_role,G,SELECT,TriageHistory
@@ -374,6 +386,9 @@ pegasus_web_runtime_role,G,UPDATE,OpenIddictApplications
 pegasus_web_runtime_role,G,UPDATE,OpenIddictAuthorizations
 pegasus_web_runtime_role,G,UPDATE,OpenIddictTokens
 pegasus_web_runtime_role,G,UPDATE,Organizations
+pegasus_web_runtime_role,G,UPDATE,PhotoCaptureItems
+pegasus_web_runtime_role,G,UPDATE,PhotoCaptureTokens
+pegasus_web_runtime_role,G,UPDATE,PhotoCaptures
 pegasus_web_runtime_role,G,UPDATE,PrincipalApiCredentials
 pegasus_web_runtime_role,G,UPDATE,Principals
 pegasus_web_runtime_role,G,UPDATE,ProblemReports
@@ -382,6 +397,7 @@ pegasus_web_runtime_role,G,UPDATE,RetainedMailboxMessages
 pegasus_web_runtime_role,G,UPDATE,SendToAiControl
 pegasus_web_runtime_role,G,UPDATE,StaffMailSendOperations
 pegasus_web_runtime_role,G,UPDATE,StaffNotifications
+pegasus_web_runtime_role,G,UPDATE,StandingPhotoLinks
 pegasus_web_runtime_role,G,UPDATE,Triage
 pegasus_web_runtime_role,G,UPDATE,UnidentifiedItems
 pegasus_web_runtime_role,G,UPDATE,UserExternalCredentials
@@ -466,6 +482,9 @@ pegasus_worker_runtime_role,D,DELETE,OpenIddictScopes
 pegasus_worker_runtime_role,D,DELETE,OpenIddictTokens
 pegasus_worker_runtime_role,D,DELETE,OrganizationAdministrationOperations
 pegasus_worker_runtime_role,D,DELETE,Organizations
+pegasus_worker_runtime_role,D,DELETE,PhotoCaptureItems
+pegasus_worker_runtime_role,D,DELETE,PhotoCaptureTokens
+pegasus_worker_runtime_role,D,DELETE,PhotoCaptures
 pegasus_worker_runtime_role,D,DELETE,PrincipalSequenceLineages
 pegasus_worker_runtime_role,D,DELETE,Principals
 pegasus_worker_runtime_role,D,DELETE,ProblemReports
@@ -477,6 +496,7 @@ pegasus_worker_runtime_role,D,DELETE,SendToAiControl
 pegasus_worker_runtime_role,D,DELETE,SentEmailEvidence
 pegasus_worker_runtime_role,D,DELETE,StaffMailSendOperations
 pegasus_worker_runtime_role,D,DELETE,StandaloneAuditEvidence
+pegasus_worker_runtime_role,D,DELETE,StandingPhotoLinks
 pegasus_worker_runtime_role,D,DELETE,Triage
 pegasus_worker_runtime_role,D,DELETE,TriageFindings
 pegasus_worker_runtime_role,D,DELETE,TriageHistory
@@ -634,6 +654,9 @@ pegasus_worker_runtime_role,G,SELECT,IntakeSubmissionGroupMembers
 pegasus_worker_runtime_role,G,SELECT,IntakeSubmissionGroups
 pegasus_worker_runtime_role,G,SELECT,IntakeWorkItems
 pegasus_worker_runtime_role,G,SELECT,Organizations
+pegasus_worker_runtime_role,G,SELECT,PhotoCaptureItems
+pegasus_worker_runtime_role,G,SELECT,PhotoCaptureTokens
+pegasus_worker_runtime_role,G,SELECT,PhotoCaptures
 pegasus_worker_runtime_role,G,SELECT,PrincipalSequenceLineages
 pegasus_worker_runtime_role,G,SELECT,PrincipalSubmissions
 pegasus_worker_runtime_role,G,SELECT,Principals
@@ -645,6 +668,7 @@ pegasus_worker_runtime_role,G,SELECT,SentEmailEvidence
 pegasus_worker_runtime_role,G,SELECT,StaffMailSendOperations
 pegasus_worker_runtime_role,G,SELECT,StaffNotifications
 pegasus_worker_runtime_role,G,SELECT,StandaloneAuditEvidence
+pegasus_worker_runtime_role,G,SELECT,StandingPhotoLinks
 pegasus_worker_runtime_role,G,SELECT,Triage
 pegasus_worker_runtime_role,G,SELECT,TriageFindings
 pegasus_worker_runtime_role,G,SELECT,TriageHistory
@@ -690,6 +714,8 @@ pegasus_worker_runtime_role,G,UPDATE,IntakeOcrOperations
 pegasus_worker_runtime_role,G,UPDATE,IntakeReceipts
 pegasus_worker_runtime_role,G,UPDATE,IntakeStagedReceipts
 pegasus_worker_runtime_role,G,UPDATE,IntakeWorkItems
+pegasus_worker_runtime_role,G,UPDATE,PhotoCaptureItems
+pegasus_worker_runtime_role,G,UPDATE,PhotoCaptures
 pegasus_worker_runtime_role,G,UPDATE,Principals
 pegasus_worker_runtime_role,G,UPDATE,RetainedInstructionAnalyses
 pegasus_worker_runtime_role,G,UPDATE,SentEmailEvidence

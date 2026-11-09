@@ -760,7 +760,7 @@ internal sealed class EfCaseArtifactCustody(
         var workflow = await db.CaseWorkflows
             .Include(item => item.Case)
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
-        if (!promotionPlan!.HasSelectedPhotographs || workflow is null)
+        if (!promotionPlan!.HasSelectedPhotographs || workflow is null || promotionPlan.DefersCaseImageCompletion)
         {
             // Nothing on the Case changes here, so the row records the version
             // the caller filed against (the plan's, inline), not a fresh read
@@ -776,7 +776,9 @@ internal sealed class EfCaseArtifactCustody(
                 ActorRolesJson = "[]",
                 Reason = workflow is null
                     ? "All planned retained receipt evidence has confirmed Case custody; a Triage Case records no image completeness."
-                    : "All planned retained receipt evidence has confirmed Case custody; no selected photographs were present.",
+                    : promotionPlan.DefersCaseImageCompletion
+                        ? "All planned retained receipt evidence has confirmed Case custody; a photo link's photos complete the images when the capture settles."
+                        : "All planned retained receipt evidence has confirmed Case custody; no selected photographs were present.",
                 OperationKey = completionKey,
                 RequestFingerprint = plan.RequestFingerprint,
                 OccurredAtUtc = nowUtc,

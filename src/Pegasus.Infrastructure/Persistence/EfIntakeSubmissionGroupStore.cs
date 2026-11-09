@@ -21,12 +21,15 @@ public sealed class EfIntakeSubmissionGroupStore(
         var groupOrigin = nameof(UnidentifiedOriginKind.SubmissionGroup);
         var receiptOrigin = nameof(UnidentifiedOriginKind.Receipt);
         var manualChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload);
+        var photoCaptureChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.PhotoCapture);
         var eligible = from submissionGroup in context.IntakeSubmissionGroups
                        join member in context.IntakeSubmissionGroupMembers on submissionGroup.Id equals member.GroupId
                        join work in context.IntakeWorkItems on member.StagedReceiptId equals work.StagedReceiptId
                        join receipt in context.IntakeReceipts on work.ProcessedReceiptId equals (Guid?)receipt.Id
                        where submissionGroup.DiscardedAtUtc == null
-                           && (submissionGroup.ExpectedMemberCount > 1 || submissionGroup.SourceChannel == manualChannel)
+                           && (submissionGroup.ExpectedMemberCount > 1
+                               || submissionGroup.SourceChannel == manualChannel
+                               || submissionGroup.SourceChannel == photoCaptureChannel)
                            && work.State == "completed"
                            && receipt.Decision == "needs_sorting"
                            && receipt.InstructionDraft == null && receipt.FieldsJson == emptyFields
@@ -49,8 +52,9 @@ public sealed class EfIntakeSubmissionGroupStore(
                 .ToDictionary(receipt => receipt.Id);
         return candidates
             .Where(candidate => receipts.TryGetValue(candidate.ReceiptId, out var receipt)
-                && ImageIntakeLifecycleRules.IsImageAutomationEligible(
-                    EfIntakeReceiptStore.Map(receipt, isDuplicate: false)))
+                && (receipt.SourceChannel == photoCaptureChannel
+                    || ImageIntakeLifecycleRules.IsImageAutomationEligible(
+                        EfIntakeReceiptStore.Map(receipt, isDuplicate: false))))
             .GroupBy(item => new { item.Id, item.ReceivedAtUtc })
             .OrderBy(group => group.Key.ReceivedAtUtc)
             .ThenBy(group => group.Key.Id)
@@ -132,7 +136,31 @@ public sealed class EfIntakeSubmissionGroupStore(
             actor,
             receivedAtUtc,
             parentReceiptId,
+            declaredRegistration: null,
             cancellationToken);
+
+    public Task<IntakeSubmissionGroup> GetOrCreateDeclaredAsync(
+        Guid groupId,
+        IntakeSourceChannel channel,
+        string submissionToken,
+        int expectedMemberCount,
+        string actor,
+        DateTimeOffset receivedAtUtc,
+        string declaredRegistration,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(declaredRegistration);
+        return GetOrCreateWithRetryAsync(
+            groupId,
+            channel,
+            submissionToken,
+            expectedMemberCount,
+            actor,
+            receivedAtUtc,
+            parentReceiptId: null,
+            declaredRegistration,
+            cancellationToken);
+    }
 
     // Same concurrent-insert window as AddMemberWithRetryAsync below: two
     // requests replaying the same (channel, token) can both read "no
@@ -146,6 +174,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         string actor,
         DateTimeOffset receivedAtUtc,
         Guid? parentReceiptId,
+        string? declaredRegistration,
         CancellationToken cancellationToken) =>
         StoreConcurrencyRetry.ExecuteAsync(
             token => GetOrCreateCoreAsync(
@@ -156,6 +185,7 @@ public sealed class EfIntakeSubmissionGroupStore(
                 actor,
                 receivedAtUtc,
                 parentReceiptId,
+                declaredRegistration,
                 token),
             cancellationToken,
             StoreConcurrencyRetry.IsDeadlockOrKeyCollision);
@@ -168,6 +198,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         string actor,
         DateTimeOffset receivedAtUtc,
         Guid? parentReceiptId,
+        string? declaredRegistration,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -187,7 +218,8 @@ public sealed class EfIntakeSubmissionGroupStore(
                 ExpectedMemberCount = expectedMemberCount,
                 Actor = actor,
                 ReceivedAtUtc = receivedAtUtc,
-                ParentReceiptId = parentReceiptId
+                ParentReceiptId = parentReceiptId,
+                DeclaredRegistration = declaredRegistration
             };
             context.IntakeSubmissionGroups.Add(existing);
             await context.SaveChangesAsync(cancellationToken);
@@ -486,7 +518,8 @@ public sealed class EfIntakeSubmissionGroupStore(
                 entity.ImageMatchDeclinedByActorSubjectId!,
                 entity.ImageMatchDeclinedAtUtc.Value))
         {
-            ReadAtUtc = readAtUtc
+            ReadAtUtc = readAtUtc,
+            DeclaredRegistration = entity.DeclaredRegistration
         };
     }
 

@@ -343,12 +343,17 @@ public sealed class EfImageIntakeStore(
             .Where(link => memberReceiptIds.Contains(link.IntakeReceiptId))
             .Select(link => new { link.IntakeReceiptId, link.CaseId })
             .ToDictionaryAsync(link => link.IntakeReceiptId, link => (Guid?)link.CaseId, cancellationToken);
+        var photoCaptureChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.PhotoCapture);
         foreach (var receipt in receipts)
         {
+            // A photo link's batch registers whole, its paperwork and video
+            // with its photographs (FRD-28), so the record's folder holds
+            // everything the sender sent and the fold files all of it.
             if (receipt.Decision != EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting)
-                || !IsImageAutomationEligible(
-                    receipt,
-                    acceptedCaseIds.GetValueOrDefault(receipt.Id)))
+                || (receipt.SourceChannel != photoCaptureChannel
+                    && !IsImageAutomationEligible(
+                        receipt,
+                        acceptedCaseIds.GetValueOrDefault(receipt.Id))))
             {
                 continue;
             }
@@ -1836,6 +1841,7 @@ public sealed class EfImageIntakeStore(
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
         IntakeSourceChannel.PrincipalApi => "principal_api",
+        IntakeSourceChannel.PhotoCapture => "photo_capture",
         _ => throw new InvalidOperationException($"Unknown intake source channel value '{(int)channel}'.")
     };
 
@@ -1844,6 +1850,7 @@ public sealed class EfImageIntakeStore(
         "manual_upload" => IntakeSourceChannel.ManualUpload,
         "mailbox" => IntakeSourceChannel.Mailbox,
         "principal_api" => IntakeSourceChannel.PrincipalApi,
+        "photo_capture" => IntakeSourceChannel.PhotoCapture,
         _ => throw new InvalidDataException($"Unknown intake source channel code '{value}'.")
     };
 
@@ -1953,6 +1960,7 @@ public sealed class EfImageIntakeOriginResolver(
             "manual_upload" => IntakeSourceChannel.ManualUpload,
             "mailbox" => IntakeSourceChannel.Mailbox,
             "principal_api" => IntakeSourceChannel.PrincipalApi,
+        "photo_capture" => IntakeSourceChannel.PhotoCapture,
             _ => throw new InvalidDataException(
                 $"Unknown intake source channel code '{receipt.SourceChannel}'.")
         };
@@ -2042,7 +2050,8 @@ public sealed class EfImageIntakeCaseCandidates(
             CreatedAtUtc = caseEntity.CreatedAtUtc,
             PrincipalId = caseEntity.PrincipalId,
             PrincipalCode = principal.Code,
-            IsTriage = false
+            IsTriage = false,
+            IncidentDate = index == null ? null : index.IncidentDate
         })
         // An open Triage Case not yet linked to its instruction Case takes
         // vehicle images too; it has no workflow or match index, so its own
@@ -2051,6 +2060,10 @@ public sealed class EfImageIntakeCaseCandidates(
             from triage in context.Triage.AsNoTracking()
             join caseEntity in context.Cases.AsNoTracking() on triage.CaseId equals caseEntity.Id
             join principal in context.Principals.AsNoTracking() on caseEntity.PrincipalId equals principal.Id
+            // A Triage Case has no match-index row; the outer join keeps the
+            // incident date a column on both sides of the concatenation.
+            join triageIndex in context.CaseMatchIndex.AsNoTracking() on caseEntity.Id equals triageIndex.CaseId into triageIndices
+            from triageIndex in triageIndices.DefaultIfEmpty()
             where EligibleTriageStates.Contains(triage.State)
                 && triage.LinkedInstructionCaseId == null
             select new EligibleCase
@@ -2062,14 +2075,15 @@ public sealed class EfImageIntakeCaseCandidates(
                 CreatedAtUtc = caseEntity.CreatedAtUtc,
                 PrincipalId = caseEntity.PrincipalId,
                 PrincipalCode = principal.Code,
-                IsTriage = true
+                IsTriage = true,
+                IncidentDate = triageIndex == null ? null : triageIndex.IncidentDate
             });
 
     private static IQueryable<ImageIntakeCaseCandidate> Project(IQueryable<EligibleCase> cases) =>
         cases.OrderBy(item => item.Reference)
             .Select(item => new ImageIntakeCaseCandidate(
                 item.CaseId, item.Reference, item.Version, item.Registration, item.CreatedAtUtc,
-                item.PrincipalId, item.PrincipalCode, item.IsTriage));
+                item.PrincipalId, item.PrincipalCode, item.IsTriage, item.IncidentDate));
 
     private sealed class EligibleCase
     {
@@ -2081,6 +2095,7 @@ public sealed class EfImageIntakeCaseCandidates(
         public Guid PrincipalId { get; init; }
         public required string PrincipalCode { get; init; }
         public bool IsTriage { get; init; }
+        public DateOnly? IncidentDate { get; init; }
     }
 
     internal static async Task<IReadOnlyList<ImageIntakeCaseCandidate>> FindEligibleByRegistrationAsync(
