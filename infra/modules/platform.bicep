@@ -466,6 +466,10 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
         { name: 'GitHub__ProblemReports__Labels', value: 'problem-report' }
         { name: 'Features__AutomationMcp', value: 'true' }
         { name: 'Features__PrincipalApi', value: 'true' }
+        // ADR-0090 guided photo capture: the links it prints use this Web
+        // App's own origin (R776), which already ends with a slash.
+        { name: 'Features__PhotoCapture', value: 'true' }
+        { name: 'PhotoCapture__PublicOrigin', value: webPublicOrigin }
         { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }
         { name: 'AutomationMcp__KeyVaultUri', value: keyVault.properties.vaultUri }
         { name: 'AutomationMcp__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${automationMcpClientSecretUri})' }
@@ -603,6 +607,7 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'Box__HoldingFolderId', value: boxHoldingFolderId }
         { name: 'Box__ConfigJson', value: '@Microsoft.KeyVault(SecretUri=${boxConfigJsonSecretUri})' }
         { name: 'Box__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${boxClientSecretSecretUri})' }
+        { name: 'Features__PhotoCapture', value: 'true' }
         { name: 'Dvla__BaseUri', value: 'https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/' }
         { name: 'Dvla__ApiKey', value: '@Microsoft.KeyVault(SecretUri=${dvlaApiKeySecretUri})' }
         { name: 'Dvsa__BaseUri', value: 'https://history.mot.api.gov.uk/v1/trade/vehicles/registration/' }

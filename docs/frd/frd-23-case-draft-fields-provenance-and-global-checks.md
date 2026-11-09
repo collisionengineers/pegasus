@@ -34,7 +34,8 @@ Each Case datum keeps its current provenance: staff entry, extraction, AI
 prefill or proposal, Principal API, or another external vehicle or estimate
 source, with its identity, version, and time. The UI shows provenance without
 treating it as confirmation: one word in a source tag beside the value
-(Extracted, AI, E-mail, Lookup, Principal, Automatic, Principal API), and no tag
+(Extracted, AI, E-mail, Lookup, Principal, Automatic, Principal API, Photo
+link), and no tag
 on a value staff typed or corrected. A derived value names its inputs and
 calculation rather than claiming a raw source. A standalone Audit's Original
 report cells are Extracted from the reading intake already recorded of that
@@ -44,7 +45,7 @@ report, and from a fresh read of it only when none was recorded (operator,
 
 Each datum also carries a value kind (Fact, Suggestion, or Confirmed) and a
 source kind (intake evidence, mail route, case acceptance, staff correction,
-vehicle lookup, Principal setting, or Principal API). `principal_code`
+vehicle lookup, Principal setting, Principal API, or Photo link). `principal_code`
 names the Principal for match indexing and the Case export. It is Confirmed with
 source kind case acceptance when staff acceptance names the Principal (see
 [Ways intake starts](frd-02-intake-and-source-identity.md#ways-intake-starts)),
@@ -53,6 +54,18 @@ replacement Case
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 A Confirmed value supersedes an earlier Fact or Suggestion for current use
 without erasing it from history.
+
+**Photo link details.** When a photo link's capture settles on a Case, the
+claimant name, contact number, accident date, inspection location and
+mileage its sender typed fill the Case's empty fields as Facts with source
+kind Photo link, tagged **Photo link**. A value already on the Case is never
+overwritten, and the registration is never written. The sender's views
+with no Case field (roadworthy, preferred outcome, in hire, airbags and
+steering) stay on the capture (operator, 9 November 2026,
+[R780](../rulings.md);
+[FRD-28](frd-28-guided-photo-capture.md#case-field-filling)). Where a Photo
+link mileage ranks in the mileage evidence below is not yet decided
+([open decisions](../open-decisions.md#photo-capture-a-typed-mileage-and-inspection-location-against-existing-evidence-rules)).
 
 The draft shows its section blockers, missing values and contradictions
 (operator rulings, 15 and 16 October 2026). The section blockers are the

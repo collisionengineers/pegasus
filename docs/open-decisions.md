@@ -40,3 +40,51 @@ durable owner.
   was taken up on 30 October 2026 (R561: the Pre-Pegasus case mail category
   and the classifier agent's read-only old-system lookups). The date is
   2 November 2026 (R603).
+
+## Photo capture: a custom capture domain (deferred)
+
+- **Owner**: the operator.
+- **Affected contract**: [ADR-0090](adr/0090-public-photo-capture-surface.md)
+  (same origin now), `PhotoCapture:PublicOrigin`
+  ([configuration](engineering/configuration.md#photo-capture)) and the
+  links [FRD-28](frd/frd-28-guided-photo-capture.md#photo-links) prints.
+- **Decision needed**: whether photo links move to a Collision Engineers
+  domain. Links carry the Pegasus hostname for now, and a custom domain stays
+  a separate decision (operator, 9 November 2026, R776); EXT-19 stays
+  retired, so a custom domain would take a new capability identity. Links
+  already sent keep the hostname they were sent with until they expire.
+
+## Photo capture: the unavailable page's wording
+
+- **Owner**: the operator.
+- **Affected contract**: [FRD-28](frd/frd-28-guided-photo-capture.md#public-surface)
+  (one identical answer for an unknown, expired, revoked or paused link).
+- **Decision needed**: the words the `/c` and `/s` page shows beyond "This
+  link is no longer active", the line the retired upload links (INT-31)
+  used: whether it tells the sender what to do next, such as asking whoever
+  sent the link for a new one, and in what words. The answer must stay the
+  same for all four causes.
+
+## Photo capture: the photo link e-mail's subject
+
+- **Owner**: the operator.
+- **Affected contract**: [FRD-28](frd/frd-28-guided-photo-capture.md#the-photo-link-e-mail)
+  and [FRD-17](frd/frd-17-administration-workspace.md#e-mail-templates),
+  where a subject is not templated and each purpose's subject is stated.
+- **Decision needed**: the subject line of the Photo link e-mail. The body
+  is decided; no ruling or FRD states the subject.
+
+## Photo capture: a typed mileage and inspection location against existing evidence rules
+
+- **Owner**: the operator.
+- **Affected contract**: [FRD-23](frd/frd-23-case-draft-fields-provenance-and-global-checks.md#vehicle-details-and-mileage-evidence)
+  (the mileage evidence order), [FRD-06](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address)
+  (a physical-address Principal's location is extracted and confirmed by an
+  operator) and [FRD-28](frd/frd-28-guided-photo-capture.md#case-field-filling).
+- **Decision needed**: R780 fills an empty mileage and inspection location
+  from what the sender typed, as Facts with Photo link provenance. FRD-23's
+  four-tier mileage order has no place for a Photo link value, so it is open
+  whether a later DVSA estimate may replace it or it ranks above the
+  estimate; and FRD-06 has a physical-address Principal's location confirmed
+  by an operator, so it is open whether a Photo link location needs that
+  confirmation before the report uses it.

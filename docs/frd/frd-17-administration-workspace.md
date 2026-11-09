@@ -118,7 +118,12 @@ generation, Report sending, Salvage matrix, Default inspection location and
 Principal API, each its own address (`?tab=`) so the tabs work without
 script, with Replace code in the head of the Contact tab
 ([v41 A3](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
-There is no Principal settings panel.
+There is no Principal settings panel. A Principal, Claim Source or Repairer
+contact's page also has a **Photo links** tab: the standing URL, its QR code,
+Copy, Pause or Resume, Replace link and the link's defaults (operator,
+9 November 2026; R771;
+[FRD-28](frd-28-guided-photo-capture.md#standing-photo-links)). It is absent
+while `Features:PhotoCapture` is off.
 A panel's save returns to its tab with its notice inside the panel; a refused
 save shows its message at the top of that panel and keeps what was typed
 (operator, 13 October 2026). Principal-specific
@@ -202,7 +207,10 @@ and **Edit**. The templates are the Triage outcome reply
 Case report delivery
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)) and the
 Case chaser
-([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)), and
+the Photo link e-mail
+([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-e-mail); operator,
+9 November 2026; R770).
 
 **Edit** opens a dialog: the body, up to 5000 characters, a row of
 placeholder buttons that insert at the cursor, and Cancel and Save. The
@@ -218,8 +226,10 @@ Case's missing-material reason while it has due work), `{principal name}` and
 `{claimant}`; it has no Case/PO placeholder, since the reference is internal
 and means nothing to the party chased (operator, 5 October 2026). Its
 built-in body is the one sentence the due-chaser sweep writes, without the
-reference, and the sign-off. A body naming any other placeholder is refused,
-and the message names it. Save acts on the click with the rendered version. A
+reference, and the sign-off. The Photo link's are `{registration}`,
+`{claimant}`, `{photo link}`, `{link expiry}` and `{principal name}`; its
+built-in body is the one FRD-28 gives. A body naming any other placeholder
+is refused, and the message names it. Save acts on the click with the rendered version. A
 stale save is refused and asks the Administrator to reload.
 
 A placeholder with no value renders nothing. A line whose placeholders are

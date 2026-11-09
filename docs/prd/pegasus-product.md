@@ -133,11 +133,16 @@ UK South is the chosen deployment default, not a mandatory UK-residency rule.
 
 The accepted intake target includes all four business mailboxes. WhatsApp is
 a source of supplied instructions/images, not an authorization or requirement
-to invent automated WhatsApp ingestion. Guided capture runs outside Pegasus
-through Tractable, which emails a PDF that intake reads; Pegasus has no
-Tractable integration and no capture of its own. Glass's repair estimates,
-Glass's valuation and native Pegasus reports are included; additional
-spreadsheet-driven customer and garage-procedure automation remain deferred.
+to invent automated WhatsApp ingestion. Guided capture is Pegasus's own
+photo link surface: a link HQ sends, or a standing link a contact or the
+website keeps, opens a guided app on a phone whose photos file on the Case
+or become a Vehicle images record
+([FRD-28](../frd/frd-28-guided-photo-capture.md); operator, 9 November 2026,
+R770 to R782). Tractable capture still runs outside Pegasus and arrives as
+an e-mailed PDF that intake reads (EXT-17); Pegasus has no Tractable
+integration. Glass's repair estimates, Glass's valuation and native Pegasus
+reports are included; additional spreadsheet-driven customer and
+garage-procedure automation remain deferred.
 
 ## Excluded product capabilities
 
@@ -173,6 +178,15 @@ spreadsheet-driven customer and garage-procedure automation remain deferred.
 - BND-10: Separate Azure user-acceptance environment (UAT rounds run on the
   hosted test instance; ADR-0088, R628).
 - BND-11: Training/demo environment.
+
+Guided photo capture ([FRD-28](../frd/frd-28-guided-photo-capture.md))
+keeps these exclusions. It sends no SMS: a link goes by staff e-mail or by
+Copy link and the staff member's own phone (BND-04). A photo link is for
+one vehicle's photos and expires, a standing link only starts such links,
+and neither shows a Case, its state or any reference, only the
+registration, so neither is a persistent customer portal (BND-06). Pegasus
+sends no reminder by itself; staff send each one with a click (MAIL-19).
+The sender has no account and signs in to nothing (ACC-12).
 
 
 ## Ongoing Case responsibility

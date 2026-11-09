@@ -90,6 +90,14 @@ accident date only where the Case holds none, and the VIN only where the
 work holds none; nothing already recorded is replaced (operator, 12 October
 2026).
 
+**Photo link (`INT-34`).** Pegasus's own guided capture is a way information
+arrives too: each photo, document or video a photo link sends is its own
+receipt on the Photo capture channel, shown as **Photo link**. Its receipt
+is never Unidentified and never held in Box holding; it files on its Case
+or waits for its capture to settle
+([FRD-28](frd-28-guided-photo-capture.md#routing-and-filing); operator,
+9 November 2026, [R773](../rulings.md)).
+
 **Direct Case creation** is a staff path that the Automation Actor also
 takes, through `pegasus_case_create`
 ([ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). It uses

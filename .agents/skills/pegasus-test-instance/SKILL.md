@@ -54,10 +54,12 @@ together, with a ruling.
 - **No Azure spend.** Key Vault secret reads, Graph calls and the SqlPackage
   extract to a local file are the only Azure touches (R623). A step that would
   create or run anything in Azure is a question to the operator first.
-- **Funnel for the Graph webhook path alone.** `tailscale serve` on 443 keeps
-  the origin on the tailnet; `tailscale funnel` on 8443 exposes
-  `/hooks/microsoft-graph/mail` and nothing else (R676). Nothing else is
-  ever Funnelled.
+- **Funnel for the Graph webhook path and, with photo capture on, its three
+  paths.** `tailscale serve` on 443 keeps the origin on the tailnet;
+  `tailscale funnel` on 8443 exposes `/hooks/microsoft-graph/mail` (R676)
+  and, only while `Features__PhotoCapture` is on there, `/c`, `/s` and
+  `/capture` so a phone off the tailnet can open a photo link (R782).
+  Nothing else is ever Funnelled.
 - **No public origin without password sign-in.** `Start` refuses it; the
   automatic offline sign-in would make every tailnet caller the Administrator.
 - **The data is not disposable (R696).** Staff UAT Cases, the Cases intake
@@ -76,7 +78,8 @@ together, with a ruling.
 | --- | --- | --- |
 | `New-LocalLiveSettings.ps1 -Approve` | the operator's `az` sign-in and their word | reads twelve Key Vault secrets from `pegasusprodkv252ow37g` (names printed first) |
 | Graph identity | a Microsoft 365 administrator (the operator) | the existing `CollisionSpike Graph Intake` registration and scope `CollisionSpike-Intake-Prod`; adds the one role it lacks (`Application Mail.Send`) and the secret; recorded in operations |
-| `tailscale funnel` of the webhook path | the operator | the one public path on the machine |
+| `tailscale funnel` of the webhook path | the operator | the webhook's public path on the machine |
+| `tailscale funnel` of `/c`, `/s` and `/capture` | the operator, with `Features__PhotoCapture` on | the photo capture paths, public while photo capture is on (R782) |
 | `Copy-ProductionDatabaseToRun.ps1 -Approve` | the operator's word per copy | a live read of production SQL, into this run on this host alone |
 | `Invoke-LocalDevelopment.ps1 -Action Reset -Approve` | the operator's word for this run | removes the database and the run root; nothing brings the data back (R696) |
 | Serving a branch or pull request | the operator names it | the instance leaves `dev`'s tip (R695, section 6) |
@@ -136,6 +139,17 @@ Graph__ChangeNotificationUrl=https://<host>.<tailnet>.ts.net:8443/hooks/microsof
 Graph__ChangeNotificationClientState=<at most 128 characters the operator chooses, not production's>
 ```
 
+For photo capture, when the operator turns it on there, also append:
+
+```text
+Features__PhotoCapture=true
+PhotoCapture__PublicOrigin=https://<host>.<tailnet>.ts.net:8443/
+```
+
+`PhotoCapture__PublicOrigin` is the `:8443` Funnel origin, so the links the
+instance prints open from a phone off the tailnet (R782); the three capture
+paths are Funnelled in section 3 before the line goes in.
+
 The Graph lines wait until the identity exists (section 4); start without
 them if it does not yet, and the run uses the folder mailbox adapters. The two
 `ChangeNotification` lines go together and wait until the webhook path is
@@ -165,10 +179,23 @@ tailscale serve status
 tailscale funnel status
 ```
 
+Only while `Features__PhotoCapture` is on there (R782), Funnel the three
+photo capture paths on the same port:
+
+```bash
+tailscale funnel --bg --https=8443 --set-path /c https+insecure://localhost:7139/c
+tailscale funnel --bg --https=8443 --set-path /s https+insecure://localhost:7139/s
+tailscale funnel --bg --https=8443 --set-path /capture https+insecure://localhost:7139/capture
+```
+
+Turning photo capture off there takes these three paths off Funnel again,
+and `funnel status` is back to the webhook path alone.
+
 `+insecure` is needed because Kestrel presents the development certificate;
 the tailnet certificate is what the browser sees, so nothing is exported or
-trusted by hand. The second command is the one public path (R676): `funnel
-status` must list `:8443` with that path alone, and
+trusted by hand. The second command is the webhook's public path (R676):
+`funnel status` must list `:8443` with that path, and with photo capture on
+the three capture paths besides it and nothing else (R782), and
 `curl -sS -X POST 'https://<host>.<tailnet>.ts.net:8443/hooks/microsoft-graph/mail?validationToken=x'`
 must print `x`. Prove the proxy keeps the host:
 

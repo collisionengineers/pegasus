@@ -88,8 +88,9 @@ administrator, the time, and both results.
 ## 3. The webhook path, public through Funnel
 
 Graph delivers change notifications only to a URL it can reach from the
-internet, so the webhook path alone is Funnelled, on its own port; port 443
-stays tailnet-only (R676). On the Tailscale node that owns the name:
+internet, so the webhook path is Funnelled, on its own port; port 443
+stays tailnet-only (R676). Photo capture's paths join it only while that
+feature is on (R782). On the Tailscale node that owns the name:
 
 ```bash
 tailscale funnel --bg --https=8443 --set-path /hooks/microsoft-graph/mail https+insecure://localhost:7139/hooks/microsoft-graph/mail
@@ -98,7 +99,21 @@ curl -sS -X POST 'https://<host>.<tailnet>.ts.net:8443/hooks/microsoft-graph/mai
 ```
 
 `funnel status` must list only `:8443` with that path as public, and the
-`curl` must print `x`: that is Graph's own validation handshake. The endpoint
+`curl` must print `x`: that is Graph's own validation handshake.
+
+While `Features__PhotoCapture` is on there, and only then, the same port
+also Funnels the three photo capture paths, so a phone off the tailnet can
+open a photo link, and `PhotoCapture__PublicOrigin` is
+`https://<host>.<tailnet>.ts.net:8443/` (R782):
+
+```bash
+tailscale funnel --bg --https=8443 --set-path /c https+insecure://localhost:7139/c
+tailscale funnel --bg --https=8443 --set-path /s https+insecure://localhost:7139/s
+tailscale funnel --bg --https=8443 --set-path /capture https+insecure://localhost:7139/capture
+```
+
+`funnel status` then lists `:8443` with the webhook path and these three,
+and nothing else. The endpoint
 is anonymous by design and accepts only notifications carrying the client
 state below, the tenant id, and a subscription id the instance itself holds.
 

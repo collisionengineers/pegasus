@@ -139,6 +139,11 @@ Arrival-time proximity never associates or consolidates material. The
 incident date is an excluding rule, not a matching rule. A vehicle could have
 two accidents on the same date, so a matching incident date is not a reliable
 matcher; two different incident dates mean it is not the same Case.
+A standing photo link's capture uses it the same way: an eligible Case whose
+incident date differs from the accident date the sender typed is not a
+candidate for its photos; a date missing on either side excludes nothing
+(operator, 9 November 2026, [R773](../rulings.md);
+[FRD-28](frd-28-guided-photo-capture.md#routing-and-filing)).
 
 For automatic mail association the incident date has one narrower job: when a
 message's registration matches several Cases, candidates with a different

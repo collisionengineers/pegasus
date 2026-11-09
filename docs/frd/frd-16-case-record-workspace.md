@@ -55,6 +55,10 @@ Case at the same route renders as the Triage Case page instead
   reads "Held · review on {date}" when the hold has a review date;
 - **Edit Case**, or while editing the Editing badge, its status word
   (Saving…, Saved {time}, or why the last change was not saved) and **Done**;
+- **Send photo link**, which opens `/PhotoCapture/Send/{caseId}` to send the
+  customer a photo link for this Case, absent while `Features:PhotoCapture`
+  is off (operator, 9 November 2026; R770;
+  [FRD-28](frd-28-guided-photo-capture.md#photo-links));
 - the one **Actions** menu.
 
 When a colleague holds the lease the ribbon shows who, and offers **Ask to
@@ -855,7 +859,13 @@ record that is associated with the Case and not yet merged into it lists its
 photographs below the grid, under its Image reference. When the merge
 completes they are Case images and the record's group goes, so each
 photograph shows once
-([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)). Each
+([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)). A
+Case with photo link photos shows, for each capture, a **What they told us**
+card with the details the sender typed and their note, then its photos in
+story order under their story groups (the overview all the way round, each
+damaged area, the number plate, the VIN, the dashboard, then the additional
+information) (operator, 9 November 2026; R771;
+[FRD-28](frd-28-guided-photo-capture.md#baskets-and-names)). Each
 tile shows:
 
 - a lazy-loaded thumbnail that expands to the full image, with the original

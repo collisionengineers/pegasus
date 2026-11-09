@@ -80,7 +80,9 @@ content, top to bottom:
 - **Brand** — the refined Pegasus mark (`images/pegasus-mark-refined-128.png`, no wordmark
   inside the image) at 52px beside "PEGASUS" and the line "Case management" (v28 P1).
 - **Nav label "Work"**, then the links in order: Work Centre (`/`), Inbox,
-  Upload, Cases (`/cases`), Search (`/search`).
+  Upload, Cases (`/cases`), Photo capture (`/PhotoCapture`, while
+  `Features:PhotoCapture` is on; operator, 9 November 2026, R771), Search
+  (`/search`).
 - **Nav label "Manage"**, then Administration — rendered for Administrators
   only, absent for everyone else.
 - **Rail foot** — the health line (dot and "Current · HH:MM") and the user
@@ -702,6 +704,18 @@ documents or people. The prototype's fixture data is not domain data and is
 never copied, except the Case Workspace v2 fixture set
 ([engineering](../engineering.md#case-workspace-v2-fixture-values)).
 
+#### Public capture surface
+
+The guided photo capture app
+([FRD-28](../frd/frd-28-guided-photo-capture.md)) is a public surface for
+customers and firms' staff, not the internal application. It is served from
+`src/Pegasus.Web/wwwroot/capture/` with its own Collision Engineers
+branding and its own guide imagery, and sits outside the imagery rule above
+and outside the authenticated shell. Its design contract is the app itself
+as it came from the photo capture handover of 5 November 2026, which stands
+as its mockup (operator, 9 November 2026, R775); the staff pages that manage
+it follow this README.
+
 ### Web and renderer boundary
 
 | Asset class | Approved consumer and boundary |
@@ -982,6 +996,10 @@ deleted in wave 5.
 | `up-sheet`, `up-drop`, `up-evidence`, `up-declared`, `up-file-list` (`upload.css`) | Upload's initial sheet (v42 E): its head states the destination and the limits, its body is the drop target, and **Selected files** with the one action bar appear under it once files are chosen; the file rows are the same list on the review |
 | `up-surface`, `up-workspace`, `up-inspector`, `up-filmstrip`, `up-decision`, `up-case` (`upload.css`) | Upload's review: the inspector beside the one Case decision (v30 E) |
 | `report-preview` | Report draft preview dialog body |
+| `photo-capture-queue`, `photo-capture-list`, `photo-capture-filters`, `photo-capture-table`, `photo-capture-sub` (`photo-capture.css`) | Photo capture (FRD-28; R771): the Coming in and Links we sent tabs as a `nav.tabs`, the tab's headline states as `scope-button`s with their counts, the From select and search in the list head, and the table with its small second lines |
+| `photo-link-box`, `photo-link-url`, `photo-link-standing`, `photo-link-qr`, `photo-link-send`, `photo-link-grid` (`photo-capture.css`) | A photo link shown once to copy (`data-copy-target`), a standing link beside its QR code (the website link on Photo capture, a contact's on its Photo links tab), the Send a photo link form and a link's page |
+| `photo-capture-told`, `photo-capture-note` (`Shared/_PhotoCaptureDetails`) | What they told us: the sender's typed details as a `definition-list` and the Customer's note, on Files → Images, a link's page and the Vehicle images record |
+| `photo-story`, `photo-story-capture`, `photo-story-heading`, `photo-story-stage` (`[data-image-story]`) | Files → Images on a Case with photo links: each link's What they told us, then its images in story groups (damage by stage) on the same tiles, then Other images; the block is the evidence set and is redrawn whole after a tile's In report or tag |
 
 ### Dialogs and feedback
 

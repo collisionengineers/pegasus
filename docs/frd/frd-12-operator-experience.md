@@ -88,10 +88,13 @@ Every authenticated page renders one shell: a persistent rail, a utility
 bar and the page content.
 
 **The rail** carries, in order, **Work Centre** (`/`), **Inbox** (`/Inbox`),
-**Upload** (`/Upload`), **Cases** (`/Cases`), **Search** (`/Search`) and, for administrators only,
+**Upload** (`/Upload`), **Cases** (`/Cases`), **Photo capture**
+(`/PhotoCapture`), **Search** (`/Search`) and, for administrators only,
 **Administration** (`/Administration`). No rail item carries a count
-(operator, 15 October 2026). The current route is marked by more than
-colour. The rail foot shows the freshness line and the signed-in account
+(operator, 15 October 2026), Photo capture included (operator, 9 November
+2026; R771). Photo capture is absent while `Features:PhotoCapture` is off
+([FRD-28](frd-28-guided-photo-capture.md#staff-pages)). The current route
+is marked by more than colour. The rail foot shows the freshness line and the signed-in account
 (name, role, and an account dialog with idle lock and sign out; session start is
 not required, operator, 15 October 2026,
 [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/plan-2026-10-15.md)).
@@ -215,6 +218,8 @@ raise failed; an Administrator retries it from
 | `/Upload` | Staff upload ([FRD-18](frd-18-manual-upload.md#staff-upload-page)) | — |
 | `/Cases` | Queues as one continuous rail: Not ready, Unassigned Images (identified image records and Unidentified items), the other Case queues, Triage and Held ([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)) | Queues; the Triage list |
 | `/Cases/{id}` | Case record with section navigation; `?section=` jumps; once the Case has an Audit, `?view=inspection` or `?view=audit` chooses the view, the Audit view by default ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). A Triage Case renders as the Triage Case page ([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)) | Case workspace side-nav sections; the Assessment page; the Triage record page |
+| `/PhotoCapture`, `/PhotoCapture/Send/{caseId}`, `/PhotoCapture/{id}` | Photo capture: Coming in and Links we sent, sending a photo link from a Case, and a link's detail ([FRD-28](frd-28-guided-photo-capture.md#staff-pages)) | — |
+| `/c/{token}`, `/s/{slug}`, `/capture/api/v1/...` | The public capture app: anonymous, outside the shell ([FRD-28](frd-28-guided-photo-capture.md#public-surface)) | — |
 | `/ReleaseNotes` | Published release notes, newest first; **Got it** posts here | — |
 | `/ProblemReports` | **Send** on Report a problem posts here; it has no page of its own | — |
 | `/Search` | Advanced search ([FRD-15](frd-15-work-centre-queues-and-search.md#search)) | Cases list |
