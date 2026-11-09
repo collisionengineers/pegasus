@@ -223,7 +223,10 @@ profile matches.
 implementation is bound to each extraction registration. QDOS keeps its
 generated Inspection, Audit, combined and Triage tells (below). Other
 profiles need the evidenced explicit inspect or examine request, or the
-DFD/FW instruction template. PCH's explicit Audit request beats its generic
+FW instruction template. A DFD instruction is the attached form titled
+`Engineer instruction request`, sent from the `dfd-solicitors.co.uk` route;
+it classifies `new-instruction` for an Inspection (operator, 9 November
+2026, [R773](../rulings.md)). PCH's explicit Audit request beats its generic
 inspection footer; a separate credit-repair inspection request stays
 distinct. Replies, unknown work and competing work types cannot allocate a
 new Case. Missing ordinary fields do not withhold an otherwise definitive
