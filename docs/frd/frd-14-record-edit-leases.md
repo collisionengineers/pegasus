@@ -97,11 +97,16 @@ expires by server time, and coming back before then resumes it.
 **Every save carries proof.** Each save, transition, assignment,
 association, evidence change or other staff change sends both the lease token
 and the Case version the editor loaded. Core checks both inside the
-transaction. Every staff change ends the lease it was made under and the
-holder's page receives the next one, so a token that still matches proves no
-staff change has landed since the page loaded its version. Core's Case edit
-authority owns this rule, the five-minute lease length and the two writes that
-keep the lease (an Automation write and a Glass's return), and every store
+transaction. Every staff change ends the token it was made under, so a token
+that still matches proves no staff change has landed since the page loaded
+its version. A Case save made from the holder's edit session keeps the lease:
+inside the save's own transaction the lease is renewed as a heartbeat renews
+it and its next token is issued, which the save's answer hands the page, and
+nothing is claimed afterwards (R770, 8 November 2026). Any other staff change
+ends the lease and the holder's page claims the next one. Core's Case edit
+authority owns this rule, the five-minute lease length and the three writes
+that keep the lease (an Automation write, a Glass's return and a Case save
+from the edit session), and every store
 applies it (R514, 29 October 2026). Create audit is a
 staff change, so a change prepared before it is refused; every change after it
 edits the Audit
@@ -241,8 +246,10 @@ being asked and is told it has already been asked; a request the holder never
 answered gives way to the next, and the Automation Actor's request gives way
 the same way (R550, 30 October 2026). A request is addressed to the holder
 asked and ends when the holder changes, when the lease lapses, or when the
-holder finishes with Done. The holder's own save, which ends and re-claims
-the lease, leaves it standing. A request, a denial, a withdrawal or silence
+holder finishes with Done. The holder's own work in the session leaves it
+standing: a Case save keeps the lease (R770, 8 November 2026), and an action
+taken inside the session, which ends the lease and claims it again, keeps the
+same holder. A request, a denial, a withdrawal or silence
 is telemetry; an accepted hand-over and a forced takeover are history (R550,
 30 October 2026).
 
@@ -313,9 +320,9 @@ heartbeating, though its timers are throttled.
 - A non-holder is never shown a countdown or an expiry time.
 - A second window of the same holder shares the Case lease; its saves are
   still checked against the version it loaded. Leaving by a link from either
-  window ends edit mode in the other. A save in either moves the lease on:
-  the other window's next heartbeat is refused, it catches up with the Case
-  as it stands, and the value it was typing stays on screen.
+  window ends edit mode in the other. A save in either issues the lease's
+  next token: the other window's next heartbeat is refused, it catches up
+  with the Case as it stands, and the value it was typing stays on screen.
 - A second window of the same holder shares the record scope: claiming it
   again in one resumes it in both (R518, 29 October 2026).
 - A revoked session's token cannot save an existing record.
@@ -339,7 +346,10 @@ heartbeating, though its timers are throttled.
 
 Core tests cover claim, resume, heartbeat, a lapsed lease picked up again,
 wrong-holder and stale-version refusal for Cases and for record scopes, and a
-version moved only by system work. Integration tests
+version moved only by system work. Persistence tests cover a session save
+that keeps its lease and issues the next token, the token it replaced
+refused, a second window's stale save refused and a standing request
+surviving the save (R770, 8 November 2026). Integration tests
 cover a colleague takeover on a Case whose current version already has its
 own history, the holder's own claim and resume, the Case ribbon, the leaving
 beacon and the record pages over real HTTP. Core tests cover the request

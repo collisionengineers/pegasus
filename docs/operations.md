@@ -303,6 +303,47 @@ names the run, so the checklist file is deleted (R525).
   resumed and read back `Running` at 09:26:12Z after verification. The
   Web App read back `Running` at 09:26:15Z.
 
+## Page p95 reading - 9 November 2026 (read-only observation, partial)
+
+The third reading against the [budgets](engineering.md#page-budgets), and the
+first on the B2 plan (#1961). By the operator's choice it is partial (R769):
+it covers about three days, from Release 2.1.0's smoke at 08:44Z on
+6 November to 12:33Z on 9 November, rather than a week. Two of those days are
+a weekend. Releases 2.2.0, 2.3.0 and 2.3.1 and their restarts fall inside the
+window. The slowness PRs #1989 to #1992 had not shipped; their "after" figures
+are owed under #2000. Figures use the 28 October query (`AppRequests`, server
+ms, sampled rows).
+
+| Page | Requests | p50 | p95 | 5 Nov p95 | Budget |
+| --- | --- | --- | --- | --- | --- |
+| `GET /Index` | 56 | 153 | 1,422 | 3,035 | 500 |
+| `GET /Mail/Index` | 111 | 60 | 459 | 990 | 500 |
+| `GET /Cases/Index` | 106 | 41 | 334 | 2,290 | 500 |
+| `GET /Cases/Details` | 464 | 113 | 448 | 1,157 | 500 |
+| `POST /Cases/Details` (all handlers) | 179 | 265 | 8,901 | 14,211 | 300 |
+| `GET /Mail/Message` | 11 | 288 | 2,998 | 3,158 | 300 |
+
+Per handler, from the unsampled `AppServiceHTTPLogs` (`TimeTaken`):
+
+| Handler | Requests | p50 | p95 | 5 Nov p95 | Budget |
+| --- | --- | --- | --- | --- | --- |
+| `GenerateReport` | 17 | 8.9 s | 11.4 s | 42 s | 3 s |
+| `SendReport` | 8 | 3.5 s | 7.3 s | 22 s | 3 s |
+| `Save` | 165 | 0.3 s | 1.0 s | 3.4 s | 0.3 s |
+
+Phases (average, p95): `report.photos.prepare` 1.8 s, 6.1 s;
+`report.pdf.generate` 0.13 s, 0.46 s; `web.workcentre.main` 0.32 s, 0.99 s;
+`web.case.main` 0.19 s, 0.45 s. There were 406 slow `db.connection.open`
+phases (100 ms or more, p50 561 ms), against 7,613 over four days before
+`Min Pool Size` 16 (#1957).
+
+The B2 plan averaged 8.1 % CPU and 61.4 % memory over hourly samples. CPU
+peaked at 91 % in one hour.
+
+Cases list, Inbox list and Case page open are now under budget on this
+reading. Work Centre, Save and the report handlers are not. The request
+counts are low, so the next full-week reading (#2000) is the comparison.
+
 ## Page p95 reading - 5 November 2026 (read-only observation)
 
 The second reading against the [budgets](engineering.md#page-budgets). It is
@@ -416,6 +457,21 @@ named below, and one read-only count of 22 October 2026 posted on
 | [Release 117](https://github.com/collisionengineers/pegasus/blob/5a7c2b75c5d52c8d73a70e684073bf87369beec7/docs/operations.md#release-117---21-october-2026-deployment-live), Query Store row | Statement: "the one Case on the estate means the registration lookup (PR 1440) and the Open tasks statement (PR 1454) were not exercised, as Release 115's record anticipated". The wipe records give the Case count at four times: 1 Case at the 19 October wipe with mail cutoff 08:31:22Z (`CaseSequences` 104), 4 Cases with 54 documents at 13:29Z (108), 1 Case with 12 documents at 13:36Z (109) and, on 21 October, 2 Cases with 28 documents at 10:24Z (111). Release 117's containment read found 2 `CaseRepairSpecifications` rows at 09:23:34Z. The counts between those times are not recorded. The retained after snapshot (`artifacts/performance/query-store-release-115-after-20261021T0941Z.csv`, 48 h, 357 statements) reads: the Open tasks statement without `ActionHistory` (PR 1454) 1,003 executions, average 289.87 microseconds, total 290,742 microseconds; the candidate-page read that compares `VehicleLookupRequests.Registration` with `NormalizedRegistration` (PR 1440) 2,812 executions, average 144.52 microseconds, total 406,403 microseconds. The file holds no `INSERT` into `VehicleLookupRequests`. Executions count runs and do not show how many rows the tables held. For the earlier Open tasks text, [Release 115](https://github.com/collisionengineers/pegasus/blob/5a7c2b75c5d52c8d73a70e684073bf87369beec7/docs/operations.md#release-115---19-october-2026-deployment-live) names a baseline of 485 executions at 31.1 ms; the retained Release 114 after snapshot (`query-store-release-114-after-20261019T0739Z.csv`, 24 h to 07:39Z on 19 October) reads 459 executions, average 112.17 microseconds, total 51,487 microseconds. |
 | [Reference-data load (REF-04)](https://github.com/collisionengineers/pegasus/blob/5a7c2b75c5d52c8d73a70e684073bf87369beec7/docs/operations.md#reference-data-load-ref-04---17-october-2026-production-applied), read-back row | Statement: "`ActionHistory` rows of batch `ref04:prod-20261017`: 329 `contact_created`, 39 `contact_saved` and 1328 `inspection_location_created`, 1696 in all", with "`OrganizationAdministrationOperations` holds 1696 `ref04` rows", read at 20:07:31Z on 17 October. A read-only count at 06:11:57Z on 22 October returned 0 `ActionHistory` rows where `CorrelationId` starts `ref04:prod-20261017:` and 1,696 `OrganizationAdministrationOperations` rows where `OperationKey` starts `ref04:prod-20261017:`. The 17 October `ActionHistory` count no longer reproduces; the operations table still holds 1,696 rows for the batch. The wipe skill lists `ActionHistory` among the tables a wipe clears and the wipe script's preserve list names `OrganizationAdministrationOperations`. The wipes this file records after that read are the three of 19 October and the one of 21 October. |
 
+## Release 2.4.0 - 9 November 2026 (deployment live)
+
+Release 2.4.0 deployed `dev` at the merge of PR 1993, which combined #1985 (View images on Damage markers, marker leeway, mileage gate before Review, R757 to R759), #1987 (release route: complete environment before approval, `--no-state` provision, kept record, `config-zip` ids; the `-p` rename pass waits for its migration), #1988 (the six CI and testing issues, R760 to R765), #1989 (Case page reference cache, long-poll phases skipped, R766) and the 2.3.0 record (#1984), beside the 2.3.1 record (#1998); its 13 linked issues were closed on landing. #1965 (Experian) is held. A MINOR version (R687). Normal route after the additive migration `20261108120000_WorkerReadsMigrationHistory` (one `GRANT SELECT` on `__EFMigrationsHistory` to the Worker role); the Web restart was the only outage (R690). Released on the operator's instruction of 9 November 2026 to release PR 1993 to the live estate, with the values the preflight printed.
+
+| Observation | Value |
+| --- | --- |
+| Source | `d71972b20fabc956ce97a396aeed96d2f6a260a0`, promoted from `827ac16b54636b1ee15e443d42c3d4f757194d31` after the smoke; `main` and the annotated tag `v2.4.0` read it back |
+| Packages | manifest `A9A6906B8ECEAB5F0E47388DC81EFD0365CC563A43B4C962B34AAD8C8AF4ACCC`; `web.zip` `F92F50BFDA2CB7879D137FD5AC5868C7F8A4C84650F321F26A027A531DCFB3B6`; `worker.zip` `EFEF70E33AA2A1F12C06E2131313273EA76AF42DA2848B0F8A95C5D9D67B52CC`; `classifier.zip` `81794EF417C12F95B979927FABCD058DC8EF55E515BD694AB07BA841B01F2257`; `efbundle` `866D2BA44F976BDDF6CD67E93ABE12B814703DBD764F00C3AED640B94DCBB568` |
+| Migration | head `20261106180000_PrincipalReportNameColumns` to `20261108120000_WorkerReadsMigrationHistory`; restore point 2026-11-09T12:59:18Z before SQL (earliestRestoreDate 2026-11-02T12:59:18Z); 699 catalogued permission rows and 491 effective runtime DML rows verified after it |
+| Deployment | provision not run (no infra change, azd environment equals release 2.3.1's); Web OneDeploy `6394d7dd-a31e-44ed-8aea-1fac1e850da4` succeeded 12:59:53Z, read back Running, ready and at the SHA and `2.4.0` on attempt 1; Worker `4f8ce7a1-e3d5-420f-99a3-99e1227b98a6`; classifier `567333ea-48bf-408e-91c0-3d9e6f5d4eb1`, `Running` (ids reported by the script; #1932 closed) |
+| Smoke | passed at 13:05:27Z; deployed package SHA equals `web.zip`; intake liveness last poll 13:05:00Z, subscription expires 2026-11-12 08:30Z. No focused live check beyond the smoke: the mileage gate and View images are seen by staff on a live Case |
+| Test instance | serving `d71972b20` at `https://cemattypc-1.tail432b53.ts.net/` (R684); its database took the migration and holds the grant |
+| Evidence | `artifacts/releases/release-2.4.0-d71972b2` (packages, `release-record.json`) and `artifacts/releases/logs/release-2.4.0-*.log` on `cemattypc-1` |
+| Owed | #1997 (200-line estimate bound decision), #1996 (MCP structured output schema), #1981, #1982, #1983 (intake and classifier, from 2.3.0), #1970 (Query Store after window); #1990 to #1992, stacked on #1989's branch, need their R760 to R766 renumbering before they combine |
+
 ## Release 2.3.1 - 9 November 2026 (deployment live)
 
 Release 2.3.1 deployed `dev` at the merge of PR 1995 (#1994: the Case page's form value limit is sized for a 200-line Repair Spec, so a commit on a Case carrying a large spec is no longer refused as a bare 400 before any handler runs). Normal route; no migration; the Web App restart was the outage (R690). The focused live check is a field commit landing on `QDOS26172-p` with its 108-line draft in place (operator).
@@ -459,9 +515,9 @@ Release 2.2.0 deployed `dev` at the merge of PR 1967: #1960 (dialog drag R716, R
 | Deployment | Web OneDeploy `5026f42c-656f-400c-bf6e-19951a699997` succeeded 12:37:49Z, read back Running, ready and at the SHA and `2.2.0` on attempt 12; Worker `83e25f90-9a83-4477-8e38-761cc90177fa`; classifier `c4528896-1973-4a71-a545-345be6d5c31a`, `Running` (ids read from the log, #1932) |
 | Smoke | passed at 12:43:32Z; deployed package SHA equals `web.zip`; intake liveness last poll 12:40:00Z, subscription expires 2026-11-12 08:30Z; `/diagnostics/version` reads `2.2.0` at the SHA |
 | Test instance | serving `b520be66` at `https://cemattypc-1.tail432b53.ts.net/` (R684); there `a.PCH26006-p`'s custody retry confirmed and it moved to Review (#1964) |
-| Query Store | `READ_WRITE`; before window `artifacts/performance/release-2.2.0-before-20261106T1234Z.csv` (24 h, 458 statements) on `cemattypc-1` |
+| Query Store | `READ_WRITE`; before window `artifacts/performance/release-2.2.0-before-20261106T1234Z.csv` (24 h, 458 statements), after window `release-2.2.0-after-20261107T1243Z.csv` (24 h from 12:43Z on 6 November, all on 2.2.0's bytes, mostly a weekend, 412 statements, read 9 November, R768), both on `cemattypc-1`. The Work Centre load's 19 statements: 4,400 executions, 587 ms (133 µs average) before; 4,563, 545 ms (119 µs) after; about 1.2 ms per load or warm pass, so its time was never statement time (#1957). #1966's custody read and updates ran in neither window |
 | Evidence | `artifacts/releases/release-2.2.0-b520be66` on `cemattypc-1` |
-| Owed | #1970 (the Query Store after window), #1932 (deployment ids not reported) |
+| Owed | #1932 (deployment ids not reported); #1970 settled by the after window above |
 
 ## Release 2.1.0 - 6 November 2026 (deployment live)
 
@@ -477,7 +533,7 @@ Release 2.1.0 deployed `dev` at the merge of PR 1953: the production Web plan mo
 | Smoke | passed at 08:44:17Z; deployed package SHA equals `web.zip`; intake liveness last poll 08:40:00Z, subscription expires 2026-11-12 08:30Z |
 | Test instance | serving `4089b220` at `https://cemattypc-1.tail432b53.ts.net/` (R684) |
 | Evidence | `artifacts/releases/release-2.1.0-4089b220` on `cemattypc-1` |
-| Owed | #1961 (the page p95 reading after a week on B2), #1932 (deployment ids not reported) |
+| Owed | #1932 (deployment ids not reported); #1961 settled by the partial 9 November reading (R769) |
 
 ## Release 2.0.0 - 5 November 2026 (deployment live, destructive migration)
 

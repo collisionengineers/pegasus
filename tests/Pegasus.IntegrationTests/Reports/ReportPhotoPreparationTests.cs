@@ -14,7 +14,9 @@ namespace Pegasus.IntegrationTests.Reports;
 /// slot), a large PNG is read a row at a time, and every image opens only
 /// when it prints. These tests pin that the print is what the two-stage
 /// rotated-copy print was, on both decode routes, and that the renderer and
-/// its gate hold one image at a time and let an abandoned render go.
+/// its gate hold at most two images at a time
+/// (<see cref="QuestPdfAssessmentReportRenderer.ImagesPreparedAtOnce"/>) and
+/// let an abandoned render go.
 /// </summary>
 public sealed class ReportPhotoPreparationTests
 {
@@ -299,27 +301,47 @@ public sealed class ReportPhotoPreparationTests
     }
 
     /// <summary>
-    /// Every image opens when the renderer prints it, one at a time, and once:
-    /// nothing is read while the snapshot is composed or the render queues.
+    /// Every image opens when the renderer prints it, at most two at a time
+    /// (<see cref="QuestPdfAssessmentReportRenderer.ImagesPreparedAtOnce"/>),
+    /// and once: nothing is read while the snapshot is composed or the render
+    /// queues. Each prints in its own place in the Engineer's order whatever
+    /// order the images finish in.
     /// </summary>
     [Fact]
-    public async Task EachImageOpensOnceWhenItPrintsAndOnlyOneIsOpenAtATime()
+    public async Task EachImageOpensOnceWhenItPrintsAtMostTwoAtOnceAndPrintsInItsOwnPlace()
     {
         await using var provider = RendererProvider();
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
-        var opens = new List<string>();
+        var counted = new Lock();
+        var opens = new List<int>();
         var running = 0;
         var most = 0;
+        // The first image in order stays open until the third has opened, so
+        // it finishes after later images: a serial loop would never open the
+        // third and time out, and the first still has to print first.
+        var thirdOpened = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         ReportImageEvidence Photo(int index)
         {
-            var bytes = Quadrants(320, 240, SKEncodedImageFormat.Jpeg);
+            // Each of a width of its own, so each can be told apart in print.
+            var bytes = Quadrants(240 + (80 * index), 240, SKEncodedImageFormat.Jpeg);
             return new ReportImageEvidence(
                 $"site-{index}.jpg",
                 "image/jpeg",
                 ReportImageContent.Opened(async _ =>
                 {
-                    opens.Add($"site-{index}.jpg");
-                    most = Math.Max(most, Interlocked.Increment(ref running));
+                    lock (counted)
+                    {
+                        opens.Add(index);
+                        most = Math.Max(most, Interlocked.Increment(ref running));
+                    }
+                    if (index == 3)
+                    {
+                        thirdOpened.TrySetResult();
+                    }
+                    if (index == 1)
+                    {
+                        await thirdOpened.Task.WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
+                    }
                     await Task.Delay(20, CancellationToken.None);
                     Interlocked.Decrement(ref running);
                     return bytes;
@@ -330,22 +352,28 @@ public sealed class ReportPhotoPreparationTests
         }
         var snapshot = AssessmentReportRendererTests.ReadySnapshot() with
         {
-            Photos = [Photo(3), Photo(1), Photo(2)],
+            Photos = [Photo(3), Photo(1), Photo(4), Photo(2), Photo(5)],
         };
         Assert.Empty(opens);
 
         var artifact = await new GenerateAssessmentReportDraft(renderer)
             .ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
 
-        Assert.True(artifact.PageCount > 0);
-        // In the Engineer's order, each exactly once.
-        Assert.Equal(["site-1.jpg", "site-2.jpg", "site-3.jpg"], opens);
-        Assert.Equal(1, most);
+        // Each exactly once, and never more than two at a time.
+        Assert.Equal([1, 2, 3, 4, 5], opens.Order());
+        Assert.Equal(QuestPdfAssessmentReportRenderer.ImagesPreparedAtOnce, most);
+        // In the Engineer's order, read across the image pages.
+        Assert.Equal(
+            [320, 400, 480, 560, 640],
+            AssessmentReportRendererTests.ImagePages(artifact.Pdf)
+                .SelectMany(page => page)
+                .Select(image => image.PixelWidth));
     }
 
     /// <summary>
     /// A caller that stops waiting stops the render: the token the gate hands
-    /// the render is cancelled and the render does not open its next image.
+    /// the render is cancelled and the render does not open an image beyond
+    /// those already in flight.
     /// </summary>
     [Fact]
     public async Task ACancelledRenderStopsBeforeItOpensTheNextImage()
@@ -354,6 +382,7 @@ public sealed class ReportPhotoPreparationTests
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
         var gate = provider.GetRequiredService<ReportRenderGate>();
         using var caller = new CancellationTokenSource();
+        var counted = new Lock();
         var opened = new List<int>();
         ReportImageEvidence Photo(int index)
         {
@@ -363,21 +392,31 @@ public sealed class ReportPhotoPreparationTests
                 "image/jpeg",
                 ReportImageContent.Opened(_ =>
                 {
-                    opened.Add(index);
                     caller.Cancel();
+                    lock (counted)
+                    {
+                        opened.Add(index);
+                    }
                     return Task.FromResult(bytes);
                 }),
                 Convert.ToHexStringLower(SHA256.HashData(bytes)),
                 CaseAssetReportRole.Supporting,
                 index);
         }
-        var snapshot = AssessmentReportRendererTests.ReadySnapshot() with { Photos = [Photo(1), Photo(2)] };
+        var snapshot = AssessmentReportRendererTests.ReadySnapshot() with
+        {
+            Photos = [Photo(1), Photo(2), Photo(3)],
+        };
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => renderer.RenderAsync(snapshot, CaseReportArtifactKind.AssessmentReport, caller.Token));
         await SettledAsync(gate);
 
-        Assert.Equal([1], opened);
+        // The first and perhaps the second were in flight when the caller
+        // went; the third could only start after one of them had finished,
+        // and every open cancels first.
+        Assert.Contains(1, opened);
+        Assert.DoesNotContain(3, opened);
     }
 
     /// <summary>

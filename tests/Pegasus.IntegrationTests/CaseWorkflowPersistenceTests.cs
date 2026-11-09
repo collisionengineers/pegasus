@@ -2682,9 +2682,9 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
     }
 
     /// <summary>
-    /// A request is addressed to one holder (R550, 30 October 2026). The holder's own re-claim —
-    /// what their save does — leaves it standing; once their lease lapses and another member of
-    /// staff claims the Case, the request is over.
+    /// A request is addressed to one holder (R550, 30 October 2026). The holder's own take-back
+    /// leaves it standing; once their lease lapses and another member of staff claims the Case,
+    /// the request is over.
     /// </summary>
     [Fact]
     public async Task TheRequestFollowsOnlyTheHolderItWasAddressedTo()
@@ -2721,9 +2721,10 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
     }
 
     /// <summary>
-    /// The holder's own save ends and re-claims the lease and leaves the request standing; a claim
-    /// by the same holder after the lease lapsed does not, because the request was asked against
-    /// a session that has ended (R550, 30 October 2026).
+    /// The holder's own action, which ends the lease and is followed by their re-claim, leaves the
+    /// request standing; a claim by the same holder after the lease lapsed does not, because the
+    /// request was asked against a session that has ended (R550, 30 October 2026). A Case save
+    /// keeps the lease instead (R770, <see cref="AStandingRequestSurvivesTheHoldersSessionSave"/>).
     /// </summary>
     [Fact]
     public async Task TheHoldersSaveKeepsTheRequestButTheirClaimAfterALapseEndsIt()
@@ -2754,6 +2755,49 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
             new ClaimCaseEditLeaseRequest(harness.CaseId, saved.Version, holder, "request-save-after-lapse"), default);
 
         Assert.Null((await harness.Store.ReadRequestAsync(harness.CaseId, colleague, default)).Request);
+    }
+
+    /// <summary>
+    /// A session save keeps the holder's lease (R770), so the request a colleague raised against
+    /// that session still stands after it, unchanged and still pending, and the holder answers it
+    /// with the token the save handed back.
+    /// </summary>
+    [Fact]
+    public async Task AStandingRequestSurvivesTheHoldersSessionSave()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, holder, "request-session-claim"), default);
+        var raised = await harness.Store.RaiseRequestAsync(
+            new RaiseCaseEditRequestRequest(harness.CaseId, 0, colleague, "request-session-asks"), default);
+        Assert.Equal(CaseEditRequestOutcome.Pending, raised.Outcome);
+        var beforeSave = await harness.Store.ReadRequestAsync(harness.CaseId, colleague, default);
+
+        var saved = await new EfCaseWorkspaceStore(harness.Factory, harness.TimeProvider).SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                harness.CaseId, 0, holder, "request-session-save", "Recorded the Case workspace", held.Token)
+            {
+                Damage = new([new DamageDisc(0.18, 0.2, 0.12)], null),
+                ContinuesSession = true
+            },
+            default);
+        var kept = Assert.IsType<CaseSessionLease>(saved.SessionLease);
+
+        var afterSave = await harness.Store.ReadRequestAsync(harness.CaseId, colleague, default);
+        Assert.Equal(raised.Request, afterSave.Request);
+        Assert.True(afterSave.RequestIsPending);
+        Assert.Equal(beforeSave.Stamp, afterSave.Stamp);
+        Assert.Equal(holder.SubjectId, afterSave.Holder);
+
+        await harness.Store.AnswerRequestAsync(
+            new AnswerCaseEditRequestRequest(
+                harness.CaseId, holder, raised.Request!.Id, CaseEditRequestAnswer.Accepted, kept.Token),
+            default);
+        var handedOver = await harness.Store.ReadRequestAsync(harness.CaseId, colleague, default);
+        Assert.Equal(colleague.SubjectId, handedOver.Holder);
+        Assert.NotNull(handedOver.OwnLease);
     }
 
     /// <summary>

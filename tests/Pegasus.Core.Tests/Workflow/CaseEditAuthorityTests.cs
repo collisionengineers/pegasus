@@ -87,9 +87,9 @@ public sealed class CaseEditAuthorityTests
     }
 
     /// <summary>
-    /// Every staff write ends its lease, so a token that still matches proves only system work
-    /// moved the Case since the page read it: the write is accepted from that older version. A
-    /// version from the future is refused.
+    /// Every staff write ends its lease or replaces its token (a session save, R770), so a token
+    /// that still matches proves only system work moved the Case since the page read it: the write
+    /// is accepted from that older version. A version from the future is refused.
     /// </summary>
     [Fact]
     public void UnderAProvenLeaseAVersionMovedOnlyBySystemWorkIsAccepted()
@@ -103,10 +103,35 @@ public sealed class CaseEditAuthorityTests
         Assert.Equal(9, exception.ActualVersion);
     }
 
-    /// <summary>A staff write ends the lease it was made under.</summary>
+    /// <summary>
+    /// A staff write ends the lease it was made under, unless it is a Case save that carries the
+    /// holder's session on (<see cref="CaseEditAuthority.WriteContinuesSession"/>), which keeps
+    /// the lease and replaces its token instead (R770).
+    /// </summary>
     [Fact]
     public void AStaffWriteEndsItsLease() =>
         Assert.True(CaseEditAuthority.WriteEndsLease(ActorKind.Staff, keepsLease: false));
+
+    /// <summary>
+    /// Only a member of staff's own session save carries the session on, and only while the Case
+    /// stays editable (operator, 8 November 2026; R770): the Automation Actor's lease already
+    /// stands across its writes with one token, a save that did not ask ends the lease, and a
+    /// write that leaves the Case terminal ends it as any other does.
+    /// </summary>
+    [Theory]
+    [InlineData(ActorKind.Staff, true, false, true)]
+    [InlineData(ActorKind.Automation, true, false, false)]
+    [InlineData(ActorKind.Staff, false, false, false)]
+    [InlineData(ActorKind.Staff, true, true, false)]
+    [InlineData(null, true, false, false)]
+    public void OnlyAStaffSessionSaveThatLeavesTheCaseEditableContinuesTheSession(
+        ActorKind? retainedLeaseHolderKind,
+        bool continuesSession,
+        bool leavesCaseTerminal,
+        bool expected) =>
+        Assert.Equal(
+            expected,
+            CaseEditAuthority.WriteContinuesSession(retainedLeaseHolderKind, continuesSession, leavesCaseTerminal));
 
     /// <summary>
     /// The Automation Actor's write keeps its lease until pegasus_edit_end releases it (operator,

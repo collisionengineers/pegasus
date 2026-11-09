@@ -357,7 +357,9 @@ folder inside it. That folder is read, and so is each folder above it up to
 the approved root, to check that it is under that root and not in the trash.
 This is done for each document, except that a batch of document writes into one
 folder shares a single read of that folder and its ancestry for the batch only,
-never for the 10-minute memory (operator ruling of 10 October 2026). A folder
+never for the 10-minute memory (operator ruling of 10 October 2026). Generate
+report files the report and its fee note as one such batch, so their Case
+folder is read once for both (9 November 2026, applying that ruling). A folder
 trashed or moved partway through a batch may therefore be noticed late; any
 fence failure on a write into the folder drops the shared read. The fold of a
 Vehicle images folder into a Case likewise shares one read of each of its two

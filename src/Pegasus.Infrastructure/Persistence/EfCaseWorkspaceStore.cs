@@ -67,7 +67,7 @@ public sealed class EfCaseWorkspaceStore(
             // A replay has read neither the configuration nor the work yet.
             var replayWorkId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken);
             var replayConfiguration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
-            return await ProjectAsync(
+            var replayed = await ProjectAsync(
                 context,
                 request.CaseId,
                 replayWorkId,
@@ -75,6 +75,9 @@ public sealed class EfCaseWorkspaceStore(
                 await ReplayedEstimateIdAsync(context, request.CaseId, request.OperationKey, cancellationToken),
                 wasReplay: true,
                 cancellationToken);
+            return request.ContinuesSession
+                ? replayed with { SessionLease = await RetainedSessionLeaseAsync(context, request, cancellationToken) }
+                : replayed;
         }
 
         var workflow = await context.CaseWorkflows
@@ -402,15 +405,20 @@ public sealed class EfCaseWorkspaceStore(
         }
 
         // One note per save session (R466, operator, 28 October 2026), read
-        // before the version moves.
-        var session = await ContinuedSessionAsync(
-            context,
-            request.CaseId,
-            workflow.Version,
-            request.Actor,
-            cancellationToken);
+        // before the version moves. Only a session save can carry one on; any
+        // other save (an Automation write) keeps its own line and reads nothing.
+        var session = request.ContinuesSession
+            ? await ContinuedSessionAsync(
+                context,
+                request.CaseId,
+                workflow.Version,
+                request.Actor,
+                cancellationToken)
+            : null;
         var beforeVersion = workflow.Version;
-        CaseMutationGuard.Complete(workflow);
+        // A session save keeps its lease and takes the next token here, inside
+        // the one transaction, so the page claims nothing after it (R770).
+        var sessionLease = CaseMutationGuard.CompleteSessionWrite(workflow, request.ContinuesSession, now);
         var afterJson = JsonSerializer.Serialize(
             new
             {
@@ -556,20 +564,22 @@ public sealed class EfCaseWorkspaceStore(
                 request.ExpectedVersion + 1);
         }
 
-        return await ProjectAsync(
-            context,
-            request.CaseId,
-            workId,
-            configuration,
-            estimateEdit?.Entity.Id,
-            wasReplay: false,
-            cancellationToken);
+        // The save's answer is projected from the rows this transaction holds
+        // and wrote (#1951): the tracked workflow, snapshot and Case, the
+        // assessment fields the write set kept current, and the specification
+        // the save carried with its lines. Nothing is read back, so the version
+        // is this save's own, not a later read's. Every write above goes
+        // through the tracker; a bulk write to one of these rows would have to
+        // refresh the tracked entity too.
+        return Project(snapshot, workflow, assessmentFields, estimateEdit?.Entity, configuration, wasReplay: false)
+            with { SessionLease = sessionLease };
     }
 
     /// <summary>
-    /// The work the save wrote as the save left it, with the specification
-    /// the save carried (<paramref name="estimateId"/>) rather than whichever
-    /// Draft is latest.
+    /// A replayed save's answer, read afresh: the work as the first save left
+    /// it, with the specification that save carried (<paramref name="estimateId"/>)
+    /// rather than whichever Draft is latest. A committed save projects from
+    /// the rows it holds instead (<see cref="Project"/>).
     /// </summary>
     private static async Task<SaveCaseWorkspaceResult> ProjectAsync(
         PegasusDbContext context,
@@ -586,6 +596,8 @@ public sealed class EfCaseWorkspaceStore(
             .Include(item => item.Case)
             .ThenInclude(item => item.Principal)
             .SingleAsync(item => item.CaseId == caseId, cancellationToken);
+        // The specification's own lines, read with it: a line cannot outlive
+        // its specification, so a specification not found has none.
         var estimate = estimateId is null
             ? null
             : await context.CaseRepairSpecifications
@@ -594,10 +606,25 @@ public sealed class EfCaseWorkspaceStore(
                 .SingleOrDefaultAsync(item => item.WorkId == workId && item.Id == estimateId, cancellationToken);
         var fields = await context.CaseAssessmentFields.AsNoTracking()
             .Where(item => item.WorkId == workId)
-            .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
-        // The specification's own lines, read with it above: a line cannot
-        // outlive its specification, so a specification not found has none.
+        return Project(snapshot, workflow, fields, estimate, configuration, wasReplay);
+    }
+
+    /// <summary>
+    /// The whole Case surface after a save, from the work's snapshot, the
+    /// workflow with its Case and Principal, the work's assessment fields and
+    /// the specification the save carried, whether those rows were just read
+    /// or are the ones the save's own transaction holds.
+    /// </summary>
+    private static SaveCaseWorkspaceResult Project(
+        CaseDataSnapshotEntity snapshot,
+        CaseWorkflowEntity workflow,
+        IReadOnlyCollection<CaseAssessmentFieldEntity> fields,
+        CaseRepairSpecificationEntity? estimate,
+        CaseWorkflowConfiguration configuration,
+        bool wasReplay)
+    {
+        var orderedFields = fields.OrderBy(item => item.FieldPath, StringComparer.Ordinal).ToArray();
         var lines = estimate is null
             ? []
             : estimate.Lines.OrderBy(line => line.Position).ToArray();
@@ -605,12 +632,37 @@ public sealed class EfCaseWorkspaceStore(
             EfCaseDataStore.ApplyConfiguration(EfCaseDataStore.Map(snapshot, workflow), configuration),
             EfCaseAssessmentStore.Map(
                 workflow,
-                fields,
+                orderedFields,
                 lines,
                 snapshot.Fields.ToArray(),
                 snapshot.OriginReceivedAtUtc),
             estimate is null ? null : EfRepairSpecificationStore.Map(estimate),
             wasReplay);
+    }
+
+    /// <summary>
+    /// The lease a replayed session save hands back: the caller's own live
+    /// lease as it stands, token and expiry, while they still hold it; null
+    /// when they do not, and the page then reads (R770). Nothing is written.
+    /// </summary>
+    private async Task<CaseSessionLease?> RetainedSessionLeaseAsync(
+        PegasusDbContext context,
+        SaveCaseWorkspaceRequest request,
+        CancellationToken cancellationToken)
+    {
+        var workflow = await context.CaseWorkflows.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken);
+        return workflow is not null
+            && CaseEditAuthority.CanResume(
+                CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind),
+                workflow.EditLeaseHolder,
+                workflow.EditLeaseExpiresAtUtc,
+                request.Actor,
+                UtcNow())
+            && CaseMutationGuard.RetainedLeaseToken(workflow) is { } token
+            && workflow.EditLeaseExpiresAtUtc is { } expiresAtUtc
+                ? new CaseSessionLease(token, expiresAtUtc)
+                : null;
     }
 
     /// <summary>
@@ -670,13 +722,15 @@ public sealed class EfCaseWorkspaceStore(
     /// 2026), or null when it opens one. It carries one on when the line at the
     /// Case's version is the same person's Case save, nothing else has been
     /// written to the Case since (an event that moves no version, a Case note
-    /// or a take-over, records the version it found), and since that save the
-    /// edit lease was claimed exactly once and never released: the claim the
-    /// Case page makes to keep editing after a save. Done, or a link away from
-    /// the Case, releases it; a lapsed lease claimed again, or a colleague's
-    /// take-over, is a second claim. The Automation actor's lease outlives its
-    /// writes, so no claim follows one and each keeps its own line. One
-    /// command reads it all.
+    /// or a take-over, records the version it found), and the edit lease was
+    /// neither claimed nor released at that version: a session save keeps its
+    /// lease (R770), so the lease the page holds came through the previous
+    /// save, while a save that ended its lease leaves none behind and any
+    /// later save at that version needs a claim, recorded at it. Done, or a
+    /// link away from the Case, releases it; a lapsed lease claimed again, or a
+    /// colleague's take-over, is a claim. Only a session save asks; an
+    /// Automation write keeps its own line without reading. One command reads
+    /// it all.
     /// </summary>
     private static async Task<SaveSession?> ContinuedSessionAsync(
         PegasusDbContext context,
@@ -707,7 +761,7 @@ public sealed class EfCaseWorkspaceStore(
             && only.EventType == EventType
             && only.ActorKind == actor.Kind.ToString()
             && only.ActorSubjectId == actor.SubjectId
-            && only.Claims == 1
+            && only.Claims == 0
             && only.Releases == 0
                 ? new SaveSession(only.Reason ?? string.Empty, only.BeforeVersion)
                 : null;

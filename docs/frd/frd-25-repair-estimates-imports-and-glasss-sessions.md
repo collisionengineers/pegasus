@@ -97,7 +97,10 @@ estimate.
 Each spec keeps its stable identity, ordered technical lines, source route,
 source artifact identity, version and hash, the selected labour-rate card
 version if one was selected, and its creating actor and time. Its totals are
-calculated from its lines and header whenever they are read. Glass's,
+calculated from its lines and header whenever they are read. A spec carries
+at most 500 lines: there is no business bound, and the ceiling is what the Case
+page form and the printout carry (9 November 2026, R767). A save, an AI draft
+or an import over it is refused whole. Glass's,
 Audatex PDF, JSON, an AI draft and manual entry are provenance routes, never
 authorities. Obsolete development-state estimates need not be converted or
 kept.

@@ -244,6 +244,78 @@ public sealed class CaseSectionQueryValidationTests
         Assert.Equal(expectedReads, staff.Reads);
     }
 
+    /// <summary>
+    /// The Case page after a save hands in the data the save projected (#1951):
+    /// while the frame shows the same version and state it is the page's data
+    /// and the data is not read again.
+    /// </summary>
+    [Fact]
+    public async Task ThePageFrameUsesSuppliedDataAtTheFramesVersionAndStateWithoutReadingIt()
+    {
+        var caseId = Guid.NewGuid();
+        var supplied = Data(caseId);
+        var data = new CountingCaseData(Data(caseId));
+        var store = new RecordingStore { PageFrame = () => Task.FromResult<CasePageFrameData?>(PageFrame(caseId)) };
+
+        var page = await new GetCasePageFrame(store, data).ExecuteAsync(
+            new(caseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), Data: supplied),
+            CancellationToken.None);
+
+        Assert.NotNull(page);
+        Assert.Same(supplied, page!.Data);
+        Assert.Equal(0, data.Reads);
+    }
+
+    /// <summary>
+    /// Supplied data from another version or state than the frame shows is a
+    /// write that landed in between: the data is read after the frame and the
+    /// read's answer is the page's.
+    /// </summary>
+    [Theory]
+    [InlineData(0L, CaseLifecycleState.Review)]
+    [InlineData(1L, CaseLifecycleState.NotReady)]
+    public async Task ThePageFrameReadsTheDataWhenTheSuppliedDataIsNotAtTheFramesVersionAndState(
+        long suppliedVersion,
+        CaseLifecycleState suppliedState)
+    {
+        var caseId = Guid.NewGuid();
+        var current = Data(caseId);
+        var data = new CountingCaseData(current);
+        var store = new RecordingStore { PageFrame = () => Task.FromResult<CasePageFrameData?>(PageFrame(caseId)) };
+
+        var page = await new GetCasePageFrame(store, data).ExecuteAsync(
+            new(
+                caseId,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+                Data: Data(caseId) with { Version = suppliedVersion, State = suppliedState }),
+            CancellationToken.None);
+
+        Assert.NotNull(page);
+        Assert.Same(current, page!.Data);
+        Assert.Equal(1, data.Reads);
+    }
+
+    /// <summary>With no data supplied the page frame reads it once, as before.</summary>
+    [Fact]
+    public async Task ThePageFrameReadsTheDataOnceWhenNoneIsSupplied()
+    {
+        var caseId = Guid.NewGuid();
+        var current = Data(caseId);
+        var data = new CountingCaseData(current);
+        var store = new RecordingStore { PageFrame = () => Task.FromResult<CasePageFrameData?>(PageFrame(caseId)) };
+
+        var page = await new GetCasePageFrame(store, data).ExecuteAsync(
+            new(caseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])),
+            CancellationToken.None);
+
+        Assert.NotNull(page);
+        Assert.Same(current, page!.Data);
+        Assert.Equal(1, data.Reads);
+    }
+
+    private static CasePageFrameData PageFrame(Guid caseId) =>
+        new(Frame(caseId), [], [], new CaseRecordNotes(null, null));
+
     private static CaseTaskRecord CaseTask(Guid caseId, Guid? assigneeId, CaseTaskState state) =>
         new(Guid.NewGuid(), caseId, "Collect the keys", assigneeId, state, 0, 1);
 
@@ -311,6 +383,9 @@ public sealed class CaseSectionQueryValidationTests
         /// <summary>The section frame read's answer; unset, a frame read is a failure.</summary>
         public Func<Task<CaseSectionFrame?>>? SectionFrame { get; init; }
 
+        /// <summary>The page frame read's answer; unset, a page frame read is not supported.</summary>
+        public Func<Task<CasePageFrameData?>>? PageFrame { get; init; }
+
         public Task<SearchCasesResult> SearchAsync(SearchCasesQuery query, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
@@ -325,7 +400,7 @@ public sealed class CaseSectionQueryValidationTests
         }
 
         public Task<CasePageFrameData?> GetPageFrameAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            PageFrame?.Invoke() ?? throw new NotSupportedException();
 
         public Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CaseHistoryEntry>>([]);
@@ -406,6 +481,18 @@ public sealed class CaseSectionQueryValidationTests
     {
         public Task<CaseDataProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDataProjection?>(null);
+    }
+
+    /// <summary>A Case data read that counts its starts and answers with what it was given.</summary>
+    private sealed class CountingCaseData(CaseDataProjection answer) : ICaseDataQueries
+    {
+        public int Reads { get; private set; }
+
+        public Task<CaseDataProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return Task.FromResult<CaseDataProjection?>(answer);
+        }
     }
 
     private sealed class EmptyVehicleEvidence : IVehicleEvidenceQueries

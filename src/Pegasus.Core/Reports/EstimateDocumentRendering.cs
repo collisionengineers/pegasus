@@ -19,7 +19,7 @@ public static class EstimateDocumentContract
     /// (R750 to R754), not the report's page.
     /// </summary>
     public const string TemplateVersion = "estimate-v3";
-    public const int MaximumLines = 250;
+    public const int MaximumLines = AssessmentPolicy.MaximumEstimateLines;
     public const int MaximumAggregateCharacters = 80_000;
     public const int MaximumFieldCharacters = 4_000;
 }

@@ -174,8 +174,8 @@ public sealed class CaseEditModeWebTests
                 ("claimNumber", "CLM-42")));
         AssertPrg(response, store.CaseId);
         Assert.Single(store.Saves);
-        Assert.Equal(2, store.Claims.Count);
-        Assert.Equal(before + 1, store.Claims[1].ExpectedVersion);
+        // Edit Case only: the save keeps the lease, so nothing is claimed after it (R770).
+        Assert.Single(store.Claims);
         var after = await workspace.GetWorkspaceAsync();
         Assert.Contains("data-case-editing=\"true\"", after, StringComparison.Ordinal);
         AssertEditorCommit(after, "case-edit-form", DetailsModelOperationKey, before);
@@ -184,10 +184,12 @@ public sealed class CaseEditModeWebTests
 
     /// <summary>
     /// Save reads only the Case's frame and data, not its documents, history
-    /// or tasks, and the lease it reclaims reads only the Case's workflow row.
+    /// or tasks. The save keeps the session's lease and hands its next token
+    /// back (R770), so nothing is claimed after it and the Case's workflow row
+    /// is not read again for a reclaim.
     /// </summary>
     [Fact]
-    public async Task CaseSaveReadsTheEditBasisAndItsReclaimReadsOnlyTheWorkflow()
+    public async Task CaseSaveReadsTheEditBasisAndClaimsNothingAfter()
     {
         var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
         using var workspace = await EnterEditModeAsync(store, services =>
@@ -205,18 +207,17 @@ public sealed class CaseEditModeWebTests
 
         AssertPrg(response, store.CaseId);
         Assert.Single(store.Saves);
-        Assert.Equal(2, store.Claims.Count);
-        Assert.Equal(before + 1, store.Claims[1].ExpectedVersion);
+        Assert.Single(store.Claims);
         Assert.Equal(editBasisReads + 1, store.EditBasisReads);
-        Assert.Equal(workflowReads + 1, store.WorkflowReads);
+        Assert.Equal(workflowReads, store.WorkflowReads);
     }
 
     /// <summary>
     /// Save as you go (operator, 29 September 2026): the ribbon offers Done
     /// and the Case form's default Save now, never a Save that ends editing,
     /// and no unsaved-changes dialog is rendered. Every save is a commit of
-    /// the open session: the lease it consumed is claimed again and the page
-    /// keeps editing, whatever the form posts.
+    /// the open session: the save keeps the lease and issues its next token
+    /// (R770), which the page carries on with, whatever the form posts.
     /// </summary>
     [Fact]
     public async Task TheRibbonOffersDoneAndEverySaveKeepsEditing()
@@ -228,6 +229,7 @@ public sealed class CaseEditModeWebTests
             Substitute<ILeaseCaseForEdit>(services, store);
         });
         var before = store.CaseVersion;
+        var claimedToken = store.LeaseToken;
         // Decoded: the status words carry an ellipsis the encoder writes as an entity.
         var leased = WebUtility.HtmlDecode(await workspace.GetWorkspaceAsync());
         Assert.Contains("form=\"case-edit-form\" class=\"btn btn--small\" data-case-save-now", leased, StringComparison.Ordinal);
@@ -246,14 +248,15 @@ public sealed class CaseEditModeWebTests
                 ("claimNumber", "CLM-42")));
         AssertPrg(response, store.CaseId);
         Assert.Single(store.Saves);
-        // The save consumed the lease and the session claimed it again; a
-        // posted finishEditing, which no control sends any more, changes nothing.
-        Assert.Equal(2, store.Claims.Count);
-        Assert.Equal(before + 1, store.Claims[1].ExpectedVersion);
+        // The save kept the lease and issued its next token, so the session
+        // claims nothing after it (R770); a posted finishEditing, which no
+        // control sends any more, changes nothing.
+        Assert.Single(store.Claims);
         Assert.Empty(store.LeaseReleases);
+        Assert.NotEqual(claimedToken, store.LeaseToken);
         var after = await workspace.GetWorkspaceAsync();
         Assert.Contains("data-case-editing=\"true\"", after, StringComparison.Ordinal);
-        Assert.Contains("name=\"editLeaseToken\"", after, StringComparison.Ordinal);
+        Assert.Equal(store.LeaseToken, InputValue(after, "editLeaseToken"));
         // The authority the next commit carries forward, named for the script.
         Assert.Contains("name=\"operationKey\" value=\"", after, StringComparison.Ordinal);
         Assert.True(Occurrences(after, "data-carry-forward") >= 3, "The Save form's version, lease and operation key carry forward.");
@@ -1298,7 +1301,8 @@ public sealed class CaseEditModeWebTests
     /// Generate report makes the separate fee note too (operator, 7 October
     /// 2026): once the report is confirmed the handler generates the fee note
     /// from the generation the report confirmed, under the one lease it
-    /// claimed, and releases that lease once after both.
+    /// claimed, and releases that lease once after both. Both run inside one
+    /// custody batch, so the Case folder is proved once for the two (#1952).
     /// </summary>
     [Fact]
     public async Task GenerateReportOutsideEditModeMakesTheFeeNoteUnderTheSameLease()
@@ -1341,6 +1345,9 @@ public sealed class CaseEditModeWebTests
                 Assert.Equal(store.LeaseToken, feeNote.LeaseToken);
                 Assert.Equal(store.CaseVersion, feeNote.ExpectedCaseVersion);
             });
+        Assert.Equal([1, 1], generator.BatchDepthAtRequest);
+        Assert.Equal(1, generator.BatchesClosed);
+        Assert.Equal(0, generator.OpenBatches);
         var release = Assert.Single(store.LeaseReleases);
         Assert.Equal(store.LeaseToken, release.LeaseToken);
         Assert.Null(store.LeaseHolder);
@@ -1556,8 +1563,8 @@ public sealed class CaseEditModeWebTests
         var request = Assert.Single(generator.Requests);
         Assert.Equal(store.LeaseToken, request.LeaseToken);
         Assert.Equal(store.CaseVersion, request.ExpectedCaseVersion);
-        // Edit Case, and the session's reclaim after the save: nothing more.
-        Assert.Equal(2, store.Claims.Count);
+        // Edit Case; the save keeps the lease: nothing more.
+        Assert.Single(store.Claims);
         Assert.Empty(store.LeaseReleases);
     }
 
