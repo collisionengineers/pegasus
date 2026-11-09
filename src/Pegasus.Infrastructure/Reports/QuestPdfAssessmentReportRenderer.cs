@@ -21,7 +21,7 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate, IM
 
     /// <summary>
     /// How many photos one render has open at once (operator, 8 November 2026,
-    /// R763; the bounded two-at-a-time read-ahead R305 approved). Two, fixed:
+    /// R772; the bounded two-at-a-time read-ahead R305 approved). Two, fixed:
     /// one photo's blob read overlaps the other's decode, and on a two-core
     /// plan both decode together. Not the processor count, so the memory bound
     /// is the same on every host. Each photo in flight holds its source bytes
