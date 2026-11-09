@@ -60,8 +60,7 @@ internal static partial class CaseWebTestSupport
                 Substitute<ICaseWorkflowQueries>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
                 substitutePorts(services);
-            });
-        });
+            }));
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -1517,7 +1516,8 @@ internal static partial class CaseWebTestSupport
                 Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
                 Substitute<IGetAssessmentWorkspace>(services, store);
                 substitutePorts(services);
-            }));
+            });
+        });
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,

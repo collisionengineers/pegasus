@@ -323,9 +323,9 @@ public sealed class CaseAssetPreparationWebTests
         var movable = Card(storyBlock, fixture.FirstSupportingOccurrenceId);
         Assert.Contains("class=\"grip\"", movable, StringComparison.Ordinal);
         Assert.Contains("data-preparation-order=\"3\"", movable, StringComparison.Ordinal);
-        var fixed = Card(storyBlock, fixture.CloseUpOccurrenceId);
-        Assert.DoesNotContain("class=\"grip\"", fixed, StringComparison.Ordinal);
-        Assert.Contains("data-preparation-fixed=\"true\"", fixed, StringComparison.Ordinal);
+        var pinned = Card(storyBlock, fixture.CloseUpOccurrenceId);
+        Assert.DoesNotContain("class=\"grip\"", pinned, StringComparison.Ordinal);
+        Assert.Contains("data-preparation-fixed=\"true\"", pinned, StringComparison.Ordinal);
         // The images the story does not hold follow under Other images, in the same block.
         Assert.Contains("class=\"grip\"", Card(storyBlock, fixture.SecondSupportingOccurrenceId), StringComparison.Ordinal);
     }
