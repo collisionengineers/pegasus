@@ -306,7 +306,7 @@ internal sealed class ReportMcpTools(
                 string? feeNote = null;
                 if (GenerateCaseReport.FeeNoteTargetOf(kind, result.Generation) is { } feeNoteTarget)
                 {
-                    // The report stands whatever the fee note's outcome (R762: a
+                    // The report stands whatever the fee note's outcome (R771: a
                     // fee note's failure still fails this call, as it did).
                     var feeNoteResult = await GenerateOneAsync(
                         actor, caseId, expectedVersion, token, Derive(key, ":fee-note"),
