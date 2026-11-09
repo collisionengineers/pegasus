@@ -1042,6 +1042,20 @@ internal static partial class IntakeWebDriver
     }
 
     /// <summary>
+    /// Runs the Worker's photo capture settle once, standing in for its timer
+    /// (FRD-28). The Web host cannot resolve the settle, whose registration
+    /// asks for the Worker's own processor, so the processor is handed in as
+    /// the grouped-image reconcile's is.
+    /// </summary>
+    internal static Task<Pegasus.Core.PhotoCapture.SettlePhotoCapturesResult> SettlePhotoCapturesAsync(
+        IServiceProvider services,
+        CancellationToken cancellationToken = default) =>
+        ActivatorUtilities.CreateInstance<Pegasus.Core.PhotoCapture.SettlePhotoCaptures>(
+                services,
+                (IProcessQueuedIntake)CreateProcessor(services))
+            .ExecuteAsync(50, cancellationToken);
+
+    /// <summary>
     /// Dispatches and processes one staged receipt to its completed evaluation,
     /// standing in for the Worker timer and queue trigger. A replay may already
     /// name completed work, so it reads before dispatching.
