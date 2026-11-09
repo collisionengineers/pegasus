@@ -241,6 +241,8 @@ public sealed class EfStandingPhotoLinkStore(
                 Link = link,
                 OrganizationName = contact == null ? null : contact.Name,
                 Role = contact == null ? null : contact.Role,
+                // The website link has no contact, so it is never stopped by one (R796).
+                ContactActive = contact == null || contact.Active,
                 PrincipalId = context.Principals
                     .Where(item => (Guid?)item.OrganizationId == link.OrganizationId)
                     .OrderByDescending(item => item.IsActive)
@@ -253,7 +255,12 @@ public sealed class EfStandingPhotoLinkStore(
             .FirstOrDefaultAsync(cancellationToken);
         return row is null
             ? null
-            : Map(row.Link, row.OrganizationName, row.PrincipalId, string.Equals(row.Role, RepairerRole, StringComparison.Ordinal));
+            : Map(
+                row.Link,
+                row.OrganizationName,
+                row.PrincipalId,
+                string.Equals(row.Role, RepairerRole, StringComparison.Ordinal),
+                row.ContactActive);
     }
 
     private Task<StandingPhotoLink> UpdateAsync(
@@ -295,13 +302,15 @@ public sealed class EfStandingPhotoLinkStore(
         StandingPhotoLinkEntity entity,
         string? organizationName,
         Guid? principalId,
-        bool isRepairer) => new(
+        bool isRepairer,
+        bool contactActive) => new(
         entity.Id,
         PhotoCaptureCodes.ParseStandingLinkKind(entity.Kind),
         entity.OrganizationId,
         organizationName,
         principalId,
         isRepairer,
+        contactActive,
         entity.Slug,
         PhotoCaptureCodes.ParseMode(entity.ForwardedMode),
         entity.LiveCameraOnly,

@@ -51,11 +51,12 @@ public boundary is [ADR-0090](../adr/0090-public-photo-capture-surface.md).
 
 Staff send a photo link from a Case: the ribbon's **Send photo link** opens
 `/PhotoCapture/Send/{caseId}`. The Case and its registration are read-only.
-The customer's name, accident date, mobile and e-mail start from the Case
-and may be changed. Staff choose the mode, **guided** (a page per step, for
-a customer) or **quick** (guidance inside the camera, for a firm's staff),
-**Live camera only**, the lifetime, 3, 7 (the default) or 14 days, and
-whether full-size originals follow in the background. The link goes by
+The customer's name, accident date and mobile start from the Case and may
+be changed; the e-mail is typed, because a Case holds no customer e-mail.
+Staff choose the mode, **guided** (a page per step, for a customer) or
+**quick** (guidance inside the camera, for a firm's staff), **Live camera
+only**, the lifetime, 3, 7 (the default) or 14 days, and whether full-size
+originals follow in the background. The link goes by
 e-mail, by Copy link, or both (R773): text and WhatsApp are Copy link and
 the staff member's own phone. Pegasus has no SMS or WhatsApp provider.
 
@@ -112,10 +113,12 @@ Every page and API response carries:
 - `X-Robots-Tag: noindex, nofollow`;
 - `Cache-Control: no-store`.
 
-An unknown, expired, revoked or paused link gets one identical answer: the
-page says "This link is no longer active." and "Ask whoever sent it to you
-for a new one.", and the API answers 404. The four are never told apart
-(operator, 9 November 2026; R789).
+An unknown, expired, revoked or paused link, and a standing link whose
+contact is inactive, gets one identical answer: the page says "This link is
+no longer active." and "Ask whoever sent it to you for a new one.", and the
+API answers 404. They are never told apart (operator, 9 November 2026;
+R789). A standing link whose contact is inactive starts no capture until the
+contact is active again (operator, 9 November 2026; R796).
 
 ### The app's steps and required items
 
@@ -281,10 +284,13 @@ with no count (R774;
 [FRD-12](frd-12-operator-experience.md#shell-and-routes)). It has two tabs:
 
 - **Coming in**: standing and website captures, with Vehicle, From,
-  Customer, Case or Awaiting instruction, Status, Photos and Received;
+  Customer, Case, Status, Photos and Received. The Case column reads
+  **Awaiting instruction** for a capture with no Case (operator, 9 November
+  2026; R805);
 - **Links we sent**: Case links, with Vehicle, Customer and mobile, Case,
   From, Sent by, Status, Photos and Next reminder, and the actions Resend,
-  Remind, Log call and View photos.
+  Remind, Log call and View photos. From is the Case's Principal (operator,
+  9 November 2026; R805). Remind is offered only while the link is live.
 
 `/PhotoCapture/Send/{caseId}` sends a link ([Photo links](#photo-links)).
 `/PhotoCapture/{id}` is a link's detail: its facts, the typed details, the
@@ -326,8 +332,9 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
 ## Edge cases and fail-closed behaviour
 
 - **Unavailable.** An unknown, malformed, expired, revoked or paused
-  credential gets the same page or 404, and no store is read for a value
-  that is not a token's shape.
+  credential, and a standing link whose contact is inactive (operator, 9
+  November 2026; R796), gets the same page or 404, and no store is read for
+  a value that is not a token's shape.
 - **No connection.** When the phone cannot reach Pegasus, or a refusal
   carries no words of its own, the app says "We couldn’t reach Collision
   Engineers. Check your signal and try again." (operator, 9 November 2026;

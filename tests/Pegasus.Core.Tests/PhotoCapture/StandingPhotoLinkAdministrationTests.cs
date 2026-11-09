@@ -8,7 +8,8 @@ namespace Pegasus.Core.Tests.PhotoCapture;
 /// The staff changes to a standing photo link (FRD-28 Standing photo links;
 /// R774, R780) have one owner: a contact gets one link and the website one,
 /// each with the defaults a new link takes; every change needs the contacts
-/// right; a change over a stale read is the store's typed refusal.
+/// right; a change over a stale read is the store's typed refusal. A link
+/// whose contact is deactivated starts nothing (R796).
 /// </summary>
 public sealed class StandingPhotoLinkAdministrationTests
 {
@@ -127,6 +128,35 @@ public sealed class StandingPhotoLinkAdministrationTests
         Assert.Equal(2, updated.Version);
     }
 
+    [Fact]
+    public async Task AnInactiveContactsLinkStartsNoCaptures()
+    {
+        var store = new FakeStandingLinks();
+        var clock = new FixedClock(Now);
+        var created = await new StandingPhotoLinkAdministration(store, clock)
+            .CreateForContactAsync(Administrator, Bodyshop, CancellationToken.None);
+        // No capture store is given: a link that started a capture would reach it.
+        var access = new PhotoCaptureAccess(null!, store, clock);
+        var mint = new MintFromStandingLink(null!, store, null!, clock);
+        var form = new StandingCaptureForm("RY65 OFG", null, "Sam Taylor", null, null, PhotoCaptureDetails.Empty);
+        var deactivated = created with { ContactActive = false };
+        store.Links[0] = deactivated;
+
+        Assert.True(deactivated.IsActive);
+        Assert.False(deactivated.StartsCaptures);
+        Assert.False((await access.ResolveSlugAsync(created.Slug, CancellationToken.None)).IsAvailable);
+        var started = await Assert.ThrowsAsync<PhotoCaptureRefusalException>(
+            () => mint.StartAsync(deactivated, form, CancellationToken.None));
+        var handedOn = await Assert.ThrowsAsync<PhotoCaptureRefusalException>(
+            () => mint.HandoffAsync(deactivated, form, CancellationToken.None));
+        Assert.Equal(PhotoCaptureRefusals.Unavailable, started.Code);
+        Assert.Equal(PhotoCaptureRefusals.Unavailable, handedOn.Code);
+
+        // Active again, the same address starts captures again.
+        store.Links[0] = created;
+        Assert.True((await access.ResolveSlugAsync(created.Slug, CancellationToken.None)).IsAvailable);
+    }
+
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
@@ -166,7 +196,7 @@ public sealed class StandingPhotoLinkAdministrationTests
             Writes++;
             var link = new StandingPhotoLink(
                 Guid.NewGuid(), kind, organizationId, organizationId is null ? null : "AMC Bodyshop", null, kind == StandingPhotoLinkKind.Contact,
-                slug, forwardedMode, liveCameraOnly, linkLifetimeDays, originalsInBackground,
+                ContactActive: true, slug, forwardedMode, liveCameraOnly, linkLifetimeDays, originalsInBackground,
                 PausedAtUtc: null, RetiredAtUtc: null, createdAtUtc, Version: 1);
             Links.Add(link);
             return Task.FromResult(link);

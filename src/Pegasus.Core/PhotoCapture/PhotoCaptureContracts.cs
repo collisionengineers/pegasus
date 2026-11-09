@@ -194,6 +194,8 @@ public sealed record PhotoCaptureItem(
 /// A standing link: the URL an AMC or bodyshop keeps on WhatsApp or prints as
 /// a QR code, or the one link on the Collision Engineers website. It only ever
 /// starts a capture; it never accepts a photo itself.
+/// <see cref="ContactActive"/> is whether its contact is active; the website
+/// link, which has none, always is.
 /// </summary>
 public sealed record StandingPhotoLink(
     Guid Id,
@@ -202,6 +204,7 @@ public sealed record StandingPhotoLink(
     string? OrganizationName,
     Guid? PrincipalId,
     bool IsRepairer,
+    bool ContactActive,
     string Slug,
     PhotoCaptureMode ForwardedMode,
     bool LiveCameraOnly,
@@ -212,7 +215,15 @@ public sealed record StandingPhotoLink(
     DateTimeOffset CreatedAtUtc,
     long Version)
 {
+    /// <summary>Neither paused nor retired: what the link's Active or Paused chip shows.</summary>
     public bool IsActive => PausedAtUtc is null && RetiredAtUtc is null;
+
+    /// <summary>
+    /// Whether the link starts captures: it is active and its contact is not
+    /// deactivated. A deactivated contact's link answers like an unknown one
+    /// until the contact is active again (operator, 9 November 2026; R796).
+    /// </summary>
+    public bool StartsCaptures => IsActive && ContactActive;
 }
 
 /// <summary>A saved address a standing link offers as an inspection location on its form.</summary>
@@ -289,13 +300,33 @@ public sealed record PhotoCaptureListFilter(
     int PageSize,
     int Page);
 
+/// <summary>
+/// How a Coming in capture reached its Case: it filed there as its photos
+/// arrived, or its Vehicle images record was paired with the Case, by Pegasus
+/// or by a member of staff. <see cref="None"/> for a capture with no Case and
+/// for a Case link, which was sent from its Case.
+/// </summary>
+public enum PhotoCapturePairing
+{
+    None,
+    FiledAsItArrived,
+    MatchedAutomatically,
+    ChosenByStaff
+}
+
+/// <summary>
+/// One list row. <see cref="OrganizationName"/> is the From: the standing
+/// link's contact, or for a Case link the Case's Principal (R805), read when
+/// the row is shown. <see cref="Pairing"/> is read only for the rows shown.
+/// </summary>
 public sealed record PhotoCaptureListRow(
     PhotoCapture Capture,
     string? OrganizationName,
     string? ImageIntakeReference,
     Guid? ImageIntakeId,
     IReadOnlyList<string> MissingItems,
-    string? IssuedByName);
+    string? IssuedByName,
+    PhotoCapturePairing Pairing);
 
 public sealed record PhotoCaptureListPage(IReadOnlyList<PhotoCaptureListRow> Rows, int TotalCount);
 

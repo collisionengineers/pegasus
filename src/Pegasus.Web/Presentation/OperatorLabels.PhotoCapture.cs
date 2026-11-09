@@ -141,7 +141,6 @@ public static partial class OperatorLabels
         public const string AwaitingInstruction = "Awaiting instruction";
         public const string MatchedAutomatically = "Matched automatically";
         public const string AlreadyInstructed = "Already instructed";
-        public const string PhotosComingIn = "Photos coming in";
 
         /// <summary>"34 photos" once complete, "22 so far" while photos are still coming.</summary>
         public static string PhotoCount(int count, bool complete) =>

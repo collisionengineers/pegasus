@@ -11,7 +11,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// filters, searches and pages. The tabs hold hundreds of links, not
 /// millions, and the statement count is fixed whatever the row count: the
 /// captures, their items, their contacts, their Vehicle images records, and
-/// the issuers' names (kept in <see cref="StaffAccountReads"/>).
+/// the issuers' names (kept in <see cref="StaffAccountReads"/>). The rows
+/// shown then read their From and pairing (<see cref="ShownAsync"/>).
 /// </summary>
 public sealed class EfPhotoCaptureQueries(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -46,7 +47,13 @@ public sealed class EfPhotoCaptureQueries(
             .Take(pageSize)
             .Select(row => row.Row)
             .ToArray();
-        return new(rows, matching.Length);
+        if (rows.Length == 0)
+        {
+            return new(rows, matching.Length);
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return new(await ShownAsync(context, rows, cancellationToken), matching.Length);
     }
 
     public async Task<PhotoCaptureListRow?> GetRowAsync(Guid captureId, CancellationToken cancellationToken)
@@ -56,7 +63,7 @@ public sealed class EfPhotoCaptureQueries(
             .Where(capture => capture.Id == captureId)
             .ToListAsync(cancellationToken);
         var evaluated = await EvaluateAsync(context, captures, cancellationToken);
-        return evaluated.Count == 0 ? null : evaluated[0].Row;
+        return evaluated.Count == 0 ? null : (await ShownAsync(context, [evaluated[0].Row], cancellationToken))[0];
     }
 
     public async Task<IReadOnlyList<CasePhotoCaptureStory>> ListForCaseAsync(Guid caseId, CancellationToken cancellationToken)
@@ -190,11 +197,94 @@ public sealed class EfPhotoCaptureQueries(
                     record?.Reference,
                     record?.Id,
                     missing.Select(item => item.Label).ToArray(),
-                    capture.IssuedByStaffId is { } issuer && issuers.TryGetValue(issuer, out var name) ? name : null),
+                    capture.IssuedByStaffId is { } issuer && issuers.TryGetValue(issuer, out var name) ? name : null,
+                    PhotoCapturePairing.None),
                 state));
         }
 
         return rows;
+    }
+
+    /// <summary>
+    /// What only the rows being shown carry, read after the page is cut and
+    /// never for the whole tab: a Case link's From, which is the Case's
+    /// Principal read now (R805), so a corrected Principal shows at once; and
+    /// how a standing or website capture reached its Case. At most two
+    /// statements, each for the page's rows.
+    /// </summary>
+    private static async Task<PhotoCaptureListRow[]> ShownAsync(
+        PegasusDbContext context,
+        PhotoCaptureListRow[] rows,
+        CancellationToken cancellationToken)
+    {
+        var linkCaseIds = rows
+            .Where(row => row.Capture.Origin == PhotoCaptureOrigin.CaseLink && row.Capture.CaseId is not null)
+            .Select(row => row.Capture.CaseId!.Value)
+            .Distinct()
+            .ToArray();
+        var principals = linkCaseIds.Length == 0
+            ? new Dictionary<Guid, string>()
+            : await context.Cases.AsNoTracking()
+                .Where(caseEntity => EF.Parameter(linkCaseIds).Contains(caseEntity.Id))
+                .Select(caseEntity => new { caseEntity.Id, caseEntity.Principal.Organization.Name })
+                .ToDictionaryAsync(item => item.Id, item => item.Name, cancellationToken);
+
+        var pairedGroupIds = rows
+            .Where(row => row.Capture.Origin != PhotoCaptureOrigin.CaseLink
+                && row.Capture.CaseId is not null
+                && row.Capture.SubmissionGroupId is not null)
+            .Select(row => row.Capture.SubmissionGroupId!.Value)
+            .Distinct()
+            .ToArray();
+        var chosenByStaff = new Dictionary<(Guid GroupId, Guid CaseId), bool>();
+        if (pairedGroupIds.Length > 0)
+        {
+            // The record's origin association owns the pairing decision, as
+            // the merge itself reads it (EfImageIntakeStore), whoever ran the
+            // merge step.
+            var staff = nameof(ActorKind.Staff);
+            var merged = await context.ImageIntakes.AsNoTracking()
+                .Where(record => record.SubmissionGroupId != null
+                    && record.MergedIntoCaseId != null
+                    && EF.Parameter(pairedGroupIds).Contains(record.SubmissionGroupId.Value))
+                .Select(record => new
+                {
+                    GroupId = record.SubmissionGroupId!.Value,
+                    CaseId = record.MergedIntoCaseId!.Value,
+                    ChosenByStaff = context.IntakeManualAssociations.Any(association =>
+                        association.IntakeReceiptId == record.OriginReceiptId && association.ActorKind == staff)
+                })
+                .ToListAsync(cancellationToken);
+            foreach (var record in merged)
+            {
+                chosenByStaff.TryAdd((record.GroupId, record.CaseId), record.ChosenByStaff);
+            }
+        }
+
+        return rows.Select(row => Shown(row, principals, chosenByStaff)).ToArray();
+    }
+
+    private static PhotoCaptureListRow Shown(
+        PhotoCaptureListRow row,
+        Dictionary<Guid, string> principals,
+        Dictionary<(Guid GroupId, Guid CaseId), bool> chosenByStaff)
+    {
+        var capture = row.Capture;
+        bool? recordChosenByStaff = capture.SubmissionGroupId is { } groupId
+            && capture.CaseId is { } caseId
+            && chosenByStaff.TryGetValue((groupId, caseId), out var byStaff)
+                ? byStaff
+                : null;
+        var organizationName = capture.Origin == PhotoCaptureOrigin.CaseLink
+            && capture.CaseId is { } linkCaseId
+            && principals.TryGetValue(linkCaseId, out var principal)
+                ? principal
+                : row.OrganizationName;
+        return row with
+        {
+            OrganizationName = organizationName,
+            Pairing = PhotoCaptureStatus.Pairing(capture, recordChosenByStaff)
+        };
     }
 
     private static async Task<IReadOnlyList<CasePhotoCaptureStory>> StoriesAsync(

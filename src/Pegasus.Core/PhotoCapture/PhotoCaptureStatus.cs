@@ -118,4 +118,28 @@ public static class PhotoCaptureStatus
 
         return null;
     }
+
+    /// <summary>
+    /// How a standing or website capture reached its Case. With no Vehicle
+    /// images group it filed on the Case as its photos arrived. Otherwise its
+    /// record was paired: <paramref name="recordChosenByStaff"/> says whether
+    /// the record merged into the Case on a member of staff's association
+    /// (null when no record of its group merged there), and anything not
+    /// chosen by staff was matched automatically.
+    /// </summary>
+    public static PhotoCapturePairing Pairing(PhotoCapture capture, bool? recordChosenByStaff)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        if (capture.CaseId is null || capture.Origin == PhotoCaptureOrigin.CaseLink)
+        {
+            return PhotoCapturePairing.None;
+        }
+
+        if (capture.SubmissionGroupId is null)
+        {
+            return PhotoCapturePairing.FiledAsItArrived;
+        }
+
+        return recordChosenByStaff == true ? PhotoCapturePairing.ChosenByStaff : PhotoCapturePairing.MatchedAutomatically;
+    }
 }

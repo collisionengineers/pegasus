@@ -152,7 +152,7 @@ public sealed class MintFromStandingLink(
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(form);
-        if (!link.IsActive)
+        if (!link.StartsCaptures)
         {
             throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.Unavailable, "The link is not active.");
         }

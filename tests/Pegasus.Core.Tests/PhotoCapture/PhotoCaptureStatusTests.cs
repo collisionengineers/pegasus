@@ -102,4 +102,29 @@ public sealed class PhotoCaptureStatusTests
         Assert.Null(PhotoCaptureStatus.DueReminder(Capture(revokedAtUtc: Now), Plate, Now));
         Assert.Null(PhotoCaptureStatus.DueReminder(Capture(), Plate, Now.AddDays(8)));
     }
+
+    [Fact]
+    public void ACaptureWithNoCaseOrSentFromItsCaseHasNoPairing()
+    {
+        Assert.Equal(
+            PhotoCapturePairing.None,
+            PhotoCaptureStatus.Pairing(Capture(PhotoCaptureOrigin.StandingStaff, PhotoCaptureDestination.VehicleImages), recordChosenByStaff: null));
+        Assert.Equal(PhotoCapturePairing.None, PhotoCaptureStatus.Pairing(Capture(), recordChosenByStaff: true));
+    }
+
+    [Fact]
+    public void ACaptureThatFiledOnItsCaseWithNoRecordWasAlreadyInstructed() =>
+        Assert.Equal(
+            PhotoCapturePairing.FiledAsItArrived,
+            PhotoCaptureStatus.Pairing(Capture(PhotoCaptureOrigin.Website), recordChosenByStaff: null));
+
+    [Fact]
+    public void ARecordPairedOnAStaffAssociationIsNotMatchedAutomatically()
+    {
+        var paired = Capture(PhotoCaptureOrigin.StandingForwarded) with { SubmissionGroupId = Guid.NewGuid() };
+
+        Assert.Equal(PhotoCapturePairing.ChosenByStaff, PhotoCaptureStatus.Pairing(paired, recordChosenByStaff: true));
+        Assert.Equal(PhotoCapturePairing.MatchedAutomatically, PhotoCaptureStatus.Pairing(paired, recordChosenByStaff: false));
+        Assert.Equal(PhotoCapturePairing.MatchedAutomatically, PhotoCaptureStatus.Pairing(paired, recordChosenByStaff: null));
+    }
 }

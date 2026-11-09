@@ -205,7 +205,7 @@
                                 </td>
                                 <td>@(row.Due?.Label ?? Labels.None)</td>
                                 <td class="nowrap">
-                                    @if (row.Due is not null)
+                                    @if (row.Due is not null && row.IsLive)
                                     {
                                         <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Remind" asp-route-id="@capture.Id">
                                             <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
@@ -255,7 +255,7 @@
                         {
                             var capture = row.Capture;
                             var photosHref = Pegasus.Web.Pages.PhotoCapture.IndexModel.PhotosHref(row.Source);
-                            var caseHow = Pegasus.Web.Pages.PhotoCapture.IndexModel.CaseHow(capture);
+                            var caseHow = Pegasus.Web.Pages.PhotoCapture.IndexModel.CaseHow(row.Source);
                             <tr data-photo-capture-row="@capture.Id">
                                 <td class="mono nowrap"><a class="table-row-link" asp-page="/PhotoCapture/Details" asp-route-id="@capture.Id">@Labels.Registration(capture.NormalizedRegistration)</a></td>
                                 <td>
@@ -291,7 +291,7 @@
                                     }
                                     else
                                     {
-                                        <span class="muted">@Labels.PhotosComingIn</span>
+                                        <span class="muted">@Labels.AwaitingInstruction</span>
                                     }
                                 </td>
                                 <td><partial name="Shared/_StatusChip" model="@Labels.State(row.State)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = Labels.StateTone(row.State) }' /></td>

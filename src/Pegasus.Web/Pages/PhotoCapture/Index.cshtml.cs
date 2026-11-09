@@ -31,8 +31,12 @@ public sealed class IndexModel(
 {
     private const int PageSize = 25;
 
-    /// <summary>One list row with what is derived from it as it is read (FRD-28: never stored).</summary>
-    public sealed record Row(PhotoCaptureListRow Source, PhotoCaptureState State, DueCaptureReminder? Due)
+    /// <summary>
+    /// One list row with what is derived from it as it is read (FRD-28: never
+    /// stored). <see cref="IsLive"/> is whether the link still takes photos,
+    /// which Remind needs (Core refuses it on a dead link).
+    /// </summary>
+    public sealed record Row(PhotoCaptureListRow Source, PhotoCaptureState State, DueCaptureReminder? Due, bool IsLive)
     {
         public Pegasus.Core.PhotoCapture.PhotoCapture Capture => Source.Capture;
     }
@@ -151,7 +155,8 @@ public sealed class IndexModel(
         return new(
             row,
             PhotoCaptureStatus.Evaluate(row.Capture, missing, now),
-            row.Capture.Origin == PhotoCaptureOrigin.CaseLink ? PhotoCaptureStatus.DueReminder(row.Capture, missing, now) : null);
+            row.Capture.Origin == PhotoCaptureOrigin.CaseLink ? PhotoCaptureStatus.DueReminder(row.Capture, missing, now) : null,
+            PhotoCaptureAccess.IsLive(row.Capture, now));
     }
 
     /// <summary>The headline states this tab counts, in the order the left pane lists them.</summary>
@@ -187,16 +192,20 @@ public sealed class IndexModel(
         return row.ImageIntakeId is { } recordId ? $"/VehicleImages/{recordId:D}" : null;
     }
 
-    /// <summary>How a Coming in capture reached its Case: it was already instructed, or it was matched when the instruction came.</summary>
-    public static string? CaseHow(Pegasus.Core.PhotoCapture.PhotoCapture capture)
+    /// <summary>
+    /// How a Coming in capture reached its Case: it was already instructed, or
+    /// it was matched when the instruction came. A Case a member of staff
+    /// chose has no words of its own, so it shows none.
+    /// </summary>
+    public static string? CaseHow(PhotoCaptureListRow row)
     {
-        ArgumentNullException.ThrowIfNull(capture);
-        if (capture.CaseId is null || capture.Origin == PhotoCaptureOrigin.CaseLink)
+        ArgumentNullException.ThrowIfNull(row);
+        return row.Pairing switch
         {
-            return null;
-        }
-
-        return capture.Destination == PhotoCaptureDestination.Case ? Labels.AlreadyInstructed : Labels.MatchedAutomatically;
+            PhotoCapturePairing.FiledAsItArrived => Labels.AlreadyInstructed,
+            PhotoCapturePairing.MatchedAutomatically => Labels.MatchedAutomatically,
+            _ => null
+        };
     }
 
     // The website link (R780): Administrators create, pause, resume and
