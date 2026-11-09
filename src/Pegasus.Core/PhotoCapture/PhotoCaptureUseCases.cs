@@ -487,7 +487,8 @@ public sealed class ReceivePhotoCaptureItem(
 public sealed record CompletedPhotoCapture(PhotoCapture Capture, IReadOnlyList<MissingCaptureItem> Missing);
 
 /// <summary>
-/// The sender pressed Send: the note is kept, the time recorded, and what is
+/// The sender pressed Send: the note is kept as last sent (an emptied one
+/// empty, none at all the earlier one), the time recorded, and what is
 /// still missing is told back so the app can offer "Could you add a few
 /// more?". The link stays open to additions until it expires.
 /// </summary>
@@ -508,7 +509,8 @@ public sealed class CompletePhotoCapture(
             throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.Unavailable, "The link is no longer active.");
         }
 
-        var trimmed = PhotoCaptureText.Note(note) ?? capture.Note;
+        // A note already written to the Case stays there whatever is kept here.
+        var trimmed = PhotoCaptureText.NoteOnSend(note, capture.Note);
         var updated = await captures.RecordSentAsync(capture.Id, trimmed, now, cancellationToken);
         var items = (await captures.ListItemsAsync(capture.Id, cancellationToken))
             .Where(item => item.StagedReceiptId is not null)
@@ -638,6 +640,13 @@ public static class PhotoCaptureText
 
     public static string? Note(string? value) => Bound(value, CaptureLimits.NoteLength);
 
+    /// <summary>
+    /// The note a Send keeps: none sent keeps the earlier one, and a note the
+    /// sender emptied (sent blank) is stored empty rather than leaving the
+    /// earlier one in place.
+    /// </summary>
+    public static string? NoteOnSend(string? sent, string? earlier) => sent is null ? earlier : Note(sent);
+
     public static PhotoCaptureDetails Details(PhotoCaptureDetails? details)
     {
         if (details is null)
@@ -657,7 +666,8 @@ public static class PhotoCaptureText
             details.Mileage is > 0 and < 10_000_000 ? details.Mileage : null,
             Bound(details.Airbags, 20),
             Bound(details.Steering, 20),
-            details.MarkedAreas.Where(PhotoCaptureStory.IsZone).Distinct(StringComparer.Ordinal).Take(PhotoCaptureStory.MaximumAreas).ToArray());
+            details.MarkedAreas.Where(PhotoCaptureStory.IsZone).Distinct(StringComparer.Ordinal).Take(PhotoCaptureStory.MaximumAreas).ToArray(),
+            details.NoKeys);
     }
 
     private static string? Bound(string? value, int maximumLength)

@@ -10,7 +10,7 @@ wording of 5 November 2026 is kept verbatim.
 - `shell.html`: the markup the Razor page emits inside `<body>`, with the element
   ids `capture.js` needs and the placeholders the page fills.
 - `capture.css`: the prototype's stylesheet unchanged, then one class for each
-  former inline `style` attribute.
+  former inline `style` attribute, then the outline of a photo the server refused.
 - `capture.js`: the prototype's script as one strict-mode classic script (ES2020,
   no modules), still built round the `S` state and the `R` renderer per step.
 - `img/`: the images the app shows.

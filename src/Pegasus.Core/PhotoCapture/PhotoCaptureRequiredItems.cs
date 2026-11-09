@@ -6,7 +6,8 @@ public sealed record MissingCaptureItem(string Code, string Label);
 /// <summary>
 /// What a capture must hold before it is complete: the app's non-optional
 /// steps (FRD-28). Eight overviews; for each damaged area an overview, a
-/// closer shot and at least one close-up; the number plate; the dashboard;
+/// closer shot and at least one close-up; the number plate; the dashboard
+/// unless the sender said they have no keys (R799);
 /// the VIN only where a bodyshop's own staff took the photos, because the app
 /// asks them for it and marks it optional for everyone else. Extras, the
 /// scene, the other vehicle, paperwork, video and the note are never required.
@@ -65,7 +66,8 @@ public static class PhotoCaptureRequiredItems
             missing.Add(new("plate", "No number plate photo"));
         }
 
-        if (!items.Any(item => item.Kind == PhotoCaptureItemKind.Dashboard))
+        // A sender with no keys skips the dashboard (R799).
+        if (!capture.Details.NoKeys && !items.Any(item => item.Kind == PhotoCaptureItemKind.Dashboard))
         {
             missing.Add(new("dashboard", "No dashboard photo"));
         }

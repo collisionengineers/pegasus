@@ -11,7 +11,8 @@ namespace Pegasus.Web.PhotoCapture;
 /// What the capture app is told about the link it was opened on: the page
 /// embeds it and the API's context read returns it. It never carries the
 /// token; <see cref="LinkKey"/> is a stable opaque value the app keys its
-/// local queue by.
+/// local queue by. <see cref="RegistrationDisplay"/> is the registration as
+/// a plate shows it, the way the hand-off message spaces it.
 /// </summary>
 public sealed record CaptureContext(
     string Kind,
@@ -20,6 +21,7 @@ public sealed record CaptureContext(
     bool Originals,
     string Origin,
     string? Registration,
+    string? RegistrationDisplay,
     string? CustomerFirstName,
     DateTimeOffset? ExpiresAtUtc,
     bool Sent,
@@ -40,7 +42,8 @@ public sealed record CaptureDetailsView(
     long? Mileage,
     string? Airbags,
     string? Steering,
-    IReadOnlyList<string> DamageAreas);
+    IReadOnlyList<string> DamageAreas,
+    bool NoKeys);
 
 public sealed record CaptureCountsView(
     int Total,
@@ -162,6 +165,7 @@ public sealed class CaptureContextFactory(
             capture.OriginalsInBackground,
             CaptureCodes.Origin(capture.Origin),
             capture.NormalizedRegistration,
+            capture.NormalizedRegistration is { } registration ? PhotoCaptureText.DisplayRegistration(registration) : null,
             FirstName(capture.CustomerName),
             capture.ExpiresAtUtc,
             capture.SentAtUtc is not null,
@@ -183,6 +187,7 @@ public sealed class CaptureContextFactory(
             link.OriginalsInBackground,
             website ? CaptureCodes.Origin(PhotoCaptureOrigin.Website) : CaptureCodes.Origin(PhotoCaptureOrigin.StandingStaff),
             Registration: null,
+            RegistrationDisplay: null,
             CustomerFirstName: null,
             ExpiresAtUtc: null,
             Sent: false,
@@ -229,7 +234,8 @@ public sealed class CaptureContextFactory(
                 details.Mileage,
                 details.Airbags,
                 details.Steering,
-                details.MarkedAreas);
+                details.MarkedAreas,
+                details.NoKeys);
 
     private static CaptureCountsView Counts(PhotoCaptureItem[] items)
     {

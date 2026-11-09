@@ -49,4 +49,17 @@ public sealed class PhotoCaptureRequiredItemsTests
         Assert.False(PhotoCaptureRequiredItems.VinRequired(PhotoCaptureOrigin.StandingForwarded, standingLinkIsRepairer: true));
         Assert.False(PhotoCaptureRequiredItems.VinRequired(PhotoCaptureOrigin.StandingStaff, standingLinkIsRepairer: false));
     }
+
+    [Fact]
+    public void ASenderWithNoKeysIsNotMissingTheDashboard()
+    {
+        var items = CompleteItems().Where(item => item.Kind != PhotoCaptureItemKind.Dashboard).ToList();
+
+        Assert.Contains(
+            PhotoCaptureRequiredItems.Evaluate(Capture(), items, vinRequired: false),
+            item => item.Code == "dashboard");
+        Assert.DoesNotContain(
+            PhotoCaptureRequiredItems.Evaluate(Capture(details: new PhotoCaptureDetails(NoKeys: true)), items, vinRequired: false),
+            item => item.Code == "dashboard");
+    }
 }

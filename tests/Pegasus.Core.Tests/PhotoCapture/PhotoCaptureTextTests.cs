@@ -46,6 +46,22 @@ public sealed class PhotoCaptureTextTests
     }
 
     [Fact]
+    public void DetailsKeepTheNoKeysSkip()
+    {
+        Assert.True(PhotoCaptureText.Details(new PhotoCaptureDetails(NoKeys: true)).NoKeys);
+        Assert.False(PhotoCaptureText.Details(new PhotoCaptureDetails()).NoKeys);
+    }
+
+    [Fact]
+    public void ANoteEmptiedBeforeSendIsStoredEmptyAndNoNoteKeepsTheEarlierOne()
+    {
+        Assert.Null(PhotoCaptureText.NoteOnSend("", "The boot doesn't close."));
+        Assert.Null(PhotoCaptureText.NoteOnSend("   ", "The boot doesn't close."));
+        Assert.Equal("The boot doesn't close.", PhotoCaptureText.NoteOnSend(null, "The boot doesn't close."));
+        Assert.Equal("Also the bonnet.", PhotoCaptureText.NoteOnSend(" Also the bonnet. ", "The boot doesn't close."));
+    }
+
+    [Fact]
     public void TheHandoffMessageGreetsByFirstNameWhenOneIsKnown()
     {
         Assert.StartsWith("Hi Sam, Collision Engineers need a few photos of RY65 OFG", PhotoCaptureMessages.Handoff("Sam Taylor", "RY65OFG"), StringComparison.Ordinal);
