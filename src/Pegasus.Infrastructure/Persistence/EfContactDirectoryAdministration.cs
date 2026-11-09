@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Address;
 using Pegasus.Core.Identity;
@@ -13,12 +15,21 @@ namespace Pegasus.Infrastructure.Persistence;
 /// never copies credentials or report policy into a contact row.</summary>
 public sealed class EfContactDirectoryAdministration(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IMemoryCache cache)
     : IContactDirectoryAdministration, IContactDirectoryQueries
 {
     private const string SaveKind = "save_contact";
     private readonly IDbContextFactory<PegasusDbContext> _contextFactory = contextFactory;
     private readonly TimeProvider _timeProvider = timeProvider;
+    private readonly IMemoryCache _cache = cache;
+
+    // A private key type, so no other IMemoryCache user can collide with an entry.
+    private readonly record struct ChoicesKey(ContactRole Role);
+
+    // Every role's list is one family: a save can move a contact between roles
+    // or deactivate it, so one commit evicts them all (#1950).
+    private static readonly object ChoicesFamily = new();
 
     public Task<ContactDirectoryRecord> SaveAsync(SaveContactRequest request, CancellationToken cancellationToken)
     {
@@ -84,12 +95,31 @@ public sealed class EfContactDirectoryAdministration(
             cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ContactChoice>> ListByRoleAsync(
+    /// <summary>
+    /// The active contacts of one role, kept in <see cref="IMemoryCache"/> until
+    /// a contact save evicts every role's list. The authorisation check runs on
+    /// every call, kept or not.
+    /// </summary>
+    public Task<IReadOnlyList<ContactChoice>> ListByRoleAsync(
         ActionActor actor,
         ContactRole role,
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return EvictableCacheEntry.GetOrReadAsync(
+            _cache,
+            new ChoicesKey(role),
+            ChoicesFamily,
+            StaffSessionPolicy.AccountReadLifetime,
+            slidingWindow: null,
+            token => ReadByRoleAsync(role, token),
+            cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<ContactChoice>> ReadByRoleAsync(
+        ContactRole role,
+        CancellationToken cancellationToken)
+    {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         var roleCode = ToCode(role);
         return await ReadChoicesAsync(
@@ -209,6 +239,7 @@ public sealed class EfContactDirectoryAdministration(
         try { await context.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateException exception) when (exception.GetBaseException() is SqlException { Number: 2601 or 2627 }) { throw new ContactDirectoryException(ContactDirectoryError.DuplicateOrganizationName); }
         await transaction.CommitAsync(cancellationToken);
+        EvictableCacheEntry.EvictFamily(_cache, ChoicesFamily);
         return result;
     }
 

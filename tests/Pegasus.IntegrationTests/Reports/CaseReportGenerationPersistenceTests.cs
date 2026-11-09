@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Custody;
@@ -2164,7 +2165,8 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         {
             await using var scope = database.CreateAsyncScope();
             var store = new EfDocumentCustodyStore(Factory,
-                scope.ServiceProvider.GetRequiredService<IDocumentContentStore>(), Clock);
+                scope.ServiceProvider.GetRequiredService<IDocumentContentStore>(), Clock,
+                scope.ServiceProvider.GetRequiredService<IMemoryCache>());
             await store.ExecuteAsync(new(CaseId, "instruction.pdf", "application/pdf", Source.Content,
                 DocumentSemanticRole.Instruction, DocumentSource.Generated, "source-change",
                 StaffActor, Key("add-source"), 1, Lease.Token), default);
@@ -2174,7 +2176,8 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         {
             await using var scope = database.CreateAsyncScope();
             ILogicallyRemoveDocument store = new EfDocumentCustodyStore(Factory,
-                scope.ServiceProvider.GetRequiredService<IDocumentContentStore>(), Clock);
+                scope.ServiceProvider.GetRequiredService<IDocumentContentStore>(), Clock,
+                scope.ServiceProvider.GetRequiredService<IMemoryCache>());
             await store.ExecuteAsync(new(CaseId, Source.OccurrenceId, StaffActor,
                 "Incorrect source document", Key("remove-source"), 1, Lease.Token), default);
         }
@@ -2294,7 +2297,7 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
             var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
             var store = new EfStaffAccountAdministration(context,
                 scope.ServiceProvider.GetRequiredService<UserManager<PegasusIdentityUser>>(),
-                new StaffAccountReads(TimeProviderMemoryCache.Create(Clock)), Clock);
+                scope.ServiceProvider.GetRequiredService<StaffAccountReads>(), Clock);
             var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
             var account = await context.Users.SingleAsync(
                 item => item.Id == SignatoryId);

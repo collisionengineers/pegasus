@@ -414,6 +414,7 @@ public sealed partial class AutomationAdministrationWebTests
         using var factory = WithAutomationMcp(baseFactory);
         using var client = CreateClient(factory);
 
+        // This GET keeps Send to AI's state (#1950), so the reads after the save prove the save evicted it.
         var html = await GetHtmlAsync(client, AutomationRoute);
         Assert.Contains("AI settings", html, StringComparison.Ordinal);
         Assert.Contains($"<span>{OperatorLabels.AutomationAdmin.SendToAi}</span>", html, StringComparison.Ordinal);

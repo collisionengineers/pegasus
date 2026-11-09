@@ -15,6 +15,10 @@ public sealed class WorkspaceRequestTimingFilterTests
     [InlineData("/Cases/Details", null, null, "web.case.resource", "web.case.result")]
     [InlineData("/Cases/Details", "Section", null, "web.case.section.resource", "web.case.section.result")]
     [InlineData("/Cases/Details", null, "section", "web.case.section.resource", "web.case.section.result")]
+    [InlineData("/Cases/Details", null, "WatchEditRequest", null, null)]
+    [InlineData("/Cases/Details", null, "HeartbeatLease", null, null)]
+    [InlineData("/Cases/Details", null, "heartbeatlease", null, null)]
+    [InlineData("/Cases/Details", null, "Save", "web.case.resource", "web.case.result")]
     [InlineData("/Index", null, null, "web.workcentre.resource", "web.workcentre.result")]
     [InlineData("/Index", null, "Refresh", "web.workcentre.refresh.resource", "web.workcentre.refresh.result")]
     [InlineData("/Search", null, null, null, null)]
@@ -96,11 +100,13 @@ public sealed class WorkspaceRequestTimingFilterTests
 
     private static ActionContext Context(string page, string? routeHandler, string? queryHandler)
     {
+        var id = Guid.NewGuid();
         var http = new DefaultHttpContext();
+        http.Request.Path = page == "/Cases/Details" ? $"/Cases/{id:D}" : page;
         http.Request.QueryString = queryHandler is null ? QueryString.Empty : new QueryString("?handler=" + queryHandler);
         var route = new RouteData();
         route.Values["handler"] = routeHandler;
-        route.Values["id"] = Guid.NewGuid();
+        route.Values["id"] = id;
         return new ActionContext(http, route, new PageActionDescriptor { ViewEnginePath = page });
     }
 }

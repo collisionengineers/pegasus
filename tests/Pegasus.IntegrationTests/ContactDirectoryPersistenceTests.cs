@@ -432,6 +432,46 @@ public sealed class ContactDirectoryPersistenceTests
             matches.Select(item => (item.OrganizationId, item.Role)));
     }
 
+    /// <summary>
+    /// #1950: a role's choices are kept until a contact save commits, so a new
+    /// contact and a deactivated one show on the next read.
+    /// </summary>
+    [Fact]
+    public async Task TheRoleChoicesAreKeptUntilASaveEvictsThem()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        var repairerA = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            Name = "Kept choice repairer A",
+            Role = ContactRole.Repairer
+        });
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IContactDirectoryQueries>();
+        var cold = await queries.ListByRoleAsync(Administrator, ContactRole.Repairer, CancellationToken.None);
+        Assert.Contains(cold, item => item.OrganizationId == repairerA.OrganizationId);
+        statements.Reset();
+        Assert.Equal(cold, await queries.ListByRoleAsync(Administrator, ContactRole.Repairer, CancellationToken.None));
+        Assert.Equal(0, statements.Count);
+
+        var repairerB = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            Name = "Kept choice repairer B",
+            Role = ContactRole.Repairer
+        });
+        await SaveAsync(database, NewContact(repairerA.OrganizationId, repairerA.Version) with
+        {
+            Name = repairerA.Name,
+            Role = ContactRole.Repairer,
+            Active = false
+        });
+        var afterSaves = await queries.ListByRoleAsync(Administrator, ContactRole.Repairer, CancellationToken.None);
+        Assert.Contains(afterSaves, item => item.OrganizationId == repairerB.OrganizationId);
+        Assert.DoesNotContain(afterSaves, item => item.OrganizationId == repairerA.OrganizationId);
+    }
+
     [Fact]
     public async Task ListPagesATypeByNameWithoutSkippingOrRepeatingARow()
     {

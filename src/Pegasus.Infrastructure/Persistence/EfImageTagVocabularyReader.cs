@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Documents;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -11,12 +13,25 @@ namespace Pegasus.Infrastructure.Persistence;
 /// database rather than only for those with durable document storage: the Case
 /// workspace draws the picker wherever it draws a Case. Writing a tag is the
 /// custody store's, because that is where the case, its lease and its version
-/// are guarded.
+/// are guarded. The list is kept in <see cref="IMemoryCache"/> until that
+/// store's tag create evicts it (#1950).
 /// </remarks>
 internal sealed class EfImageTagVocabularyReader(
-    IDbContextFactory<PegasusDbContext> dbContextFactory) : IReadImageTagVocabulary
+    IDbContextFactory<PegasusDbContext> dbContextFactory,
+    IMemoryCache cache) : IReadImageTagVocabulary
 {
-    public async Task<IReadOnlyList<ImageTag>> ListAsync(CancellationToken cancellationToken = default)
+    // A private key object, so no other IMemoryCache user can collide with the entry.
+    private static readonly object VocabularyKey = new();
+
+    /// <summary>Drops the kept vocabulary, so a read begun before this call is never kept.</summary>
+    internal static void EvictVocabulary(IMemoryCache memoryCache) =>
+        EvictableCacheEntry.Evict(memoryCache, VocabularyKey);
+
+    public Task<IReadOnlyList<ImageTag>> ListAsync(CancellationToken cancellationToken = default) =>
+        EvictableCacheEntry.GetOrReadAsync(
+            cache, VocabularyKey, StaffSessionPolicy.AccountReadLifetime, slidingWindow: null, ReadAsync, cancellationToken);
+
+    private async Task<IReadOnlyList<ImageTag>> ReadAsync(CancellationToken cancellationToken)
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var rows = await context.Set<ImageTagEntity>()

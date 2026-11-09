@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -17,6 +18,7 @@ internal sealed class EfDocumentCustodyStore(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
     IDocumentContentStore contentStore,
     TimeProvider timeProvider,
+    IMemoryCache cache,
     IDocumentContentCachePublisher? cachePublisher = null) :
     IAddCaseDocument,
     IDownloadCaseDocument,
@@ -1348,6 +1350,7 @@ internal sealed class EfDocumentCustodyStore(
             // is the actual guard, so its violation is the same refusal the pre-check reports.
             throw new ImageTagNameInUseException(name);
         }
+        EfImageTagVocabularyReader.EvictVocabulary(cache);
         return new(EfImageTagVocabularyReader.ToImageTag(created), IsReplay: false);
     }
 

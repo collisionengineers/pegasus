@@ -11,6 +11,8 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class StaffAccountAdministrationPersistenceTests
 {
+    private static readonly byte[] ReplacementSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x01];
+
     [Fact]
     public async Task ActorDisplayNamesResolveManyStaffIdsInOneSqlCommand()
     {
@@ -206,6 +208,75 @@ public sealed class StaffAccountAdministrationPersistenceTests
             var other = await userManager.FindByNameAsync(name);
             Assert.Null(await queries.GetSignOffSignatureAsync(other!.Id, default));
         }
+    }
+
+    /// <summary>
+    /// The sign-off list and each signature are kept (#1950); a settings save
+    /// that moves the default evicts the list for both accounts it changes, and
+    /// disabling an account evicts its signature.
+    /// </summary>
+    [Fact]
+    public async Task SignOffReadsAreKeptUntilAnAccountWriteEvictsThem()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter),
+            configureServices: IdentityPersistenceTestServices.Configure);
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var userManager = services.GetRequiredService<UserManager<PegasusIdentityUser>>();
+        var administrator = await CreateStaffAccountAsync(
+            userManager, "kept-sign-off-administrator", StaffRole.Administrator);
+        var engineerA = await CreateSignOffAccountAsync(
+            userManager, "kept-sign-off-a", enabled: true, signed: true);
+        engineerA.IsDefaultSignOffEngineer = true;
+        Assert.True((await userManager.UpdateAsync(engineerA)).Succeeded);
+        var engineerB = await CreateSignOffAccountAsync(
+            userManager, "kept-sign-off-b", enabled: true, signed: true);
+        var queries = services.GetRequiredService<IStaffAccountQueries>();
+        var versionB = (await queries.GetAsync(engineerB.Id, default))!.Version;
+
+        counter.Reset();
+        var cold = await queries.ListSignOffEngineersAsync(default);
+        Assert.All(counter.Statements, AssertSignatureReadOnlyAsItsLength);
+        var signatureA = await queries.GetSignOffSignatureAsync(engineerA.Id, default);
+        Assert.Equal(2, cold.Count);
+        Assert.True(Assert.Single(cold, item => item.StaffId == engineerA.Id).IsDefault);
+
+        counter.Reset();
+        Assert.Equal(cold, await queries.ListSignOffEngineersAsync(default));
+        Assert.Same(signatureA, await queries.GetSignOffSignatureAsync(engineerA.Id, default));
+        Assert.Equal(0, counter.Count);
+
+        // B becomes the default under a new name and signature; A stops being it.
+        var actor = ActionActor.Staff(administrator.Id, [StaffRole.Administrator]);
+        var updated = await services.GetRequiredService<IUpdateStaffAccountSettingsStore>().UpdateAsync(
+            new(
+                actor,
+                engineerB.Id,
+                StaffRole.Engineer,
+                IsSignOffEngineer: true,
+                PrintedName: "Kept Sign-off B Renamed",
+                Qualifications: null,
+                Signature: ReplacementSignature,
+                IsDefaultSignOffEngineer: true,
+                OperationKey: "kept-sign-off-settings",
+                ExpectedVersion: versionB),
+            default);
+        var afterSave = await queries.ListSignOffEngineersAsync(default);
+        var listedB = Assert.Single(afterSave, item => item.StaffId == engineerB.Id);
+        Assert.Equal("Kept Sign-off B Renamed", listedB.PrintedName);
+        Assert.True(listedB.IsDefault);
+        Assert.False(Assert.Single(afterSave, item => item.StaffId == engineerA.Id).IsDefault);
+        Assert.Equal(ReplacementSignature, (await queries.GetSignOffSignatureAsync(engineerB.Id, default))?.Content);
+
+        await services.GetRequiredService<IDisableStaffAccountStore>().DisableAsync(
+            new(actor, engineerB.Id, null, "kept-sign-off-disable", updated.Account.Version),
+            default);
+        Assert.DoesNotContain(
+            await queries.ListSignOffEngineersAsync(default),
+            item => item.StaffId == engineerB.Id);
+        Assert.Null(await queries.GetSignOffSignatureAsync(engineerB.Id, default));
     }
 
     [Fact]
