@@ -784,7 +784,7 @@ public sealed class GetCasePageFrame(
         var frameRead = store.GetPageFrameAsync(query.CaseId, query.Work, cancellationToken);
         var dataRead = query.Data is null
             ? caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
-            : Task.FromResult(query.Data);
+            : Task.FromResult<CaseDataProjection?>(query.Data);
         try
         {
             // Both reads end before this method does, so neither outlives the
@@ -803,13 +803,14 @@ public sealed class GetCasePageFrame(
             return null;
         }
 
-        var data = dataRead.Result;
+        var read = dataRead.Result;
         if (query.Data is { } known
             && (known.Version != frame.Frame.Workflow.Version || known.State != frame.Frame.Workflow.State))
         {
-            data = await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken);
+            read = await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken);
         }
-        data ??= throw new InvalidDataException("The accepted case is missing its typed data projection.");
+        var data = read
+            ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         return new(
             frame.Frame,
             frame.Documents,
