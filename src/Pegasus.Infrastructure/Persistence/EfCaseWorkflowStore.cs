@@ -187,8 +187,8 @@ public sealed class EfCaseWorkflowStore(
             : null;
         // A request to edit is addressed to one holder's session: a claim that changes the holder
         // ends it, and so does a claim after the lease it was asked against lapsed; only the
-        // holder's own re-claim after a save, which clears the lease rather than letting it lapse,
-        // leaves it standing (R550).
+        // holder's own claim after an action that ended their lease rather than letting it lapse
+        // leaves it standing (R550). A Case save keeps the lease, so no claim follows it (R761).
         var previousLeaseLapsed = workflow.EditLeaseHolder is not null && liveHolder is null;
         if (retainedRequest is { } standingRequest
             && (previousLeaseLapsed
@@ -198,16 +198,12 @@ public sealed class EfCaseWorkflowStore(
             CaseMutationGuard.ClearRequest(workflow);
         }
         CaseMutationGuard.ClearLease(workflow);
-        var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
-        var tokenHash = Hash(token);
-        var expiresAtUtc = now + CaseEditAuthority.LeaseDuration;
-        workflow.EditLeaseToken = token;
-        workflow.EditLeaseTokenHash = tokenHash;
+        var (token, expiresAtUtc) = CaseMutationGuard.IssueLeaseToken(workflow, now);
+        var tokenHash = workflow.EditLeaseTokenHash;
         workflow.EditLeaseRequestHash = requestHash;
         workflow.EditLeaseHolder = request.Actor.SubjectId;
         workflow.EditLeaseHolderKind = request.Actor.Kind.ToString();
         workflow.EditLeaseOperationKey = operationKey;
-        workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
         workflow.EditLeaseGeneration = checked(workflow.EditLeaseGeneration + 1);
         AddLeaseOperation(
             context,
@@ -516,15 +512,11 @@ public sealed class EfCaseWorkflowStore(
             Holder = request.Actor.SubjectId
         }));
         CaseMutationGuard.ClearLease(workflow);
-        var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
-        var expiresAtUtc = now + CaseEditAuthority.LeaseDuration;
-        workflow.EditLeaseToken = token;
-        workflow.EditLeaseTokenHash = Hash(token);
+        CaseMutationGuard.IssueLeaseToken(workflow, now);
         workflow.EditLeaseRequestHash = requestHash;
         workflow.EditLeaseHolder = retained.Requester;
         workflow.EditLeaseHolderKind = requesterKind.ToString();
         workflow.EditLeaseOperationKey = requestOperationKey;
-        workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
         workflow.EditLeaseGeneration = checked(workflow.EditLeaseGeneration + 1);
         workflow.EditRequestAnswer = CaseMutationGuard.AnswerCode(CaseEditRequestAnswer.Accepted);
         AddEvent(
@@ -2302,11 +2294,7 @@ public sealed class EfCaseWorkflowStore(
     /// else is unreadable and is never handed back.
     /// </summary>
     private static string? RetainedLeaseToken(CaseWorkflowEntity workflow) =>
-        workflow.EditLeaseToken is { Length: CaseEditAuthority.LeaseTokenLength } token
-        && workflow.EditLeaseTokenHash is { } tokenHash
-        && HashesMatch(tokenHash, Hash(token))
-            ? token
-            : null;
+        CaseMutationGuard.RetainedLeaseToken(workflow);
 
     private static CaseEditLease ReadLeaseReplayOrThrow(
         CaseWorkflowEntity workflow,

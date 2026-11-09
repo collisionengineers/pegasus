@@ -27,15 +27,20 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// Answers a commit that ran, landed or refused, with the parts the script
-    /// swaps. A commit that landed but ended the edit session (its lease could
+    /// swaps. A save keeps the session's lease and issues the next token itself
+    /// (R761), so the answer carries it; a commit that landed but ended the
+    /// edit session (a replay that handed no lease back, and the lease could
     /// not be claimed again) leaves nothing to update in place, and the script
     /// draws the whole record afresh, so that commit takes the redirect and
     /// hands it the notices and the commit it confirms.
+    /// <paramref name="committedData"/> is the Case data the save itself
+    /// projected, when it landed, so the frame is read without it (#1951).
     /// </summary>
     private async Task<IActionResult> AnswerCommitAsync(
         Guid id,
         string? section,
         bool carriesPreparation,
+        CaseDataProjection? committedData,
         IActionResult redirect,
         CancellationToken cancellationToken)
     {
@@ -48,7 +53,7 @@ public sealed partial class DetailsModel
         SectionFilter = section;
         try
         {
-            if (!await LoadCommitResultAsync(id, actor, carriesPreparation, cancellationToken))
+            if (!await LoadCommitResultAsync(id, actor, carriesPreparation, committedData, cancellationToken))
             {
                 return NotFound();
             }
@@ -83,11 +88,12 @@ public sealed partial class DetailsModel
         Guid id,
         ActionActor actor,
         bool carriesPreparation,
+        CaseDataProjection? committedData,
         CancellationToken cancellationToken)
     {
         using var activity = DocumentReadTelemetry.Start("web.case.commit");
         var work = WorkSelector;
-        (Case, var workspace) = await ReadFrameAndWorkspaceAsync(id, actor, work, cancellationToken);
+        (Case, var workspace) = await ReadFrameAndWorkspaceAsync(id, actor, work, cancellationToken, committedData);
         if (Case is null)
         {
             return false;

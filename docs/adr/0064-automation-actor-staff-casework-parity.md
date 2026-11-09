@@ -101,7 +101,9 @@ fact the call did not name.
    lapsed with nobody claiming since carries on with its token, as a staff
    lease does. A write under an Automation lease keeps the lease, so one
    `pegasus_edit_begin` token carries every write until `pegasus_edit_end`
-   (operator, 8 October 2026); a staff write still ends its lease.
+   (operator, 8 October 2026); a staff write still ends its lease, except a
+   Case save from the staff member's own edit session, which keeps the lease
+   and issues its next token inside the save (R761, 8 November 2026).
 8. **Lifecycle, reports and documents.** The operator approved the Case
    lifecycle and the reports and documents tiers, report approval included
    (7 October 2026). `pegasus_case_action` takes the Case's Actions-menu

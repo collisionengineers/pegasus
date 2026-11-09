@@ -5,8 +5,10 @@ namespace Pegasus.Core.Workflow;
 /// <summary>
 /// The single owner of the decision every staff case mutation is guarded by: the caller must
 /// present the edit lease it holds, and no staff write may have landed since the editor loaded the
-/// case. Only staff work ends a lease; system work moves the version under it without ending the
-/// session. A missing, wrong-holder, or superseded mutation is refused without overwriting newer
+/// case. Only staff work ends a lease or replaces its token; system work moves the version under it
+/// without ending the session, and a Case save from the holder's own edit session keeps the lease
+/// and issues its next token inside the save (<see cref="WriteContinuesSession"/>, R761). A
+/// missing, wrong-holder, or superseded mutation is refused without overwriting newer
 /// work. The holder resumes their own lease from any window; an explicit authorised takeover by a
 /// colleague rotates it before another edit. Infrastructure supplies the persisted material
 /// and the fixed-time token comparison; the refusal order is business policy and lives here.
@@ -222,9 +224,9 @@ public static class CaseEditAuthority
 
     /// <summary>
     /// The version rule for a write under a proven lease. Every staff write ends the lease it was
-    /// made under, and a page receives a token only with the version it was issued at or a later
-    /// one, so a presented token that still matches proves no staff write has landed since the page
-    /// read its version: anything that moved the version since was system work, which never ends a
+    /// made under or replaces its token, and a page receives a token only with the version it was
+    /// issued at or a later one, so a presented token that still matches proves no staff write has
+    /// landed since the page read its version: anything that moved the version since was system work, which never ends a
     /// member of staff's edit session (operator, 6 October 2026). The caller has already proven
     /// the lease; a version from the future is refused.
     /// </summary>
@@ -248,6 +250,23 @@ public static class CaseEditAuthority
     /// </summary>
     public static bool WriteEndsLease(ActorKind? retainedLeaseHolderKind, bool keepsLease) =>
         !keepsLease && retainedLeaseHolderKind != ActorKind.Automation;
+
+    /// <summary>
+    /// Whether a write carries the holder's edit session on: the lease is kept and renewed and
+    /// its next token is issued inside the write, so the holder's page claims nothing after it
+    /// (operator, 8 November 2026; R761). Only a Case save from a member of staff's own edit
+    /// session asks for it (<paramref name="continuesSession"/>), and only while the Case stays
+    /// editable: a write that leaves the Case terminal ends the lease as any other does. The
+    /// Automation Actor's lease already stands across its writes with one token
+    /// (<see cref="WriteEndsLease"/>), so it is never rotated here. The token still changes, so
+    /// <see cref="RequireVersionUnderLease"/>'s proof holds: a second window of the same holder
+    /// that saves with the token the save replaced is refused.
+    /// </summary>
+    public static bool WriteContinuesSession(
+        ActorKind? retainedLeaseHolderKind,
+        bool continuesSession,
+        bool leavesCaseTerminal) =>
+        continuesSession && retainedLeaseHolderKind == ActorKind.Staff && !leavesCaseTerminal;
 
     /// <summary>
     /// Refuses a mutation that does not present the lease its actor holds. The caller has

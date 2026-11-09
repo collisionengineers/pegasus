@@ -1062,9 +1062,11 @@ public sealed class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// A commit that landed but could not keep the session (its lease could not be claimed
-    /// again) leaves nothing to update in place: it takes the redirect, and the page it
-    /// lands on confirms the commit and says it ended editing, as the script expects.
+    /// A commit whose save handed no lease back, a replay for instance, and whose lease could
+    /// not be claimed again, could not keep the session (R761 keeps it in the save itself; the
+    /// reclaim is only the fallback). It leaves nothing to update in place: it takes the
+    /// redirect, and the page it lands on confirms the commit and says it ended editing, as
+    /// the script expects.
     /// </summary>
     [Fact]
     public async Task AFetchCommitThatEndsTheSessionKeepsTheRedirect()
@@ -1072,6 +1074,7 @@ public sealed class CaseDetailsWebTests
         var store = new RecordingCaseDetailsStore
         {
             AcceptWorkspaceSaves = true,
+            KeepsSessionOnSave = false,
             State = CaseLifecycleState.ReportPreparation
         };
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
@@ -1090,7 +1093,7 @@ public sealed class CaseDetailsWebTests
         AssertEditorCommit(next, "case-edit-form", DetailsModelOperationKey, expectedVersion);
     }
 
-    /// <summary>The store's first claim enters edit mode; a later one, the reclaim after a save, is refused.</summary>
+    /// <summary>The store's first claim enters edit mode; a later one, the fallback reclaim after a save that kept no lease, is refused.</summary>
     private sealed class ClaimsOnce(RecordingCaseDetailsStore store) : ILeaseCaseForEdit
     {
         public Task<CaseEditRequestRaised> RaiseRequestAsync(RaiseCaseEditRequestRequest request, CancellationToken cancellationToken) =>

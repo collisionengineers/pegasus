@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -934,7 +935,19 @@ internal static partial class CaseWebTestSupport
 
         public IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails { get; init; } = [];
 
-        public string LeaseToken { get; } = new('a', CaseEditAuthority.LeaseTokenLength);
+        /// <summary>
+        /// The live lease's token. A session save replaces it with the next one, as the store's
+        /// <c>CaseMutationGuard.CompleteSessionWrite</c> does (R761); a claim or resume hands back
+        /// whichever is current.
+        /// </summary>
+        public string LeaseToken { get; private set; } = new('a', CaseEditAuthority.LeaseTokenLength);
+
+        /// <summary>
+        /// Whether a session save keeps the lease and hands its next token back (R761). False
+        /// answers as a replay that found no lease does: the lease is consumed and the page falls
+        /// back to its reclaim.
+        /// </summary>
+        public bool KeepsSessionOnSave { get; init; } = true;
 
         public bool RenderLeaseIsCurrent { get; set; } = true;
 
@@ -1299,6 +1312,21 @@ internal static partial class CaseWebTestSupport
             if (AcceptWorkspaceSaves)
             {
                 CaseVersion++;
+                if (request.ContinuesSession
+                    && KeepsSessionOnSave
+                    && _leaseHolder is not null
+                    && _leaseHolderKind == ActorKind.Staff)
+                {
+                    // The session save keeps the lease (same holder and operation key) and issues
+                    // its next token, so the token the page posted is spent (R761).
+                    LeaseToken = Convert.ToHexStringLower(
+                        RandomNumberGenerator.GetBytes(CaseEditAuthority.LeaseTokenLength / 2));
+                    return Task.FromResult(new SaveCaseWorkspaceResult(CreateData(), EngineeringAssessment(), null, false)
+                    {
+                        SessionLease = new(LeaseToken, _now.AddMinutes(5))
+                    });
+                }
+
                 ConsumeLease();
                 return Task.FromResult(new SaveCaseWorkspaceResult(CreateData(), EngineeringAssessment(), null, false));
             }

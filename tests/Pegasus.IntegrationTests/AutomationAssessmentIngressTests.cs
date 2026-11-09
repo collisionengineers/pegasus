@@ -2227,6 +2227,12 @@ public sealed class AutomationAssessmentIngressTests
         {
             version = (await ReadStructuredContentAsync(response)).GetProperty("caseVersion").GetInt64();
         }
+        // An Automation write never rotates the token: a save keeps the lease and
+        // issues the next token only for a staff session save (R761).
+        Assert.Equal(
+            leaseToken,
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
+                $"SELECT EditLeaseToken FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
 
         using (var response = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_assessment_update", new
         {

@@ -521,10 +521,27 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     protected virtual (ICaseWorkflowQueries Workflows, CaseEditLeases Leases)? LeaseReclaim => null;
 
     /// <summary>
+    /// The next token a command's own transaction issued for the session it
+    /// kept (a Case save, R761): stored after the command in place of a claim.
+    /// </summary>
+    private string? continuedLeaseToken;
+
+    /// <summary>
+    /// Records that the command kept the session's lease and issued
+    /// <paramref name="leaseToken"/> as its next token, so no claim follows.
+    /// </summary>
+    protected void ContinueSession(string leaseToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(leaseToken);
+        continuedLeaseToken = leaseToken;
+    }
+
+    /// <summary>
     /// Claims a fresh lease on the Case's new version and stores it, so the
     /// redirected page is still in the edit session. A refused reclaim is not
     /// an error: the page simply reads. Archived and terminal Cases are never
-    /// reclaimed.
+    /// reclaimed. A command whose own transaction kept the lease
+    /// (<see cref="ContinueSession"/>) never comes here.
     /// </summary>
     protected async Task ReclaimLeaseAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -595,7 +612,13 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         {
             var message = await execute(actor);
             ClearLeaseState();
-            if (keepEditing)
+            if (continuedLeaseToken is { } continued)
+            {
+                // The command kept the session's lease and issued its next token
+                // inside its own transaction (R761): nothing to claim.
+                StoreLeaseAuthority(id, continued);
+            }
+            else if (keepEditing)
             {
                 await ReclaimLeaseAsync(id, CancellationToken.None);
             }
