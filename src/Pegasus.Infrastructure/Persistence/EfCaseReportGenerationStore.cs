@@ -108,8 +108,15 @@ public sealed class EfCaseReportGenerationStore(
         CaseReportFreezeInputs? inputs = null;
         if (request.Kind == CaseReportArtifactKind.AssessmentReport)
         {
+            // The version is re-read and required under the lock below, so the
+            // source's own closing re-read of it is skipped (#1952).
             inputs = await snapshotSource
-                .GetAsync(request.CaseId, request.Actor, request.Work, reuse: null, cancellationToken)
+                .GetAsync(
+                    request.CaseId,
+                    request.Actor,
+                    request.Work,
+                    new ReportProjectionReuse(request.Work) { CallerRechecksVersion = true },
+                    cancellationToken)
                 .ConfigureAwait(false);
             if (inputs is null)
             {

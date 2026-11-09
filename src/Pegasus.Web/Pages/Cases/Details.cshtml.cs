@@ -3005,32 +3005,26 @@ public sealed partial class DetailsModel(
         string? feeNoteOperationKey,
         CancellationToken cancellationToken)
     {
+        // One custody batch around the report and its fee note: the Case
+        // folder is proved once for both (FRD-05, #1952). Opened here, in the
+        // flow that awaits both generations, so it reaches each filing.
+        var generator = HttpContext.RequestServices.GetRequiredService<IGenerateCaseReport>();
+        await using var batch = generator.BeginBatch();
         var (result, outcome) = await GenerateOneAsync(
-            actor, id, operationKey, editLeaseToken, expectedCaseVersion,
+            generator, actor, id, operationKey, editLeaseToken, expectedCaseVersion,
             kind, targetGenerationId, cancellationToken);
         if (outcome is not null)
         {
             return outcome;
         }
-        if (kind == CaseReportArtifactKind.AssessmentReport
-            && !string.IsNullOrWhiteSpace(feeNoteOperationKey)
-            && result!.Generation is { State: CaseReportGenerationState.Confirmed } generation
-            && generation.Artifacts.Any(artifact => artifact is
-            {
-                Kind: CaseReportArtifactKind.AssessmentReport,
-                Status: CaseReportArtifactStatus.Confirmed,
-            })
-            && !generation.Artifacts.Any(artifact => artifact is
-            {
-                Kind: CaseReportArtifactKind.FeeNote,
-                Status: CaseReportArtifactStatus.Confirmed,
-            }))
+        if (!string.IsNullOrWhiteSpace(feeNoteOperationKey)
+            && GenerateCaseReport.FeeNoteTargetOf(kind, result!.Generation) is { } feeNoteTarget)
         {
             // The report stands whatever the fee note's outcome; a fee note
             // that is not generated says so beside the report's confirmation.
             var (_, feeNoteOutcome) = await GenerateOneAsync(
-                actor, id, feeNoteOperationKey, editLeaseToken, expectedCaseVersion,
-                CaseReportArtifactKind.FeeNote, generation.Id, cancellationToken);
+                generator, actor, id, feeNoteOperationKey, editLeaseToken, expectedCaseVersion,
+                CaseReportArtifactKind.FeeNote, feeNoteTarget, cancellationToken);
             if (feeNoteOutcome is ForbidResult or NotFoundResult)
             {
                 return feeNoteOutcome;
@@ -3045,6 +3039,7 @@ public sealed partial class DetailsModel(
     /// other outcome answers the action that ends the request.
     /// </summary>
     private async Task<(CaseReportGenerationResult? Result, IActionResult? Outcome)> GenerateOneAsync(
+        IGenerateCaseReport generator,
         ActionActor actor,
         Guid id,
         string operationKey,
@@ -3057,9 +3052,7 @@ public sealed partial class DetailsModel(
         CaseReportGenerationResult result;
         try
         {
-            result = await HttpContext.RequestServices
-                .GetRequiredService<IGenerateCaseReport>()
-                .ExecuteAsync(
+            result = await generator.ExecuteAsync(
                 new(
                     actor,
                     id,

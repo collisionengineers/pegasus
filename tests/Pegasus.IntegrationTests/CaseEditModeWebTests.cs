@@ -1301,7 +1301,8 @@ public sealed class CaseEditModeWebTests
     /// Generate report makes the separate fee note too (operator, 7 October
     /// 2026): once the report is confirmed the handler generates the fee note
     /// from the generation the report confirmed, under the one lease it
-    /// claimed, and releases that lease once after both.
+    /// claimed, and releases that lease once after both. Both run inside one
+    /// custody batch, so the Case folder is proved once for the two (#1952).
     /// </summary>
     [Fact]
     public async Task GenerateReportOutsideEditModeMakesTheFeeNoteUnderTheSameLease()
@@ -1344,6 +1345,9 @@ public sealed class CaseEditModeWebTests
                 Assert.Equal(store.LeaseToken, feeNote.LeaseToken);
                 Assert.Equal(store.CaseVersion, feeNote.ExpectedCaseVersion);
             });
+        Assert.Equal([1, 1], generator.BatchDepthAtRequest);
+        Assert.Equal(1, generator.BatchesClosed);
+        Assert.Equal(0, generator.OpenBatches);
         var release = Assert.Single(store.LeaseReleases);
         Assert.Equal(store.LeaseToken, release.LeaseToken);
         Assert.Null(store.LeaseHolder);
