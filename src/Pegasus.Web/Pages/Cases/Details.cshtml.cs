@@ -36,6 +36,11 @@ namespace Pegasus.Web.Pages.Cases;
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 [RequestSizeLimit(ImportRawEstimate.MaximumDocumentBytes + 64 * 1024)]
+// Save as you go posts the whole Case form on every commit, and the Repair
+// Spec grid binds nine inputs a line to it, so a spec at Core's bound is
+// 1,800 values before the rest of the form. The framework's default of 1,024
+// refused a 108-line spec as a bare 400 before any handler ran (#1994).
+[RequestFormLimits(ValueCountLimit = CaseFormValueLimit)]
 public sealed partial class DetailsModel(
     IGetCasePageFrame getCasePageFrame,
     IGetCaseSectionFrame getCaseSectionFrame,
@@ -89,6 +94,20 @@ public sealed partial class DetailsModel(
     IValidateCaseRenderLease? validateCaseRenderLease = null,
     IStaffMailSend? staffMailSend = null) : CaseMutationPageModel(logger)
 {
+    /// <summary>Inputs the Repair Spec grid binds to the Case form for each line (<c>_CaseEstimate.cshtml</c>).</summary>
+    internal const int EstimateLineInputs = 9;
+
+    /// <summary>The Case form's inputs beside the Repair Spec lines, with room to spare.</summary>
+    private const int CaseFormHeadroom = 2048;
+
+    /// <summary>
+    /// Form values one commit may carry: a Repair Spec at
+    /// <see cref="AssessmentPolicy.MaximumEstimateLines"/> and the rest of the
+    /// Case form. Derived from Core's bound, so the page never accepts fewer
+    /// lines than Core does (#1994).
+    /// </summary>
+    internal const int CaseFormValueLimit = AssessmentPolicy.MaximumEstimateLines * EstimateLineInputs + CaseFormHeadroom;
+
     /// <summary>
     /// The commit this response confirms: the editor, its operation key and the
     /// versions it moved between, which the page script matches against what it
