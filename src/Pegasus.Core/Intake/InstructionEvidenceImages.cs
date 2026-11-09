@@ -46,6 +46,27 @@ public static class InstructionEvidenceImages
     public const double MaximumPhotographSideRatio = 3.0;
 
     /// <summary>
+    /// The shortest side, in pixels, an image placed inline in an e-mail body
+    /// must reach to be a photograph (operator, 9 November 2026, R787).
+    /// Signature art is sent inline, and the general floor let it through:
+    /// U74's body-shop banners at 400x200 and 540x302 and the QDOS
+    /// Assistance logo at 200x200. Over the hosted test instance's 251
+    /// retained e-mails (451 inline images), every genuine inline photograph
+    /// measured at least 480 on its shortest side (Kerr Brown's 480x640;
+    /// phone photographs from 900x1600) and the largest signature graphic
+    /// 302, so 400 sits in the open space between them.
+    /// </summary>
+    public const int MinimumInlinePhotographSidePixels = 400;
+
+    /// <summary>
+    /// The side ratio an inline image must stay under (R787). The same
+    /// census's widest genuine inline photograph was a 1179x2556 phone
+    /// screenshot at 2.17, and the Sutton Car Repairs signature banner
+    /// measured 3319x1181, 2.81, under the general 3.0.
+    /// </summary>
+    public const double MaximumInlinePhotographSideRatio = 2.5;
+
+    /// <summary>
     /// The retained images that are evidence photographs, in display order,
     /// one per content. Retention already applied the photograph rule, so
     /// every retained JPEG or PNG qualifies.
@@ -161,13 +182,15 @@ public static class InstructionEvidenceImages
     /// or embedded, is kept only when it is a photograph: at least
     /// <see cref="MinimumPhotographSidePixels"/> on its shortest side, sides
     /// in a ratio under <see cref="MaximumPhotographSideRatio"/>, and not one
-    /// of the <see cref="KnownGraphics"/>.
+    /// of the <see cref="KnownGraphics"/>. An image inline in an e-mail body
+    /// is held to the stricter <see cref="MinimumInlinePhotographSidePixels"/>
+    /// and <see cref="MaximumInlinePhotographSideRatio"/> (R787).
     /// </summary>
     public static bool IsRetentionCandidate(IntakeAssetCandidate candidate)
     {
         ArgumentNullException.ThrowIfNull(candidate);
         return IsImage(candidate.MediaType)
-            ? IsPhotographShaped(candidate.WidthPixels, candidate.HeightPixels)
+            ? IsPhotographShaped(candidate.Kind, candidate.WidthPixels, candidate.HeightPixels)
                 && !KnownGraphics.Contains(candidate)
             : candidate.Kind == IntakeAssetKind.Attachment;
     }
@@ -197,12 +220,13 @@ public static class InstructionEvidenceImages
     /// <summary>
     /// Whether an image is sized and shaped like a photograph: its shortest
     /// side at least <see cref="MinimumPhotographSidePixels"/> and its sides
-    /// in a ratio under <see cref="MaximumPhotographSideRatio"/>. Fails open:
+    /// in a ratio under <see cref="MaximumPhotographSideRatio"/>, or the
+    /// inline bars for an image in an e-mail body. Fails open:
     /// the reader measures every image that decodes, and one whose size is
     /// unknown is judged on the other rules alone, because losing a genuine
     /// photograph is the worse error of the two.
     /// </summary>
-    private static bool IsPhotographShaped(int? widthPixels, int? heightPixels)
+    private static bool IsPhotographShaped(IntakeAssetKind kind, int? widthPixels, int? heightPixels)
     {
         if (widthPixels is not { } width
             || heightPixels is not { } height
@@ -214,8 +238,9 @@ public static class InstructionEvidenceImages
 
         var longest = Math.Max(width, height);
         var shortest = Math.Min(width, height);
-        return shortest >= MinimumPhotographSidePixels
-            && (double)longest / shortest < MaximumPhotographSideRatio;
+        var inline = kind == IntakeAssetKind.InlineImage;
+        return shortest >= (inline ? MinimumInlinePhotographSidePixels : MinimumPhotographSidePixels)
+            && (double)longest / shortest < (inline ? MaximumInlinePhotographSideRatio : MaximumPhotographSideRatio);
     }
 
     /// <summary>
