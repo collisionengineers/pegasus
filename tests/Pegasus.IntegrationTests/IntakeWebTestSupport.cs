@@ -330,6 +330,76 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         CaseWebTestSupport.Substitute<ILeaseCaseForEdit>(services, reads);
         CaseWebTestSupport.Substitute<IReadImageTagVocabulary>(services, reads);
         CaseWebTestSupport.Substitute<IImageIntakeQueries>(services, reads);
+        // The photo links on a Case (FRD-28): a database-less host has none,
+        // and the Files section reads them whenever the feature is on.
+        var photoCapture = new DatabaseLessPhotoCapture();
+        CaseWebTestSupport.Substitute<Pegasus.Core.PhotoCapture.IPhotoCaptureQueries>(services, photoCapture);
+        CaseWebTestSupport.Substitute<Pegasus.Core.PhotoCapture.IPhotoCaptureCaseReader>(services, photoCapture);
+        CaseWebTestSupport.Substitute<Pegasus.Core.PhotoCapture.IStandingPhotoLinkStore>(services, photoCapture);
+    }
+
+    /// <summary>A host with no photo links: every read answers empty, and a standing link is never found.</summary>
+    private sealed class DatabaseLessPhotoCapture :
+        Pegasus.Core.PhotoCapture.IPhotoCaptureQueries,
+        Pegasus.Core.PhotoCapture.IPhotoCaptureCaseReader,
+        Pegasus.Core.PhotoCapture.IStandingPhotoLinkStore
+    {
+        public Task<Pegasus.Core.PhotoCapture.PhotoCaptureListPage> ListAsync(
+            Pegasus.Core.PhotoCapture.PhotoCaptureListFilter filter,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new Pegasus.Core.PhotoCapture.PhotoCaptureListPage([], 0));
+
+        public Task<Pegasus.Core.PhotoCapture.PhotoCaptureListRow?> GetRowAsync(Guid captureId, CancellationToken cancellationToken) =>
+            Task.FromResult<Pegasus.Core.PhotoCapture.PhotoCaptureListRow?>(null);
+
+        public Task<IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory>> ListForCaseAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory>>([]);
+
+        public Task<IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory>> ListForImageIntakeAsync(Guid imageIntakeId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory>>([]);
+
+        public Task<IReadOnlyDictionary<Pegasus.Core.PhotoCapture.PhotoCaptureState, int>> CountByStateAsync(bool sentByUs, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Pegasus.Core.PhotoCapture.PhotoCaptureState, int>>(
+                new Dictionary<Pegasus.Core.PhotoCapture.PhotoCaptureState, int>());
+
+        public Task<Pegasus.Core.PhotoCapture.PhotoCaptureCaseFacts?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<Pegasus.Core.PhotoCapture.PhotoCaptureCaseFacts?>(null);
+
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink?> FindBySlugAsync(string slug, CancellationToken cancellationToken) =>
+            Task.FromResult<Pegasus.Core.PhotoCapture.StandingPhotoLink?>(null);
+
+        Task<Pegasus.Core.PhotoCapture.StandingPhotoLink?> Pegasus.Core.PhotoCapture.IStandingPhotoLinkStore.GetAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<Pegasus.Core.PhotoCapture.StandingPhotoLink?>(null);
+
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink?> FindForOrganizationAsync(Guid organizationId, CancellationToken cancellationToken) =>
+            Task.FromResult<Pegasus.Core.PhotoCapture.StandingPhotoLink?>(null);
+
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink?> FindWebsiteAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<Pegasus.Core.PhotoCapture.StandingPhotoLink?>(null);
+
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> CreateAsync(
+            Pegasus.Core.PhotoCapture.StandingPhotoLinkKind kind, Guid? organizationId, string slug,
+            Pegasus.Core.PhotoCapture.PhotoCaptureMode forwardedMode, bool liveCameraOnly, int linkLifetimeDays,
+            bool originalsInBackground, Pegasus.Core.Identity.ActionActor actor, DateTimeOffset createdAtUtc,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("A database-less host creates no standing link.");
+
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> UpdateDefaultsAsync(
+            Guid id, long expectedVersion, Pegasus.Core.PhotoCapture.PhotoCaptureMode forwardedMode,
+            bool liveCameraOnly, int linkLifetimeDays, bool originalsInBackground, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("A database-less host holds no standing link.");
+
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> SetPausedAsync(Guid id, long expectedVersion, DateTimeOffset? pausedAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("A database-less host holds no standing link.");
+
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> ReplaceSlugAsync(Guid id, long expectedVersion, string newSlug, DateTimeOffset replacedAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("A database-less host holds no standing link.");
+
+        public Task<IReadOnlyList<Pegasus.Core.PhotoCapture.StandingPhotoLinkAddress>> ListAddressesAsync(Guid standingLinkId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Pegasus.Core.PhotoCapture.StandingPhotoLinkAddress>>([]);
+
+        public Task<int> CountMintedSinceAsync(Guid standingLinkId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(0);
     }
 
     protected override IHost CreateHost(IHostBuilder builder)
