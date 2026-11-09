@@ -56,9 +56,12 @@ be changed; the e-mail is typed, because a Case holds no customer e-mail.
 Staff choose the mode, **guided** (a page per step, for a customer) or
 **quick** (guidance inside the camera, for a firm's staff), **Live camera
 only**, the lifetime, 3, 7 (the default) or 14 days, and whether full-size
-originals follow in the background. The link goes by
-e-mail, by Copy link, or both (R773): text and WhatsApp are Copy link and
-the staff member's own phone. Pegasus has no SMS or WhatsApp provider.
+originals follow in the background. Live camera only covers the vehicle
+photos: the scene and other-vehicle photos, paperwork and the walk-around
+video can always come from the camera roll, as in the handover's app (R778;
+9 November 2026). The link goes by e-mail, by Copy link, or both (R773):
+text and WhatsApp are Copy link and the staff member's own phone. Pegasus
+has no SMS or WhatsApp provider.
 
 A link is `https://pegasus-prod-web-252ow37gij.azurewebsites.net/c/{token}`
 (R779): Pegasus's own hostname, from `PhotoCapture:PublicOrigin`. The token
@@ -68,9 +71,14 @@ only its SHA-256 (INT-31's rule, kept). A capture may hold several tokens:
 registration and never a Case/PO or any other reference (R782).
 
 A capture is add-only until it expires. The sender may reopen the link and
-add more; nothing they sent is taken back. **Opened** is recorded on the
-link's first call to the app's API, not when the page is fetched, because
-link previews fetch pages.
+add more; nothing they sent is taken back. After Send the app says "Forgot
+something? Open the same link again to send more photos for this vehicle."
+A capture started from a standing link, its QR code or the website link by
+whoever holds the phone, where opening that link again starts a new capture,
+says instead "Forgot something? Open the link again and enter the same
+registration to send more photos for this vehicle." (operator, 9 November
+2026; R809). **Opened** is recorded on the link's first call to the app's
+API, not when the page is fetched, because link previews fetch pages.
 
 ### Standing photo links
 
@@ -135,7 +143,10 @@ The app takes, in order:
    steps back", a closer shot "1 big step away", close-ups, then extras;
 3. the number plate, the VIN, and the dashboard with the mileage;
 4. additional information: the accident scene, the other vehicle,
-   paperwork, a walk-around video, and a note.
+   paperwork, a walk-around video, and a note. The other vehicle has a row
+   of its own, **Other vehicle photos** ("The other vehicle involved"),
+   after **Accident scene photos** ("Where it happened") (operator,
+   9 November 2026; R800, R805).
 
 The damage areas are twelve zones: Front, Front driver corner, Driver side
 front, Driver side middle, Driver side rear, Rear driver corner, Rear, Rear
@@ -144,7 +155,10 @@ front and Front passenger corner.
 
 Before **Complete** a capture needs the eight overviews; for each marked
 area an overview, a closer shot and one close-up; the number plate; and the
-dashboard. The VIN is required only when a bodyshop's own staff took the
+dashboard, unless the sender said they have no keys: the skip is recorded on
+the capture, the dashboard is not listed as missing, and staff see
+**Dashboard** "Skipped – no keys available" (operator, 9 November 2026;
+R799). The VIN is required only when a bodyshop's own staff took the
 photos. Extras, additional information and the note are never required.
 **Something missing** is derived from this list. After Send, with items
 still missing, the app asks **Could you add a few more?**, lists them, and
@@ -210,6 +224,10 @@ Case the app is told originals are off and sends none, and when a Vehicle
 images record later reaches a Case the compressed pictures stand (operator,
 9 November 2026; R801). An original counts towards the link's originals and
 bytes ([Limits](#limits)) before it is filed.
+A photo taken in the app's own camera has as its original the camera's
+full-resolution frame, sent after the photo itself; an original over 25 MB
+is not sent, and the compressed picture stands (operator, 9 November 2026;
+R780, R801).
 
 ### Baskets and names
 
@@ -360,7 +378,12 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
 - **No connection.** When the phone cannot reach Pegasus, or a refusal
   carries no words of its own, the app says "We couldn’t reach Collision
   Engineers. Check your signal and try again." (operator, 9 November 2026;
-  R786).
+  R786). It says the same, as a retry, while photos wait to go because the
+  phone is offline or one has failed three times running; a request that
+  hangs is given up and retried. Send stays unavailable while any photo is
+  still to go, and the browser asks before the page is left then. A photo
+  Pegasus refuses is outlined, does not hold Send back, and the review counts
+  "{n} of {m} uploaded" (9 November 2026; R786).
 - **Caps.** A request past a rate limit, a size, a per-link count or a
   standing link's daily cap is refused; nothing past the cap is kept.
 - **Replays.** An item carries the id the phone gave it, so a retried upload

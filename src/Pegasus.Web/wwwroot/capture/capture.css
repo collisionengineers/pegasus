@@ -356,3 +356,6 @@ ol.nextsteps li span{color:var(--muted);font-size:14px}
 .m0-4{margin:0 0 4px}
 .m0-10{margin:0 0 10px}
 .m6-10{margin:6px 0 10px}
+/* ---------- Upload queue ---------- */
+/* a photo the server refused */
+.thumb.failed,.strip img.failed{border:2px solid var(--red)}

@@ -286,6 +286,7 @@ public static partial class OperatorLabels
             Add("Preferred outcome", details.Outcome);
             Add("In hire / going into hire", details.InHire);
             Add("Mileage", details.Mileage is { } miles ? miles.ToString("N0", CultureInfo.InvariantCulture) : null);
+            Add("Dashboard", details.NoKeys ? "Skipped – no keys available" : null);
             Add("Have any airbags gone off?", details.Airbags);
             Add("Is the steering wheel harder to turn than before?", details.Steering);
             Add(

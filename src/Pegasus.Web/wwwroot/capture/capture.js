@@ -1,7 +1,7 @@
 /* ============================================================
    Collision Engineers – guided vehicle photo capture.
    Converted from the v10.34 test build (handover of 5 November 2026) into a
-   static asset of Pegasus.Web; README.md in this folder has the rules.
+   static asset of Pegasus.Web; src/Pegasus.Web/PhotoCapture/README.md has the rules.
    The page renders shell.html and two JSON blocks: #capture-assets (image
    URLs by logical name) and #capture-context (the link context).
    ============================================================ */
@@ -18,7 +18,8 @@ function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;
 
 /* The link credential: /c/{token} is a capture, /s/{slug} a standing link.
    It travels only in the X-Capture-Link header – never a query string, never storage, never a log. */
-const API = '/capture/api/v1/';
+/* The API sits beside this script, so a path base the site is served under carries through. */
+const API = document.currentScript ? new URL('api/v1/', document.currentScript.src).pathname : '/capture/api/v1/';
 const PATHM = /\/(c|s)\/([^/?#]+)\/?$/.exec(location.pathname);
 let LINK = PATHM ? PATHM[1]+'.'+PATHM[2] : '';
 const isStanding = () => LINK.indexOf('s.')===0;
@@ -26,15 +27,18 @@ const isStanding = () => LINK.indexOf('s.')===0;
 /* The one sentence the prototype never needed because it had no network (operator, 9 November 2026; R786). */
 const COPY = { offline: 'We couldn’t reach Collision Engineers. Check your signal and try again.' };
 
-let CTX = null, LIVE = false, GUIDED = true, GONE = false, LASTCOUNT = 0;
+let CTX = null, PRIOR = null, LIVE = false, GUIDED = true, GONE = false;
 let SRC = null, CASE = { reg:'' }, STEPS = [], SEQ = [], TITLES = {}, KEY = '';
 
 function setContext(ctx){
   CTX = ctx || {};
   if(!CTX.counts) CTX.counts = { total:0, byKind:{}, overviewPositions:[], damage:[] };
+  /* what earlier visits sent, fixed before this visit queues anything: a later context's counts include this visit's own uploads */
+  if(!PRIOR || !JOBS.length) PRIOR = CTX.counts;
   LIVE = !!CTX.liveCameraOnly;
   GUIDED = CTX.mode !== 'quick';
-  LASTCOUNT = Math.max(LASTCOUNT, CTX.counts.total || 0);
+  /* originals are off while the capture has no Case (R801): what waits to go is dropped, and nothing more is sent */
+  if(!CTX.originals) JOBS.forEach(j=>{ if(j.original && j.state==='queued') dropOriginal(j); });
 }
 /* Which start screen and first form: replaces the prototype's #claimsco / #bodyshop / #client hash. */
 function mkSrc(kind, st){ return { kind, name:(st&&st.name)||'', addresses:(st&&Array.isArray(st.addresses))?st.addresses:[], lifetimeDays:(st&&st.lifetimeDays)||7 }; }
@@ -47,8 +51,12 @@ function sourceFrom(ctx){
 }
 
 /* Already received on this link (reopening): counts from the server. */
-function rc(kind){ return (CTX.counts.byKind && CTX.counts.byKind[kind]) || 0; }
-function rcDmg(zone, stage){ return (CTX.counts.damage||[]).filter(d=>d.area===zone && (stage==null || d.stage===stage)).reduce((t,d)=>t+(d.count||0),0); }
+function rc(kind){ return (PRIOR.byKind && PRIOR.byKind[kind]) || 0; }
+function rcDmg(zone, stage){ return (PRIOR.damage||[]).filter(d=>d.area===zone && (stage==null || d.stage===stage)).reduce((t,d)=>t+(d.count||0),0); }
+/* Photographs only: paperwork and video are not counted as photos. */
+function priorPhotos(){ return (PRIOR.total||0)-rc('paperwork')-rc('video'); }
+function photosSent(){ return priorPhotos() + JOBS.filter(j=>!j.original && j.state==='done' && j.p.kind!=='paperwork' && j.p.kind!=='video').length; }
+function nPhotos(n){ return n+' photo'+(n===1?'':'s'); }
 
 const ICON = {
   camera:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>',
@@ -82,7 +90,7 @@ const ZONES = [
 ];
 
 /* ---------- state ---------- */
-const BLANK = () => ({ step:0, zones:[], damage:[], scene:[], overview:[], docs:[], plate:null, vin:null, dash:null, video:null, mileage:'', airbags:null, steering:null, notes:'',
+const BLANK = () => ({ step:0, zones:[], damage:[], scene:[], other:[], overview:[], docs:[], plate:null, vin:null, dash:null, video:null, mileage:'', airbags:null, steering:null, notes:'',
   ins:{ sender:'', accident:'', phone:'', customer:'', vehicleRole:'', handler:'', instructed:'', view:'', reg:'', locType:'', locOther:'', roadworthy:'', outcome:'', hire:'' } });
 let S = BLANK();
 let returnTo = null; // when editing from summary
@@ -95,14 +103,14 @@ function load(){
     s.ins=Object.assign(s.ins, v.ins||{});
     if(Array.isArray(v.zones)) s.zones=v.zones.filter(z=>ZONES.some(x=>x.id===z));
     ['notes','mileage'].forEach(k=>{ if(typeof v[k]==='string') s[k]=v[k]; });
-    ['mileageEst','noKeys'].forEach(k=>{ s[k]=!!v[k]; });
+    ['mileageEst','noKeys','notesEdited'].forEach(k=>{ s[k]=!!v[k]; });
     ['airbags','steering'].forEach(k=>{ if(typeof v[k]==='string') s[k]=v[k]; });
     const i=STEPS.indexOf(v.stepName); s.step=i>=0?i:0;
     return s; }catch(e){ return null; } }
 function save(){
   if(!KEY || GONE) return;
   try{ if(S.handoff){ localStorage.removeItem(KEY); return; }
-    localStorage.setItem(KEY, JSON.stringify({ stepName:STEPS[S.step], zones:S.zones, notes:S.notes, mileage:S.mileage, mileageEst:!!S.mileageEst, noKeys:!!S.noKeys, airbags:S.airbags, steering:S.steering, ins:S.ins })); }catch(e){} }
+    localStorage.setItem(KEY, JSON.stringify({ stepName:STEPS[S.step], zones:S.zones, notes:S.notes, notesEdited:!!S.notesEdited, mileage:S.mileage, mileageEst:!!S.mileageEst, noKeys:!!S.noKeys, airbags:S.airbags, steering:S.steering, ins:S.ins })); }catch(e){} }
 
 /* Server copy of the typed details wins over localStorage. */
 function applyServer(ctx){
@@ -114,6 +122,7 @@ function applyServer(ctx){
   if(d.mileage!=null){ S.mileage=String(d.mileage); S.mileageEst=true; }
   if(d.airbags) S.airbags=String(d.airbags);
   if(d.steering) S.steering=String(d.steering);
+  if(d.noKeys) S.noKeys=true;
   if(Array.isArray(d.damageAreas) && d.damageAreas.length) S.zones=d.damageAreas.filter(z=>ZONES.some(x=>x.id===z));
 }
 function savedAddress(name){ return SRC ? SRC.addresses.find(a=>a.name===name) : null; }
@@ -126,7 +135,8 @@ function detailsBody(){
   return { registration:nz(SRC?I.reg:CASE.reg), incidentDate:nz(I.accident), customerName:nz(I.customer), mobile:nz(I.phone), email:null,
     details:{ handler:nz(I.handler), inspectionLocation:saved?nz(saved.address):nz(I.locOther), inspectionLocationChoice:nz(I.locType),
       roadworthy:nz(I.roadworthy), outcome:nz(I.outcome), inHire:nz(I.hire), repairView:nz(I.view), vehicleRole:nz(I.vehicleRole),
-      mileage:mil?Number(mil):null, airbags:nz(S.airbags), steering:nz(S.steering), damageAreas:S.zones.slice() } };
+      mileage:mil?Number(mil):null, airbags:nz(S.airbags), steering:nz(S.steering), damageAreas:S.zones.slice(),
+      noKeys:!!S.noKeys && !S.dash && !rc('dashboard') } };
 }
 
 /* ---------- helpers ---------- */
@@ -165,8 +175,14 @@ async function api(method, path, o){
   const headers={ 'X-Capture-Link':LINK, 'Accept':'application/json' }; let body=o.body;
   if(o.json!==undefined){ headers['Content-Type']='application/json'; body=JSON.stringify(o.json); }
   else if(o.type) headers['Content-Type']=o.type;
-  const r=await fetch(API+path+(o.query?'?'+o.query:''), { method, headers, body, credentials:'omit', cache:'no-store' });
-  let data=null; if((r.headers.get('content-type')||'').indexOf('json')>=0){ try{ data=await r.json(); }catch(e){} }
+  /* a request that hangs is given up as if the network failed (status 0): 2 minutes for a file or a commit of its parts, 30 seconds otherwise */
+  const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(), o.body!==undefined||o.slow ? 120000 : 30000);
+  let r, data=null;
+  try{
+    r=await fetch(API+path+(o.query?'?'+o.query:''), { method, headers, body, credentials:'omit', cache:'no-store', signal:ctl.signal });
+    if((r.headers.get('content-type')||'').indexOf('json')>=0){ try{ data=await r.json(); }catch(e){} }
+  }catch(e){ return { status:0, ok:false, data:null, retryAfter:0 }; }
+  finally{ clearTimeout(tm); }
   if(r.status===404) gone();
   return { status:r.status, ok:r.ok, data, retryAfter:+(r.headers.get('retry-after')||0) };
 }
@@ -176,15 +192,18 @@ function gone(){
   if(camStream){ camStream.getTracks().forEach(tr=>tr.stop()); camStream=null; }
   document.documentElement.style.overflow=''; document.body.style.overflow='';
   $('#stepLabel').textContent=''; const pg=$('#prog'); if(pg) pg.style.width='0%';
-  main.innerHTML='<div class="done-wrap"><h1>This link is no longer active</h1></div>'; cta.innerHTML='';
+  /* the same two lines as the page an unavailable link gets (R789) */
+  main.innerHTML='<div class="done-wrap"><h1>This link is no longer active.</h1><p class="lede">Ask whoever sent it to you for a new one.</p></div>'; cta.innerHTML='';
 }
 
 /* ---------- upload queue: at most 2 in flight, retries with backoff, originals last ---------- */
 const ONE=4194304, MAXUP=2;
-const KINDAPI={overview:'overview', damage:'damage', plate:'plate', vin:'vin', dash:'dashboard', scene:'scene', docs:'paperwork', video:'video'};
+/* an original over CaptureLimits.OriginalBytes is not sent; about 100 MB of originals wait to go at most, and one past that is not sent */
+const ORIGMAX=25000000, ORIGPENDING=100000000;
+const KINDAPI={overview:'overview', damage:'damage', plate:'plate', vin:'vin', dash:'dashboard', scene:'scene', other:'other-vehicle', docs:'paperwork', video:'video'};
 const JOBS=[]; let active=0, pumpT=null;
 const TAKEN={};
-function ovTaken(){ const s=new Set(CTX.counts.overviewPositions||[]); S.overview.forEach(p=>s.add(p.position)); return s; }
+function ovTaken(){ const s=new Set(PRIOR.overviewPositions||[]); S.overview.forEach(p=>s.add(p.position)); return s; }
 function ovNextPos(){ const s=ovTaken(); for(let k=1;k<=8;k++) if(!s.has(k)) return k; let m=8; s.forEach(v=>{ if(v>m) m=v; }); return m+1; }
 /* A photo, document or video has been taken: give it its id and position, keep it, queue it. */
 function addPhoto(kind, p){
@@ -221,17 +240,28 @@ async function run(job){
   let r; try{ r=await sendJob(job); }catch(e){ r={status:0}; }
   active--;
   const st=r.status, code=r.data&&r.data.code;
-  if(st===200||st===201){ job.state='done';
-    if(r.data && typeof r.data.count==='number') LASTCOUNT=Math.max(LASTCOUNT, r.data.count);
-    if(!job.original){ job.p.uploaded=true; if(CTX.originals && job.p.file) enqueue(job.p,true); } }
+  if(st===200||st===201){ job.state='done'; job.tries=0;
+    if(!job.original){ job.p.uploaded=true; queueOriginal(job.p); } else job.p.file=null; }
   else if(st===404){ job.state='failed'; return; }
+  else if(job.original && !CTX.originals) dropOriginal(job);
   else if(st===0 || st===429 || st>=500 || (st===409 && code==='not_ready')){
     job.tries++; job.state='queued';
-    const d=r.retryAfter ? r.retryAfter*1000 : Math.min(30000, 1000*Math.pow(2, Math.min(job.tries,5))) + Math.random()*500;
+    /* an original waits for its photo to be filed: 15 seconds, doubling to 2 minutes */
+    const d=r.retryAfter ? r.retryAfter*1000 : (job.original && st===409) ? Math.min(120000, 15000*Math.pow(2, Math.min(job.tries-1,3))) : Math.min(30000, 1000*Math.pow(2, Math.min(job.tries,5))) + Math.random()*500;
     job.at=Date.now()+(st===409 ? Math.max(d,3000) : d); }
-  else { job.state='failed'; if(!job.original){ job.p.failed=true; problemNote(r.data); } }
+  else if(job.original) dropOriginal(job);  /* refused, as a capture that takes no originals answers 415: final, and nothing is said */
+  else { job.state='failed'; job.p.failed=true; problemNote(r.data); }
   upChanged(); pump();
 }
+/* A photo is uploaded: its original follows when the capture takes originals, it is not too large and not too much is already waiting; otherwise the compressed photo stands. */
+function queueOriginal(p){
+  if(!p.file || p.origQueued || p.cancelled) return;
+  const waiting=JOBS.reduce((a,j)=>a+(j.original && (j.state==='queued'||j.state==='busy') && j.p.file ? j.p.file.size : 0),0);
+  if(!CTX.originals || p.file.size>ORIGMAX || waiting+p.file.size>ORIGPENDING){ p.file=null; return; }
+  p.origQueued=true; enqueue(p,true);
+}
+function dropOriginal(job){ job.state='dropped'; job.p.file=null; }
+function origPending(){ return JOBS.some(j=>j.original && (j.state==='queued'||j.state==='busy')); }
 async function sendJob(job){
   const p=job.p, blob=job.original?p.file:p.blob, type=(job.original?p.file.type:p.type)||'application/octet-stream', q=itemQuery(p, job.original);
   if(blob.size<=ONE) return api('PUT','items/'+p.cid,{query:q, body:blob, type});
@@ -240,29 +270,43 @@ async function sendJob(job){
   for(let n=job.partsDone+1;n<=parts;n++){
     const r=await api('PUT','items/'+p.cid+'/parts/'+n,{query:qt, body:blob.slice((n-1)*ONE, Math.min(total,n*ONE)), type});
     if(!r.ok) return r;
-    job.partsDone=n;
+    job.partsDone=n; job.tries=0;
   }
-  const r=await api('POST','items/'+p.cid+'/commit',{query:qt, json:{totalBytes:total, sha256:job.sha}});
-  if(!r.ok && r.status>=400 && r.status<500 && r.status!==404 && r.status!==429) job.partsDone=0;
+  const r=await api('POST','items/'+p.cid+'/commit',{query:qt, json:{totalBytes:total, sha256:job.sha}, slow:true});
+  /* an original's commit that is not ready keeps its parts (the photo is still being filed); every fifth time running they go again, in case they were lost */
+  const keep=job.original && r.status===409 && r.data && r.data.code==='not_ready' && (job.tries+1)%5!==0;
+  if(!r.ok && r.status>=400 && r.status<500 && r.status!==404 && r.status!==429 && !keep) job.partsDone=0;
   return r;
 }
 async function sha256(blob){ const d=await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()); return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
-function cancelUpload(p){ if(!p) return; p.cancelled=true; if(p.job && p.job.state==='queued') p.job.state='cancelled'; if(p.url) URL.revokeObjectURL(p.url); upChanged(); }
+function cancelUpload(p){ if(!p) return; p.cancelled=true; p.file=null; if(p.job && p.job.state==='queued') p.job.state='cancelled'; if(p.url) URL.revokeObjectURL(p.url); upChanged(); }
 /* Upload state changed: refresh the "uploading / uploaded" lines in place (a full render would steal focus from a field being typed in); the review page re-renders for its Send button. */
 function upChanged(){
   upBusy=JOBS.filter(j=>!j.original && (j.state==='queued'||j.state==='busy')).length;
   if(GONE || !STEPS.length) return;
-  if(STEPS[S.step]==='summary') return render();
+  if(STEPS[S.step]==='summary' || (STEPS[S.step]==='done' && S.handoff)) return render();
   document.querySelectorAll('.uplog[data-ul]').forEach(el=>{ const l=UPL[+el.dataset.ul]; if(l) el.innerHTML=uplogInner(l); });
 }
-window.addEventListener('online', ()=>{ JOBS.forEach(j=>{ if(j.state==='queued') j.at=0; }); pump(); });
+/* Stalled: photos are waiting and the phone is offline or one has failed to go three times running; the app then says so (R786) with a retry. */
+function stalled(){ return upBusy>0 && (navigator.onLine===false || JOBS.some(j=>!j.original && j.state==='queued' && j.tries>=3)); }
+function retryHTML(){ return `<button type="button" class="linkbtn" data-retry>${COPY.offline}</button>`; }
+function retryNow(){ JOBS.forEach(j=>{ if(j.state==='queued') j.at=0; }); pump(); }
+window.addEventListener('online', retryNow);
+window.addEventListener('offline', upChanged);
+document.addEventListener('click', e=>{ if(e.target.closest && e.target.closest('[data-retry]')) retryNow(); });
+/* leaving with photos still to go loses them: the browser asks first (its own words; best effort on iOS) */
+window.addEventListener('beforeunload', e=>{ if(upBusy && !GONE){ e.preventDefault(); e.returnValue=''; } });
 
 /* ---------- details, start, hand-off, complete ---------- */
 let detailsSig='';
 async function syncDetails(){
   if(GONE || LINK.indexOf('c.')!==0) return;
   const body=detailsBody(), sg=JSON.stringify(body); if(sg===detailsSig) return; detailsSig=sg;
-  try{ const r=await api('POST','details',{json:body}); if(r.status===200 && r.data) setContext(r.data); else if(r.status!==404) detailsSig=''; }catch(e){ detailsSig=''; }
+  try{ const r=await api('POST','details',{json:body}); if(r.status===200 && r.data) setContext(r.data);
+    /* the registration is locked once something has been received: put the capture's own back and send the rest again */
+    else if(r.status===409 && r.data && r.data.code==='registration_locked' && SRC && CTX.registration && S.ins.reg!==String(CTX.registration)){
+      S.ins.reg=String(CTX.registration); save(); detailsSig=''; if(STEPS[S.step]!=='done') render(); return syncDetails(); }
+    else if(r.status!==404) detailsSig=''; }catch(e){ detailsSig=''; }
 }
 /* A standing link's "Take photos now" (or the website form's Continue) starts the capture; from then on the page is /c/<token>. */
 async function beginCapture(btn){
@@ -285,12 +329,13 @@ async function sendHandoff(btn){
   btn.disabled=true; let r;
   try{ r=await api('POST','handoff',{json:detailsBody()}); }catch(e){ r={status:0}; }
   if(GONE) return;
-  if(r.status===201 && r.data && r.data.url){ S.handoffRes={url:String(r.data.url), message:String(r.data.message||'')}; S.handoff=true; go(STEPS.indexOf('handoff')); return; }
+  if(r.status===201 && r.data && r.data.url){ S.handoffRes={url:String(r.data.url), message:String(r.data.message||''), registration:String(r.data.registration||'')}; S.handoff=true; go(STEPS.indexOf('handoff')); return; }
   btn.disabled=false; if(r.status!==404) problemNote(r.data);
 }
 async function completeCapture(){
   await syncDetails();
-  try{ return await api('POST','complete',{json:{note:S.notes||null}}); }catch(e){ return {status:0}; }
+  /* a note emptied here is sent empty, so it replaces the earlier one; a note never touched on this visit is not sent */
+  try{ return await api('POST','complete',{json:{note:(S.notes||S.notesEdited)?S.notes:null}}); }catch(e){ return {status:0}; }
 }
 
 const onMulti = async e=>{
@@ -331,21 +376,32 @@ async function openCam2(kind){
     ov.remove(); document.documentElement.style.overflow=''; document.body.style.overflow=''; note('Rapid camera blocked here ('+(e&&e.name?e.name:'no camera access')+') – using the phone camera'); return pick(kind);
   }
   ov.querySelector('.shutter').onclick=()=>{
-    const w=video.videoWidth, h=video.videoHeight; if(!w) return;
-    const c=document.createElement('canvas'); const max=1600; const sc=Math.min(1,max/Math.max(w,h)); c.width=Math.round(w*sc); c.height=Math.round(h*sc);
-    c.getContext('2d').drawImage(video,0,0,c.width,c.height);
-    flash.classList.add('on'); setTimeout(()=>flash.classList.remove('on'),60);
-    if(navigator.vibrate) navigator.vibrate(25);
-    c.toBlob(b=>{
-      if(!b) return;
-      const p={url:URL.createObjectURL(b), blob:b, type:'image/jpeg', file:null, bytes:b.size, orig:b.size, w:c.width, h:c.height, t:Date.now(), live:true};
+    if(!shotFromVideo(video, p=>{
       if(ov._tag) ov._tag(p); addPhoto(kind,p); taken++; cnt.textContent=`${taken} taken`; if(ov._ovStep) ov._ovStep();
       const im=document.createElement('img'); im.src=p.url; strip.appendChild(im); strip.scrollLeft=strip.scrollWidth;
-    },'image/jpeg',0.85);
+    })) return;
+    flash.classList.add('on'); setTimeout(()=>flash.classList.remove('on'),60);
+    if(navigator.vibrate) navigator.vibrate(25);
   };
 }
+/* One shutter for both cameras: the photo is the frame at most 1600px on its long edge (JPEG 0.85). When the camera gives more and the capture takes originals,
+   the full-resolution frame (JPEG 0.92) is kept as the photo's original and follows once the photo itself is uploaded. */
+function shotFromVideo(video, take){
+  const w=video.videoWidth, h=video.videoHeight; if(!w) return false;
+  const sc=Math.min(1,1600/Math.max(w,h)), c=document.createElement('canvas'); c.width=Math.round(w*sc); c.height=Math.round(h*sc);
+  c.getContext('2d').drawImage(video,0,0,c.width,c.height);
+  let full=null; if(sc<1 && CTX.originals){ full=document.createElement('canvas'); full.width=w; full.height=h; full.getContext('2d').drawImage(video,0,0,w,h); }
+  const t=Date.now();
+  c.toBlob(b=>{
+    if(!b){ if(full) full.width=0; return; }
+    const p={url:URL.createObjectURL(b), blob:b, type:'image/jpeg', file:null, bytes:b.size, orig:b.size, w:c.width, h:c.height, t, live:true};
+    take(p);
+    if(full) full.toBlob(o=>{ full.width=0; if(o && !p.cancelled){ p.file=o; if(p.uploaded) queueOriginal(p); } },'image/jpeg',0.92);
+  },'image/jpeg',0.85);
+  return true;
+}
 let camStream=null;
-function pick(kind,id){ pending={kind,id}; const el=(kind==='damage'||kind==='scene'||kind==='overview'?fileMulti:fileSingle); if(LIVE && !['scene','docs','video'].includes(kind)) el.setAttribute('capture','environment'); else el.removeAttribute('capture');  /* live-only covers the vehicle photos; scene photos, paperwork and video can come from the camera roll */ el.click(); }
+function pick(kind,id){ pending={kind,id}; const el=(kind==='damage'||kind==='scene'||kind==='other'||kind==='overview'?fileMulti:fileSingle); if(LIVE && !['scene','other','docs','video'].includes(kind)) el.setAttribute('capture','environment'); else el.removeAttribute('capture');  /* live-only covers the vehicle photos; scene and other-vehicle photos, paperwork and video can come from the camera roll */ el.click(); }
 function liveNote(){ return LIVE ? `<p class="hint livenote"><span class="livenote-ico">${ICON.shield}</span><span>For this job, photos must be taken live on this device. Choosing from your gallery is switched off.</span></p>` : ''; }
 const onDocs = e=>{ for(const f of e.target.files){ addPhoto('docs',{name:f.name, bytes:f.size, orig:f.size, blob:f, type:f.type||'application/octet-stream', file:null, t:f.lastModified||Date.now()}); } e.target.value=''; render(); };
 function pickVideo(){ fileVideo.click(); }
@@ -488,7 +544,7 @@ function dmgGroups(areas){
 }
 /* The review page's damage photos, grouped by area as the damage step groups them (handover item 5): one heading per marked area in the app's area order, with a count that includes what an earlier visit to this link already sent for that area, then this visit's photos in the order taken. A photo whose area is no longer marked keeps the step's "Other photos" heading. */
 function reviewDamage(){
-  const areas=dmgAreas(), strip=ps=>ps.length?`<div class="strip">${ps.map(p=>`<img src="${p.url}" alt="">`).join('')}</div>`:'';
+  const areas=dmgAreas(), strip=ps=>ps.length?`<div class="strip">${ps.map(simg).join('')}</div>`:'';
   const head=(label,n)=>`<p class="dgh"><b>${esc(label)}</b><span>${n} photo${n===1?'':'s'}</span></p>`;
   const groups=areas.map(a=>{ const ps=S.damage.filter(p=>p.area===a.label), n=ps.length+rcDmg(a.key); return n?head(a.label,n)+strip(ps):''; }).join('');
   const other=S.damage.filter(p=>!areas.some(a=>a.label===p.area));
@@ -571,10 +627,8 @@ async function frameCam(key){
   ov.querySelector('.xbtn').onclick=close;
   try{ camStream=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:'environment'}, width:{ideal:2560}, height:{ideal:1920} }, audio:false }); video.srcObject=camStream; await video.play(); stopL=lightMeter(ov,video); }
   catch(e){ ov.remove(); document.documentElement.style.overflow=''; document.body.style.overflow=''; note('Camera blocked here – using the phone camera'); return pick(key); }
-  ov.querySelector('.shutter').onclick=()=>{ const w=video.videoWidth, h=video.videoHeight; if(!w) return;
-    const c=document.createElement('canvas'); const sc=Math.min(1,1600/Math.max(w,h)); c.width=Math.round(w*sc); c.height=Math.round(h*sc);
-    c.getContext('2d').drawImage(video,0,0,c.width,c.height); flash.classList.add('on'); setTimeout(()=>flash.classList.remove('on'),60); if(navigator.vibrate) navigator.vibrate(25);
-    c.toBlob(b=>{ if(!b) return; const p={url:URL.createObjectURL(b), blob:b, type:'image/jpeg', file:null, bytes:b.size, orig:b.size, w:c.width, h:c.height, t:Date.now(), live:true}; addPhoto(key,p); close(); },'image/jpeg',0.85); };
+  ov.querySelector('.shutter').onclick=()=>{ if(!shotFromVideo(video, p=>{ addPhoto(key,p); close(); })) return;
+    flash.classList.add('on'); setTimeout(()=>flash.classList.remove('on'),60); if(navigator.vibrate) navigator.vibrate(25); };
 }
 function sheet(inner){
   const sh=document.createElement('div'); sh.className='sheetwrap';
@@ -624,8 +678,12 @@ const EX = {
 };
 
 /* ---------- renderers ---------- */
+/* Nothing sent is taken back: the bin shows only while an item is neither uploaded nor on its way. */
+function canDel(p){ return !!p && !p.uploaded && !(p.job && p.job.state==='busy'); }
+/* a review-strip picture; one the server refused is outlined */
+function simg(p){ return `<img src="${p.url}" alt=""${p.failed?' class="failed"':''}>`; }
 function thumbHTML(p, onDel, tag){
-  return `<div class="thumb"><img src="${p.url}" alt="">${tag?`<span class="tag">${esc(tag)}</span>`:''}<button class="del" aria-label="Remove photo" data-del="${onDel}">${ICON.trash}</button></div>`;
+  return `<div class="thumb${p.failed?' failed':''}"><img src="${p.url}" alt="">${tag?`<span class="tag">${esc(tag)}</span>`:''}${canDel(p)?`<button class="del" aria-label="Remove photo" data-del="${onDel}">${ICON.trash}</button>`:''}</div>`;
 }
 let UPL=[];
 function uplogHTML(list){
@@ -635,14 +693,14 @@ function uplogHTML(list){
 }
 function uplogInner(list){
   const live=list.filter(p=>!p.cancelled), n=live.filter(p=>p.uploaded).length, busy=live.some(p=>!p.uploaded&&!p.failed), tot=live.reduce((a,p)=>a+p.bytes,0), orig=live.reduce((a,p)=>a+p.orig,0);
-  return `<span class="dot ${busy?'busy':''}"></span>${busy?'Uploading…':`${n} of ${live.length} uploaded`} · ${fmt(tot)} sent${orig>tot?` (compressed from ${fmt(orig)})`:''}`;
+  return `<span class="dot ${busy?'busy':''}"></span>${busy?(stalled()?retryHTML():'Uploading…'):`${n} of ${live.length} uploaded`} · ${fmt(tot)} sent${orig>tot?` (compressed from ${fmt(orig)})`:''}`;
 }
-function allPhotos(){ return [...S.overview, S.plate, S.vin, ...S.damage, S.dash, ...S.scene].filter(Boolean); }
+function allPhotos(){ return [...S.overview, S.plate, S.vin, ...S.damage, S.dash, ...S.scene, ...S.other].filter(Boolean); }
 function countLine(n){ return n?`<div class="counter"><span><b>${n}</b> photo${n===1?'':'s'} taken</span></div>`:''; }
 function docsField(hintText, multi){
   return `<div class="field"><label>Documents <span class="hint optl">(optional)</span></label>
         <span class="hint hint-b">${hintText}</span>
-        ${S.docs.map((d,i)=>`<div class="docrow"><span class="docname">${esc(d.name)}</span><span class="hint">${fmt(d.bytes)}</span><button class="del docdel" data-deldoc="${i}" aria-label="Remove">${ICON.trash}</button></div>`).join('')}
+        ${S.docs.map((d,i)=>`<div class="docrow"><span class="docname">${esc(d.name)}</span><span class="hint">${fmt(d.bytes)}</span>${canDel(d)?`<button class="del docdel" data-deldoc="${i}" aria-label="Remove">${ICON.trash}</button>`:''}</div>`).join('')}
         <button class="btn outline btn-sm" id="adddoc">${ICON.plus}Add documents or photos</button>
         ${multi?'<span class="hint hint-t">Multi-page? Add each page as a photo – you can pick several at once.</span>':''}
         ${uplogHTML(S.docs)}
@@ -663,8 +721,8 @@ function fmtDate(v){ return v ? new Date(v+'T00:00:00').toLocaleDateString('en-G
 
 const R = {
   welcome(){
-    const tot=CTX.counts.total||0;
-    const again = tot>0 ? `<p class="lede"><strong>You've already sent us ${tot} photos – add more?</strong></p>` : '';
+    const tot=priorPhotos();
+    const again = tot>0 ? `<p class="lede"><strong>You've already sent us ${nPhotos(tot)} – add more?</strong></p>` : '';
     if(SRC && SRC.kind==='client'){
       main.innerHTML = `<div class="welcome">
       <h1>Send us photos of your vehicle</h1>
@@ -712,7 +770,7 @@ const R = {
       <h1>Let’s get photos of your vehicle</h1>
       ${again}
       ${CASE.reg?`<p class="lede">You’ve been sent this link so our engineers can assess the damage to:</p>
-      <span class="reg"><span>GB</span>${esc(CASE.reg)}</span>`:''}
+      <span class="reg"><span>GB</span>${esc(regShown())}</span>`:''}
       <p class="lede">It takes about <strong>3 minutes</strong> and there’s nothing to download.</p>
       <ul class="checklist">
         <li><span class="chip">${ICON.car}</span><div><b>Mark where the accident damage is</b><small>Tap the areas on a diagram</small></div></li>
@@ -732,7 +790,7 @@ const R = {
       main.querySelectorAll('.seg[data-ik] button').forEach(b=>b.onclick=()=>{ S.ins[b.parentElement.dataset.ik]=b.dataset.v; save(); render(); });
       const sel=$('#loc'); if(sel) sel.onchange=e=>{ S.ins.locType=e.target.value; save(); render(); const i=main.querySelector('input[data-ik="locOther"]'); if(i) i.focus(); };
       const ad=$('#adddoc'); if(ad) ad.onclick=()=>fileDocs.click();
-      main.querySelectorAll('[data-deldoc]').forEach(b=>b.onclick=()=>{ const d=S.docs[+b.dataset.deldoc]; S.docs.splice(+b.dataset.deldoc,1); cancelUpload(d); render(); });
+      main.querySelectorAll('[data-deldoc]').forEach(b=>b.onclick=()=>{ const d=S.docs[+b.dataset.deldoc]; if(canDel(d)){ S.docs.splice(+b.dataset.deldoc,1); cancelUpload(d); } render(); });
     };
     /* A standing link starts the capture here; afterwards this form only edits its details. */
     const bindStart=()=>{ const nb=$('#next'); if(nb && isStanding()) nb.onclick=()=>beginCapture(nb); const hb=$('#handoff'); if(hb) hb.onclick=()=>{ if(SRC.kind==='source' && !S.ins.locType) S.ins.locType='With the customer'; sendHandoff(hb); }; };
@@ -740,7 +798,7 @@ const R = {
     if(SRC.kind==='client'){
       main.innerHTML = `<h2>Your details</h2>
       <p class="lede">So we can match your photos to your claim and get back to you if we need anything.</p>
-      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"></div>
+      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${regLocked()?' readonly':''}></div>
       <div class="field"><label for="customer">Your name</label><input id="customer" type="text" data-ik="customer" value="${esc(I.customer)}" autocomplete="name"></div>
       <div class="field"><label for="phone">Mobile number</label><input id="phone" type="text" inputmode="tel" data-ik="phone" value="${esc(I.phone)}" autocomplete="tel"><span class="hint">We’ll only use this about your assessment</span></div>
       <div class="field"><label for="handler">Who is dealing with your claim? <span class="hint optl">(optional)</span></label><input id="handler" type="text" data-ik="handler" value="${esc(I.handler)}" placeholder="Solicitor or claims company" autocomplete="off"></div>
@@ -753,7 +811,7 @@ const R = {
     if(SRC.kind==='bodyshop'){
       main.innerHTML = `<h2>About this job</h2>
       <p class="lede">A few details so we can match your photos to the instruction when it arrives – or chase it if it doesn’t.</p>
-      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"></div>
+      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${regLocked()?' readonly':''}></div>
       <div class="field"><label for="customer">Customer name <span class="hint optl">(optional)</span></label><input id="customer" type="text" data-ik="customer" value="${esc(I.customer)}"></div>
       ${locField(I)}
       <div class="field"><label for="handler">Who is handling the claim?</label><input id="handler" type="text" list="handlers" data-ik="handler" value="${esc(I.handler)}" placeholder="Start typing, or choose from the list" autocomplete="off"><datalist id="handlers"><option value="Customer direct (no claims company)"><option value="Not sure yet"></datalist><span class="hint">The accident management company, credit hire firm or solicitor – or choose “Not sure yet”</span></div>
@@ -766,7 +824,7 @@ const R = {
     }
     main.innerHTML = `<h2>About this claim</h2>
       <p class="lede">The more our engineer knows up front, the more accurate the report will be.</p>
-      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"></div>
+      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${regLocked()?' readonly':''}></div>
       <div class="field"><label for="accident">Accident date <span class="hint optl">(optional)</span></label><input id="accident" type="date" data-ik="accident" value="${esc(I.accident||'')}" max="${today}" class="finput"><span class="hint">Helpful if the vehicle has had more than one claim</span></div>
       <div class="field"><label for="customer">Customer / client name <span class="hint optl">(optional)</span></label><input id="customer" type="text" data-ik="customer" value="${esc(I.customer)}"></div>
       ${locField(I)}
@@ -780,7 +838,7 @@ const R = {
   },
   handoff(){
     const H=S.handoffRes; if(!H){ S.handoff=false; return go(STEPS.indexOf('instruction')); }
-    const reg=regShown(), link=H.url, msg=H.message+H.url;
+    const reg=H.registration||regShown(), link=H.url, msg=H.message+H.url;
     main.innerHTML = `<h2>Send the customer a link</h2>
       <p class="lede">We’ve created a one-time link for <strong>${esc(reg)}</strong>. Forward it to ${esc(S.ins.customer||'the customer')} and they’ll be guided through the same photo steps. Their photos go straight to our engineers as they take them.</p>
       <div class="big linkbox">
@@ -845,28 +903,29 @@ const R = {
   plate(){ singleShot('plate', 'Number plate', 'A clear photo of the registration plate confirms we’re looking at the right vehicle.', EX.plate(), 'Line the plate up inside the red corners and make sure it’s readable.'); },
   dash(){  singleShot('dash', 'Dashboard', 'Start the car and take a photo of the instrument cluster so we can see the mileage and any warning lights.', EX.dash, 'If the car won’t start, turn the ignition to the “on” position instead.'); },
   extras(){
-    const nd=S.docs.length+rc('paperwork'), ns=S.scene.length+rc('scene'), hasVideo=!!S.video||rc('video')>0;
+    const nd=S.docs.length+rc('paperwork'), ns=S.scene.length+rc('scene'), no=S.other.length+rc('other-vehicle'), hasVideo=!!S.video||rc('video')>0;
     const row=(id,title,sub,done,btn)=>`<div class="xrow ${done?'done':''}"><div class="xt"><b>${title}</b><small>${sub}</small></div><button class="xadd" data-x="${id}">${done?ICON.check+(btn||'Added'):ICON.plus+'Add'}</button></div>`;
     main.innerHTML = `<h2>Extras</h2>
       <p class="lede">Optional, but they help our engineer get the full picture. Add whatever you have, then carry on.</p>
       <div class="xlist">
         ${row('video','Walk-around video','A slow walk once round the car, under a minute', hasVideo, 'Added')}
-        ${row('scene','Accident scene photos', ns?`${ns} photo${ns===1?'':'s'} added`:'The other vehicle, or where it happened', ns>0, 'Add more')}
+        ${row('scene','Accident scene photos', ns?`${ns} photo${ns===1?'':'s'} added`:'Where it happened', ns>0, 'Add more')}
+        ${row('other','Other vehicle photos', no?`${no} photo${no===1?'':'s'} added`:'The other vehicle involved', no>0, 'Add more')}
         ${row('docs','Estimates or paperwork', nd?`${nd} file${nd===1?'':'s'} added`:'Repair estimates, invoices, letters', nd>0, 'Add more')}
         <label class="xnote ${S.notes?'done':''}" for="notes"><b>Anything you’d like to tell us?</b><small>Type a note here for our engineer to read – for example, the boot doesn’t close.</small><textarea id="notes" rows="4" placeholder="Type your note here">${esc(S.notes)}</textarea></label>
       </div>
-      ${uplogHTML([...S.scene,...S.docs,...(S.video?[S.video]:[])])}`;
+      ${uplogHTML([...S.scene,...S.other,...S.docs,...(S.video?[S.video]:[])])}`;
     main.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{ const x=b.dataset.x;
       if(x==='video') pickVideo();
-      else if(x==='scene'){ pending={kind:'scene'}; fileMulti.removeAttribute('capture'); fileMulti.click(); }
+      else if(x==='scene'||x==='other'){ pending={kind:x}; fileMulti.removeAttribute('capture'); fileMulti.click(); }
       else if(x==='docs') fileDocs.click();
       else { S._notesOpen=true; render(); const ta=$('#notes'); if(ta) ta.focus(); } });
-    const ta=$('#notes'); if(ta) ta.oninput=e=>{ S.notes=e.target.value; save(); ta.closest('.xnote').classList.toggle('done',!!S.notes.trim()); };
+    const ta=$('#notes'); if(ta) ta.oninput=e=>{ S.notes=e.target.value; S.notesEdited=true; save(); ta.closest('.xnote').classList.toggle('done',!!S.notes.trim()); };
     cta.innerHTML = `<button class="btn ghost" id="back" aria-label="Back">${ICON.back}</button><button class="btn primary" id="next">Continue to review</button>`;
   },
   summary(){
     const edit = s => `<button class="linkbtn" data-edit="${s}">${ICON.pencil} Edit</button>`;
-    const nDmg=dmgTotal(), nScene=S.scene.length+rc('scene'), up=allPhotos().filter(p=>p.uploaded&&!p.cancelled);
+    const nDmg=dmgTotal(), nScene=S.scene.length+rc('scene'), nOther=S.other.length+rc('other-vehicle'), live=allPhotos().filter(p=>!p.cancelled), up=live.filter(p=>p.uploaded);
     main.innerHTML = `<h2>Check and send</h2>
       <p class="lede">Have a quick look over everything before you send it to us.</p>
       <div class="sec"><div class="h"><b>Vehicle</b></div><div class="kv"><span class="muted">Registration</span><span>${esc(regShown())}</span>${SRC&&SRC.kind!=='client'?`<span class="muted">${SRC.kind==='bodyshop'?'Repairer':'Instructed by'}</span><span>${esc(SRC.name)}</span>`:''}</div></div>
@@ -874,14 +933,15 @@ const R = {
       ${SRC&&SRC.kind==='bodyshop'?`<div class="sec"><div class="h"><b>The job</b>${edit('instruction')}</div><div class="kv"><span class="muted">Customer</span><span>${esc(S.ins.customer||'—')}</span><span class="muted">Inspection location</span><span class="tr">${esc(locDisplay())}${S.ins.locOther?'<br><span class="muted">'+esc(S.ins.locOther)+'</span>':''}</span><span class="muted">Claim handled by</span><span class="tr">${esc(S.ins.handler)}</span><span class="muted">Your view</span><span>${esc(S.ins.view)}</span><span class="muted">Documents</span><span>${S.docs.length? esc(S.docs.map(d=>d.name).join(', ')) : '—'}</span></div></div>`:''}
       ${SRC&&SRC.kind==='source'?`<div class="sec"><div class="h"><b>The claim</b>${edit('instruction')}</div><div class="kv"><span class="muted">Accident date</span><span>${esc(fmtDate(S.ins.accident))}</span><span class="muted">Customer / client</span><span>${esc(S.ins.customer||'—')}</span><span class="muted">Inspection location</span><span class="tr">${esc(locDisplay())}${S.ins.locOther?'<br><span class="muted">'+esc(S.ins.locOther)+'</span>':''}</span><span class="muted">Roadworthy</span><span>${esc(S.ins.roadworthy)}</span><span class="muted">Preferred outcome</span><span>${esc(S.ins.outcome)}</span><span class="muted">In hire / going into hire</span><span>${esc(S.ins.hire)}</span><span class="muted">Documents</span><span>${S.docs.length? esc(S.docs.map(d=>d.name).join(', ')) : '—'}</span></div></div>`:''}
       <div class="sec"><div class="h"><b>Damage location</b>${edit('location')}</div><div class="chips">${S.zones.map(id=>`<span>${ZL(id)}</span>`).join('')}</div></div>
-      <div class="sec"><div class="h"><b>Overview shots</b>${edit('corners')}</div><div class="strip">${S.overview.map(p=>`<img src="${p.url}" alt="">`).join('')}</div></div>
-      <div class="sec"><div class="h"><b>Plate, VIN and dashboard</b>${edit('plate')}</div><div class="strip">${S.plate?`<img src="${S.plate.url}" alt="">`:''}${S.vin?`<img src="${S.vin.url}" alt="">`:''}${S.dash?`<img src="${S.dash.url}" alt="">`:''}</div></div>
+      <div class="sec"><div class="h"><b>Overview shots</b>${edit('corners')}</div><div class="strip">${S.overview.map(simg).join('')}</div></div>
+      <div class="sec"><div class="h"><b>Plate, VIN and dashboard</b>${edit('plate')}</div><div class="strip">${[S.plate,S.vin,S.dash].filter(Boolean).map(simg).join('')}</div></div>
       <div class="sec"><div class="h"><b>Damage photos (${nDmg})</b>${edit('damage')}</div>${reviewDamage()}</div>
       <div class="sec"><div class="h"><b>Walk-around video</b>${edit('extras')}</div><div class="kv"><span class="muted">${S.video?`Added · ${fmt(S.video.bytes)}`:rc('video')?'Added':'Not added'}</span><span></span></div></div>
       ${(!S.dash&&S.noKeys)?`<div class="sec"><div class="h"><b>Dashboard</b>${edit('dash')}</div><span class="hint">Skipped – no keys available</span></div>`:''}
-      <div class="sec"><div class="h"><b>Accident scene images (${nScene})</b>${edit('extras')}</div>${S.scene.length?`<div class="strip">${S.scene.map(p=>`<img src="${p.url}" alt="">`).join('')}</div>`:(nScene?'':'<span class="hint">None added</span>')}</div>
+      <div class="sec"><div class="h"><b>Accident scene images (${nScene})</b>${edit('extras')}</div>${S.scene.length?`<div class="strip">${S.scene.map(simg).join('')}</div>`:(nScene?'':'<span class="hint">None added</span>')}</div>
+      <div class="sec"><div class="h"><b>Other vehicle images (${nOther})</b>${edit('extras')}</div>${S.other.length?`<div class="strip">${S.other.map(simg).join('')}</div>`:(nOther?'':'<span class="hint">None added</span>')}</div>
       <div class="sec"><div class="h"><b>Your notes</b>${edit('extras')}</div>${S.notes?`<p class="notetext">${esc(S.notes)}</p>`:'<span class="hint">None</span>'}${S.mileageEst&&S.mileage?`<div class="kv mt8"><span class="muted">Estimated mileage</span><span>${Number(S.mileage).toLocaleString('en-GB')} miles</span></div>`:''}</div>
-      <div class="uplog mb8"><span class="dot ${upBusy?'busy':''}"></span>${upBusy?'Still uploading the last photos…':`All ${up.length} photos${S.video&&S.video.uploaded?' + video':''} uploaded · ${fmt(up.reduce((a,p)=>a+p.bytes,0)+(S.video&&S.video.uploaded?S.video.bytes:0))}`}</div>`;
+      <div class="uplog mb8"><span class="dot ${upBusy?'busy':''}"></span>${upBusy?(stalled()?retryHTML():'Still uploading the last photos…'):`${up.length<live.length?`${up.length} of ${live.length}`:`All ${nPhotos(up.length)}${S.video&&S.video.uploaded?' + video':''}`} uploaded · ${fmt(up.reduce((a,p)=>a+p.bytes,0)+(S.video&&S.video.uploaded?S.video.bytes:0))}`}</div>`;
     main.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{ returnTo='summary'; go(STEPS.indexOf(b.dataset.edit)); });
     cta.innerHTML = `<button class="btn ghost" id="back" aria-label="Back">${ICON.back}</button><button class="btn primary" id="next" ${upBusy?'disabled':''}>Send to Collision Engineers</button>`;
   },
@@ -890,22 +950,22 @@ const R = {
       main.innerHTML = `<div class="done-wrap">
       <span class="tick">${ICON.check}</span>
       <h1>Instruction received</h1>
-      <p class="lede">We’ve logged ${esc(regShown())}${S.ins.customer?' for '+esc(S.ins.customer):''} from ${esc(SRC.name)}. The job is now waiting for the customer’s photos – we’ll pick it up as soon as they arrive.</p>
+      <p class="lede">We’ve logged ${esc((S.handoffRes&&S.handoffRes.registration)||regShown())}${S.ins.customer?' for '+esc(S.ins.customer):''} from ${esc(SRC.name)}. The job is now waiting for the customer’s photos – we’ll pick it up as soon as they arrive.</p>
       <p class="hint">Status: awaiting customer photos · link valid ${SRC.lifetimeDays} days</p>
-      <p class="hint">You can close this page now.</p>
+      <p class="hint">${upBusy?(stalled()?retryHTML():'Still uploading the last photos…'):'You can close this page now.'}</p>
       </div>`;
       cta.innerHTML = '';
       return;
     }
     if(!S._sent){
       $('#stepLabel').textContent='Sending';
-      const rows=[`${LASTCOUNT} photos${S.video||rc('video')?' and a video':''} received`,'Your details saved',...(CTX.originals?['Full-quality originals carrying on in the background']:[]),'Sent to our engineering team'];
+      const rows=[`${nPhotos(photosSent())}${S.video||rc('video')?' and a video':''} received`,'Your details saved',...(origPending()?['Full-quality originals carrying on in the background']:[]),'Sent to our engineering team'];
       main.innerHTML=`<div class="sendwrap"><h2>Sending your photos</h2><p class="lede">Keep this page open for a moment.</p><ul class="stages">${rows.map(r=>`<li><span class="dot"></span>${r}</li>`).join('')}</ul></div>`;
       cta.innerHTML='';
       if(!S._sending){ S._sending=true; S._result=null; completeCapture().then(r=>{ S._result=r; }); }
       const li=[...main.querySelectorAll('.stages li')]; let i=0;
       const finish=()=>{ if(STEPS[S.step]!=='done' || GONE) return; const r=S._result; if(!r){ setTimeout(finish,300); return; }
-        if(r.status===200 && r.data){ if(typeof r.data.count==='number') LASTCOUNT=r.data.count; const miss=Array.isArray(r.data.missing)?r.data.missing:[];
+        if(r.status===200 && r.data){ const miss=Array.isArray(r.data.missing)?r.data.missing:[];
           if(miss.length) missingSheet(miss); else { S._sending=false; S._sent=true; render(); } return; }
         S._sending=false; if(r.status!==404){ problemNote(r.data); go(STEPS.indexOf('summary')); } };
       const tick=()=>{ if(STEPS[S.step]!=='done') return; if(i<li.length){ li[i].classList.add('on'); li[i].querySelector('.dot').innerHTML=ICON.check; i++; setTimeout(tick,600);} else setTimeout(finish,500); };
@@ -913,14 +973,16 @@ const R = {
       return;
     }
     const who = SRC&&SRC.kind!=='client' ? `The report comes back to ${esc(SRC.name)}` : 'Your report goes to whoever is handling your claim';
+    /* started from a standing or website link by whoever holds the phone, where opening that link again starts a new capture (R809) */
+    const startedHere = CTX.origin==='staff' || CTX.origin==='website';
     main.innerHTML = `<div class="done-wrap left">
       <span class="tick">${ICON.check}</span>
       <h1>Thanks, that’s everything</h1>
       <p class="lede">${regShown()?'The photos of '+esc(regShown()):'Your photos'} are with our engineering team.</p>
       <p class="m6-10"><strong>What happens next</strong></p>
       <ol class="nextsteps"><li><b>An engineer reviews the photos</b><span>We check everything you’ve sent.</span></li><li><b>We’ll be in touch if we need anything else</b><span>Usually by text or email.</span></li><li><b>${who}</b></li></ol>
-      <div class="later">${ICON.camera}<span><b>Forgot something?</b> Open the same link again to send more photos for this vehicle.</span></div>
-      <p class="hint mt14">${LASTCOUNT} photos · ${new Date().toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'})}. You can close this page now.</p>
+      <div class="later">${ICON.camera}<span><b>Forgot something?</b> ${startedHere?'Open the link again and enter the same registration to send more photos for this vehicle.':'Open the same link again to send more photos for this vehicle.'}</span></div>
+      <p class="hint mt14">${nPhotos(photosSent())} · ${new Date().toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'})}. You can close this page now.</p>
     </div>`;
     cta.innerHTML = '';
   }
@@ -971,9 +1033,14 @@ function singleShot(key, title, lede, example, tip){
 }
 
 function renderChips(){ const c=$('#chips'); if(!c) return; c.innerHTML = S.zones.length ? S.zones.map(id=>`<span>${ZL(id)}</span>`).join('') : '<span class="none">Nothing selected yet</span>'; }
-function handoffOK(){ const I=S.ins; if(!I.reg.trim()) return false; if(SRC&&SRC.kind==='bodyshop') return !!I.handler.trim(); return true; }
-function insOK(){ const I=S.ins; if(SRC&&SRC.kind==='client') return I.reg.trim().length>=1 && I.customer.trim() && I.phone.replace(/\D/g,'').length>=10 && I.accident; if(SRC&&SRC.kind==='bodyshop') return I.reg.trim().length>=1 && I.locType && I.handler.trim() && I.view; return I.reg.trim().length>=1 && I.locType && I.roadworthy && I.outcome && I.hire; }
-function regShown(){ return SRC ? (S.ins.reg||'').toUpperCase().trim() : CASE.reg; }
+/* the server's rule for a registration: 2 to 10 letters or digits */
+function regOK(){ return /^[A-Z0-9]{2,10}$/.test(S.ins.reg||''); }
+/* once anything has been received, or this visit has sent something, the capture's registration is fixed */
+function regLocked(){ return LINK.indexOf('c.')===0 && ((CTX.counts.total||0)>0 || JOBS.some(j=>!j.original && j.state!=='cancelled')); }
+function handoffOK(){ const I=S.ins; if(!regOK()) return false; if(SRC&&SRC.kind==='bodyshop') return !!I.handler.trim(); return true; }
+function insOK(){ const I=S.ins; if(SRC&&SRC.kind==='client') return regOK() && I.customer.trim() && I.phone.replace(/\D/g,'').length>=10 && I.accident; if(SRC&&SRC.kind==='bodyshop') return regOK() && I.locType && I.handler.trim() && I.view; return regOK() && I.locType && I.roadworthy && I.outcome && I.hire; }
+/* the server's spaced form ("RY65 OFG") once it holds the registration being shown */
+function regShown(){ const typed=SRC ? (S.ins.reg||'').toUpperCase().trim() : CASE.reg; return CTX.registrationDisplay && typed===CTX.registration ? String(CTX.registrationDisplay) : typed; }
 
 function updateCTA(){
   const n=$('#next'); if(!n) return;
@@ -992,7 +1059,7 @@ function render(){
   R[k]();
   if(k==='damage' && !returnTo){ const nb=$('#next'); if(nb && (dmgTotal()<8 || weakAreas().length)) nb.onclick=()=>nudge(dmgTotal()); }
   if(returnTo){ const nb=$('#next'); if(nb){ nb.textContent='Back to review'; nb.className='btn primary'; } const ab=$('#add2'); if(ab) ab.className='btn outline'; }
-  main.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ const [kind,i]=b.dataset.del.split(':'); const p=S[kind][+i]; S[kind].splice(+i,1); cancelUpload(p); render(); });
+  main.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ const [kind,i]=b.dataset.del.split(':'); const p=S[kind][+i]; if(canDel(p)){ S[kind].splice(+i,1); cancelUpload(p); } render(); });
   const next=$('#next'), back=$('#back');
   const skip=(i,dir)=>{ let j=i; while(STEPS[j]==='handoff') j+=dir; return j; };
   if(next && !next.onclick) next.onclick=()=>{ if(returnTo){ const r=returnTo; returnTo=null; go(STEPS.indexOf(r)); } else go(skip(S.step+1,1)); };

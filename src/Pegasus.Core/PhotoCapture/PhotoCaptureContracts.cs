@@ -86,6 +86,8 @@ public enum StandingPhotoLinkKind
 /// What the sender typed on the link's form. Every value is the sender's own
 /// words: nothing here is a Case fact until the settle fills an empty Case
 /// field from it with "Photo link" provenance (operator, 9 November 2026).
+/// <see cref="NoKeys"/> is the sender's "Don't have the keys?" skip of the
+/// dashboard (R799).
 /// </summary>
 public sealed record PhotoCaptureDetails(
     string? Handler = null,
@@ -99,7 +101,8 @@ public sealed record PhotoCaptureDetails(
     long? Mileage = null,
     string? Airbags = null,
     string? Steering = null,
-    IReadOnlyList<string>? DamageAreas = null)
+    IReadOnlyList<string>? DamageAreas = null,
+    bool NoKeys = false)
 {
     public static PhotoCaptureDetails Empty { get; } = new();
 
