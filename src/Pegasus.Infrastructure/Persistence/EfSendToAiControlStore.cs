@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -11,13 +12,29 @@ namespace Pegasus.Infrastructure.Persistence;
 /// operational cut point for new AI jobs, and the automatic Glass's valuation
 /// at Case creation (R546), both on the Automation &amp; AI settings panel;
 /// and the temporary Case/PO suffix on Configuration (R656). An absent row
-/// means enabled.
+/// means enabled. Send to AI alone is kept in <see cref="IMemoryCache"/> for
+/// <see cref="SendToAiLifetime"/> (R766): the Case page reads it on every open,
+/// the Administration save evicts it so this process sees the cut at once, and
+/// any other copy of it expires within the lifetime. The other two switches,
+/// and every read inside a store's own transaction, read the row.
 /// </summary>
 public sealed class EfSendToAiControlStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ISendToAiControl, IAutomaticGuideValuationControl, ICaseReferenceSuffixControl
+    TimeProvider timeProvider,
+    IMemoryCache cache) : ISendToAiControl, IAutomaticGuideValuationControl, ICaseReferenceSuffixControl
 {
-    public async Task<bool> IsEnabledAsync(CancellationToken cancellationToken)
+    // R342's lifetime for a switch a Worker copy could hold: the cut reaches it
+    // within this long.
+    internal static readonly TimeSpan SendToAiLifetime = TimeSpan.FromSeconds(30);
+
+    // A private key object, so no other IMemoryCache user can collide with the entry.
+    private static readonly object SendToAiKey = new();
+
+    public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) =>
+        EvictableCacheEntry.GetOrReadAsync(
+            cache, SendToAiKey, SendToAiLifetime, slidingWindow: null, ReadSendToAiAsync, cancellationToken);
+
+    private async Task<bool> ReadSendToAiAsync(CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         return await IsEnabledAsync(context, SendToAiControlEntity.SingletonId, cancellationToken);
@@ -146,6 +163,11 @@ public sealed class EfSendToAiControlStore(
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        if (switchId == SendToAiControlEntity.SingletonId)
+        {
+            EvictableCacheEntry.Evict(cache, SendToAiKey);
+        }
+
         return enabled;
     }
 }

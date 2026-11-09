@@ -1,3 +1,5 @@
+using Microsoft.Data.SqlClient;
+
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
@@ -83,19 +85,20 @@ public sealed class RuntimePermissionRecordTests : IAsyncLifetime
     }
 
     private Task<string[]> ReadEffectiveAsync(string user, string role) =>
-        ReadValuesAsync(
-            $"""
-            EXECUTE AS USER = N'{user}';
-            SELECT CONCAT(N'{role}|G|', candidate.permission_name COLLATE DATABASE_DEFAULT, N'|', target.name COLLATE DATABASE_DEFAULT)
-            FROM sys.tables AS target
-            CROSS JOIN (VALUES (N'SELECT'), (N'INSERT'), (N'UPDATE'), (N'DELETE')) AS candidate(permission_name)
-            WHERE target.is_ms_shipped = 0
-              AND HAS_PERMS_BY_NAME(
-                  QUOTENAME(SCHEMA_NAME(target.schema_id)) + N'.' + QUOTENAME(target.name),
-                  N'OBJECT',
-                  candidate.permission_name) = 1;
-            REVERT;
-            """);
+        database.AsDatabaseUserAsync(
+            user,
+            connection => ReadValuesAsync(
+                connection,
+                $"""
+                SELECT CONCAT(N'{role}|G|', candidate.permission_name COLLATE DATABASE_DEFAULT, N'|', target.name COLLATE DATABASE_DEFAULT)
+                FROM sys.tables AS target
+                CROSS JOIN (VALUES (N'SELECT'), (N'INSERT'), (N'UPDATE'), (N'DELETE')) AS candidate(permission_name)
+                WHERE target.is_ms_shipped = 0
+                  AND HAS_PERMS_BY_NAME(
+                      QUOTENAME(SCHEMA_NAME(target.schema_id)) + N'.' + QUOTENAME(target.name),
+                      N'OBJECT',
+                      candidate.permission_name) = 1;
+                """));
 
     private static (string Role, string State, string Permission, string Table)[] ReadRecord() =>
         File.ReadAllLines(RecordPath)
@@ -125,6 +128,11 @@ public sealed class RuntimePermissionRecordTests : IAsyncLifetime
     {
         await using var connection = database.CreateConnection();
         await connection.OpenAsync();
+        return await ReadValuesAsync(connection, commandText);
+    }
+
+    private static async Task<string[]> ReadValuesAsync(SqlConnection connection, string commandText)
+    {
         await using var command = connection.CreateCommand();
         command.CommandText = commandText;
         await using var reader = await command.ExecuteReaderAsync();

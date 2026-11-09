@@ -64,6 +64,81 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.True(reloaded.Completeness.Evaluation.PolicyVersion > 1);
     }
 
+    [Fact]
+    public async Task AnAcceptedCaseWithNoMileageIsNotReadyUntilItsMileageIsRecorded()
+    {
+        // R759: no mileage keeps a Case out of Review on every route, the
+        // definitive instruction's included; the requirement names it, and a
+        // saved mileage moves the Case on by itself.
+        await using var harness = await CaseDataHarness.CreateAsync(mileage: null);
+        var initial = await harness.GetRequiredDataAsync();
+        Assert.Equal(CaseLifecycleState.NotReady, initial.State);
+        Assert.False(initial.Completeness.Evaluation.SatisfiesPolicy);
+        Assert.Equal(
+            [CaseWorkflowConfiguration.VehicleMileageRequirement],
+            initial.Completeness.Evaluation.MissingRequirements);
+
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "edit-mileage-gate");
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                harness.CaseId,
+                initial.Version,
+                harness.StaffActor,
+                "save-mileage-gate",
+                null,
+                lease.Token)
+            {
+                // The section saves whole: the vehicle as it stands, and the mileage.
+                Vehicle = new(
+                    initial.Vehicle.Registration.Current?.Value,
+                    initial.Vehicle.Make.Current?.Value,
+                    initial.Vehicle.Model.Current?.Value,
+                    new(52_300, CaseOdometerUnit.Miles, null),
+                    null,
+                    initial.Vehicle.Year.Current?.Value)
+            },
+            default);
+
+        Assert.Equal(CaseLifecycleState.Review, saved.Data.State);
+        Assert.Empty((await harness.GetRequiredDataAsync()).Completeness.Evaluation.MissingRequirements);
+    }
+
+    [Fact]
+    public async Task ACaseInReviewIsNeverSentBackForItsMileage()
+    {
+        // The gate stands only on the way in (R759, as R631): a Review Case
+        // whose mileage is not recorded stays in Review when it is saved.
+        await using var harness = await CaseDataHarness.CreateAsync();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.CaseDataFields
+                .Where(item => item.WorkId == harness.CaseId
+                    && (item.FieldName == CaseDataFieldNames.VehicleMileage
+                        || item.FieldName == CaseDataFieldNames.VehicleMileageUnit))
+                .ExecuteDeleteAsync();
+        }
+        var initial = await harness.GetRequiredDataAsync();
+        Assert.Equal(CaseLifecycleState.Review, initial.State);
+        Assert.Null(initial.Vehicle.Mileage.Current);
+        Assert.Empty(initial.Completeness.Evaluation.MissingRequirements);
+
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "edit-review-no-mileage");
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                harness.CaseId,
+                initial.Version,
+                harness.StaffActor,
+                "save-review-no-mileage",
+                null,
+                lease.Token)
+            {
+                Completeness = new(true, true)
+            },
+            default);
+
+        Assert.Equal(CaseLifecycleState.Review, saved.Data.State);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -376,37 +451,47 @@ public sealed class CaseDataCompletenessPersistenceTests
         public InspectionAddressResolutionStore AddressStore { get; }
         public EfCaseDataStore DataStore { get; }
 
+        /// <param name="mileage">
+        /// The instruction's mileage; without one the Case is created Not
+        /// ready (R759).
+        /// </param>
         public static async Task<CaseDataHarness> CreateAsync(
             InspectionAddressStaffDecision addressDecision =
                 InspectionAddressStaffDecision.AcceptSuggestion,
-            string? correctedAddress = null)
+            string? correctedAddress = null,
+            long? mileage = FixtureMileage)
         {
             var database = await LocalDbTestDatabase.CreateAsync();
             var factory = new PooledDbContextFactory<PegasusDbContext>(
                 new DbContextOptionsBuilder<PegasusDbContext>()
                     .UseSqlServer(database.ConnectionString)
                     .Options);
-            return await OpenAsync(database, shared: null, factory, addressDecision, correctedAddress);
+            return await OpenAsync(database, shared: null, factory, addressDecision, correctedAddress, mileage);
         }
+
+        /// <summary>The instruction's mileage in the fixture.</summary>
+        public const long FixtureMileage = 41_200;
 
         /// <summary>
         /// The accepted Case in the class's database, removed with the intake it
         /// came from when the harness is disposed.
         /// </summary>
-        public static Task<CaseDataHarness> CreateAsync(CaseWorkspaceDatabase shared) =>
+        public static Task<CaseDataHarness> CreateAsync(CaseWorkspaceDatabase shared, long? mileage = FixtureMileage) =>
             OpenAsync(
                 shared.Database,
                 shared,
                 shared.Factory,
                 InspectionAddressStaffDecision.AcceptSuggestion,
-                correctedAddress: null);
+                correctedAddress: null,
+                mileage);
 
         private static async Task<CaseDataHarness> OpenAsync(
             LocalDbTestDatabase database,
             CaseWorkspaceDatabase? shared,
             PooledDbContextFactory<PegasusDbContext> factory,
             InspectionAddressStaffDecision addressDecision,
-            string? correctedAddress)
+            string? correctedAddress,
+            long? mileage)
         {
             var receiptId = Guid.NewGuid();
             try
@@ -415,7 +500,7 @@ public sealed class CaseDataCompletenessPersistenceTests
                 var staffId = Guid.NewGuid();
                 var staffActor = ActionActor.Staff(staffId, [StaffRole.User]);
                 var sourceHash = new string('a', 64);
-                await SeedAsync(factory, receiptId, sourceHash);
+                await SeedAsync(factory, receiptId, sourceHash, mileage);
 
                 var addressStore = new InspectionAddressResolutionStore(factory, timeProvider);
                 var address = await addressStore.GetAsync(receiptId, CancellationToken.None);
@@ -536,7 +621,8 @@ public sealed class CaseDataCompletenessPersistenceTests
         private static async Task SeedAsync(
             IDbContextFactory<PegasusDbContext> factory,
             Guid receiptId,
-            string sourceHash)
+            string sourceHash,
+            long? mileage)
         {
             await using var context = await factory.CreateDbContextAsync();
             var principal = await SeededPrincipals.QdosAsync(context);
@@ -545,12 +631,20 @@ public sealed class CaseDataCompletenessPersistenceTests
             var principalId = principal.Id;
             var fieldsJson =
                 """{"version":1,"data":[{"name":"Claimant name","suggestedValue":"Jane Example","candidates":[{"value":"Jane Example","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Claim number","suggestedValue":"QDOS-123","candidates":[{"value":"QDOS-123","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Vehicle registration","suggestedValue":"AB12 CDE","candidates":[{"value":"AB12 CDE","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection address","suggestedValue":"1 Test Street, London","candidates":[{"value":"1 Test Street, London","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection date","suggestedValue":"2031-05-20","candidates":[{"value":"2031-05-20","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false}]}""";
+            // The draft's mileage carries its review field, as an extracted
+            // value must, with the unit it is saved beside (R759: without a
+            // mileage the Case is created Not ready).
+            if (mileage is { } miles)
+            {
+                fieldsJson = fieldsJson[..^2]
+                    + $$""",{"name":"Vehicle mileage","suggestedValue":"{{miles}} miles","candidates":[{"value":"{{miles}} miles","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false}]}""";
+            }
             var emptyEnvelope = """{"version":1,"data":[]}""";
 
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {"qdos.eml"}, {"message/rfc822"}, {100L}, {sourceHash}, {"mailbox"}, {"mailbox-item-immutable-1"}, {StartUtc}, {StartUtc}, {"fixture-reader"}, {"1"}, {"qdos_instruction"}, {1}, {0L}, {"case_created"}, {"Ready fixture"}, {emptyEnvelope}, {fieldsJson}, {emptyEnvelope})");
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO InstructionDrafts (IntakeReceiptId, SuggestedPrincipalCode, ClaimantName, ClaimNumber, VehicleRegistration, InspectionAddress, InspectionDate) VALUES ({receiptId}, {"QDOS"}, {"Jane Example"}, {"QDOS-123"}, {"AB12CDE"}, {"1 Test Street, London"}, {new DateOnly(2031, 5, 20)})");
+                $"INSERT INTO InstructionDrafts (IntakeReceiptId, SuggestedPrincipalCode, ClaimantName, ClaimNumber, VehicleRegistration, VehicleMileage, InspectionAddress, InspectionDate) VALUES ({receiptId}, {"QDOS"}, {"Jane Example"}, {"QDOS-123"}, {"AB12CDE"}, {mileage}, {"1 Test Street, London"}, {new DateOnly(2031, 5, 20)})");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO IntakeMailRouteDecisions (IntakeReceiptId, Disposition, RouteOwnerCode, RouteKind, PrincipalCode, PredicatesJson, Reason, PolicyKey, PolicyVersion, TransportIdentitiesJson, OriginalIdentitiesJson) VALUES ({receiptId}, {"accepted"}, {"QDOS"}, {"direct_principal"}, {"QDOS"}, {emptyEnvelope}, {"Accepted QDOS route"}, {"qdos_mail_route"}, {2}, {emptyEnvelope}, {emptyEnvelope})");
         }

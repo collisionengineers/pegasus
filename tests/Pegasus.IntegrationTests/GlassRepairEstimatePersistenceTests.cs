@@ -41,22 +41,15 @@ public sealed class GlassRepairEstimatePersistenceTests
         Assert.NotNull(await harness.ActiveAccountKeyAsync(session.Id));
 
         await using var context = await harness.Factory.CreateDbContextAsync();
-        await context.Database.OpenConnectionAsync();
         await context.Database.ExecuteSqlRawAsync(
             "CREATE USER [glass_close_web] WITHOUT LOGIN; ALTER ROLE [pegasus_web_runtime_role] ADD MEMBER [glass_close_web];");
-        await context.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'glass_close_web';");
-        try
+        await harness.Database.AsDatabaseUserAsync("glass_close_web", async connection =>
         {
-            var factory = new PooledDbContextFactory<PegasusDbContext>(
-                new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(context.Database.GetDbConnection()).Options);
-            var closed = await new EfGlassRepairEstimateSessionStore(factory, TimeProvider.System).CloseAsync(request, default);
+            var closed = await new EfGlassRepairEstimateSessionStore(
+                new ConnectedContextFactory(connection), TimeProvider.System).CloseAsync(request, default);
             Assert.Equal(GlassRepairEstimateSessionState.Cancelled, closed.State);
             Assert.Equal(session.Version + 1, closed.Version);
-        }
-        finally
-        {
-            await context.Database.ExecuteSqlRawAsync("REVERT;");
-        }
+        });
         Assert.Null(await harness.ActiveAccountKeyAsync(session.Id));
         var history = await context.ActionHistory.AsNoTracking()
             .Where(item => item.AggregateId == session.Id.ToString("D")).ToListAsync();
@@ -1067,7 +1060,7 @@ public sealed class GlassRepairEstimatePersistenceTests
 
         public static DateTimeOffset StartUtc { get; } = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
-        private LocalDbTestDatabase Database { get; }
+        public LocalDbTestDatabase Database { get; }
 
         public PooledDbContextFactory<PegasusDbContext> Factory { get; }
 

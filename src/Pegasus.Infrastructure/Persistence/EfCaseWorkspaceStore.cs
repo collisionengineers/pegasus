@@ -345,7 +345,10 @@ public sealed class EfCaseWorkspaceStore(
         // never from anything the caller claimed, and never forced to false as
         // a side effect of editing an unrelated fact.
         var afterCompleteness = Completeness(snapshot);
-        var evaluation = CaseCompletenessPolicy.Evaluate(afterCompleteness, configuration);
+        var evaluation = CaseCompletenessPolicy.Evaluate(
+            afterCompleteness,
+            configuration,
+            CaseCompletenessPolicy.MileageGateOpen(state, CaseInstructionCompleteness.Mileage(snapshot)));
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;

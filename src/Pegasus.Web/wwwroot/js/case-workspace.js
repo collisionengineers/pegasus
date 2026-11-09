@@ -2578,6 +2578,8 @@
         // Core's disc limits, served in the plan table: no second copy here.
         var minRadius = plan.minRadius * box.w;
         var maxRadius = plan.maxRadius * box.w;
+        var marginX = plan.margin ? plan.margin.x * box.w : 0;
+        var marginY = plan.margin ? plan.margin.y * box.h : 0;
         // Core's one comic burst (DamageBurst), drawn over each disc.
         var burst = plan.burst;
 
@@ -2617,11 +2619,11 @@
         function fromUnit(unit) {
             return { x: box.x + unit.x * box.w, y: box.y + unit.y * box.h, r: unit.r * box.w };
         }
-        // A disc's centre stays on the body box and its radius between the
-        // smallest and the largest disc Core accepts.
+        // A disc's centre stays on the body box or within Core's margin around
+        // it, and its radius between the smallest and the largest disc Core accepts.
         function bound(disc) {
-            disc.x = Math.max(box.x, Math.min(box.x + box.w, disc.x));
-            disc.y = Math.max(box.y, Math.min(box.y + box.h, disc.y));
+            disc.x = Math.max(box.x - marginX, Math.min(box.x + box.w + marginX, disc.x));
+            disc.y = Math.max(box.y - marginY, Math.min(box.y + box.h + marginY, disc.y));
             disc.r = Math.max(minRadius, Math.min(maxRadius, disc.r));
             return disc;
         }
@@ -2633,13 +2635,14 @@
             return { x: mapped.x, y: mapped.y };
         }
         // On the drawing's outline: its body, tyres and mirrors (and a
-        // motorbike's frame and bars), as Core lists them.
+        // motorbike's frame and bars), as Core lists them, or within Core's
+        // leeway of it: the outline's stroke, as wide as twice the leeway.
         function onVehicle(x, y) {
             var point = svg.createSVGPoint();
             point.x = x;
             point.y = y;
             return Array.prototype.slice.call(svg.querySelectorAll('.dv-hit path')).some(function (path) {
-                return path.isPointInFill(point);
+                return path.isPointInFill(point) || path.isPointInStroke(point);
             });
         }
         // The burst over a disc, as Core draws it (DamagePlanGeometry.BurstPath).

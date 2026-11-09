@@ -29,6 +29,8 @@ public sealed class UnroadworthyReasonBankPersistenceTests
             "QDOS", "The brake line is severed.",
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]));
 
+        // The list is kept now (#1950), but concurrent misses are not combined:
+        // both saves still read it and meet at the barrier.
         UnroadworthyReason?[]? results = null;
         var exception = await Record.ExceptionAsync(async () =>
         {
@@ -44,6 +46,32 @@ public sealed class UnroadworthyReasonBankPersistenceTests
         await using var context = await database.CreateContextAsync();
         Assert.Equal(1, await context.UnroadworthyReasons
             .CountAsync(row => row.PrincipalCode == "QDOS" && row.Text == "the brake line is severed"));
+    }
+
+    [Fact]
+    public async Task APrincipalsWordingsAreKeptUntilASaveEvictsThem()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IUnroadworthyReasonBankStore>();
+        var cold = await store.ListAsync("QDOS", CancellationToken.None);
+
+        counter.Reset();
+        Assert.Equal(cold, await store.ListAsync("QDOS", CancellationToken.None));
+        Assert.Equal(0, counter.Count);
+
+        var saved = await scope.ServiceProvider.GetRequiredService<ISaveUnroadworthyReason>().ExecuteAsync(
+            new SaveUnroadworthyReasonRequest(
+                "QDOS", "The steering rack is detached.",
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer])),
+            CancellationToken.None);
+
+        Assert.NotNull(saved);
+        Assert.Contains(
+            await store.ListAsync("QDOS", CancellationToken.None),
+            item => item.Id == saved.Id);
     }
 
     private sealed class ListReadBarrier : DbCommandInterceptor

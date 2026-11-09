@@ -9,6 +9,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Vehicle;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -222,17 +223,21 @@ internal sealed class EfVehicleLookupWorkStore(
         var workId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
         // A looked-up value can answer the last required instruction item, so
         // a Case whose instruction is still incomplete is re-checked once the
-        // fields are filled (FRD-13). Readiness belongs to the Case's own work
+        // fields are filled (FRD-13), and so can the mileage a Not ready Case
+        // waits for (R759). Readiness belongs to the Case's own work
         // and moves only while it has no Audit (decision M). The snapshot is
         // tracked before the fill, so the fields the fill adds join it.
+        var awaitsMileage = workflow.State == nameof(CaseLifecycleState.NotReady);
         var readinessSnapshot = workId == workflow.CaseId
-            && !await context.Cases
-                .Where(item => item.Id == workflow.CaseId)
-                .Select(item => item.InstructionComplete)
-                .SingleAsync(cancellationToken)
+            && (awaitsMileage
+                || !await context.Cases
+                    .Where(item => item.Id == workflow.CaseId)
+                    .Select(item => item.InstructionComplete)
+                    .SingleAsync(cancellationToken))
                 ? await EfCaseDataStore.SnapshotQuery(context, tracking: true)
                     .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken)
                 : null;
+        var mileageBefore = readinessSnapshot is null ? null : CaseInstructionCompleteness.Mileage(readinessSnapshot);
         var caseDataFields = await context.CaseDataFields
             .Where(item => item.WorkId == workId)
             .ToListAsync(cancellationToken);
@@ -248,7 +253,10 @@ internal sealed class EfVehicleLookupWorkStore(
         var (beforeAssessment, afterAssessment) = FillVehicleFields(
             context, caseDataFields, assessmentRows, workId, observationId, result, expected.Estimate, recordedAtUtc);
         if (readinessSnapshot is not null
-            && CaseInstructionCompleteness.CompleteIfPresent(readinessSnapshot))
+            && (CaseInstructionCompleteness.CompleteIfPresent(readinessSnapshot)
+                || (awaitsMileage
+                    && mileageBefore is null
+                    && CaseInstructionCompleteness.Mileage(readinessSnapshot) is not null)))
         {
             await CaseInstructionCompleteness.ApplyReadinessAsync(
                 context, workflow, readinessSnapshot, recordedAtUtc, cancellationToken);

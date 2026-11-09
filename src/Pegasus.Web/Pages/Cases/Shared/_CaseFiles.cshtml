@@ -23,7 +23,7 @@
     // Pop out (operator, 9 October 2026): the Case's images in their own
     // window, offered once one of them can be read; an image still arriving
     // brings the button with it when it confirms. Absent, never disabled.
-    var hasReadableImage = Model.CaseImageFiles.Any(file => file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed);
+    var hasReadableImage = Model.HasReadableImage;
 }
 
 @* Files (v26 § Files): one panel, three tabs — Documents, Images and

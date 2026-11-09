@@ -224,10 +224,6 @@ public sealed class EfCaseAcceptanceStore(
         var caseId = Guid.NewGuid();
         var custodyWorkId = Guid.NewGuid();
         var workflowConfiguration = request.WorkflowConfiguration;
-        var completenessEvaluation = CaseCompletenessPolicy.Evaluate(request.Completeness, workflowConfiguration);
-        var initialState = completenessEvaluation.SatisfiesPolicy
-            ? CaseInitialState.Review
-            : CaseInitialState.NotReady;
 
         var caseEntity = new CaseEntity
         {
@@ -240,7 +236,6 @@ public sealed class EfCaseAcceptanceStore(
             Reference = allocatedIdentity.Reference,
             AuditReference = null,
             Type = CaseTypeCodes.ToCode(request.CaseType),
-            InitialState = ToCode(initialState),
             CustodyState = ToCode(CaseCustodyState.Pending),
             OriginIntakeReceiptId = receipt.Id,
             StandaloneAuditAssessment = standaloneAuditAssessment is null
@@ -280,6 +275,17 @@ public sealed class EfCaseAcceptanceStore(
                 context, caseId, null, declaredAuditVerdict, acceptedAtUtc, cancellationToken);
         }
         var dataSnapshot = CaseDataSnapshotFactory.Create(caseEntity, receipt, request, acceptedAtUtc);
+        // A new Case with no mileage is created Not ready on every route, the
+        // automatic one included (R759): the accepted data answers it, not
+        // the command. A lookup or staff edit that fills it moves the Case on.
+        var completenessEvaluation = CaseCompletenessPolicy.Evaluate(
+            request.Completeness,
+            workflowConfiguration,
+            CaseCompletenessPolicy.MileageGateOpen(null, CaseInstructionCompleteness.Mileage(dataSnapshot)));
+        var initialState = completenessEvaluation.SatisfiesPolicy
+            ? CaseInitialState.Review
+            : CaseInitialState.NotReady;
+        caseEntity.InitialState = ToCode(initialState);
         dataSnapshot.CompletenessPolicySatisfied = completenessEvaluation.SatisfiesPolicy;
         dataSnapshot.CompletenessPolicyKey = completenessEvaluation.PolicyKey;
         dataSnapshot.CompletenessPolicyVersion = completenessEvaluation.PolicyVersion;

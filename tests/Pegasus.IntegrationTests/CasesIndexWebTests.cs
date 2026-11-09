@@ -1072,6 +1072,29 @@ public sealed class CasesIndexWebTests
             .Include(item => item.Case)
             .SingleAsync(item => item.CaseId == caseId);
         workflow.Case.ImagesComplete = false;
+        // The Case has its mileage, so Images is its first requirement: no
+        // mileage would be one of its own (R759).
+        if (!await context.CaseDataFields.AnyAsync(item =>
+                item.WorkId == caseId && item.FieldName == CaseDataFieldNames.VehicleMileage))
+        {
+            var now = factory.Services.GetRequiredService<TimeProvider>().GetUtcNow();
+            context.CaseDataFields.Add(new()
+            {
+                WorkId = caseId, FieldName = CaseDataFieldNames.VehicleMileage, ValueKind = CaseDataCodes.Confirmed,
+                ValueType = CaseDataCodes.Integer, Value = "41200", SourceKind = "intake_evidence",
+                SourceIdentity = "mileage", SourceLabel = "cases index fixture",
+                PolicyKey = "cases-index-fixture", PolicyVersion = 1,
+                ConfirmedByActor = "staff", ConfirmedAtUtc = now
+            });
+            context.CaseDataFields.Add(new()
+            {
+                WorkId = caseId, FieldName = CaseDataFieldNames.VehicleMileageUnit, ValueKind = CaseDataCodes.Confirmed,
+                ValueType = CaseDataCodes.Text, Value = "miles", SourceKind = "intake_evidence",
+                SourceIdentity = "mileage-unit", SourceLabel = "cases index fixture",
+                PolicyKey = "cases-index-fixture", PolicyVersion = 1,
+                ConfirmedByActor = "staff", ConfirmedAtUtc = now
+            });
+        }
         if (audit)
         {
             workflow.Case.Type = CaseTypeCodes.Audit;

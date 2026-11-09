@@ -68,7 +68,10 @@ is set only when an approval names a Web region other than the platform region.
   outside typical usage (R605); this procedure invents no standing hours.
 
 The preflight prints the live head, the candidate's identity and the migration
-sources the range adds. The agent reads those sources and classifies them by
+sources the range adds. CI's migration class check
+(`scripts/Test-MigrationClass.ps1`) is the first reader of each one's class,
+and its pull request body's `## Migration` section records it (R760); the
+agent still confirms it here. The agent reads those sources and classifies them by
 the rule in [engineering](../../../docs/engineering.md#migrations) (R605):
 additive runs on the normal route; non-additive runs only on the destructive
 route, and the agent names each non-additive operation, the capability it
@@ -102,7 +105,12 @@ It fetches, checks `main` is an ancestor of `dev`, lists the range, the
 candidate's push-to-`dev` CI run (R683) and the pull requests in it with their
 checks, reads the deployed state (Web state and stack, `/diagnostics/version`,
 Worker and classifier states, the schedule and Disabled settings), reads the
-live migration head, prints the route and whether provision is needed, reads
+live migration head, prints the route and whether provision is needed, refuses
+a deployable candidate whose azd environment lacks a key the provision needs
+(every key `infra/main.parameters.json` references without a default and every
+key PreProvision requires; the runbook's deployment inputs table names them)
+or whose `PEGASUS_CLASSIFIER_ACTIVATION` would delete the existing classifier,
+so the approval is given on a complete environment (#1931), reads
 the test instance's `/diagnostics/version` over the tailnet and refuses a
 deployable candidate the instance is not serving (R684), prints the live
 version and the proposed next one (R687), then builds the artifacts at that
@@ -142,8 +150,11 @@ pwsh ./scripts/Invoke-Release.ps1 -PromoteOnly -ApprovedReleaseSha <sha>
 ```
 
 The script checks the version is one step above the live tag and the one
-the manifest was built with, re-validates the worktree and the manifest
-against the approved values, reads `dev` and the test instance again, runs
+the manifest was built with, refreshes the worktree's copy of the azd
+environment from the primary checkout so a key repaired with `azd env set`
+between the two runs is what it reads (#1930), re-validates the worktree and
+the manifest against the approved values, reads `dev` and the test instance
+again, requires the same complete environment the preflight did, runs
 the route to a passing full smoke, then promotes `main` to the released SHA
 and tags it `v<version>` in one leased push and reads both back (R682,
 R688): `main` records what is live, so a failed release leaves it at the SHA
@@ -164,7 +175,9 @@ the Web App with a bounded read-back of each (`Stopped`, and `/health/live` not
 restore point, runs the migration, the runtime grants and the head check,
 deploys `web.zip` to the
 stopped site with `--restart false --track-status false`, provisions once with
-Web and Worker approved, starts the Web App and waits for the exact
+Web and Worker approved and `--no-state` (the Disabled census was written
+outside Bicep, so azd's stored state cannot see that it differs from the
+template; #1857), starts the Web App and waits for the exact
 read-back, starts the Worker and the classifier if they are still stopped,
 deploys `classifier.zip`, and runs the full smoke with the classifier
 `Running`.
@@ -174,8 +187,11 @@ is and reported as it is. After SQL began, recovery is forward only: the same
 `-Execute` line is run again and the script resumes from where the estate is
 (Web `Stopped` before or after the migration, or already serving the release).
 It never contains twice, never starts a package before the new `web.zip` is on
-the stopped site and never starts old bytes. An unfinished destructive run is
-an outage, not a release. The recorded restore point is the input to the
+the stopped site and never starts old bytes. The rows of the record are kept
+in `release-record.json` beside the manifest after each one is observed, so
+the resumed run prints the whole release's record, the first run's
+containment, restore point and migration included (#1945). An unfinished
+destructive run is an outage, not a release. The recorded restore point is the input to the
 runbook's [point-in-time restore](../../../docs/runbook.md#point-in-time-restore-commands)
 when data must be recovered.
 
@@ -198,10 +214,12 @@ when data must be recovered.
 
 ## 5. The record
 
-The script prints the record skeleton from what it observed. The record in
+The script prints the record skeleton from what it observed, across every run
+of the approved line. The record in
 `docs/operations.md` is at most 15 lines (R459): what was released, the route,
 the SHAs and hashes, the migration head, the restore point when a migration
-ran, the deployment ids, the smoke time and what is owed. Owed items become GitHub issues, not sentences carried from
+ran, the deployment ids (the Web OneDeploy id, and the Worker and classifier
+`config-zip` ids the CLI reports), the smoke time and what is owed. Owed items become GitHub issues, not sentences carried from
 record to record. `docs/current-architecture.md` changes only when source
 structure changed. The exact artifacts are retained at
 `artifacts/releases/release-<version>-<sha8>` (ignored), beside the previous

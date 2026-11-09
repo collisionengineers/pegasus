@@ -11,6 +11,10 @@ name: repository-check
 on:
   pull_request:
     branches-ignore: [main]
+    # `edited` too: the migration class guard reads the body, so a body edit
+    # re-runs it (R760, #1845). The run is whole, not the guard alone: a lane
+    # skipped on the edit would report as passed over the head's verdict.
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main, dev]
 
@@ -38,6 +42,7 @@ jobs:
       code: ${{ steps.detect.outputs.code }}
       infrastructure: ${{ steps.detect.outputs.infrastructure }}
       classifier: ${{ steps.detect.outputs.classifier }}
+      migrations: ${{ steps.detect.outputs.migrations }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -84,10 +89,10 @@ jobs:
           # Code is every path except the ones no .NET build or test reads:
           # Markdown, docs/ (bar the brand logo the report renderer embeds), the
           # skills, the Python helper tests, the reference-data generator, the
-          # classifier agent, and the scripts under scripts/ other than the six
+          # classifier agent, and the scripts under scripts/ other than the seven
           # the Architecture tests read or the shards run.
-          $prose = '\.md$|^docs/(?!design/brand/logos/)|^\.agents/|^scripts/skill_scripts/|^scripts/reference_data/|^src/pegasus-classifier-agent/|^scripts/(?!(Invoke-TestShard|Update-TestShardDurations|Test-MainBranchHistory|PegasusPlatform|Test-PegasusPlatform|Invoke-LocalDevelopment)\.ps1$)[^/]+\.ps1$'
-          $infrastructure = '^infra/|^azure\.yaml$|^src/Pegasus\.Infrastructure/Persistence/Migrations/|^scripts/(Test-AzureDeploymentPlan|Test-ReleaseValidation|Invoke-ProductionSmoke|Build-ReleaseArtifacts|Invoke-ProductionAdministratorBootstrap|Invoke-AzureDatabaseBootstrap|Invoke-Release|PegasusPlatform)\.ps1$|^\.github/workflows/ci\.yml$'
+          $prose = '\.md$|^docs/(?!design/brand/logos/)|^\.agents/|^scripts/skill_scripts/|^scripts/reference_data/|^src/pegasus-classifier-agent/|^scripts/(?!(Invoke-TestShard|Update-TestShardDurations|Test-MainBranchHistory|Test-MigrationClass|PegasusPlatform|Test-PegasusPlatform|Invoke-LocalDevelopment)\.ps1$)[^/]+\.ps1$'
+          $infrastructure = '^infra/|^azure\.yaml$|^src/Pegasus\.Infrastructure/Persistence/Migrations/|^scripts/(Test-AzureDeploymentPlan|Test-ReleaseValidation|Invoke-ProductionSmoke|Build-ReleaseArtifacts|Invoke-ProductionAdministratorBootstrap|Invoke-AzureDatabaseBootstrap|Invoke-Release|PegasusPlatform|Test-MigrationClass)\.ps1$|^\.github/workflows/ci\.yml$'
           $classifier = '^src/pegasus-classifier-agent/|^\.github/workflows/ci\.yml$'
           $code = $all -or [bool]($files | Where-Object { $_ -notmatch $prose } | Select-Object -First 1)
           $infra = $all -or [bool]($files | Where-Object { $_ -match $infrastructure } | Select-Object -First 1)
@@ -95,6 +100,11 @@ jobs:
           "code=$($code.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "infrastructure=$($infra.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "classifier=$($node.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          # The changed migration sources the migration class guard reads, space
+          # separated: a pull request's alone, and none when its list cannot be
+          # trusted.
+          $migrations = if ($all) { '' } else { @($files | Where-Object { $_ -match '^src/Pegasus\.Infrastructure/Persistence/Migrations/\d{14}_[A-Za-z0-9]+\.cs$' }) -join ' ' }
+          "migrations=$migrations" >> $env:GITHUB_OUTPUT
           Write-Host "Lanes: code=$code infrastructure=$infra classifier=$node ($($files.Count) changed paths$(if ($all) { '; the list could not be trusted, so every lane runs' }))."
 
   invariants:
@@ -162,6 +172,21 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+      - name: Migration class declaration
+        # A changed migration is classified from the operations its Up runs:
+        # an additive one passes; one that drops, renames or narrows passes
+        # only when the body's "## Migration" section declares it non-additive
+        # and names the destructive route; raw SQL passes only when that
+        # section declares its class (docs/engineering.md "Migrations", R605,
+        # R760, R761). The body reaches the script through the environment,
+        # never interpolated into it. A push to dev has no body, so the step
+        # skips there; the release preflight still classifies the range.
+        if: github.event_name == 'pull_request' && needs.changes.outputs.migrations != ''
+        shell: pwsh
+        env:
+          MIGRATIONS: ${{ needs.changes.outputs.migrations }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: ./scripts/Test-MigrationClass.ps1 -MigrationPaths ($env:MIGRATIONS -split ' ') -PullRequestBody $env:PR_BODY
       - name: Release validation behaviour tests
         # Runs the Worker smoke, the PreProvision validation and the release
         # route against a fake Azure CLI and a fixture repository: what they

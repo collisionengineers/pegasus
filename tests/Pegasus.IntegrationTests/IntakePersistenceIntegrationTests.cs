@@ -749,6 +749,62 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         await command.ExecuteNonQueryAsync();
     }
 
+    /// <summary>
+    /// Runs <paramref name="work"/> on a connection of its own whose session
+    /// impersonates the database user <paramref name="userName"/>, and reverts
+    /// before the connection closes.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ConnectionString"/> has MARS on, and SQL Server refuses a
+    /// session-level EXECUTE AS or REVERT while another request is still
+    /// active on the session, which only MARS allows (issue #1986).
+    /// Production has no MARS, so this connection has none either. It is not
+    /// pooled, so a session is never returned to a pool while impersonating.
+    /// </remarks>
+    public async Task<T> AsDatabaseUserAsync<T>(
+        string userName,
+        Func<SqlConnection, Task<T>> work,
+        CancellationToken cancellationToken = default)
+    {
+        var builder = new SqlConnectionStringBuilder(ConnectionString)
+        {
+            MultipleActiveResultSets = false,
+            Pooling = false
+        };
+        await using var connection = new SqlConnection(builder.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var impersonation = connection.CreateCommand();
+        impersonation.CommandText =
+            $"EXECUTE AS USER = N'{userName.Replace("'", "''", StringComparison.Ordinal)}';";
+        await impersonation.ExecuteNonQueryAsync(cancellationToken);
+        try
+        {
+            return await work(connection);
+        }
+        finally
+        {
+            impersonation.CommandText = "REVERT;";
+            await impersonation.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    /// Runs <paramref name="work"/> as the database user
+    /// <paramref name="userName"/>, as the overload that returns a value does.
+    /// </summary>
+    public Task AsDatabaseUserAsync(
+        string userName,
+        Func<SqlConnection, Task> work,
+        CancellationToken cancellationToken = default) =>
+        AsDatabaseUserAsync(
+            userName,
+            async connection =>
+            {
+                await work(connection);
+                return true;
+            },
+            cancellationToken);
+
     public async Task<PersistedReceiptEvent> ReadSingleReceiptEventAsync()
     {
         await using var connection = new SqlConnection(ConnectionString);
@@ -877,6 +933,19 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         Assert.True(
             IsDisposableName(databaseName),
             $"'{databaseName}' is not a disposable test database name.");
+}
+
+/// <summary>
+/// Contexts over one connection the caller has already opened and still owns,
+/// so every store transaction runs in that connection's session: the
+/// impersonated session <see cref="LocalDbTestDatabase"/> runs a database user's work on.
+/// </summary>
+internal sealed class ConnectedContextFactory(SqlConnection connection) : IDbContextFactory<PegasusDbContext>
+{
+    private readonly DbContextOptions<PegasusDbContext> options =
+        new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(connection).Options;
+
+    public PegasusDbContext CreateDbContext() => new(options);
 }
 
 internal sealed record PersistedReceiptEvent(

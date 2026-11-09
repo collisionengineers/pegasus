@@ -1,13 +1,25 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Assessment;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfLabourRateCardStore(
-    IDbContextFactory<PegasusDbContext> contextFactory, TimeProvider timeProvider) : ILabourRateCardStore
+    IDbContextFactory<PegasusDbContext> contextFactory,
+    TimeProvider timeProvider,
+    IMemoryCache cache) : ILabourRateCardStore
 {
-    public async Task<IReadOnlyList<LabourRateCard>> ListAsync(CancellationToken cancellationToken)
+    // The cards are kept in IMemoryCache until a save evicts them (#1950). A
+    // private key object, so no other IMemoryCache user can collide with the entry.
+    private static readonly object CardsKey = new();
+
+    public Task<IReadOnlyList<LabourRateCard>> ListAsync(CancellationToken cancellationToken) =>
+        EvictableCacheEntry.GetOrReadAsync(
+            cache, CardsKey, StaffSessionPolicy.AccountReadLifetime, slidingWindow: null, ReadCardsAsync, cancellationToken);
+
+    private async Task<IReadOnlyList<LabourRateCard>> ReadCardsAsync(CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var cards = await context.LabourRateCards.AsNoTracking()
@@ -55,6 +67,7 @@ public sealed class EfLabourRateCardStore(
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        EvictableCacheEntry.Evict(cache, CardsKey);
         return after;
     }
 

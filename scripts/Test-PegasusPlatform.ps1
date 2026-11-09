@@ -45,6 +45,150 @@ finally {
     Remove-Item -LiteralPath $identityProbe -Recurse -Force
 }
 
+# A migration's class is read from the operations its Up runs: never its Down,
+# a comment or the text of its SQL (engineering#migrations, R605, R761; #1845).
+$classProbe = Join-Path ([IO.Path]::GetTempPath()) ("pegasus-migration-class-" + [Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $classProbe | Out-Null
+try {
+    function Assert-MigrationClass {
+        param(
+            [Parameter(Mandatory)][string] $Case,
+            [Parameter(Mandatory)][string] $Expected,
+            [string[]] $Operations = @(),
+            [Parameter(Mandatory)][string] $Source
+        )
+        $path = Join-Path $classProbe '20261108120000_Probe.cs'
+        Set-Content -LiteralPath $path -Value $Source -Encoding utf8NoBOM
+        $result = Get-PegasusMigrationClass -Path $path
+        if ($result.Class -cne $Expected -or ($result.Operations -join ',') -cne ($Operations -join ',')) {
+            throw "$Case expected $Expected [$($Operations -join ',')]; got $($result.Class) [$($result.Operations -join ',')]."
+        }
+    }
+
+    # Generated style: block-scoped namespace. The comment and the string hold
+    # a brace and a drop that are not code.
+    Assert-MigrationClass -Case 'block-body additive' -Expected 'Additive' -Source @'
+namespace Pegasus.Infrastructure.Persistence.Migrations
+{
+    public partial class Probe : Migration
+    {
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            // migrationBuilder.DropColumn(name: "Old", table: "Cases"); }
+            migrationBuilder.AddColumn<string>(name: "New", table: "Cases", nullable: true);
+            migrationBuilder.AddCheckConstraint(name: "CK_Cases_New", table: "Cases", sql: "[New] <> N'}migrationBuilder.DropTable('");
+            migrationBuilder.DropIndex(name: "IX_Cases_New", table: "Cases");
+            migrationBuilder.CreateIndex(name: "IX_Cases_New", table: "Cases", column: "New", filter: "[New] IS NOT NULL");
+        }
+
+        protected override void Down(MigrationBuilder migrationBuilder) =>
+            throw new NotSupportedException("Forward only.");
+    }
+}
+'@
+    Assert-MigrationClass -Case 'block-body drop' -Expected 'NonAdditive' -Operations 'DropColumn' -Source @'
+namespace Pegasus.Infrastructure.Persistence.Migrations
+{
+    public partial class Probe : Migration
+    {
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.AddColumn<string>(name: "New", table: "Cases", nullable: true);
+            migrationBuilder.DropColumn(name: "Old", table: "Cases");
+        }
+
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropColumn(name: "New", table: "Cases");
+        }
+    }
+}
+'@
+    # Hand-written style: file-scoped namespace. The SQL's semicolons and
+    # braces do not end the expression body, and the Down after it is not read.
+    Assert-MigrationClass -Case 'expression-bodied Sql' -Expected 'Undetermined' -Operations 'Sql' -Source @'
+namespace Pegasus.Infrastructure.Persistence.Migrations;
+
+public partial class Probe : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder) =>
+        migrationBuilder.Sql(
+            """
+            UPDATE [Cases] SET [Value] = N'{"x":1}' WHERE [Value] IS NULL;
+            DELETE FROM [CaseNotes];
+            """);
+
+    protected override void Down(MigrationBuilder migrationBuilder) =>
+        migrationBuilder.DropTable(name: "Cases");
+}
+'@
+    Assert-MigrationClass -Case 'Down drops, Up adds' -Expected 'Additive' -Source @'
+namespace Pegasus.Infrastructure.Persistence.Migrations;
+
+public partial class Probe : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.CreateTable(
+            name: "Probes",
+            columns: table => new { Id = table.Column<int>(type: "int", nullable: false) },
+            constraints: table => { table.PrimaryKey("PK_Probes", x => x.Id); });
+    }
+
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropColumn(name: "Id", table: "Probes");
+        migrationBuilder.DropTable(name: "Probes");
+    }
+}
+'@
+    Assert-MigrationClass -Case 'Sql and a rename' -Expected 'NonAdditive' -Operations 'Sql', 'RenameColumn' -Source @'
+namespace Pegasus.Infrastructure.Persistence.Migrations;
+
+public partial class Probe : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.Sql(CopySql);
+        migrationBuilder.RenameColumn(name: "Old", table: "Cases", newName: "New");
+    }
+
+    internal const string CopySql = "UPDATE [Cases] SET [Old] = [Old];";
+
+    protected override void Down(MigrationBuilder migrationBuilder) =>
+        throw new NotSupportedException("Forward only.");
+}
+'@
+    Assert-MigrationClass -Case 'operations in a loop and a condition' -Expected 'NonAdditive' -Operations 'DropColumn', 'AlterColumn' -Source @'
+namespace Pegasus.Infrastructure.Persistence.Migrations;
+
+public partial class Probe : Migration
+{
+    private static readonly string[] Columns = ["First", "Second"];
+
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        foreach (var column in Columns)
+        {
+            migrationBuilder.DropColumn(name: column, table: "Principals");
+        }
+
+        if (ActiveProvider == "Microsoft.EntityFrameworkCore.SqlServer")
+        {
+            migrationBuilder.AlterColumn<string>(name: "Code", table: "Principals", maxLength: 8);
+        }
+    }
+
+    protected override void Down(MigrationBuilder migrationBuilder) =>
+        throw new NotSupportedException("Forward only.");
+}
+'@
+    Write-Output 'Migration class contract passed.'
+}
+finally {
+    Remove-Item -LiteralPath $classProbe -Recurse -Force
+}
+
 # The hosted test instance's host (ADR-0088, R694): the origin is fixed, and
 # only the Tailscale node that owns its name is the host.
 if ((Get-PegasusTestInstanceOrigin) -cne 'https://cemattypc-1.tail432b53.ts.net/') {

@@ -806,15 +806,173 @@ public sealed class CaseArtifactCustodyRecoveryTests
     }
 
     /// <summary>
+    /// Reconciliation never files an older version of a series over a newer
+    /// one still pending: the older is filed as a file of its own (R765). The
+    /// newer is then filed into the newest filed file of its series, which is
+    /// by now the older one's own, since the sweep files the oldest first.
+    /// </summary>
+    [Fact]
+    public async Task ALateVersionIsFiledAsAFileOfItsOwnWhenANewerOneOfItsSeriesIsStillPending()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.ArtifactSeries", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            await using var scope = database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var intake = scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>();
+            var quarantine = scope.ServiceProvider.GetRequiredService<IIntakeQuarantineArtifactStore>();
+            var store = new SeriesRecordingContentStore();
+            var custody = new EfCaseArtifactCustody(factory, store, quarantine, TimeProvider.System);
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            const string Series = "case-report:work:AssessmentReport";
+            CaseArtifactCustodyRequest Request(string key)
+            {
+                var content = Encoding.UTF8.GetBytes($"report {key}");
+                return new(
+                    actor, caseId, null, key, $"operation:{key}", "report.pdf", "application/pdf",
+                    content.LongLength, Convert.ToHexStringLower(SHA256.HashData(content)),
+                    new MemoryStream(content, writable: false), SeriesIdentity: Series);
+            }
+            var first = await custody.RetainAsync(Request("first"), default);
+            // Box is unreachable for the next two, so both stay pending.
+            store.FailNext = 2;
+            await Assert.ThrowsAsync<IOException>(() => custody.RetainAsync(Request("second"), default));
+            await Assert.ThrowsAsync<IOException>(() => custody.RetainAsync(Request("third"), default));
+            Assert.All(store.Addresses.Skip(1), address => Assert.Equal(first.BoxFileId, address.SeriesBoxFileId));
+            Guid second, third;
+            await using (var db = await database.CreateContextAsync())
+            {
+                var versions = await db.Set<DocumentOccurrenceEntity>()
+                    .Where(value => value.OperationKey == "operation:second" || value.OperationKey == "operation:third")
+                    .ToDictionaryAsync(value => value.OperationKey, value => value.VersionId);
+                (second, third) = (versions["operation:second"], versions["operation:third"]);
+            }
+            var inline = store.Addresses.Count;
+
+            var reconciled = await new ReconcilePendingArtifactCustody(
+                factory, store, intake, PastInlineFilingGrace()).ExecuteAsync(10, default);
+
+            Assert.Equal(2, reconciled.Confirmed);
+            var filed = store.Addresses.Skip(inline).ToDictionary(address => address.VersionId);
+            Assert.Equal(2, filed.Count);
+            Assert.Null(filed[second].SeriesBoxFileId);
+            Assert.Equal($"box-file-{second:N}", filed[third].SeriesBoxFileId);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A series file that took another version during the upload twice over
+    /// files nothing: the member of staff is answered Pending and the version
+    /// stays pending with its pending copy (R764). A sweep that meets the same
+    /// leaves it pending and says why; a later sweep files it into the series
+    /// file.
+    /// </summary>
+    [Fact]
+    public async Task ASeriesFileTakenTwiceDuringTheUploadLeavesTheVersionPendingUntilASweepFilesIt()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.ArtifactSeries", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            await using var scope = database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var intake = scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>();
+            var quarantine = scope.ServiceProvider.GetRequiredService<IIntakeQuarantineArtifactStore>();
+            var store = new SeriesRecordingContentStore();
+            var custody = new EfCaseArtifactCustody(factory, store, quarantine, TimeProvider.System);
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            const string Series = "case-report:work:AssessmentReport";
+            CaseArtifactCustodyRequest Request(string key)
+            {
+                var content = Encoding.UTF8.GetBytes($"report {key}");
+                return new(
+                    actor, caseId, null, key, $"operation:{key}", "report.pdf", "application/pdf",
+                    content.LongLength, Convert.ToHexStringLower(SHA256.HashData(content)),
+                    new MemoryStream(content, writable: false), SeriesIdentity: Series);
+            }
+            var first = await custody.RetainAsync(Request("first"), default);
+            store.DeferNext = 1;
+
+            var deferred = await custody.RetainAsync(Request("second"), default);
+
+            Assert.Equal(CaseArtifactCustodyDisposition.Pending, deferred.Disposition);
+            Assert.Equal("case_custody_pending", deferred.FailureCode);
+            Assert.Null(deferred.BoxFileId);
+            Assert.Equal(first.BoxFileId, store.Addresses[^1].SeriesBoxFileId);
+            var versionId = deferred.VersionId!.Value;
+            await using (var db = await database.CreateContextAsync())
+            {
+                var version = await db.Set<DocumentVersionEntity>().SingleAsync(value => value.Id == versionId);
+                Assert.Equal(DocumentCustodyStatus.Pending, version.CustodyStatus);
+                Assert.NotNull(version.PendingContentStorageKey);
+                Assert.Equal(deferred.PendingContentStorageKey, version.PendingContentStorageKey);
+                Assert.Null(version.BoxFileId);
+            }
+
+            store.DeferNext = 1;
+            var contended = await new ReconcilePendingArtifactCustody(
+                factory, store, intake, PastInlineFilingGrace()).ExecuteAsync(10, default);
+
+            Assert.Equal((0, 1, 0), (contended.Confirmed, contended.Retained, contended.Failures));
+            var aggregateId = versionId.ToString();
+            await using (var db = await database.CreateContextAsync())
+            {
+                Assert.Equal(
+                    DocumentCustodyStatus.Pending,
+                    (await db.Set<DocumentVersionEntity>().SingleAsync(value => value.Id == versionId)).CustodyStatus);
+                var attempt = await db.ActionHistory.SingleAsync(value =>
+                    value.EventKind == "ArtifactCustodyReconciliationAttempt" && value.AggregateId == aggregateId);
+                Assert.Equal("Retained", attempt.Outcome);
+                Assert.Equal("SeriesFileContended", attempt.Reason);
+            }
+
+            var reconciled = await new ReconcilePendingArtifactCustody(
+                factory, store, intake, PastInlineFilingGrace()).ExecuteAsync(10, default);
+
+            Assert.Equal(1, reconciled.Confirmed);
+            Assert.Equal(first.BoxFileId, store.Addresses[^1].SeriesBoxFileId);
+            await using (var db = await database.CreateContextAsync())
+            {
+                var version = await db.Set<DocumentVersionEntity>().SingleAsync(value => value.Id == versionId);
+                Assert.Equal(DocumentCustodyStatus.Confirmed, version.CustodyStatus);
+                Assert.Equal(first.BoxFileId, version.BoxFileId);
+                Assert.Null(version.PendingContentStorageKey);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
     /// A content store that answers every write with Box identities: the
     /// series file when the address names one, otherwise a file of the
-    /// version's own. <see cref="FailNext"/> writes fail first.
+    /// version's own. <see cref="FailNext"/> writes fail first, and
+    /// <see cref="DeferNext"/> writes are answered Deferred with nothing filed.
     /// </summary>
     private sealed class SeriesRecordingContentStore : IDocumentContentStore
     {
         public List<ManagedDocumentContentAddress> Addresses { get; } = [];
 
         public int FailNext { get; set; }
+
+        public int DeferNext { get; set; }
 
         private DocumentContentWriteResult Write(ManagedDocumentContentAddress address)
         {
@@ -823,6 +981,11 @@ public sealed class CaseArtifactCustodyRecoveryTests
             {
                 FailNext--;
                 throw new IOException("Injected write failure.");
+            }
+            if (DeferNext > 0)
+            {
+                DeferNext--;
+                return new(DocumentContentWriteDisposition.Deferred, null, null);
             }
             return new(
                 DocumentContentWriteDisposition.Created,

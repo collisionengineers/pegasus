@@ -5,7 +5,10 @@ using System.Text;
 using System.Text.Json;
 using System.Web;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
@@ -753,6 +756,67 @@ public sealed class ProductionBoxCustodyTests
         Assert.Equal("1", Assert.Single(box.VersionCommitIfMatches));
         Assert.Equal(Sha256(bytes), Sha256(box.ContentAt("QDOS31001/002 large.pdf")));
         Assert.False(box.PathExists("QDOS31001/003 large.pdf"));
+    }
+
+    /// <summary>
+    /// A next version's commit that Box refuses with a 412, because it took
+    /// another version of the series file first, aborts that session; the
+    /// file is read again and the content goes up once more in a session of
+    /// its own. A second 412 aborts that session too and answers Deferred:
+    /// nothing is filed, the earlier version stays current and the document
+    /// stays pending (R764).
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task ANextVersionCommitRefusedForAnotherVersionIsSentOnceMoreThenLeftPending(int refusedCommits)
+    {
+        var box = new StatefulBox();
+        var caseId = Guid.NewGuid();
+        var custody = new BoxCaseCustody(new EmptyArtifactStore(), CreateClient(box));
+        var root = await custody.CreateCaseRootAsync(
+            caseId, "QDOS31001", "0123456789ABCDEFGHJKMNPQRS", "case-root", default);
+        var documents = new BoxDocumentContentStore(CreateClient(box));
+        var earlier = "earlier report"u8.ToArray();
+        var first = await documents.StoreVersionAsync(
+            Address(caseId, root.RemoteId, 2, 1, "large.pdf"), earlier, Sha256(earlier), default);
+        var bytes = OverTheSinglePartLimit();
+        using var stream = new MemoryStream(bytes, writable: false);
+        box.PreconditionFailNextVersionCommits = refusedCommits;
+        var before = box.Requests.Count;
+
+        var next = await documents.StoreVerifiedStreamAsync(
+            Address(caseId, root.RemoteId, 3, 1, "large.pdf") with { SeriesBoxFileId = first.RemoteId },
+            stream,
+            bytes.Length,
+            Sha256(bytes),
+            default);
+
+        var requests = box.Requests.Skip(before).ToArray();
+        Assert.Equal(2, requests.Count(request => request == $"POST /api/2.0/files/{first.RemoteId}/upload_sessions"));
+        Assert.DoesNotContain("POST /api/2.0/files/upload_sessions", requests);
+        Assert.DoesNotContain(requests, IsUpload);
+        Assert.Equal(2, requests.Count(IsCommit));
+        Assert.Equal(refusedCommits, requests.Count(IsSessionAbort));
+        Assert.Collection(
+            box.VersionCommitIfMatches,
+            ifMatch => Assert.Equal("1", ifMatch),
+            ifMatch => Assert.Equal("1", ifMatch));
+        Assert.False(box.PathExists("QDOS31001/003 large.pdf"));
+        Assert.Equal(0L, stream.Position);
+        if (refusedCommits == 1)
+        {
+            Assert.Equal(DocumentContentWriteDisposition.Created, next.Disposition);
+            Assert.Equal(first.RemoteId, next.RemoteId);
+            Assert.Equal(Sha256(bytes), Sha256(box.ContentAt("QDOS31001/002 large.pdf")));
+        }
+        else
+        {
+            Assert.Equal(DocumentContentWriteDisposition.Deferred, next.Disposition);
+            Assert.Null(next.RemoteId);
+            Assert.Null(next.BoxVersionId);
+            Assert.Equal(Sha256(earlier), Sha256(box.ContentAt("QDOS31001/002 large.pdf")));
+        }
     }
 
     /// <summary>
@@ -1702,6 +1766,58 @@ public sealed class ProductionBoxCustodyTests
         Assert.Equal(renames, box.RenameCount);
     }
 
+    /// <summary>
+    /// The pass waits for the <c>CaseReferenceSuffix</c> migration: a Worker
+    /// staged before SQL (Release 140, #1895) reads no Case, asks Box nothing
+    /// and records nothing; once the migration row is there the same pass
+    /// records itself done.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public async Task TheSuffixPassRecordsNothingUntilItsMigrationIsApplied()
+    {
+        var box = new StatefulBox();
+        var client = CreateClient(box);
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureServices: services => services.AddSingleton(client));
+        await using var scope = database.CreateAsyncScope();
+        using var lifetime = new FakeLifetime();
+        var pass = new CaseReferenceSuffixBoxRename(
+            scope.ServiceProvider, lifetime, TimeProvider.System, NullLogger<CaseReferenceSuffixBoxRename>.Instance);
+        const string completedRows =
+            "SELECT COUNT(*) FROM dbo.ActionHistory WHERE EventKind = N'case_reference_suffix_box_renamed'";
+        await database.ExecuteAsync(
+            $"DELETE FROM dbo.__EFMigrationsHistory WHERE MigrationId = N'{CaseReferenceSuffixBoxRename.RequiredMigrationId}'");
+        var requests = box.Requests.Count;
+
+        Assert.False(await pass.RunAsync(default));
+
+        Assert.Equal(0, await database.ScalarAsync<int>(completedRows));
+        Assert.Equal(requests, box.Requests.Count);
+
+        await database.ExecuteAsync(
+            $"INSERT INTO dbo.__EFMigrationsHistory (MigrationId, ProductVersion) VALUES (N'{CaseReferenceSuffixBoxRename.RequiredMigrationId}', N'10.0.0')");
+
+        Assert.True(await pass.RunAsync(default));
+
+        Assert.Equal(1, await database.ScalarAsync<int>(completedRows));
+    }
+
+    private sealed class FakeLifetime : IHostApplicationLifetime, IDisposable
+    {
+        private readonly CancellationTokenSource started = new();
+
+        public CancellationToken ApplicationStarted => started.Token;
+        public CancellationToken ApplicationStopping => CancellationToken.None;
+        public CancellationToken ApplicationStopped => CancellationToken.None;
+
+        public void StopApplication()
+        {
+        }
+
+        public void Dispose() => started.Dispose();
+    }
+
     private static BoxCaseCustody Create(DelegateHandler handler, IIntakeArtifactStore? artifactStore = null) => new(
         artifactStore ?? new EmptyArtifactStore(),
         CreateClient(handler));
@@ -1942,6 +2058,12 @@ public sealed class ProductionBoxCustodyTests
 
         /// <summary>The <c>If-Match</c> each next-version commit carried, in order.</summary>
         public List<string?> VersionCommitIfMatches { get; } = [];
+
+        /// <summary>
+        /// How many of the next next-version commits are answered 412, as when
+        /// Box took another version of the file first; nothing is committed.
+        /// </summary>
+        public int PreconditionFailNextVersionCommits { get; set; }
 
         public bool AllowDeletes { get; set; }
         public int RenameCount { get; private set; }
@@ -2291,6 +2413,11 @@ public sealed class ProductionBoxCustodyTests
                 {
                     VersionCommitIfMatches.Add(
                         request.Headers.TryGetValues("If-Match", out var ifMatch) ? ifMatch.Single() : null);
+                    if (PreconditionFailNextVersionCommits > 0)
+                    {
+                        PreconditionFailNextVersionCommits--;
+                        return new(HttpStatusCode.PreconditionFailed) { Content = new StringContent("etag changed") };
+                    }
                 }
                 using var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 var listed = body.RootElement.GetProperty("parts").EnumerateArray()

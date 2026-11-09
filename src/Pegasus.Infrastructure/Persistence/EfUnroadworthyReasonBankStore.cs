@@ -1,5 +1,7 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Assessment;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -7,9 +9,28 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>The firm's own unroadworthy reason wordings (v28 P15), oldest first.</summary>
 public sealed class EfUnroadworthyReasonBankStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : IUnroadworthyReasonBankStore
+    TimeProvider timeProvider,
+    IMemoryCache cache) : IUnroadworthyReasonBankStore
 {
-    public async Task<IReadOnlyList<UnroadworthyReason>> ListAsync(
+    // One Principal's list is one entry, kept in IMemoryCache until an add
+    // evicts the family (#1950). SQL matches the Principal code without regard
+    // to case and a key does, so the family, not the key, is what a write drops.
+    private readonly record struct ReasonsKey(string PrincipalCode);
+
+    private static readonly object ReasonsFamily = new();
+
+    public Task<IReadOnlyList<UnroadworthyReason>> ListAsync(
+        string principalCode, CancellationToken cancellationToken) =>
+        EvictableCacheEntry.GetOrReadAsync(
+            cache,
+            new ReasonsKey(principalCode),
+            ReasonsFamily,
+            StaffSessionPolicy.AccountReadLifetime,
+            slidingWindow: null,
+            token => ReadAsync(principalCode, token),
+            cancellationToken);
+
+    private async Task<IReadOnlyList<UnroadworthyReason>> ReadAsync(
         string principalCode, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -42,6 +63,12 @@ public sealed class EfUnroadworthyReasonBankStore(
             when (exception.GetBaseException() is SqlException { Number: 2601 or 2627 })
         {
             return null;
+        }
+        finally
+        {
+            // Whatever landed (this wording, or a concurrent add of the same
+            // one), the kept lists are dropped.
+            EvictableCacheEntry.EvictFamily(cache, ReasonsFamily);
         }
         return Map(entity);
     }

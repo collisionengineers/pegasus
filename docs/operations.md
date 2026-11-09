@@ -431,6 +431,21 @@ Release 2.3.1 deployed `dev` at the merge of PR 1995 (#1994: the Case page's for
 | Evidence | `artifacts/releases/release-2.3.1-827ac16b` and `artifacts/releases/logs/release-2.3.1-*.log` on `cemattypc-1` |
 | Owed | #1997 (the 200-line estimate bound decision), #1996 (MCP structured output schema), #1932 (Worker and classifier deployment ids not reported by the script) |
 
+## Release 2.3.0 - 7 November 2026 (deployment live)
+
+Release 2.3.0 deployed `dev` at the merge of PR 1979: #1972 (Create audit leaves decisions open, R729, R730), #1975 and #1977 (report names, R740, R755), #1974 (EVA breakdown, R750 to R754), #1973 (classifier issues, R731 to R739), #1968 (no filing waits for an edit lease, R727, R728), #1979 (unroadworthy opening, R756) and the 2.2.0 record (#1971). #1965 (Experian) is held. A MINOR version (R687). Normal route after the additive migration `20261106180000_PrincipalReportNameColumns`; the Web restart was the only outage. Under the operator's "approve" of 7 November 2026, to the request naming the SHA, manifest, version, route, targets and no provision.
+
+| Observation | Value |
+| --- | --- |
+| Source | `cc9f0a034dc8e1eccc045ba7026383548cd11f4d`, promoted from `b520be66492e0c29a63a47143803efacb7fa145f` after the smoke; `main` and the annotated tag `v2.3.0` read it back |
+| Packages | manifest `A44F41344B08E6758C416B25B9A9651E92C9BC7D8AAD1B336823CA10E50ACA3E`; `web.zip` `A9DF23B945C7209DCD67DFD18FBDC5AC44CCDC16427EFBA5DC44161539C89D86`; `worker.zip` `756D96883573438AE6A6E87CE33507AE3A392D974EC7033B556E39E3B67248CC`; `classifier.zip` `3479D33B27DA9D695C6DF39BACD1C465A2EF98841D0ED0C8497525025C99542B`; `efbundle` `D0BAFC83EDEF28F236B8111C12259E322649449877569728FB36DFC7679EFF3B` |
+| Migration | head `20261105120000_InspectionReportSendEndsTheWork` to `20261106180000_PrincipalReportNameColumns`; restore point 2026-11-07T17:02:26Z before SQL (earliestRestoreDate 2026-10-31T17:02:23Z). Before SQL only PCH held an attachment name (`{reg} Initial`, `{reg} Supplementary`); after it PCH reads `{REG} Initial` and `{REG} Supplementary` as its Inspection names, its Audit names empty, and no other Principal has a name |
+| Deployment | provision not run (no infra change, azd environment unchanged); Web OneDeploy `d4ae4b1e-5a2e-4784-81b4-ad893eab7e33` read back Running, ready and at the SHA and `2.3.0` on attempt 1; Worker `108f252d-f532-459e-b7b9-a04643555ab9`; classifier `fda135f7-17cc-4cb7-a842-656dca3a7208`, `Running` (ids read from the log, #1932) |
+| Smoke | passed at 17:09:30Z; deployed package SHA equals `web.zip`; intake liveness last poll 17:05:00Z, subscription expires 2026-11-12 08:30Z |
+| Test instance | serving `cc9f0a034` at `https://cemattypc-1.tail432b53.ts.net/` (R684) |
+| Evidence | `artifacts/releases/release-2.3.0-cc9f0a03` on `cemattypc-1` (packages, `prepare.log`, `execute.log`) |
+| Owed | #1981 (original report under an edit lease), #1982 (R738 lookups), #1983 (R732 quoted body), #1970 (Query Store after window), #1932 (deployment ids not reported) |
+
 ## Release 2.2.0 - 6 November 2026 (deployment live)
 
 Release 2.2.0 deployed `dev` at the merge of PR 1967: #1960 (dialog drag R716, RJS instructions R713 and R715, classifier Cases R714, System Actions R717, Web SQL pool 16), #1967 (Graph token warm-up #1948, inline forward original R718, custody document numbers #1964 R719) and the 2.0.0/2.1.0 records (#1946). #1965 (Experian) is held for its credentials. A MINOR version (R687). Normal route; no migration; the Web restart was the only outage.

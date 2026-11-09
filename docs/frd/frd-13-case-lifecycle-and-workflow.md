@@ -10,7 +10,8 @@
   A query is a record on the Case, not a state: a Case with an open query
   reads `Query`. `Held` is a pause.
 - Not ready becomes Review by itself when every required instruction item
-  and image is present. Nobody ticks a "reviewed" box.
+  and image and the vehicle mileage are present. Nobody ticks a "reviewed"
+  box.
 - **Assign Engineer** is the only way from Review to With Engineer. The Case
   export never moves a Case.
 - **Mark report sent** needs a real Sent email item and is the last step.
@@ -108,9 +109,21 @@ or a vehicle lookup fills them. The check only clears the blocker; clearing
 an item afterwards does not block the Case again (operator, 2 November 2026,
 [R631](../rulings.md)).
 
+**No mileage keeps a Case Not ready.** The vehicle mileage is a requirement
+of its own on every route, whatever Workflow configuration requires (operator,
+8 November 2026, [R759](../rulings.md)). A Case with no mileage is created Not
+ready, the Case a definitive instruction creates included, and stays there
+with the requirement **Vehicle mileage incomplete**, which opens the Vehicle
+section; while the instruction is incomplete its row lists the mileage among
+its missing items instead. The automatic route still waives every other
+instruction item. A vehicle lookup or a staff edit that records the mileage
+moves the Case on to Review by itself when nothing else is missing. The gate
+stands only on the way in: a Case already in Review or later is not sent back
+for its mileage, and clearing a mileage does not block a Case again (as R631).
+
 **How a Case reaches Review.** When every required instruction item and every
-required image is present, the Case moves from Not ready to Review on its
-own. There is no staff act of reviewing instructions or images: no checkbox,
+required image is present, and the Case has its mileage, the Case moves from
+Not ready to Review on its own. There is no staff act of reviewing instructions or images: no checkbox,
 no dialog, no history line. The transition checks the stored facts inside its
 own transaction and records which readiness policy and version it used. A
 claim of readiness sent from a screen is not accepted as fact.

@@ -217,6 +217,13 @@ internal sealed class EfCaseArtifactCustody(
             // and the pending-custody reconciliation both find it again.
             throw ContentWriteUnavailable(exception);
         }
+        if (write.Disposition == DocumentContentWriteDisposition.Deferred)
+        {
+            // Box took another version of the series file during the upload
+            // twice over, so nothing was filed: the version stays pending for
+            // reconciliation and the caller is answered Pending, not refused (R764).
+            return Pending(version, occurrence.Id, auditFolder ? "audit_custody_pending" : "case_custody_pending");
+        }
         if (documentContentStore is BoxDocumentContentStore
             && (string.IsNullOrWhiteSpace(write.RemoteId)
                 || string.IsNullOrWhiteSpace(write.BoxVersionId)))
@@ -388,8 +395,9 @@ internal sealed class EfCaseArtifactCustody(
     /// that of the newest filed version of another document of the same
     /// series in the same Case folder (operator, 4 November 2026). Null when
     /// the document is in no series or none of it is filed yet, and null when
-    /// the newest filed one was recorded after this version, so a file filed
-    /// late never becomes the current version over a newer one.
+    /// a newer version of the series, filed or still pending, was recorded
+    /// after this one, so a file filed late never becomes the current version
+    /// over a newer one (R765).
     /// </summary>
     internal static async Task<string?> SeriesBoxFileIdAsync(
         PegasusDbContext db,
@@ -401,23 +409,29 @@ internal sealed class EfCaseArtifactCustody(
         {
             return null;
         }
-        var newest = await (
+        var series =
             from other in db.Set<CaseDocumentEntity>().AsNoTracking()
-            join filed in db.Set<DocumentVersionEntity>().AsNoTracking()
-                on other.Id equals filed.DocumentId
+            join item in db.Set<DocumentVersionEntity>().AsNoTracking()
+                on other.Id equals item.DocumentId
             where other.CaseId == document.CaseId
                 && other.SeriesIdentity == document.SeriesIdentity
                 && other.CustodyFolder == document.CustodyFolder
                 && other.Id != document.Id
-                && filed.CustodyStatus == DocumentCustodyStatus.Confirmed
-                && filed.BoxFileId != null
-                && !filed.IsLogicallyRemoved
-            orderby filed.CreatedAtUtc descending, filed.Id descending
-            select new { filed.BoxFileId, filed.CreatedAtUtc })
+                && !item.IsLogicallyRemoved
+            select item;
+        if (await series.AnyAsync(
+                item => item.CustodyStatus != DocumentCustodyStatus.Failed
+                    && item.CreatedAtUtc > version.CreatedAtUtc,
+                cancellationToken))
+        {
+            return null;
+        }
+        return await series
+            .Where(filed => filed.CustodyStatus == DocumentCustodyStatus.Confirmed && filed.BoxFileId != null)
+            .OrderByDescending(filed => filed.CreatedAtUtc)
+            .ThenByDescending(filed => filed.Id)
+            .Select(filed => filed.BoxFileId)
             .FirstOrDefaultAsync(cancellationToken);
-        return newest is not null && newest.CreatedAtUtc <= version.CreatedAtUtc
-            ? newest.BoxFileId
-            : null;
     }
 
     private static Task CommitAsync(
@@ -833,10 +847,8 @@ internal sealed class EfCaseArtifactCustody(
             DateTimeOffset nowUtc,
             CancellationToken cancellationToken)
     {
-        var snapshot = await db.Set<CaseDataSnapshotEntity>()
-            .Include(item => item.Work)
-            .ThenInclude(item => item.Case)
-            .ThenInclude(item => item.Principal)
+        // With its fields: readiness reads the Case's mileage (R759).
+        var snapshot = await EfCaseDataStore.SnapshotQuery(db, tracking: true)
             .SingleOrDefaultAsync(item => item.WorkId == workflow.CaseId, cancellationToken)
             ?? throw new InvalidDataException("The associated Case has no data snapshot.");
         var before = new CaseCompleteness(
@@ -1317,6 +1329,13 @@ public sealed partial class ReconcilePendingArtifactCustody
                         db, candidate.Document, candidate.Version, cancellationToken));
                 var write = await contentStore.StoreVersionAsync(
                     address, bytes, candidate.Version.Sha256, cancellationToken);
+                if (write.Disposition == DocumentContentWriteDisposition.Deferred)
+                {
+                    // Nothing was filed; the next sweep tries again (R764).
+                    await RecordAttemptAsync(candidate.Version.Id, RetainedOutcome, "SeriesFileContended");
+                    retained++;
+                    continue;
+                }
                 if (contentStore is BoxDocumentContentStore
                     && (string.IsNullOrWhiteSpace(write.RemoteId)
                         || string.IsNullOrWhiteSpace(write.BoxVersionId)))

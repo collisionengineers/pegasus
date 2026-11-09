@@ -1190,27 +1190,9 @@ public sealed class VehicleLookupGapFillTests
             CREATE USER [pegasus_test_lookup_worker] WITHOUT LOGIN;
             ALTER ROLE [pegasus_worker_runtime_role] ADD MEMBER [pegasus_test_lookup_worker];
             """);
-        await using var connection = database.CreateConnection();
-        await connection.OpenAsync();
-        await using var impersonation = connection.CreateCommand();
-        impersonation.CommandText = "EXECUTE AS USER = N'pegasus_test_lookup_worker';";
-        await impersonation.ExecuteNonQueryAsync();
-        try
-        {
-            var options = new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(connection).Options;
-            await record(new EfVehicleLookupWorkStore(new ConnectedContextFactory(options)));
-        }
-        finally
-        {
-            impersonation.CommandText = "REVERT;";
-            await impersonation.ExecuteNonQueryAsync();
-        }
-    }
-
-    private sealed class ConnectedContextFactory(DbContextOptions<PegasusDbContext> options)
-        : IDbContextFactory<PegasusDbContext>
-    {
-        public PegasusDbContext CreateDbContext() => new(options);
+        await database.AsDatabaseUserAsync(
+            "pegasus_test_lookup_worker",
+            connection => record(new EfVehicleLookupWorkStore(new ConnectedContextFactory(connection))));
     }
 
     private static async Task RecordLookupAsync(

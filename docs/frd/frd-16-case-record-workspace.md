@@ -105,7 +105,11 @@ audit, is that control alone, except that while the Case is Unassigned
 Assign Engineer has **Take** beside it (#1213, v41 K9, operator,
 19 October 2026,
 [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)),
-and any other step names itself above its section's control.
+and any other step names itself above its section's control. The
+**Damage markers** step has **View images** beside its Damage control, once
+one of the Case's images can be read: it opens the images window the Files
+Pop out opens, so the damage can be read while it is marked (operator,
+8 November 2026, [R757](../rulings.md)).
 **Report not ready** is a card of its own below Next action, folded until
 the browser opens it and remembered per browser like the section folds. It
 lists everything outstanding, the step's own item included: every
@@ -115,7 +119,8 @@ clears it, each with the requirement as its link, its source and why it is
 outstanding; the link is what clears it (9 October 2026)
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
 Original report missing links to Files, where Mark as original report is;
-the other Case requirements link to Case details. The card is headed
+**Vehicle mileage incomplete** links to Vehicle, where the Mileage box is
+([R759](../rulings.md)); the other Case requirements link to Case details. The card is headed
 **Outstanding requirements** when no blocker remains.
 Where a tab inside that section clears it, the link opens that tab too
 (operator, 1 October 2026): a missing Overview or report image
@@ -131,7 +136,9 @@ The rows run in page order (operator, 2 October 2026): section by section
 from the top, then by where the field that clears each sits within its
 section, so working down the list moves down the page; a blocker no Case
 section clears comes last, under Accounts where it opens Accounts. The
-Cases list's Current work names the same first row.
+Cases list's Current work names the same first row, except Vehicle mileage
+incomplete: the list row carries no mileage, so a Case waiting only for its
+mileage reads Not ready there ([R759](../rulings.md)).
 The card shows beside every section; a long list scrolls
 within the aside rather than pushing the sections down.
 When a newer fact has made the current generation stale, the Next action

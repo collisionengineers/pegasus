@@ -7,6 +7,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -739,6 +740,7 @@ public sealed class CustodyOutboxIntegrationTests
             contextFactory,
             services.GetRequiredService<IDocumentContentStore>(),
             services.GetRequiredService<TimeProvider>(),
+            services.GetRequiredService<IMemoryCache>(),
             publisher);
         var content = "evidence a member of staff uploaded"u8.ToArray();
         var command = new AddCaseDocumentCommand(
@@ -2222,7 +2224,9 @@ public sealed class CustodyOutboxIntegrationTests
         var fixtureId = Guid.NewGuid().ToString("N");
         var instruction = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
             claimantName: $"End To End {fixtureId}", claimNumber: $"E2E-{fixtureId}",
-            notificationTitle: "AUDIT REPORT NOTIFICATION");
+            notificationTitle: "AUDIT REPORT NOTIFICATION",
+            // With its mileage: no mileage would keep the Case Not ready (R759).
+            additionalLines: ["Vehicle Mileage: 41200"]);
         var report = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
             notificationTitle: "ORIGINAL BODYSHOP REPORT",
             additionalLines: ["Assessment outcome: Repairable"],

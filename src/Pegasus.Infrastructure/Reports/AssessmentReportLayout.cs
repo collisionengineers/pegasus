@@ -205,7 +205,8 @@ internal static class AssessmentReportLayout
             TwoColumnList(column.Item(), lists[index].Title, lists[index].Items);
         }
 
-        // The image pages. The image page 1 leads with is not repeated here.
+        // The image pages. The Overview page 1 leads with prints again first
+        // here, before the Close-up and the supporting images (R660).
         if (images.Photos.Count > 0)
         {
             column.Item().PageBreak();

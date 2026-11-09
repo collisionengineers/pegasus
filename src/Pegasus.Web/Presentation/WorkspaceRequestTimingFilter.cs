@@ -7,7 +7,9 @@ namespace Pegasus.Web.Presentation;
 /// <summary>
 /// Times workspace execution before PageModel activation, and result rendering
 /// separately. Phase names distinguish full pages from section/refresh requests;
-/// no route values or user data are emitted.
+/// no route values or user data are emitted. The Case page's request-to-edit
+/// long poll (held up to 25 s) and its lease heartbeat are not page work and
+/// get no phase, so the page's figures stay page figures (#1950).
 /// </summary>
 public sealed class WorkspaceRequestTimingFilter : IAsyncResourceFilter, IAsyncResultFilter
 {
@@ -36,6 +38,8 @@ public sealed class WorkspaceRequestTimingFilter : IAsyncResourceFilter, IAsyncR
     private static string? PhasePrefix(FilterContext context) =>
         (context.ActionDescriptor as PageActionDescriptor)?.ViewEnginePath switch
         {
+            "/Cases/Details" when QuietRequestTelemetryFilter.IsQuietHandler(
+                context.HttpContext.Request.Path, context.HttpContext.Request.QueryString) => null,
             "/Cases/Details" => HasHandler(context, "Section") ? "web.case.section" : "web.case",
             "/Index" => HasHandler(context, "Refresh") ? "web.workcentre.refresh" : "web.workcentre",
             _ => null
