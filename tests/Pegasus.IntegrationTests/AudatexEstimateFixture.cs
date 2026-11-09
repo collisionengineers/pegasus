@@ -158,7 +158,9 @@ internal static class AudatexEstimateFixture
         Text(103, 426, "4 WHEEL ALIGNMENT");
         Text(214, 426, "Specialist");
         Text(325, 426, "0%");
-        Text(510, 426, "£110.00");
+        // Inline: the Extras value shares its description's baseline, so a
+        // joined "*" reaches ParseLineValue through ReadLineRow (R659).
+        Text(510, 426, joinedAsterisk ? "£110.00*" : "£110.00");
         Text(325, 414, "Total");
         Text(357, 414, "Extras");
         Text(501, 414, "£110.00");

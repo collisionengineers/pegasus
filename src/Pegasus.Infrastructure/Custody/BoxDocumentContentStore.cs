@@ -238,7 +238,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         long contentLength,
         string normalizedHash,
         Func<BoxContentClient.ProvedFolder, Task<BoxContentClient.BoxUpload>> createAsync,
-        Func<BoxContentClient.ProvedFolder, string, Task<BoxContentClient.BoxUpload?>> nextVersionAsync,
+        Func<BoxContentClient.ProvedFolder, string, Task<BoxContentClient.BoxNextVersion>> nextVersionAsync,
         CancellationToken cancellationToken)
     {
         var caseFolder = address.CaseRootRemoteId!;
@@ -275,22 +275,31 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         // the next version of that one's Box file, keeping its name (operator,
         // 4 November 2026) unless the document's own name differs, when the
         // file takes the document's name (R755). A series file no longer live in the folder leaves
-        // the document to be filed as a file of its own. A new version is never
+        // the document to be filed as a file of its own. A series file that
+        // takes another version during the upload a second time leaves the
+        // document pending with nothing filed (R764). A new version is never
         // rolled back: removing it would need Box to drop the file's current
         // version, so it is not remembered as a created file.
         var folder = await ProveFolderAsync(caseFolder, cancellationToken);
         BoxContentClient.BoxUpload upload;
         try
         {
-            if (address.SeriesBoxFileId is { Length: > 0 } seriesFileId
-                && await nextVersionAsync(folder, seriesFileId) is { } next)
+            if (address.SeriesBoxFileId is { Length: > 0 } seriesFileId)
             {
-                var nextVersionId = next.File.VersionId
-                    ?? throw new InvalidDataException("Box omitted the series file version identity.");
-                return new(
-                    next.Created ? DocumentContentWriteDisposition.Created : DocumentContentWriteDisposition.Replay,
-                    next.File.Id,
-                    nextVersionId);
+                var next = await nextVersionAsync(folder, seriesFileId);
+                if (next.IsContended)
+                {
+                    return new(DocumentContentWriteDisposition.Deferred, null);
+                }
+                if (next.Upload is { } uploaded)
+                {
+                    var nextVersionId = uploaded.File.VersionId
+                        ?? throw new InvalidDataException("Box omitted the series file version identity.");
+                    return new(
+                        uploaded.Created ? DocumentContentWriteDisposition.Created : DocumentContentWriteDisposition.Replay,
+                        uploaded.File.Id,
+                        nextVersionId);
+                }
             }
             upload = await createAsync(folder);
         }

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -212,7 +213,172 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             + Environment.NewLine + saveDescription);
     }
 
-    private const int CasePageCommands = 37;
+    /// <summary>
+    /// 37 before #1950. The measured GET is the second under a lease, so the
+    /// reference data the page reads is already kept: the labour-rate cards,
+    /// the unroadworthy bank, the sign-off list, the Claim Source list, the
+    /// Repairer list and the Send to AI switch (six statements) are no longer
+    /// sent, so 37 - 6 = 31. It is a ceiling; if a reference read still runs,
+    /// the failure's <see cref="SqlStatementCounter.Describe"/> output in CI
+    /// names it and corrects this figure.
+    /// </summary>
+    private const int CasePageCommands = 31;
+
+    /// <summary>
+    /// #1950: a read-only open of a Case sends no reference read once the first
+    /// open has kept them. The fixture's default sign-off Engineer makes the
+    /// page resolve a signatory (the Case names none, so the resolver takes the
+    /// default), so the cold open reads the sign-off list and that Engineer's
+    /// signature; the warm open reads neither, nor anything else that names the
+    /// signature column.
+    /// </summary>
+    [Fact]
+    public async Task TheReadOnlyCasePageReadsNoReferenceDataOnceWarm()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-read-only-warm", withMileage: false);
+        await SeedDefaultSignOffEngineerAsync(factory.Services);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        counter.Reset();
+        _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        var coldSignatureMentions = counter.CountMentioning("[SignOffSignature]");
+        var coldDescription = counter.Describe();
+
+        counter.Reset();
+        var readOnly = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        var warmCommands = counter.Count;
+        var warmDescription = counter.Describe();
+        var warmSignatureMentions = counter.CountMentioning("[SignOffSignature]");
+
+        Assert.True(
+            coldSignatureMentions >= 1,
+            "The cold Case page read neither the sign-off list nor the signature." + Environment.NewLine + coldDescription);
+        Assert.DoesNotContain("data-case-editing=\"true\"", readOnly, StringComparison.Ordinal);
+        Assert.True(
+            warmCommands <= ReadOnlyCasePageCommands,
+            $"The warm read-only Case page sent {warmCommands} SQL commands; at most {ReadOnlyCasePageCommands} are allowed."
+            + Environment.NewLine + warmDescription);
+        Assert.Equal(0, warmSignatureMentions);
+    }
+
+    /// <summary>
+    /// A ceiling set by arithmetic, not measured: the edit-session figure
+    /// (<see cref="CasePageCommands"/>, 31), less the Claim Source and Repairer
+    /// lists the read-only page does not read (29), plus one for the signature
+    /// read the fixture's sign-off Engineer adds to a cold page (30). The first
+    /// CI run's <see cref="SqlStatementCounter.Describe"/> output corrects it.
+    /// </summary>
+    private const int ReadOnlyCasePageCommands = 30;
+
+    /// <summary>
+    /// #1950: the Repairer list the edit-session page reads is one statement
+    /// whatever its length. Each seed goes through the contact writer, which
+    /// evicts the kept list, so both measured opens read it cold and growth
+    /// with the rows would show; the open after them reads it kept.
+    /// </summary>
+    [Fact]
+    public async Task TheCasePageInAnEditSessionReadsTheSameForThreeRepairersAndSix()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-repairer-rows", withMileage: false);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        // The first render of each shape pays one-off work; the counts are later ones.
+        _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Guid[] repairerIds = [.. Enumerable.Range(0, 6).Select(_ => Guid.NewGuid())];
+
+        await SeedRepairersAsync(factory.Services, repairerIds[..3]);
+        counter.Reset();
+        _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        var withThree = counter.Count;
+        var withThreeDescription = counter.Describe();
+
+        await SeedRepairersAsync(factory.Services, repairerIds[3..]);
+        counter.Reset();
+        var withSixHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        var withSix = counter.Count;
+        var withSixDescription = counter.Describe();
+
+        counter.Reset();
+        _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        var warm = counter.Count;
+        var warmDescription = counter.Describe();
+
+        Assert.True(
+            withThree == withSix,
+            $"The Case page grew with the Repairer rows: {withThree} commands for three and {withSix} for six."
+            + Environment.NewLine + withThreeDescription
+            + Environment.NewLine + "---" + Environment.NewLine + withSixDescription);
+        var repairerSelect = Regex.Match(
+            withSixHtml,
+            "<select id=\"repairer-directory\"[^>]*>.*?</select>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        Assert.True(repairerSelect.Success, "The Case page in an edit session must render the Repairer select.");
+        foreach (var repairerId in repairerIds)
+        {
+            Assert.Contains($"value=\"{repairerId:D}\"", repairerSelect.Value, StringComparison.Ordinal);
+        }
+        Assert.True(
+            warm < withSix,
+            $"The Case page sent {warm} SQL commands with the directory lists kept, no fewer than the {withSix} it sent reading them."
+            + Environment.NewLine + warmDescription);
+    }
+
+    private static async Task SeedRepairersAsync(IServiceProvider services, IEnumerable<Guid> repairerIds)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var administration = scope.ServiceProvider.GetRequiredService<IContactDirectoryAdministration>();
+        var actor = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId,
+            [StaffRole.Administrator]);
+        foreach (var repairerId in repairerIds)
+        {
+            var name = $"Repairer Rows Fixture {repairerId:N}";
+            await administration.SaveAsync(
+                new(
+                    actor, repairerId, 0, name, null, null, null, null, null, true, ContactRole.Repairer, null,
+                    CaseInspectionMode.PhysicalAddress, [], $"case-repairer-rows:{repairerId:N}"),
+                CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    /// One enabled default sign-off Engineer with a signature (the PNG
+    /// signature bytes), written straight to the database so no account
+    /// writer evicts anything.
+    /// </summary>
+    private static async Task SeedDefaultSignOffEngineerAsync(IServiceProvider services)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var engineerRole = await context.Roles.SingleAsync(role => role.NormalizedName == "ENGINEER");
+        var staffId = Guid.NewGuid();
+        var signature = new byte[] { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a };
+        context.Users.Add(new PegasusIdentityUser
+        {
+            Id = staffId,
+            UserName = $"read-only-signatory-{staffId:N}",
+            NormalizedUserName = $"READ-ONLY-SIGNATORY-{staffId:N}",
+            SecurityStamp = Guid.NewGuid().ToString("N"),
+            ConcurrencyStamp = Guid.NewGuid().ToString("N"),
+            IsEnabled = true,
+            IsSignOffEngineer = true,
+            IsDefaultSignOffEngineer = true,
+            SignOffPrintedName = "Read Only Signatory",
+            SignOffSignature = signature,
+            SignOffSignatureDigest = Convert.ToHexStringLower(SHA256.HashData(signature))
+        });
+        context.UserRoles.Add(new IdentityUserRole<Guid> { UserId = staffId, RoleId = engineerRole.Id });
+        await context.SaveChangesAsync();
+    }
 
     /// <summary>
     /// 30 before B3-04: the save read the whole workspace (workflow, snapshot,

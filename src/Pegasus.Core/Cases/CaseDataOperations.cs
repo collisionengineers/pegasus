@@ -5,17 +5,33 @@ namespace Pegasus.Core.Cases;
 
 public static class CaseCompletenessPolicy
 {
+    /// <param name="mileageRecorded">Whether the mileage gate is open (<see cref="MileageGateOpen"/>).</param>
     public static CaseCompletenessEvaluation Evaluate(
         CaseCompleteness completeness,
-        CaseWorkflowConfiguration configuration)
+        CaseWorkflowConfiguration configuration,
+        bool mileageRecorded)
     {
         CaseDataPolicy.ValidateCompleteness(completeness);
-        return EvaluateAcceptanceCommand(completeness, configuration);
+        return EvaluateAcceptanceCommand(completeness, configuration, mileageRecorded);
     }
+
+    /// <summary>
+    /// Whether the mileage gate lets a Case into Review: a Case with no
+    /// mileage stays Not ready, and a new Case with none is created Not
+    /// ready, on every route (operator, 8 November 2026; R759). The gate
+    /// stands only on the way in: a Case already past Not ready has passed
+    /// it, so clearing its mileage, or reading a Case that reached Review
+    /// before the gate, never sends it back (as R631 has it for the
+    /// instruction).
+    /// </summary>
+    /// <param name="state">The Case's state, or null for a Case being created.</param>
+    public static bool MileageGateOpen(CaseLifecycleState? state, long? mileage) =>
+        mileage is not null || state is not (null or CaseLifecycleState.NotReady);
 
     internal static CaseCompletenessEvaluation EvaluateAcceptanceCommand(
         CaseCompleteness completeness,
-        CaseWorkflowConfiguration configuration)
+        CaseWorkflowConfiguration configuration,
+        bool mileageRecorded)
     {
         ArgumentNullException.ThrowIfNull(completeness);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -26,7 +42,7 @@ public static class CaseCompletenessPolicy
                 "The current case-workflow policy identity is invalid.");
         }
 
-        var missingRequirements = configuration.MissingRequirements(completeness);
+        var missingRequirements = configuration.MissingRequirements(completeness, mileageRecorded);
 
         return new(
             missingRequirements.Count == 0,

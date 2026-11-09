@@ -492,8 +492,8 @@ replays by its operation key.
   a Word document's text), named by its position in `pegasus_mail_get`'s
   attachment list and cut at the caller's cap; it returns no bytes and
   writes nothing. It exists so the classifier agent can read an instruction
-  letter or an estimate it would otherwise judge by file name (4 November
-  2026, #1891). It reads that one attachment's row, not the whole message.
+  letter or an estimate it would otherwise judge by file name (R732,
+  6 November 2026; #1891). It reads that one attachment's row, not the whole message.
 - `pegasus_mail_photo_registrations` returns the plate reads the Worker
   recorded for a retained message's photographs when it arrived, and the one
   registration they agree on at the accepted bar (`read`), none (`none`) or

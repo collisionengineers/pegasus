@@ -77,9 +77,13 @@ public sealed class AcceptIntake(
         }
 
         var workflowConfiguration = await configuration.GetCurrentAsync(cancellationToken);
+        // The command states the instruction and image facts only; the
+        // mileage gate is the accepted data's, which the acceptance store
+        // reads inside its own transaction (R759).
         var completenessEvaluation = CaseCompletenessPolicy.EvaluateAcceptanceCommand(
             request.Completeness,
-            workflowConfiguration);
+            workflowConfiguration,
+            mileageRecorded: true);
         var principalInspectionMode = await inspectionModeStore.GetForPrincipalAsync(
                 principalCode,
                 cancellationToken)

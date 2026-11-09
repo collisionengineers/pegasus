@@ -173,6 +173,22 @@ function New-ReleaseEnvironment {
     $environment['GLASS_MARKET_VALUE_ASSESSOR_BASE_URI'] = 'https://example.test/assessor/'
     $environment['GLASS_ESTIMATOR_BASE_URI'] = 'https://example.test/estimator/'
     $environment['GLASS_REPAIR_PROFILE_ID'] = 'profile'
+    # Every key infra/main.parameters.json references without a default, which
+    # the preflight requires before the approval (#1931); the estate holds a
+    # classifier by default, so its activation is approved.
+    $environment['PEGASUS_ENVIRONMENT_NAME'] = 'prod'
+    $environment['AZURE_PRINCIPAL_ID'] = '00000000-0000-0000-0000-000000000003'
+    $environment['AZURE_PRINCIPAL_NAME'] = 'operator@example.test'
+    $environment['PEGASUS_DEPLOYMENT_MODE'] = 'production'
+    $environment['PEGASUS_ALERT_EMAIL'] = 'alerts@example.test'
+    $environment['PEGASUS_CLASSIFIER_ACTIVATION'] = 'approved'
+    $environment['DVSA_TOKEN_URI'] = 'https://example.test/dvsa/token'
+    $environment['DVSA_SCOPE'] = 'https://example.test/dvsa/.default'
+    foreach ($key in 'GRAPH_CHANGE_NOTIFICATION_CLIENT_STATE_SECRET_URI', 'BOX_CONFIG_JSON_SECRET_URI',
+        'BOX_CLIENT_SECRET_SECRET_URI', 'AUTOMATION_MCP_CLIENT_SECRET_URI', 'DVLA_API_KEY_SECRET_URI',
+        'DVSA_CLIENT_ID_SECRET_URI', 'DVSA_CLIENT_SECRET_SECRET_URI', 'DVSA_API_KEY_SECRET_URI') {
+        $environment[$key] = "https://pegasusprodkv252ow37g.vault.azure.net/secrets/$($key.ToLowerInvariant().Replace('_', '-'))/version-one"
+    }
     return $environment
 }
 
@@ -300,7 +316,14 @@ if ($joined.StartsWith('functionapp config appsettings list')) {
     $settings = @($env:PEGASUS_TEST_AZ_SETTING_NAMES.Split(',') | ForEach-Object { @{ name = $_; value = $state.worker.disabled } })
     ConvertTo-Json $settings -Compress; exit 0
 }
-if ($joined.StartsWith('functionapp deployment source config-zip')) { "{`"id`":`"$name-deployment-1`"}"; exit 0 }
+if ($joined.StartsWith('functionapp deployment source config-zip')) {
+    # As the CLI does for a Flex Consumption app: the id is a stderr warning
+    # and stdout is the status poll's dictionary without one (#1932). The
+    # error stream, not [Console]::Error, so the caller's 2>&1 sees it as it
+    # sees a native command's stderr.
+    Write-Error -Message "WARNING: Deployment endpoint responded with status code 202 for deployment id `"$name-deployment-1`"" -ErrorAction Continue
+    '{"status":4}'; exit 0
+}
 [Console]::Error.WriteLine("fake az: unhandled call: $joined"); exit 2
 '@
     Set-Content -LiteralPath (Join-Path $Directory 'azd.ps1') -Encoding ascii -Value @'
@@ -316,6 +339,10 @@ if ($joined.StartsWith('env set')) {
     exit 0
 }
 if ($joined.StartsWith('provision')) {
+    # azd compares the template with its stored state and skips a provision
+    # that shows no change; the census written outside Bicep is invisible to
+    # it, so only --no-state renders the census here (#1857).
+    if ($Arguments -notcontains '--no-state') { "  (-) Skipped: Didn't find new changes."; 'SUCCESS: There are no changes to provision for your application.'; exit 0 }
     # Provision renders the Worker Disabled census from PEGASUS_WORKER_ACTIVATION.
     $activation = @(Get-Content -LiteralPath $env:PEGASUS_TEST_AZD_VALUES_PATH | Where-Object { $_.StartsWith('PEGASUS_WORKER_ACTIVATION=') })
     $state = Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_RELEASE_STATE_PATH | ConvertFrom-Json
@@ -473,7 +500,11 @@ function Invoke-ReleaseCase {
         [string] $MigrationHead = '',
         # 'pass' makes the fixture's full smoke pass; otherwise the real smoke
         # runs and stops at its run-from-package read.
-        [string] $FullSmoke = ''
+        [string] $FullSmoke = '',
+        # The azd environment without one key, or with another classifier
+        # activation than approved (#1931).
+        [string] $EnvironmentWithout = '',
+        [string] $ClassifierActivation = ''
     )
     $script:caseIndex++
     $caseRoot = Join-Path $root ("case-{0:D3}" -f $script:caseIndex)
@@ -484,6 +515,8 @@ function Invoke-ReleaseCase {
     Set-Content -LiteralPath $statePath -Value (ConvertTo-Json -InputObject $Estate -Depth 5) -Encoding ascii
     $environmentPath = Join-Path $caseRoot 'environment.txt'
     $environment = New-ReleaseEnvironment
+    if ($EnvironmentWithout) { $environment.Remove($EnvironmentWithout) }
+    if ($ClassifierActivation) { $environment['PEGASUS_CLASSIFIER_ACTIVATION'] = $ClassifierActivation }
     Set-Content -LiteralPath $environmentPath -Value @($environment.Keys | ForEach-Object { "$_=$($environment[$_])" }) -Encoding ascii
     $templatePath = Join-Path $caseRoot 'compiled-template.json'
     Set-Content -LiteralPath $templatePath -Value (New-CompiledWorkerTemplate) -Encoding ascii
@@ -516,6 +549,8 @@ function Invoke-ReleaseCase {
         ExitCode = $exitCode
         Output = ConvertTo-SingleLine ($output -join "`n")
         Calls = $calls
+        # The estate as the run left it.
+        Estate = (Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json)
         Diagnostic = "$($output -join "`n")`nRecorded calls:`n$($calls -join "`n")"
     }
 }
@@ -889,6 +924,15 @@ try {
     Assert-NoCall -Result $result -Case $case -Patterns $writes
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'promoted before refusing.' $result.Diagnostic
 
+    # #1931: the approved run refuses an incomplete azd environment before any
+    # write, as the preflight does before the approval request.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeNormal -Estate (New-Estate -NewSha $releaseSha) -MigrationHead $identity -EnvironmentWithout 'BOX_CONFIG_JSON_SECRET_URI'
+    $case = 'Execute with a missing azd key'
+    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('azd environment is missing BOX_CONFIG_JSON_SECRET_URI')) $case 'did not name the missing key.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns $writes
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'promoted before refusing.' $result.Diagnostic
+
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeDestructive -Estate (New-Estate -NewSha $releaseSha) -MigrationHead $identity
     $case = 'Destructive route without the old Web SHA'
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
@@ -924,7 +968,8 @@ try {
         'az rest*/health/live*',
         'azd env get-values*')
     Assert-True ((Get-CallCount $result.Calls 'az functionapp deployment source config-zip*') -eq 1) $case 'staged the Worker package more than once.' $result.Diagnostic
-    Assert-True ((Get-CallIndex $result.Calls 'azd env get-values*') -gt (Get-CallIndex $result.Calls 'az rest*/health/live*')) $case 'reached the migration gate before the containment read-back.' $result.Diagnostic
+    # The environment is also read before any write (#1931); the migration gate's read is the last.
+    Assert-True ((Get-LastCallIndex $result.Calls 'azd env get-values*') -gt (Get-CallIndex $result.Calls 'az rest*/health/live*')) $case 'reached the migration gate before the containment read-back.' $result.Diagnostic
     # R605: the restore point is read after containment and before the bundle, and the record names it.
     Assert-True ((Get-CallIndex $result.Calls 'az sql db show*') -gt (Get-CallIndex $result.Calls 'az rest*/health/live*')) $case 'did not read the restore point after the containment read-back.' $result.Diagnostic
     Assert-True ($result.Output.Contains('Restore point recorded:') -and $result.Output.Contains('earliestRestoreDate 2026-11-01T00:00:00+00:00')) $case 'did not record the restore point before SQL.' $result.Diagnostic
@@ -937,7 +982,8 @@ try {
     $case = 'Destructive route, old Web still serving after stop'
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
     Assert-True ($result.Output.Contains('did not read back Stopped and unserved')) $case 'did not name the containment failure.' $result.Diagnostic
-    Assert-NoCall -Result $result -Case $case -Patterns @('azd *', 'az webapp deploy*', 'az webapp start*', 'az functionapp start*')
+    # The environment is read before any write (#1931); nothing is set or provisioned after the containment failure.
+    Assert-NoCall -Result $result -Case $case -Patterns @('azd env set*', 'azd provision*', 'az webapp deploy*', 'az webapp start*', 'az functionapp start*')
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments ($executeDestructive + @('-ApprovedOldWebSourceSha', $oldWebSha)) `
         -Estate (New-Estate -NewSha $releaseSha -WebState 'Stopped' -WebServing $false -WorkerState 'Stopped' -WorkerDisabled 'true' -ClassifierState 'Stopped') -MigrationHead 'old'
@@ -969,9 +1015,21 @@ try {
         'az functionapp deployment source config-zip*--name pegasus-prod-classifier-252ow37gij*')
     Assert-True ((Get-CallCount $result.Calls 'azd provision*') -eq 1) $case 'provisioned other than once.' $result.Diagnostic
     Assert-True ((Get-CallIndex $result.Calls 'az webapp start*') -gt (Get-CallIndex $result.Calls 'az webapp deploy*')) $case 'started the site before the new package was on it.' $result.Diagnostic
+    # #1857: the census written outside Bicep is invisible to azd's state
+    # comparison, so the destructive provision applies the template.
+    Assert-True ((Get-CallCount $result.Calls 'azd provision*--no-state*') -eq 1) $case 'did not provision with --no-state.' $result.Diagnostic
+    Assert-True ([string]$result.Estate.worker.disabled -eq 'false') $case 'left the Worker census disabled after its provision.' $result.Diagnostic
 
+    # #1930: the approved run reads the environment the operator repaired in
+    # the primary checkout, not the copy the preflight took.
+    $primaryEnvironment = Join-Path $fixture.Work '.azure/pegasus-prod/.env'
+    $worktreeEnvironment = Join-Path $worktree '.azure/pegasus-prod/.env'
+    Add-Content -LiteralPath $primaryEnvironment -Value 'REPAIRED_AFTER_PREFLIGHT="yes"' -Encoding ascii
+    Assert-True ((Get-Content -Raw -LiteralPath $worktreeEnvironment) -ne (Get-Content -Raw -LiteralPath $primaryEnvironment)) 'Environment repaired after the preflight' 'the fixture copies already agree.' ''
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeNormal -Estate (New-Estate -NewSha $releaseSha) -MigrationHead $identity
     $case = 'Normal route without provision'
+    Assert-True ($result.Output.Contains("azd environment: refreshed into $(Join-Path $worktree '.azure/pegasus-prod') from $(Join-Path $fixture.Work '.azure/pegasus-prod').")) $case 'did not say which environment copy it read (#1930).' $result.Diagnostic
+    Assert-True ((Get-Content -Raw -LiteralPath $worktreeEnvironment) -eq (Get-Content -Raw -LiteralPath $primaryEnvironment)) $case 'read the stale worktree copy of the azd environment (#1930).' $result.Diagnostic
     Assert-True ($result.ExitCode -ne 0) $case 'should stop at the full smoke run-from-package read.' $result.Diagnostic
     Assert-True ($result.Output.Contains('WEBSITE_RUN_FROM_PACKAGE')) $case 'did not reach the full smoke.' $result.Diagnostic
     Assert-True ($result.Output.Contains("Version: $releaseVersion (MINOR above v$liveVersion).")) $case 'did not accept the approved version as one step above the tag.' $result.Diagnostic
@@ -993,6 +1051,7 @@ try {
     Assert-True ($result.Output.Contains('WEBSITE_RUN_FROM_PACKAGE')) $case 'did not reach the full smoke.' $result.Diagnostic
     Assert-Order -Result $result -Case $case -Patterns @('azd env set PEGASUS_WEB_ACTIVATION approved*', 'azd provision*', 'az webapp deploy*--restart true*')
     Assert-True ((Get-CallCount $result.Calls 'azd provision*') -eq 1) $case 'provisioned other than once.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns @('*--no-state*')
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeNormal -Estate (New-Estate -NewSha $releaseSha -ClassifierPresent $false) -MigrationHead $identity
     $case = 'Normal route without a classifier'
@@ -1104,6 +1163,53 @@ try {
     & git -C $fixture.Work tag -d "v$releaseVersion" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Unable to put the fixture refs back after the promotion.' }
 
+    # #1945, #1932: a destructive release finished by a second run of the same
+    # line prints the whole release's record, the rows of the first run
+    # included, and the record names the Worker and classifier deployment ids
+    # the CLI reported only on stderr. A fresh worktree, because the completed
+    # release removed the last one.
+    & git -C $fixture.Work worktree add --quiet --detach $worktree $releaseSha
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to add the fixture worktree again.' }
+    Copy-Item -Recurse -LiteralPath (Join-Path $fixture.Work '.azure') -Destination (Join-Path $worktree '.azure')
+    $artifacts = New-FixtureArtifacts -Worktree $worktree -Sha $releaseSha
+    $executeDestructive = @('-Execute', '-Version', $releaseVersion, '-Route', 'Destructive', '-ApprovedReleaseSha', $releaseSha, '-ApprovedManifestSha256', $artifacts.ManifestSha256)
+    $recordPath = Join-Path $worktree "artifacts/releases/$releaseVersion/release-record.json"
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments ($executeDestructive + @('-ApprovedOldWebSourceSha', $oldWebSha)) `
+        -Estate (New-Estate -NewSha $releaseSha) -MigrationHead 'old'
+    $case = 'Destructive route, fresh run before a resume'
+    Assert-True ($result.ExitCode -ne 0) $case 'should stop at the fixture bundle.' $result.Diagnostic
+    Assert-True (Test-Path -LiteralPath $recordPath -PathType Leaf) $case 'did not persist the record beside the manifest (#1945).' $result.Diagnostic
+    $saved = Get-Content -Raw -LiteralPath $recordPath | ConvertFrom-Json
+    foreach ($row in 'Packages', 'Worker deployment', 'Containment', 'Restore point') {
+        Assert-True ($null -ne $saved.PSObject.Properties[$row]) $case "did not persist the '$row' row (#1945)." $result.Diagnostic
+    }
+    Assert-True ([string]$saved.'Worker deployment' -eq 'pegasus-prod-worker-252ow37gij-deployment-1') $case 'did not take the Worker deployment id from the CLI warning (#1932).' $result.Diagnostic
+
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments ($executeDestructive + @('-ApprovedOldWebSourceSha', $oldWebSha)) `
+        -Estate (New-Estate -NewSha $releaseSha -WebState 'Stopped' -WebServing $false -WorkerState 'Stopped' -WorkerDisabled 'true' -ClassifierState 'Stopped') -MigrationHead $identity -FullSmoke 'pass'
+    $case = 'Destructive route resumed after SQL, smoke passed'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('read back from the earlier run of this release')) $case 'did not read the earlier run''s record back (#1945).' $result.Diagnostic
+    # ConvertTo-SingleLine collapses the table's pipes to spaces.
+    foreach ($row in 'Containment classifier, Worker and Web stopped and read back at',
+        'Restore point ', 'before SQL; earliestRestoreDate 2026-11-01T00:00:00+00:00',
+        'Worker deployment pegasus-prod-worker-252ow37gij-deployment-1',
+        'Classifier deployment pegasus-prod-classifier-252ow37gij-deployment-1',
+        'Web deployment web-deployment-1',
+        "Migration head $identity, applied before this run",
+        'Provision azd provision --no-state succeeded',
+        'Smoke passed at') {
+        Assert-True ($result.Output.Contains($row)) $case "the printed record lacks '$row'." $result.Diagnostic
+    }
+    Assert-True ([string]$result.Estate.worker.disabled -eq 'false') $case 'left the Worker census disabled (#1857).' $result.Diagnostic
+    Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $releaseSha) $case 'did not move main to the released SHA.' $result.Diagnostic
+    Assert-True ((& git -C $fixture.Bare rev-parse "v$releaseVersion^{commit}").Trim() -eq $releaseSha) $case 'did not tag the released SHA.' $result.Diagnostic
+    Assert-True (Test-Path -LiteralPath (Join-Path $fixture.Work "artifacts/releases/release-$releaseVersion-$($releaseSha.Substring(0, 8))/release-record.json") -PathType Leaf) $case 'did not retain the record with the packages.' $result.Diagnostic
+    & git -C $fixture.Bare update-ref refs/heads/main $fixture.MainSha
+    & git -C $fixture.Bare update-ref -d "refs/tags/v$releaseVersion"
+    & git -C $fixture.Work tag -d "v$releaseVersion" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to put the fixture refs back after the resumed promotion.' }
+
     # --- The version proposal (R686, R687) on a deployable range ---------------
     # dev gains a merged pull request that changes src/; main stays tagged
     # v1.0.0. The proposal reads what the pull request closes and the issue's
@@ -1142,6 +1248,28 @@ try {
     $case = 'Preflight with a pull request reporting no check'
     Assert-True ($result.Output.Contains('#1 fixture: 0 checks, 0 not successful (no check reported: not green)')) $case 'did not count the check-less pull request.' $result.Diagnostic
     Assert-True ($result.Output.Contains('1 run(s) are not green: the candidate waits; nothing is waived (R691)')) $case 'did not report the candidate as waiting.' $result.Diagnostic
+
+    # #1931: a deployable candidate's approval is given on a complete azd
+    # environment; the read-only run refuses before the version and the
+    # approval request, and writes nothing.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha) -MigrationHead $identity -EnvironmentWithout 'DVLA_API_KEY_SECRET_URI'
+    $case = 'Preflight with a missing azd key'
+    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('azd environment is missing DVLA_API_KEY_SECRET_URI')) $case 'did not name the missing key.' $result.Diagnostic
+    Assert-True (-not $result.Output.Contains('Proposed:') -and -not $result.Output.Contains('Preflight only: the route is')) $case 'went on to the version and the approval request.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns $writes
+
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha) -MigrationHead $identity -ClassifierActivation 'disabled'
+    $case = 'Preflight with the classifier present and its activation not approved'
+    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("PEGASUS_CLASSIFIER_ACTIVATION is 'disabled', not 'approved': a provision would delete pegasus-prod-classifier-252ow37gij")) $case 'did not name the classifier activation.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns $writes
+
+    # The same preflight without a classifier takes any activation value.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -ClassifierPresent $false) -MigrationHead $identity -ClassifierActivation 'disabled'
+    $case = 'Preflight without a classifier and its activation disabled'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('azd environment: complete')) $case 'did not report the environment complete.' $result.Diagnostic
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly', '-Version', '2.0.0') -Estate (New-Estate -NewSha $proposalSha) -MigrationHead $identity
     $case = 'Preflight with a given version'

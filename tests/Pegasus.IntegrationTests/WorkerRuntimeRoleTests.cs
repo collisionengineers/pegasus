@@ -57,29 +57,19 @@ public sealed class WorkerRuntimeRoleTests
                 CancellationToken.None);
         }
         var caseId = await QdosTriageIntegrationTests.SeedMatchingFormalCaseAsync(factory.Services, receiptId);
-        await (await factory.DatabaseAsync).ExecuteAsync($"""
+        var database = await factory.DatabaseAsync;
+        await database.ExecuteAsync($"""
             CREATE USER [pegasus_test_triage_pairing_worker] WITHOUT LOGIN;
             ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_triage_pairing_worker];
             """);
-        await using var connection = factory.Database.CreateConnection();
-        await connection.OpenAsync();
-        await using var impersonation = connection.CreateCommand();
-        impersonation.CommandText = "EXECUTE AS USER = N'pegasus_test_triage_pairing_worker';";
-        await impersonation.ExecuteNonQueryAsync();
-        try
+        await database.AsDatabaseUserAsync("pegasus_test_triage_pairing_worker", async connection =>
         {
-            var options = new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(connection).Options;
-            var store = new EfTriageStore(new ConnectedContextFactory(options),
+            var store = new EfTriageStore(new ConnectedContextFactory(connection),
                 [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())]);
             var pairing = new TriageCasePairing(store);
             Assert.Equal(new TriageCasePairingResult(1, 1, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
             Assert.Equal(new TriageCasePairingResult(0, 0, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
-        }
-        finally
-        {
-            impersonation.CommandText = "REVERT;";
-            await impersonation.ExecuteNonQueryAsync();
-        }
+        });
         await using var scope = factory.Services.CreateAsyncScope();
         await using var context = await scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
@@ -168,24 +158,13 @@ public sealed class WorkerRuntimeRoleTests
             CREATE USER [pegasus_test_custody_worker] WITHOUT LOGIN;
             ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_custody_worker];
             """);
-        await using var connection = database.CreateConnection();
-        await connection.OpenAsync();
-        await using var impersonation = connection.CreateCommand();
-        impersonation.CommandText = "EXECUTE AS USER = N'pegasus_test_custody_worker';";
-        await impersonation.ExecuteNonQueryAsync();
-        try
+        await database.AsDatabaseUserAsync("pegasus_test_custody_worker", async connection =>
         {
-            var options = new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(connection).Options;
-            var custody = new EfIncomingArtifactRetentionStore(new ConnectedContextFactory(options));
+            var custody = new EfIncomingArtifactRetentionStore(new ConnectedContextFactory(connection));
             Assert.False(await custody.TryClaimHandOverAsync($"intake:{Guid.NewGuid():N}:{assetId:N}", CancellationToken.None));
             Assert.True(await custody.TryClaimHandOverAsync($"intake:{receiptId:N}:{assetId:N}", CancellationToken.None));
             Assert.False(await custody.TryClaimHandOverAsync($"intake:{receiptId:N}:{assetId:N}", CancellationToken.None));
-        }
-        finally
-        {
-            impersonation.CommandText = "REVERT;";
-            await impersonation.ExecuteNonQueryAsync();
-        }
+        });
     }
 
     /// <summary>
@@ -242,15 +221,9 @@ public sealed class WorkerRuntimeRoleTests
             ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_original_report_worker];
             """);
 
-        await using var connection = database.CreateConnection();
-        await connection.OpenAsync();
-        await using var impersonation = connection.CreateCommand();
-        impersonation.CommandText = "EXECUTE AS USER = N'pegasus_test_original_report_worker';";
-        await impersonation.ExecuteNonQueryAsync();
-        try
+        await database.AsDatabaseUserAsync("pegasus_test_original_report_worker", async connection =>
         {
-            var options = new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(connection).Options;
-            var contextFactory = new ConnectedContextFactory(options);
+            var contextFactory = new ConnectedContextFactory(connection);
             var artifacts = new FixedArtifactStore($"runtime-role/{assetId:N}", reportBytes);
             var reader = new ReadOriginalReport(
                 new ConnexusReportReader(),
@@ -270,12 +243,7 @@ public sealed class WorkerRuntimeRoleTests
             Assert.Equal("2026-03-09", reading.ReportDate);
             Assert.Equal("unroadworthy", reading.Roadworthiness);
             Assert.Equal("repairable", reading.Outcome);
-        }
-        finally
-        {
-            impersonation.CommandText = "REVERT;";
-            await impersonation.ExecuteNonQueryAsync();
-        }
+        });
     }
 
     [Fact]
@@ -354,15 +322,9 @@ public sealed class WorkerRuntimeRoleTests
             ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_image_recovery_worker];
             """);
 
-        await using var connection = database.CreateConnection();
-        await connection.OpenAsync();
-        await using var impersonation = connection.CreateCommand();
-        impersonation.CommandText = "EXECUTE AS USER = N'pegasus_test_image_recovery_worker';";
-        await impersonation.ExecuteNonQueryAsync();
-        try
+        await database.AsDatabaseUserAsync("pegasus_test_image_recovery_worker", async connection =>
         {
-            var options = new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(connection).Options;
-            var workerFactory = new ConnectedContextFactory(options);
+            var workerFactory = new ConnectedContextFactory(connection);
             var pairing = new ImageIntakeCasePairing(
                 new EfImageIntakeStore(workerFactory),
                 new EfImageIntakeCaseCandidates(workerFactory),
@@ -375,12 +337,7 @@ public sealed class WorkerRuntimeRoleTests
                 await pairing.ReconcileAsync(1, CancellationToken.None));
             Assert.Equal(new ImageIntakePairingResult(0, 0, 0),
                 await pairing.ReconcileAsync(1, CancellationToken.None));
-        }
-        finally
-        {
-            impersonation.CommandText = "REVERT;";
-            await impersonation.ExecuteNonQueryAsync();
-        }
+        });
 
         var association = await context.IntakeManualAssociations.AsNoTracking()
             .SingleAsync(item => item.IntakeReceiptId == imageReceiptId);
@@ -416,12 +373,6 @@ public sealed class WorkerRuntimeRoleTests
             item.IntakeReceiptId == caseReceiptId).Select(item => item.VehicleRegistration).SingleAsync());
         Assert.Equal("PG18BTY", await context.CaseMatchIndex.Where(item =>
             item.CaseId == caseId).Select(item => item.NormalizedVrm).SingleAsync());
-    }
-
-    private sealed class ConnectedContextFactory(DbContextOptions<PegasusDbContext> options)
-        : IDbContextFactory<PegasusDbContext>
-    {
-        public PegasusDbContext CreateDbContext() => new(options);
     }
 
     /// <summary>A synthetic Connexus report: one readable page, no scanned pages.</summary>

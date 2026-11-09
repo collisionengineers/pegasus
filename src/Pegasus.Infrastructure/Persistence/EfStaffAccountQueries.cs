@@ -180,7 +180,15 @@ public sealed class EfStaffAccountQueries(
         (await GetManyAsync(staffIds, cancellationToken))
             .ToDictionary(account => account.Id, account => account.UserName);
 
-    public async Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+    /// <summary>
+    /// The eligible sign-off Engineers, kept by <see cref="StaffAccountReads"/>
+    /// until an account write evicts them (#1950).
+    /// </summary>
+    public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+        CancellationToken cancellationToken) =>
+        accountReads.GetOrReadSignOffEngineersAsync(ReadSignOffEngineersAsync, cancellationToken);
+
+    private async Task<IReadOnlyList<SignOffEngineerProfile>> ReadSignOffEngineersAsync(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -190,7 +198,8 @@ public sealed class EfStaffAccountQueries(
     /// <summary>
     /// The eligible sign-off Engineers read on a caller's own context, so a
     /// store that already holds one (and perhaps its transaction) reads them
-    /// there.
+    /// there. Never kept: this is the read a staleness check makes under the
+    /// workflow lock, and it must see the row as it is.
     /// </summary>
     internal static async Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
         PegasusDbContext context,
@@ -221,7 +230,21 @@ public sealed class EfStaffAccountQueries(
             .ToArray();
     }
 
-    public async Task<SignOffSignature?> GetSignOffSignatureAsync(
+    /// <summary>
+    /// The signature bytes of one eligible sign-off Engineer, kept by
+    /// <see cref="StaffAccountReads"/> until a write to that account evicts
+    /// them (#1950): a Case open, a Save answer and a report compose each read
+    /// them, and a signature can be up to 1 MiB.
+    /// </summary>
+    public Task<SignOffSignature?> GetSignOffSignatureAsync(
+        Guid staffId,
+        CancellationToken cancellationToken) =>
+        accountReads.GetOrReadSignOffSignatureAsync(
+            staffId,
+            token => ReadSignOffSignatureAsync(staffId, token),
+            cancellationToken);
+
+    private async Task<SignOffSignature?> ReadSignOffSignatureAsync(
         Guid staffId,
         CancellationToken cancellationToken)
     {
@@ -231,7 +254,8 @@ public sealed class EfStaffAccountQueries(
 
     /// <summary>
     /// The signature bytes of one eligible sign-off Engineer, read where a
-    /// report is composed or compared and nowhere else.
+    /// report is composed or compared and nowhere else. Never kept: a store
+    /// compares it under the workflow lock.
     /// </summary>
     internal static async Task<SignOffSignature?> GetSignOffSignatureAsync(
         PegasusDbContext context,

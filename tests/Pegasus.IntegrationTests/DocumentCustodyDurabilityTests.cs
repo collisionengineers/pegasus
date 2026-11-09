@@ -1686,6 +1686,12 @@ public sealed class DocumentCustodyDurabilityTests
                         lease.Token),
                     CancellationToken.None));
 
+            // This read keeps the vocabulary (#1950), so the Contains after the create proves its eviction.
+            var vocabularyReader = scope.ServiceProvider.GetRequiredService<IReadImageTagVocabulary>();
+            Assert.DoesNotContain(
+                await vocabularyReader.ListAsync(CancellationToken.None),
+                tag => tag.Name == "Underside");
+
             var creator = scope.ServiceProvider.GetRequiredService<ICreateImageTag>();
             var operationKey = $"image-tag-create:{Guid.NewGuid():N}";
             var created = await creator.ExecuteAsync(
@@ -1701,9 +1707,7 @@ public sealed class DocumentCustodyDurabilityTests
                 new("UNDERSIDE", ImageTagColour.Blue, actor, $"image-tag-create:{Guid.NewGuid():N}"),
                 CancellationToken.None));
 
-            var vocabulary = await scope.ServiceProvider
-                .GetRequiredService<IReadImageTagVocabulary>()
-                .ListAsync(CancellationToken.None);
+            var vocabulary = await vocabularyReader.ListAsync(CancellationToken.None);
             string[] builtIn = ["Close-up", "Overview", "Reflection", "Third party"];
             Assert.Equal(
                 builtIn,

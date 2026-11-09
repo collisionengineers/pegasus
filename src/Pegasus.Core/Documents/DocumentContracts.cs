@@ -659,7 +659,15 @@ public sealed record ManagedDocumentContentAddress(
 public enum DocumentContentWriteDisposition
 {
     Created,
-    Replay
+    Replay,
+
+    /// <summary>
+    /// The store could not file the bytes now and created nothing, so the
+    /// result carries no identities; the version stays pending for
+    /// reconciliation. Box answers it when the series file took another
+    /// version during the upload twice over (R764).
+    /// </summary>
+    Deferred
 }
 
 public sealed record DocumentContentWriteResult(

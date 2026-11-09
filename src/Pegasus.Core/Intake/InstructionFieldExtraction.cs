@@ -102,6 +102,17 @@ internal static partial class InstructionFieldEngine
             internal Regex FollowingLabel(int index) => followingLabel[index];
         }
 
+        /// <summary>
+        /// How long any one label pattern may take to match a line. Every
+        /// pattern below is bounded (a label literal, single-level
+        /// quantifiers, one line of input), so this guards against a stalled
+        /// host, not against backtracking: the 100 ms it replaced ran out on a
+        /// loaded CI runner matching one short line through the interpreter
+        /// (issue #1822, 1 November 2026), as the Glass's adapter's did
+        /// (issue 1021).
+        /// </summary>
+        internal static readonly TimeSpan LabelMatchTimeout = TimeSpan.FromSeconds(1);
+
         private readonly Dictionary<FieldDefinition, DefinitionPatterns> patterns = [];
         private readonly HashSet<string> knownLabels = new(StringComparer.Ordinal);
 
@@ -123,19 +134,19 @@ internal static partial class InstructionFieldEngine
                     candidate[index] = new(
                         $@"(?i)(?:^|[|;\t]\s*|\s{{2,}}){guard}{label}(?!['\w])\s*(?::|-)?\s*(?<value>.*)$",
                         RegexOptions.CultureInvariant,
-                        TimeSpan.FromMilliseconds(100));
+                        LabelMatchTimeout);
                     explicitCandidate[index] = new(
                         $@"(?i)(?:^|\s){guard}{label}(?!['\w])\s*(?::|-)\s*(?<value>.*)$",
                         RegexOptions.CultureInvariant,
-                        TimeSpan.FromMilliseconds(100));
+                        LabelMatchTimeout);
                     startsWith[index] = new(
                         $@"(?i)^{label}(?:\s*(?::|-|\|)\s*|\s+|$)",
                         RegexOptions.CultureInvariant,
-                        TimeSpan.FromMilliseconds(100));
+                        LabelMatchTimeout);
                     followingLabel[index] = new(
                         $@"(?i)(?:^|\s){label}\s*(?::|-)",
                         RegexOptions.CultureInvariant,
-                        TimeSpan.FromMilliseconds(100));
+                        LabelMatchTimeout);
                 }
 
                 var normalizedLabels = definition.Labels.Select(SourceStructure.Normalize).ToArray();

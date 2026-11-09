@@ -128,6 +128,8 @@ public static class CaseWorkspaceLabels
         public const string ReviewEstimate = "Review AI Proposal";
         /// <summary>The Next action row an open Case shows while a linked message is a cancellation (FRD-13).</summary>
         public const string CancellationReceived = "Cancellation received";
+        /// <summary>The Damage markers step's control to the Case's images window (operator, 8 November 2026; R757).</summary>
+        public const string ViewImages = "View images";
         public const string Review = "Review";
         public const string CaseType = "Case type";
         public const string ClaimReference = "Claim reference";

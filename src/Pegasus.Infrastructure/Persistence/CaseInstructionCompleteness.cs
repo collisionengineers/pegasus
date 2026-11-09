@@ -21,6 +21,28 @@ internal static class CaseInstructionCompleteness
             CaseDataFieldWriter.ReadEditable(snapshot),
             snapshot.Work.Case.Principal.ReferenceScheme == PrincipalReferenceSchemes.Registration);
 
+    /// <summary>The Case's own mileage, as its accepted data answers it.</summary>
+    internal static long? Mileage(CaseDataSnapshotEntity snapshot) =>
+        CaseDataFieldWriter.ReadEditable(snapshot).VehicleMileage;
+
+    /// <summary>
+    /// Whether the mileage gate lets the Case into Review from its stored
+    /// state (R759): a Case with no mileage stays Not ready; one past Not
+    /// ready has passed the gate.
+    /// </summary>
+    internal static bool MileageGateOpen(CaseDataSnapshotEntity snapshot, string workflowState) =>
+        CaseCompletenessPolicy.MileageGateOpen(Enum.Parse<CaseLifecycleState>(workflowState), Mileage(snapshot));
+
+    /// <summary>The mileage gate (<see cref="MileageGateOpen(CaseDataSnapshotEntity, string)"/>) read from the Case's stored data.</summary>
+    internal static async Task<bool> MileageGateOpenAsync(
+        PegasusDbContext db, Guid caseId, string workflowState, CancellationToken cancellationToken)
+    {
+        var snapshot = await EfCaseDataStore.SnapshotQuery(db, tracking: false)
+            .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken)
+            ?? throw new InvalidDataException("The Case has no data snapshot.");
+        return MileageGateOpen(snapshot, workflowState);
+    }
+
     /// <summary>
     /// Marks the Case's instruction complete once its data answers every
     /// required item. Returns whether the stored fact changed.
@@ -41,7 +63,8 @@ internal static class CaseInstructionCompleteness
     /// Re-evaluates readiness from the Case's stored facts after a system
     /// write changed one, and records the policy it used: a Not ready or
     /// Review Case with no Engineer moves to Review when nothing required is
-    /// missing, and otherwise stays Not ready with its chase scheduled.
+    /// missing, the mileage included (R759), and otherwise stays Not ready
+    /// with its chase scheduled.
     /// </summary>
     internal static async Task<CaseCompletenessEvaluation> ApplyReadinessAsync(
         PegasusDbContext db,
@@ -57,7 +80,8 @@ internal static class CaseInstructionCompleteness
             new CaseCompleteness(
                 snapshot.Work.Case.InstructionComplete,
                 snapshot.Work.Case.ImagesComplete),
-            configuration);
+            configuration,
+            MileageGateOpen(snapshot, workflow.State));
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;

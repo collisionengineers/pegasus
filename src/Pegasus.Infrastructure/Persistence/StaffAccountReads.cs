@@ -1,17 +1,22 @@
 using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.Actors;
+using Pegasus.Core.Identity;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// The staff cookie check's account read and the staff display names, each
-/// kept in <see cref="IMemoryCache"/> through <see cref="EvictableCacheEntry"/>
-/// for <see cref="StaffSessionPolicy.AccountReadLifetime"/>. Every account
-/// writer in this process evicts the account after its commit, so a change made
-/// in Pegasus is seen on the next request; a change made outside it (direct
-/// SQL, the intake wipe) is seen once the read expires. The Web runs as one
-/// instance (ADR-0058), which is what makes in-process eviction exact. An id
-/// with no account is never kept.
+/// The staff cookie check's account read, the staff display names, the eligible
+/// sign-off Engineer list and each sign-off Engineer's signature, each kept in
+/// <see cref="IMemoryCache"/> through <see cref="EvictableCacheEntry"/> for
+/// <see cref="StaffSessionPolicy.AccountReadLifetime"/>. Every account writer in
+/// this process evicts the account after its commit, and with it the sign-off
+/// list (one settings save can change two accounts: the new default and the
+/// previous one), so a change made in Pegasus is seen on the next request; a
+/// change made outside it (direct SQL, the intake wipe) is seen once the read
+/// expires. The Web runs as one instance (ADR-0058), which is what makes
+/// in-process eviction exact. An id with no account, and an account with no
+/// eligible signature, is never kept. The reads a store makes inside its own
+/// transaction (<c>EfStaffAccountQueries</c>'s static methods) never come here.
 /// </summary>
 public sealed class StaffAccountReads(IMemoryCache cache)
 {
@@ -19,6 +24,12 @@ public sealed class StaffAccountReads(IMemoryCache cache)
     private readonly record struct ReadKey(Guid StaffId);
 
     private readonly record struct NameKey(Guid StaffId);
+
+    private readonly record struct SignatureKey(Guid StaffId);
+
+    // One list for the process: eligibility, printed name and default flag all
+    // live on the accounts, so any account write evicts it (#1950).
+    private static readonly object SignOffEngineersKey = new();
 
     /// <summary>
     /// The kept account read, or <paramref name="read"/>'s answer, kept unless
@@ -89,10 +100,38 @@ public sealed class StaffAccountReads(IMemoryCache cache)
         return names;
     }
 
+    /// <summary>
+    /// The kept eligible sign-off Engineer list, or <paramref name="read"/>'s
+    /// answer, kept (an empty list included) until any account write evicts it.
+    /// </summary>
+    public Task<IReadOnlyList<SignOffEngineerProfile>> GetOrReadSignOffEngineersAsync(
+        Func<CancellationToken, Task<IReadOnlyList<SignOffEngineerProfile>>> read,
+        CancellationToken cancellationToken) =>
+        EvictableCacheEntry.GetOrReadAsync(
+            cache,
+            SignOffEngineersKey,
+            StaffSessionPolicy.AccountReadLifetime,
+            slidingWindow: null,
+            read,
+            cancellationToken);
+
+    /// <summary>
+    /// The kept signature of one sign-off Engineer (up to 1 MiB), or
+    /// <paramref name="read"/>'s answer, kept unless it is null (not an eligible
+    /// sign-off Engineer) or an eviction of the account landed while it ran.
+    /// </summary>
+    public Task<SignOffSignature?> GetOrReadSignOffSignatureAsync(
+        Guid staffId,
+        Func<CancellationToken, Task<SignOffSignature?>> read,
+        CancellationToken cancellationToken) =>
+        GetOrReadFoundAsync(new SignatureKey(staffId), read, cancellationToken);
+
     public void Evict(Guid staffId)
     {
         EvictableCacheEntry.Evict(cache, new ReadKey(staffId));
         EvictableCacheEntry.Evict(cache, new NameKey(staffId));
+        EvictableCacheEntry.Evict(cache, new SignatureKey(staffId));
+        EvictableCacheEntry.Evict(cache, SignOffEngineersKey);
     }
 
     private static async Task<IReadOnlyDictionary<Guid, string>> ReadWhenSignalsAreTakenAsync(

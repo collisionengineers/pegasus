@@ -11,13 +11,14 @@ namespace Pegasus.Web.Presentation;
 public static class DamageEditorTables
 {
     // The plan the marker editor works with, handed to script once so the
-    // browser holds no second copy of the body box, the disc limits or the
-    // burst.
+    // browser holds no second copy of the body box, the disc limits, the
+    // margin a centre may sit past the box, or the burst.
     public static readonly string PlanTable = JsonSerializer.Serialize(new
     {
         box = new { x = DamagePlanGeometry.PlanLeft, y = DamagePlanGeometry.PlanTop, w = DamagePlanGeometry.PlanWidth, h = DamagePlanGeometry.PlanHeight },
         minRadius = DamageAreaGeometry.MinRadius,
         maxRadius = DamageAreaGeometry.MaxRadius,
+        margin = new { x = DamageAreaGeometry.MarginX, y = DamageAreaGeometry.MarginY },
         burst = new
         {
             points = DamageBurst.Points,

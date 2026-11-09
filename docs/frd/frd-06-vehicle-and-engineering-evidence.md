@@ -213,7 +213,8 @@ be edited
 **Report images are prepared without changing the source.** The retained
 bytes and their hashes never change. Every crop or ordering act writes
 normalised output beside the source. A report needs one image in the
-report, tagged `Overview`, which prints first; one tagged `Close-up` is
+report, tagged `Overview`, which prints first and again first on the image
+pages (R660, 4 November 2026; #1902); one tagged `Close-up` is
 optional and prints second (operator, 7 October 2026). The tags fix those
 two places: ordering moves only the other images. Where more than one carries a
 tag, the first in the order the operator set prints as it and the rest as
@@ -338,6 +339,10 @@ from where the Case mileage came from; it is not recorded separately.
 | Staff-entered: the Case page reads Custom, and nothing is picked (operator, 12 October 2026) | `online_data` |
 | Estimated from the MOT history: the Case page reads Estimated | `estimated` |
 | No mileage on the Case | `tbc` |
+
+A Case cannot reach Review without a mileage ([FRD-13](frd-13-case-lifecycle-and-workflow.md);
+[R759](../rulings.md)), so `tbc` is printed only for a Case that reached Review
+before that rule or whose mileage was cleared afterwards.
 
 The `owner`, `repairer` and `average` codes are still renderer sentences, but
 nothing derives them. Staff no longer record a separate mileage-source report

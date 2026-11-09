@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Custody;
@@ -383,28 +384,23 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
             .ExecuteAsync(harness.Request(), default);
         await using var context = await harness.Factory.CreateDbContextAsync();
-        await context.Database.OpenConnectionAsync();
         await context.Database.ExecuteSqlRawAsync("CREATE USER [report_custody_caller] WITHOUT LOGIN;");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"EXEC sys.sp_addrolemember @rolename = {role}, @membername = N'report_custody_caller';");
-        await context.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'report_custody_caller';");
-        try
+        await harness.Database.AsDatabaseUserAsync("report_custody_caller", async connection =>
         {
-            await using var transaction = await context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            await using var caller = new ConnectedContextFactory(connection).CreateDbContext();
+            await using var transaction = await caller.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             await EfCaseArtifactCustody.RecordConfirmedSourceChangeAsync(
-                context, harness.CaseId, harness.OperationKey, Harness.StartUtc, default);
-            Assert.Equal(1, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId)).Version);
+                caller, harness.CaseId, harness.OperationKey, Harness.StartUtc, default);
+            Assert.Equal(1, (await caller.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId)).Version);
             Assert.Equal(nameof(CaseReportGenerationState.Confirmed),
-                (await context.Set<CaseReportGenerationEntity>().SingleAsync(item => item.CaseId == harness.CaseId)).State);
+                (await caller.Set<CaseReportGenerationEntity>().SingleAsync(item => item.CaseId == harness.CaseId)).State);
 
             await EfCaseArtifactCustody.RecordConfirmedSourceChangeAsync(
-                context, harness.CaseId, harness.Key("glass-estimate-source"), Harness.StartUtc, default);
+                caller, harness.CaseId, harness.Key("glass-estimate-source"), Harness.StartUtc, default);
             await transaction.CommitAsync();
-        }
-        finally
-        {
-            await context.Database.ExecuteSqlRawAsync("REVERT;");
-        }
+        });
 
         Assert.Equal(CaseReportGenerationState.Stale, Assert.Single(await harness.GenerationRowsAsync()).State);
         var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == harness.CaseId);
@@ -418,29 +414,18 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
     public async Task WebRuntimeRoleCanFreezeAndConfirmThroughTheActualReportStore()
     {
         await using var harness = await Harness.CreateIsolatedAsync();
-        await using var connectionOwner = await harness.Factory.CreateDbContextAsync();
-        await connectionOwner.Database.OpenConnectionAsync();
-        await connectionOwner.Database.ExecuteSqlRawAsync(
+        await harness.Database.ExecuteAsync(
             "CREATE USER [report_generation_caller] WITHOUT LOGIN; ALTER ROLE [pegasus_web_runtime_role] ADD MEMBER [report_generation_caller];");
-        await connectionOwner.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'report_generation_caller';");
-        try
+        await harness.Database.AsDatabaseUserAsync("report_generation_caller", async connection =>
         {
-            // EF does not own this already-open connection. Both store
-            // transactions run under the same real runtime impersonation.
-            var factory = new PooledDbContextFactory<PegasusDbContext>(
-                new DbContextOptionsBuilder<PegasusDbContext>()
-                    .UseSqlServer(connectionOwner.Database.GetDbConnection()).Options);
+            // Both store transactions run under the same real runtime impersonation.
             var result = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness),
-                    store: harness.StoreUsing(factory))
+                    store: harness.StoreUsing(new ConnectedContextFactory(connection)))
                 .ExecuteAsync(harness.Request(), default);
 
             Assert.Equal(CaseReportGenerationState.Confirmed, result.Generation!.State);
             Assert.Equal(CaseReportArtifactStatus.Confirmed, Assert.Single(result.Generation.Artifacts).Status);
-        }
-        finally
-        {
-            await connectionOwner.Database.ExecuteSqlRawAsync("REVERT;");
-        }
+        });
     }
 
     [Fact]
@@ -903,28 +888,17 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         await harness.Generate(custody, new RecordingRenderer(harness))
             .ExecuteAsync(harness.Request(), CancellationToken.None);
         await harness.RecordCustodyOccurrenceAsync(custody, harness.OperationKey);
-        await using var connectionOwner = await harness.Factory.CreateDbContextAsync();
-        await connectionOwner.Database.OpenConnectionAsync();
-        await connectionOwner.Database.ExecuteSqlRawAsync(
+        await harness.Database.ExecuteAsync(
             "CREATE USER [report_settlement_caller] WITHOUT LOGIN; ALTER ROLE [pegasus_worker_runtime_role] ADD MEMBER [report_settlement_caller];");
-        await connectionOwner.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'report_settlement_caller';");
-        try
+        await harness.Database.AsDatabaseUserAsync("report_settlement_caller", async connection =>
         {
-            // EF does not own this already-open connection. The pass's read
-            // and its confirmation both run under the real runtime role.
-            var factory = new PooledDbContextFactory<PegasusDbContext>(
-                new DbContextOptionsBuilder<PegasusDbContext>()
-                    .UseSqlServer(connectionOwner.Database.GetDbConnection()).Options);
+            // The pass's read and its confirmation both run under the real runtime role.
             var settled = await new EfSettleFiledCaseReportArtifacts(
-                    factory, Harness.ClockAt(Harness.StartUtc.AddMinutes(4)))
+                    new ConnectedContextFactory(connection), Harness.ClockAt(Harness.StartUtc.AddMinutes(4)))
                 .ExecuteAsync(50, CancellationToken.None);
 
             Assert.Equal(1, settled);
-        }
-        finally
-        {
-            await connectionOwner.Database.ExecuteSqlRawAsync("REVERT;");
-        }
+        });
 
         var generation = Assert.Single(await harness.GenerationRowsAsync());
         Assert.Equal(CaseReportGenerationState.Confirmed, generation.State);
@@ -2002,6 +1976,9 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         /// <summary>The database this harness works in, for a reader that needs its own context options.</summary>
         public string ConnectionString => database.ConnectionString;
 
+        /// <summary>The database this harness works in, for a caller that runs as a database user.</summary>
+        public LocalDbTestDatabase Database => database.Database;
+
         public Guid CaseId { get; }
 
         /// <summary>The sign-off Engineer the Case is signed off by.</summary>
@@ -2188,7 +2165,8 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         {
             await using var scope = database.CreateAsyncScope();
             var store = new EfDocumentCustodyStore(Factory,
-                scope.ServiceProvider.GetRequiredService<IDocumentContentStore>(), Clock);
+                scope.ServiceProvider.GetRequiredService<IDocumentContentStore>(), Clock,
+                scope.ServiceProvider.GetRequiredService<IMemoryCache>());
             await store.ExecuteAsync(new(CaseId, "instruction.pdf", "application/pdf", Source.Content,
                 DocumentSemanticRole.Instruction, DocumentSource.Generated, "source-change",
                 StaffActor, Key("add-source"), 1, Lease.Token), default);
@@ -2198,7 +2176,8 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         {
             await using var scope = database.CreateAsyncScope();
             ILogicallyRemoveDocument store = new EfDocumentCustodyStore(Factory,
-                scope.ServiceProvider.GetRequiredService<IDocumentContentStore>(), Clock);
+                scope.ServiceProvider.GetRequiredService<IDocumentContentStore>(), Clock,
+                scope.ServiceProvider.GetRequiredService<IMemoryCache>());
             await store.ExecuteAsync(new(CaseId, Source.OccurrenceId, StaffActor,
                 "Incorrect source document", Key("remove-source"), 1, Lease.Token), default);
         }
@@ -2318,7 +2297,7 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
             var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
             var store = new EfStaffAccountAdministration(context,
                 scope.ServiceProvider.GetRequiredService<UserManager<PegasusIdentityUser>>(),
-                new StaffAccountReads(TimeProviderMemoryCache.Create(Clock)), Clock);
+                scope.ServiceProvider.GetRequiredService<StaffAccountReads>(), Clock);
             var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
             var account = await context.Users.SingleAsync(
                 item => item.Id == SignatoryId);
@@ -3449,7 +3428,7 @@ public sealed class ReportGenerationDatabase : IAsyncLifetime
 
     internal string ConnectionString => Database.ConnectionString;
 
-    private LocalDbTestDatabase Database =>
+    internal LocalDbTestDatabase Database =>
         database ?? throw new InvalidOperationException("The database has not been created.");
 
     /// <summary>A database of its own, for a test that cannot share the class's.</summary>

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -873,6 +874,23 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             {
                 CaseId = id, PrincipalCode = "QDOS", DurableClaimToken = "48450/1",
                 MatchPolicyKey = "principal_case_match", MatchPolicyVersion = 1, UpdatedAtUtc = now
+            },
+            // The Case has its mileage: no mileage would keep it Not ready (R759).
+            new CaseDataFieldEntity
+            {
+                WorkId = id, FieldName = CaseDataFieldNames.VehicleMileage, ValueKind = CaseDataCodes.Confirmed,
+                ValueType = CaseDataCodes.Integer, Value = "41200", SourceKind = "intake_evidence",
+                SourceIdentity = "mileage", SourceLabel = "associated mail fixture",
+                PolicyKey = "associated-mail-fixture", PolicyVersion = 1,
+                ConfirmedByActor = "staff", ConfirmedAtUtc = now
+            },
+            new CaseDataFieldEntity
+            {
+                WorkId = id, FieldName = CaseDataFieldNames.VehicleMileageUnit, ValueKind = CaseDataCodes.Confirmed,
+                ValueType = CaseDataCodes.Text, Value = "miles", SourceKind = "intake_evidence",
+                SourceIdentity = "mileage-unit", SourceLabel = "associated mail fixture",
+                PolicyKey = "associated-mail-fixture", PolicyVersion = 1,
+                ConfirmedByActor = "staff", ConfirmedAtUtc = now
             });
         await db.SaveChangesAsync();
         return id;

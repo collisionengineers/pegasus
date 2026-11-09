@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.Actors;
+using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
@@ -7,6 +8,10 @@ namespace Pegasus.IntegrationTests;
 public sealed class StaffAccountReadsTests
 {
     private static readonly StaffAccountRead Read = new("stamp", IsEnabled: true, MustChangePassword: false);
+
+    private static readonly byte[] SignatureBytes = [0x89, 0x50, 0x4e, 0x47];
+
+    private static readonly SignOffSignature Signature = new(SignatureBytes, SignOffSignaturePolicy.MediaType);
 
     [Fact]
     public async Task AReadIsKeptUntilItsLifetimeEnds()
@@ -80,9 +85,75 @@ public sealed class StaffAccountReadsTests
         Assert.Empty(await reads.GetOrReadNamesAsync([staffId], NoNames, default));
     }
 
+    [Fact]
+    public async Task TheSignOffListIsKeptUntilAnyAccountIsEvictedAndRefusesOneReadBeforeIt()
+    {
+        var reads = new StaffAccountReads(new MemoryCache(new MemoryCacheOptions()));
+        var listReads = 0;
+        Task<IReadOnlyList<SignOffEngineerProfile>> NoEngineers(CancellationToken _)
+        {
+            listReads++;
+            return Task.FromResult<IReadOnlyList<SignOffEngineerProfile>>([]);
+        }
+
+        // An empty list is kept too.
+        Assert.Empty(await reads.GetOrReadSignOffEngineersAsync(NoEngineers, default));
+        Assert.Empty(await reads.GetOrReadSignOffEngineersAsync(NoEngineers, default));
+        Assert.Equal(1, listReads);
+
+        // Any account's write evicts the list: one settings save can move the default between two accounts.
+        reads.Evict(Guid.NewGuid());
+        await reads.GetOrReadSignOffEngineersAsync(NoEngineers, default);
+        Assert.Equal(2, listReads);
+
+        // The list was read, then an account change committed and evicted.
+        reads.Evict(Guid.NewGuid());
+        await reads.GetOrReadSignOffEngineersAsync(
+            cancellationToken =>
+            {
+                reads.Evict(Guid.NewGuid());
+                return NoEngineers(cancellationToken);
+            },
+            default);
+        await reads.GetOrReadSignOffEngineersAsync(NoEngineers, default);
+        Assert.Equal(4, listReads);
+    }
+
+    [Fact]
+    public async Task ASignatureIsKeptPerAccountAndANullIsNeverKept()
+    {
+        var reads = new StaffAccountReads(new MemoryCache(new MemoryCacheOptions()));
+        var engineerA = Guid.NewGuid();
+        var engineerB = Guid.NewGuid();
+        await reads.GetOrReadSignOffSignatureAsync(engineerA, Signed, default);
+
+        reads.Evict(engineerB);
+        Assert.Same(Signature, await reads.GetOrReadSignOffSignatureAsync(engineerA, Unsigned, default));
+        reads.Evict(engineerA);
+        Assert.Null(await reads.GetOrReadSignOffSignatureAsync(engineerA, Unsigned, default));
+        Assert.Same(Signature, await reads.GetOrReadSignOffSignatureAsync(engineerA, Signed, default));
+
+        // A signature was read, then a change to that account committed and evicted.
+        reads.Evict(engineerA);
+        var stale = await reads.GetOrReadSignOffSignatureAsync(
+            engineerA,
+            cancellationToken =>
+            {
+                reads.Evict(engineerA);
+                return Signed(cancellationToken);
+            },
+            default);
+        Assert.Same(Signature, stale);
+        Assert.Null(await reads.GetOrReadSignOffSignatureAsync(engineerA, Unsigned, default));
+    }
+
     private static Task<StaffAccountRead?> Found(CancellationToken _) => Task.FromResult<StaffAccountRead?>(Read);
 
     private static Task<StaffAccountRead?> Missing(CancellationToken _) => Task.FromResult<StaffAccountRead?>(null);
+
+    private static Task<SignOffSignature?> Signed(CancellationToken _) => Task.FromResult<SignOffSignature?>(Signature);
+
+    private static Task<SignOffSignature?> Unsigned(CancellationToken _) => Task.FromResult<SignOffSignature?>(null);
 
     private static Task<IReadOnlyDictionary<Guid, string>> Alex(
         IReadOnlyCollection<Guid> staffIds,

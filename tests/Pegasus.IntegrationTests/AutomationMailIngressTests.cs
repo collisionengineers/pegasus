@@ -727,11 +727,6 @@ public sealed class AutomationMailIngressTests
     }
 
     /// <summary>
-    /// Seeds retained inbox messages exactly as the poller's retention path
-    /// writes them, plus the poll state the freshness read model consumes —
-    /// the same fixture shape as <see cref="MailWorkspaceWebTests"/>.
-    /// </summary>
-    /// <summary>
     /// The classifier agent's attachment read: the text the intake reader put
     /// in the message's search documents, by the attachment's position, cut at
     /// the caller's cap; a position the message does not have is refused.
@@ -889,6 +884,11 @@ public sealed class AutomationMailIngressTests
         }
     }
 
+    /// <summary>
+    /// Seeds retained inbox messages exactly as the poller's retention path
+    /// writes them, plus the poll state the freshness read model consumes —
+    /// the same fixture shape as <see cref="MailWorkspaceWebTests"/>.
+    /// </summary>
     private static async Task<Guid[]> SeedRetainedAsync(
         Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> factory,
         int count)

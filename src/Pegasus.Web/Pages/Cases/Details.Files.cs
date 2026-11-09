@@ -43,6 +43,15 @@ public sealed partial class DetailsModel
             ? []
             : [.. CaseFiles.Current(FilesSection?.Documents ?? Case!.Documents).Where(IsCaseImage)];
 
+    /// <summary>
+    /// Whether one of the Case's images can be read: the images window is
+    /// offered from Files' Pop out and the Damage markers step's View images
+    /// once it is, and is absent, never disabled, before (operator, 9 October
+    /// and 8 November 2026; R757).
+    /// </summary>
+    public bool HasReadableImage =>
+        CaseImageFiles.Any(file => file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed);
+
     /// <summary>The Images tab's tile order (<see cref="CaseFileAddresses.ReportOrdered"/>).</summary>
     public IReadOnlyList<CaseFile> ReportOrderedCaseImageFiles(IReadOnlyDictionary<Guid, PreparedReportImage> places) =>
         CaseFileAddresses.ReportOrdered(CaseImageFiles, places);
