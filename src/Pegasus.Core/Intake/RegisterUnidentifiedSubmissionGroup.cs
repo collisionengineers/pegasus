@@ -10,7 +10,8 @@ namespace Pegasus.Core.Intake;
 /// while the group is pending, so every member stays in retained blob storage
 /// until then (operator, 19 October 2026; R382). It holds the member receipts
 /// the caller's pass already read and never reads the group or a member
-/// receipt again.
+/// receipt again. A photo link's group is never Unidentified (FRD-28): it is
+/// neither held nor registered here.
 /// </summary>
 public sealed class RegisterUnidentifiedSubmissionGroup(
     ProcessIntake processIntake,
@@ -20,14 +21,22 @@ public sealed class RegisterUnidentifiedSubmissionGroup(
     /// Holds each of <paramref name="members"/> that holding requires, then
     /// registers <paramref name="request"/>. An unconfirmed hand-over throws
     /// before anything is registered, so the caller's retry runs both again.
+    /// Returns whether the group was registered: one from a
+    /// <paramref name="channel"/> that never becomes Unidentified is not.
     /// </summary>
-    public async Task ExecuteAsync(
+    public async Task<bool> ExecuteAsync(
+        IntakeSourceChannel channel,
         RegisterUnidentifiedRequest request,
         IEnumerable<IntakeReceipt> members,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(members);
+        if (!PhotoCapture.PhotoCaptureIntakeRules.BecomesUnidentified(channel))
+        {
+            return false;
+        }
+
         foreach (var member in members)
         {
             if (ProcessIntake.RequiresHolding(member, AutomaticCaseEvidencePromotionOutcome.NotApplicable))
@@ -37,5 +46,6 @@ public sealed class RegisterUnidentifiedSubmissionGroup(
         }
 
         await registerUnidentified.ExecuteAsync(request, cancellationToken);
+        return true;
     }
 }

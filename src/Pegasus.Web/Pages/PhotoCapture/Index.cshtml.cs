@@ -147,16 +147,21 @@ public sealed class IndexModel(
         return Page();
     }
 
-    /// <summary>The state and due reminder a row derives, from its own record and missing items.</summary>
+    /// <summary>
+    /// The state and due reminder a row derives, from its own record and
+    /// missing items; a link whose Case is archived is dead (R793).
+    /// </summary>
     public static Row Derive(PhotoCaptureListRow row, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(row);
         IReadOnlyList<MissingCaptureItem> missing = [.. row.MissingItems.Select(label => new MissingCaptureItem(label, label))];
         return new(
             row,
-            PhotoCaptureStatus.Evaluate(row.Capture, missing, now),
-            row.Capture.Origin == PhotoCaptureOrigin.CaseLink ? PhotoCaptureStatus.DueReminder(row.Capture, missing, now) : null,
-            PhotoCaptureAccess.IsLive(row.Capture, now));
+            PhotoCaptureStatus.Evaluate(row.Capture, missing, now, row.CaseArchived),
+            row.Capture.Origin == PhotoCaptureOrigin.CaseLink
+                ? PhotoCaptureStatus.DueReminder(row.Capture, missing, now, row.CaseArchived)
+                : null,
+            PhotoCaptureAccess.IsLive(row.Capture, now, row.CaseArchived));
     }
 
     /// <summary>The headline states this tab counts, in the order the left pane lists them.</summary>

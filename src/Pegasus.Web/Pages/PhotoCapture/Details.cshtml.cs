@@ -69,7 +69,7 @@ public sealed class DetailsModel(
     /// <summary>The e-mail a Resend or Remind just sent, read off as the Send chaser reads its own.</summary>
     public StaffMailOperation? Operation { get; private set; }
 
-    public bool IsLive => PhotoCaptureAccess.IsLive(Capture, Now);
+    public bool IsLive => PhotoCaptureAccess.IsLive(Capture, Now, Row.CaseArchived);
 
     public bool IsCaseLink => Capture.Origin == PhotoCaptureOrigin.CaseLink;
 
@@ -78,7 +78,8 @@ public sealed class DetailsModel(
 
     public bool OffersLogCall => IsCaseLink && !Capture.IsRevoked;
 
-    public bool OffersExtend => !Capture.IsRevoked;
+    /// <summary>A link whose Case is archived is dead and is not extended (R793).</summary>
+    public bool OffersExtend => !Capture.IsRevoked && !Row.CaseArchived;
 
     public bool OffersCancel => IsLive;
 

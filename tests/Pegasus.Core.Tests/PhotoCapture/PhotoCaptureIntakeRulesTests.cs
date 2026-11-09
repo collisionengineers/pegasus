@@ -119,6 +119,24 @@ public sealed class PhotoCaptureIntakeRulesTests
         Assert.False(PhotoCaptureIntakeRules.DefersCaseImageCompletion(IntakeSourceChannel.ManualUpload));
     }
 
+    /// <summary>
+    /// Any receipt of a photo link's batch drives its group, a video or
+    /// paperwork as much as a photo; nothing else does by its channel alone.
+    /// </summary>
+    [Theory]
+    [InlineData(IntakeSourceChannel.PhotoCapture, true)]
+    [InlineData(IntakeSourceChannel.ManualUpload, false)]
+    [InlineData(IntakeSourceChannel.Mailbox, false)]
+    public void APhotoLinksReceiptRoutesWithItsGroupWhateverItHolds(IntakeSourceChannel channel, bool routes)
+    {
+        var receipt = Pegasus.Core.Tests.Intake.ThirdPartyReports.VehicleCaptureFixture.Receipt() with
+        {
+            SourceIdentity = new(channel, "11111111111111111111111111111111-1")
+        };
+
+        Assert.Equal(routes, PhotoCaptureIntakeRules.RoutesWithItsGroup(receipt));
+    }
+
     [Fact]
     public void TheActorIdentityRoundTrips()
     {

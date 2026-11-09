@@ -173,7 +173,7 @@ public sealed class SettlePhotoCapturesTests
 
         public Task<Core.PhotoCapture.PhotoCapture> CreateAsync(NewPhotoCapture capture, string tokenDigest, PhotoLinkTokenPurpose tokenPurpose, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Core.PhotoCapture.PhotoCapture?> GetAsync(Guid captureId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<(Core.PhotoCapture.PhotoCapture Capture, bool TokenRevoked)?> FindByTokenDigestAsync(string tokenDigest, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<(Core.PhotoCapture.PhotoCapture Capture, bool TokenRevoked, bool CaseArchived)?> FindByTokenDigestAsync(string tokenDigest, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task AddTokenAsync(Guid captureId, string tokenDigest, PhotoLinkTokenPurpose purpose, Guid? issuedByStaffId, DateTimeOffset issuedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Core.PhotoCapture.PhotoCapture> RecordOpenedAsync(Guid captureId, DateTimeOffset openedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Core.PhotoCapture.PhotoCapture> RecordDetailsAsync(Guid captureId, long expectedVersion, string? normalizedRegistration, DateOnly? incidentDate, string? customerName, string? mobile, string? email, PhotoCaptureDetails details, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -181,6 +181,8 @@ public sealed class SettlePhotoCapturesTests
         public Task<PhotoCaptureItemWriteResult> AddItemAsync(NewPhotoCaptureItem item, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task RecordItemReceiptAsync(Guid itemId, Guid stagedReceiptId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task RecordItemProcessedAsync(Guid itemId, Guid intakeReceiptId, Guid? intakeAssetId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<bool> ReserveOriginalAsync(Guid itemId, long contentLength, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task ReleaseOriginalAsync(Guid itemId, long contentLength, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task RecordItemOriginalAsync(Guid itemId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Core.PhotoCapture.PhotoCapture> RecordSentAsync(Guid captureId, string? note, DateTimeOffset sentAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Core.PhotoCapture.PhotoCapture> RevokeAsync(Guid captureId, DateTimeOffset revokedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();

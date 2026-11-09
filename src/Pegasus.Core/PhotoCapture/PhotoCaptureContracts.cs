@@ -158,6 +158,16 @@ public sealed record PhotoCapture(
             ? SentAtUtc is not null || (nowUtc >= ExpiresAtUtc && AcceptedItemCount > 0)
             : (SentAtUtc is { } sent && sent > SettledAtUtc)
                 || (nowUtc >= ExpiresAtUtc && LastItemAtUtc is { } last && last > SettledAtUtc);
+
+    /// <summary>
+    /// Whether the phone sends full-size originals: only while the capture
+    /// files on its Case as each photo arrives. Until there is a Case the app
+    /// is told originals are off, and when a Vehicle images record later
+    /// reaches a Case the compressed pictures stand (operator, 9 November
+    /// 2026; R801).
+    /// </summary>
+    public bool TakesOriginals =>
+        OriginalsInBackground && Destination == PhotoCaptureDestination.Case && SubmissionGroupId is null;
 }
 
 /// <summary>
@@ -318,6 +328,8 @@ public enum PhotoCapturePairing
 /// One list row. <see cref="OrganizationName"/> is the From: the standing
 /// link's contact, or for a Case link the Case's Principal (R805), read when
 /// the row is shown. <see cref="Pairing"/> is read only for the rows shown.
+/// <see cref="CaseArchived"/> is whether the capture's Case is archived: its
+/// link is then dead and reads Expired (R793).
 /// </summary>
 public sealed record PhotoCaptureListRow(
     PhotoCapture Capture,
@@ -326,7 +338,8 @@ public sealed record PhotoCaptureListRow(
     Guid? ImageIntakeId,
     IReadOnlyList<string> MissingItems,
     string? IssuedByName,
-    PhotoCapturePairing Pairing);
+    PhotoCapturePairing Pairing,
+    bool CaseArchived);
 
 public sealed record PhotoCaptureListPage(IReadOnlyList<PhotoCaptureListRow> Rows, int TotalCount);
 
@@ -347,8 +360,11 @@ public interface IPhotoCaptureStore
 
     Task<PhotoCapture?> GetAsync(Guid captureId, CancellationToken cancellationToken);
 
-    /// <summary>The capture one presented token names, with whether that token is itself revoked.</summary>
-    Task<(PhotoCapture Capture, bool TokenRevoked)?> FindByTokenDigestAsync(
+    /// <summary>
+    /// The capture one presented token names, with whether that token is
+    /// itself revoked and whether the capture's Case is archived (R793).
+    /// </summary>
+    Task<(PhotoCapture Capture, bool TokenRevoked, bool CaseArchived)?> FindByTokenDigestAsync(
         string tokenDigest,
         CancellationToken cancellationToken);
 
@@ -373,6 +389,12 @@ public interface IPhotoCaptureStore
         PhotoCaptureDetails details,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Records where a standing capture's photos go. Under the capture row's
+    /// lock: once it holds an item row its routing stands, so a different one
+    /// is refused with <see cref="PhotoCaptureRefusals.RegistrationLocked"/>
+    /// and the same one changes nothing.
+    /// </summary>
     Task<PhotoCapture> RecordRoutingAsync(
         Guid captureId,
         long expectedVersion,
@@ -402,6 +424,18 @@ public interface IPhotoCaptureStore
         Guid? intakeAssetId,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Counts one full-size original of the item against its capture's caps,
+    /// under the capture row's lock: the originals per link and the bytes per
+    /// link <see cref="CaptureLimits"/> names. False, counting nothing, when
+    /// the original would pass either.
+    /// </summary>
+    Task<bool> ReserveOriginalAsync(Guid itemId, long contentLength, CancellationToken cancellationToken);
+
+    /// <summary>Gives back what <see cref="ReserveOriginalAsync"/> counted for an original that did not file.</summary>
+    Task ReleaseOriginalAsync(Guid itemId, long contentLength, CancellationToken cancellationToken);
+
+    /// <summary>Marks the item's original received; what it counted was reserved before it filed.</summary>
     Task RecordItemOriginalAsync(Guid itemId, CancellationToken cancellationToken);
 
     Task<PhotoCapture> RecordSentAsync(

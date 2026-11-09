@@ -49,4 +49,21 @@ public sealed class PhotoCaptureCaseFieldsTests
         Assert.True(Capture(acceptedItemCount: 3).HasUnsettledSend(Now.AddDays(8)));
         Assert.Equal(2, Capture(settledBatches: 1).CurrentBatch);
     }
+
+    /// <summary>
+    /// Originals follow only while a capture files on its Case as each photo
+    /// arrives: not before it has a Case, not once its batch went to a
+    /// Vehicle images record, and not when the link was sent without them
+    /// (operator, 9 November 2026; R801).
+    /// </summary>
+    [Fact]
+    public void OnlyACaptureFilingOnACaseAsItArrivesTakesOriginals()
+    {
+        Assert.True(Capture().TakesOriginals);
+        Assert.True(Capture(origin: PhotoCaptureOrigin.StandingStaff).TakesOriginals);
+        Assert.False(Capture(origin: PhotoCaptureOrigin.Website, destination: PhotoCaptureDestination.Undecided).TakesOriginals);
+        Assert.False(Capture(origin: PhotoCaptureOrigin.Website, destination: PhotoCaptureDestination.VehicleImages).TakesOriginals);
+        Assert.False((Capture() with { SubmissionGroupId = Guid.NewGuid() }).TakesOriginals);
+        Assert.False((Capture() with { OriginalsInBackground = false }).TakesOriginals);
+    }
 }

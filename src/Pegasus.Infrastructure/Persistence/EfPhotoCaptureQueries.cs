@@ -10,8 +10,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// items, evaluates each one's missing items and status in memory, and then
 /// filters, searches and pages. The tabs hold hundreds of links, not
 /// millions, and the statement count is fixed whatever the row count: the
-/// captures, their items, their contacts, their Vehicle images records, and
-/// the issuers' names (kept in <see cref="StaffAccountReads"/>). The rows
+/// captures, their items, their contacts, their Vehicle images records, the
+/// issuers' names (kept in <see cref="StaffAccountReads"/>) and which of
+/// their Cases are archived. The rows
 /// shown then read their From and pairing (<see cref="ShownAsync"/>).
 /// </summary>
 public sealed class EfPhotoCaptureQueries(
@@ -173,6 +174,20 @@ public sealed class EfPhotoCaptureQueries(
             ? new Dictionary<Guid, string>()
             : await staffAccounts.GetNamesAsync(issuerIds, cancellationToken);
 
+        // A capture whose Case is archived reads Expired and is due nothing (R793).
+        var caseIds = captures
+            .Where(capture => capture.CaseId is not null)
+            .Select(capture => capture.CaseId!.Value)
+            .Distinct()
+            .ToArray();
+        var archivedCases = caseIds.Length == 0
+            ? []
+            : (await context.CaseWorkflows.AsNoTracking()
+                    .Where(workflow => workflow.ArchivedAtUtc != null && EF.Parameter(caseIds).Contains(workflow.CaseId))
+                    .Select(workflow => workflow.CaseId)
+                    .ToListAsync(cancellationToken))
+                .ToHashSet();
+
         var now = timeProvider.GetUtcNow();
         var rows = new List<EvaluatedRow>(withItems.Count);
         foreach (var pending in withItems)
@@ -185,7 +200,8 @@ public sealed class EfPhotoCaptureQueries(
                 capture,
                 pending.Items,
                 PhotoCaptureRequiredItems.VinRequired(capture.Origin, contact?.IsRepairer ?? false));
-            var state = PhotoCaptureStatus.Evaluate(capture, missing, now);
+            var caseArchived = capture.CaseId is { } caseId && archivedCases.Contains(caseId);
+            var state = PhotoCaptureStatus.Evaluate(capture, missing, now, caseArchived);
             (Guid Id, string Reference)? record = capture.SubmissionGroupId is { } groupId
                 && records.TryGetValue(groupId, out var groupRecord)
                     ? groupRecord
@@ -198,7 +214,8 @@ public sealed class EfPhotoCaptureQueries(
                     record?.Id,
                     missing.Select(item => item.Label).ToArray(),
                     capture.IssuedByStaffId is { } issuer && issuers.TryGetValue(issuer, out var name) ? name : null,
-                    PhotoCapturePairing.None),
+                    PhotoCapturePairing.None,
+                    caseArchived),
                 state));
         }
 

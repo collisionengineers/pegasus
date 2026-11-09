@@ -103,6 +103,28 @@ public sealed class PhotoCaptureStatusTests
         Assert.Null(PhotoCaptureStatus.DueReminder(Capture(), Plate, Now.AddDays(8)));
     }
 
+    /// <summary>
+    /// Once its Case is archived a live link is dead: it reads Expired, is due
+    /// no reminder and takes nothing more, whatever it held (operator,
+    /// 9 November 2026; R793). A cancelled one stays Cancelled.
+    /// </summary>
+    [Fact]
+    public void ALinkWhoseCaseIsArchivedReadsExpiredAndIsDueNothing()
+    {
+        var notOpened = Capture(createdAtUtc: Now.AddHours(-25));
+        var sent = Capture(openedAtUtc: Now, acceptedItemCount: 5, sentAtUtc: Now);
+
+        Assert.Equal(PhotoCaptureState.Expired, PhotoCaptureStatus.Evaluate(notOpened, Plate, Now, caseArchived: true));
+        Assert.Equal(PhotoCaptureState.Expired, PhotoCaptureStatus.Evaluate(sent, Plate, Now, caseArchived: true));
+        Assert.Equal(
+            PhotoCaptureState.Cancelled,
+            PhotoCaptureStatus.Evaluate(Capture(revokedAtUtc: Now), Plate, Now, caseArchived: true));
+        Assert.Null(PhotoCaptureStatus.DueReminder(notOpened, Plate, Now, caseArchived: true));
+        Assert.Null(PhotoCaptureStatus.DueReminder(sent, Plate, Now, caseArchived: true));
+        Assert.False(PhotoCaptureAccess.IsLive(notOpened, Now, caseArchived: true));
+        Assert.True(PhotoCaptureAccess.IsLive(notOpened, Now));
+    }
+
     [Fact]
     public void ACaptureWithNoCaseOrSentFromItsCaseHasNoPairing()
     {
