@@ -50,6 +50,8 @@ public sealed class EfIntakeSubmissionGroupStore(
                     .Where(receipt => receiptIds.Contains(receipt.Id))
                     .ToArrayAsync(cancellationToken))
                 .ToDictionary(receipt => receipt.Id);
+        // Any member of a photo link's batch drives its group
+        // (PhotoCaptureIntakeRules.RoutesWithItsGroup, which the sweep asks).
         return candidates
             .Where(candidate => receipts.TryGetValue(candidate.ReceiptId, out var receipt)
                 && (receipt.SourceChannel == photoCaptureChannel

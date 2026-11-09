@@ -1247,6 +1247,7 @@ public sealed class ProcessQueuedIntake(
             // The caller has already held this receipt; its siblings are held
             // from the receipts the automation pass read.
             await new RegisterUnidentifiedSubmissionGroup(processIntake, registerUnidentified).ExecuteAsync(
+                receipt.SourceIdentity.Channel,
                 unidentifiedGroup,
                 (imageOutcome.GroupReading?.Receipts ?? []).Where(member => member.Id != receipt.Id),
                 cancellationToken);

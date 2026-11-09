@@ -19,16 +19,26 @@ public static class PhotoCaptureStatus
     /// <summary>After this many reminders with nothing back, the link needs a phone call.</summary>
     public const int RemindersBeforeCall = 2;
 
+    /// <param name="caseArchived">
+    /// Whether the capture's Case is archived: its link is dead and the
+    /// capture reads Expired (operator, 9 November 2026; R793).
+    /// </param>
     public static PhotoCaptureState Evaluate(
         PhotoCapture capture,
         IReadOnlyList<MissingCaptureItem> missing,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        bool caseArchived = false)
     {
         ArgumentNullException.ThrowIfNull(capture);
         ArgumentNullException.ThrowIfNull(missing);
         if (capture.IsRevoked)
         {
             return PhotoCaptureState.Cancelled;
+        }
+
+        if (caseArchived)
+        {
+            return PhotoCaptureState.Expired;
         }
 
         var sentOrDone = capture.SentAtUtc is not null;
@@ -66,16 +76,17 @@ public static class PhotoCaptureStatus
     /// and again after 48; started but unfinished after 4 quiet hours;
     /// something missing once sent; about to expire within a day. A capture
     /// that is complete, cancelled, expired or already needs a call is due
-    /// nothing.
+    /// nothing, and neither is one whose Case is archived (R793).
     /// </summary>
     public static DueCaptureReminder? DueReminder(
         PhotoCapture capture,
         IReadOnlyList<MissingCaptureItem> missing,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        bool caseArchived = false)
     {
         ArgumentNullException.ThrowIfNull(capture);
         ArgumentNullException.ThrowIfNull(missing);
-        var state = Evaluate(capture, missing, nowUtc);
+        var state = Evaluate(capture, missing, nowUtc, caseArchived);
         if (state is PhotoCaptureState.Complete or PhotoCaptureState.Cancelled
             or PhotoCaptureState.Expired or PhotoCaptureState.NeedsCall)
         {

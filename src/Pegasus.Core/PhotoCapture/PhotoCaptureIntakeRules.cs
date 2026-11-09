@@ -143,6 +143,19 @@ public static class PhotoCaptureIntakeRules
     }
 
     /// <summary>
+    /// A capture's receipt routes with its batch's group whatever it holds,
+    /// a video or paperwork included: the group reads as the registration
+    /// the sender typed, so no member needs to be an image to drive it. The
+    /// grouped-image sweep re-drives a capture's group through any member,
+    /// as its listing (<c>ListPendingImageGroupReceiptsAsync</c>) admits it.
+    /// </summary>
+    public static bool RoutesWithItsGroup(IntakeReceipt receipt)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        return receipt.SourceIdentity.Channel == IntakeSourceChannel.PhotoCapture;
+    }
+
+    /// <summary>
     /// A capture's group carries the registration its sender typed, which
     /// stands in for plate recognition in the group's routing (operator,
     /// 9 November 2026): every image member reads as that registration.

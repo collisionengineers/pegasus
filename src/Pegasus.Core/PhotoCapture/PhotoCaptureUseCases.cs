@@ -199,9 +199,11 @@ public sealed class MintFromStandingLink(
 
 /// <summary>
 /// Records what the sender typed and, on a standing or website capture,
-/// routes it the first time it has a registration (<see cref="RoutePhotoCapture"/>).
-/// The registration is locked once a photo has filed against it: a different
-/// one would be a different vehicle.
+/// routes it (<see cref="RoutePhotoCapture"/>) again each time, until its
+/// first photo, so a registration or accident date changed before then is
+/// routed on, not just stored. A link sent from a Case keeps its Case's
+/// registration and ignores a typed one. The registration is locked once a
+/// photo has filed against it: a different one would be a different vehicle.
 /// </summary>
 public sealed class RecordPhotoCaptureDetails(
     IPhotoCaptureStore captures,
@@ -215,7 +217,10 @@ public sealed class RecordPhotoCaptureDetails(
     {
         ArgumentNullException.ThrowIfNull(capture);
         ArgumentNullException.ThrowIfNull(form);
-        var registration = PhotoCaptureText.Registration(form.Registration) ?? capture.NormalizedRegistration;
+        var caseLink = capture.Origin == PhotoCaptureOrigin.CaseLink;
+        var registration = caseLink
+            ? capture.NormalizedRegistration
+            : PhotoCaptureText.Registration(form.Registration) ?? capture.NormalizedRegistration;
         if (capture.AcceptedItemCount > 0
             && registration is not null
             && !string.Equals(registration, capture.NormalizedRegistration, StringComparison.Ordinal))
@@ -223,32 +228,33 @@ public sealed class RecordPhotoCaptureDetails(
             throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.RegistrationLocked, "The registration cannot change once photos have been sent.");
         }
 
-        var details = PhotoCaptureText.Details(form.Details);
-        var updated = await captures.RecordDetailsAsync(
-            capture.Id,
-            capture.Version,
-            registration,
-            form.IncidentDate ?? capture.IncidentDate,
-            PhotoCaptureText.Name(form.CustomerName) ?? capture.CustomerName,
-            PhotoCaptureText.Mobile(form.Mobile) ?? capture.Mobile,
-            PhotoCaptureText.Email(form.Email) ?? capture.Email,
-            details,
-            cancellationToken);
-        if (updated.Origin != PhotoCaptureOrigin.CaseLink
-            && updated.Destination == PhotoCaptureDestination.Undecided
-            && updated.NormalizedRegistration is { } vrm)
+        var incidentDate = form.IncidentDate ?? capture.IncidentDate;
+        var current = capture;
+        if (!caseLink && capture.AcceptedItemCount == 0 && registration is not null)
         {
-            var decision = await route.ExecuteAsync(vrm, updated.IncidentDate, standingLink?.PrincipalId, cancellationToken);
-            updated = await captures.RecordRoutingAsync(
-                updated.Id,
-                updated.Version,
+            // Routed before the details are written, so a routing the store
+            // refuses (an item row arrived) leaves the typed details unwritten
+            // too, rather than a registration the routing never saw.
+            var decision = await route.ExecuteAsync(registration, incidentDate, standingLink?.PrincipalId, cancellationToken);
+            current = await captures.RecordRoutingAsync(
+                current.Id,
+                current.Version,
                 decision.Destination,
                 decision.CaseId,
                 decision.Reason,
                 cancellationToken);
         }
 
-        return updated;
+        return await captures.RecordDetailsAsync(
+            current.Id,
+            current.Version,
+            registration,
+            incidentDate,
+            PhotoCaptureText.Name(form.CustomerName) ?? capture.CustomerName,
+            PhotoCaptureText.Mobile(form.Mobile) ?? capture.Mobile,
+            PhotoCaptureText.Email(form.Email) ?? capture.Email,
+            PhotoCaptureText.Details(form.Details),
+            cancellationToken);
     }
 }
 
@@ -414,6 +420,10 @@ public sealed class ReceivePhotoCaptureItem(
         var received = write.Write == PhotoCaptureItemWrite.Created || item.StagedReceiptId is null;
         if (received)
         {
+            // A document type is declared only with the Case it files on:
+            // intake refuses one without the other, and a capture with no Case
+            // has none to declare (FRD-28).
+            var declaredCaseId = capture.Destination == PhotoCaptureDestination.Case ? capture.CaseId : null;
             var receivedIntake = await intake.ReceiveStreamedAsync(
                 new Intake.StreamedIntakeSource(
                     item.FileName,
@@ -423,8 +433,8 @@ public sealed class ReceivePhotoCaptureItem(
                     now,
                     Intake.IntakeActorIdentity.PhotoCapture(capture.Id),
                     new(Intake.IntakeSourceChannel.PhotoCapture, PhotoCaptureIntakeRules.MemberToken(capture.Id, item.Batch, item.Ordinal)),
-                    capture.Destination == PhotoCaptureDestination.Case ? capture.CaseId : null,
-                    PhotoCaptureStory.DeclaredDocumentType(request.Kind, request.MediaType)),
+                    declaredCaseId,
+                    declaredCaseId is null ? null : PhotoCaptureStory.DeclaredDocumentType(request.Kind, request.MediaType)),
                 $"photo-capture-item:{item.Id:N}",
                 cancellationToken);
             await captures.RecordItemReceiptAsync(item.Id, receivedIntake.StagedReceiptId, cancellationToken);
@@ -441,7 +451,10 @@ public sealed class ReceivePhotoCaptureItem(
         ReceivePhotoCaptureItemRequest request,
         CancellationToken cancellationToken)
     {
-        if (!capture.OriginalsInBackground || !PhotoCaptureStory.IsPhotographKind(request.Kind))
+        // Only a capture filing on its Case as each photo arrives takes
+        // originals; for any other the refusal is final, so the phone sends
+        // and retries nothing (operator, 9 November 2026; R801).
+        if (!capture.TakesOriginals || !PhotoCaptureStory.IsPhotographKind(request.Kind))
         {
             throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.UnsupportedType, "This link does not take full-size originals.");
         }
@@ -459,22 +472,40 @@ public sealed class ReceivePhotoCaptureItem(
             throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.NotReady, "The photo is still being filed.");
         }
 
-        var hash = await Intake.ReceiveIntake.StreamHashAsync(
-            new Intake.StreamedIntakeSource(
-                "original", request.MediaType, request.ContentLength, request.OpenContentAsync, timeProvider.GetUtcNow(),
-                Intake.IntakeActorIdentity.PhotoCapture(capture.Id),
-                new(Intake.IntakeSourceChannel.PhotoCapture, "hash")),
-            cancellationToken);
-        var filed = await originals.FileAsync(
-            item,
-            item.FileName,
-            request.MediaType,
-            request.ContentLength,
-            hash,
-            request.OpenContentAsync,
-            cancellationToken);
+        // The original counts against the link's originals and bytes before
+        // it is filed, and is given back if it does not file.
+        if (!await captures.ReserveOriginalAsync(item.Id, request.ContentLength, cancellationToken))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.CapReached, "This link has received as much as it can take.");
+        }
+
+        bool filed;
+        try
+        {
+            var hash = await Intake.ReceiveIntake.StreamHashAsync(
+                new Intake.StreamedIntakeSource(
+                    "original", request.MediaType, request.ContentLength, request.OpenContentAsync, timeProvider.GetUtcNow(),
+                    Intake.IntakeActorIdentity.PhotoCapture(capture.Id),
+                    new(Intake.IntakeSourceChannel.PhotoCapture, "hash")),
+                cancellationToken);
+            filed = await originals.FileAsync(
+                item,
+                item.FileName,
+                request.MediaType,
+                request.ContentLength,
+                hash,
+                request.OpenContentAsync,
+                cancellationToken);
+        }
+        catch
+        {
+            await captures.ReleaseOriginalAsync(item.Id, request.ContentLength, CancellationToken.None);
+            throw;
+        }
+
         if (!filed)
         {
+            await captures.ReleaseOriginalAsync(item.Id, request.ContentLength, cancellationToken);
             throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.NotReady, "The photo is still being filed.");
         }
 
@@ -524,9 +555,14 @@ public sealed class CompletePhotoCapture(
         && await standingLinks.GetAsync(linkId, cancellationToken) is { IsRepairer: true };
 }
 
-/// <summary>The staff acts on a link: cancel, extend, remind, log a call; each is casework.</summary>
+/// <summary>
+/// The staff acts on a link: cancel, extend, remind, log a call; each is
+/// casework. A link whose Case is archived is dead (R793): it is neither
+/// extended nor sent again.
+/// </summary>
 public sealed class PhotoLinkActions(
     IPhotoCaptureStore captures,
+    IPhotoCaptureCaseReader cases,
     TimeProvider timeProvider)
 {
     public async Task<PhotoCapture> RevokeAsync(ActionActor actor, Guid captureId, CancellationToken cancellationToken)
@@ -545,6 +581,7 @@ public sealed class PhotoLinkActions(
 
         var capture = await captures.GetAsync(captureId, cancellationToken)
             ?? throw new KeyNotFoundException("The photo link was not found.");
+        await RequireCaseNotArchivedAsync(capture, cancellationToken);
         var from = capture.ExpiresAtUtc > timeProvider.GetUtcNow() ? capture.ExpiresAtUtc : timeProvider.GetUtcNow();
         return await captures.ExtendAsync(captureId, from.AddDays(days), cancellationToken);
     }
@@ -564,6 +601,7 @@ public sealed class PhotoLinkActions(
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         var capture = await captures.GetAsync(captureId, cancellationToken)
             ?? throw new KeyNotFoundException("The photo link was not found.");
+        await RequireCaseNotArchivedAsync(capture, cancellationToken);
         var now = timeProvider.GetUtcNow();
         if (!PhotoCaptureAccess.IsLive(capture, now))
         {
@@ -590,6 +628,14 @@ public sealed class PhotoLinkActions(
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         return await captures.RecordCallAsync(captureId, timeProvider.GetUtcNow(), cancellationToken);
+    }
+
+    private async Task RequireCaseNotArchivedAsync(PhotoCapture capture, CancellationToken cancellationToken)
+    {
+        if (capture.CaseId is { } caseId && await cases.GetAsync(caseId, cancellationToken) is { IsArchived: true })
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.CaseUnavailable, "The Case cannot take a photo link.");
+        }
     }
 }
 

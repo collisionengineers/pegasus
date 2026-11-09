@@ -66,21 +66,23 @@ public sealed class PhotoCaptureSecurityTests
     }
 
     /// <summary>
-    /// Unknown, expired, revoked and paused are never told apart (R789): a
-    /// cancelled capture, a revoked token on a live capture, an expired
-    /// capture and a paused standing link each answer the unknown token's
-    /// bytes.
+    /// Unknown, expired, revoked, paused and a Case archived are never told
+    /// apart (R789, R793): a cancelled capture, a revoked token on a live
+    /// capture, an expired capture, a live capture whose Case is archived and
+    /// a paused standing link each answer the unknown token's bytes.
     /// </summary>
     [Fact]
-    public async Task UnknownExpiredRevokedAndPausedLinksAnswerTheSameBytes()
+    public async Task UnknownExpiredRevokedPausedAndArchivedLinksAnswerTheSameBytes()
     {
         var expired = PhotoLinkToken.Create();
         var cancelled = PhotoLinkToken.Create();
         var revokedToken = PhotoLinkToken.Create();
+        var archived = PhotoLinkToken.Create();
         var captures = new ListedCaptures();
         captures.Add(expired, Capture(expiresAtUtc: Now.AddDays(-1), revokedAtUtc: null), tokenRevoked: false);
         captures.Add(cancelled, Capture(expiresAtUtc: Now.AddDays(6), revokedAtUtc: Now.AddHours(-1)), tokenRevoked: false);
         captures.Add(revokedToken, Capture(expiresAtUtc: Now.AddDays(6), revokedAtUtc: null), tokenRevoked: true);
+        captures.Add(archived, Capture(expiresAtUtc: Now.AddDays(6), revokedAtUtc: null), tokenRevoked: false, caseArchived: true);
         var pausedSlug = PhotoLinkToken.CreateSlug();
         using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = WithListedLinks(baseFactory, captures, new ListedStandingLinks(PausedLink(pausedSlug)));
@@ -91,6 +93,7 @@ public sealed class PhotoCaptureSecurityTests
         Assert.Equal(unknown, await UnavailableBytesAsync(client, $"/c/{expired.Value}"));
         Assert.Equal(unknown, await UnavailableBytesAsync(client, $"/c/{cancelled.Value}"));
         Assert.Equal(unknown, await UnavailableBytesAsync(client, $"/c/{revokedToken.Value}"));
+        Assert.Equal(unknown, await UnavailableBytesAsync(client, $"/c/{archived.Value}"));
         Assert.Equal(unknown, await UnavailableBytesAsync(client, $"/s/{pausedSlug}"));
         Assert.Empty(baseFactory.DatabaseOpenAttempts);
     }
@@ -328,17 +331,17 @@ public sealed class PhotoCaptureSecurityTests
     /// <summary>The captures a test lists by their token; a token it did not list names nothing.</summary>
     private sealed class ListedCaptures : IPhotoCaptureStore
     {
-        private readonly ConcurrentDictionary<string, (CaptureRecord Capture, bool TokenRevoked)> byDigest =
+        private readonly ConcurrentDictionary<string, (CaptureRecord Capture, bool TokenRevoked, bool CaseArchived)> byDigest =
             new(StringComparer.Ordinal);
 
-        public void Add(CaptureLinkSecret token, CaptureRecord capture, bool tokenRevoked) =>
-            byDigest[PhotoLinkToken.Digest(token)] = (capture, tokenRevoked);
+        public void Add(CaptureLinkSecret token, CaptureRecord capture, bool tokenRevoked, bool caseArchived = false) =>
+            byDigest[PhotoLinkToken.Digest(token)] = (capture, tokenRevoked, caseArchived);
 
-        public Task<(CaptureRecord Capture, bool TokenRevoked)?> FindByTokenDigestAsync(
+        public Task<(CaptureRecord Capture, bool TokenRevoked, bool CaseArchived)?> FindByTokenDigestAsync(
             string tokenDigest,
             CancellationToken cancellationToken)
         {
-            (CaptureRecord Capture, bool TokenRevoked)? found = byDigest.TryGetValue(tokenDigest, out var listed)
+            (CaptureRecord Capture, bool TokenRevoked, bool CaseArchived)? found = byDigest.TryGetValue(tokenDigest, out var listed)
                 ? listed
                 : null;
             return Task.FromResult(found);
@@ -393,6 +396,12 @@ public sealed class PhotoCaptureSecurityTests
             Guid intakeReceiptId,
             Guid? intakeAssetId,
             CancellationToken cancellationToken) => throw Outside();
+
+        public Task<bool> ReserveOriginalAsync(Guid itemId, long contentLength, CancellationToken cancellationToken) =>
+            throw Outside();
+
+        public Task ReleaseOriginalAsync(Guid itemId, long contentLength, CancellationToken cancellationToken) =>
+            throw Outside();
 
         public Task RecordItemOriginalAsync(Guid itemId, CancellationToken cancellationToken) => throw Outside();
 

@@ -159,7 +159,9 @@ public sealed class CaptureContextFactory(
             CaptureCodes.CaptureKind,
             CaptureCodes.Mode(capture.Mode),
             capture.LiveCameraOnly,
-            capture.OriginalsInBackground,
+            // Off while the capture has no Case, so the phone sends and
+            // retries no original (R801).
+            capture.TakesOriginals,
             CaptureCodes.Origin(capture.Origin),
             capture.NormalizedRegistration,
             FirstName(capture.CustomerName),

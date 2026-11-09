@@ -113,12 +113,16 @@ Every page and API response carries:
 - `X-Robots-Tag: noindex, nofollow`;
 - `Cache-Control: no-store`.
 
-An unknown, expired, revoked or paused link, and a standing link whose
-contact is inactive, gets one identical answer: the page says "This link is
-no longer active." and "Ask whoever sent it to you for a new one.", and the
-API answers 404. They are never told apart (operator, 9 November 2026;
-R789). A standing link whose contact is inactive starts no capture until the
-contact is active again (operator, 9 November 2026; R796).
+An unknown, expired, revoked or paused link, one whose Case is archived, and
+a standing link whose contact is inactive, gets one identical answer: the
+page says "This link is no longer active." and "Ask whoever sent it to you
+for a new one.", and the API answers 404. They are never told apart
+(operator, 9 November 2026; R789). A standing link whose contact is inactive
+starts no capture until the contact is active again (operator, 9 November
+2026; R796). Once a capture's Case is archived its link takes nothing more;
+photos already filed stay on the Case, and the capture reads Expired, is due
+no reminder, and is neither resent nor extended (operator, 9 November 2026;
+R793).
 
 ### The app's steps and required items
 
@@ -200,7 +204,12 @@ registration. A full-size original files as the next version of the same
 Case image: the image keeps its tile, tags, report place and crop, Box shows
 the compressed picture as the earlier version of the one file (R664), and
 the report prints the original once it is filed. Until then, and should the
-original's upload fail, the compressed picture stands.
+original's upload fail, the compressed picture stands. Originals follow only
+while a capture files on its Case as each photo arrives: until there is a
+Case the app is told originals are off and sends none, and when a Vehicle
+images record later reaches a Case the compressed pictures stand (operator,
+9 November 2026; R801). An original counts towards the link's originals and
+bytes ([Limits](#limits)) before it is filed.
 
 ### Baskets and names
 
@@ -235,7 +244,7 @@ A capture's status is derived each time it is read, never stored:
 | Something missing | Sent, or expired with photos, and a required item is missing |
 | Needs a phone call | Two reminders and nothing back since |
 | Complete | Sent, or expired with photos, and nothing required is missing |
-| Expired | Expired with no photos |
+| Expired | Expired with no photos, or its Case is archived (operator, 9 November 2026; R793) |
 | Cancelled | Cancelled by staff |
 
 A reminder is due, and shown, when a link is not opened after 24 hours and
@@ -332,7 +341,8 @@ The limits are constants, not configuration.
 
 ## States and transitions
 
-A photo link is live from issue until it expires or is cancelled. **Extend**
+A photo link is live from issue until it expires, is cancelled, or its Case
+is archived (operator, 9 November 2026; R793). **Extend**
 adds 3, 7 or 14 days to its expiry, from the later of now and the expiry;
 **Cancel** revokes every token. A standing link is active,
 paused or replaced; **Resume** makes a paused link active again. A capture
@@ -343,9 +353,10 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
 ## Edge cases and fail-closed behaviour
 
 - **Unavailable.** An unknown, malformed, expired, revoked or paused
-  credential, and a standing link whose contact is inactive (operator, 9
-  November 2026; R796), gets the same page or 404, and no store is read for
-  a value that is not a token's shape.
+  credential, one whose Case is archived (operator, 9 November 2026; R793),
+  and a standing link whose contact is inactive (operator, 9 November 2026;
+  R796), gets the same page or 404, and no store is read for a value that is
+  not a token's shape.
 - **No connection.** When the phone cannot reach Pegasus, or a refusal
   carries no words of its own, the app says "We couldn’t reach Collision
   Engineers. Check your signal and try again." (operator, 9 November 2026;
@@ -363,7 +374,11 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
   registration.
 - **Registration.** Once a photo has filed against a capture's
   registration, the registration is locked: a different one would be a
-  different vehicle.
+  different vehicle. Until its first photo a standing capture is routed
+  again each time its details are recorded, so a registration or accident
+  date changed before then is routed on; once it holds an item its routing
+  stands. A link sent from a Case keeps its Case's registration, which it
+  shows read-only ([Photo links](#photo-links)), and a typed one is ignored.
 - **Feature off.** With `Features:PhotoCapture` off, `/c`, `/s`, `/capture`
   and `/PhotoCapture` answer 404, and the rail item, Send photo link and the
   Photo links tab are absent

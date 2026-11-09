@@ -86,24 +86,33 @@ public sealed class EfPhotoCaptureStore(
         return entity is null ? null : Map(entity);
     }
 
-    public async Task<(PhotoCapture Capture, bool TokenRevoked)?> FindByTokenDigestAsync(
+    public async Task<(PhotoCapture Capture, bool TokenRevoked, bool CaseArchived)?> FindByTokenDigestAsync(
         string tokenDigest,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tokenDigest);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // The Case's archive is read in the same statement: a capture whose
+        // Case is archived answers like an unknown token (R793).
         var row = await (
             from token in context.PhotoCaptureTokens.AsNoTracking()
             join capture in context.PhotoCaptures.AsNoTracking() on token.CaptureId equals capture.Id
+            join workflow in context.CaseWorkflows.AsNoTracking() on capture.CaseId equals (Guid?)workflow.CaseId into workflows
+            from workflow in workflows.DefaultIfEmpty()
             where token.TokenDigest == tokenDigest
-            select new { Capture = capture, token.RevokedAtUtc })
+            select new
+            {
+                Capture = capture,
+                token.RevokedAtUtc,
+                CaseArchived = workflow != null && workflow.ArchivedAtUtc != null
+            })
             .SingleOrDefaultAsync(cancellationToken);
         if (row is null)
         {
             return null;
         }
 
-        return (Map(row.Capture), row.RevokedAtUtc is not null);
+        return (Map(row.Capture), row.RevokedAtUtc is not null, row.CaseArchived);
     }
 
     public async Task AddTokenAsync(
@@ -167,19 +176,66 @@ public sealed class EfPhotoCaptureStore(
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        return UpdateAsync(captureId, expectedVersion, async (context, entity, token) =>
+        return StoreConcurrencyRetry.ExecuteAsync(
+            token => RecordRoutingOnceAsync(captureId, expectedVersion, destination, caseId, reason, token),
+            cancellationToken,
+            StoreConcurrencyRetry.IsDeadlockOrKeyCollision);
+    }
+
+    /// <summary>
+    /// Under the capture row's lock, the one an item add takes, so no item
+    /// row arrives between the check and the write: once the capture holds
+    /// an item row its routing stands (FRD-28 "Registration").
+    /// </summary>
+    private async Task<PhotoCapture> RecordRoutingOnceAsync(
+        Guid captureId,
+        long expectedVersion,
+        PhotoCaptureDestination destination,
+        Guid? caseId,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [PhotoCaptures] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {captureId}",
+            cancellationToken);
+        var entity = await context.PhotoCaptures
+            .SingleOrDefaultAsync(item => item.Id == captureId, cancellationToken)
+            ?? throw new KeyNotFoundException("The photo link was not found.");
+        if (entity.Version != expectedVersion)
         {
-            entity.Destination = PhotoCaptureCodes.ToCode(destination);
-            entity.RoutingReason = reason;
-            entity.CaseId = caseId;
-            entity.CaseReference = caseId is { } id
-                ? await context.Cases.AsNoTracking()
-                    .Where(item => item.Id == id)
-                    .Select(item => item.Reference)
-                    .SingleOrDefaultAsync(token)
-                    ?? throw new KeyNotFoundException("The routed Case was not found.")
-                : null;
-        }, cancellationToken);
+            throw new DbUpdateConcurrencyException("The photo link changed since it was read.");
+        }
+
+        var code = PhotoCaptureCodes.ToCode(destination);
+        if (entity.PhotoCount + entity.DocumentCount + entity.VideoCount > 0)
+        {
+            if (string.Equals(entity.Destination, code, StringComparison.Ordinal) && entity.CaseId == caseId)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return Map(entity);
+            }
+
+            throw new PhotoCaptureRefusalException(
+                PhotoCaptureRefusals.RegistrationLocked,
+                "The registration cannot change once photos have been sent.");
+        }
+
+        entity.Destination = code;
+        entity.RoutingReason = reason;
+        entity.CaseId = caseId;
+        entity.CaseReference = caseId is { } id
+            ? await context.Cases.AsNoTracking()
+                .Where(item => item.Id == id)
+                .Select(item => item.Reference)
+                .SingleOrDefaultAsync(cancellationToken)
+                ?? throw new KeyNotFoundException("The routed Case was not found.")
+            : null;
+        entity.Version++;
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(entity);
     }
 
     public Task<PhotoCaptureItemWriteResult> AddItemAsync(
@@ -378,29 +434,83 @@ public sealed class EfPhotoCaptureStore(
         }
     }
 
-    public async Task RecordItemOriginalAsync(Guid itemId, CancellationToken cancellationToken)
+    public Task<bool> ReserveOriginalAsync(Guid itemId, long contentLength, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(contentLength);
+        return StoreConcurrencyRetry.ExecuteAsync(
+            token => ChangeOriginalsAsync(itemId, contentLength, reserve: true, token),
+            cancellationToken,
+            StoreConcurrencyRetry.IsDeadlockOrKeyCollision);
+    }
+
+    public Task ReleaseOriginalAsync(Guid itemId, long contentLength, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(contentLength);
+        return StoreConcurrencyRetry.ExecuteAsync(
+            token => ChangeOriginalsAsync(itemId, contentLength, reserve: false, token),
+            cancellationToken,
+            StoreConcurrencyRetry.IsDeadlockOrKeyCollision);
+    }
+
+    /// <summary>
+    /// Counts an original against its capture's caps, or gives it back, under
+    /// the capture row's lock, the one an item add takes, so the originals
+    /// and the bytes a link holds are decided by one writer at a time
+    /// (<see cref="CaptureLimits.MaximumOriginalsPerCapture"/>,
+    /// <see cref="CaptureLimits.MaximumBytesPerCapture"/>).
+    /// </summary>
+    private async Task<bool> ChangeOriginalsAsync(
+        Guid itemId,
+        long contentLength,
+        bool reserve,
+        CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
-        var item = await context.PhotoCaptureItems.AsNoTracking()
-            .SingleOrDefaultAsync(value => value.Id == itemId, cancellationToken)
+        var captureId = await context.PhotoCaptureItems.AsNoTracking()
+            .Where(value => value.Id == itemId)
+            .Select(value => (Guid?)value.CaptureId)
+            .SingleOrDefaultAsync(cancellationToken)
             ?? throw new KeyNotFoundException("The photo link item was not found.");
         await context.Database.ExecuteSqlAsync(
-            $"SELECT 1 FROM [PhotoCaptures] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {item.CaptureId}",
+            $"SELECT 1 FROM [PhotoCaptures] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {captureId}",
             cancellationToken);
-        var changed = await context.PhotoCaptureItems
-            .Where(value => value.Id == itemId && !value.OriginalReceived)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.OriginalReceived, true), cancellationToken);
-        if (changed > 0)
+        var capture = await context.PhotoCaptures
+            .SingleAsync(value => value.Id == captureId, cancellationToken);
+        if (reserve)
         {
-            var capture = await context.PhotoCaptures
-                .SingleAsync(value => value.Id == item.CaptureId, cancellationToken);
+            if (capture.OriginalCount >= CaptureLimits.MaximumOriginalsPerCapture
+                || capture.AcceptedBytes + contentLength > CaptureLimits.MaximumBytesPerCapture)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return false;
+            }
+
             capture.OriginalCount++;
-            capture.Version++;
-            await context.SaveChangesAsync(cancellationToken);
+            capture.AcceptedBytes += contentLength;
+        }
+        else
+        {
+            capture.OriginalCount = Math.Max(0, capture.OriginalCount - 1);
+            capture.AcceptedBytes = Math.Max(0, capture.AcceptedBytes - contentLength);
         }
 
+        capture.Version++;
+        await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task RecordItemOriginalAsync(Guid itemId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var found = await context.PhotoCaptureItems
+            .Where(value => value.Id == itemId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.OriginalReceived, true), cancellationToken);
+        if (found == 0)
+        {
+            throw new KeyNotFoundException("The photo link item was not found.");
+        }
     }
 
     public Task<PhotoCapture> RecordSentAsync(

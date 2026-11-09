@@ -2111,11 +2111,117 @@ public sealed class AutomaticImageIntakeTests
         Assert.Equal(harness.Receipts.Select(receipt => receipt.Id), members.Select(member => member.Id));
         var register = new CountingRegisterUnidentified();
 
-        await new RegisterUnidentifiedSubmissionGroup(probe.ProcessIntake, register)
-            .ExecuteAsync(request, members, CancellationToken.None);
+        var registered = await new RegisterUnidentifiedSubmissionGroup(probe.ProcessIntake, register)
+            .ExecuteAsync(harness.GroupStore.Group!.Channel, request, members, CancellationToken.None);
 
+        Assert.True(registered);
         Assert.Equal(harness.Receipts.Select(receipt => receipt.SourceIdentity), probe.Held);
         Assert.Equal(1, register.Calls);
+    }
+
+    /// <summary>
+    /// A photo link's group is never Unidentified (FRD-28): handed to the
+    /// hold owner it holds nothing and registers nothing.
+    /// </summary>
+    [Fact]
+    public async Task APhotoLinkGroupIsNeitherHeldNorRegisteredUnidentified()
+    {
+        var harness = new GroupHarness(memberCount: 2, sourceChannel: IntakeSourceChannel.PhotoCapture);
+        var probe = new HoldingProbe(harness);
+        var register = new CountingRegisterUnidentified();
+        var group = harness.GroupStore.Group!;
+
+        var registered = await new RegisterUnidentifiedSubmissionGroup(probe.ProcessIntake, register).ExecuteAsync(
+            group.Channel,
+            ImageIntakeGroupRoutingPolicy.BuildUnidentifiedRegistrationRequest(group, "group_processing_incomplete"),
+            harness.Receipts,
+            CancellationToken.None);
+
+        Assert.False(registered);
+        Assert.Empty(probe.Held);
+        Assert.Equal(0, register.Calls);
+    }
+
+    /// <summary>
+    /// A photo link's group still pending past its window is re-driven by the
+    /// sweep, pass after pass, and never escapes to Unidentified: nothing is
+    /// held or registered and no member is read for an escape (FRD-28).
+    /// </summary>
+    [Fact]
+    public async Task APhotoLinkGroupPastItsWindowIsReDrivenAndNeverEscapes()
+    {
+        var harness = new GroupHarness(memberCount: 2, sourceChannel: IntakeSourceChannel.PhotoCapture);
+        var probe = new HoldingProbe(harness);
+        var receiptId = harness.Receipts[0].Id;
+        harness.GroupStore.StoreNowUtc = harness.GroupStore.Group!.ReceivedAtUtc.AddHours(3);
+        var group = harness.GroupStore.Group with { ReadAtUtc = harness.GroupStore.StoreNowUtc };
+        var replay = new QueuedIntakeProcessingResult(
+            QueuedIntakeProcessingOutcome.RetryScheduled,
+            new ImageIntakeAutomationOutcome(
+                harness.Receipts[0],
+                GroupPending: true,
+                GroupReading: new(group, [harness.Receipts[0]], [group.Members[1]])));
+        var receiptReads = Forwarder.For<IIntakeReceiptQueries>(harness.ReceiptQueries);
+        var groups = Forwarder.For<IIntakeSubmissionGroupStore>(harness.GroupStore);
+        groups.Overrides[nameof(IIntakeSubmissionGroupStore.ListPendingImageGroupReceiptsAsync)] =
+            _ => Task.FromResult<IReadOnlyList<Guid>>([receiptId]);
+        var work = Forwarder.For<IIntakeWorkStore>(null!);
+        work.Overrides[nameof(IIntakeWorkStore.FindStagedReceiptIdForReceiptAsync)] =
+            _ => Task.FromResult<Guid?>(Guid.NewGuid());
+        var register = new CountingRegisterUnidentified();
+        var sweep = new ReconcileGroupedImageIntake(
+            (IIntakeReceiptQueries)receiptReads.Proxy,
+            (IIntakeSubmissionGroupStore)groups.Proxy,
+            (IIntakeWorkStore)work.Proxy,
+            new FixedOutcomeProcessor(replay),
+            new RegisterUnidentifiedSubmissionGroup(probe.ProcessIntake, register));
+
+        var result = await sweep.ExecuteAsync(5);
+
+        Assert.Equal(1, result.Retried);
+        Assert.Equal(0, result.Escaped);
+        Assert.Equal(0, register.Calls);
+        Assert.Empty(probe.Held);
+        Assert.Equal(
+            0,
+            receiptReads.Calls.Count(call => call == nameof(IIntakeReceiptQueries.FindBySourceIdentityAsync)));
+    }
+
+    private static readonly Dictionary<int, string> VideoFirst = new() { [0] = "video/mp4" };
+
+    /// <summary>
+    /// The sweep re-drives a photo link's group through any member, so one
+    /// whose first member is a video is retried as the capture's re-drive; a
+    /// staff upload led by a video is no image group to re-drive.
+    /// </summary>
+    [Theory]
+    [InlineData(IntakeSourceChannel.PhotoCapture, 1)]
+    [InlineData(IntakeSourceChannel.ManualUpload, 0)]
+    public async Task AGroupLedByAVideoIsReDrivenOnlyWhenItIsAPhotoLinksBatch(
+        IntakeSourceChannel channel,
+        int expectedRetries)
+    {
+        var harness = new GroupHarness(memberCount: 2, mediaTypeByOrdinal: VideoFirst, sourceChannel: channel);
+        var probe = new HoldingProbe(harness);
+        var receiptId = harness.Receipts[0].Id;
+        var groups = Forwarder.For<IIntakeSubmissionGroupStore>(harness.GroupStore);
+        groups.Overrides[nameof(IIntakeSubmissionGroupStore.ListPendingImageGroupReceiptsAsync)] =
+            _ => Task.FromResult<IReadOnlyList<Guid>>([receiptId]);
+        var work = Forwarder.For<IIntakeWorkStore>(null!);
+        work.Overrides[nameof(IIntakeWorkStore.FindStagedReceiptIdForReceiptAsync)] =
+            _ => Task.FromResult<Guid?>(Guid.NewGuid());
+        var sweep = new ReconcileGroupedImageIntake(
+            harness.ReceiptQueries,
+            (IIntakeSubmissionGroupStore)groups.Proxy,
+            (IIntakeWorkStore)work.Proxy,
+            new FixedOutcomeProcessor(new QueuedIntakeProcessingResult(QueuedIntakeProcessingOutcome.Completed)),
+            new RegisterUnidentifiedSubmissionGroup(probe.ProcessIntake, new CountingRegisterUnidentified()));
+
+        var result = await sweep.ExecuteAsync(5);
+
+        Assert.Equal(expectedRetries, result.Candidates);
+        Assert.Equal(expectedRetries, result.Retried);
+        Assert.Equal(0, result.Escaped);
     }
 
     /// <summary>

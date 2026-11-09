@@ -3,8 +3,9 @@ namespace Pegasus.Core.PhotoCapture;
 /// <summary>
 /// What the capture surface answers a presented credential with: the live
 /// capture or standing link, or one <see cref="Unavailable"/> that stands for
-/// unknown, expired, revoked and paused alike, and for a standing link whose
-/// contact is deactivated (R796). They are never told apart
+/// unknown, expired, revoked and paused alike, for a capture whose Case is
+/// archived (R793), and for a standing link whose contact is deactivated
+/// (R796). They are never told apart
 /// on the wire (FRD-28, ADR-0090): the sender's next step is the same, to
 /// ask for a new link, and one answer gives a guesser nothing.
 /// </summary>
@@ -61,8 +62,8 @@ public sealed class PhotoCaptureAccess(
             return CaptureAccess.Unavailable;
         }
 
-        var (capture, tokenRevoked) = found.Value;
-        return IsLive(capture, timeProvider.GetUtcNow()) && !tokenRevoked
+        var (capture, tokenRevoked, caseArchived) = found.Value;
+        return IsLive(capture, timeProvider.GetUtcNow(), caseArchived) && !tokenRevoked
             ? new(capture, null)
             : CaptureAccess.Unavailable;
     }
@@ -80,10 +81,14 @@ public sealed class PhotoCaptureAccess(
         return link is { StartsCaptures: true } ? new(null, link) : CaptureAccess.Unavailable;
     }
 
-    /// <summary>A capture takes additions until it expires or is cancelled; a sent one stays open to more (add-only).</summary>
-    public static bool IsLive(PhotoCapture capture, DateTimeOffset nowUtc)
+    /// <summary>
+    /// A capture takes additions until it expires or is cancelled; a sent one
+    /// stays open to more (add-only). Once its Case is archived the link is
+    /// dead and takes nothing more (operator, 9 November 2026; R793).
+    /// </summary>
+    public static bool IsLive(PhotoCapture capture, DateTimeOffset nowUtc, bool caseArchived = false)
     {
         ArgumentNullException.ThrowIfNull(capture);
-        return !capture.IsRevoked && nowUtc < capture.ExpiresAtUtc;
+        return !caseArchived && !capture.IsRevoked && nowUtc < capture.ExpiresAtUtc;
     }
 }
