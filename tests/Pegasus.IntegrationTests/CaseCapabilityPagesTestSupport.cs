@@ -180,7 +180,12 @@ internal static partial class CaseWebTestSupport
         AssertClaimant(workspace, request.Actor);
         Assert.Equal(workspace.Store.CaseId, request.CaseId);
         Assert.Equal(expectedVersion ?? workspace.Store.CaseVersion, request.ExpectedVersion);
-        Assert.Equal(workspace.Store.LeaseToken, request.EditLeaseToken);
+        // A Case save is made under the token the lease held when it arrived; a session save
+        // then replaces that token (R761), so the store's current one is the next save's.
+        var heldToken = request is SaveCaseWorkspaceRequest && workspace.Store.LeaseTokenBeforeLastSave is { } before
+            ? before
+            : workspace.Store.LeaseToken;
+        Assert.Equal(heldToken, request.EditLeaseToken);
         Assert.Equal(operationKey, request.OperationKey);
         Assert.Equal(reason, request.Reason);
     }
@@ -949,6 +954,12 @@ internal static partial class CaseWebTestSupport
         /// </summary>
         public bool KeepsSessionOnSave { get; init; } = true;
 
+        /// <summary>
+        /// The token the lease held when the last Case save arrived: the one that save was made
+        /// under, which a session save then replaces (R761).
+        /// </summary>
+        public string? LeaseTokenBeforeLastSave { get; private set; }
+
         public bool RenderLeaseIsCurrent { get; set; } = true;
 
         public CaseAssessmentProjection? FocusedAssessment { get; set; }
@@ -1309,6 +1320,7 @@ internal static partial class CaseWebTestSupport
             cancellationToken.ThrowIfCancellationRequested();
             ThrowNextFailure();
             Saves.Add(request);
+            LeaseTokenBeforeLastSave = LeaseToken;
             if (AcceptWorkspaceSaves)
             {
                 CaseVersion++;
