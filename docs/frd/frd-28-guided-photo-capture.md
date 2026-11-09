@@ -113,9 +113,9 @@ Every page and API response carries:
 - `Cache-Control: no-store`.
 
 An unknown, expired, revoked or paused link gets one identical answer: the
-page says the link is no longer active, and the API answers 404. The four
-are never told apart. The page's further wording is an
-[open decision](../open-decisions.md#photo-capture-the-unavailable-pages-wording).
+page says "This link is no longer active." and "Ask whoever sent it to you
+for a new one.", and the API answers 404. The four are never told apart
+(operator, 9 November 2026; R789).
 
 ### The app's steps and required items
 
@@ -139,7 +139,10 @@ Before **Complete** a capture needs the eight overviews; for each marked
 area an overview, a closer shot and one close-up; the number plate; and the
 dashboard. The VIN is required only when a bodyshop's own staff took the
 photos. Extras, additional information and the note are never required.
-**Something missing** is derived from this list.
+**Something missing** is derived from this list. After Send, with items
+still missing, the app asks **Could you add a few more?**, lists them, and
+offers **Add more** and **That’s everything** (operator, 9 November 2026;
+R787).
 
 ### Routing and filing
 
@@ -251,9 +254,10 @@ Kind regards
 Collision Engineers
 ```
 
-Its subject is an
-[open decision](../open-decisions.md#photo-capture-the-photo-link-e-mails-subject).
-There is no automatic or scheduled send.
+Its subject is "Photos of {registration} for Collision Engineers", and
+"Photos for Collision Engineers" when the Case has no registration
+(operator, 9 November 2026; R788); staff may edit it before sending. There
+is no automatic or scheduled send.
 
 ### Case field filling
 
@@ -324,6 +328,10 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
 - **Unavailable.** An unknown, malformed, expired, revoked or paused
   credential gets the same page or 404, and no store is read for a value
   that is not a token's shape.
+- **No connection.** When the phone cannot reach Pegasus, or a refusal
+  carries no words of its own, the app says "We couldn’t reach Collision
+  Engineers. Check your signal and try again." (operator, 9 November 2026;
+  R786).
 - **Caps.** A request past a rate limit, a size, a per-link count or a
   standing link's daily cap is refused; nothing past the cap is kept.
 - **Replays.** An item carries the id the phone gave it, so a retried upload

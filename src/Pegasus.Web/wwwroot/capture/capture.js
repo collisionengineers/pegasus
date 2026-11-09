@@ -23,7 +23,7 @@ const PATHM = /\/(c|s)\/([^/?#]+)\/?$/.exec(location.pathname);
 let LINK = PATHM ? PATHM[1]+'.'+PATHM[2] : '';
 const isStanding = () => LINK.indexOf('s.')===0;
 
-/* Operator wording still owed: the one sentence the prototype never needed because it had no network. */
+/* The one sentence the prototype never needed because it had no network (operator, 9 November 2026; R786). */
 const COPY = { offline: 'We couldn’t reach Collision Engineers. Check your signal and try again.' };
 
 let CTX = null, LIVE = false, GUIDED = true, GONE = false, LASTCOUNT = 0;
@@ -592,7 +592,7 @@ function nudge(n){
   sh.querySelector('#nmore').onclick=()=>{ close(); const as=dmgAreas(), w=as.findIndex(a=>dmgCount(a)<3); if(w>=0){ S.dmgAi=w; S.dmgSt=0; S.dmgXi=0; } DMGRUN={scope:w>=0?'area':'none'}; shoot('damage'); };
   sh.querySelector('#nanyway').onclick=()=>{ close(); let j=S.step+1; while(STEPS[j]==='handoff') j++; go(j); };
 }
-/* After Send: what the server says is still missing, in its own words. */
+/* After Send: what the server says is still missing, in its own words; the heading and buttons are the operator's (9 November 2026; R787). */
 function missingSheet(list){
   const sh=sheet(`<h2 id="shh">Could you add a few more?</h2>
     <ul class="misslist">${list.map(m=>`<li>${esc(m.label)}</li>`).join('')}</ul>

@@ -190,6 +190,12 @@ public static partial class OperatorLabels
         public const string SendStatus = "Send status";
         public const string PhotoLinkPlaceholder = "{photo link}";
 
+        /// <summary>The photo link e-mail's subject (operator, 9 November 2026; R788).</summary>
+        public static string EmailSubject(string? displayRegistration) =>
+            string.IsNullOrWhiteSpace(displayRegistration)
+                ? "Photos for Collision Engineers"
+                : $"Photos of {displayRegistration.Trim()} for Collision Engineers";
+
         public static string Days(int days) => string.Create(CultureInfo.InvariantCulture, $"{days} days");
 
         public static string Mode(PhotoCaptureMode mode) => mode switch

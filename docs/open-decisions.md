@@ -54,26 +54,6 @@ durable owner.
   retired, so a custom domain would take a new capability identity. Links
   already sent keep the hostname they were sent with until they expire.
 
-## Photo capture: the unavailable page's wording
-
-- **Owner**: the operator.
-- **Affected contract**: [FRD-28](frd/frd-28-guided-photo-capture.md#public-surface)
-  (one identical answer for an unknown, expired, revoked or paused link).
-- **Decision needed**: the words the `/c` and `/s` page shows beyond "This
-  link is no longer active", the line the retired upload links (INT-31)
-  used: whether it tells the sender what to do next, such as asking whoever
-  sent the link for a new one, and in what words. The answer must stay the
-  same for all four causes.
-
-## Photo capture: the photo link e-mail's subject
-
-- **Owner**: the operator.
-- **Affected contract**: [FRD-28](frd/frd-28-guided-photo-capture.md#the-photo-link-e-mail)
-  and [FRD-17](frd/frd-17-administration-workspace.md#e-mail-templates),
-  where a subject is not templated and each purpose's subject is stated.
-- **Decision needed**: the subject line of the Photo link e-mail. The body
-  is decided; no ruling or FRD states the subject.
-
 ## Photo capture: a typed mileage and inspection location against existing evidence rules
 
 - **Owner**: the operator.

@@ -15,7 +15,7 @@ public sealed record CaptureDocumentView(string ContextJson, string AssetsJson)
 /// </summary>
 public sealed record CaptureCardView(string Heading, string Line)
 {
-    /// <summary>The one answer for an unknown, expired, revoked or paused link (FRD-28).</summary>
+    /// <summary>The one answer for an unknown, expired, revoked or paused link (FRD-28; operator, 9 November 2026; R789).</summary>
     public static CaptureCardView Unavailable { get; } =
         new("This link is no longer active.", "Ask whoever sent it to you for a new one.");
 

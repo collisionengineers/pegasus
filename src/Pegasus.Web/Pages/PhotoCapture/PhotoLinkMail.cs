@@ -125,11 +125,12 @@ public sealed class PhotoLinkMail(
             cancellationToken);
     }
 
-    /// <summary>The subject: the vehicle as the customer knows it, its registration; with none, the words "Photo link".</summary>
+    /// <summary>The subject (R788): "Photos of AB12 CDE for Collision Engineers", or "Photos for Collision Engineers" with no registration.</summary>
     public static string Subject(string? normalizedRegistration) =>
-        normalizedRegistration is { Length: > 0 } registration
-            ? PhotoCaptureText.DisplayRegistration(registration)
-            : OperatorLabels.PhotoCapture.PhotoLink;
+        OperatorLabels.PhotoCapture.EmailSubject(
+            normalizedRegistration is { Length: > 0 } registration
+                ? PhotoCaptureText.DisplayRegistration(registration)
+                : null);
 
     private static string? FirstName(string? name) =>
         (name ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
