@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -59,7 +60,8 @@ internal static partial class CaseWebTestSupport
                 Substitute<ICaseWorkflowQueries>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
                 substitutePorts(services);
-            }));
+            });
+        });
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -433,7 +435,8 @@ internal static partial class CaseWebTestSupport
         DocumentSemanticRole role = DocumentSemanticRole.Instruction,
         IReadOnlyList<ImageTagAssignment>? tags = null,
         DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed,
-        DocumentSource source = DocumentSource.Intake)
+        DocumentSource source = DocumentSource.Intake,
+        string sourceOccurrenceIdentity = "source-1")
     {
         var documentId = Guid.NewGuid();
         var recordedAtUtc = new DateTimeOffset(2031, 5, 5, 9, 0, 0, TimeSpan.Zero);
@@ -448,7 +451,7 @@ internal static partial class CaseWebTestSupport
                     versionId,
                     role,
                     source,
-                    "source-1",
+                    sourceOccurrenceIdentity,
                     recordedAtUtc,
                     tags ?? [])
             ],
@@ -1471,28 +1474,33 @@ internal static partial class CaseWebTestSupport
         RecordingCaseDetailsStore store,
         Action<IServiceCollection> substitutePorts,
         StaffRole role = StaffRole.Engineer,
-        bool keepDatabase = false)
+        bool keepDatabase = false,
+        Action<IWebHostBuilder>? configureHost = null)
     {
-        var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role, keepDatabase);
+        var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role, keepDatabase, configureHost);
         return await ClaimEditModeAsync(baseFactory, factory, client, store);
     }
 
     /// <summary>
     /// A signed-in staff client in <paramref name="role"/> over the recording
     /// store, with the Engineer sections open and <paramref name="substitutePorts"/>
-    /// replacing further ports after the store's.
+    /// replacing further ports after the store's; <paramref name="configureHost"/>
+    /// sets what the host reads before it starts, such as a feature flag.
     /// </summary>
     private static (IntakeWebApplicationFactory BaseFactory, WebApplicationFactory<Program> Factory, HttpClient Client)
         EngineerClient(
             RecordingCaseDetailsStore store,
             Action<IServiceCollection> substitutePorts,
             StaffRole role,
-            bool keepDatabase)
+            bool keepDatabase,
+            Action<IWebHostBuilder>? configureHost = null)
     {
         var baseFactory = keepDatabase
             ? new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true)
             : IntakeWebApplicationFactory.WithoutDatabase();
         var factory = baseFactory.WithWebHostBuilder(builder =>
+        {
+            configureHost?.Invoke(builder);
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCaseEditBasis>(services, store);

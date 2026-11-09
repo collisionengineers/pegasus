@@ -8,7 +8,11 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// The standing links (FRD-28): a contact's, read with its contact's name,
 /// Principal and whether it is a repairer, or the one website link. A write
-/// names the version it read; a changed row is a concurrency failure.
+/// names the version it read; a changed row is refused as
+/// <see cref="StandingPhotoLinkError.StaleVersion"/>, and a second link for a
+/// contact or a second website link, which the unique indexes stop, as
+/// <see cref="StandingPhotoLinkError.AlreadyExists"/>, so the pages render
+/// the refusal rather than a fault (<see cref="StandingPhotoLinkAdministration"/>).
 /// </summary>
 public sealed class EfStandingPhotoLinkStore(
     IDbContextFactory<PegasusDbContext> contextFactory) : IStandingPhotoLinkStore
@@ -67,12 +71,22 @@ public sealed class EfStandingPhotoLinkStore(
         await using (var context = await contextFactory.CreateDbContextAsync(cancellationToken))
         {
             context.StandingPhotoLinks.Add(entity);
-            await context.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException exception) when (IsUniqueIndexCollision(exception))
+            {
+                throw new StandingPhotoLinkException(StandingPhotoLinkError.AlreadyExists);
+            }
         }
 
         return await GetAsync(entity.Id, cancellationToken)
             ?? throw new InvalidOperationException("The standing photo link was not read back.");
     }
+
+    private static bool IsUniqueIndexCollision(DbUpdateException exception) =>
+        exception.GetBaseException() is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 };
 
     public Task<StandingPhotoLink> UpdateDefaultsAsync(
         Guid id,
@@ -253,15 +267,24 @@ public sealed class EfStandingPhotoLinkStore(
                 await using var context = await contextFactory.CreateDbContextAsync(token);
                 var entity = await context.StandingPhotoLinks
                     .SingleOrDefaultAsync(item => item.Id == id, token)
-                    ?? throw new KeyNotFoundException("The standing photo link was not found.");
+                    ?? throw new StandingPhotoLinkException(StandingPhotoLinkError.NotFound);
                 if (entity.Version != expectedVersion)
                 {
-                    throw new DbUpdateConcurrencyException("The standing photo link changed since it was read.");
+                    throw new StandingPhotoLinkException(StandingPhotoLinkError.StaleVersion);
                 }
 
                 change(entity);
                 entity.Version++;
-                await context.SaveChangesAsync(token);
+                try
+                {
+                    await context.SaveChangesAsync(token);
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    // The row moved between the read above and this write.
+                    throw new StandingPhotoLinkException(StandingPhotoLinkError.StaleVersion);
+                }
+
                 return await ReadOneAsync(context, item => item.Id == id, token)
                     ?? throw new InvalidOperationException("The standing photo link was not read back.");
             },

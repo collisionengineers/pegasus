@@ -42,6 +42,13 @@
         <span>@notice</span>
     </div>
 }
+@if (Model.Refusal is { } refusal)
+{
+    <div class="notice notice--danger" role="alert">
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
+        <span>@refusal</span>
+    </div>
+}
 
 @* Each tab is its own server-rendered address (?tab=), so the tabs are a nav
    of links with aria-current, as on Logs and a Principal contact. *@

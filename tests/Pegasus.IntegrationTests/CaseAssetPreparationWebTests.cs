@@ -1,12 +1,14 @@
 using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.PhotoCapture;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.IntegrationTests.Reports;
@@ -253,6 +255,100 @@ public sealed class CaseAssetPreparationWebTests
         Assert.Contains("data-image-full-page", card, StringComparison.Ordinal);
         Assert.Contains("class=\"grip\"", card, StringComparison.Ordinal);
         Assert.DoesNotContain("data-image-report-read", card, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A Case with photo link photos draws them in the links' story (FRD-28;
+    /// R774), and the story block is the one ordering scope the grid otherwise
+    /// is (FRD-16 Files): a movable story tile carries the grip and its order
+    /// box, a tagged one holds its place and has no grip.
+    /// </summary>
+    [Fact]
+    public async Task AStoryTileCarriesTheGripAndTheStoryBlockIsTheDragScope()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store(CaseLifecycleState.Review);
+        var now = new DateTimeOffset(2026, 11, 9, 12, 0, 0, TimeSpan.Zero);
+        var overviewAsset = Guid.NewGuid();
+        var closeUpAsset = Guid.NewGuid();
+        static CaseDocument FiledFrom(CaseDocument document, Guid assetId) =>
+            document with { Occurrences = [document.Occurrences[0] with { SourceOccurrenceIdentity = assetId.ToString("N") }] };
+        store.CaseDocuments =
+        [
+            .. store.CaseDocuments.Select(document =>
+                document.Occurrences[0].Id == fixture.FirstSupportingOccurrenceId ? FiledFrom(document, overviewAsset)
+                : document.Occurrences[0].Id == fixture.CloseUpOccurrenceId ? FiledFrom(document, closeUpAsset)
+                : document)
+        ];
+        var capture = new Pegasus.Core.PhotoCapture.PhotoCapture(
+            Guid.NewGuid(), PhotoCaptureOrigin.CaseLink, null, null, store.CaseId, "Q26-0001", null,
+            PhotoCaptureDestination.Case, null, "AB12CDE", null, "Sam Taylor", "07700 900123", null,
+            new PhotoCaptureDetails(DamageAreas: FrontDriverCorner), null, PhotoCaptureMode.Guided, true, true, null,
+            now.AddHours(-1), now.AddDays(7), null, now.AddMinutes(-50), now.AddMinutes(-40), now.AddMinutes(-30),
+            now.AddMinutes(-20), null, 0, 2, 2048, 0, null, null, 1);
+        PhotoCaptureItem Item(Guid assetId, PhotoCaptureItemKind kind, string? area, PhotoCaptureStage? stage, int position, int ordinal)
+        {
+            var group = PhotoCaptureStory.Group(kind, area, capture.Details.MarkedAreas);
+            var sequence = PhotoCaptureStory.Sequence(kind, stage, position);
+            return new(
+                Guid.NewGuid(), capture.Id, Guid.NewGuid(), kind, area, stage, position, 1, ordinal, group, sequence,
+                PhotoCaptureStory.FileName(kind, area, stage, position, group, sequence, "image/jpeg"),
+                "image/jpeg", null, true, true, new string('a', 64), 1024, Guid.NewGuid(), Guid.NewGuid(), assetId, false, now);
+        }
+        var story = new CasePhotoCaptureStory(
+            capture,
+            [
+                Item(overviewAsset, PhotoCaptureItemKind.Overview, null, null, 1, 0),
+                Item(closeUpAsset, PhotoCaptureItemKind.Damage, "fd", PhotoCaptureStage.CloseUp, 1, 1)
+            ],
+            null);
+        using var workspace = await EnterEngineerEditModeAsync(
+            store,
+            services =>
+            {
+                Substitute<ICaseAssetPreparationQueries>(services, store);
+                Substitute<IPhotoCaptureQueries>(services, new StoryOnly(story));
+            },
+            StaffRole.User,
+            configureHost: builder => builder.UseSetting(Pegasus.Web.PhotoCapture.PhotoCaptureSurface.FeatureFlag, "true"));
+
+        var leased = await workspace.GetWorkspaceAsync();
+        var html = await GetFilesFragmentAsync(workspace, leased);
+
+        var block = html.IndexOf("data-image-story", StringComparison.Ordinal);
+        Assert.True(block >= 0, "The Images tab draws no story block.");
+        Assert.DoesNotContain("data-image-grid>", html, StringComparison.Ordinal);
+        var storyBlock = html[block..];
+        Assert.Contains("Overview all the way round", storyBlock, StringComparison.Ordinal);
+        var movable = Card(storyBlock, fixture.FirstSupportingOccurrenceId);
+        Assert.Contains("class=\"grip\"", movable, StringComparison.Ordinal);
+        Assert.Contains("data-preparation-order=\"3\"", movable, StringComparison.Ordinal);
+        var fixed = Card(storyBlock, fixture.CloseUpOccurrenceId);
+        Assert.DoesNotContain("class=\"grip\"", fixed, StringComparison.Ordinal);
+        Assert.Contains("data-preparation-fixed=\"true\"", fixed, StringComparison.Ordinal);
+        // The images the story does not hold follow under Other images, in the same block.
+        Assert.Contains("class=\"grip\"", Card(storyBlock, fixture.SecondSupportingOccurrenceId), StringComparison.Ordinal);
+    }
+
+    private static readonly string[] FrontDriverCorner = ["fd"];
+
+    /// <summary>The photo link reads of a host whose one Case has one capture story.</summary>
+    private sealed class StoryOnly(CasePhotoCaptureStory story) : IPhotoCaptureQueries
+    {
+        public Task<PhotoCaptureListPage> ListAsync(PhotoCaptureListFilter filter, CancellationToken cancellationToken) =>
+            Task.FromResult(new PhotoCaptureListPage([], 0));
+
+        public Task<PhotoCaptureListRow?> GetRowAsync(Guid captureId, CancellationToken cancellationToken) =>
+            Task.FromResult<PhotoCaptureListRow?>(null);
+
+        public Task<IReadOnlyList<CasePhotoCaptureStory>> ListForCaseAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CasePhotoCaptureStory>>(caseId == story.Capture.CaseId ? [story] : []);
+
+        public Task<IReadOnlyList<CasePhotoCaptureStory>> ListForImageIntakeAsync(Guid imageIntakeId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CasePhotoCaptureStory>>([]);
+
+        public Task<IReadOnlyDictionary<PhotoCaptureState, int>> CountByStateAsync(bool sentByUs, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<PhotoCaptureState, int>>(new Dictionary<PhotoCaptureState, int>());
     }
 
     /// <summary>

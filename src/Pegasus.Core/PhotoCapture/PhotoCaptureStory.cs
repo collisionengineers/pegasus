@@ -218,6 +218,18 @@ public static class PhotoCaptureStory
 
     public static bool IsPhotographKind(PhotoCaptureItemKind kind) => kind is not (PhotoCaptureItemKind.Paperwork or PhotoCaptureItemKind.Video);
 
+    /// <summary>
+    /// The name a photo's full-size original takes as the next version of the
+    /// same Case image (FRD-28 Routing and filing): the photo's own name, with
+    /// the original's extension when its type differs.
+    /// </summary>
+    public static string OriginalFileName(string photoFileName, string mediaType)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(photoFileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(mediaType);
+        return Path.GetFileNameWithoutExtension(photoFileName) + ExtensionFor(mediaType, photoFileName);
+    }
+
     public static bool AcceptsMediaType(PhotoCaptureItemKind kind, string mediaType) => kind switch
     {
         PhotoCaptureItemKind.Video => mediaType is Intake.IntakeUploadFilePolicy.Mp4MediaType

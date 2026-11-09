@@ -1981,6 +1981,188 @@ public sealed class CaseArtifactCustodyRecoveryTests
         Assert.Equal(version.ContentLength, published.ContentLength);
     }
 
+    /// <summary>
+    /// A full-size original is the next version of its photo's own Case image
+    /// (FRD-28 Routing and filing): one document, two versions, the one
+    /// occurrence now naming the original, with its tags and report place
+    /// untouched; Box takes the bytes as the next version of the photo's file
+    /// (R664). The same bytes again answer the version they made, and
+    /// different bytes over an image that already has a later version are
+    /// refused.
+    /// </summary>
+    [Fact]
+    public async Task AnOriginalFilesAsTheNextVersionOfTheSameImageAndTheOccurrenceFollowsIt()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.ArtifactVersions", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            await using var scope = database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var quarantine = scope.ServiceProvider.GetRequiredService<IIntakeQuarantineArtifactStore>();
+            var store = new SeriesRecordingContentStore();
+            var custody = new EfCaseArtifactCustody(factory, store, quarantine, TimeProvider.System);
+            var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            var photo = "compressed photo bytes"u8.ToArray();
+            var filed = await custody.RetainAsync(
+                new(
+                    staff, caseId, null, Guid.NewGuid().ToString("N"), "photo:1",
+                    "02-03 Front driver corner closer.jpg", "image/jpeg", photo.LongLength,
+                    Convert.ToHexStringLower(SHA256.HashData(photo)), new MemoryStream(photo, writable: false),
+                    SemanticRole: DocumentSemanticRole.Image, Source: DocumentSource.Intake),
+                CancellationToken.None);
+            Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, filed.Disposition);
+            await using (var db = await database.CreateContextAsync())
+            {
+                // What staff did to the photo before the original arrived.
+                var occurrence = await db.Set<DocumentOccurrenceEntity>().SingleAsync(value => value.Id == filed.OccurrenceId);
+                occurrence.InReport = false;
+                occurrence.SupportingOrder = 3;
+                db.Add(new DocumentOccurrenceTagEntity
+                {
+                    OccurrenceId = occurrence.Id,
+                    TagId = ImageTagVocabulary.ThirdPartyId,
+                    AppliedByKind = "Staff",
+                    AppliedBySubjectId = staff.SubjectId,
+                    AppliedAtUtc = DateTimeOffset.UtcNow,
+                    OperationKey = "tag:1"
+                });
+                await db.SaveChangesAsync();
+            }
+
+            var original = "full-size original bytes"u8.ToArray();
+            var worker = ActionActor.SystemWorker("photo-capture-original");
+            CaseArtifactVersionRequest Request(byte[] content) => new(
+                worker, caseId, filed.OccurrenceId!.Value, "02-03 Front driver corner closer.jpg", "image/jpeg",
+                content.LongLength, Convert.ToHexStringLower(SHA256.HashData(content)),
+                new MemoryStream(content, writable: false));
+
+            var result = await custody.RetainNextVersionAsync(Request(original), CancellationToken.None);
+
+            Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, result.Disposition);
+            Assert.Equal(filed.DocumentId, result.DocumentId);
+            Assert.Equal(filed.OccurrenceId, result.OccurrenceId);
+            Assert.NotEqual(filed.VersionId, result.VersionId);
+            Assert.Equal(filed.BoxFileId, store.Addresses[^1].SeriesBoxFileId);
+            Assert.Equal(2, store.Addresses[^1].Version);
+            Assert.Equal(filed.BoxFileId, result.BoxFileId);
+            Assert.NotEqual(filed.BoxVersionId, result.BoxVersionId);
+            await using (var db = await database.CreateContextAsync())
+            {
+                Assert.Equal(1, await db.Set<CaseDocumentEntity>().CountAsync(value => value.CaseId == caseId));
+                var versions = await db.Set<DocumentVersionEntity>()
+                    .Where(value => value.DocumentId == filed.DocumentId)
+                    .OrderBy(value => value.Version)
+                    .ToListAsync();
+                Assert.Equal(2, versions.Count);
+                Assert.False(versions[0].IsCurrent);
+                Assert.Equal(DocumentCustodyStatus.Confirmed, versions[0].CustodyStatus);
+                Assert.True(versions[1].IsCurrent);
+                Assert.Equal(DocumentCustodyStatus.Confirmed, versions[1].CustodyStatus);
+                Assert.Equal(result.VersionId, versions[1].Id);
+                Assert.Equal(original.LongLength, versions[1].ContentLength);
+                var occurrence = await db.Set<DocumentOccurrenceEntity>().SingleAsync(value => value.CaseId == caseId);
+                Assert.Equal(filed.OccurrenceId, occurrence.Id);
+                Assert.Equal(result.VersionId, occurrence.VersionId);
+                Assert.False(occurrence.InReport);
+                Assert.Equal(3, occurrence.SupportingOrder);
+                Assert.Equal(1, await db.Set<DocumentOccurrenceTagEntity>().CountAsync(value => value.OccurrenceId == occurrence.Id));
+            }
+
+            var writes = store.Addresses.Count;
+            var replay = await custody.RetainNextVersionAsync(Request(original), CancellationToken.None);
+            Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, replay.Disposition);
+            Assert.Equal(result.VersionId, replay.VersionId);
+            Assert.Equal(writes, store.Addresses.Count);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => custody.RetainNextVersionAsync(Request("another original"u8.ToArray()), CancellationToken.None));
+            await using (var db = await database.CreateContextAsync())
+            {
+                Assert.Equal(2, await db.Set<DocumentVersionEntity>().CountAsync(value => value.DocumentId == filed.DocumentId));
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// An original whose upload failed is a pending version the photo's
+    /// occurrence names, so reconciliation finds it like any other and files
+    /// it onto the photo's own Box file.
+    /// </summary>
+    [Fact]
+    public async Task AnOriginalLeftPendingIsFiledByReconciliationOntoThePhotosOwnBoxFile()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.ArtifactVersions", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            await using var scope = database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var intake = scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>();
+            var quarantine = scope.ServiceProvider.GetRequiredService<IIntakeQuarantineArtifactStore>();
+            var store = new SeriesRecordingContentStore();
+            var custody = new EfCaseArtifactCustody(factory, store, quarantine, TimeProvider.System);
+            var photo = "compressed photo bytes"u8.ToArray();
+            var filed = await custody.RetainAsync(
+                new(
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), caseId, null, Guid.NewGuid().ToString("N"), "photo:1",
+                    "01-01 Front.jpg", "image/jpeg", photo.LongLength,
+                    Convert.ToHexStringLower(SHA256.HashData(photo)), new MemoryStream(photo, writable: false),
+                    SemanticRole: DocumentSemanticRole.Image, Source: DocumentSource.Intake),
+                CancellationToken.None);
+            var original = "full-size original bytes"u8.ToArray();
+            var request = new CaseArtifactVersionRequest(
+                ActionActor.SystemWorker("photo-capture-original"), caseId, filed.OccurrenceId!.Value, "01-01 Front.jpg", "image/jpeg",
+                original.LongLength, Convert.ToHexStringLower(SHA256.HashData(original)),
+                new MemoryStream(original, writable: false));
+
+            store.FailNext = 1;
+            await Assert.ThrowsAsync<IOException>(() => custody.RetainNextVersionAsync(request, CancellationToken.None));
+            Guid pendingVersionId;
+            await using (var db = await database.CreateContextAsync())
+            {
+                var pending = await db.Set<DocumentVersionEntity>().SingleAsync(value => value.CustodyStatus == DocumentCustodyStatus.Pending);
+                pendingVersionId = pending.Id;
+                Assert.True(pending.IsCurrent);
+                Assert.Equal(2, pending.Version);
+                var occurrence = await db.Set<DocumentOccurrenceEntity>().SingleAsync(value => value.Id == filed.OccurrenceId);
+                Assert.Equal(pending.Id, occurrence.VersionId);
+            }
+
+            var reconciled = await new ReconcilePendingArtifactCustody(
+                factory, store, intake, PastInlineFilingGrace()).ExecuteAsync(10, CancellationToken.None);
+
+            Assert.Equal(1, reconciled.Confirmed);
+            Assert.Equal(pendingVersionId, store.Addresses[^1].VersionId);
+            Assert.Equal(filed.BoxFileId, store.Addresses[^1].SeriesBoxFileId);
+            await using (var db = await database.CreateContextAsync())
+            {
+                var confirmed = await db.Set<DocumentVersionEntity>().SingleAsync(value => value.Id == pendingVersionId);
+                Assert.Equal(DocumentCustodyStatus.Confirmed, confirmed.CustodyStatus);
+                Assert.Equal(filed.BoxFileId, confirmed.BoxFileId);
+                Assert.True(confirmed.IsCurrent);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
     private static CaseArtifactCustodyRequest ArtifactRequest(
         ActionActor actor, Guid caseId, byte[] content) => new(
         actor, caseId, null, $"test:{Guid.NewGuid():N}", $"test:{Guid.NewGuid():N}",

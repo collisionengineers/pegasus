@@ -120,6 +120,18 @@ public sealed class PhotoCaptureStoryTests
     public void EachKindAcceptsItsOwnMediaTypes(PhotoCaptureItemKind kind, string mediaType, bool accepted) =>
         Assert.Equal(accepted, PhotoCaptureStory.AcceptsMediaType(kind, mediaType));
 
+    /// <summary>
+    /// A full-size original is the next version of its photo's own image
+    /// (FRD-28 Routing and filing), so it takes the photo's name; only an
+    /// original of another type changes the extension.
+    /// </summary>
+    [Theory]
+    [InlineData("02-03 Front driver corner closer.jpg", "image/jpeg", "02-03 Front driver corner closer.jpg")]
+    [InlineData("02-03 Front driver corner closer.jpg", "image/png", "02-03 Front driver corner closer.png")]
+    [InlineData("01-01 Front.jpg", "image/jpeg", "01-01 Front.jpg")]
+    public void AnOriginalKeepsThePhotosNameAndTakesItsOwnExtension(string photo, string mediaType, string expected) =>
+        Assert.Equal(expected, PhotoCaptureStory.OriginalFileName(photo, mediaType));
+
     [Fact]
     public void PaperworkAndVideoFileAsOtherDocumentsAndPhotographsAsImages()
     {

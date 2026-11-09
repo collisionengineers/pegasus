@@ -2,20 +2,18 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Intake;
 using Pegasus.Core.PhotoCapture;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// Files a photo's full-size original on the Case its compressed picture was
-/// filed on. No existing path adds a version to an intake-filed image: a
-/// regenerated report is a new Case document whose Box file takes the next
-/// version (R664), and a staff add needs the Case's edit lease. So the
-/// original is filed through Case custody as a document of its own, an image
-/// named after the photo with "(full size)", out of the report so the report
-/// keeps the compressed picture. Nothing is filed until the compressed
-/// picture is on a Case; the phone sends the original again later.
+/// Files a photo's full-size original as the next version of the Case image
+/// its compressed picture was filed as (FRD-28 Routing and filing): the image
+/// keeps its tile, tags, report place and crop, Box shows the compressed
+/// picture as the earlier version of the one file (R664), and the report
+/// prints the original once it is filed. Nothing is filed until the
+/// compressed picture is a confirmed Case image; the phone sends the original
+/// again later.
 /// </summary>
 public sealed class EfFilePhotoCaptureOriginal(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -42,66 +40,45 @@ public sealed class EfFilePhotoCaptureOriginal(
             return false;
         }
 
-        var operationKey = $"photo-capture-original:{item.Id:N}";
-        Guid caseId;
-        bool alreadyRecorded;
+        FiledImage? image;
         await using (var context = await contextFactory.CreateDbContextAsync(cancellationToken))
         {
-            var filedOn = await FiledCaseAsync(context, item, assetId, cancellationToken);
-            if (filedOn is null)
-            {
-                return false;
-            }
+            image = await FiledImageAsync(context, item, assetId, cancellationToken);
+        }
 
-            caseId = filedOn.Value;
-            alreadyRecorded = await context.Set<DocumentOccurrenceEntity>().AsNoTracking()
-                .AnyAsync(value => value.CaseId == caseId && value.OperationKey == operationKey, cancellationToken);
+        if (image is null)
+        {
+            return false;
         }
 
         CaseArtifactCustodyResult result;
         await using (var content = await openContentAsync(cancellationToken))
         {
-            result = await custody.RetainAsync(
-                new CaseArtifactCustodyRequest(
+            result = await custody.RetainNextVersionAsync(
+                new CaseArtifactVersionRequest(
                     ActionActor.SystemWorker(ActorId),
-                    caseId,
-                    IntakeReceiptId: null,
-                    OccurrenceIdentity: operationKey,
-                    OperationKey: operationKey,
-                    FullSizeName(fileName, mediaType),
+                    image.CaseId,
+                    image.OccurrenceId,
+                    PhotoCaptureStory.OriginalFileName(image.FileName, mediaType),
                     mediaType,
                     contentLength,
                     sha256,
-                    content,
-                    SemanticRole: DocumentSemanticRole.Image,
-                    Source: DocumentSource.Intake),
+                    content),
                 cancellationToken);
         }
 
-        if (result.Disposition is not (CaseArtifactCustodyDisposition.Confirmed or CaseArtifactCustodyDisposition.Pending))
-        {
-            return false;
-        }
-
-        if (!alreadyRecorded && result.OccurrenceId is { } occurrenceId)
-        {
-            // A new image starts In report; the original stays out of it, so
-            // the report keeps the picture the sender took. Only on the first
-            // filing: a replay never undoes what staff chose since.
-            await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-            await context.Set<DocumentOccurrenceEntity>()
-                .Where(value => value.Id == occurrenceId && value.CaseId == caseId)
-                .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.InReport, false), cancellationToken);
-        }
-
-        return true;
+        return result.Disposition is CaseArtifactCustodyDisposition.Confirmed or CaseArtifactCustodyDisposition.Pending;
     }
 
+    /// <summary>The Case image the item's compressed picture stands as: on the capture's own Case, or the Case its receipt was filed on.</summary>
+    private sealed record FiledImage(Guid CaseId, Guid OccurrenceId, string FileName);
+
     /// <summary>
-    /// The Case the item's compressed picture is a current document of: the
-    /// capture's own Case, or the Case its receipt was filed on.
+    /// The confirmed, current Case image filed from the item's intake asset,
+    /// with the name its current version carries. Null while the picture is
+    /// still filing or when it is on no Case.
     /// </summary>
-    private static async Task<Guid?> FiledCaseAsync(
+    private static async Task<FiledImage?> FiledImageAsync(
         PegasusDbContext context,
         PhotoCaptureItem item,
         Guid assetId,
@@ -127,27 +104,18 @@ public sealed class EfFilePhotoCaptureOriginal(
         var identity = assetId.ToString("N");
         return await (
             from document in context.Set<CaseDocumentEntity>().AsNoTracking()
+            join occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                on document.Id equals occurrence.DocumentId
             join version in context.Set<DocumentVersionEntity>().AsNoTracking()
-                on document.Id equals version.DocumentId
+                on occurrence.VersionId equals version.Id
             where EF.Parameter(caseIds).Contains(document.CaseId)
                 && document.SourceOccurrenceIdentity == identity
+                && occurrence.CaseId == document.CaseId
+                && occurrence.SemanticRole == DocumentSemanticRole.Image
                 && version.IsCurrent
                 && !version.IsLogicallyRemoved
-                && version.CustodyStatus != DocumentCustodyStatus.Failed
-            select (Guid?)document.CaseId)
+                && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+            select new FiledImage(document.CaseId, occurrence.Id, version.FileName))
             .FirstOrDefaultAsync(cancellationToken);
-    }
-
-    /// <summary>The photo's own name with "(full size)", and the extension of the original's own type.</summary>
-    internal static string FullSizeName(string fileName, string mediaType)
-    {
-        var stem = Path.GetFileNameWithoutExtension(fileName);
-        var extension = IntakeUploadFilePolicy.ExtensionFor(mediaType);
-        if (extension.Length == 0)
-        {
-            extension = Path.GetExtension(fileName);
-        }
-
-        return $"{stem} (full size){extension}";
     }
 }

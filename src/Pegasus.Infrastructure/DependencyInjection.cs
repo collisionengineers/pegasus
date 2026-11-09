@@ -203,6 +203,7 @@ public static class DependencyInjection
         services.AddScoped<ReceivePhotoCaptureItem>();
         services.AddScoped<CompletePhotoCapture>();
         services.AddScoped<PhotoLinkActions>();
+        services.AddScoped<StandingPhotoLinkAdministration>();
         // A factory, because IProcessQueuedIntake is the Worker's own: the
         // Web never resolves the settle, and its build-time validation does
         // not ask for a dependency only the Worker composes.

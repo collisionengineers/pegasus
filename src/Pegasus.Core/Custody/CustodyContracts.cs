@@ -731,10 +731,34 @@ public sealed record CaseArtifactCustodyResult(
     CaseArtifactCustodyDisposition Disposition, Guid? DocumentId, Guid? VersionId, Guid? OccurrenceId,
     string? BoxFileId, string? BoxVersionId, string? Sha256, long? ContentLength,
     string? MediaType, string? FailureCode, string? PendingContentStorageKey);
+
+/// <summary>
+/// Content filed as the next version of a Case image that is already filed
+/// (FRD-28 Routing and filing): the occurrence the image stands as keeps its
+/// identity, tags, report place and preparation and names the new version,
+/// and Box takes the bytes as the next version of the same file, which keeps
+/// its name (R664). The full-size original a phone sends after its compressed
+/// photo is what this is for.
+/// </summary>
+public sealed record CaseArtifactVersionRequest(
+    ActionActor Actor, Guid CaseId, Guid OccurrenceId, string FileName, string MediaType,
+    long ContentLength, string Sha256, Stream Content);
+
 public interface ICaseArtifactCustody
 {
     Task<CaseArtifactCustodyResult> RetainAsync(
         CaseArtifactCustodyRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Files <see cref="CaseArtifactVersionRequest.Content"/> as the next
+    /// version of the image the occurrence names. The same bytes again answer
+    /// the version they already made; different bytes over an image that
+    /// already has a later version are refused. A custody that files no later
+    /// versions throws.
+    /// </summary>
+    Task<CaseArtifactCustodyResult> RetainNextVersionAsync(
+        CaseArtifactVersionRequest request, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("This custody files no later versions of a Case image.");
 
     /// <summary>
     /// Marks the calls made until it is disposed as one batch of document

@@ -181,7 +181,10 @@ A capture that settled with no Case does this when its Vehicle images record
 reaches a Case. Photos added after a settle form the next batch; with no
 Case, that batch becomes a further Vehicle images record for the same
 registration. A full-size original files as the next version of the same
-Case image.
+Case image: the image keeps its tile, tags, report place and crop, Box shows
+the compressed picture as the earlier version of the one file (R664), and
+the report prints the original once it is filed. Until then, and should the
+original's upload fail, the compressed picture stands.
 
 ### Baskets and names
 

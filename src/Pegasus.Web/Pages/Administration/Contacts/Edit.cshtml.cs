@@ -33,9 +33,9 @@ public sealed class EditModel(
     IApprovedMailboxStore approvedMailboxes,
     IReplacePrincipal replacePrincipal,
     IStandingPhotoLinkStore? standingLinks = null,
+    StandingPhotoLinkAdministration? standingLinkAdministration = null,
     IOptions<PhotoCaptureOptions>? photoCaptureOptions = null,
-    IConfiguration? configuration = null,
-    TimeProvider? timeProvider = null) : AdministrationPageModel
+    IConfiguration? configuration = null) : AdministrationPageModel
 {
     public ContactDirectoryRecord? Contact { get; private set; }
 
@@ -64,6 +64,7 @@ public sealed class EditModel(
     // photo capture is composed.
     public const string PhotoLinksTab = "photo-links";
     public bool OffersPhotoLinks => standingLinks is not null
+        && standingLinkAdministration is not null
         && photoCaptureOptions is not null
         && configuration is not null
         && ShellRail.PhotoCaptureEnabled(configuration)
@@ -190,7 +191,9 @@ public sealed class EditModel(
     }
 
     // One handler per tab, as the other tabs: each change to the contact's
-    // standing link comes back to the Photo links tab.
+    // standing link is Core's (StandingPhotoLinkAdministration) and comes
+    // back to the Photo links tab. A change made over a stale read is shown
+    // as the tab's refusal, as the other tabs show theirs.
     private async Task<IActionResult> ChangePhotoLinkAsync(Guid id, string action, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
@@ -199,50 +202,55 @@ public sealed class EditModel(
         Tab = PhotoLinksTab;
         Contact = await contacts.GetAsync(actor, id, cancellationToken);
         if (Contact is null || !OffersPhotoLinks) return NotFound();
-        if (!StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ManageOrganizationsAndPrincipals)) return Forbid();
-        if (!CaptureLimits.IsLifetime(LinkLifetimeDays) || !Enum.IsDefined(LinkForwardedMode)) return BadRequest();
-        var now = (timeProvider ?? TimeProvider.System).GetUtcNow();
+        var administration = standingLinkAdministration!;
         var link = await standingLinks!.FindForOrganizationAsync(id, cancellationToken);
-        switch (action)
+        if (action != "create" && link is null) return BadRequest();
+        try
         {
-            case "create" when link is null:
-                await standingLinks.CreateAsync(
-                    StandingPhotoLinkKind.Contact,
-                    id,
-                    PhotoLinkToken.CreateSlug(),
-                    PhotoCaptureMode.Guided,
-                    liveCameraOnly: true,
-                    CaptureLimits.DefaultLifetimeDays,
-                    originalsInBackground: true,
-                    actor,
-                    now,
-                    cancellationToken);
-                break;
-            case "pause" when link is not null:
-                await standingLinks.SetPausedAsync(link.Id, StandingLinkVersion, now, cancellationToken);
-                break;
-            case "resume" when link is not null:
-                await standingLinks.SetPausedAsync(link.Id, StandingLinkVersion, null, cancellationToken);
-                break;
-            case "replace" when link is not null:
-                await standingLinks.ReplaceSlugAsync(link.Id, StandingLinkVersion, PhotoLinkToken.CreateSlug(), now, cancellationToken);
-                break;
-            case "defaults" when link is not null:
-                await standingLinks.UpdateDefaultsAsync(
-                    link.Id,
-                    StandingLinkVersion,
-                    LinkForwardedMode,
-                    LinkLiveCameraOnly,
-                    LinkLifetimeDays,
-                    LinkOriginalsInBackground,
-                    cancellationToken);
-                TempData["AdministrationStatus"] = OperatorLabels.PhotoCapture.Saved;
-                break;
-            default:
-                return BadRequest();
-        }
+            switch (action)
+            {
+                case "create":
+                    await administration.CreateForContactAsync(actor, id, cancellationToken);
+                    break;
+                case "pause":
+                    await administration.PauseAsync(actor, link!.Id, StandingLinkVersion, cancellationToken);
+                    break;
+                case "resume":
+                    await administration.ResumeAsync(actor, link!.Id, StandingLinkVersion, cancellationToken);
+                    break;
+                case "replace":
+                    await administration.ReplaceAsync(actor, link!.Id, StandingLinkVersion, cancellationToken);
+                    break;
+                case "defaults":
+                    await administration.UpdateDefaultsAsync(
+                        actor,
+                        link!.Id,
+                        StandingLinkVersion,
+                        LinkForwardedMode,
+                        LinkLiveCameraOnly,
+                        LinkLifetimeDays,
+                        LinkOriginalsInBackground,
+                        cancellationToken);
+                    TempData["AdministrationStatus"] = OperatorLabels.PhotoCapture.Saved;
+                    break;
+                default:
+                    return BadRequest();
+            }
 
-        return RedirectToPage(new { id = ContactId, tab = Tab });
+            return RedirectToPage(new { id = ContactId, tab = Tab });
+        }
+        catch (StaffAuthorizationException) { return Forbid(); }
+        catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.AlreadyExists)
+        {
+            // The link is there, whoever made it: the tab shows it.
+            return RedirectToPage(new { id = ContactId, tab = Tab });
+        }
+        catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.NotFound) { return NotFound(); }
+        catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.InvalidDefaults) { return BadRequest(); }
+        catch (StandingPhotoLinkException) { ModelState.AddModelError(string.Empty, OperatorLabels.ActionNotApplied); }
+        await PopulateAsync(actor, cancellationToken);
+        await LoadPhotoLinkAsync(cancellationToken);
+        return Page();
     }
 
     // The standing link, its saved addresses and its defaults, read only for

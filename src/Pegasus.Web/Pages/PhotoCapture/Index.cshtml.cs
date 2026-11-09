@@ -25,6 +25,7 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 public sealed class IndexModel(
     IPhotoCaptureQueries queries,
     IStandingPhotoLinkStore standingLinks,
+    StandingPhotoLinkAdministration administration,
     IOptions<PhotoCaptureOptions> options,
     TimeProvider timeProvider) : PhotoCapturePageModel
 {
@@ -59,6 +60,10 @@ public sealed class IndexModel(
 
     [TempData]
     public string? Notice { get; set; }
+
+    /// <summary>A refused website link change, shown above the page once.</summary>
+    [TempData]
+    public string? Refusal { get; set; }
 
     public bool SentByUs => Tab == Labels.LinksWeSentKey;
 
@@ -229,6 +234,8 @@ public sealed class IndexModel(
             PhotoLinkQr.FileName(link.Slug));
     }
 
+    // The change is Core's (StandingPhotoLinkAdministration); a change made
+    // over a stale read comes back as the page's refusal notice.
     private async Task<IActionResult> ChangeWebsiteLinkAsync(string action, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor) || !MayManageLinks(actor))
@@ -236,34 +243,47 @@ public sealed class IndexModel(
             return Forbid();
         }
 
-        var now = timeProvider.GetUtcNow();
         var link = await standingLinks.FindWebsiteAsync(cancellationToken);
-        switch (action)
+        if (action != "create" && link is null)
         {
-            case "create" when link is null:
-                await standingLinks.CreateAsync(
-                    StandingPhotoLinkKind.Website,
-                    organizationId: null,
-                    PhotoLinkToken.CreateSlug(),
-                    PhotoCaptureMode.Guided,
-                    liveCameraOnly: true,
-                    CaptureLimits.DefaultLifetimeDays,
-                    originalsInBackground: true,
-                    actor,
-                    now,
-                    cancellationToken);
-                break;
-            case "pause" when link is not null:
-                await standingLinks.SetPausedAsync(link.Id, ExpectedVersion, now, cancellationToken);
-                break;
-            case "resume" when link is not null:
-                await standingLinks.SetPausedAsync(link.Id, ExpectedVersion, null, cancellationToken);
-                break;
-            case "replace" when link is not null:
-                await standingLinks.ReplaceSlugAsync(link.Id, ExpectedVersion, PhotoLinkToken.CreateSlug(), now, cancellationToken);
-                break;
-            default:
-                return BadRequest();
+            return BadRequest();
+        }
+
+        try
+        {
+            switch (action)
+            {
+                case "create":
+                    await administration.CreateWebsiteAsync(actor, cancellationToken);
+                    break;
+                case "pause":
+                    await administration.PauseAsync(actor, link!.Id, ExpectedVersion, cancellationToken);
+                    break;
+                case "resume":
+                    await administration.ResumeAsync(actor, link!.Id, ExpectedVersion, cancellationToken);
+                    break;
+                case "replace":
+                    await administration.ReplaceAsync(actor, link!.Id, ExpectedVersion, cancellationToken);
+                    break;
+                default:
+                    return BadRequest();
+            }
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.AlreadyExists)
+        {
+            // The link is there, whoever made it: the panel shows it.
+        }
+        catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.NotFound)
+        {
+            return NotFound();
+        }
+        catch (StandingPhotoLinkException)
+        {
+            Refusal = OperatorLabels.ActionNotApplied;
         }
 
         return Redirect(Href() + "#website-link");

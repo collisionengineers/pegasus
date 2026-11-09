@@ -486,6 +486,14 @@ function dmgGroups(areas){
   const other=S.damage.map((p,i)=>areas.some(a=>a.label===p.area)?-1:i).filter(i=>i>=0);
   return h+(other.length?`<p class="dgh"><b>${areas.length?'Other photos':'Photos'}</b><span>${other.length}</span></p><div class="grid">${other.map(i=>thumbHTML(S.damage[i],'damage:'+i)).join('')}</div>`:'');
 }
+/* The review page's damage photos, grouped by area as the damage step groups them (handover item 5): one heading per marked area in the app's area order, with a count that includes what an earlier visit to this link already sent for that area, then this visit's photos in the order taken. A photo whose area is no longer marked keeps the step's "Other photos" heading. */
+function reviewDamage(){
+  const areas=dmgAreas(), strip=ps=>ps.length?`<div class="strip">${ps.map(p=>`<img src="${p.url}" alt="">`).join('')}</div>`:'';
+  const head=(label,n)=>`<p class="dgh"><b>${esc(label)}</b><span>${n} photo${n===1?'':'s'}</span></p>`;
+  const groups=areas.map(a=>{ const ps=S.damage.filter(p=>p.area===a.label), n=ps.length+rcDmg(a.key); return n?head(a.label,n)+strip(ps):''; }).join('');
+  const other=S.damage.filter(p=>!areas.some(a=>a.label===p.area));
+  return groups+(other.length?head(areas.length?'Other photos':'Photos',other.length)+strip(other):'');
+}
 const GT=['Overview of the damaged area','A bit closer','Close-ups','Extras'];
 function dmgGuidedPage(){
   dmgSync(); const areas=dmgAreas(); const n=dmgTotal();
@@ -868,7 +876,7 @@ const R = {
       <div class="sec"><div class="h"><b>Damage location</b>${edit('location')}</div><div class="chips">${S.zones.map(id=>`<span>${ZL(id)}</span>`).join('')}</div></div>
       <div class="sec"><div class="h"><b>Overview shots</b>${edit('corners')}</div><div class="strip">${S.overview.map(p=>`<img src="${p.url}" alt="">`).join('')}</div></div>
       <div class="sec"><div class="h"><b>Plate, VIN and dashboard</b>${edit('plate')}</div><div class="strip">${S.plate?`<img src="${S.plate.url}" alt="">`:''}${S.vin?`<img src="${S.vin.url}" alt="">`:''}${S.dash?`<img src="${S.dash.url}" alt="">`:''}</div></div>
-      <div class="sec"><div class="h"><b>Damage photos (${nDmg})</b>${edit('damage')}</div><div class="strip">${S.damage.map(p=>`<img src="${p.url}" alt="">`).join('')}</div></div>
+      <div class="sec"><div class="h"><b>Damage photos (${nDmg})</b>${edit('damage')}</div>${reviewDamage()}</div>
       <div class="sec"><div class="h"><b>Walk-around video</b>${edit('extras')}</div><div class="kv"><span class="muted">${S.video?`Added · ${fmt(S.video.bytes)}`:rc('video')?'Added':'Not added'}</span><span></span></div></div>
       ${(!S.dash&&S.noKeys)?`<div class="sec"><div class="h"><b>Dashboard</b>${edit('dash')}</div><span class="hint">Skipped – no keys available</span></div>`:''}
       <div class="sec"><div class="h"><b>Accident scene images (${nScene})</b>${edit('extras')}</div>${S.scene.length?`<div class="strip">${S.scene.map(p=>`<img src="${p.url}" alt="">`).join('')}</div>`:(nScene?'':'<span class="hint">None added</span>')}</div>
