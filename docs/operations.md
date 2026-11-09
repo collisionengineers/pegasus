@@ -303,6 +303,47 @@ names the run, so the checklist file is deleted (R525).
   resumed and read back `Running` at 09:26:12Z after verification. The
   Web App read back `Running` at 09:26:15Z.
 
+## Page p95 reading - 9 November 2026 (read-only observation, partial)
+
+The third reading against the [budgets](engineering.md#page-budgets), and the
+first on the B2 plan (#1961). By the operator's choice it is partial (R769):
+it covers about three days, from Release 2.1.0's smoke at 08:44Z on
+6 November to 12:33Z on 9 November, rather than a week. Two of those days are
+a weekend. Releases 2.2.0, 2.3.0 and 2.3.1 and their restarts fall inside the
+window. The slowness PRs #1989 to #1992 had not shipped; their "after" figures
+are owed under #2000. Figures use the 28 October query (`AppRequests`, server
+ms, sampled rows).
+
+| Page | Requests | p50 | p95 | 5 Nov p95 | Budget |
+| --- | --- | --- | --- | --- | --- |
+| `GET /Index` | 56 | 153 | 1,422 | 3,035 | 500 |
+| `GET /Mail/Index` | 111 | 60 | 459 | 990 | 500 |
+| `GET /Cases/Index` | 106 | 41 | 334 | 2,290 | 500 |
+| `GET /Cases/Details` | 464 | 113 | 448 | 1,157 | 500 |
+| `POST /Cases/Details` (all handlers) | 179 | 265 | 8,901 | 14,211 | 300 |
+| `GET /Mail/Message` | 11 | 288 | 2,998 | 3,158 | 300 |
+
+Per handler, from the unsampled `AppServiceHTTPLogs` (`TimeTaken`):
+
+| Handler | Requests | p50 | p95 | 5 Nov p95 | Budget |
+| --- | --- | --- | --- | --- | --- |
+| `GenerateReport` | 17 | 8.9 s | 11.4 s | 42 s | 3 s |
+| `SendReport` | 8 | 3.5 s | 7.3 s | 22 s | 3 s |
+| `Save` | 165 | 0.3 s | 1.0 s | 3.4 s | 0.3 s |
+
+Phases (average, p95): `report.photos.prepare` 1.8 s, 6.1 s;
+`report.pdf.generate` 0.13 s, 0.46 s; `web.workcentre.main` 0.32 s, 0.99 s;
+`web.case.main` 0.19 s, 0.45 s. There were 406 slow `db.connection.open`
+phases (100 ms or more, p50 561 ms), against 7,613 over four days before
+`Min Pool Size` 16 (#1957).
+
+The B2 plan averaged 8.1 % CPU and 61.4 % memory over hourly samples. CPU
+peaked at 91 % in one hour.
+
+Cases list, Inbox list and Case page open are now under budget on this
+reading. Work Centre, Save and the report handlers are not. The request
+counts are low, so the next full-week reading (#2000) is the comparison.
+
 ## Page p95 reading - 5 November 2026 (read-only observation)
 
 The second reading against the [budgets](engineering.md#page-budgets). It is
@@ -459,9 +500,9 @@ Release 2.2.0 deployed `dev` at the merge of PR 1967: #1960 (dialog drag R716, R
 | Deployment | Web OneDeploy `5026f42c-656f-400c-bf6e-19951a699997` succeeded 12:37:49Z, read back Running, ready and at the SHA and `2.2.0` on attempt 12; Worker `83e25f90-9a83-4477-8e38-761cc90177fa`; classifier `c4528896-1973-4a71-a545-345be6d5c31a`, `Running` (ids read from the log, #1932) |
 | Smoke | passed at 12:43:32Z; deployed package SHA equals `web.zip`; intake liveness last poll 12:40:00Z, subscription expires 2026-11-12 08:30Z; `/diagnostics/version` reads `2.2.0` at the SHA |
 | Test instance | serving `b520be66` at `https://cemattypc-1.tail432b53.ts.net/` (R684); there `a.PCH26006-p`'s custody retry confirmed and it moved to Review (#1964) |
-| Query Store | `READ_WRITE`; before window `artifacts/performance/release-2.2.0-before-20261106T1234Z.csv` (24 h, 458 statements) on `cemattypc-1` |
+| Query Store | `READ_WRITE`; before window `artifacts/performance/release-2.2.0-before-20261106T1234Z.csv` (24 h, 458 statements), after window `release-2.2.0-after-20261107T1243Z.csv` (24 h from 12:43Z on 6 November, all on 2.2.0's bytes, mostly a weekend, 412 statements, read 9 November, R768), both on `cemattypc-1`. The Work Centre load's 19 statements: 4,400 executions, 587 ms (133 µs average) before; 4,563, 545 ms (119 µs) after; about 1.2 ms per load or warm pass, so its time was never statement time (#1957). #1966's custody read and updates ran in neither window |
 | Evidence | `artifacts/releases/release-2.2.0-b520be66` on `cemattypc-1` |
-| Owed | #1970 (the Query Store after window), #1932 (deployment ids not reported) |
+| Owed | #1932 (deployment ids not reported); #1970 settled by the after window above |
 
 ## Release 2.1.0 - 6 November 2026 (deployment live)
 
@@ -477,7 +518,7 @@ Release 2.1.0 deployed `dev` at the merge of PR 1953: the production Web plan mo
 | Smoke | passed at 08:44:17Z; deployed package SHA equals `web.zip`; intake liveness last poll 08:40:00Z, subscription expires 2026-11-12 08:30Z |
 | Test instance | serving `4089b220` at `https://cemattypc-1.tail432b53.ts.net/` (R684) |
 | Evidence | `artifacts/releases/release-2.1.0-4089b220` on `cemattypc-1` |
-| Owed | #1961 (the page p95 reading after a week on B2), #1932 (deployment ids not reported) |
+| Owed | #1932 (deployment ids not reported); #1961 settled by the partial 9 November reading (R769) |
 
 ## Release 2.0.0 - 5 November 2026 (deployment live, destructive migration)
 
