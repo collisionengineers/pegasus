@@ -376,7 +376,7 @@ span.blocker-name{cursor:default;text-decoration:none}
 .image-tile.is-dragging{opacity:.5}
 .image-tile.is-drop{outline:2px solid var(--navy);outline-offset:2px}
 .image-grid-count{margin:6px 0 0;font-size:12px}
-/* Files → Images with photo links (FRD-28; R771): each link's What they told us,
+/* Files → Images with photo links (FRD-28; R774): each link's What they told us,
    then its images in story groups, then Other images. */
 .photo-story,.photo-story-capture{display:grid;gap:8px;min-width:0}
 .photo-story-capture+.photo-story-capture{border-top:1px solid var(--line);padding-top:10px}

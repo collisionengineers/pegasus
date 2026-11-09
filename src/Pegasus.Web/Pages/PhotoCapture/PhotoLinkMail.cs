@@ -10,7 +10,7 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.Web.Pages.PhotoCapture;
 
 /// <summary>
-/// The photo link e-mail (FRD-28 The photo link e-mail; R770), composed the
+/// The photo link e-mail (FRD-28 The photo link e-mail; R773), composed the
 /// way the Case's Send chaser composes a staff send: the Graph staff send from
 /// an Outgoing approved mailbox (<see cref="ResolveCaseMailSender"/>), the
 /// Case as its context at the Case's current version, and the operation key
@@ -27,7 +27,7 @@ public sealed class PhotoLinkMail(
     /// <summary>Whether a staff send is composed in this deployment at all.</summary>
     public bool Available => staffMailSend is not UnavailableStaffMailSend;
 
-    /// <summary>The link a raw token opens, on Pegasus's own hostname (R776).</summary>
+    /// <summary>The link a raw token opens, on Pegasus's own hostname (R779).</summary>
     public string CaptureUrl(CaptureLinkSecret token) =>
         PhotoLinkUrls.CaptureUrl(options.Value.PublicOrigin, token);
 

@@ -149,7 +149,7 @@ repeat every minute.
 - A photo link's items file flat in the Case's Box folder, with no
   subfolder, each named by its Case document number, its story position and
   a plain label, as `014 02-03 Front driver corner closer.jpg` (operator,
-  9 November 2026; R772;
+  9 November 2026; R775;
   [FRD-28](frd-28-guided-photo-capture.md#baskets-and-names)). Its
   inspection images arrive In report and its additional information does
   not ([Image tags](#image-tags)). A full-size original files as the next
@@ -189,7 +189,7 @@ images record, and an upload whose Case was declared before the upload
 straight to that destination's Box folder and never through holding. A
 photo link's receipt is never held: it files on its Case as it arrives, or
 waits for its capture to settle and goes to the Vehicle images record its
-batch becomes (operator, 9 November 2026; R773;
+batch becomes (operator, 9 November 2026; R776;
 [FRD-28](frd-28-guided-photo-capture.md#routing-and-filing)). When
 a member of staff later links held material to a Case, its copies are filed
 on that Case; the holding copies remain as retained intake. The holding
@@ -432,7 +432,7 @@ Tags carry meaning for the report (operator, 26 September 2026). A new
 image is in the report, except a photo link's additional information (the
 accident scene, the other vehicle, paperwork and video), which arrives not In
 report; the other vehicle's photos also arrive tagged Third party (operator,
-9 November 2026; R772;
+9 November 2026; R775;
 [FRD-28](frd-28-guided-photo-capture.md#baskets-and-names)). The first
 image in the report tagged Overview prints as the Overview, at place 1, and
 the first other one tagged Close-up as the Close-up, at place 2; the rest

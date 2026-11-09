@@ -243,7 +243,7 @@ The accepted image formats are JPEG and PNG (`.jpg`, `.jpeg`, `.png`)
 A photo link's photos arrive on the Photo capture channel, one receipt per
 item ([FRD-28](frd-28-guided-photo-capture.md#routing-and-filing)), and this
 routing applies as it stands (operator, 9 November 2026,
-[R773](../rulings.md)). A capture keeps receiving after a group's
+[R776](../rulings.md)). A capture keeps receiving after a group's
 membership would be fixed, so a capture with no Case is not a group until
 it settles; its receipts wait, processed, and are never Unidentified. When
 it settles, its batch becomes one submission group carrying the

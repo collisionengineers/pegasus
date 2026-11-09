@@ -90,7 +90,7 @@ administrator, the time, and both results.
 Graph delivers change notifications only to a URL it can reach from the
 internet, so the webhook path is Funnelled, on its own port; port 443
 stays tailnet-only (R676). Photo capture's paths join it only while that
-feature is on (R782). On the Tailscale node that owns the name:
+feature is on (R785). On the Tailscale node that owns the name:
 
 ```bash
 tailscale funnel --bg --https=8443 --set-path /hooks/microsoft-graph/mail https+insecure://localhost:7139/hooks/microsoft-graph/mail
@@ -104,7 +104,7 @@ curl -sS -X POST 'https://<host>.<tailnet>.ts.net:8443/hooks/microsoft-graph/mai
 While `Features__PhotoCapture` is on there, and only then, the same port
 also Funnels the three photo capture paths, so a phone off the tailnet can
 open a photo link, and `PhotoCapture__PublicOrigin` is
-`https://<host>.<tailnet>.ts.net:8443/` (R782):
+`https://<host>.<tailnet>.ts.net:8443/` (R785):
 
 ```bash
 tailscale funnel --bg --https=8443 --set-path /c https+insecure://localhost:7139/c

@@ -138,7 +138,7 @@ complete the Case's images when the fold files them as Case images
 A photo link's photos complete the Case's images when its capture settles:
 the sender has pressed Send, or the link has expired with photos on it, and
 every photo has filed; never on the first photo (operator, 9 November 2026,
-[R778](../rulings.md);
+[R781](../rulings.md);
 [FRD-28](frd-28-guided-photo-capture.md#routing-and-filing)). This
 completion is recorded once, with its actor; running it again does not
 override a later staff change. It does not clear other blockers, assign an

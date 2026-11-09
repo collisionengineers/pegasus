@@ -62,7 +62,7 @@ kind Photo link, tagged **Photo link**. A value already on the Case is never
 overwritten, and the registration is never written. The sender's views
 with no Case field (roadworthy, preferred outcome, in hire, airbags and
 steering) stay on the capture (operator, 9 November 2026,
-[R780](../rulings.md);
+[R783](../rulings.md);
 [FRD-28](frd-28-guided-photo-capture.md#case-field-filling)). Where a Photo
 link mileage ranks in the mileage evidence below is not yet decided
 ([open decisions](../open-decisions.md#photo-capture-a-typed-mileage-and-inspection-location-against-existing-evidence-rules)).

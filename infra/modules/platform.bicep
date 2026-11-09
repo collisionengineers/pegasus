@@ -467,7 +467,7 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
         { name: 'Features__AutomationMcp', value: 'true' }
         { name: 'Features__PrincipalApi', value: 'true' }
         // ADR-0090 guided photo capture: the links it prints use this Web
-        // App's own origin (R776), which already ends with a slash.
+        // App's own origin (R779), which already ends with a slash.
         { name: 'Features__PhotoCapture', value: 'true' }
         { name: 'PhotoCapture__PublicOrigin', value: webPublicOrigin }
         { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }

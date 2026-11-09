@@ -12,7 +12,7 @@ using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture;
 namespace Pegasus.Web.Pages.PhotoCapture;
 
 /// <summary>
-/// Send a photo link (FRD-28 Photo links; R770), opened from the Case
+/// Send a photo link (FRD-28 Photo links; R773), opened from the Case
 /// ribbon's Send photo link. The Case, its registration and the Principal are
 /// read-only; the customer's name, accident date and mobile start from the
 /// Case; staff choose the mode, Live camera only, the lifetime and the

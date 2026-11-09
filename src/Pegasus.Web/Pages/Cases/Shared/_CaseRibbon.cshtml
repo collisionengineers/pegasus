@@ -49,7 +49,7 @@
     // Send chaser is offered on any open Case (operator, 5 October 2026). It
     // navigates to the composer, so it needs no lease.
     var canSendChaser = Model.StaffMailAvailable && !isClosed && workflow.Archive is null;
-    // Send photo link opens its own page (FRD-28; R770) on the same open
+    // Send photo link opens its own page (FRD-28; R773) on the same open
     // Cases as Send chaser; Copy link needs no mailbox, and it is absent
     // while photo capture is not composed.
     var canSendPhotoLink = !isClosed && workflow.Archive is null

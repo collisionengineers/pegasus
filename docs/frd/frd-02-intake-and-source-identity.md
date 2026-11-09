@@ -96,7 +96,7 @@ receipt on the Photo capture channel, shown as **Photo link**. Its receipt
 is never Unidentified and never held in Box holding; it files on its Case
 or waits for its capture to settle
 ([FRD-28](frd-28-guided-photo-capture.md#routing-and-filing); operator,
-9 November 2026, [R773](../rulings.md)).
+9 November 2026, [R776](../rulings.md)).
 
 **Direct Case creation** is a staff path that the Automation Actor also
 takes, through `pegasus_case_create`

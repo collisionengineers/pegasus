@@ -92,7 +92,7 @@ bar and the page content.
 (`/PhotoCapture`), **Search** (`/Search`) and, for administrators only,
 **Administration** (`/Administration`). No rail item carries a count
 (operator, 15 October 2026), Photo capture included (operator, 9 November
-2026; R771). Photo capture is absent while `Features:PhotoCapture` is off
+2026; R774). Photo capture is absent while `Features:PhotoCapture` is off
 ([FRD-28](frd-28-guided-photo-capture.md#staff-pages)). The current route
 is marked by more than colour. The rail foot shows the freshness line and the signed-in account
 (name, role, and an account dialog with idle lock and sign out; session start is

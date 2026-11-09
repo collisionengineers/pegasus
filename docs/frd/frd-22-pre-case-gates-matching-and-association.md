@@ -142,7 +142,7 @@ matcher; two different incident dates mean it is not the same Case.
 A standing photo link's capture uses it the same way: an eligible Case whose
 incident date differs from the accident date the sender typed is not a
 candidate for its photos; a date missing on either side excludes nothing
-(operator, 9 November 2026, [R773](../rulings.md);
+(operator, 9 November 2026, [R776](../rulings.md);
 [FRD-28](frd-28-guided-photo-capture.md#routing-and-filing)).
 
 For automatic mail association the incident date has one narrower job: when a

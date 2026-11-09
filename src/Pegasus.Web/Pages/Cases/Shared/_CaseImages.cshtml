@@ -44,7 +44,7 @@
     IHtmlContent? PreparationMetadata(CaseAssetPreparation? item, PreparedReportImage? placed, bool placeFixed, string previewHref) =>
         item is null || !mayPrepareImages ? null : new HtmlString($"""data-preparation-card="" data-preparation-occurrence="{item.OccurrenceId:D}" data-preparation-version="{item.PreparationVersion}" data-preparation-in-report="{(item.InReport ? "true" : "false")}" data-preparation-order="{placed?.Order?.ToString(CultureInfo.InvariantCulture) ?? string.Empty}" data-preparation-fixed="{(placeFixed ? "true" : "false")}" data-preparation-rotation="{(int)item.Rotation}" data-preparation-crop-left="{item.Crop.Left.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-top="{item.Crop.Top.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-width="{item.Crop.Width.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-height="{item.Crop.Height.ToString(CultureInfo.InvariantCulture)}" data-preparation-full-page="{(item.FullPage ? "true" : "false")}" data-preparation-preview="{previewHref}""" + "\"");
 
-    // Photo links (FRD-28; R771): the Case's images stand in each link's
+    // Photo links (FRD-28; R774): the Case's images stand in each link's
     // story, matched to their occurrence by the intake asset the occurrence
     // was filed from; everything else follows under Other images. With a
     // story there is no one ordered grid, so a tile's report place is typed

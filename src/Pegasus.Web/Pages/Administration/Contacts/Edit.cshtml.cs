@@ -60,7 +60,7 @@ public sealed class EditModel(
     public string CurrentTab => Tab == PhotoLinksTab ? PhotoLinksTab : PrincipalTabs.Any(tab => tab.Key == Tab) ? Tab! : ContactTab;
 
     // A Principal, Claim Source or Repairer contact's standing photo link and
-    // its defaults are its Photo links tab (FRD-28; R771), present only while
+    // its defaults are its Photo links tab (FRD-28; R774), present only while
     // photo capture is composed.
     public const string PhotoLinksTab = "photo-links";
     public bool OffersPhotoLinks => standingLinks is not null

@@ -57,7 +57,7 @@ Case at the same route renders as the Triage Case page instead
   (Saving…, Saved {time}, or why the last change was not saved) and **Done**;
 - **Send photo link**, which opens `/PhotoCapture/Send/{caseId}` to send the
   customer a photo link for this Case, absent while `Features:PhotoCapture`
-  is off (operator, 9 November 2026; R770;
+  is off (operator, 9 November 2026; R773;
   [FRD-28](frd-28-guided-photo-capture.md#photo-links));
 - the one **Actions** menu.
 
@@ -868,7 +868,7 @@ Case with photo link photos shows, for each capture, a **What they told us**
 card with the details the sender typed and their note, then its photos in
 story order under their story groups (the overview all the way round, each
 damaged area, the number plate, the VIN, the dashboard, then the additional
-information) (operator, 9 November 2026; R771;
+information) (operator, 9 November 2026; R774;
 [FRD-28](frd-28-guided-photo-capture.md#baskets-and-names)). Each
 tile shows:
 

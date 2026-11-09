@@ -11,7 +11,7 @@
     var isPrincipal = contactRole == ContactRole.Principal;
     var status = TempData["AdministrationStatus"] as string;
     // An active Principal's page is tabs, as is a contact with a Photo links
-    // tab (R771); every other contact is its one panel.
+    // tab (R774); every other contact is its one panel.
     var activePrincipal = Model.Principal is { IsActive: true };
     var tabs = Model.Tabs;
     var tabbed = tabs.Count > 0;
@@ -211,7 +211,7 @@
         }
         if (tab == EditModel.PhotoLinksTab)
         {
-            @* The contact's standing photo link (FRD-28; R771): the link and its
+            @* The contact's standing photo link (FRD-28; R774): the link and its
                QR code, its saved addresses and the defaults the links it starts take. *@
             var standing = Model.StandingLink;
             <section class="panel" aria-labelledby="photo-link-standing-title">

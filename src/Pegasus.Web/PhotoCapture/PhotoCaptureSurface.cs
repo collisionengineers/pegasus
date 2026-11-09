@@ -55,7 +55,7 @@ public static class PhotoCaptureSurface
 }
 
 /// <summary>
-/// The origin the links print (R776): an absolute HTTPS origin with a
+/// The origin the links print (R779): an absolute HTTPS origin with a
 /// trailing slash, read once at startup when the surface is composed.
 /// </summary>
 public sealed record PhotoCaptureOptions(Uri PublicOrigin)

@@ -138,7 +138,7 @@ photo link surface: a link HQ sends, or a standing link a contact or the
 website keeps, opens a guided app on a phone whose photos file on the Case
 or become a Vehicle images record
 ([FRD-28](../frd/frd-28-guided-photo-capture.md); operator, 9 November 2026,
-R770 to R782). Tractable capture still runs outside Pegasus and arrives as
+R773 to R785). Tractable capture still runs outside Pegasus and arrives as
 an e-mailed PDF that intake reads (EXT-17); Pegasus has no Tractable
 integration. Glass's repair estimates, Glass's valuation and native Pegasus
 reports are included; additional spreadsheet-driven customer and

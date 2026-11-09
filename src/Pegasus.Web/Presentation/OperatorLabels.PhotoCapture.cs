@@ -7,7 +7,7 @@ namespace Pegasus.Web.Presentation;
 public static partial class OperatorLabels
 {
     /// <summary>
-    /// Guided photo capture's staff words (FRD-28; R770, R771): the Photo
+    /// Guided photo capture's staff words (FRD-28; R773, R774): the Photo
     /// capture page and its two tabs, the Send, link and Contacts surfaces and
     /// the Case's Files → Images story. The wording is the handover
     /// prototype's (5 November 2026) where it has one.
@@ -214,7 +214,7 @@ public static partial class OperatorLabels
         public const string Filed = "Filed";
         public const string Cancelled = "Cancelled";
 
-        // The Contacts tab (R771) and the website link (R777).
+        // The Contacts tab (R774) and the website link (R780).
         public const string PhotoLinksTab = "Photo links";
         public const string TheirStandingLink = "Their standing link";
         public const string PauseTheirLink = "Pause their link";

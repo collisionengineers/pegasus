@@ -26,7 +26,7 @@
 
 This document owns Pegasus's own guided capture, the product idea of issue
 #1683, built under new capability identities (operator, 9 November 2026;
-R770 to R782). It serves the PRD outcomes for image-led work and complete
+R773 to R785). It serves the PRD outcomes for image-led work and complete
 images before Review, while keeping its exclusions: no SMS integration
 (BND-04), no persistent customer portal (BND-06), no automatic outbound
 message (MAIL-19) and no customer account (ACC-12)
@@ -56,15 +56,15 @@ and may be changed. Staff choose the mode, **guided** (a page per step, for
 a customer) or **quick** (guidance inside the camera, for a firm's staff),
 **Live camera only**, the lifetime, 3, 7 (the default) or 14 days, and
 whether full-size originals follow in the background. The link goes by
-e-mail, by Copy link, or both (R770): text and WhatsApp are Copy link and
+e-mail, by Copy link, or both (R773): text and WhatsApp are Copy link and
 the staff member's own phone. Pegasus has no SMS or WhatsApp provider.
 
 A link is `https://pegasus-prod-web-252ow37gij.azurewebsites.net/c/{token}`
-(R776): Pegasus's own hostname, from `PhotoCapture:PublicOrigin`. The token
+(R779): Pegasus's own hostname, from `PhotoCapture:PublicOrigin`. The token
 is 256 random bits written as 43 base64url characters, and Pegasus keeps
 only its SHA-256 (INT-31's rule, kept). A capture may hold several tokens:
 **Resend** mints another, and **Cancel** revokes them all. The app shows the
-registration and never a Case/PO or any other reference (R779).
+registration and never a Case/PO or any other reference (R782).
 
 A capture is add-only until it expires. The sender may reopen the link and
 add more; nothing they sent is taken back. **Opened** is recorded on the
@@ -74,12 +74,12 @@ link previews fetch pages.
 ### Standing photo links
 
 A Principal, Claim Source or Repairer contact may have a standing photo link,
-managed on the **Photo links** tab of its edit page (R771): the standing
+managed on the **Photo links** tab of its edit page (R774): the standing
 URL, a QR code, Copy, **Pause** and **Resume**, **Replace link**, and its
 defaults, which are the mode a link sent on to a customer takes, Live camera
 only, the lifetime and the originals choice. The one website link, for
 private customers, is managed by Administrators from the Photo capture page
-(R777).
+(R780).
 
 A standing link is `/s/{slug}`. A contact's slug is 12 Crockford base32
 characters and the website's a readable one. A slug is not a secret: it
@@ -99,7 +99,7 @@ came: **Their staff took them**, **Sent on to their customer**, or
 ### Public surface
 
 The app is the handover's capture app with Collision Engineers branding,
-served from `wwwroot/capture/` (R775). Its pages are `/c/{token}` and
+served from `wwwroot/capture/` (R778). Its pages are `/c/{token}` and
 `/s/{slug}`; its API is under `/capture/api/v1` and takes the credential in
 the header `X-Capture-Link`, as `c.` and a token or `s.` and a slug. The
 pages and the API are anonymous and set no cookie.
@@ -153,7 +153,7 @@ and a capture keeps receiving, so a capture is not one group from the start.
   Cases, its incident date not contradicting the typed one;
   [FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)),
   file each item on the Case as it arrives: a receipt for a declared
-  destination, recorded as the routing's system work (R773).
+  destination, recorded as the routing's system work (R776).
 - **A standing capture with no such Case** waits. Its receipts are
   processed, with no identification, never Unidentified and never held in
   Box holding. When the capture settles they are formed into one submission
@@ -162,13 +162,13 @@ and a capture keeps receiving, so a capture is not one group from the start.
   folder, pairing when the instruction arrives, and staff choosing on the
   record's page when several Cases match), or files it on a Case that has
   appeared since ([FRD-19](frd-19-image-led-intake-and-pairing.md)). There
-  is no check-the-match state (R773).
+  is no check-the-match state (R776).
 
 A capture **settles** when the sender presses **Send**, or the link expires
 with photos on it, and every photo has been processed. On settling, a
 capture on a Case:
 
-- completes the Case's images (R778;
+- completes the Case's images (R781;
   [FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)),
   never on the first photo;
 - writes the sender's note into the Case's Notes as
@@ -185,7 +185,7 @@ Case image.
 
 ### Baskets and names
 
-The Case's Box folder stays flat: no subfolders (R772). An item is named by
+The Case's Box folder stays flat: no subfolders (R775). An item is named by
 the Case's document number, its story position and a plain label, as in
 `014 02-03 Front driver corner closer.jpg`. The label uses only the app's
 own words: the angle, the zone and the stage, or Number plate, VIN,
@@ -221,7 +221,7 @@ A capture's status is derived each time it is read, never stored:
 A reminder is due, and shown, when a link is not opened after 24 hours and
 again after 48; when it was started but not finished after 4 quiet hours;
 when something is missing once it was sent; and when it is about to expire,
-within one day. Pegasus never sends a reminder (R770; MAIL-19 stands):
+within one day. Pegasus never sends a reminder (R773; MAIL-19 stands):
 **Links we sent** shows what is due, and **Remind** or **Resend** is one
 click by a member of staff. **Log call** records a phone call.
 
@@ -259,7 +259,7 @@ accident date, inspection location and mileage the sender typed fill the
 Case's empty fields as Facts with source kind Photo link, shown with the
 source tag **Photo link**
 ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds)).
-A value already on the Case is never overwritten (R780). The registration is
+A value already on the Case is never overwritten (R783). The registration is
 never written: it routed the capture. The sender's views that have no Case
 field (roadworthy, preferred outcome, in hire, airbags and steering) stay on
 the capture and show with the photos. Where a Photo link mileage ranks
@@ -270,7 +270,7 @@ location needs an operator's confirmation, are
 ### Staff pages
 
 **Photo capture** (`/PhotoCapture`) is a rail item under Work, after Cases,
-with no count (R771;
+with no count (R774;
 [FRD-12](frd-12-operator-experience.md#shell-and-routes)). It has two tabs:
 
 - **Coming in**: standing and website captures, with Vehicle, From,
@@ -347,7 +347,7 @@ statuses and due reminders, the story order and names, routing and the
 settle. Integration tests cover the public routes' one unavailable answer,
 the security headers and limits, filing on a Case and the Vehicle images
 record a settled capture becomes. The staff pages are signed off on the
-pull request's screenshots (R775). Deployment and live acceptance are
+pull request's screenshots (R778). Deployment and live acceptance are
 separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
@@ -355,7 +355,7 @@ separate evidence tiers
 
 - Capabilities: `EXT-21`, `INT-34`, `MAIL-27`, `UI-20` in
   [capabilities](../capabilities.md).
-- Rulings: R770 to R782 in [rulings](../rulings.md).
+- Rulings: R773 to R785 in [rulings](../rulings.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration),
   [FRD-05](frd-05-documents-extraction-and-custody.md),

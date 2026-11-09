@@ -3,7 +3,7 @@ using Net.Codecrete.QrCodeGenerator;
 namespace Pegasus.Web.Presentation;
 
 /// <summary>
-/// A standing photo link's QR code (R777): the one place the code is drawn,
+/// A standing photo link's QR code (R780): the one place the code is drawn,
 /// as SVG markup generated from the link's own address. The markup carries no
 /// operator text and no script, so the pages write it out as it is.
 /// </summary>

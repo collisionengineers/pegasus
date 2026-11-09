@@ -162,7 +162,7 @@ Case is being edited (operator, 4 November 2026, R665, R668;
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)). There is
 no Compose: Pegasus starts no new correspondence that is not a reply, a
 forward, a chaser, a report or a photo link e-mail (operator, 12 October
-2026; 9 November 2026, [R770](../rulings.md)). The controls
+2026; 9 November 2026, [R773](../rulings.md)). The controls
 exist only when the outbound capability is composed into the application.
 Otherwise those surfaces show no send control and no composer. The technical
 decision is [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md).
@@ -273,7 +273,7 @@ the link ([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-e-mail)).
 It is recorded like any other send. Remind and Resend are each one click by
 a member of staff; Pegasus never sends either by itself, and text and
 WhatsApp are Copy link and the staff member's own phone (operator,
-9 November 2026, [R770](../rulings.md)).
+9 November 2026, [R773](../rulings.md)).
 
 **Reply targets.** Pegasus keeps the structured MIME Reply-To addresses in
 their original order and uses the From addresses only when Reply-To is

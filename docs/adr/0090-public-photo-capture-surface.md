@@ -13,7 +13,7 @@ tags: [photo-capture, public-surface, security, tokens]
 
 ## Status
 
-Accepted on the operator's rulings of 9 November 2026 (R770 to R782). It
+Accepted on the operator's rulings of 9 November 2026 (R773 to R785). It
 is the first anonymous surface Pegasus serves to people outside Collision
 Engineers since the request-scoped upload links (INT-31) were retired on
 17 September 2026.
@@ -58,10 +58,10 @@ domain is a separate operator decision (EXT-19 stays retired).
   because link previews fetch pages.
 - **Same origin now.** The surface is served by the Web host on its own
   origin, `https://pegasus-prod-web-252ow37gij.azurewebsites.net/`, read from
-  `PhotoCapture:PublicOrigin` (R776). A custom capture domain later changes
+  `PhotoCapture:PublicOrigin` (R779). A custom capture domain later changes
   that setting and the hostname links print, not the routes or the token
   rule; the hosted test instance uses its Tailscale Funnel origin on 8443
-  ([ADR-0088](0088-one-hosted-test-instance.md), as amended by R782).
+  ([ADR-0088](0088-one-hosted-test-instance.md), as amended by R785).
 - **Headers and limits.** Every page and API response carries a strict
   Content Security Policy (`'self'` only, `blob:` for images and media, no
   frames, no forms, no workers, no objects), `Permissions-Policy:
@@ -76,7 +76,7 @@ domain is a separate operator decision (EXT-19 stays retired).
   redacted wherever it would be written to a log or a trace, and the
   credential header and the token and slug path segments are not recorded.
 - **The token in the mail body is staff-initiated delivery.** A photo link
-  e-mail is a staff send from an approved mailbox (R770); Pegasus sends no
+  e-mail is a staff send from an approved mailbox (R773); Pegasus sends no
   link by itself, and text and WhatsApp are Copy link and the staff member's
   own phone. The e-mail's Sent evidence holds the link as any staff message
   holds what staff wrote.
@@ -108,6 +108,6 @@ domain is a separate operator decision (EXT-19 stays retired).
 ## Links
 
 - Behaviour: [FRD-28](../frd/frd-28-guided-photo-capture.md).
-- Rulings: R770 to R782 in [rulings](../rulings.md).
+- Rulings: R773 to R785 in [rulings](../rulings.md).
 - Hosting: [ADR-0049](0049-host-web-on-app-service-code-deploy.md).
 - Test instance: [ADR-0088](0088-one-hosted-test-instance.md).

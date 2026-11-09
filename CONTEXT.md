@@ -45,7 +45,7 @@ The actual supplier of case images, whether a Principal, Intermediary, Repairer,
 _Avoid_: Sender
 
 **Photo link**:
-A link Collision Engineers gives one person for photos of one vehicle. It opens the guided capture app on their phone with nothing to install, shows only the registration, is add-only until it expires after 3, 7 or 14 days, and its photos file on the Case or become a Vehicle images record. HQ sends one from a Case by e-mail or Copy link; a standing photo link starts one (operator, 9 November 2026, R770 to R782; [FRD-28](docs/frd/frd-28-guided-photo-capture.md)).
+A link Collision Engineers gives one person for photos of one vehicle. It opens the guided capture app on their phone with nothing to install, shows only the registration, is add-only until it expires after 3, 7 or 14 days, and its photos file on the Case or become a Vehicle images record. HQ sends one from a Case by e-mail or Copy link; a standing photo link starts one (operator, 9 November 2026, R773 to R785; [FRD-28](docs/frd/frd-28-guided-photo-capture.md)).
 _Avoid_: upload link, portal
 
 **Standing photo link**:

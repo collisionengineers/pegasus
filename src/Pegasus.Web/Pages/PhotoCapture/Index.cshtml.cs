@@ -13,12 +13,12 @@ using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture;
 namespace Pegasus.Web.Pages.PhotoCapture;
 
 /// <summary>
-/// Photo capture (FRD-28 Staff pages; R771): <b>Coming in</b>, the captures
+/// Photo capture (FRD-28 Staff pages; R774): <b>Coming in</b>, the captures
 /// standing and website links started, and <b>Links we sent</b>, the links
 /// HQ sent from a Case. The left pane is the tab's headline states with their
 /// queried counts, as the Cases list's scopes are; the list is one query
 /// (<see cref="IPhotoCaptureQueries.ListAsync"/>), newest first. Below the
-/// list an Administrator manages the one website link (R777).
+/// list an Administrator manages the one website link (R780).
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -194,7 +194,7 @@ public sealed class IndexModel(
         return capture.Destination == PhotoCaptureDestination.Case ? Labels.AlreadyInstructed : Labels.MatchedAutomatically;
     }
 
-    // The website link (R777): Administrators create, pause, resume and
+    // The website link (R780): Administrators create, pause, resume and
     // replace it here. Its defaults are a contact link's; the website starts
     // guided captures.
     public Task<IActionResult> OnPostCreateWebsiteLinkAsync(CancellationToken cancellationToken) =>

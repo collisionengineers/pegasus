@@ -121,7 +121,7 @@ script, with Replace code in the head of the Contact tab
 There is no Principal settings panel. A Principal, Claim Source or Repairer
 contact's page also has a **Photo links** tab: the standing URL, its QR code,
 Copy, Pause or Resume, Replace link and the link's defaults (operator,
-9 November 2026; R771;
+9 November 2026; R774;
 [FRD-28](frd-28-guided-photo-capture.md#standing-photo-links)). It is absent
 while `Features:PhotoCapture` is off.
 A panel's save returns to its tab with its notice inside the panel; a refused
@@ -210,7 +210,7 @@ Case chaser
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)), and
 the Photo link e-mail
 ([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-e-mail); operator,
-9 November 2026; R770).
+9 November 2026; R773).
 
 **Edit** opens a dialog: the body, up to 5000 characters, a row of
 placeholder buttons that insert at the cursor, and Cancel and Save. The
