@@ -14,8 +14,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// Loads an <see cref="AssessmentReportProjectionInput"/> for a case by
 /// reusing the same bounded Assessment workspace query as the screen, then
 /// loading confirmed document metadata once. Photograph bytes are opened
-/// one image at a time, when the renderer prints that image; loading the
-/// projection, opening the Assessment screen and freezing a generation
+/// only when the renderer prints that image, a bounded few at a time; loading
+/// the projection, opening the Assessment screen and freezing a generation
 /// never read them.
 /// </summary>
 /// <remarks>

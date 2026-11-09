@@ -23,6 +23,7 @@ using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Infrastructure.Reports;
 
 namespace Pegasus.IntegrationTests.Reports;
 
@@ -558,15 +559,19 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
             reader, scope.ServiceProvider.GetRequiredService<IStaffAccountQueries>());
         readerCommands.Reset();
         var renderer = new RecordingRenderer(harness);
-        var printed = new List<(Guid? VersionId, byte[] Bytes)>();
-        // As the renderer does, the images are opened one at a time in the
-        // order the report prints them.
+        IReadOnlyList<(Guid? VersionId, byte[] Bytes)> printed = [];
+        // As the renderer does, at most two at a time, each into its own
+        // place in the order the report prints them.
         renderer.Before = async () =>
         {
-            foreach (var photo in renderer.Rendered!.OrderedPhotos)
-            {
-                printed.Add((photo.VersionId, await photo.OpenAsync(CancellationToken.None)));
-            }
+            var ordered = renderer.Rendered!.OrderedPhotos;
+            var opened = new (Guid? VersionId, byte[] Bytes)[ordered.Count];
+            await Parallel.ForEachAsync(
+                Enumerable.Range(0, ordered.Count),
+                new ParallelOptions { MaxDegreeOfParallelism = QuestPdfAssessmentReportRenderer.ImagesPreparedAtOnce },
+                async (index, token) =>
+                    opened[index] = (ordered[index].VersionId, await ordered[index].OpenAsync(token)));
+            printed = opened;
         };
 
         var result = await harness.Generate(new RecordingCustody(harness), renderer, content: content)

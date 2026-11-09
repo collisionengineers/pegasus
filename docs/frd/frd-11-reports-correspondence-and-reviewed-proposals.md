@@ -673,9 +673,10 @@ prints whole after the Engineer's own crop and rotation, so nothing of it
 is trimmed (operator, 7 October 2026). Every image
 the Engineer includes prints, whatever their number or source file size,
 each as a print-resolution copy; the retained source is unchanged (operator,
-24 September 2026). The renderer opens one source image at a time, when it
-prints that image, and lets it go before the next, so a long report does not
-hold every source at once. A large PNG is read a row at a time and averaged
+24 September 2026). The renderer opens a source image only when it prints
+that image, prepares at most two at a time, and lets each go once it is
+prepared, so a long report never holds every source at once (R763,
+8 November 2026, the sentence R305 asked for). A large PNG is read a row at a time and averaged
 down, so it is never held whole at full size. An image is never refused for its
 size. A render that outlives its caller is told to stop and keeps its place in
 the renderer's admission until it has, so abandoned renders cannot add to the

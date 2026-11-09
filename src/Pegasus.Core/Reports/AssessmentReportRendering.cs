@@ -213,9 +213,9 @@ public sealed record ReportSettlement(decimal? ContractSum = null);
 
 /// <summary>
 /// The bytes of one report image, opened when the renderer prints that image
-/// and not before, so a render holds one source image in memory at a time
-/// however many the report prints. An adapter that reads custody supplies
-/// <see cref="Opened"/>.
+/// and not before, so a render holds in memory only the bounded few source
+/// images it is preparing at that moment however many the report prints. An
+/// adapter that reads custody supplies <see cref="Opened"/>.
 /// </summary>
 public sealed class ReportImageContent
 {

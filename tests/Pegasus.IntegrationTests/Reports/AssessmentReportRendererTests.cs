@@ -1070,7 +1070,7 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     /// <summary>The images of the report's image pages, page by page, in print order.</summary>
-    private static List<PrintedImage>[] ImagePages(byte[] pdf)
+    internal static List<PrintedImage>[] ImagePages(byte[] pdf)
     {
         var (first, statement) = ImagePageRange(pdf);
         return BodyImages(pdf)[first..statement];
@@ -1100,7 +1100,7 @@ public sealed partial class AssessmentReportRendererTests
             .ToArray();
     }
 
-    private sealed record PrintedImage(
+    internal sealed record PrintedImage(
         double Left, double Top, double Width, double Height, int PixelWidth, int PixelHeight);
 
     [GeneratedRegex(@"\s+")]

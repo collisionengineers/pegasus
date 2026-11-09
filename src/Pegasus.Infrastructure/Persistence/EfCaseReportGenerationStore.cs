@@ -1496,13 +1496,15 @@ public sealed class EfCaseReportContentSource(
         }
 
         // Nothing is read here, not even the lookups: they are made together
-        // the first time an image opens, in three SQL calls whatever the number
+        // the first time an image opens, in two SQL calls whatever the number
         // of images, and each image's bytes are read through its own handle
-        // when the renderer prints it. So a render holds one source image at a
-        // time and a queued render holds none. The lookups belong to no one
-        // image: they run without any caller's token, and each open waits for
-        // them with its own, so one cancelled open never faults them for the
-        // images that open after it.
+        // when the renderer prints it. So a render holds at most the two
+        // source images it is preparing (QuestPdfAssessmentReportRenderer
+        // .ImagesPreparedAtOnce) and a queued render holds none. The lookups
+        // belong to no one image: they run without any caller's token, and
+        // each open waits for them with its own, so one cancelled open never
+        // faults them for the images that open after it, and two first opens
+        // at once share the one lookup.
         var lookups = new Lazy<Task<IReadOnlyList<PreparedLogicalDocumentRead>>>(() =>
             documentReader.PrepareAsync(
                 actor,
