@@ -1154,7 +1154,8 @@ and under it an "Already sent on 3 Oct 2026 14:02 to a@x, b@y" line when a
 report of this work has already been sent, reading and editing alike; it
 repeats no delivery cells. The dialog is a composer in the Triage composer's
 shape, 880px wide: its head names the report ("Report · a.{Case/PO}" on the
-Audit view, "Report · {Case/PO}" otherwise), its body holds From, a choice of
+Audit view, "Report · {Case/PO}" otherwise; operator, 9 November 2026, R773),
+its body holds From, a choice of
 Outgoing mailbox starting on the mailbox the Case's instruction email arrived
 in, else on the Principal's Send from (operator, 12 October 2026; 4 November
 2026, R655;
@@ -1164,12 +1165,18 @@ the To and Cc boxes with the Case's known addresses offered on every one
 (R667), the covering message in an editable box pre-filled from the Case
 report delivery template, and **Files**, one row per document the send can
 carry, each with its include tick (v28 P22; Report and Fee note ticked), its
-name, its kind and size, and Rename; a row's name opens the document in the
+name, its kind and size ("Report · 1.2 MB", "Fee note · under 0.1 MB", and
+"Inspection · Report · 1.2 MB" for the other work's rows), and Rename, named
+"Rename {file name}" for the name the row currently shows, so a rename or
+Reset renames the button too; a row's name opens the document in the
 Case viewer over the dialog, and Escape closes the viewer first. Every To or
-Cc box after the first To has its × and can be removed; Add To recipient and
-Add Cc recipient add a removable box (R669). Its foot holds Cancel and the
-one Send report. A refused send returns to the page with the dialog open on
-its notice; an accepted send closes it as the page refreshes.
+Cc box after the first To has its ×, named "Remove recipient", and can be
+removed; Add To recipient and Add Cc recipient add a removable box (R669).
+Its foot holds Cancel and the one Send report. A refused send returns to the
+page with the dialog open on its notice; an accepted send closes it as the
+page refreshes. The dialog's quoted words are the v48 mockup's
+([`pegasus_v48.html`](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v48-send-dialog-original-report/v48_planning/pegasus_v48.html),
+R665; issue 1914, 9 November 2026).
 
 The dialog also shows what the Principal's report sending rules decided
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)):
