@@ -1302,6 +1302,64 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Contains("data-case-editing=\"true\"", afterHtml, StringComparison.Ordinal);
     }
 
+    /// <summary>The form value count ASP.NET Core accepts unless a page says otherwise.</summary>
+    private const int FrameworkDefaultFormValues = 1024;
+
+    /// <summary>
+    /// Issue 1994: save as you go posts the whole Case form, and the Repair
+    /// Spec grid binds nine inputs a line to it, so a spec at Core's 200-line
+    /// bound is 1,800 values before the rest of the form. The framework's
+    /// default accepted 1,024 and refused a 108-line spec as a bare 400 before
+    /// any handler ran. The page's limit is sized from the bound, so the save
+    /// reaches the store with every line.
+    /// </summary>
+    [Fact]
+    public async Task ASaveCarryingASpecAtCoresLineBoundReachesTheStore()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        var existing = DraftSpecification(caseId);
+        store.WorkingEstimate = existing;
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+        var html = await EnterEditModeAsync(
+            client, caseId, $"?section=estimate&estimate={existing.SpecificationId:D}");
+        var fields = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", AntiforgeryValue(html)),
+            new("id", caseId.ToString("D")),
+            new("operationKey", NewOperationKey()),
+            new("editLeaseToken", InputValue(html, "editLeaseToken")),
+            new("expectedVersion", InputValue(html, "expectedVersion")),
+            new("estimateId", existing.SpecificationId.ToString("D")),
+            new("estimateName", "Repairer"),
+        };
+        for (var line = 1; line <= AssessmentPolicy.MaximumEstimateLines; line++)
+        {
+            fields.Add(new("lineId", string.Empty));
+            fields.Add(new("lineOperation", "Repair"));
+            fields.Add(new("lineDescription", $"Repair panel {line}"));
+            fields.Add(new("linePartNumber", string.Empty));
+            fields.Add(new("lineQuantity", string.Empty));
+            fields.Add(new("linePartPounds", string.Empty));
+            fields.Add(new("lineLabourHours", "0.5"));
+            fields.Add(new("linePaintHours", string.Empty));
+            fields.Add(new("lineMaterials", string.Empty));
+        }
+        // The post the framework's default refused, and the page's limit holds.
+        Assert.InRange(fields.Count, FrameworkDefaultFormValues + 1, DetailsModel.CaseFormValueLimit);
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=Save&section=estimate",
+            new FormUrlEncodedContent(fields));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var saved = Assert.Single(store.SavedEstimates);
+        Assert.Equal(AssessmentPolicy.MaximumEstimateLines, saved.Lines!.Count);
+        Assert.Equal("Repair panel 200", saved.Lines[^1].Description);
+    }
+
     [Fact]
     public async Task TheCaseSaveKeepsSubmittedVersionAndIntentAcrossIdenticalPosts()
     {

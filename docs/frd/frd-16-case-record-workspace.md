@@ -205,7 +205,9 @@ wording blocks — when focus leaves it or after a short pause. Each save is
 the one Save command (operator, 23 September 2026): it records the Case
 fields, the Repair Spec, the guide cards and the valuation calculation as
 they are, under one version, and the session keeps its lease. The Repair
-Spec and the Valuation calculator have no save of their own. One save is in
+Spec and the Valuation calculator have no save of their own. A commit
+carries every Repair Spec line, so the page accepts a form sized for a spec
+at Core's 200-line bound (9 November 2026, #1994). One save is in
 flight at a time; a change made during it is saved when it lands, and an
 action (Done included) or a link away waits for it and goes ahead only once
 it has landed; a Refresh pressed during a save is declined. A save that is
