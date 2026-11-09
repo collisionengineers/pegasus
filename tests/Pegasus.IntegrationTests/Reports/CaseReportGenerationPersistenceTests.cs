@@ -610,6 +610,141 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
     }
 
     /// <summary>
+    /// The statements a report and its fee note send together through the
+    /// real projection source on a warm staff cache: a ceiling, not a total
+    /// (engineering, Simplicity). By the reads they make, about 52: the
+    /// report's projection 5 (the workflow, its works, the confirmed
+    /// documents, the guides, the wording; its staff reads are kept and its
+    /// closing version read is skipped), its freeze 17 (two replay reads, the
+    /// lock, the workflow, the work, the source census, the file name, the
+    /// sent count, the sign-off list and signature compared under the lock,
+    /// the hash lookup, the supersede, up to three saves and the record), each
+    /// confirmation 9 (the lock, the generation, the artifact, its siblings,
+    /// the ready check, up to two saves and the record) and the fee note's
+    /// freeze 12; both composes read the kept signature. Set at 56 until the
+    /// first CI run's <see cref="SqlStatementCounter.Describe"/> states the
+    /// measured count.
+    /// </summary>
+    private const int GenerateWithFeeNoteCommands = 56;
+
+    /// <summary>
+    /// A report and its fee note generated in one custody batch, as the Case
+    /// page and the MCP tool make them (#1952), stay under their ceiling. The
+    /// staff reads are kept, so the only signature read is the one the freeze
+    /// compares under its lock, the only sign-off list is the one it reads
+    /// there, and the confirmed documents are read by the projection and the
+    /// freeze's census alone.
+    /// </summary>
+    [Fact]
+    public async Task GenerateWithItsFeeNoteStaysUnderItsStatementCeiling()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var counter = new SqlStatementCounter();
+        var real = await harness.StoreOverRealSourceAsync(counter);
+        await real.WarmStaffReadsAsync(harness.SignatoryId);
+        var generate = harness.Generate(
+            new RecordingCustody(harness), new RecordingRenderer(harness), store: real.Store, content: real.Content);
+        counter.Reset();
+
+        CaseReportGenerationResult report;
+        CaseReportGenerationResult feeNote;
+        await using (generate.BeginBatch())
+        {
+            report = await generate.ExecuteAsync(harness.Request(), CancellationToken.None);
+            // The fee note is made for the report's generation, as both callers pair them.
+            var target = Assert.NotNull(
+                GenerateCaseReport.FeeNoteTargetOf(CaseReportArtifactKind.AssessmentReport, report.Generation));
+            feeNote = await generate.ExecuteAsync(
+                harness.Request(CaseReportArtifactKind.FeeNote, harness.Key("fee-note"), target),
+                CancellationToken.None);
+        }
+
+        Assert.Equal(CaseReportGenerationOutcome.Generated, report.Outcome);
+        Assert.Equal(CaseReportGenerationOutcome.Generated, feeNote.Outcome);
+        Assert.Contains(feeNote.Generation!.Artifacts, artifact => artifact is
+        {
+            Kind: CaseReportArtifactKind.FeeNote,
+            Status: CaseReportArtifactStatus.Confirmed,
+        });
+        Assert.True(counter.Count <= GenerateWithFeeNoteCommands, counter.Describe());
+        // The sign-off list names the printed name; the signature read alone does not.
+        Assert.True(
+            counter.CountMentioning("[SignOffSignature]", without: "[SignOffPrintedName]") <= 1,
+            counter.Describe());
+        Assert.True(counter.CountContaining("[SignOffPrintedName]") <= 1, counter.Describe());
+        Assert.True(
+            counter.CountContaining("[DocumentOccurrences]", "[CaseDocuments]", "[GeneratedCaseArtifacts]") <= 2,
+            counter.Describe());
+    }
+
+    /// <summary>
+    /// The projection no longer re-reads the Case's version for the freeze,
+    /// which re-reads it under its own lock instead (#1952). A Case moved by
+    /// system work while the real source read its workspace, which leaves the
+    /// caller's lease and expected version standing, is still refused by that
+    /// re-read, and nothing is written.
+    /// </summary>
+    [Fact]
+    public async Task FreezeStillRefusesACaseChangedWhileItsInputsWereRead()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var real = await harness.StoreOverRealSourceAsync(
+            new SqlStatementCounter(),
+            new MutatingWorkspaceSource(harness, harness.MoveVersionAsSystemWorkAsync));
+        var generate = harness.Generate(
+            new RecordingCustody(harness), new RecordingRenderer(harness), store: real.Store, content: real.Content);
+
+        await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
+            generate.ExecuteAsync(harness.Request(), CancellationToken.None));
+
+        Assert.Empty(await harness.GenerationRowsAsync());
+        Assert.Empty(await harness.ArtifactRowsAsync());
+    }
+
+    /// <summary>
+    /// The freeze re-reads the Case's version under its lock, so the
+    /// projection's closing read of it is not sent (#1952). The page read,
+    /// which holds no lock, still sends it, which shows the statement counted
+    /// is that read.
+    /// </summary>
+    [Fact]
+    public async Task TheFreezeSkipsTheProjectionsClosingVersionRead()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var counter = new SqlStatementCounter();
+        var real = await harness.StoreOverRealSourceAsync(counter);
+        await real.WarmStaffReadsAsync(harness.SignatoryId);
+        counter.Reset();
+        await real.Source.GetAsync(
+            harness.CaseId, harness.StaffActor, CaseWorkSelector.Current, reuse: null, CancellationToken.None);
+        Assert.True(counter.CountMatching(SelectsOnlyTheCaseVersion) == 1, counter.Describe());
+        counter.Reset();
+
+        var result = await harness.Generate(
+                new RecordingCustody(harness), new RecordingRenderer(harness), store: real.Store, content: real.Content)
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+
+        Assert.Equal(CaseReportGenerationOutcome.Generated, result.Outcome);
+        Assert.True(counter.CountMatching(SelectsOnlyTheCaseVersion) == 0, counter.Describe());
+    }
+
+    /// <summary>
+    /// Whether a statement selects nothing but the version from a Case's
+    /// workflow row, as the projection's closing re-read does. Every other
+    /// read of the row a generation makes selects more, and the lock reads it
+    /// with a hint rather than an alias.
+    /// </summary>
+    private static bool SelectsOnlyTheCaseVersion(string statement)
+    {
+        var flat = string.Join(' ', statement.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        var from = flat.IndexOf(" FROM [CaseWorkflows] AS ", StringComparison.Ordinal);
+        return from > 0
+            && flat.StartsWith("SELECT ", StringComparison.Ordinal)
+            && flat[..from].EndsWith(".[Version]", StringComparison.Ordinal)
+            && !flat[..from].Contains(',', StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// B09 review (lifecycle): a stale current generation is history, not a
     /// deliverable snapshot. Regenerating the same material after a stale
     /// must create a NEW current generation - never reuse the stale row and
@@ -2185,6 +2320,62 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
             return await source.GetAsync(CaseId, StaffActor, CaseWorkSelector.Current, reuse: null, default);
         }
 
+        /// <summary>
+        /// The store over the real projection source and the real staff
+        /// queries, both on a factory of their own that
+        /// <paramref name="counter"/> counts, with the real content source a
+        /// generation composes through. Only the workspace, the prepared
+        /// images and the applied valuation are fixtures, the last two the
+        /// fake source's. The Case is first assigned to the signatory, which a
+        /// ready report needs (#1213 ruling 3).
+        /// </summary>
+        public async Task<RealSource> StoreOverRealSourceAsync(
+            SqlStatementCounter counter, IGetAssessmentWorkspace? workspace = null)
+        {
+            await using (var context = await Factory.CreateDbContextAsync())
+            {
+                var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == CaseId);
+                workflow.AssignedEngineerId = SignatoryId;
+                await context.SaveChangesAsync();
+            }
+
+            var factory = new PooledDbContextFactory<PegasusDbContext>(
+                new DbContextOptionsBuilder<PegasusDbContext>()
+                    .UseSqlServer(ConnectionString)
+                    .AddInterceptors(counter)
+                    .Options);
+            var staff = new EfStaffAccountQueries(
+                factory, new StaffAccountReads(new MemoryCache(new MemoryCacheOptions())));
+            // The content store is a singleton, so it outlives the scope.
+            await using var scope = database.CreateAsyncScope();
+            var source = new EfAssessmentReportProjectionSource(
+                factory,
+                workspace ?? new FakeGetAssessmentWorkspace(AssessmentWorkspaceTestData.Create(
+                        AssessmentReportDraftWebTests.FullAssessmentProjection(CaseId) with { CaseVersion = 1 })
+                    with { CurrentSpecification = AssessmentReportDraftWebTests.CurrentEstimate() }),
+                scope.ServiceProvider.GetRequiredService<IDocumentContentStore>(),
+                staff,
+                snapshotSource,
+                snapshotSource);
+            return new(
+                new EfCaseReportGenerationStore(factory, source, new FakeDocumentReader(this), Clock),
+                source,
+                staff,
+                new EfCaseReportContentSource(new FakeDocumentReader(this), staff));
+        }
+
+        /// <summary>
+        /// Moves the Case's version as system work does: the version advances
+        /// and the staff edit lease stands (operator, 6 October 2026).
+        /// </summary>
+        public async Task MoveVersionAsSystemWorkAsync()
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == CaseId);
+            workflow.Version++;
+            await context.SaveChangesAsync();
+        }
+
         public async Task AddSourceAsync()
         {
             await using var scope = database.CreateAsyncScope();
@@ -2776,6 +2967,28 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
 
         internal sealed record ArtifactRow(Guid Id, string Kind, string State, string OperationKey);
 
+        /// <summary>
+        /// The store over the real projection source, the source itself, the
+        /// staff queries both read through, and the content source over them.
+        /// </summary>
+        internal sealed record RealSource(
+            EfCaseReportGenerationStore Store,
+            ICaseReportSnapshotSource Source,
+            IStaffAccountQueries Staff,
+            ICaseReportContentSource Content)
+        {
+            /// <summary>
+            /// Reads the sign-off list and <paramref name="signatoryId"/>'s
+            /// signature once, as any earlier page did, so later reads of them
+            /// are the kept ones.
+            /// </summary>
+            public async Task WarmStaffReadsAsync(Guid signatoryId)
+            {
+                await Staff.ListSignOffEngineersAsync(default);
+                await Staff.GetSignOffSignatureAsync(signatoryId, default);
+            }
+        }
+
         internal sealed record SeededDocument(
             Guid DocumentId, Guid VersionId, string Sha256, byte[] Content)
         {
@@ -2788,23 +3001,32 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         }
     }
 
-    private sealed class MutatingWorkspaceSource(Harness harness) : IGetAssessmentWorkspace
+    /// <summary>
+    /// A workspace read at version 1 while <paramref name="mutate"/> moves the
+    /// Case on: by default a source is added, a staff write.
+    /// </summary>
+    private sealed class MutatingWorkspaceSource(Harness harness, Func<Task>? mutate = null)
+        : IGetAssessmentWorkspace
     {
         public async Task<AssessmentWorkspace?> ExecuteAsync(
             GetAssessmentWorkspaceQuery query, CancellationToken cancellationToken = default)
         {
             var workspace = AssessmentWorkspaceTestData.Create(
                 AssessmentReportDraftWebTests.FullAssessmentProjection(harness.CaseId) with { CaseVersion = 1 });
-            await harness.AddSourceAsync();
+            await (mutate ?? harness.AddSourceAsync)();
             return workspace;
         }
     }
 
     /// <summary>
     /// The one read model a freeze loads, built from the same accepted
-    /// fixtures the routed report tests use so readiness is genuinely met.
+    /// fixtures the routed report tests use so readiness is genuinely met. Its
+    /// prepared images and applied valuation also answer the preparation and
+    /// valuation ports, for the real source to read in their place
+    /// (<see cref="Harness.StoreOverRealSourceAsync"/>).
     /// </summary>
-    private sealed class FakeSnapshotSource : ICaseReportSnapshotSource
+    private sealed class FakeSnapshotSource
+        : ICaseReportSnapshotSource, ICaseAssetPreparationQueries, IListAppliedValuations
     {
         private static readonly DateTimeOffset RecordedAtUtc = new(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
 
@@ -2908,6 +3130,21 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
                     : null);
         }
 
+        public Task<CaseAssetPreparation?> GetForOccurrenceAsync(
+            Guid requestedCaseId, Guid occurrenceId, CancellationToken cancellationToken) =>
+            Task.FromResult(requestedCaseId == caseId
+                ? Preparations.SingleOrDefault(item => item.OccurrenceId == occurrenceId)
+                : null);
+
+        public Task<IReadOnlyList<CaseAssetPreparation>> ListForCaseAsync(
+            Guid requestedCaseId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CaseAssetPreparation>>(requestedCaseId == caseId ? Preparations : []);
+
+        public Task<IReadOnlyList<AppliedValuation>> ExecuteAsync(
+            Guid requestedCaseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<AppliedValuation>>(
+                requestedCaseId == caseId && fromCard ? [Valuation()] : []);
+
         // The signatory is also the Case's assigned Engineer, which a ready
         // report needs (#1213 ruling 3).
         private CaseReportReadinessInput Readiness(CaseAssessmentProjection current) => new(
@@ -2918,12 +3155,16 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
                 signatoryId, "Ed Mawdsley", "ATA VDA AQP", IsDefault: true)],
             estimate,
             fromCard ? Valuation() : null,
-            [
-                Preparation(closeUp, CaseAssetReportRole.CloseUp),
-                Preparation(overview, CaseAssetReportRole.Overview),
-                .. supporting.Select(document => Preparation(document, CaseAssetReportRole.Supporting)),
-            ],
+            Preparations,
             confirmedSources);
+
+        /// <summary>The operator's prepared images, which readiness and the real source both read.</summary>
+        private IReadOnlyList<CaseAssetPreparation> Preparations =>
+        [
+            Preparation(closeUp, CaseAssetReportRole.CloseUp),
+            Preparation(overview, CaseAssetReportRole.Overview),
+            .. supporting.Select(document => Preparation(document, CaseAssetReportRole.Supporting)),
+        ];
 
         private static CaseAssessmentProjection WithValues(
             CaseAssessmentProjection current,

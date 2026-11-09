@@ -24,6 +24,14 @@ public interface IGenerateCaseReport
 {
     Task<CaseReportGenerationResult> ExecuteAsync(
         GenerateCaseReportRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// One custody batch for the artifacts generated until it is disposed: the
+    /// report and its fee note prove the Case folder once between them
+    /// (FRD-05, #1952). Opened in the flow that awaits both generations, so it
+    /// reaches each filing. A fake that files nothing has nothing to batch.
+    /// </summary>
+    IAsyncDisposable BeginBatch() => NoCustodyBatch.Instance;
 }
 
 /// <summary>
@@ -532,6 +540,14 @@ public sealed record ReportProjectionReuse(
     CaseSectionFrame? Frame = null)
 {
     /// <summary>
+    /// The caller re-reads the Case's version under its own lock and refuses
+    /// inputs read at another version, so the source skips its own closing
+    /// re-read of the version (#1952). Only the report freeze sets it; a page
+    /// read, which has no lock, keeps the source's check.
+    /// </summary>
+    public bool CallerRechecksVersion { get; init; }
+
+    /// <summary>
     /// The Case's works as the reused frame read them, while the Case is still
     /// at <paramref name="version"/>. Only Create audit adds a work, and it
     /// moves the version, so a frame read at another version is not used.
@@ -908,6 +924,33 @@ public sealed class GenerateCaseReport(
     ICaseArtifactCustodyStatus custodyStatus,
     TimeProvider timeProvider) : IGenerateCaseReport
 {
+    // Not async: the batch is an ambient scope the custody adapters read from
+    // the calling flow, so it must be opened in the caller's own flow.
+    public IAsyncDisposable BeginBatch() => custody.BeginDocumentBatch();
+
+    /// <summary>
+    /// The generation a fee note is made for once a report request has run:
+    /// the report's own, when the generation is Confirmed with a Confirmed
+    /// report artifact and no Confirmed fee note yet; null otherwise, and for
+    /// any other kind. The one statement of the pairing the Case page and the
+    /// MCP tool both make.
+    /// </summary>
+    public static Guid? FeeNoteTargetOf(CaseReportArtifactKind requested, CaseReportGenerationRecord? generation) =>
+        requested == CaseReportArtifactKind.AssessmentReport
+        && generation is { State: CaseReportGenerationState.Confirmed }
+        && generation.Artifacts.Any(artifact => artifact is
+        {
+            Kind: CaseReportArtifactKind.AssessmentReport,
+            Status: CaseReportArtifactStatus.Confirmed,
+        })
+        && !generation.Artifacts.Any(artifact => artifact is
+        {
+            Kind: CaseReportArtifactKind.FeeNote,
+            Status: CaseReportArtifactStatus.Confirmed,
+        })
+            ? generation.Id
+            : null;
+
     public async Task<CaseReportGenerationResult> ExecuteAsync(
         GenerateCaseReportRequest request, CancellationToken cancellationToken)
     {

@@ -1029,6 +1029,102 @@ public sealed class CaseReportGenerationTests
         Assert.Empty(store.Sequence);
     }
 
+    /// <summary>
+    /// The report and its fee note are filed inside the one custody batch the
+    /// caller opens, so the Case folder is proved once for both (FRD-05, #1952).
+    /// </summary>
+    [Fact]
+    public async Task BeginBatchIsCustodysDocumentBatch()
+    {
+        var store = new FakeStore();
+        var custody = new RecordingCustody();
+        var generate = Use(store, new RecordingRenderer(), custody);
+
+        await using (generate.BeginBatch())
+        {
+            await generate.ExecuteAsync(Request(), default);
+            await generate.ExecuteAsync(
+                Request(CaseReportArtifactKind.FeeNote) with { TargetGenerationId = store.GenerationId },
+                default);
+        }
+
+        Assert.Equal(1, custody.BatchesBegun);
+        Assert.Equal([1, 1], custody.BatchDepthAtRetain);
+        Assert.Equal(0, custody.OpenBatches);
+    }
+
+    /// <summary>
+    /// A fee note is made for a report request whose generation is Confirmed
+    /// with a Confirmed report and no Confirmed fee note; for nothing else.
+    /// A null generation state is no generation at all.
+    /// </summary>
+    public static TheoryData<
+        CaseReportArtifactKind,
+        CaseReportGenerationState?,
+        CaseReportArtifactStatus?,
+        CaseReportArtifactStatus?,
+        bool> FeeNoteTargets => new()
+    {
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Confirmed, null, true
+        },
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Pending, null, false
+        },
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Failed, null, false
+        },
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Confirmed, CaseReportArtifactStatus.Confirmed, false
+        },
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Pending,
+            CaseReportArtifactStatus.Confirmed, null, false
+        },
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Stale,
+            CaseReportArtifactStatus.Confirmed, null, false
+        },
+        {
+            CaseReportArtifactKind.FeeNote, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Confirmed, null, false
+        },
+        {
+            CaseReportArtifactKind.RepairSpecification, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Confirmed, null, false
+        },
+        { CaseReportArtifactKind.AssessmentReport, null, null, null, false },
+    };
+
+    [Theory]
+    [MemberData(nameof(FeeNoteTargets))]
+    public void AFeeNoteIsMadeOnlyForAConfirmedReportWithoutAConfirmedFeeNote(
+        CaseReportArtifactKind requested,
+        CaseReportGenerationState? state,
+        CaseReportArtifactStatus? reportStatus,
+        CaseReportArtifactStatus? feeNoteStatus,
+        bool targeted)
+    {
+        var store = new FakeStore();
+        var artifacts = new List<CaseReportArtifactRecord>();
+        if (reportStatus is { } report)
+        {
+            artifacts.Add(store.Artifact(CaseReportArtifactKind.AssessmentReport, report));
+        }
+        if (feeNoteStatus is { } feeNote)
+        {
+            artifacts.Add(store.Artifact(CaseReportArtifactKind.FeeNote, feeNote));
+        }
+        var generation = state is { } recorded ? store.Generation(recorded, artifacts) : null;
+        Guid? expected = targeted ? store.GenerationId : null;
+
+        Assert.Equal(expected, GenerateCaseReport.FeeNoteTargetOf(requested, generation));
+    }
+
     [Fact]
     public void TheOccurrenceIdentityIsDerivedFromTheGenerationAndKind()
     {
@@ -1259,15 +1355,25 @@ public sealed class CaseReportGenerationTests
         /// <summary>The report's frozen file name; null as on a snapshot frozen before report names.</summary>
         public string? ReportFileName { get; init; }
 
-        private CaseReportGenerationRecord Record(CaseReportArtifactKind kind) => new(
-            GenerationId, CaseId, 7, 1, new string('c', 64), Snapshot(),
-            AssessmentReportContract.TemplateVersion, "fake", CaseReportGenerationState.Pending,
-            RecordedAtUtc, null,
+        private CaseReportGenerationRecord Record(CaseReportArtifactKind kind) => Generation(
+            CaseReportGenerationState.Pending,
             [
                 new CaseReportArtifactRecord(
                     ArtifactId, GenerationId, kind, CaseReportArtifactStatus.Pending, "operation-1",
                     PendingDocumentId, PendingVersionId, null, null, null, null, null, null, null, null),
             ]);
+
+        /// <summary>This store's generation in <paramref name="state"/> holding <paramref name="artifacts"/>.</summary>
+        public CaseReportGenerationRecord Generation(
+            CaseReportGenerationState state, IReadOnlyList<CaseReportArtifactRecord> artifacts) => new(
+            GenerationId, CaseId, 7, 1, new string('c', 64), Snapshot(),
+            AssessmentReportContract.TemplateVersion, "fake", state,
+            RecordedAtUtc, null, artifacts);
+
+        /// <summary>One artifact of this store's generation, of <paramref name="kind"/> in <paramref name="status"/>.</summary>
+        public CaseReportArtifactRecord Artifact(CaseReportArtifactKind kind, CaseReportArtifactStatus status) => new(
+            Guid.NewGuid(), GenerationId, kind, status, "operation-1",
+            null, null, null, null, null, null, null, null, null, null);
 
         private CaseReportGenerationSnapshot Snapshot()
         {
@@ -1328,13 +1434,39 @@ public sealed class CaseReportGenerationTests
             CaseArtifactCustodyDisposition.Confirmed, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
             "box-file", "box-version", null, 3, "application/pdf", null, null);
 
+        /// <summary>The document batches begun.</summary>
+        public int BatchesBegun { get; private set; }
+
+        /// <summary>The document batches begun and not yet disposed.</summary>
+        public int OpenBatches { get; private set; }
+
+        /// <summary>How many batches were open when each retain ran.</summary>
+        public List<int> BatchDepthAtRetain { get; } = [];
+
         public Task<CaseArtifactCustodyResult> RetainAsync(
             CaseArtifactCustodyRequest request, CancellationToken cancellationToken)
         {
             Calls++;
             LastRequest = request;
+            BatchDepthAtRetain.Add(OpenBatches);
             Sequence?.Add("retain");
             return Task.FromResult(Result with { Sha256 = Result.Sha256 ?? request.Sha256 });
+        }
+
+        public IAsyncDisposable BeginDocumentBatch()
+        {
+            BatchesBegun++;
+            OpenBatches++;
+            return new Batch(this);
+        }
+
+        private sealed class Batch(RecordingCustody custody) : IAsyncDisposable
+        {
+            public ValueTask DisposeAsync()
+            {
+                custody.OpenBatches--;
+                return ValueTask.CompletedTask;
+            }
         }
     }
 

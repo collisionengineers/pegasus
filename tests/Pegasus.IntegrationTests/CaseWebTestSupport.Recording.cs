@@ -508,11 +508,21 @@ internal static partial class CaseWebTestSupport
     /// runs. By default the artifact is left Pending, so nothing is
     /// confirmed; <see cref="Outcome"/> answers otherwise,
     /// <see cref="Generation"/> is the generation it answers with, and
-    /// <see cref="Failure"/> throws instead of answering.
+    /// <see cref="Failure"/> throws instead of answering. Each custody batch
+    /// the caller opens is counted, and each request records how many were
+    /// open when it ran.
     /// </summary>
     internal sealed class RecordingGenerateReport : IGenerateCaseReport
     {
         public List<GenerateCaseReportRequest> Requests { get; } = [];
+
+        /// <summary>How many batches were open when each of <see cref="Requests"/> ran.</summary>
+        public List<int> BatchDepthAtRequest { get; } = [];
+
+        /// <summary>The batches begun and not yet disposed.</summary>
+        public int OpenBatches { get; private set; }
+
+        public int BatchesClosed { get; private set; }
 
         public Action? During { get; init; }
 
@@ -527,12 +537,29 @@ internal static partial class CaseWebTestSupport
             CancellationToken cancellationToken)
         {
             Requests.Add(request);
+            BatchDepthAtRequest.Add(OpenBatches);
             During?.Invoke();
             if (Failure is not null)
             {
                 throw Failure;
             }
             return Task.FromResult(new CaseReportGenerationResult(Outcome, Generation, []));
+        }
+
+        public IAsyncDisposable BeginBatch()
+        {
+            OpenBatches++;
+            return new Batch(this);
+        }
+
+        private sealed class Batch(RecordingGenerateReport generator) : IAsyncDisposable
+        {
+            public ValueTask DisposeAsync()
+            {
+                generator.OpenBatches--;
+                generator.BatchesClosed++;
+                return ValueTask.CompletedTask;
+            }
         }
     }
 
