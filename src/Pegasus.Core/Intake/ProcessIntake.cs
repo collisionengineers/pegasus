@@ -210,7 +210,7 @@ public sealed class ProcessIntake(
                 safeSource.ReceivedAtUtc,
                 retainedClassification,
                 cancellationToken)
-            : DeclaredDestinationAssessment(readResult);
+            : DeclaredDestinationAssessment(readResult, waitsForCapture: safeSource.DeclaredCaseId is null);
         var draft = new IntakeReceiptDraft(
             safeSource.FileName,
             safeSource.MediaType,
@@ -729,15 +729,19 @@ public sealed class ProcessIntake(
     /// and its photographs kept like any other upload, but no principal,
     /// route, match or OCR work runs, because nothing is left to identify. A
     /// file that cannot be read keeps that honest decision; its original still
-    /// files on the Case.
+    /// files on the Case. A photo link's item with no Case yet
+    /// (<paramref name="waitsForCapture"/>) is assessed the same way and says
+    /// that it waits for its capture to be sent (FRD-28; R805).
     /// </summary>
-    private static IntakeAssessment DeclaredDestinationAssessment(IntakeSourceReadResult readResult)
+    private static IntakeAssessment DeclaredDestinationAssessment(IntakeSourceReadResult readResult, bool waitsForCapture)
     {
         var readerEvidence = ReaderEvidence(readResult);
         return ReaderFailureAssessment(readResult, readerEvidence)
             ?? new(
                 IntakeDecision.NeedsSorting,
-                ProcessQueuedIntake.DeclaredDestinationReason,
+                waitsForCapture
+                    ? PhotoCapture.PhotoCaptureIntakeRules.WaitingReason
+                    : ProcessQueuedIntake.DeclaredDestinationReason,
                 [
                     .. readerEvidence,
                     .. (readResult.IsIncomplete ? new[] { IncompleteReadEvidence() } : []),
@@ -746,7 +750,9 @@ public sealed class ProcessIntake(
                         IntakeEvidenceStrength.Strong,
                         IntakeEvidenceFinding.Information,
                         IntakeEvidenceSignals.DeclaredDestination,
-                        "The destination Case was declared by staff on upload; no identification ran.")
+                        waitsForCapture
+                            ? PhotoCapture.PhotoCaptureIntakeRules.WaitingReason
+                            : "The destination Case was declared by staff on upload; no identification ran.")
                 ],
                 [],
                 null,

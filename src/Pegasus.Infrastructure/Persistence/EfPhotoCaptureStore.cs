@@ -777,14 +777,17 @@ internal static class EfPhotoCaptureItemProcessing
         CancellationToken cancellationToken)
     {
         var channel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.PhotoCapture);
-        if (!await context.IntakeStagedReceipts.AsNoTracking()
-                .AnyAsync(item => item.Id == stagedReceiptId && item.SourceChannel == channel, cancellationToken))
+        var memberToken = await context.IntakeStagedReceipts.AsNoTracking()
+            .Where(item => item.Id == stagedReceiptId && item.SourceChannel == channel)
+            .Select(item => item.ExternalReceiptToken)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (memberToken is null)
         {
             return;
         }
 
         var sourceAssetId = await SourceAssetIdAsync(context, processedReceiptId, cancellationToken);
-        await RecordFromReceiptAsync(context, stagedReceiptId, processedReceiptId, sourceAssetId, cancellationToken);
+        await RecordFromReceiptAsync(context, stagedReceiptId, memberToken, processedReceiptId, sourceAssetId, cancellationToken);
     }
 
     /// <summary>The receipt's own file: an image, document or video receipt has one source asset.</summary>
@@ -801,20 +804,35 @@ internal static class EfPhotoCaptureItemProcessing
     // EfIntakeReceiptStore's stored code of IntakeAssetKind.Source.
     private const string SourceAssetKind = "source";
 
-    public static async Task RecordFromReceiptAsync(
+    private static async Task RecordFromReceiptAsync(
         PegasusDbContext context,
         Guid stagedReceiptId,
+        string memberToken,
         Guid processedReceiptId,
         Guid? sourceAssetId,
         CancellationToken cancellationToken)
     {
         var item = await context.PhotoCaptureItems
             .SingleOrDefaultAsync(value => value.StagedReceiptId == stagedReceiptId, cancellationToken);
-        if (item is null)
+        if (item is null
+            && PhotoCaptureIntakeRules.TryReadMemberToken(memberToken, out var captureId, out var batch, out var ordinal))
         {
             // The item records its staged receipt just after intake accepts
-            // it; when this evaluation wins that race, RecordItemReceiptAsync
-            // reads the processed receipt instead.
+            // it. When this evaluation wins that race the item is found by the
+            // member token its receipt carries, so it knows its asset before
+            // its Case filing reads the basket it arrives in (FRD-28);
+            // RecordItemReceiptAsync still records and counts the receipt.
+            item = await context.PhotoCaptureItems
+                .SingleOrDefaultAsync(
+                    value => value.CaptureId == captureId
+                        && value.Batch == batch
+                        && value.Ordinal == ordinal
+                        && value.StagedReceiptId == null,
+                    cancellationToken);
+        }
+
+        if (item is null)
+        {
             return;
         }
 

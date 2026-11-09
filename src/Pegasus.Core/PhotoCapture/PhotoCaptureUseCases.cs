@@ -366,28 +366,27 @@ public sealed class ReceivePhotoCaptureItem(
             throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.DetailsRequired, "The registration is needed before photos.");
         }
 
-        if (request.Kind == PhotoCaptureItemKind.Damage && (request.Area is null || !PhotoCaptureStory.IsZone(request.Area) || request.Stage is null))
-        {
-            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.InvalidRequest, "A damage photo names its area and stage.");
-        }
-
+        // A damage photo taken outside any marked area ("Add more", the
+        // phone's own camera) is kept as a loose damage photo, not refused
+        // (operator, 9 November 2026; R802); its stage stays as sent.
+        var area = PhotoCaptureStory.ItemArea(request.Kind, request.Area);
         var hash = await Intake.ReceiveIntake.StreamHashAsync(
             new Intake.StreamedIntakeSource(
                 "item", request.MediaType, request.ContentLength, request.OpenContentAsync, now,
                 Intake.IntakeActorIdentity.PhotoCapture(capture.Id),
                 new(Intake.IntakeSourceChannel.PhotoCapture, "hash")),
             cancellationToken);
-        var group = PhotoCaptureStory.Group(request.Kind, request.Area, capture.Details.MarkedAreas);
+        var group = PhotoCaptureStory.Group(request.Kind, area, capture.Details.MarkedAreas);
         var sequence = PhotoCaptureStory.Sequence(request.Kind, request.Stage, request.Position);
         var fileName = PhotoCaptureStory.FileName(
-            request.Kind, request.Area, request.Stage, request.Position, group, sequence, request.MediaType, request.FileName);
+            request.Kind, area, request.Stage, request.Position, group, sequence, request.MediaType, request.FileName);
         var write = await captures.AddItemAsync(
             new NewPhotoCaptureItem(
                 Guid.NewGuid(),
                 capture.Id,
                 request.ClientItemId,
                 request.Kind,
-                request.Area,
+                area,
                 request.Stage,
                 request.Position,
                 capture.CurrentBatch,

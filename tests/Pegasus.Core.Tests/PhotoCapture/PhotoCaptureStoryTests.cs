@@ -33,6 +33,48 @@ public sealed class PhotoCaptureStoryTests
         Assert.Equal("Overview all the way round", PhotoCaptureStory.GroupLabel(groups[0], areas));
     }
 
+    /// <summary>
+    /// A damage photo taken outside the marked areas files in a Damage group
+    /// after the areas, the same group however many areas are marked, so
+    /// marking another never renames it (operator, 9 November 2026; R802).
+    /// </summary>
+    [Fact]
+    public void ALooseDamagePhotoFilesInTheDamageGroupAfterTheMarkedAreas()
+    {
+        string[] oneArea = ["fd"];
+        string[] twoAreas = ["fd", "rear"];
+        var group = PhotoCaptureStory.Group(PhotoCaptureItemKind.Damage, null, oneArea);
+        var name = PhotoCaptureStory.FileName(
+            PhotoCaptureItemKind.Damage,
+            null,
+            null,
+            3,
+            group,
+            PhotoCaptureStory.Sequence(PhotoCaptureItemKind.Damage, null, 3),
+            "image/jpeg");
+
+        Assert.Equal(4, group);
+        Assert.Equal(PhotoCaptureStory.LooseDamageGroup, group);
+        Assert.Equal(group, PhotoCaptureStory.Group(PhotoCaptureItemKind.Damage, null, twoAreas));
+        Assert.Equal(group, PhotoCaptureStory.Group(PhotoCaptureItemKind.Damage, null, Array.Empty<string>()));
+        Assert.True(group > PhotoCaptureStory.Group(PhotoCaptureItemKind.Damage, "rear", twoAreas));
+        Assert.True(group < PhotoCaptureStory.NumberPlateGroup);
+        Assert.Equal("Damage", PhotoCaptureStory.GroupLabel(group, twoAreas));
+        Assert.Equal("04-03 Damage.jpg", name);
+    }
+
+    [Theory]
+    [InlineData(PhotoCaptureItemKind.Damage, "fd", "fd")]
+    [InlineData(PhotoCaptureItemKind.Damage, "roof", null)]
+    [InlineData(PhotoCaptureItemKind.Damage, null, null)]
+    [InlineData(PhotoCaptureItemKind.Overview, "fd", null)]
+    [InlineData(PhotoCaptureItemKind.Scene, "fd", null)]
+    public void ADamagePhotoKeepsOnlyAZoneAsItsAreaAndNoOtherKindKeepsOne(
+        PhotoCaptureItemKind kind,
+        string? area,
+        string? expected) =>
+        Assert.Equal(expected, PhotoCaptureStory.ItemArea(kind, area));
+
     [Fact]
     public void DamageStagesOrderOverviewCloserCloseUpExtraWithinAnArea()
     {

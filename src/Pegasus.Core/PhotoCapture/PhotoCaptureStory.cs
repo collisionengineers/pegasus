@@ -57,8 +57,22 @@ public static class PhotoCaptureStory
     public const int PaperworkGroup = OtherVehicleGroup + 1;
     public const int VideoGroup = PaperworkGroup + 1;
 
+    /// <summary>
+    /// The Damage group a loose damage photo files in, one taken outside any
+    /// marked area: after every area the app can mark, so marking another
+    /// area never renames it (operator, 9 November 2026; R802).
+    /// </summary>
+    public const int LooseDamageGroup = FirstAreaGroup + PhotoCaptureAreas.MaximumAreas;
+
     public static bool IsZone(string? key) =>
         key is not null && Zones.Any(zone => string.Equals(zone.Key, key, StringComparison.Ordinal));
+
+    /// <summary>
+    /// The area an item keeps: a damage photo's zone, or none, which makes it
+    /// a loose damage photo (R802). No other kind has an area.
+    /// </summary>
+    public static string? ItemArea(PhotoCaptureItemKind kind, string? area) =>
+        kind == PhotoCaptureItemKind.Damage && IsZone(area) ? area : null;
 
     public static string ZoneLabel(string key) =>
         Zones.FirstOrDefault(zone => string.Equals(zone.Key, key, StringComparison.Ordinal)).Label
@@ -67,7 +81,8 @@ public static class PhotoCaptureStory
     /// <summary>
     /// The story group an item sits in; a damaged area's group follows the
     /// app's own area order (<see cref="PhotoCaptureAreas.Derive"/>), the
-    /// item's area being the key zone the app tagged it with.
+    /// item's area being the key zone the app tagged it with. A damage photo
+    /// in no marked area is in <see cref="LooseDamageGroup"/>.
     /// </summary>
     public static int Group(PhotoCaptureItemKind kind, string? area, IReadOnlyList<string> markedZones)
     {
@@ -80,7 +95,7 @@ public static class PhotoCaptureStory
                 var areas = PhotoCaptureAreas.Derive(markedZones);
                 var found = PhotoCaptureAreas.Find(areas, area);
                 var index = found is null ? -1 : areas.ToList().IndexOf(found);
-                return FirstAreaGroup + (index < 0 ? Math.Min(areas.Count, MaximumAreas - 1) : Math.Min(index, MaximumAreas - 1));
+                return index < 0 ? LooseDamageGroup : FirstAreaGroup + Math.Min(index, MaximumAreas - 1);
             case PhotoCaptureItemKind.NumberPlate:
                 return NumberPlateGroup;
             case PhotoCaptureItemKind.Vin:

@@ -39,6 +39,9 @@ internal sealed class EfIntakeMutationStore(
 
         var operationKey = AutomaticCaseEvidencePromotionOperationKey.Plan(request.IntakeReceiptId);
         var assetIds = request.AssetIds.Order().ToArray();
+        // The photo link hold-back is kept in the plan but not hashed: a
+        // receipt's channel never changes, and hashing it would make every
+        // plan recorded before it conflict on replay.
         var requestHash = Hash(JsonSerializer.Serialize(new
         {
             request.IntakeReceiptId,
@@ -117,8 +120,13 @@ internal sealed class EfIntakeMutationStore(
             ExpectedCaseVersion = target.Version,
             BeforeCaseVersion = target.Version,
             AfterCaseVersion = target.Version,
+            // The plan carries the photo link hold-back to the confirmation
+            // that would otherwise complete the Case's images (R781).
             AfterJson = JsonSerializer.Serialize(
-                new AutomaticCaseEvidencePromotionPlan(assetIds, request.HasSelectedPhotographs))
+                new AutomaticCaseEvidencePromotionPlan(
+                    assetIds,
+                    request.HasSelectedPhotographs,
+                    request.DefersCaseImageCompletion))
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
