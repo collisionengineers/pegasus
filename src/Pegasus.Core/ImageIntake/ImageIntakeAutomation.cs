@@ -133,6 +133,11 @@ public sealed class ImageIntakeAutomation(
             return new(receipt);
         }
 
+        if (receipt.SourceIdentity.Channel == IntakeSourceChannel.PhotoCapture)
+        {
+            return await ApplyPhotoCaptureAsync(receipt, cancellationToken);
+        }
+
         if (!ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt)
             || receipt.Decision is not (IntakeDecision.NeedsSorting or IntakeDecision.ImageIntakeRegistered))
         {
@@ -214,6 +219,47 @@ public sealed class ImageIntakeAutomation(
             suggestions,
             cancellationToken);
         return updated ?? new(receipt);
+    }
+
+    /// <summary>
+    /// A photo link's receipt (FRD-28): one with a Case already files through
+    /// its declared destination and is not this automation's; one that is
+    /// the origin of a registered Vehicle images record pairs as any origin
+    /// does; one with no submission group yet waits for its capture to settle,
+    /// registering and holding nothing; one in its batch's group routes with
+    /// the group, every member reading as the registration its sender typed.
+    /// </summary>
+    private async Task<ImageIntakeAutomationOutcome> ApplyPhotoCaptureAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (receipt.Decision is not (IntakeDecision.NeedsSorting or IntakeDecision.ImageIntakeRegistered)
+            || receipt.CurrentCaseId is not null)
+        {
+            return new(receipt);
+        }
+
+        var existing = await imageIntakeStore.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
+        if (existing is not null)
+        {
+            try
+            {
+                await imageIntakeStore.EnsureRegisteredReceiptDecisionAsync(receipt.Id, cancellationToken);
+                await casePairing.PairRegisteredReceiptAsync(receipt.Id, cancellationToken, existing);
+                return new(await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt);
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                return new(receipt);
+            }
+        }
+
+        if (groupStore is null)
+        {
+            return new(receipt, GroupPending: true);
+        }
+
+        return await TryApplyGroupAsync(receipt, cancellationToken) ?? new(receipt, GroupPending: true);
     }
 
     /// <summary>
@@ -322,6 +368,10 @@ public sealed class ImageIntakeAutomation(
         var group = await groupStore!.FindForMemberSourceAsync(
             receipt.SourceIdentity,
             cancellationToken);
+        if (PhotoCapture.PhotoCaptureIntakeRules.WaitsForSettle(receipt, group))
+        {
+            return new(receipt, GroupPending: true);
+        }
         if (group?.Discard is not null)
         {
             // The durable manual discard terminalizes the submission without
@@ -329,7 +379,8 @@ public sealed class ImageIntakeAutomation(
             // queue replay can register or associate its retained images.
             return new(receipt);
         }
-        if (group is null || !group.HasSiblingMembers)
+        if (group is null
+            || (!group.HasSiblingMembers && !PhotoCapture.PhotoCaptureIntakeRules.UsesDeclaredRegistration(group)))
         {
             // Every manual upload is a submission group, but this
             // decision table scopes itself to a submission with more than
@@ -373,15 +424,21 @@ public sealed class ImageIntakeAutomation(
         // group remains in the evidence set for replay stability even after a
         // later association, so its identity cannot be split into a second
         // Image intake.
-        var imageReceipts = receipts
-            .Where(memberReceipt =>
-                ImageIntakeLifecycleRules.IsImageAutomationEligible(memberReceipt)
-                || memberReceipt.Decision == IntakeDecision.ImageIntakeRegistered)
-            .ToArray();
+        // A photo link's batch carries the registration its sender typed
+        // (FRD-28): every member, its paperwork and video included, reads as
+        // that registration and no plate is read.
+        var declared = PhotoCapture.PhotoCaptureIntakeRules.UsesDeclaredRegistration(group);
+        var imageReceipts = declared
+            ? receipts.ToArray()
+            : receipts
+                .Where(memberReceipt =>
+                    ImageIntakeLifecycleRules.IsImageAutomationEligible(memberReceipt)
+                    || memberReceipt.Decision == IntakeDecision.ImageIntakeRegistered)
+                .ToArray();
 
         var recognitions = new List<ImageIntakeGroupMemberRecognition>(imageReceipts.Length);
         var scans = new List<(IntakeReceipt Receipt, IReadOnlyList<ImageVrmSuggestion> Suggestions)>();
-        foreach (var memberReceipt in imageReceipts)
+        foreach (var memberReceipt in declared ? [] : imageReceipts)
         {
             var suggestions = await ScanAsync(memberReceipt, cancellationToken);
             scans.Add((memberReceipt, suggestions));
@@ -414,6 +471,19 @@ public sealed class ImageIntakeAutomation(
                     null,
                     null,
                     CouldNotBeRead: IntakeDecisionPolicy.CouldNotBeRead(memberReceipt.Decision)));
+            }
+        }
+
+        if (declared)
+        {
+            foreach (var memberReceipt in imageReceipts)
+            {
+                recognitions.Add(new(
+                    memberReceipt.Id,
+                    IsTerminal: true,
+                    VrmRecognitionOutcomeKind.Suggested,
+                    group.DeclaredRegistration,
+                    Confidence: 1d));
             }
         }
 

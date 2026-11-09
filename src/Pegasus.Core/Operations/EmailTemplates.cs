@@ -7,7 +7,7 @@ namespace Pegasus.Core.Operations;
 /// The staff message whose body an Administrator may edit (FRD-17 E-mail
 /// templates). Each purpose has its own placeholder set and built-in body.
 /// </summary>
-public enum EmailTemplatePurpose { TriageOutcomeReply, CaseReportDelivery, CaseChaser }
+public enum EmailTemplatePurpose { TriageOutcomeReply, CaseReportDelivery, CaseChaser, PhotoLink }
 
 /// <summary>
 /// One purpose's body as it stands: the saved text, or the built-in body at
@@ -52,6 +52,8 @@ public static partial class EmailTemplates
     public const string Greeting = "greeting";
     public const string OutstandingMaterial = "outstanding material";
     public const string Claimant = "claimant";
+    public const string PhotoLink = "photo link";
+    public const string LinkExpiry = "link expiry";
 
     private static readonly string[] TriageOutcomeReplyPlaceholders =
         [Registration, Roadworthiness, RepairOutcome, FindingReason];
@@ -106,11 +108,33 @@ public static partial class EmailTemplates
         + "Kind regards\n"
         + "Collision Engineers";
 
+    /// <summary>
+    /// The photo link e-mail (FRD-28): the message the handover's app sends
+    /// by text, carried by e-mail from HQ. <c>{claimant}</c> is the first
+    /// name when one is known; the greeting line survives without it.
+    /// </summary>
+    private static readonly string[] PhotoLinkPlaceholders =
+        [Registration, Claimant, PhotoLink, LinkExpiry, PrincipalName];
+
+    private const string PhotoLinkDefault =
+        "Hi {claimant},\n"
+        + "\n"
+        + "Collision Engineers need a few photos of {registration} to assess the damage. "
+        + "Please open this link on your phone – it takes about 3 minutes and there's nothing to download:\n"
+        + "\n"
+        + "{photo link}\n"
+        + "\n"
+        + "The link works until {link expiry}.\n"
+        + "\n"
+        + "Kind regards\n"
+        + "Collision Engineers";
+
     public static IReadOnlyList<string> Placeholders(EmailTemplatePurpose purpose) => purpose switch
     {
         EmailTemplatePurpose.TriageOutcomeReply => TriageOutcomeReplyPlaceholders,
         EmailTemplatePurpose.CaseReportDelivery => CaseReportDeliveryPlaceholders,
         EmailTemplatePurpose.CaseChaser => CaseChaserPlaceholders,
+        EmailTemplatePurpose.PhotoLink => PhotoLinkPlaceholders,
         _ => throw new ArgumentOutOfRangeException(nameof(purpose))
     };
 
@@ -119,6 +143,7 @@ public static partial class EmailTemplates
         EmailTemplatePurpose.TriageOutcomeReply => TriageOutcomeReplyDefault,
         EmailTemplatePurpose.CaseReportDelivery => CaseReportDeliveryDefault,
         EmailTemplatePurpose.CaseChaser => CaseChaserDefault,
+        EmailTemplatePurpose.PhotoLink => PhotoLinkDefault,
         _ => throw new ArgumentOutOfRangeException(nameof(purpose))
     };
 

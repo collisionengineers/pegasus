@@ -198,7 +198,11 @@ public sealed class ProcessIntake(
         // A file whose Case the uploading member of staff chose first has
         // nothing left to identify: it is read and its photographs kept like
         // any other upload, and the queued caller links it where they said.
+        // A photo link's item has nothing to identify either: its capture
+        // declared its Case, or its capture settles into a Vehicle images
+        // record (FRD-28); no principal, route, match or OCR work runs.
         var assessment = safeSource.DeclaredCaseId is null
+            && safeSource.SourceIdentity.Channel != IntakeSourceChannel.PhotoCapture
             ? await AssessAsync(
                 readResult,
                 capture,
@@ -296,7 +300,8 @@ public sealed class ProcessIntake(
     internal static bool RequiresHolding(
         IntakeReceipt receipt,
         AutomaticCaseEvidencePromotionOutcome promotion) =>
-        receipt.AcceptedCaseId is null
+        PhotoCapture.PhotoCaptureIntakeRules.IsHeld(receipt.SourceIdentity.Channel)
+        && receipt.AcceptedCaseId is null
         && receipt.Decision != IntakeDecision.ImageIntakeRegistered
         && promotion is not (AutomaticCaseEvidencePromotionOutcome.Confirmed
             or AutomaticCaseEvidencePromotionOutcome.Pending);
@@ -560,9 +565,10 @@ public sealed class ProcessIntake(
     /// gets a U-reference.
     /// </summary>
     internal static bool BecomesUnidentified(IntakeReceipt receipt) =>
-        ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
-        || UnidentifiedMediaKindPolicy.Classify(receipt.SourceIdentity.Channel, receipt.MediaType)
-            == UnidentifiedMediaKind.Image;
+        PhotoCapture.PhotoCaptureIntakeRules.BecomesUnidentified(receipt.SourceIdentity.Channel)
+        && (ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
+            || UnidentifiedMediaKindPolicy.Classify(receipt.SourceIdentity.Channel, receipt.MediaType)
+                == UnidentifiedMediaKind.Image);
 
     /// <summary>
     /// Which receipts this hook leaves for the queued caller to register.

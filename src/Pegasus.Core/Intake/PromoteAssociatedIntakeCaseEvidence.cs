@@ -89,7 +89,8 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
                 receipt.Id,
                 caseId,
                 assets.Select(asset => asset.Id).ToArray(),
-                selectedPhotographIds.Count != 0),
+                selectedPhotographIds.Count != 0,
+                PhotoCapture.PhotoCaptureIntakeRules.DefersCaseImageCompletion(receipt.SourceIdentity.Channel)),
             cancellationToken);
         if (preparation.Disposition != AutomaticCaseEvidencePromotionPreparationDisposition.Ready)
         {
@@ -194,15 +195,22 @@ public sealed record AutomaticCaseEvidencePromotionPreparation(
     Guid CaseId = default,
     long ExpectedCaseVersion = 0);
 
+/// <param name="DefersCaseImageCompletion">
+/// A photo link's photos complete the Case's images when the capture settles,
+/// not as each one files (FRD-28). False, the default, for every other receipt,
+/// and for every plan recorded before the flag existed.
+/// </param>
 public sealed record AutomaticCaseEvidencePromotionRequest(
     Guid IntakeReceiptId,
     Guid CaseId,
     IReadOnlyList<Guid> AssetIds,
-    bool HasSelectedPhotographs);
+    bool HasSelectedPhotographs,
+    bool DefersCaseImageCompletion = false);
 
 public sealed record AutomaticCaseEvidencePromotionPlan(
     IReadOnlyList<Guid> AssetIds,
-    bool HasSelectedPhotographs);
+    bool HasSelectedPhotographs,
+    bool DefersCaseImageCompletion = false);
 
 /// <summary>Durably establishes one Case-filing plan before content is handed to custody.</summary>
 public interface IAutomaticCaseEvidencePromotionStore

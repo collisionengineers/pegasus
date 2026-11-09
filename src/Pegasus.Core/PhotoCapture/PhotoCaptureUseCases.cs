@@ -1,0 +1,670 @@
+using Pegasus.Core.Identity;
+
+namespace Pegasus.Core.PhotoCapture;
+
+/// <summary>The refusals the capture surface and the staff pages name; the Web maps each to one bounded answer.</summary>
+public sealed class PhotoCaptureRefusalException(string code, string message) : Exception(message)
+{
+    public string Code { get; } = code;
+}
+
+public static class PhotoCaptureRefusals
+{
+    public const string Unavailable = "unavailable";
+    public const string DetailsRequired = "details_required";
+    public const string RegistrationRequired = "registration_required";
+    public const string RegistrationLocked = "registration_locked";
+    public const string UnsupportedType = "unsupported_type";
+    public const string TooLarge = "too_large";
+    public const string CapReached = "cap_reached";
+    public const string ItemConflict = "item_conflict";
+    public const string NotReady = "not_ready";
+    public const string MintCapReached = "mint_cap_reached";
+    public const string CaseUnavailable = "case_unavailable";
+    public const string InvalidRequest = "invalid_request";
+}
+
+/// <summary>What a staff member asks for when they issue a photo link from a Case.</summary>
+public sealed record IssuePhotoLinkRequest(
+    Guid CaseId,
+    ActionActor Actor,
+    string? CustomerName,
+    string? Mobile,
+    string? Email,
+    DateOnly? IncidentDate,
+    PhotoCaptureMode Mode,
+    bool LiveCameraOnly,
+    bool OriginalsInBackground,
+    int LifetimeDays,
+    PhotoLinkTokenPurpose TokenPurpose);
+
+public sealed record IssuedPhotoLink(PhotoCapture Capture, CaptureLinkSecret Token);
+
+/// <summary>
+/// HQ issues a link for a Case it already has (handover §6 "Send a photo
+/// link"): one capture per issue, with its first token. Casework is the
+/// right to do it; an archived Case takes no more evidence.
+/// </summary>
+public sealed class IssuePhotoLink(
+    IPhotoCaptureStore captures,
+    IPhotoCaptureCaseReader cases,
+    TimeProvider timeProvider)
+{
+    public async Task<IssuedPhotoLink> ExecuteAsync(IssuePhotoLinkRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        if (!CaptureLimits.IsLifetime(request.LifetimeDays))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.InvalidRequest, "The link lifetime is not one of the offered ones.");
+        }
+
+        var facts = await cases.GetAsync(request.CaseId, cancellationToken);
+        if (facts is null || facts.IsArchived)
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.CaseUnavailable, "The Case cannot take a photo link.");
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var token = PhotoLinkToken.Create();
+        var capture = await captures.CreateAsync(
+            new NewPhotoCapture(
+                Guid.NewGuid(),
+                PhotoCaptureOrigin.CaseLink,
+                StandingLinkId: null,
+                OrganizationId: null,
+                request.CaseId,
+                PhotoCaptureDestination.Case,
+                facts.NormalizedRegistration,
+                request.IncidentDate ?? facts.IncidentDate,
+                PhotoCaptureText.Name(request.CustomerName) ?? facts.ClaimantName,
+                PhotoCaptureText.Mobile(request.Mobile) ?? facts.ClaimantContactNumber,
+                PhotoCaptureText.Email(request.Email),
+                request.Mode,
+                request.LiveCameraOnly,
+                request.OriginalsInBackground,
+                Guid.TryParse(request.Actor.SubjectId, out var staffId) ? staffId : null,
+                now,
+                now.AddDays(request.LifetimeDays)),
+            PhotoLinkToken.Digest(token),
+            request.TokenPurpose,
+            cancellationToken);
+        return new(capture, token);
+    }
+}
+
+/// <summary>The short form a standing link's opener fills before photos or a hand-off.</summary>
+public sealed record StandingCaptureForm(
+    string? Registration,
+    DateOnly? IncidentDate,
+    string? CustomerName,
+    string? Mobile,
+    string? Email,
+    PhotoCaptureDetails Details);
+
+public sealed record MintedCapture(PhotoCapture Capture, CaptureLinkSecret Token, string Message);
+
+/// <summary>
+/// A standing link starts captures and nothing else. <see cref="StartAsync"/>
+/// is whoever holds the phone taking the photos themselves (quick mode for a
+/// contact's staff, guided for the website); <see cref="HandoffAsync"/> is
+/// their "Send customer a link", which mints a guided link the phone's own
+/// SMS or WhatsApp carries (no server send; operator, 9 November 2026). Both
+/// count against the link's daily cap.
+/// </summary>
+public sealed class MintFromStandingLink(
+    IPhotoCaptureStore captures,
+    IStandingPhotoLinkStore standingLinks,
+    RecordPhotoCaptureDetails recordDetails,
+    TimeProvider timeProvider)
+{
+    public Task<MintedCapture> StartAsync(
+        StandingPhotoLink link,
+        StandingCaptureForm form,
+        CancellationToken cancellationToken) =>
+        MintAsync(
+            link,
+            form,
+            link.Kind == StandingPhotoLinkKind.Website ? PhotoCaptureOrigin.Website : PhotoCaptureOrigin.StandingStaff,
+            link.Kind == StandingPhotoLinkKind.Website ? PhotoCaptureMode.Guided : PhotoCaptureMode.Quick,
+            PhotoLinkTokenPurpose.Session,
+            cancellationToken);
+
+    public Task<MintedCapture> HandoffAsync(
+        StandingPhotoLink link,
+        StandingCaptureForm form,
+        CancellationToken cancellationToken) =>
+        MintAsync(
+            link,
+            form,
+            PhotoCaptureOrigin.StandingForwarded,
+            link.ForwardedMode,
+            PhotoLinkTokenPurpose.Handoff,
+            cancellationToken);
+
+    private async Task<MintedCapture> MintAsync(
+        StandingPhotoLink link,
+        StandingCaptureForm form,
+        PhotoCaptureOrigin origin,
+        PhotoCaptureMode mode,
+        PhotoLinkTokenPurpose purpose,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+        ArgumentNullException.ThrowIfNull(form);
+        if (!link.IsActive)
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.Unavailable, "The link is not active.");
+        }
+
+        var registration = PhotoCaptureText.Registration(form.Registration)
+            ?? throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.RegistrationRequired, "A vehicle registration is required.");
+        var now = timeProvider.GetUtcNow();
+        var minted = await standingLinks.CountMintedSinceAsync(link.Id, now.AddDays(-1), cancellationToken);
+        var cap = link.Kind == StandingPhotoLinkKind.Website ? CaptureLimits.WebsiteMintsPerDay : CaptureLimits.ContactMintsPerDay;
+        if (minted >= cap)
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.MintCapReached, "This link has started as many captures as it may today.");
+        }
+
+        var token = PhotoLinkToken.Create();
+        var capture = await captures.CreateAsync(
+            new NewPhotoCapture(
+                Guid.NewGuid(),
+                origin,
+                link.Id,
+                link.OrganizationId,
+                CaseId: null,
+                PhotoCaptureDestination.Undecided,
+                registration,
+                form.IncidentDate,
+                PhotoCaptureText.Name(form.CustomerName),
+                PhotoCaptureText.Mobile(form.Mobile),
+                PhotoCaptureText.Email(form.Email),
+                mode,
+                link.LiveCameraOnly,
+                link.OriginalsInBackground,
+                IssuedByStaffId: null,
+                now,
+                now.AddDays(link.LinkLifetimeDays)),
+            PhotoLinkToken.Digest(token),
+            purpose,
+            cancellationToken);
+        // The form's registration routes the capture at once, so the first
+        // photo already knows where it files.
+        capture = await recordDetails.ExecuteAsync(capture, link, form, cancellationToken);
+        return new(capture, token, PhotoCaptureMessages.Handoff(capture.CustomerName, registration));
+    }
+}
+
+/// <summary>
+/// Records what the sender typed and, on a standing or website capture,
+/// routes it the first time it has a registration (<see cref="RoutePhotoCapture"/>).
+/// The registration is locked once a photo has filed against it: a different
+/// one would be a different vehicle.
+/// </summary>
+public sealed class RecordPhotoCaptureDetails(
+    IPhotoCaptureStore captures,
+    RoutePhotoCapture route)
+{
+    public async Task<PhotoCapture> ExecuteAsync(
+        PhotoCapture capture,
+        StandingPhotoLink? standingLink,
+        StandingCaptureForm form,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        ArgumentNullException.ThrowIfNull(form);
+        var registration = PhotoCaptureText.Registration(form.Registration) ?? capture.NormalizedRegistration;
+        if (capture.AcceptedItemCount > 0
+            && registration is not null
+            && !string.Equals(registration, capture.NormalizedRegistration, StringComparison.Ordinal))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.RegistrationLocked, "The registration cannot change once photos have been sent.");
+        }
+
+        var details = PhotoCaptureText.Details(form.Details);
+        var updated = await captures.RecordDetailsAsync(
+            capture.Id,
+            capture.Version,
+            registration,
+            form.IncidentDate ?? capture.IncidentDate,
+            PhotoCaptureText.Name(form.CustomerName) ?? capture.CustomerName,
+            PhotoCaptureText.Mobile(form.Mobile) ?? capture.Mobile,
+            PhotoCaptureText.Email(form.Email) ?? capture.Email,
+            details,
+            cancellationToken);
+        if (updated.Origin != PhotoCaptureOrigin.CaseLink
+            && updated.Destination == PhotoCaptureDestination.Undecided
+            && updated.NormalizedRegistration is { } vrm)
+        {
+            var decision = await route.ExecuteAsync(vrm, updated.IncidentDate, standingLink?.PrincipalId, cancellationToken);
+            updated = await captures.RecordRoutingAsync(
+                updated.Id,
+                updated.Version,
+                decision.Destination,
+                decision.CaseId,
+                decision.Reason,
+                cancellationToken);
+        }
+
+        return updated;
+    }
+}
+
+public sealed record PhotoCaptureRoutingDecision(PhotoCaptureDestination Destination, Guid? CaseId, string Reason);
+
+/// <summary>
+/// Where a standing capture's photos go, decided from its typed registration
+/// the way FRD-19 decides a mailed photograph's (operator, 9 November 2026):
+/// exactly one eligible formal Case with that registration, within a known
+/// Principal's own Cases, whose incident date does not contradict the typed
+/// one (FRD-22: the date excludes and never matches), files there; none, or
+/// several, becomes a Vehicle images record for staff and pairing.
+/// </summary>
+public sealed class RoutePhotoCapture(ImageIntake.IImageIntakeCaseCandidates caseCandidates)
+{
+    public const string NoEligibleCase = "photo_capture_no_eligible_case";
+    public const string CasesAmbiguous = "photo_capture_cases_ambiguous";
+    public const string SingleEligibleCase = "photo_capture_single_eligible_case";
+
+    public async Task<PhotoCaptureRoutingDecision> ExecuteAsync(
+        string normalizedRegistration,
+        DateOnly? incidentDate,
+        Guid? principalId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(normalizedRegistration);
+        var candidates = await caseCandidates.FindEligibleByRegistrationAsync(normalizedRegistration, cancellationToken);
+        return Decide(candidates, normalizedRegistration, incidentDate, principalId);
+    }
+
+    public static PhotoCaptureRoutingDecision Decide(
+        IReadOnlyList<ImageIntake.ImageIntakeCaseCandidate> candidates,
+        string normalizedRegistration,
+        DateOnly? incidentDate,
+        Guid? principalId)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        var scoped = ImageIntake.ImageIntakeCasePairing.ScopeToPrincipal(candidates, principalId);
+        var exact = scoped
+            .Where(candidate => !candidate.IsTriage
+                && string.Equals(candidate.ConfirmedRegistration, normalizedRegistration, StringComparison.Ordinal)
+                && (incidentDate is null || candidate.IncidentDate is null || candidate.IncidentDate == incidentDate))
+            .ToArray();
+        return exact.Length switch
+        {
+            1 => new(PhotoCaptureDestination.Case, exact[0].CaseId, SingleEligibleCase),
+            0 => new(PhotoCaptureDestination.VehicleImages, null, NoEligibleCase),
+            _ => new(PhotoCaptureDestination.VehicleImages, null, CasesAmbiguous)
+        };
+    }
+}
+
+/// <summary>One upload from the phone: a photo, a document or a video, or the full-size original of an earlier photo.</summary>
+public sealed record ReceivePhotoCaptureItemRequest(
+    Guid ClientItemId,
+    PhotoCaptureItemKind Kind,
+    string? Area,
+    PhotoCaptureStage? Stage,
+    int Position,
+    DateTimeOffset? TakenAtUtc,
+    bool LiveCamera,
+    bool IsOriginal,
+    string? FileName,
+    string MediaType,
+    long ContentLength,
+    Func<CancellationToken, ValueTask<Stream>> OpenContentAsync);
+
+public sealed record ReceivedPhotoCaptureItem(PhotoCaptureItemWrite Write, PhotoCaptureItem Item, int ItemCount);
+
+/// <summary>
+/// Takes one item into the capture and into intake (FRD-28, FRD-19). Each
+/// item is its own intake receipt: a submission group's membership is fixed
+/// when it is made, and a capture keeps receiving with no known total. A
+/// Case-destination item declares its Case and files at once, like an upload
+/// to a declared Case (FRD-18; R727); a Vehicle-images-destination item waits
+/// as a group member until the capture settles. The same client id with the
+/// same bytes is a replay and does nothing twice.
+/// </summary>
+public sealed class ReceivePhotoCaptureItem(
+    IPhotoCaptureStore captures,
+    Intake.IIntakeSubmission intake,
+    IFilePhotoCaptureOriginal originals,
+    TimeProvider timeProvider)
+{
+    public async Task<ReceivedPhotoCaptureItem> ExecuteAsync(
+        PhotoCapture capture,
+        ReceivePhotoCaptureItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        ArgumentNullException.ThrowIfNull(request);
+        var now = timeProvider.GetUtcNow();
+        if (!PhotoCaptureAccess.IsLive(capture, now))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.Unavailable, "The link is no longer active.");
+        }
+
+        if (!PhotoCaptureStory.AcceptsMediaType(request.Kind, request.MediaType))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.UnsupportedType, "That kind of file is not accepted here.");
+        }
+
+        if (request.ContentLength <= 0 || request.ContentLength > CaptureLimits.MaximumBytesFor(request.Kind, request.IsOriginal))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.TooLarge, "The file is larger than this link accepts.");
+        }
+
+        if (request.IsOriginal)
+        {
+            return await ReceiveOriginalAsync(capture, request, cancellationToken);
+        }
+
+        if (capture.Origin != PhotoCaptureOrigin.CaseLink && capture.Destination == PhotoCaptureDestination.Undecided)
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.DetailsRequired, "The registration is needed before photos.");
+        }
+
+        if (request.Kind == PhotoCaptureItemKind.Damage && (request.Area is null || !PhotoCaptureStory.IsZone(request.Area) || request.Stage is null))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.InvalidRequest, "A damage photo names its area and stage.");
+        }
+
+        var hash = await Intake.ReceiveIntake.StreamHashAsync(
+            new Intake.StreamedIntakeSource(
+                "item", request.MediaType, request.ContentLength, request.OpenContentAsync, now,
+                Intake.IntakeActorIdentity.PhotoCapture(capture.Id),
+                new(Intake.IntakeSourceChannel.PhotoCapture, "hash")),
+            cancellationToken);
+        var group = PhotoCaptureStory.Group(request.Kind, request.Area, capture.Details.MarkedAreas);
+        var sequence = PhotoCaptureStory.Sequence(request.Kind, request.Stage, request.Position);
+        var fileName = PhotoCaptureStory.FileName(
+            request.Kind, request.Area, request.Stage, request.Position, group, sequence, request.MediaType, request.FileName);
+        var write = await captures.AddItemAsync(
+            new NewPhotoCaptureItem(
+                Guid.NewGuid(),
+                capture.Id,
+                request.ClientItemId,
+                request.Kind,
+                request.Area,
+                request.Stage,
+                request.Position,
+                capture.CurrentBatch,
+                Ordinal: 0,
+                group,
+                sequence,
+                fileName,
+                request.MediaType,
+                request.TakenAtUtc,
+                request.LiveCamera,
+                PhotoCaptureStory.StartsInReport(request.Kind),
+                hash,
+                request.ContentLength,
+                now),
+            cancellationToken);
+        switch (write.Write)
+        {
+            case PhotoCaptureItemWrite.Conflict:
+                throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.ItemConflict, "This photo was already sent with different content.");
+            case PhotoCaptureItemWrite.CapReached:
+                throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.CapReached, "This link has received as much as it can take.");
+        }
+
+        var item = write.Item!;
+        if (write.Write == PhotoCaptureItemWrite.Created || item.StagedReceiptId is null)
+        {
+            var received = await intake.ReceiveStreamedAsync(
+                new Intake.StreamedIntakeSource(
+                    item.FileName,
+                    request.MediaType,
+                    request.ContentLength,
+                    request.OpenContentAsync,
+                    now,
+                    Intake.IntakeActorIdentity.PhotoCapture(capture.Id),
+                    new(Intake.IntakeSourceChannel.PhotoCapture, PhotoCaptureIntakeRules.MemberToken(capture.Id, item.Batch, item.Ordinal)),
+                    capture.Destination == PhotoCaptureDestination.Case ? capture.CaseId : null,
+                    PhotoCaptureStory.DeclaredDocumentType(request.Kind, request.MediaType)),
+                $"photo-capture-item:{item.Id:N}",
+                cancellationToken);
+            await captures.RecordItemReceiptAsync(item.Id, received.StagedReceiptId, cancellationToken);
+            await intake.PublishCommittedAsync(received, cancellationToken);
+            item = item with { StagedReceiptId = received.StagedReceiptId };
+        }
+
+        var count = capture.AcceptedItemCount + (write.Write == PhotoCaptureItemWrite.Created ? 1 : 0);
+        return new(write.Write, item, count);
+    }
+
+    private async Task<ReceivedPhotoCaptureItem> ReceiveOriginalAsync(
+        PhotoCapture capture,
+        ReceivePhotoCaptureItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!capture.OriginalsInBackground || !PhotoCaptureStory.IsPhotographKind(request.Kind))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.UnsupportedType, "This link does not take full-size originals.");
+        }
+
+        var item = await captures.FindItemAsync(capture.Id, request.ClientItemId, cancellationToken)
+            ?? throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.NotReady, "Send the photo before its original.");
+        if (item.OriginalReceived)
+        {
+            return new(PhotoCaptureItemWrite.Replayed, item, capture.AcceptedItemCount);
+        }
+
+        if (item.IntakeAssetId is null)
+        {
+            // The compressed photo has not filed yet; the phone retries later.
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.NotReady, "The photo is still being filed.");
+        }
+
+        var hash = await Intake.ReceiveIntake.StreamHashAsync(
+            new Intake.StreamedIntakeSource(
+                "original", request.MediaType, request.ContentLength, request.OpenContentAsync, timeProvider.GetUtcNow(),
+                Intake.IntakeActorIdentity.PhotoCapture(capture.Id),
+                new(Intake.IntakeSourceChannel.PhotoCapture, "hash")),
+            cancellationToken);
+        var filed = await originals.FileAsync(
+            item,
+            item.FileName,
+            request.MediaType,
+            request.ContentLength,
+            hash,
+            request.OpenContentAsync,
+            cancellationToken);
+        if (!filed)
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.NotReady, "The photo is still being filed.");
+        }
+
+        await captures.RecordItemOriginalAsync(item.Id, cancellationToken);
+        return new(PhotoCaptureItemWrite.Created, item with { OriginalReceived = true }, capture.AcceptedItemCount);
+    }
+}
+
+public sealed record CompletedPhotoCapture(PhotoCapture Capture, IReadOnlyList<MissingCaptureItem> Missing);
+
+/// <summary>
+/// The sender pressed Send: the note is kept, the time recorded, and what is
+/// still missing is told back so the app can offer "Could you add a few
+/// more?". The link stays open to additions until it expires.
+/// </summary>
+public sealed class CompletePhotoCapture(
+    IPhotoCaptureStore captures,
+    IStandingPhotoLinkStore standingLinks,
+    TimeProvider timeProvider)
+{
+    public async Task<CompletedPhotoCapture> ExecuteAsync(
+        PhotoCapture capture,
+        string? note,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        var now = timeProvider.GetUtcNow();
+        if (!PhotoCaptureAccess.IsLive(capture, now))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.Unavailable, "The link is no longer active.");
+        }
+
+        var trimmed = PhotoCaptureText.Note(note) ?? capture.Note;
+        var updated = await captures.RecordSentAsync(capture.Id, trimmed, now, cancellationToken);
+        var items = await captures.ListItemsAsync(capture.Id, cancellationToken);
+        var missing = PhotoCaptureRequiredItems.Evaluate(
+            updated,
+            items,
+            PhotoCaptureRequiredItems.VinRequired(updated.Origin, await IsRepairerLinkAsync(updated, cancellationToken)));
+        return new(updated, missing);
+    }
+
+    private async Task<bool> IsRepairerLinkAsync(PhotoCapture capture, CancellationToken cancellationToken) =>
+        capture.StandingLinkId is { } linkId
+        && await standingLinks.GetAsync(linkId, cancellationToken) is { IsRepairer: true };
+}
+
+/// <summary>The staff acts on a link: cancel, extend, remind, log a call; each is casework.</summary>
+public sealed class PhotoLinkActions(
+    IPhotoCaptureStore captures,
+    TimeProvider timeProvider)
+{
+    public async Task<PhotoCapture> RevokeAsync(ActionActor actor, Guid captureId, CancellationToken cancellationToken)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return await captures.RevokeAsync(captureId, timeProvider.GetUtcNow(), cancellationToken);
+    }
+
+    public async Task<PhotoCapture> ExtendAsync(ActionActor actor, Guid captureId, int days, CancellationToken cancellationToken)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (!CaptureLimits.IsLifetime(days))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.InvalidRequest, "The extension is not one of the offered lifetimes.");
+        }
+
+        var capture = await captures.GetAsync(captureId, cancellationToken)
+            ?? throw new KeyNotFoundException("The photo link was not found.");
+        var from = capture.ExpiresAtUtc > timeProvider.GetUtcNow() ? capture.ExpiresAtUtc : timeProvider.GetUtcNow();
+        return await captures.ExtendAsync(captureId, from.AddDays(days), cancellationToken);
+    }
+
+    /// <summary>
+    /// A fresh token for the same capture, for a resend or a reminder: the
+    /// earlier message keeps working, and the new one is counted as a
+    /// reminder when <paramref name="isReminder"/>.
+    /// </summary>
+    public async Task<IssuedPhotoLink> ReissueAsync(
+        ActionActor actor,
+        Guid captureId,
+        PhotoLinkTokenPurpose purpose,
+        bool isReminder,
+        CancellationToken cancellationToken)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        var capture = await captures.GetAsync(captureId, cancellationToken)
+            ?? throw new KeyNotFoundException("The photo link was not found.");
+        var now = timeProvider.GetUtcNow();
+        if (!PhotoCaptureAccess.IsLive(capture, now))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.Unavailable, "The link has expired or was cancelled; extend it first.");
+        }
+
+        var token = PhotoLinkToken.Create();
+        await captures.AddTokenAsync(
+            captureId,
+            PhotoLinkToken.Digest(token),
+            purpose,
+            Guid.TryParse(actor.SubjectId, out var staffId) ? staffId : null,
+            now,
+            cancellationToken);
+        if (isReminder)
+        {
+            capture = await captures.RecordReminderAsync(captureId, now, cancellationToken);
+        }
+
+        return new(capture, token);
+    }
+
+    public async Task<PhotoCapture> LogCallAsync(ActionActor actor, Guid captureId, CancellationToken cancellationToken)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return await captures.RecordCallAsync(captureId, timeProvider.GetUtcNow(), cancellationToken);
+    }
+}
+
+/// <summary>The messages the link travels in: the prototype's own wording (handover, 5 November 2026), confirmed in the FRD-28 review.</summary>
+public static class PhotoCaptureMessages
+{
+    public static string Handoff(string? customerName, string registration)
+    {
+        var first = (customerName ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        var greeting = first is null ? "Hi," : $"Hi {first},";
+        return $"{greeting} Collision Engineers need a few photos of {PhotoCaptureText.DisplayRegistration(registration)} to assess the damage. "
+            + "Please open this link on your phone – it takes about 3 minutes and there's nothing to download: ";
+    }
+}
+
+/// <summary>Trimming and bounding of what a sender types; a value past its bound is cut, not refused, because the sender cannot fix it later.</summary>
+public static class PhotoCaptureText
+{
+    public static string? Registration(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = new string(value.Where(char.IsAsciiLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+        return normalized.Length is >= 2 and <= 10 ? normalized : null;
+    }
+
+    /// <summary>A registration as a plate shows it: the UK current format splits after the fourth character.</summary>
+    public static string DisplayRegistration(string normalized) =>
+        normalized.Length == 7 && char.IsAsciiLetter(normalized[0]) && char.IsAsciiDigit(normalized[2])
+            ? normalized[..4] + " " + normalized[4..]
+            : normalized;
+
+    public static string? Name(string? value) => Bound(value, CaptureLimits.NameLength);
+
+    public static string? Mobile(string? value) => Bound(value, CaptureLimits.MobileLength);
+
+    public static string? Email(string? value)
+    {
+        var bounded = Bound(value, CaptureLimits.EmailLength);
+        return bounded is not null && bounded.Contains('@') ? bounded : null;
+    }
+
+    public static string? Note(string? value) => Bound(value, CaptureLimits.NoteLength);
+
+    public static PhotoCaptureDetails Details(PhotoCaptureDetails? details)
+    {
+        if (details is null)
+        {
+            return PhotoCaptureDetails.Empty;
+        }
+
+        return new(
+            Bound(details.Handler, CaptureLimits.FreeTextLength),
+            Bound(details.InspectionLocation, CaptureLimits.FreeTextLength),
+            Bound(details.InspectionLocationChoice, CaptureLimits.FreeTextLength),
+            Bound(details.Roadworthy, 20),
+            Bound(details.Outcome, 20),
+            Bound(details.InHire, 20),
+            Bound(details.RepairView, 20),
+            Bound(details.VehicleRole, 40),
+            details.Mileage is > 0 and < 10_000_000 ? details.Mileage : null,
+            Bound(details.Airbags, 20),
+            Bound(details.Steering, 20),
+            details.MarkedAreas.Where(PhotoCaptureStory.IsZone).Distinct(StringComparer.Ordinal).Take(PhotoCaptureStory.MaximumAreas).ToArray());
+    }
+
+    private static string? Bound(string? value, int maximumLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = new string(value.Trim().Where(character => !char.IsControl(character) || character == '\n').ToArray());
+        return trimmed.Length <= maximumLength ? trimmed : trimmed[..maximumLength];
+    }
+}

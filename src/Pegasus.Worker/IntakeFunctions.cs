@@ -7,6 +7,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Notifications;
+using Pegasus.Core.PhotoCapture;
 using Pegasus.Core.PrincipalApi;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Tasks;
@@ -55,7 +56,9 @@ public sealed partial class PendingWorkRecoveryFunction(
     PollApprovedInbox pollApprovedInbox,
     TidySentReportInstructions tidySentReportInstructions,
     TimeProvider timeProvider,
-    ILogger<PendingWorkRecoveryFunction> logger)
+    ILogger<PendingWorkRecoveryFunction> logger,
+    PhotoCaptureWorkerGate? photoCaptureGate = null,
+    SettlePhotoCaptures? settlePhotoCaptures = null)
 {
     /// <summary>The folded jobs run on every minute that divides by this.</summary>
     private const int FoldedJobMinuteInterval = 5;
@@ -94,6 +97,13 @@ public sealed partial class PendingWorkRecoveryFunction(
             if (runFoldedJobs)
             {
                 await RunFoldedJobAsync("due-work sweep", RunDueWorkSweepAsync, foldedFailures, cancellationToken);
+                if (photoCaptureGate is { Enabled: true } && settlePhotoCaptures is not null)
+                {
+                    // A photo link's capture settles here (FRD-28): once the
+                    // sender has pressed Send, or the link ran out with photos,
+                    // and every photo has been processed.
+                    await RunFoldedJobAsync("photo-capture settle", RunPhotoCaptureSettleAsync, foldedFailures, cancellationToken);
+                }
                 await RunFoldedJobAsync("approved-inbox recovery", RunInboxRecoveryAsync, foldedFailures, cancellationToken);
                 await RunFoldedJobAsync("sent-report instruction tidy", RunInstructionTidyAsync, foldedFailures, cancellationToken);
             }
@@ -132,6 +142,15 @@ public sealed partial class PendingWorkRecoveryFunction(
             result.GeneratedCount,
             result.ReplayCount,
             result.SupersededCount);
+    }
+
+    private async Task RunPhotoCaptureSettleAsync(CancellationToken cancellationToken)
+    {
+        var result = await settlePhotoCaptures!.ExecuteAsync(maximumItems: 50, cancellationToken);
+        if (result.Examined > 0 || result.ReachedCase > 0 || result.Failures > 0)
+        {
+            LogPhotoCaptureSettle(logger, result.Examined, result.Settled, result.ReachedCase, result.Failures);
+        }
     }
 
     private async Task RunInboxRecoveryAsync(CancellationToken cancellationToken)
@@ -216,6 +235,16 @@ public sealed partial class PendingWorkRecoveryFunction(
         int generatedCount,
         int replayCount,
         int supersededCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Photo capture settle: examined {ExaminedCount}, settled {SettledCount}, {ReachedCaseCount} reached a Case, {FailureCount} failed.")]
+    private static partial void LogPhotoCaptureSettle(
+        ILogger logger,
+        int examinedCount,
+        int settledCount,
+        int reachedCaseCount,
+        int failureCount);
 
     [LoggerMessage(
         Level = LogLevel.Information,

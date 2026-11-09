@@ -401,6 +401,7 @@ public sealed class ReceiveIntake(
             IntakeSourceChannel.Mailbox => IntakeEnvelopeLimits.MaximumMailboxContentLength,
             IntakeSourceChannel.Automation => IntakeEnvelopeLimits.MaximumContentLength,
             IntakeSourceChannel.PrincipalApi => IntakeEnvelopeLimits.MaximumPrincipalApiRequestLength,
+            IntakeSourceChannel.PhotoCapture => IntakeEnvelopeLimits.MaximumContentLength,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(source),
                 source.SourceIdentity.Channel,
@@ -1295,7 +1296,21 @@ public sealed class ProcessQueuedIntake(
             return false;
         }
 
-        if (!IntakeActorIdentity.TryParseStaff(stagedReceipt.Actor, out var staffSubjectId))
+        // A member of staff declared the Case on upload (FRD-18); a photo
+        // link's capture declared it when HQ issued the link for the Case or
+        // when its typed registration routed to the one eligible Case
+        // (FRD-28), and the link is recorded as that routing's system work.
+        ActionActor decider;
+        if (IntakeActorIdentity.TryParseStaff(stagedReceipt.Actor, out var staffSubjectId)
+            && Guid.TryParse(staffSubjectId, out var staffId))
+        {
+            decider = ActionActor.Staff(staffId, [StaffRole.User]);
+        }
+        else if (IntakeActorIdentity.TryParsePhotoCapture(stagedReceipt.Actor, out _))
+        {
+            decider = ActionActor.SystemWorker(PhotoCapture.PhotoCaptureIntakeRules.RoutingActorId);
+        }
+        else
         {
             Activity.Current?.SetTag("intake.declared_destination", "actor_not_staff");
             return false;
@@ -1305,7 +1320,7 @@ public sealed class ProcessQueuedIntake(
             new(
                 receipt.Id,
                 declaredCaseId,
-                staffSubjectId,
+                decider,
                 $"declared-destination:{receipt.Id:N}",
                 DeclaredDestinationReason),
             timeProvider.GetUtcNow(),

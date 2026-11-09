@@ -515,6 +515,10 @@ public interface IImageIntakeCaseCandidates
 /// <param name="IsTriage">
 /// Whether the candidate is a Triage Case; its version is then the Triage version.
 /// </param>
+/// <param name="IncidentDate">
+/// The Case's accident date, when it holds one: an excluding rule for a photo
+/// link's typed date (FRD-22), never a matching one.
+/// </param>
 public sealed record ImageIntakeCaseCandidate(
     Guid CaseId,
     string CaseReference,
@@ -523,4 +527,5 @@ public sealed record ImageIntakeCaseCandidate(
     DateTimeOffset CreatedAtUtc,
     Guid? PrincipalId = null,
     string? PrincipalCode = null,
-    bool IsTriage = false);
+    bool IsTriage = false,
+    DateOnly? IncidentDate = null);
