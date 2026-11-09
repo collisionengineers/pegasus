@@ -74,15 +74,22 @@ public sealed class WorkflowConfigurationPersistenceTests
     [Fact]
     public async Task TheTwoBuiltInRateCardsKeepTheirOrderPersistVersionedRatesAndRejectStaleSaves()
     {
+        var counter = new SqlStatementCounter();
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var factory = new PooledDbContextFactory<PegasusDbContext>(new DbContextOptionsBuilder<PegasusDbContext>()
-            .UseSqlServer(database.ConnectionString).Options);
-        var store = new EfLabourRateCardStore(factory, TimeProvider.System);
+            .UseSqlServer(database.ConnectionString)
+            .AddInterceptors(counter).Options);
+        var store = new EfLabourRateCardStore(factory, TimeProvider.System, new MemoryCache(new MemoryCacheOptions()));
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var cards = await store.ListAsync(default);
         Assert.Equal(LabourRateCardAdministration.Names, cards.Select(card => card.Name));
         Assert.Equal(83.28m, cards[0].HourlyRate);
         Assert.Equal(103.06m, cards[1].HourlyRate);
+
+        // The cards are kept (#1950), so the 80m read after the save proves its eviction.
+        counter.Reset();
+        Assert.Equal(cards, await store.ListAsync(default));
+        Assert.Equal(0, counter.Count);
         var card = cards[0];
         var change = new SaveLabourRateCardRequest(card.Id, 80m, card.Version, actor, "Revise rate", "edit-rate");
         var saved = await store.SaveAsync(change, default);

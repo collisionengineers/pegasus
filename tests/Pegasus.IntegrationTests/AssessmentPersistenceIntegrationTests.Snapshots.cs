@@ -2,6 +2,7 @@
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
@@ -302,7 +303,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
         var save = new SaveEstimate(harness.RepairSpecifications, jobs);
         var snapshots = new EfRepairSpecificationSnapshotStore(harness.Factory, harness.Clock);
-        var rateCards = new EfLabourRateCardStore(harness.Factory, harness.Clock);
+        var rateCards = new EfLabourRateCardStore(harness.Factory, harness.Clock, new MemoryCache(new MemoryCacheOptions()));
         var standard = LabourRateCardAdministration.ForNewSpecification(await rateCards.ListAsync(CancellationToken.None))!;
         var rateCard = await rateCards.SaveAsync(
             new(standard.Id, 80m, standard.Version,

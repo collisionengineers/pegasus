@@ -7,6 +7,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -739,6 +740,7 @@ public sealed class CustodyOutboxIntegrationTests
             contextFactory,
             services.GetRequiredService<IDocumentContentStore>(),
             services.GetRequiredService<TimeProvider>(),
+            services.GetRequiredService<IMemoryCache>(),
             publisher);
         var content = "evidence a member of staff uploaded"u8.ToArray();
         var command = new AddCaseDocumentCommand(

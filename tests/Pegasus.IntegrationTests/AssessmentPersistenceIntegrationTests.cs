@@ -276,11 +276,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
         await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
         await SeedPhotosAsync(harness.Factory, outcome.Identity.CaseId, 2);
         var contentStore = new RecordingDocumentContentStore();
+        var accountReads = new StaffAccountReads(new MemoryCache(new MemoryCacheOptions()));
         var source = new EfAssessmentReportProjectionSource(
             harness.Factory,
             new GetAssessmentWorkspace(new EfAssessmentWorkspaceSource(harness.Factory)),
             contentStore,
-            new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(new MemoryCache(new MemoryCacheOptions()))),
+            new EfStaffAccountQueries(harness.Factory, accountReads),
             new EfCaseAssetPreparationStore(harness.Factory),
             new ListAppliedValuations(new EfValuationStore(harness.Factory)));
 
@@ -315,6 +316,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
         var signOffEngineerId = await SeedSignOffEngineerAsync(
             harness.Factory,
             outcome.Identity.CaseId);
+        // The seed writes the account straight to SQL, so no account writer evicts the kept empty sign-off list.
+        accountReads.Evict(signOffEngineerId);
         await SeedReportReadyAssessmentAsync(harness.Factory, outcome.Identity.CaseId);
         var principalName = await SeedPrincipalAddressAsync(harness.Factory, outcome.Identity.CaseId);
         input = await source.GetAsync(
@@ -1378,7 +1381,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             new EfAiJobStore(harness.Factory, harness.Clock));
 
         var rateCardAdministrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
-        var rateCards = new EfLabourRateCardStore(harness.Factory, harness.Clock);
+        var rateCards = new EfLabourRateCardStore(harness.Factory, harness.Clock, new MemoryCache(new MemoryCacheOptions()));
         var standard = LabourRateCardAdministration.ForNewSpecification(await rateCards.ListAsync(CancellationToken.None))!;
         var rateCard = await rateCards.SaveAsync(
             new(standard.Id, 52.50m, standard.Version, rateCardAdministrator,
@@ -1509,7 +1512,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
         await using var harness = await Harness.CreateAsync();
         var caseId = (await harness.AcceptAsync("import-in-use-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
-        var rateCards = new EfLabourRateCardStore(harness.Factory, harness.Clock);
+        var rateCards = new EfLabourRateCardStore(harness.Factory, harness.Clock, new MemoryCache(new MemoryCacheOptions()));
         var standard = LabourRateCardAdministration.ForNewSpecification(await rateCards.ListAsync(CancellationToken.None))!;
         var rateCard = await rateCards.SaveAsync(
             new(standard.Id, 80m, standard.Version,
@@ -2159,7 +2162,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             Assert.Equal(1, work.AttemptCount);
         }
 
-        IAutomaticGuideValuationControl control = new EfSendToAiControlStore(harness.Factory, harness.Clock);
+        IAutomaticGuideValuationControl control = new EfSendToAiControlStore(harness.Factory, harness.Clock, new MemoryCache(new MemoryCacheOptions()));
         Assert.True(await control.IsEnabledAsync(CancellationToken.None));
         await control.SetEnabledAsync(
             false,
