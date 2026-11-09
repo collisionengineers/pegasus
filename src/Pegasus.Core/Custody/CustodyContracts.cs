@@ -752,8 +752,8 @@ public interface ICaseArtifactCustody
     /// <summary>
     /// Files <see cref="CaseArtifactVersionRequest.Content"/> as the next
     /// version of the image the occurrence names. The same bytes again answer
-    /// the version they already made; different bytes over an image that
-    /// already has a later version are refused. A custody that files no later
+    /// the version they already made; an occurrence that no longer names the
+    /// image's current version is refused. A custody that files no later
     /// versions throws.
     /// </summary>
     Task<CaseArtifactCustodyResult> RetainNextVersionAsync(

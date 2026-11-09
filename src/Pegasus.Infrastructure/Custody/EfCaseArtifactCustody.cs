@@ -470,9 +470,10 @@ internal sealed class EfCaseArtifactCustody(
     /// current, and points the occurrence at it, so its tags, report place and
     /// preparation carry on and the pending-custody reconciliation finds the
     /// version through the occurrence. The same bytes already filed as a
-    /// version of the image are a replay and answer that version; different
-    /// bytes over an image that already has a later version are refused. The
-    /// earlier version's Box file is the series file the new version goes into.
+    /// version of the image are a replay and answer that version; an
+    /// occurrence that no longer names the image's current version is
+    /// refused. The earlier version's Box file is the series file the new
+    /// version goes into.
     /// </summary>
     private async Task<RecordedCaseVersion> RecordPendingNextVersionAsync(
         CaseArtifactVersionRequest request,
@@ -515,13 +516,13 @@ internal sealed class EfCaseArtifactCustody(
             await transaction.CommitAsync(cancellationToken);
             return new(null, null, null, null, Status(same, occurrence.Id));
         }
+        if (!named.IsCurrent || versions.Exists(value => value.Version > named.Version && !value.IsLogicallyRemoved))
+        {
+            throw new InvalidOperationException("The occurrence no longer names the Case image's current version.");
+        }
         if (named.CustodyStatus != DocumentCustodyStatus.Confirmed)
         {
             throw new InvalidOperationException("The Case image's current version is not filed yet.");
-        }
-        if (versions.Exists(value => value.Version > named.Version && !value.IsLogicallyRemoved))
-        {
-            throw new InvalidOperationException("The Case image already has a later version with different content.");
         }
         var authority = await CaseMutationGuard.LoadAsync(db, request.CaseId, cancellationToken)
             ?? throw new InvalidOperationException("The artifact Case is unavailable.");

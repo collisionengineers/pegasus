@@ -2077,11 +2077,15 @@ public sealed class CaseArtifactCustodyRecoveryTests
             Assert.Equal(result.VersionId, replay.VersionId);
             Assert.Equal(writes, store.Addresses.Count);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => custody.RetainNextVersionAsync(Request("another original"u8.ToArray()), CancellationToken.None));
+            // Different bytes are a further version of the same image, on the same Box file.
+            var further = await custody.RetainNextVersionAsync(Request("another original"u8.ToArray()), CancellationToken.None);
+            Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, further.Disposition);
+            Assert.Equal(3, store.Addresses[^1].Version);
+            Assert.Equal(filed.BoxFileId, store.Addresses[^1].SeriesBoxFileId);
             await using (var db = await database.CreateContextAsync())
             {
-                Assert.Equal(2, await db.Set<DocumentVersionEntity>().CountAsync(value => value.DocumentId == filed.DocumentId));
+                Assert.Equal(3, await db.Set<DocumentVersionEntity>().CountAsync(value => value.DocumentId == filed.DocumentId));
+                Assert.Equal(further.VersionId, (await db.Set<DocumentOccurrenceEntity>().SingleAsync(value => value.Id == filed.OccurrenceId)).VersionId);
             }
         }
         finally
@@ -2090,6 +2094,64 @@ public sealed class CaseArtifactCustodyRecoveryTests
             {
                 Directory.Delete(root, recursive: true);
             }
+        }
+    }
+
+    /// <summary>
+    /// A version is only added through the occurrence that names the image's
+    /// current version: an occurrence left on a superseded version, as a staff
+    /// add with the same source identity leaves one, is refused.
+    /// </summary>
+    [Fact]
+    public async Task AnOccurrenceThatNoLongerNamesTheCurrentVersionTakesNoFurtherVersion()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var store = new SeriesRecordingContentStore();
+        var custody = new EfCaseArtifactCustody(factory, store, new MemoryArtifactStore(), TimeProvider.System);
+        var photo = "compressed photo bytes"u8.ToArray();
+        var filed = await custody.RetainAsync(
+            new(
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), caseId, null, Guid.NewGuid().ToString("N"), "photo:1",
+                "01-01 Front.jpg", "image/jpeg", photo.LongLength,
+                Convert.ToHexStringLower(SHA256.HashData(photo)), new MemoryStream(photo, writable: false),
+                SemanticRole: DocumentSemanticRole.Image, Source: DocumentSource.Intake),
+            CancellationToken.None);
+        await using (var db = await database.CreateContextAsync())
+        {
+            var first = await db.Set<DocumentVersionEntity>().SingleAsync(value => value.Id == filed.VersionId);
+            first.IsCurrent = false;
+            db.Add(new DocumentVersionEntity
+            {
+                Id = Guid.NewGuid(),
+                DocumentId = first.DocumentId,
+                Version = 2,
+                FileName = first.FileName,
+                MediaType = first.MediaType,
+                ContentLength = 3,
+                Sha256 = new string('b', 64),
+                CustodyStatus = DocumentCustodyStatus.Confirmed,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                CreatedBy = "Staff:test",
+                IsCurrent = true,
+                BoxFileId = "box-file-other",
+                BoxVersionId = "box-version-other"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var original = "full-size original bytes"u8.ToArray();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => custody.RetainNextVersionAsync(
+            new(
+                ActionActor.SystemWorker("photo-capture-original"), caseId, filed.OccurrenceId!.Value, "01-01 Front.jpg", "image/jpeg",
+                original.LongLength, Convert.ToHexStringLower(SHA256.HashData(original)),
+                new MemoryStream(original, writable: false)),
+            CancellationToken.None));
+        await using (var check = await database.CreateContextAsync())
+        {
+            Assert.Equal(2, await check.Set<DocumentVersionEntity>().CountAsync(value => value.DocumentId == filed.DocumentId));
         }
     }
 

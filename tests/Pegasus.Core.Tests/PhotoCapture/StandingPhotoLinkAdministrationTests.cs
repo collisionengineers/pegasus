@@ -62,6 +62,7 @@ public sealed class StandingPhotoLinkAdministrationTests
         var store = new FakeStandingLinks();
         var administration = new StandingPhotoLinkAdministration(store, new FixedClock(Now));
         var link = await administration.CreateForContactAsync(Administrator, Bodyshop, CancellationToken.None);
+        var writes = store.Writes;
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(
             () => administration.CreateForContactAsync(Engineer, Guid.NewGuid(), CancellationToken.None));
@@ -74,7 +75,7 @@ public sealed class StandingPhotoLinkAdministrationTests
         await Assert.ThrowsAsync<StaffAuthorizationException>(
             () => administration.UpdateDefaultsAsync(
                 Engineer, link.Id, link.Version, PhotoCaptureMode.Quick, false, 3, false, CancellationToken.None));
-        Assert.Equal(0, store.Writes);
+        Assert.Equal(writes, store.Writes);
     }
 
     [Fact]
