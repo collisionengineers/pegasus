@@ -28,7 +28,7 @@ public sealed partial class DetailsModel
     /// <summary>
     /// Answers a commit that ran, landed or refused, with the parts the script
     /// swaps. A save keeps the session's lease and issues the next token itself
-    /// (R761), so the answer carries it; a commit that landed but ended the
+    /// (R770), so the answer carries it; a commit that landed but ended the
     /// edit session (a replay that handed no lease back, and the lease could
     /// not be claimed again) leaves nothing to update in place, and the script
     /// draws the whole record afresh, so that commit takes the redirect and

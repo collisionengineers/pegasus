@@ -2724,7 +2724,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
     /// The holder's own action, which ends the lease and is followed by their re-claim, leaves the
     /// request standing; a claim by the same holder after the lease lapsed does not, because the
     /// request was asked against a session that has ended (R550, 30 October 2026). A Case save
-    /// keeps the lease instead (R761, <see cref="AStandingRequestSurvivesTheHoldersSessionSave"/>).
+    /// keeps the lease instead (R770, <see cref="AStandingRequestSurvivesTheHoldersSessionSave"/>).
     /// </summary>
     [Fact]
     public async Task TheHoldersSaveKeepsTheRequestButTheirClaimAfterALapseEndsIt()
@@ -2758,7 +2758,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
     }
 
     /// <summary>
-    /// A session save keeps the holder's lease (R761), so the request a colleague raised against
+    /// A session save keeps the holder's lease (R770), so the request a colleague raised against
     /// that session still stands after it, unchanged and still pending, and the holder answers it
     /// with the token the save handed back.
     /// </summary>

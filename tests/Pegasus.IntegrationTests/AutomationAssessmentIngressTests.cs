@@ -2228,7 +2228,7 @@ public sealed class AutomationAssessmentIngressTests
             version = (await ReadStructuredContentAsync(response)).GetProperty("caseVersion").GetInt64();
         }
         // An Automation write never rotates the token: a save keeps the lease and
-        // issues the next token only for a staff session save (R761).
+        // issues the next token only for a staff session save (R770).
         Assert.Equal(
             leaseToken,
             await (await factory.DatabaseAsync).ScalarAsync<string>(

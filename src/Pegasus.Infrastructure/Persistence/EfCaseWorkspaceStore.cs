@@ -417,7 +417,7 @@ public sealed class EfCaseWorkspaceStore(
             : null;
         var beforeVersion = workflow.Version;
         // A session save keeps its lease and takes the next token here, inside
-        // the one transaction, so the page claims nothing after it (R761).
+        // the one transaction, so the page claims nothing after it (R770).
         var sessionLease = CaseMutationGuard.CompleteSessionWrite(workflow, request.ContinuesSession, now);
         var afterJson = JsonSerializer.Serialize(
             new
@@ -643,7 +643,7 @@ public sealed class EfCaseWorkspaceStore(
     /// <summary>
     /// The lease a replayed session save hands back: the caller's own live
     /// lease as it stands, token and expiry, while they still hold it; null
-    /// when they do not, and the page then reads (R761). Nothing is written.
+    /// when they do not, and the page then reads (R770). Nothing is written.
     /// </summary>
     private async Task<CaseSessionLease?> RetainedSessionLeaseAsync(
         PegasusDbContext context,
@@ -724,7 +724,7 @@ public sealed class EfCaseWorkspaceStore(
     /// written to the Case since (an event that moves no version, a Case note
     /// or a take-over, records the version it found), and the edit lease was
     /// neither claimed nor released at that version: a session save keeps its
-    /// lease (R761), so the lease the page holds came through the previous
+    /// lease (R770), so the lease the page holds came through the previous
     /// save, while a save that ended its lease leaves none behind and any
     /// later save at that version needs a claim, recorded at it. Done, or a
     /// link away from the Case, releases it; a lapsed lease claimed again, or a

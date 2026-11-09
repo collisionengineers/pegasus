@@ -365,7 +365,7 @@ internal sealed class CaseMutationGuard
     /// <summary>
     /// Ends the request to edit, whatever its state. Done and a claim that changes the holder
     /// clear it; the holder's own work in the session leaves it standing: a Case save keeps the
-    /// lease (R761), and an action that ends and re-claims it keeps the same holder (R550, 30
+    /// lease (R770), and an action that ends and re-claims it keeps the same holder (R550, 30
     /// October 2026).
     /// </summary>
     public static void ClearRequest(CaseWorkflowEntity workflow)
@@ -447,7 +447,7 @@ internal sealed class CaseMutationGuard
     /// Completes a Case save as <see cref="CaseEditAuthority.WriteContinuesSession"/> says: the
     /// version advances, and either the lease ends (<see cref="EndWriteLease"/>) or it is kept,
     /// renewed as a heartbeat renews it, and its next token issued here, inside the save's own
-    /// transaction, so the holder's page carries on without a claim (R761). Returns the kept lease,
+    /// transaction, so the holder's page carries on without a claim (R770). Returns the kept lease,
     /// or null when the lease ended.
     /// </summary>
     public static CaseSessionLease? CompleteSessionWrite(

@@ -522,7 +522,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
 
     /// <summary>
     /// The next token a command's own transaction issued for the session it
-    /// kept (a Case save, R761): stored after the command in place of a claim.
+    /// kept (a Case save, R770): stored after the command in place of a claim.
     /// </summary>
     private string? continuedLeaseToken;
 
@@ -615,7 +615,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             if (continuedLeaseToken is { } continued)
             {
                 // The command kept the session's lease and issued its next token
-                // inside its own transaction (R761): nothing to claim.
+                // inside its own transaction (R770): nothing to claim.
                 StoreLeaseAuthority(id, continued);
             }
             else if (keepEditing)

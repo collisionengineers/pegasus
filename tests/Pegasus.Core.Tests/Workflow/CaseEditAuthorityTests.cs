@@ -87,7 +87,7 @@ public sealed class CaseEditAuthorityTests
     }
 
     /// <summary>
-    /// Every staff write ends its lease or replaces its token (a session save, R761), so a token
+    /// Every staff write ends its lease or replaces its token (a session save, R770), so a token
     /// that still matches proves only system work moved the Case since the page read it: the write
     /// is accepted from that older version. A version from the future is refused.
     /// </summary>
@@ -106,7 +106,7 @@ public sealed class CaseEditAuthorityTests
     /// <summary>
     /// A staff write ends the lease it was made under, unless it is a Case save that carries the
     /// holder's session on (<see cref="CaseEditAuthority.WriteContinuesSession"/>), which keeps
-    /// the lease and replaces its token instead (R761).
+    /// the lease and replaces its token instead (R770).
     /// </summary>
     [Fact]
     public void AStaffWriteEndsItsLease() =>
@@ -114,7 +114,7 @@ public sealed class CaseEditAuthorityTests
 
     /// <summary>
     /// Only a member of staff's own session save carries the session on, and only while the Case
-    /// stays editable (operator, 8 November 2026; R761): the Automation Actor's lease already
+    /// stays editable (operator, 8 November 2026; R770): the Automation Actor's lease already
     /// stands across its writes with one token, a save that did not ask ends the lease, and a
     /// write that leaves the Case terminal ends it as any other does.
     /// </summary>

@@ -103,7 +103,7 @@ fact the call did not name.
    `pegasus_edit_begin` token carries every write until `pegasus_edit_end`
    (operator, 8 October 2026); a staff write still ends its lease, except a
    Case save from the staff member's own edit session, which keeps the lease
-   and issues its next token inside the save (R761, 8 November 2026).
+   and issues its next token inside the save (R770, 8 November 2026).
 8. **Lifecycle, reports and documents.** The operator approved the Case
    lifecycle and the reports and documents tiers, report approval included
    (7 October 2026). `pegasus_case_action` takes the Case's Actions-menu

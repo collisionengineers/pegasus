@@ -7,7 +7,7 @@ namespace Pegasus.Core.Workflow;
 /// present the edit lease it holds, and no staff write may have landed since the editor loaded the
 /// case. Only staff work ends a lease or replaces its token; system work moves the version under it
 /// without ending the session, and a Case save from the holder's own edit session keeps the lease
-/// and issues its next token inside the save (<see cref="WriteContinuesSession"/>, R761). A
+/// and issues its next token inside the save (<see cref="WriteContinuesSession"/>, R770). A
 /// missing, wrong-holder, or superseded mutation is refused without overwriting newer
 /// work. The holder resumes their own lease from any window; an explicit authorised takeover by a
 /// colleague rotates it before another edit. Infrastructure supplies the persisted material
@@ -254,7 +254,7 @@ public static class CaseEditAuthority
     /// <summary>
     /// Whether a write carries the holder's edit session on: the lease is kept and renewed and
     /// its next token is issued inside the write, so the holder's page claims nothing after it
-    /// (operator, 8 November 2026; R761). Only a Case save from a member of staff's own edit
+    /// (operator, 8 November 2026; R770). Only a Case save from a member of staff's own edit
     /// session asks for it (<paramref name="continuesSession"/>), and only while the Case stays
     /// editable: a write that leaves the Case terminal ends the lease as any other does. The
     /// Automation Actor's lease already stands across its writes with one token

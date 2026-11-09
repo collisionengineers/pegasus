@@ -365,7 +365,7 @@ public sealed record SaveCaseWorkspaceRequest(
     /// The save is a commit of the holder's open edit session (FRD-16): the
     /// lease it is made under is kept and renewed and its next token comes back
     /// in <see cref="SaveCaseWorkspaceResult.SessionLease"/>, so the page
-    /// claims nothing after it (R761). Only the Case page's Save sets it; a
+    /// claims nothing after it (R770). Only the Case page's Save sets it; a
     /// one-command or Automation write leaves it false.
     /// </summary>
     public bool ContinuesSession { get; init; }
@@ -427,7 +427,7 @@ public sealed record SaveCaseWorkspaceResult(
 
 /// <summary>
 /// The lease a session save kept: the next token the page sends and when the
-/// renewed lease lapses (R761).
+/// renewed lease lapses (R770).
 /// </summary>
 public sealed record CaseSessionLease(string Token, DateTimeOffset ExpiresAtUtc);
 

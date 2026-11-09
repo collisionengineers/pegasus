@@ -188,7 +188,7 @@ public sealed class EfCaseWorkflowStore(
         // A request to edit is addressed to one holder's session: a claim that changes the holder
         // ends it, and so does a claim after the lease it was asked against lapsed; only the
         // holder's own claim after an action that ended their lease rather than letting it lapse
-        // leaves it standing (R550). A Case save keeps the lease, so no claim follows it (R761).
+        // leaves it standing (R550). A Case save keeps the lease, so no claim follows it (R770).
         var previousLeaseLapsed = workflow.EditLeaseHolder is not null && liveHolder is null;
         if (retainedRequest is { } standingRequest
             && (previousLeaseLapsed

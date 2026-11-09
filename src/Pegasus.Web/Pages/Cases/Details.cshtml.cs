@@ -2563,7 +2563,7 @@ public sealed partial class DetailsModel(
                     {
                         Work = work,
                         // Save as you go: the session's lease is kept and its
-                        // next token issued inside the save (R761).
+                        // next token issued inside the save (R770).
                         ContinuesSession = true,
                         Valuation = guideValuations.Count == 0 && adoption is null && valuationFields.Count == 0
                             ? null
@@ -2665,7 +2665,7 @@ public sealed partial class DetailsModel(
             "Case saved.",
             // Save as you go (operator, 29 September 2026): every save is a
             // commit of the open edit session and the page keeps editing. The
-            // save keeps the lease and issues its next token itself (R761);
+            // save keeps the lease and issues its next token itself (R770);
             // the reclaim stays for a replay that handed no lease back. Done
             // releases it.
             caseId => RedirectToSection(caseId, section, savedEstimate),

@@ -181,7 +181,7 @@ internal static partial class CaseWebTestSupport
         Assert.Equal(workspace.Store.CaseId, request.CaseId);
         Assert.Equal(expectedVersion ?? workspace.Store.CaseVersion, request.ExpectedVersion);
         // A Case save is made under the token the lease held when it arrived; a session save
-        // then replaces that token (R761), so the store's current one is the next save's.
+        // then replaces that token (R770), so the store's current one is the next save's.
         var heldToken = request is SaveCaseWorkspaceRequest && workspace.Store.LeaseTokenBeforeLastSave is { } before
             ? before
             : workspace.Store.LeaseToken;
@@ -942,13 +942,13 @@ internal static partial class CaseWebTestSupport
 
         /// <summary>
         /// The live lease's token. A session save replaces it with the next one, as the store's
-        /// <c>CaseMutationGuard.CompleteSessionWrite</c> does (R761); a claim or resume hands back
+        /// <c>CaseMutationGuard.CompleteSessionWrite</c> does (R770); a claim or resume hands back
         /// whichever is current.
         /// </summary>
         public string LeaseToken { get; private set; } = new('a', CaseEditAuthority.LeaseTokenLength);
 
         /// <summary>
-        /// Whether a session save keeps the lease and hands its next token back (R761). False
+        /// Whether a session save keeps the lease and hands its next token back (R770). False
         /// answers as a replay that found no lease does: the lease is consumed and the page falls
         /// back to its reclaim.
         /// </summary>
@@ -956,7 +956,7 @@ internal static partial class CaseWebTestSupport
 
         /// <summary>
         /// The token the lease held when the last Case save arrived: the one that save was made
-        /// under, which a session save then replaces (R761).
+        /// under, which a session save then replaces (R770).
         /// </summary>
         public string? LeaseTokenBeforeLastSave { get; private set; }
 
@@ -1330,7 +1330,7 @@ internal static partial class CaseWebTestSupport
                     && _leaseHolderKind == ActorKind.Staff)
                 {
                     // The session save keeps the lease (same holder and operation key) and issues
-                    // its next token, so the token the page posted is spent (R761).
+                    // its next token, so the token the page posted is spent (R770).
                     LeaseToken = Convert.ToHexStringLower(
                         RandomNumberGenerator.GetBytes(CaseEditAuthority.LeaseTokenLength / 2));
                     return Task.FromResult(new SaveCaseWorkspaceResult(CreateData(), EngineeringAssessment(), null, false)

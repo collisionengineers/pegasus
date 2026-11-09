@@ -201,7 +201,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         var saveCommands = counter.Count;
         var saveDescription = counter.Describe();
         // The save keeps the session's lease and issues its next token in its own
-        // transaction (R761): no claim follows it, so no lease operation is written
+        // transaction (R770): no claim follows it, so no lease operation is written
         // and the Case's workflow row is locked once, by the save.
         var leaseOperationWrites = counter.CountContaining("INSERT", "[CaseEditLeaseOperations]");
         var workflowLocks = counter.CountContaining("[CaseWorkflows] WITH (UPDLOCK");
@@ -402,7 +402,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// fixture posts no estimate, so there is no estimate re-read) are gone:
     /// -3. Core passes the sign-off Engineers in, a kept list (#1950), so the
     /// store no longer reads them under its lock: -1. The save keeps the
-    /// session's lease and issues its next token itself (R761), so the reclaim
+    /// session's lease and issues its next token itself (R770), so the reclaim
     /// that followed (the page's workflow read, the claim transaction's lock,
     /// its workflow read, two lease-operation replay probes and its write) is
     /// gone: -6. 27 - 3 - 1 - 6 = 17. It is a ceiling; the failure's
@@ -505,7 +505,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         var firstDescription = counter.Describe();
         var firstSnapshotReads = counter.CountContaining("FROM [CaseDataSnapshots]");
         Assert.Equal(HttpStatusCode.OK, first.Status);
-        // The save kept the lease and issued its next token (R761); the answer carries that one.
+        // The save kept the lease and issued its next token (R770); the answer carries that one.
         Assert.NotEqual(InputValue(editing, "editLeaseToken"), SaveFormValue(first.Body, "editLeaseToken"));
         Assert.True(
             firstSnapshotReads <= 3,
@@ -586,7 +586,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     private const int CommitAnswerCommands = 26;
 
     /// <summary>
-    /// R761: a save keeps the session's lease and issues its next token, so the token
+    /// R770: a save keeps the session's lease and issues its next token, so the token
     /// it was made under is spent. A commit that still sends that token, at the
     /// version the save answered, is refused as a lost lease is: the refused shape
     /// with the shared refusal as its notice, and nothing is written to the Case.

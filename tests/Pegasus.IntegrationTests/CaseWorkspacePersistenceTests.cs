@@ -1096,7 +1096,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
     /// <summary>
     /// One note per save session (R466, operator, 28 October 2026). The
     /// session is the lease's lifetime: each session save keeps the lease and
-    /// hands back its next token (R761), and saves made one after another with
+    /// hands back its next token (R770), and saves made one after another with
     /// those tokens show in Notes as one line listing every field the session
     /// changed, once each, while every save keeps its own workflow event and
     /// action history. Done, or a lapse and a claim, starts a new session, and
@@ -1629,7 +1629,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
     }
 
     /// <summary>
-    /// A session save keeps the lease it was made under (R761): the same
+    /// A session save keeps the lease it was made under (R770): the same
     /// holder, kind, operation key and generation, renewed for the lease's
     /// duration from the save, with its next token issued inside the save and
     /// handed back. The save records no lease operation.
@@ -1825,7 +1825,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
     /// <summary>
     /// A save that does not ask to continue the session (a one-command or MCP
     /// write) ends the lease it was made under, as every staff write did
-    /// before R761: no lease comes back and the token it presented is refused.
+    /// before R770: no lease comes back and the token it presented is refused.
     /// </summary>
     [Fact]
     public async Task ASaveThatDoesNotContinueTheSessionEndsTheLease()

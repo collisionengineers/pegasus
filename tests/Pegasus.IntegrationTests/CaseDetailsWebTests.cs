@@ -1063,7 +1063,7 @@ public sealed class CaseDetailsWebTests
 
     /// <summary>
     /// A commit whose save handed no lease back, a replay for instance, and whose lease could
-    /// not be claimed again, could not keep the session (R761 keeps it in the save itself; the
+    /// not be claimed again, could not keep the session (R770 keeps it in the save itself; the
     /// reclaim is only the fallback). It leaves nothing to update in place: it takes the
     /// redirect, and the page it lands on confirms the commit and says it ended editing, as
     /// the script expects.

@@ -102,7 +102,7 @@ that still matches proves no staff change has landed since the page loaded
 its version. A Case save made from the holder's edit session keeps the lease:
 inside the save's own transaction the lease is renewed as a heartbeat renews
 it and its next token is issued, which the save's answer hands the page, and
-nothing is claimed afterwards (R761, 8 November 2026). Any other staff change
+nothing is claimed afterwards (R770, 8 November 2026). Any other staff change
 ends the lease and the holder's page claims the next one. Core's Case edit
 authority owns this rule, the five-minute lease length and the three writes
 that keep the lease (an Automation write, a Glass's return and a Case save
@@ -247,7 +247,7 @@ answered gives way to the next, and the Automation Actor's request gives way
 the same way (R550, 30 October 2026). A request is addressed to the holder
 asked and ends when the holder changes, when the lease lapses, or when the
 holder finishes with Done. The holder's own work in the session leaves it
-standing: a Case save keeps the lease (R761, 8 November 2026), and an action
+standing: a Case save keeps the lease (R770, 8 November 2026), and an action
 taken inside the session, which ends the lease and claims it again, keeps the
 same holder. A request, a denial, a withdrawal or silence
 is telemetry; an accepted hand-over and a forced takeover are history (R550,
@@ -349,7 +349,7 @@ wrong-holder and stale-version refusal for Cases and for record scopes, and a
 version moved only by system work. Persistence tests cover a session save
 that keeps its lease and issues the next token, the token it replaced
 refused, a second window's stale save refused and a standing request
-surviving the save (R761, 8 November 2026). Integration tests
+surviving the save (R770, 8 November 2026). Integration tests
 cover a colleague takeover on a Case whose current version already has its
 own history, the holder's own claim and resume, the Case ribbon, the leaving
 beacon and the record pages over real HTTP. Core tests cover the request

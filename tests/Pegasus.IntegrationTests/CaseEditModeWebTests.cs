@@ -174,7 +174,7 @@ public sealed class CaseEditModeWebTests
                 ("claimNumber", "CLM-42")));
         AssertPrg(response, store.CaseId);
         Assert.Single(store.Saves);
-        // Edit Case only: the save keeps the lease, so nothing is claimed after it (R761).
+        // Edit Case only: the save keeps the lease, so nothing is claimed after it (R770).
         Assert.Single(store.Claims);
         var after = await workspace.GetWorkspaceAsync();
         Assert.Contains("data-case-editing=\"true\"", after, StringComparison.Ordinal);
@@ -185,7 +185,7 @@ public sealed class CaseEditModeWebTests
     /// <summary>
     /// Save reads only the Case's frame and data, not its documents, history
     /// or tasks. The save keeps the session's lease and hands its next token
-    /// back (R761), so nothing is claimed after it and the Case's workflow row
+    /// back (R770), so nothing is claimed after it and the Case's workflow row
     /// is not read again for a reclaim.
     /// </summary>
     [Fact]
@@ -217,7 +217,7 @@ public sealed class CaseEditModeWebTests
     /// and the Case form's default Save now, never a Save that ends editing,
     /// and no unsaved-changes dialog is rendered. Every save is a commit of
     /// the open session: the save keeps the lease and issues its next token
-    /// (R761), which the page carries on with, whatever the form posts.
+    /// (R770), which the page carries on with, whatever the form posts.
     /// </summary>
     [Fact]
     public async Task TheRibbonOffersDoneAndEverySaveKeepsEditing()
@@ -249,7 +249,7 @@ public sealed class CaseEditModeWebTests
         AssertPrg(response, store.CaseId);
         Assert.Single(store.Saves);
         // The save kept the lease and issued its next token, so the session
-        // claims nothing after it (R761); a posted finishEditing, which no
+        // claims nothing after it (R770); a posted finishEditing, which no
         // control sends any more, changes nothing.
         Assert.Single(store.Claims);
         Assert.Empty(store.LeaseReleases);
