@@ -349,6 +349,9 @@ public sealed class CaseAssetPreparationWebTests
 
         public Task<IReadOnlyDictionary<PhotoCaptureState, int>> CountByStateAsync(bool sentByUs, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyDictionary<PhotoCaptureState, int>>(new Dictionary<PhotoCaptureState, int>());
+
+        public Task<IReadOnlyList<PhotoLinkAct>> ListHistoryAsync(Guid captureId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PhotoLinkAct>>([]);
     }
 
     /// <summary>

@@ -174,6 +174,7 @@ public sealed class EditModel(
     public Task<IActionResult> OnPostPausePhotoLinkAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "pause", cancellationToken);
     public Task<IActionResult> OnPostResumePhotoLinkAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "resume", cancellationToken);
     public Task<IActionResult> OnPostReplacePhotoLinkAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "replace", cancellationToken);
+    public Task<IActionResult> OnPostRetirePhotoLinkAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "retire", cancellationToken);
     public Task<IActionResult> OnPostUpdatePhotoLinkDefaultsAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "defaults", cancellationToken);
 
     /// <summary>The standing link's QR code as a file to print (Download QR).</summary>
@@ -219,7 +220,10 @@ public sealed class EditModel(
                     await administration.ResumeAsync(actor, link!.Id, StandingLinkVersion, cancellationToken);
                     break;
                 case "replace":
-                    await administration.ReplaceAsync(actor, link!.Id, StandingLinkVersion, cancellationToken);
+                    await administration.ReplaceAsync(actor, link!.Id, StandingLinkVersion, typedSlug: null, cancellationToken);
+                    break;
+                case "retire":
+                    await administration.RetireAsync(actor, link!.Id, StandingLinkVersion, cancellationToken);
                     break;
                 case "defaults":
                     await administration.UpdateDefaultsAsync(

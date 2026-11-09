@@ -183,10 +183,10 @@ public sealed class SettlePhotoCapturesTests
         public Task RecordItemProcessedAsync(Guid itemId, Guid intakeReceiptId, Guid? intakeAssetId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task RecordItemOriginalAsync(Guid itemId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Core.PhotoCapture.PhotoCapture> RecordSentAsync(Guid captureId, string? note, DateTimeOffset sentAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<Core.PhotoCapture.PhotoCapture> RevokeAsync(Guid captureId, DateTimeOffset revokedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<Core.PhotoCapture.PhotoCapture> ExtendAsync(Guid captureId, DateTimeOffset expiresAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<Core.PhotoCapture.PhotoCapture> RecordReminderAsync(Guid captureId, DateTimeOffset remindedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<Core.PhotoCapture.PhotoCapture> RecordCallAsync(Guid captureId, DateTimeOffset calledAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Core.PhotoCapture.PhotoCapture> RevokeAsync(Guid captureId, ActionActor actor, string operationKey, DateTimeOffset revokedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Core.PhotoCapture.PhotoCapture> ExtendAsync(Guid captureId, ActionActor actor, string operationKey, DateTimeOffset expiresAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Core.PhotoCapture.PhotoCapture> RecordReminderAsync(Guid captureId, ActionActor actor, string operationKey, DateTimeOffset remindedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Core.PhotoCapture.PhotoCapture> RecordCallAsync(Guid captureId, ActionActor actor, string operationKey, DateTimeOffset calledAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<PhotoCaptureItem>> ListItemsAsync(Guid captureId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<PhotoCaptureItem?> FindItemAsync(Guid captureId, Guid clientItemId, CancellationToken cancellationToken) => throw new NotSupportedException();
     }

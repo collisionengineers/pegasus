@@ -219,12 +219,15 @@ public static partial class OperatorLabels
         public const string Filed = "Filed";
         public const string Cancelled = "Cancelled";
 
-        // The Contacts tab (R774) and the website link (R780).
+        // The Contacts tab (R774) and the website link (R797).
         public const string PhotoLinksTab = "Photo links";
         public const string TheirStandingLink = "Their standing link";
         public const string PauseTheirLink = "Pause their link";
         public const string ResumeTheirLink = "Resume their link";
         public const string ReplaceLink = "Replace link";
+        // Retire (R796), in the words R805 lists.
+        public const string RetireLink = "Retire link";
+        public const string RetireLinkConfirmation = "Retire this link? Its address stops working for good and cannot be resumed.";
         public const string DownloadQr = "Download QR";
         public const string SavedAddresses = "Saved addresses";
         public const string DefaultsForTheirLinks = "Defaults for their links";

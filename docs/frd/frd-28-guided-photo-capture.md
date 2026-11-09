@@ -76,14 +76,18 @@ link previews fetch pages.
 
 A Principal, Claim Source or Repairer contact may have a standing photo link,
 managed on the **Photo links** tab of its edit page (R774): the standing
-URL, a QR code, Copy, **Pause** and **Resume**, **Replace link**, and its
-defaults, which are the mode a link sent on to a customer takes, Live camera
-only, the lifetime and the originals choice. The one website link, for
-private customers, is managed by Administrators from the Photo capture page
-(R780).
+URL, a QR code, Copy, **Pause** and **Resume**, **Replace link**, **Retire
+link**, and its defaults, which are the mode a link sent on to a customer
+takes, Live camera only, the lifetime and the originals choice. The one
+website link, for private customers, is managed by Administrators from the
+Photo capture page with the same controls and defaults, less the mode,
+because its captures are guided (operator, 9 November 2026; R797).
 
 A standing link is `/s/{slug}`. A contact's slug is 12 Crockford base32
-characters and the website's a readable one. A slug is not a secret: it
+characters. The website's is the readable one the Administrator types: 6 to
+60 lowercase letters, digits and hyphens, not starting or ending with a
+hyphen, and held by no other link, retired ones included; Pegasus never
+makes one up (operator, 9 November 2026; R797). A slug is not a secret: it
 lives on WhatsApp and in QR codes, and it can only start a capture, never
 take a photo. Starting one asks for the registration and the details; a
 capture without a registration is not started. A contact's staff either take
@@ -91,7 +95,12 @@ the photos themselves, in quick mode, or send their customer a link, which
 starts a capture in the contact's forwarded mode and is carried by their own
 phone's messages, not by Pegasus. The website link starts a guided capture.
 Each capture started is a photo link with its own token. **Replace link**
-gives the contact a new slug.
+gives a contact's link a new slug, and the website link the new address the
+Administrator types (R797). **Retire link** asks "Retire this link? Its
+address stops working for good and cannot be resumed." and then ends the
+link for good: its address answers like an unknown one, it cannot be
+resumed, and the contact, or the website, may be given a new link
+(operator, 9 November 2026; R796, R805).
 
 On **Coming in**, a capture's From names the contact and how the photos
 came: **Their staff took them**, **Sent on to their customer**, or
@@ -113,10 +122,10 @@ Every page and API response carries:
 - `X-Robots-Tag: noindex, nofollow`;
 - `Cache-Control: no-store`.
 
-An unknown, expired, revoked or paused link, and a standing link whose
-contact is inactive, gets one identical answer: the page says "This link is
-no longer active." and "Ask whoever sent it to you for a new one.", and the
-API answers 404. They are never told apart (operator, 9 November 2026;
+An unknown, expired, revoked, paused or retired link, and a standing link
+whose contact is inactive, gets one identical answer: the page says "This
+link is no longer active." and "Ask whoever sent it to you for a new one.",
+and the API answers 404. They are never told apart (operator, 9 November 2026;
 R789). A standing link whose contact is inactive starts no capture until the
 contact is active again (operator, 9 November 2026; R796).
 
@@ -289,14 +298,20 @@ with no count (R774;
   2026; R805);
 - **Links we sent**: Case links, with Vehicle, Customer and mobile, Case,
   From, Sent by, Status, Photos and Next reminder, and the actions Resend,
-  Remind, Log call and View photos. From is the Case's Principal (operator,
-  9 November 2026; R805). Remind is offered only while the link is live.
+  Remind, Log call and View photos, with **Cancel link** on each live row.
+  From is the Case's Principal (operator, 9 November 2026; R805). Remind is
+  offered only while the link is live.
 
 `/PhotoCapture/Send/{caseId}` sends a link ([Photo links](#photo-links)).
 `/PhotoCapture/{id}` is a link's detail: its facts, the typed details, the
 note, the status, the missing items, the items by story group and the
-history, with Resend, Remind, Log call, Extend and Cancel. The Vehicle images
-record page shows the source **Photo link** with the details and the note.
+history, with Resend, Remind, Log call, Extend and Cancel. The history names
+who acted: "Cancelled · name", "Link extended · name" and "Call logged ·
+name" (operator, 9 November 2026; R805). A live link on a Case also offers
+**Cancel link** beside it in the Case's Files → Images. Cancel is the same
+act wherever it is offered, with the same refusal, and a repeated click
+cancels once (operator, 9 November 2026; R795). The Vehicle images record
+page shows the source **Photo link** with the details and the note.
 
 ### Limits
 
@@ -323,18 +338,19 @@ The limits are constants, not configuration.
 
 A photo link is live from issue until it expires or is cancelled. **Extend**
 adds 3, 7 or 14 days to its expiry, from the later of now and the expiry;
-**Cancel** revokes every token. A standing link is active,
-paused or replaced; **Resume** makes a paused link active again. A capture
+**Cancel** revokes every token. A standing link is active, paused,
+replaced or retired; **Resume** makes a paused link active again, and a
+retired link is never active again (R796). A capture
 moves through its derived statuses
 ([Statuses and reminders](#statuses-and-reminders)) and settles once per
 batch. Its destination is undecided, a Case, or a Vehicle images record.
 
 ## Edge cases and fail-closed behaviour
 
-- **Unavailable.** An unknown, malformed, expired, revoked or paused
-  credential, and a standing link whose contact is inactive (operator, 9
-  November 2026; R796), gets the same page or 404, and no store is read for
-  a value that is not a token's shape.
+- **Unavailable.** An unknown, malformed, expired, revoked, paused or
+  retired credential, and a standing link whose contact is inactive
+  (operator, 9 November 2026; R796), gets the same page or 404, and no
+  store is read for a value that is not a token's shape.
 - **No connection.** When the phone cannot reach Pegasus, or a refusal
   carries no words of its own, the app says "We couldn’t reach Collision
   Engineers. Check your signal and try again." (operator, 9 November 2026;

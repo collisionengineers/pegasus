@@ -362,6 +362,9 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             Task.FromResult<IReadOnlyDictionary<Pegasus.Core.PhotoCapture.PhotoCaptureState, int>>(
                 new Dictionary<Pegasus.Core.PhotoCapture.PhotoCaptureState, int>());
 
+        public Task<IReadOnlyList<Pegasus.Core.PhotoCapture.PhotoLinkAct>> ListHistoryAsync(Guid captureId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Pegasus.Core.PhotoCapture.PhotoLinkAct>>([]);
+
         public Task<Pegasus.Core.PhotoCapture.PhotoCaptureCaseFacts?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<Pegasus.Core.PhotoCapture.PhotoCaptureCaseFacts?>(null);
 
@@ -390,6 +393,9 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             throw new NotSupportedException("A database-less host holds no standing link.");
 
         public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> SetPausedAsync(Guid id, long expectedVersion, DateTimeOffset? pausedAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("A database-less host holds no standing link.");
+
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> SetRetiredAsync(Guid id, long expectedVersion, DateTimeOffset retiredAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException("A database-less host holds no standing link.");
 
         public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> ReplaceSlugAsync(Guid id, long expectedVersion, string newSlug, DateTimeOffset replacedAtUtc, CancellationToken cancellationToken) =>

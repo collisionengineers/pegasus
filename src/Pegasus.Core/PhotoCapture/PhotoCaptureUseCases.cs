@@ -525,18 +525,31 @@ public sealed class CompletePhotoCapture(
         && await standingLinks.GetAsync(linkId, cancellationToken) is { IsRepairer: true };
 }
 
-/// <summary>The staff acts on a link: cancel, extend, remind, log a call; each is casework.</summary>
+/// <summary>
+/// The staff acts on a link: cancel, extend, remind, log a call; each is
+/// casework, and each records who did it under the form's operation key, so
+/// the link's history names them and a double click acts once (R805).
+/// </summary>
 public sealed class PhotoLinkActions(
     IPhotoCaptureStore captures,
     TimeProvider timeProvider)
 {
-    public async Task<PhotoCapture> RevokeAsync(ActionActor actor, Guid captureId, CancellationToken cancellationToken)
+    public async Task<PhotoCapture> RevokeAsync(
+        ActionActor actor,
+        Guid captureId,
+        string operationKey,
+        CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        return await captures.RevokeAsync(captureId, timeProvider.GetUtcNow(), cancellationToken);
+        return await captures.RevokeAsync(captureId, actor, operationKey, timeProvider.GetUtcNow(), cancellationToken);
     }
 
-    public async Task<PhotoCapture> ExtendAsync(ActionActor actor, Guid captureId, int days, CancellationToken cancellationToken)
+    public async Task<PhotoCapture> ExtendAsync(
+        ActionActor actor,
+        Guid captureId,
+        int days,
+        string operationKey,
+        CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         if (!CaptureLimits.IsLifetime(days))
@@ -547,7 +560,7 @@ public sealed class PhotoLinkActions(
         var capture = await captures.GetAsync(captureId, cancellationToken)
             ?? throw new KeyNotFoundException("The photo link was not found.");
         var from = capture.ExpiresAtUtc > timeProvider.GetUtcNow() ? capture.ExpiresAtUtc : timeProvider.GetUtcNow();
-        return await captures.ExtendAsync(captureId, from.AddDays(days), cancellationToken);
+        return await captures.ExtendAsync(captureId, actor, operationKey, from.AddDays(days), cancellationToken);
     }
 
     /// <summary>
@@ -560,6 +573,7 @@ public sealed class PhotoLinkActions(
         Guid captureId,
         PhotoLinkTokenPurpose purpose,
         bool isReminder,
+        string operationKey,
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
@@ -581,16 +595,20 @@ public sealed class PhotoLinkActions(
             cancellationToken);
         if (isReminder)
         {
-            capture = await captures.RecordReminderAsync(captureId, now, cancellationToken);
+            capture = await captures.RecordReminderAsync(captureId, actor, operationKey, now, cancellationToken);
         }
 
         return new(capture, token);
     }
 
-    public async Task<PhotoCapture> LogCallAsync(ActionActor actor, Guid captureId, CancellationToken cancellationToken)
+    public async Task<PhotoCapture> LogCallAsync(
+        ActionActor actor,
+        Guid captureId,
+        string operationKey,
+        CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        return await captures.RecordCallAsync(captureId, timeProvider.GetUtcNow(), cancellationToken);
+        return await captures.RecordCallAsync(captureId, actor, operationKey, timeProvider.GetUtcNow(), cancellationToken);
     }
 }
 

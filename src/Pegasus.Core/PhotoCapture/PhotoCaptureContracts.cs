@@ -330,6 +330,18 @@ public sealed record PhotoCaptureListRow(
 
 public sealed record PhotoCaptureListPage(IReadOnlyList<PhotoCaptureListRow> Rows, int TotalCount);
 
+/// <summary>The staff acts on a link that name who did them in its history (FRD-28 Staff pages; R805).</summary>
+public static class PhotoLinkActs
+{
+    public const string Cancelled = "photo_link_cancelled";
+    public const string Extended = "photo_link_extended";
+    public const string CallLogged = "photo_link_call_logged";
+    public const string Reminded = "photo_link_reminded";
+}
+
+/// <summary>One staff act on a link: which act (<see cref="PhotoLinkActs"/>), when, and who did it, null when no name is known.</summary>
+public sealed record PhotoLinkAct(string Kind, DateTimeOffset AtUtc, string? ActorName);
+
 /// <summary>Where a capture's items sit on a Case, for the Files → Images story (FRD-16).</summary>
 public sealed record CasePhotoCaptureStory(
     PhotoCapture Capture,
@@ -417,13 +429,37 @@ public interface IPhotoCaptureStore
         DateTimeOffset settledAtUtc,
         CancellationToken cancellationToken);
 
-    Task<PhotoCapture> RevokeAsync(Guid captureId, DateTimeOffset revokedAtUtc, CancellationToken cancellationToken);
+    // The four staff acts each record who did it (PhotoLinkActs) in the same
+    // write. A replayed operation key changes nothing and answers the capture
+    // as it is, so a double click acts once.
 
-    Task<PhotoCapture> ExtendAsync(Guid captureId, DateTimeOffset expiresAtUtc, CancellationToken cancellationToken);
+    Task<PhotoCapture> RevokeAsync(
+        Guid captureId,
+        ActionActor actor,
+        string operationKey,
+        DateTimeOffset revokedAtUtc,
+        CancellationToken cancellationToken);
 
-    Task<PhotoCapture> RecordReminderAsync(Guid captureId, DateTimeOffset remindedAtUtc, CancellationToken cancellationToken);
+    Task<PhotoCapture> ExtendAsync(
+        Guid captureId,
+        ActionActor actor,
+        string operationKey,
+        DateTimeOffset expiresAtUtc,
+        CancellationToken cancellationToken);
 
-    Task<PhotoCapture> RecordCallAsync(Guid captureId, DateTimeOffset calledAtUtc, CancellationToken cancellationToken);
+    Task<PhotoCapture> RecordReminderAsync(
+        Guid captureId,
+        ActionActor actor,
+        string operationKey,
+        DateTimeOffset remindedAtUtc,
+        CancellationToken cancellationToken);
+
+    Task<PhotoCapture> RecordCallAsync(
+        Guid captureId,
+        ActionActor actor,
+        string operationKey,
+        DateTimeOffset calledAtUtc,
+        CancellationToken cancellationToken);
 
     /// <summary>Captures with a Send, or an expiry with photos, that no settle has recorded yet; oldest first.</summary>
     Task<IReadOnlyList<PhotoCaptureWithItems>> ListAwaitingSettleAsync(
@@ -465,6 +501,9 @@ public interface IPhotoCaptureQueries
 
     /// <summary>How many captures each of the five Links we sent and Coming in headline states holds.</summary>
     Task<IReadOnlyDictionary<PhotoCaptureState, int>> CountByStateAsync(bool sentByUs, CancellationToken cancellationToken);
+
+    /// <summary>The staff acts on the link, oldest first, each with the name of who did it.</summary>
+    Task<IReadOnlyList<PhotoLinkAct>> ListHistoryAsync(Guid captureId, CancellationToken cancellationToken);
 }
 
 public interface IStandingPhotoLinkStore
@@ -500,7 +539,14 @@ public interface IStandingPhotoLinkStore
 
     Task<StandingPhotoLink> SetPausedAsync(Guid id, long expectedVersion, DateTimeOffset? pausedAtUtc, CancellationToken cancellationToken);
 
-    /// <summary>Retires the slug and issues a new one; the old slug answers like an unknown one from then on.</summary>
+    /// <summary>Ends the link for good: its slug answers like an unknown one and the lookups skip it (R796).</summary>
+    Task<StandingPhotoLink> SetRetiredAsync(Guid id, long expectedVersion, DateTimeOffset retiredAtUtc, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Retires the slug and issues a new one; the old slug answers like an
+    /// unknown one from then on. A slug another link holds is refused as
+    /// <see cref="StandingPhotoLinkError.SlugTaken"/>.
+    /// </summary>
     Task<StandingPhotoLink> ReplaceSlugAsync(Guid id, long expectedVersion, string newSlug, DateTimeOffset replacedAtUtc, CancellationToken cancellationToken);
 
     /// <summary>The saved addresses the link offers on its form: the contact's inspection locations.</summary>

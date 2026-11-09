@@ -10,7 +10,11 @@ public enum StandingPhotoLinkError
     /// <summary>The link changed after it was read; the change was made over a stale version.</summary>
     StaleVersion,
     /// <summary>A lifetime or mode the link does not offer.</summary>
-    InvalidDefaults
+    InvalidDefaults,
+    /// <summary>A typed website address that is not 6 to 60 lowercase letters, digits and hyphens.</summary>
+    InvalidSlug,
+    /// <summary>A typed website address a link already holds, a retired one included.</summary>
+    SlugTaken
 }
 
 public sealed class StandingPhotoLinkException(StandingPhotoLinkError error)
@@ -23,8 +27,10 @@ public sealed class StandingPhotoLinkException(StandingPhotoLinkError error)
 /// The staff changes to a standing photo link (FRD-28 Standing photo links;
 /// R774, R780): a Principal, Claim Source or Repairer contact gets one
 /// standing link and the website one, each created with the defaults a new
-/// link takes; a link is paused and resumed, given a new slug, and its
-/// defaults changed within the lifetimes and modes offered. Every change
+/// link takes; a link is paused and resumed, given a new slug, retired for
+/// good (R796), and its defaults changed within the lifetimes and modes
+/// offered. A contact's slug is made here; the website's is the address the
+/// Administrator typed, never one the code invents (R797). Every change
 /// needs the contacts right. A change made over a stale read is refused as
 /// <see cref="StandingPhotoLinkError.StaleVersion"/>, which the store raises
 /// when the version it is given is not the row's.
@@ -54,10 +60,11 @@ public sealed class StandingPhotoLinkAdministration(
             throw new StandingPhotoLinkException(StandingPhotoLinkError.AlreadyExists);
         }
 
-        return await CreateAsync(StandingPhotoLinkKind.Contact, organizationId, actor, cancellationToken);
+        return await CreateAsync(StandingPhotoLinkKind.Contact, organizationId, PhotoLinkToken.CreateSlug(), actor, cancellationToken);
     }
 
-    public async Task<StandingPhotoLink> CreateWebsiteAsync(ActionActor actor, CancellationToken cancellationToken)
+    /// <summary>The one website link, at the address the Administrator typed (R797).</summary>
+    public async Task<StandingPhotoLink> CreateWebsiteAsync(ActionActor actor, string? typedSlug, CancellationToken cancellationToken)
     {
         Require(actor);
         if (await standingLinks.FindWebsiteAsync(cancellationToken) is not null)
@@ -65,7 +72,8 @@ public sealed class StandingPhotoLinkAdministration(
             throw new StandingPhotoLinkException(StandingPhotoLinkError.AlreadyExists);
         }
 
-        return await CreateAsync(StandingPhotoLinkKind.Website, null, actor, cancellationToken);
+        var slug = await TypedSlugAsync(typedSlug, cancellationToken);
+        return await CreateAsync(StandingPhotoLinkKind.Website, null, slug, actor, cancellationToken);
     }
 
     public Task<StandingPhotoLink> PauseAsync(ActionActor actor, Guid id, long expectedVersion, CancellationToken cancellationToken)
@@ -80,11 +88,36 @@ public sealed class StandingPhotoLinkAdministration(
         return standingLinks.SetPausedAsync(id, expectedVersion, null, cancellationToken);
     }
 
-    /// <summary>A new slug; the old one answers like an unknown link from then on.</summary>
-    public Task<StandingPhotoLink> ReplaceAsync(ActionActor actor, Guid id, long expectedVersion, CancellationToken cancellationToken)
+    /// <summary>
+    /// A new slug; the old one answers like an unknown link from then on. A
+    /// contact's is made here; the website's is <paramref name="typedSlug"/>,
+    /// the address the Administrator typed (R797), which a contact's ignores.
+    /// </summary>
+    public async Task<StandingPhotoLink> ReplaceAsync(
+        ActionActor actor,
+        Guid id,
+        long expectedVersion,
+        string? typedSlug,
+        CancellationToken cancellationToken)
     {
         Require(actor);
-        return standingLinks.ReplaceSlugAsync(id, expectedVersion, PhotoLinkToken.CreateSlug(), timeProvider.GetUtcNow(), cancellationToken);
+        var link = await standingLinks.GetAsync(id, cancellationToken)
+            ?? throw new StandingPhotoLinkException(StandingPhotoLinkError.NotFound);
+        var slug = link.Kind == StandingPhotoLinkKind.Website
+            ? await TypedSlugAsync(typedSlug, cancellationToken)
+            : PhotoLinkToken.CreateSlug();
+        return await standingLinks.ReplaceSlugAsync(id, expectedVersion, slug, timeProvider.GetUtcNow(), cancellationToken);
+    }
+
+    /// <summary>
+    /// Ends the link for good (R796): its address answers like an unknown one
+    /// and it cannot be resumed; the contact, or the website, may be given a
+    /// new link.
+    /// </summary>
+    public Task<StandingPhotoLink> RetireAsync(ActionActor actor, Guid id, long expectedVersion, CancellationToken cancellationToken)
+    {
+        Require(actor);
+        return standingLinks.SetRetiredAsync(id, expectedVersion, timeProvider.GetUtcNow(), cancellationToken);
     }
 
     public Task<StandingPhotoLink> UpdateDefaultsAsync(
@@ -107,15 +140,33 @@ public sealed class StandingPhotoLinkAdministration(
             id, expectedVersion, forwardedMode, liveCameraOnly, linkLifetimeDays, originalsInBackground, cancellationToken);
     }
 
+    /// <summary>
+    /// The typed website address as stored: its slug shape is checked, and a
+    /// slug any link holds, a retired one included, is taken, before anything
+    /// is written.
+    /// </summary>
+    private async Task<string> TypedSlugAsync(string? typedSlug, CancellationToken cancellationToken)
+    {
+        var slug = PhotoLinkToken.NormalizeSlug(typedSlug)
+            ?? throw new StandingPhotoLinkException(StandingPhotoLinkError.InvalidSlug);
+        if (await standingLinks.FindBySlugAsync(slug, cancellationToken) is not null)
+        {
+            throw new StandingPhotoLinkException(StandingPhotoLinkError.SlugTaken);
+        }
+
+        return slug;
+    }
+
     private Task<StandingPhotoLink> CreateAsync(
         StandingPhotoLinkKind kind,
         Guid? organizationId,
+        string slug,
         ActionActor actor,
         CancellationToken cancellationToken) =>
         standingLinks.CreateAsync(
             kind,
             organizationId,
-            PhotoLinkToken.CreateSlug(),
+            slug,
             DefaultForwardedMode,
             DefaultLiveCameraOnly,
             CaptureLimits.DefaultLifetimeDays,

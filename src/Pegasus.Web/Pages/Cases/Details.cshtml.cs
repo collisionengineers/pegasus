@@ -215,6 +215,10 @@ public sealed partial class DetailsModel(
     /// </summary>
     public IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory> PhotoCaptureStories { get; private set; } = [];
 
+    /// <summary>Whether a photo link on the Case still takes photos, so its story offers Cancel (R795).</summary>
+    public bool IsPhotoLinkLive(Pegasus.Core.PhotoCapture.PhotoCapture capture) =>
+        Pegasus.Core.PhotoCapture.PhotoCaptureAccess.IsLive(capture, clock.GetUtcNow());
+
     /// <summary>
     /// Every image occurrence's report preparation (B06), loaded with the
     /// Files section so its tile, viewer and Case Save share one state.

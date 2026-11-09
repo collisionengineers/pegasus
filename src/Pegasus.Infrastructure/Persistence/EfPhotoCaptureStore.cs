@@ -15,6 +15,9 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfPhotoCaptureStore(
     IDbContextFactory<PegasusDbContext> contextFactory) : IPhotoCaptureStore
 {
+    /// <summary>The <c>ActionHistory</c> aggregate the staff acts on a capture are recorded under.</summary>
+    internal const string HistoryAggregateType = "photo_capture";
+
     internal static readonly JsonSerializerOptions DetailsJsonOptions = new(JsonSerializerDefaults.Web)
     {
         // MarkedAreas is derived from DamageAreas; only the stored fields are written.
@@ -433,34 +436,125 @@ public sealed class EfPhotoCaptureStore(
             return Task.CompletedTask;
         }, cancellationToken);
 
-    public Task<PhotoCapture> RevokeAsync(Guid captureId, DateTimeOffset revokedAtUtc, CancellationToken cancellationToken) =>
-        UpdateAsync(captureId, expectedVersion: null, (_, entity, _) =>
+    public Task<PhotoCapture> RevokeAsync(
+        Guid captureId,
+        Pegasus.Core.Identity.ActionActor actor,
+        string operationKey,
+        DateTimeOffset revokedAtUtc,
+        CancellationToken cancellationToken) =>
+        ActAsync(captureId, actor, operationKey, PhotoLinkActs.Cancelled, revokedAtUtc, afterJson: null, entity =>
         {
-            entity.RevokedAtUtc ??= revokedAtUtc;
-            return Task.CompletedTask;
+            // A link already cancelled stays as it was, and no second act is recorded.
+            if (entity.RevokedAtUtc is not null)
+            {
+                return false;
+            }
+
+            entity.RevokedAtUtc = revokedAtUtc;
+            return true;
         }, cancellationToken);
 
-    public Task<PhotoCapture> ExtendAsync(Guid captureId, DateTimeOffset expiresAtUtc, CancellationToken cancellationToken) =>
-        UpdateAsync(captureId, expectedVersion: null, (_, entity, _) =>
-        {
-            entity.ExpiresAtUtc = expiresAtUtc;
-            return Task.CompletedTask;
-        }, cancellationToken);
+    public Task<PhotoCapture> ExtendAsync(
+        Guid captureId,
+        Pegasus.Core.Identity.ActionActor actor,
+        string operationKey,
+        DateTimeOffset expiresAtUtc,
+        CancellationToken cancellationToken) =>
+        ActAsync(
+            captureId,
+            actor,
+            operationKey,
+            PhotoLinkActs.Extended,
+            expiresAtUtc,
+            DocumentActionHistory.Serialize(new { ExpiresAtUtc = expiresAtUtc }),
+            entity =>
+            {
+                entity.ExpiresAtUtc = expiresAtUtc;
+                return true;
+            },
+            cancellationToken);
 
-    public Task<PhotoCapture> RecordReminderAsync(Guid captureId, DateTimeOffset remindedAtUtc, CancellationToken cancellationToken) =>
-        UpdateAsync(captureId, expectedVersion: null, (_, entity, _) =>
+    public Task<PhotoCapture> RecordReminderAsync(
+        Guid captureId,
+        Pegasus.Core.Identity.ActionActor actor,
+        string operationKey,
+        DateTimeOffset remindedAtUtc,
+        CancellationToken cancellationToken) =>
+        ActAsync(captureId, actor, operationKey, PhotoLinkActs.Reminded, remindedAtUtc, afterJson: null, entity =>
         {
             entity.ReminderCount++;
             entity.LastRemindedAtUtc = remindedAtUtc;
-            return Task.CompletedTask;
+            return true;
         }, cancellationToken);
 
-    public Task<PhotoCapture> RecordCallAsync(Guid captureId, DateTimeOffset calledAtUtc, CancellationToken cancellationToken) =>
-        UpdateAsync(captureId, expectedVersion: null, (_, entity, _) =>
+    public Task<PhotoCapture> RecordCallAsync(
+        Guid captureId,
+        Pegasus.Core.Identity.ActionActor actor,
+        string operationKey,
+        DateTimeOffset calledAtUtc,
+        CancellationToken cancellationToken) =>
+        ActAsync(captureId, actor, operationKey, PhotoLinkActs.CallLogged, calledAtUtc, afterJson: null, entity =>
         {
             entity.CallLoggedAtUtc = calledAtUtc;
-            return Task.CompletedTask;
+            return true;
         }, cancellationToken);
+
+    /// <summary>
+    /// One staff act on the capture row and its <c>ActionHistory</c> event,
+    /// saved together, so the link's history names who acted (R805). The
+    /// operation key is the event's correlation: a key already recorded for
+    /// this act on this capture changes nothing and answers the capture as it
+    /// is; one recorded for anything else is refused. A lost race re-reads and
+    /// decides again, so two clicks with one key act once.
+    /// </summary>
+    private Task<PhotoCapture> ActAsync(
+        Guid captureId,
+        Pegasus.Core.Identity.ActionActor actor,
+        string operationKey,
+        string act,
+        DateTimeOffset occurredAtUtc,
+        string? afterJson,
+        Func<PhotoCaptureEntity, bool> change,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        var key = operationKey.Trim();
+        var aggregateId = captureId.ToString("D");
+        return StoreConcurrencyRetry.ExecuteAsync(
+            async token =>
+            {
+                await using var context = await contextFactory.CreateDbContextAsync(token);
+                var entity = await context.PhotoCaptures
+                    .SingleOrDefaultAsync(item => item.Id == captureId, token)
+                    ?? throw new KeyNotFoundException("The photo link was not found.");
+                var replay = await context.ActionHistory.AsNoTracking()
+                    .Where(item => item.AggregateType == HistoryAggregateType && item.CorrelationId == key)
+                    .FirstOrDefaultAsync(token);
+                if (replay is not null)
+                {
+                    if (!string.Equals(replay.AggregateId, aggregateId, StringComparison.Ordinal)
+                        || !string.Equals(replay.EventKind, act, StringComparison.Ordinal))
+                    {
+                        throw new InvalidOperationException("The operation key was already used for a different photo link action.");
+                    }
+
+                    return Map(entity);
+                }
+
+                if (change(entity))
+                {
+                    entity.Version++;
+                    context.ActionHistory.Add(DocumentActionHistory.Succeeded(
+                        HistoryAggregateType, aggregateId, act, actor, occurredAtUtc, key, afterJson: afterJson));
+                    await context.SaveChangesAsync(token);
+                }
+
+                return Map(entity);
+            },
+            cancellationToken,
+            StoreConcurrencyRetry.IsRetryable);
+    }
 
     public async Task<IReadOnlyList<PhotoCaptureWithItems>> ListAwaitingSettleAsync(
         DateTimeOffset nowUtc,
