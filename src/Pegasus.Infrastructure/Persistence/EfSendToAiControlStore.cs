@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// at Case creation (R546), both on the Automation &amp; AI settings panel;
 /// and the temporary Case/PO suffix on Configuration (R656). An absent row
 /// means enabled. Send to AI alone is kept in <see cref="IMemoryCache"/> for
-/// <see cref="SendToAiLifetime"/> (R760): the Case page reads it on every open,
+/// <see cref="SendToAiLifetime"/> (R766): the Case page reads it on every open,
 /// the Administration save evicts it so this process sees the cut at once, and
 /// any other copy of it expires within the lifetime. The other two switches,
 /// and every read inside a store's own transaction, read the row.

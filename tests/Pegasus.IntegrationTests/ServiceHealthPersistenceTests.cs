@@ -124,7 +124,7 @@ public sealed class ServiceHealthPersistenceTests
                 services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()),
             TimeProvider.System);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-        // The Send to AI switch is kept once read (#1950, R760): this snapshot
+        // The Send to AI switch is kept once read (#1950, R766): this snapshot
         // fills it, so the two measured below both read it kept.
         _ = await health.ExecuteAsync(actor, CancellationToken.None);
 
