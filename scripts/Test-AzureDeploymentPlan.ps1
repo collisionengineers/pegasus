@@ -324,27 +324,8 @@ if ($Mode -eq 'PreProvision') {
     }
 
     $environmentValues = Get-AzdEnvironmentMap -Name $Environment
-    $required = @(
-        'AZURE_SUBSCRIPTION_ID',
-        'AZURE_TENANT_ID',
-        'AZURE_RESOURCE_GROUP',
-        'WORKER_APP_NAME',
-        'PEGASUS_WORKER_ACTIVATION',
-        'BOX_HOLDING_FOLDER_ID',
-        'AZURE_KEY_VAULT_NAME',
-        'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
-        'GITHUB_PROBLEM_REPORT_REPOSITORY',
-        'GLASS_VALUATION_USERNAME_SECRET_URI',
-        'GLASS_VALUATION_PASSWORD_SECRET_URI',
-        'CAZANA_COMPANION_EMAIL_SECRET_URI',
-        'CAZANA_COMPANION_PASSWORD_SECRET_URI',
-        'BREGO_VALUATION_EMAIL_SECRET_URI',
-        'BREGO_VALUATION_PASSWORD_SECRET_URI',
-        'ANTHROPIC_API_KEY_SECRET_URI',
-        'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
-        'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS'
-    )
-    foreach ($key in $required) {
+    # The same list the release preflight refuses on before the approval (#1931).
+    foreach ($key in (Get-PegasusProvisionRequiredKeys)) {
         if (-not $environmentValues.ContainsKey($key) -or
             [string]::IsNullOrWhiteSpace([string]$environmentValues[$key])) {
             throw "azd environment $Environment is missing $key."

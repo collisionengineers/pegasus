@@ -953,6 +953,23 @@ The approved release operator supplies these deployment inputs:
 | `ANTHROPIC_API_KEY_SECRET_URI` | Exact versioned Key Vault secret URI of the Anthropic API key the classifier agent uses. The classifier identity reads it, and the Automation MCP client secret, through grants at each secret's scope. No default. |
 | `PEGASUS_CLASSIFIER_ACTIVATION` | `approved` creates the classifier Function App (`infra/modules/classifier.bicep`); anything else leaves it absent. Defaults to `disabled`. |
 | `PEGASUS_CLASSIFIER_DRY_RUN` | `true` makes every classifier tick log its proposals and write nothing; `false` lets it write. Defaults to `false`. Set with `azd env set PEGASUS_CLASSIFIER_DRY_RUN true -e pegasus-prod`; it changes only by a provision (operator, 16 October 2026). |
+| `PEGASUS_ENVIRONMENT_NAME` | The one Azure target's environment name (`prod`). No default. |
+| `PEGASUS_DEPLOYMENT_MODE` | Explicit fail-closed release mode required for a production preview or provision. No default. |
+| `PEGASUS_ALERT_EMAIL` | E-mail address for production platform and budget notifications. No default. |
+| `GRAPH_CHANGE_NOTIFICATION_CLIENT_STATE_SECRET_URI` | Versioned Key Vault secret URI of the Microsoft Graph notification `clientState`. No default. |
+| `BOX_CONFIG_JSON_SECRET_URI` | Versioned Key Vault secret URI of the Box JWT configuration JSON. No default. |
+| `BOX_CLIENT_SECRET_SECRET_URI` | Versioned Key Vault secret URI of the Box client secret. No default. |
+| `AUTOMATION_MCP_CLIENT_SECRET_URI` | Versioned Key Vault secret URI of the Automation MCP OAuth client secret. No default. |
+| `GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI` | Versioned Key Vault secret URI of the fine-grained GitHub token that raises problem reports as issues. No default. |
+| `GITHUB_PROBLEM_REPORT_REPOSITORY` | The `owner/name` repository that receives problem reports as issues. No default. |
+| `DVLA_API_KEY_SECRET_URI` | Versioned Key Vault secret URI of the DVLA VES API key. No default. |
+| `DVSA_CLIENT_ID_SECRET_URI`, `DVSA_CLIENT_SECRET_SECRET_URI`, `DVSA_API_KEY_SECRET_URI` | Versioned Key Vault secret URIs of the DVSA OAuth client ID, client secret and API key. No default. |
+| `DVSA_TOKEN_URI`, `DVSA_SCOPE` | The approved DVSA OAuth token endpoint and scope. No default. |
+
+The release preflight refuses a deployable candidate whose `pegasus-prod`
+environment lacks any input without a default, or any key the pre-provision
+gate requires, before it prints the approval request (#1931); a provision
+cannot then be the first to find the gap.
 
 Bicep supplies the configured vault origin and indexed certificate URI settings
 to the Web App, and derives `Glass__CallbackBaseUri` from the Web App's own

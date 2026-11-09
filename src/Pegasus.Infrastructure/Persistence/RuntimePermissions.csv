@@ -654,6 +654,7 @@ pegasus_worker_runtime_role,G,SELECT,UnidentifiedItems
 pegasus_worker_runtime_role,G,SELECT,UnidentifiedSequences
 pegasus_worker_runtime_role,G,SELECT,VehicleLookupRequests
 pegasus_worker_runtime_role,G,SELECT,WorkflowConfigurations
+pegasus_worker_runtime_role,G,SELECT,__EFMigrationsHistory
 pegasus_worker_runtime_role,G,UPDATE,ApprovedInboxPollStates
 pegasus_worker_runtime_role,G,UPDATE,ApprovedMailboxSubscriptions
 pegasus_worker_runtime_role,G,UPDATE,ApprovedSentPollStates

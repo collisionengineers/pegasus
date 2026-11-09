@@ -231,6 +231,40 @@ function Get-PegasusWorkerDisabledSettingNames {
     )
 }
 
+function Get-PegasusProvisionRequiredKeys {
+    <#
+        .SYNOPSIS
+        Returns the azd environment keys a production provision requires.
+
+        .DESCRIPTION
+        One list for the release preflight, which refuses an incomplete
+        environment before the approval request (#1931), and for the
+        PreProvision gate of Test-AzureDeploymentPlan.ps1, which refuses it
+        again before azd provision. The preflight adds to this list every key
+        infra/main.parameters.json references without a default.
+    #>
+    return @(
+        'AZURE_SUBSCRIPTION_ID',
+        'AZURE_TENANT_ID',
+        'AZURE_RESOURCE_GROUP',
+        'WORKER_APP_NAME',
+        'PEGASUS_WORKER_ACTIVATION',
+        'BOX_HOLDING_FOLDER_ID',
+        'AZURE_KEY_VAULT_NAME',
+        'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
+        'GITHUB_PROBLEM_REPORT_REPOSITORY',
+        'GLASS_VALUATION_USERNAME_SECRET_URI',
+        'GLASS_VALUATION_PASSWORD_SECRET_URI',
+        'CAZANA_COMPANION_EMAIL_SECRET_URI',
+        'CAZANA_COMPANION_PASSWORD_SECRET_URI',
+        'BREGO_VALUATION_EMAIL_SECRET_URI',
+        'BREGO_VALUATION_PASSWORD_SECRET_URI',
+        'ANTHROPIC_API_KEY_SECRET_URI',
+        'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
+        'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS'
+    )
+}
+
 function Get-PegasusPathComparison {
     <#
         .SYNOPSIS

@@ -508,9 +508,70 @@ function Get-DeploymentId {
     return '(not reported)'
 }
 
+function Get-ParameterFileRequiredKeys {
+    # Every azd environment key infra/main.parameters.json references without
+    # a default (${NAME}, not ${NAME=default}) at the candidate SHA: azd
+    # refuses a provision that lacks one, and the approval must be given on
+    # an environment the preflight has read whole (#1931).
+    param([Parameter(Mandatory)][string] $Sha)
+    $text = (Invoke-Git -Failure "Unable to read infra/main.parameters.json at $Sha." -Arguments @('show', "${Sha}:infra/main.parameters.json")) -join "`n"
+    return @([regex]::Matches($text, '\$\{([A-Z0-9_]+)\}') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+}
+
+function Assert-AzdEnvironmentComplete {
+    # The read-only run and the approved run both refuse an azd environment
+    # that lacks a key the provision needs, so the approval is given on a
+    # complete environment and -Execute cannot be the first to find a gap
+    # (Release 1.0.0, #1931). The classifier exists only while
+    # PEGASUS_CLASSIFIER_ACTIVATION is approved: an environment that drops it
+    # would delete the classifier at the next provision.
+    param([Parameter(Mandatory)][hashtable] $Values, [Parameter(Mandatory)][string] $Sha, [Parameter(Mandatory)][bool] $ClassifierPresent)
+    $required = @(@(Get-PegasusProvisionRequiredKeys) + @(Get-ParameterFileRequiredKeys -Sha $Sha) | Sort-Object -Unique)
+    $missing = @($required | Where-Object { -not $Values.ContainsKey($_) -or [string]::IsNullOrWhiteSpace([string]$Values[$_]) })
+    if ($missing.Count -gt 0) {
+        throw "The $releaseEnvironment azd environment is missing $($missing -join ', '). Set each with 'azd env set <KEY> <value> -e $releaseEnvironment' in the primary checkout and run again; the runbook's deployment inputs table names them."
+    }
+    if ($ClassifierPresent -and [string]$Values['PEGASUS_CLASSIFIER_ACTIVATION'] -cne 'approved') {
+        throw "The classifier Function App exists but PEGASUS_CLASSIFIER_ACTIVATION is '$($Values['PEGASUS_CLASSIFIER_ACTIVATION'])', not 'approved': a provision would delete $classifierApp. Set it in the primary checkout and run again."
+    }
+    Write-Host "azd environment: complete ($($required.Count) required keys present)."
+}
+
+function Copy-AzdEnvironment {
+    # The folder's contents, so a reused worktree's copy is refreshed rather
+    # than nested inside itself; the dotfile .env goes with the rest.
+    param([Parameter(Mandatory)][string] $Source, [Parameter(Mandatory)][string] $Target)
+    if (-not (Test-Path -LiteralPath $Source)) { throw "The $releaseEnvironment azd environment is unavailable at $Source." }
+    New-Item -ItemType Directory -Force -Path $Target | Out-Null
+    Copy-Item -Recurse -Force -Path (Join-Path $Source '*') -Destination $Target
+}
+
 # --- Azure writes --------------------------------------------------------------
 
+# The record skeleton's rows, in the order they were observed. The approved
+# run persists them beside the manifest after every row and reads them back
+# when it resumes, so a release finished by a second run of the same line
+# still prints its containment, restore point and migration (#1945).
 $script:record = [ordered]@{}
+$script:recordPath = ''
+
+function Set-RecordValue {
+    param([Parameter(Mandatory)][string] $Key, [Parameter(Mandatory)][AllowEmptyString()][string] $Value)
+    $script:record[$Key] = $Value
+    if ($script:recordPath) {
+        ConvertTo-Json -InputObject $script:record -Depth 2 | Set-Content -LiteralPath $script:recordPath -Encoding utf8NoBOM
+    }
+}
+
+function Read-RecordFile {
+    # An earlier run's rows, in their order; this run's rows overwrite a key
+    # they share.
+    param([Parameter(Mandatory)][string] $Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return }
+    $saved = Get-Content -Raw -LiteralPath $Path | ConvertFrom-Json
+    foreach ($property in $saved.PSObject.Properties) { $script:record[$property.Name] = [string]$property.Value }
+    Write-Host "Record: $($script:record.Count) row(s) read back from the earlier run of this release ($Path)."
+}
 
 function Set-WorkerCensus {
     # Every member of the canonical Disabled census, to one value.
@@ -546,7 +607,7 @@ function Invoke-FullSmoke {
         '-SubscriptionId', $subscriptionId, '-ExpectedWorkerActivation', 'approved-live-worker')
     if ($ClassifierPresent) { $arguments += @('-ExpectedClassifierState', 'Running') }
     Invoke-ReleaseScript -Root $Root -Name 'Invoke-ProductionSmoke.ps1' -Arguments $arguments -Failure 'Exact release smoke failed.'
-    $script:record['Smoke'] = "passed at $([DateTimeOffset]::UtcNow.ToString('HH:mm:ss'))Z"
+    Set-RecordValue 'Smoke' ("passed at $([DateTimeOffset]::UtcNow.ToString('HH:mm:ss'))Z")
 }
 
 function Publish-Web {
@@ -560,17 +621,30 @@ function Publish-Web {
         '--restart', $Restart.ToString().ToLowerInvariant())
     if (-not $Restart) { $arguments += @('--track-status', 'false') }
     $json = Invoke-Az -Failure 'Web package deployment failed.' -Arguments ($arguments + @('--output', 'json'))
-    $script:record['Web deployment'] = Get-DeploymentId $json
+    Set-RecordValue 'Web deployment' (Get-DeploymentId $json)
 }
 
 function Publish-FunctionApp {
     # Never azd deploy worker: it invokes a remote Oryx build against an
     # already-published package.
+    #
+    # For a Flex Consumption app the CLI reports the deployment id only as a
+    # warning on stderr ('... for deployment id "<guid>"'); its stdout is the
+    # status poll's dictionary, which carried no id on Releases 1.0.0 and
+    # 2.0.0 (#1932). Both streams are read: the lines go to the host as they
+    # always did, and the id comes from the JSON when it has one, else from
+    # that warning.
     param([Parameter(Mandatory)][string] $Name, [Parameter(Mandatory)][string] $PackagePath, [Parameter(Mandatory)][string] $Label)
-    $json = Invoke-Az -Failure "$Label deployment failed." -Arguments @(
-        'functionapp', 'deployment', 'source', 'config-zip', '--subscription', $subscriptionId,
-        '--resource-group', $resourceGroup, '--name', $Name, '--src', $PackagePath, '--output', 'json')
-    $script:record["$Label deployment"] = Get-DeploymentId $json
+    $lines = @(& az functionapp deployment source config-zip --subscription $subscriptionId `
+        --resource-group $resourceGroup --name $Name --src $PackagePath --output json 2>&1 | ForEach-Object { "$_" })
+    $lines | ForEach-Object { Write-Host $_ }
+    if ($LASTEXITCODE -ne 0) { throw "$Label deployment failed." }
+    $id = Get-DeploymentId (($lines | Where-Object { $_ -notmatch '^(WARNING|ERROR):' }) -join "`n")
+    if ($id -eq '(not reported)') {
+        $reported = @($lines | ForEach-Object { if ($_ -match 'deployment id "?([^"\s]+)"?') { $Matches[1] } })
+        if ($reported.Count -gt 0) { $id = $reported[0] }
+    }
+    Set-RecordValue "$Label deployment" $id
 }
 
 function Stop-FunctionApp {
@@ -608,9 +682,16 @@ function Invoke-Provision {
     # Sets both activations, gates with PreProvision against the observed live
     # Worker, and provisions once. Provision changes settings, never the
     # served bytes.
+    #
+    # -NoState: azd compares the template and parameters with its stored
+    # deployment state and skips a provision that shows no change. The
+    # destructive route writes the Worker Disabled census outside Bicep, so
+    # that comparison cannot see the drift and left the census disabled on
+    # Releases 134, 136 and 2.0.0 (#1857); --no-state applies the template.
     param(
         [Parameter(Mandatory)][string] $Root,
-        [Parameter(Mandatory)][ValidateSet('disabled', 'approved-live-worker')][string] $ExpectedLiveWorkerActivation
+        [Parameter(Mandatory)][ValidateSet('disabled', 'approved-live-worker')][string] $ExpectedLiveWorkerActivation,
+        [switch] $NoState
     )
     Assert-AzdEnvironment -Values (Get-AzdValues -Root $Root)
     Push-Location $Root
@@ -627,8 +708,10 @@ function Invoke-Provision {
     Push-Location $Root
     try {
         $started = [DateTimeOffset]::UtcNow
-        Invoke-Azd -Failure 'azd provision failed.' -Arguments @('provision', '-e', $releaseEnvironment, '--no-prompt') | ForEach-Object { Write-Host $_ }
-        $script:record['Provision'] = "azd provision succeeded in $([int]([DateTimeOffset]::UtcNow - $started).TotalSeconds) s"
+        $arguments = @('provision', '-e', $releaseEnvironment, '--no-prompt')
+        if ($NoState) { $arguments += '--no-state' }
+        Invoke-Azd -Failure 'azd provision failed.' -Arguments $arguments | ForEach-Object { Write-Host $_ }
+        Set-RecordValue 'Provision' ("azd provision$(if ($NoState) { ' --no-state' }) succeeded in $([int]([DateTimeOffset]::UtcNow - $started).TotalSeconds) s")
     }
     finally {
         Pop-Location
@@ -701,7 +784,7 @@ function Invoke-Migration {
         '--server', $sqlServer, '--name', $values['AZURE_SQL_DATABASE_NAME'],
         '--query', 'earliestRestoreDate', '--output', 'tsv')) -join '').Trim()
     if ([string]::IsNullOrWhiteSpace($earliestRestore)) { throw 'The database reported no earliestRestoreDate. Nothing starts.' }
-    $script:record['Restore point'] = "$([DateTimeOffset]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss'))Z before SQL; earliestRestoreDate $earliestRestore"
+    Set-RecordValue 'Restore point' ("$([DateTimeOffset]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss'))Z before SQL; earliestRestoreDate $earliestRestore")
     Write-Host "Restore point recorded: $($script:record['Restore point'])"
 
     $bundlePath = Join-Path (Split-Path -Parent $script:manifestPath) $Manifest.migrationBundleName
@@ -719,7 +802,7 @@ function Invoke-Migration {
     if ($head -cne [string]$Manifest.migrationIdentity) {
         throw "The live migration head is $head, not the manifest's $($Manifest.migrationIdentity). Nothing starts."
     }
-    $script:record['Migration'] = "head $head"
+    Set-RecordValue 'Migration' ("head $head")
     Write-Host "Migration head read back $head."
 }
 
@@ -751,7 +834,7 @@ function Invoke-Promotion {
             Invoke-Git -Failure "Push of the tag $tagName failed." -Arguments @('push', 'origin', "refs/tags/$tagName") | ForEach-Object { Write-Host $_ }
             if ((Get-RemoteTagSha -Name $tagName) -cne $Sha) { throw "Remote read-back of $tagName does not equal the released SHA." }
             Write-Host "$tagName reads back $Sha; main already read it."
-            $script:record['Source'] = "$Sha, promoted after the smoke; main and $tagName read it back"
+            Set-RecordValue 'Source' ("$Sha, promoted after the smoke; main and $tagName read it back")
             return
         }
         # A resumed run: dev may have moved on since the promotion.
@@ -771,7 +854,7 @@ function Invoke-Promotion {
         if ($promotedMain -cne $Sha) { throw 'Remote read-back of main does not equal the released SHA.' }
         if ((Get-RemoteTagSha -Name $tagName) -cne $Sha) { throw "Remote read-back of $tagName does not equal the released SHA." }
         Write-Host "main and $tagName read back $Sha after the smoke."
-        $script:record['Source'] = "$Sha, promoted from $mainSha after the smoke; main and $tagName read it back"
+        Set-RecordValue 'Source' ("$Sha, promoted from $mainSha after the smoke; main and $tagName read it back")
         return
     }
     if ($devSha -cne $Sha) { throw "origin/dev is at $devSha, not the approved $Sha. Obtain a fresh approval for the current head." }
@@ -782,7 +865,7 @@ function Invoke-Promotion {
     $promotedDev = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
     if ($promotedMain -cne $Sha -or $promotedDev -cne $Sha) { throw 'Remote read-back does not equal the approved release SHA.' }
     Write-Host "main and dev read back $Sha."
-    $script:record['Source'] = "$Sha, promoted from $mainSha; main and dev read it back"
+    Set-RecordValue 'Source' ("$Sha, promoted from $mainSha; main and dev read it back")
 }
 
 function Assert-DevStillAt {
@@ -957,6 +1040,9 @@ function Invoke-Preflight {
     $head = Read-MigrationHead -Values $values
     $candidateIdentity = Get-CandidateMigrationIdentity -Sha $devSha
     Write-Host "Migration head: $head; candidate identity: $candidateIdentity"
+    # A deployable candidate may be approved with provision, so the approval
+    # is given on an environment read whole here, not first in -Execute (#1931).
+    if ($deployable.Count -gt 0) { Assert-AzdEnvironmentComplete -Values $values -Sha $devSha -ClassifierPresent $classifierPresent }
 
     Write-Host ''
     Write-Host '--- Route ---'
@@ -1030,11 +1116,7 @@ function New-ReleaseWorktree {
     }
     $head = (& git -C $root rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0 -or $head -cne $Sha) { throw "The release worktree at $root is not at $Sha." }
-    # The folder's contents, so a reused worktree's copy is refreshed rather
-    # than nested inside itself.
-    $environmentTarget = Join-Path $root ".azure/$releaseEnvironment"
-    New-Item -ItemType Directory -Force -Path $environmentTarget | Out-Null
-    Copy-Item -Recurse -Force -Path (Join-Path $environmentSource '*') -Destination $environmentTarget
+    Copy-AzdEnvironment -Source $environmentSource -Target (Join-Path $root ".azure/$releaseEnvironment")
     if (@(& git -C $root status --porcelain).Count -ne 0) { throw "The release worktree at $root is not clean." }
     return $root
 }
@@ -1101,7 +1183,7 @@ function Invoke-NormalRoute {
         Invoke-Migration -Root $Root -Manifest $Manifest
     }
     else {
-        $script:record['Migration'] = "none (head $head)"
+        Set-RecordValue 'Migration' ("none (head $head)")
     }
     # The Worker is expected live and approved, as before any normal release:
     # a census disabled on purpose is refused, not quietly re-enabled.
@@ -1123,7 +1205,7 @@ function Invoke-NormalRoute {
             Invoke-Provision -Root $Root -ExpectedLiveWorkerActivation 'approved-live-worker'
         }
         else {
-            $script:record['Provision'] = 'not run (no infra change, azd environment unchanged)'
+            Set-RecordValue 'Provision' ('not run (no infra change, azd environment unchanged)')
         }
         Publish-Web -PackagePath $WebPackagePath -Restart $true
         Wait-PegasusExpectedWebSite -ExpectedSourceRevision $ApprovedReleaseSha -ExpectedVersion $Version
@@ -1168,6 +1250,13 @@ function Invoke-DestructiveRoute {
         }
         default { throw "The Web App reports state '$($site.state)'." }
     }
+    if ($stage -in @('deploy-web', 'activated') -and -not $script:record.Contains('Migration')) {
+        # The migration ran in an earlier run whose record was not kept (a
+        # run before #1945, or a record file removed by hand): the head read
+        # now is what the record can still say.
+        if ($stage -eq 'activated') { $head = Read-MigrationHead -Values (Get-AzdValues -Root $Root) }
+        Set-RecordValue 'Migration' ("head $head, applied before this run")
+    }
 
     if ($stage -eq 'contain') {
         Set-WorkerCensus -Value 'true'
@@ -1181,7 +1270,7 @@ function Invoke-DestructiveRoute {
         Invoke-Az -Failure "Unable to stop $webApp." -Arguments @('webapp', 'stop', '--subscription', $subscriptionId, '--resource-group', $resourceGroup, '--name', $webApp, '--output', 'none') | Out-Null
         Wait-WebStopped
         Write-Host 'Web App read back Stopped and unserved.'
-        $script:record['Containment'] = "classifier$(if (-not $classifierPresent) { ' (absent)' }), Worker and Web stopped and read back at $([DateTimeOffset]::UtcNow.ToString('HH:mm:ss'))Z"
+        Set-RecordValue 'Containment' ("classifier$(if (-not $classifierPresent) { ' (absent)' }), Worker and Web stopped and read back at $([DateTimeOffset]::UtcNow.ToString('HH:mm:ss'))Z")
         $stage = 'migrate'
     }
 
@@ -1207,7 +1296,7 @@ function Invoke-DestructiveRoute {
         # 2026): the new Worker bytes were staged before SQL, so enabling the
         # census here starts nothing but the approved release. A resumed run
         # may find the census already enabled by the run before it.
-        Invoke-Provision -Root $Root -ExpectedLiveWorkerActivation (Get-LiveWorkerActivation)
+        Invoke-Provision -Root $Root -ExpectedLiveWorkerActivation (Get-LiveWorkerActivation) -NoState
         Invoke-Az -Failure 'Web App start failed.' -Arguments @('webapp', 'start', '--subscription', $subscriptionId, '--resource-group', $resourceGroup, '--name', $webApp, '--output', 'none') | Out-Null
         Wait-PegasusExpectedWebSite -ExpectedSourceRevision $ApprovedReleaseSha -ExpectedVersion $Version
         $stage = 'activated'
@@ -1242,8 +1331,10 @@ function Complete-Release {
     # The hash of the environment as this release left it, after its own
     # azd env set and provision, so the next preflight compares like with like.
     Set-Content -LiteralPath (Join-Path $retained 'azd-env.sha256') -Value (Get-AzdEnvironmentHash -Root $RepositoryRoot) -Encoding ascii
+    # The record went across with the packages; its last rows land there.
+    $script:recordPath = Join-Path $retained 'release-record.json'
     Invoke-Git -Failure 'Unable to remove the release worktree; remove it by hand.' -Arguments @('worktree', 'remove', '--force', $Root) | Out-Null
-    $script:record['Evidence'] = "artifacts/releases/release-$Version-$($ApprovedReleaseSha.Substring(0, 8))"
+    Set-RecordValue 'Evidence' ("artifacts/releases/release-$Version-$($ApprovedReleaseSha.Substring(0, 8))")
 }
 
 function Write-Record {
@@ -1299,8 +1390,17 @@ switch ($PSCmdlet.ParameterSetName) {
         $head = (& git -C $root rev-parse HEAD).Trim()
         if ($LASTEXITCODE -ne 0 -or $head -cne $ApprovedReleaseSha) { throw "The release worktree at $root is not at the approved SHA." }
         if (@(& git -C $root status --porcelain).Count -ne 0) { throw "The release worktree at $root is not clean." }
+        # The worktree's copy of the azd environment is the one every read and
+        # the provision use; it is refreshed from the primary checkout so a
+        # repair made between the two runs is what this run reads (#1930).
+        $environmentSource = Join-Path $RepositoryRoot ".azure/$releaseEnvironment"
+        $environmentTarget = Join-Path $root ".azure/$releaseEnvironment"
+        Copy-AzdEnvironment -Source $environmentSource -Target $environmentTarget
+        Write-Host "azd environment: refreshed into $environmentTarget from $environmentSource."
         $script:manifestPath = Join-Path $root "artifacts/releases/$Version/release-manifest.json"
         if (-not (Test-Path -LiteralPath $script:manifestPath -PathType Leaf)) { throw "No manifest at ${script:manifestPath}: run the read-only run with -Version $Version first." }
+        $script:recordPath = Join-Path (Split-Path -Parent $script:manifestPath) 'release-record.json'
+        Read-RecordFile -Path $script:recordPath
         $actualManifestSha256 = (Get-FileHash -LiteralPath $script:manifestPath -Algorithm SHA256).Hash
         if (-not $actualManifestSha256.Equals($ApprovedManifestSha256, [StringComparison]::OrdinalIgnoreCase)) {
             throw 'The built manifest does not match the approved SHA-256.'
@@ -1312,7 +1412,7 @@ switch ($PSCmdlet.ParameterSetName) {
             '-Mode', 'PreDeploy', '-ManifestPath', $script:manifestPath, '-ManifestSha256', $ApprovedManifestSha256)
         $webPackagePath = Join-Path $root "artifacts/releases/$Version/web.zip"
         $webPackageSha256 = [string]@($manifest.artifacts | Where-Object name -eq 'web.zip')[0].sha256
-        $script:record['Packages'] = "manifest $($actualManifestSha256.ToUpperInvariant()); " + (@($manifest.artifacts | ForEach-Object { "$($_.name) $($_.sha256)" }) -join '; ')
+        Set-RecordValue 'Packages' ("manifest $($actualManifestSha256.ToUpperInvariant()); " + (@($manifest.artifacts | ForEach-Object { "$($_.name) $($_.sha256)" }) -join '; '))
 
         # R567 and R684: the approval named dev's head, and the instance must
         # be serving it; both are read before any write. A resumed run (the
@@ -1329,6 +1429,9 @@ switch ($PSCmdlet.ParameterSetName) {
         # never a waiver.
         $checks = Read-CandidateChecks -MainSha (@(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()) -DevSha $ApprovedReleaseSha
         if ($checks.NotGreen -gt 0) { throw "$($checks.NotGreen) run(s) on the candidate are not green: the candidate waits; nothing is waived (R691)." }
+        # The same completeness the preflight required, on the refreshed copy,
+        # before any write (#1931).
+        Assert-AzdEnvironmentComplete -Values (Get-AzdValues -Root $root) -Sha $ApprovedReleaseSha -ClassifierPresent (Test-ClassifierPresent)
         if ($Route -eq 'Destructive') {
             # The route's preconditions are read before any write, so a
             # refusal writes nothing anywhere.
