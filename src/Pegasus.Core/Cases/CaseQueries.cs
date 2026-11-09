@@ -773,11 +773,18 @@ public sealed class GetCasePageFrame(
     public async Task<CasePageFrame?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
     {
         CaseSectionQueries.Validate(query);
-        // The two reads need only the Case id and work, and each opens its own
-        // context, so they run together. A missing Case is a quiet null from
-        // the frame whatever the data read returned.
+        // A caller that already holds the Case's data as the Case now stands
+        // (the save's own projection, answering the commit it just made) hands
+        // it in and the data read is skipped (#1951); it is used only while the
+        // frame shows the same version and state, so a write that landed in
+        // between is read, not papered over. Otherwise the two reads need only
+        // the Case id and work, and each opens its own context, so they run
+        // together. A missing Case is a quiet null from the frame whatever the
+        // data read returned.
         var frameRead = store.GetPageFrameAsync(query.CaseId, query.Work, cancellationToken);
-        var dataRead = caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken);
+        var dataRead = query.Data is null
+            ? caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
+            : Task.FromResult<CaseDataProjection?>(query.Data);
         try
         {
             // Both reads end before this method does, so neither outlives the
@@ -796,7 +803,13 @@ public sealed class GetCasePageFrame(
             return null;
         }
 
-        var data = dataRead.Result
+        var read = dataRead.Result;
+        if (query.Data is { } known
+            && (known.Version != frame.Frame.Workflow.Version || known.State != frame.Frame.Workflow.State))
+        {
+            read = await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken);
+        }
+        var data = read
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         return new(
             frame.Frame,

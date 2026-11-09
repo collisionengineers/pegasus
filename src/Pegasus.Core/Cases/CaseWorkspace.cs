@@ -361,6 +361,15 @@ public sealed record SaveCaseWorkspaceRequest(
 {
     public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
 
+    /// <summary>
+    /// The save is a commit of the holder's open edit session (FRD-16): the
+    /// lease it is made under is kept and renewed and its next token comes back
+    /// in <see cref="SaveCaseWorkspaceResult.SessionLease"/>, so the page
+    /// claims nothing after it (R761). Only the Case page's Save sets it; a
+    /// one-command or Automation write leaves it false.
+    /// </summary>
+    public bool ContinuesSession { get; init; }
+
     public CaseWorkspaceOverview? Overview { get; init; }
 
     public CaseWorkspaceInspection? Inspection { get; init; }
@@ -407,7 +416,20 @@ public sealed record SaveCaseWorkspaceResult(
     public CaseCompletenessProjection Completeness => Data.Completeness;
 
     public IReadOnlyList<AssessmentReadinessItem> Readiness => Assessment.Readiness;
+
+    /// <summary>
+    /// The lease a session save kept (<see cref="SaveCaseWorkspaceRequest.ContinuesSession"/>):
+    /// null when the save did not ask to continue the session, or when a replay
+    /// found the caller no longer holding the lease.
+    /// </summary>
+    public CaseSessionLease? SessionLease { get; init; }
 }
+
+/// <summary>
+/// The lease a session save kept: the next token the page sends and when the
+/// renewed lease lapses (R761).
+/// </summary>
+public sealed record CaseSessionLease(string Token, DateTimeOffset ExpiresAtUtc);
 
 public interface ICaseWorkspaceStore
 {
@@ -443,10 +465,12 @@ public sealed class SaveCaseWorkspace(
         CancellationToken cancellationToken)
     {
         var normalized = CaseWorkspacePolicy.ValidateAndNormalize(request);
-        IReadOnlyList<SignOffEngineerProfile>? signOffProfiles = null;
+        // The store classifies the report's freshness against the eligible
+        // sign-off Engineers on every save; the list read here is the kept one
+        // (#1950), so the store need not read it again under its lock.
+        var signOffProfiles = await _staffAccounts.ListSignOffEngineersAsync(cancellationToken);
         if (normalized.Report?.SignOffEngineerId is { } signOffEngineerId)
         {
-            signOffProfiles = await _staffAccounts.ListSignOffEngineersAsync(cancellationToken);
             CaseSignOffEngineerResolver.RequireEligible(signOffProfiles, signOffEngineerId);
         }
 

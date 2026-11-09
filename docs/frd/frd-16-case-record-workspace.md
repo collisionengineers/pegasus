@@ -211,8 +211,10 @@ Damage plan and its list, the Valuation calculator and cards, the Report
 wording blocks — when focus leaves it or after a short pause. Each save is
 the one Save command (operator, 23 September 2026): it records the Case
 fields, the Repair Spec, the guide cards and the valuation calculation as
-they are, under one version, and the session keeps its lease. The Repair
-Spec and the Valuation calculator have no save of their own. A commit
+they are, under one version, and the session keeps its lease: the save
+renews it and issues the token the next save sends inside its own
+transaction, and nothing is claimed afterwards (R761, 8 November 2026). The
+Repair Spec and the Valuation calculator have no save of their own. A commit
 carries every Repair Spec line, so the page accepts a form sized for a spec
 at its line ceiling
 ([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications);

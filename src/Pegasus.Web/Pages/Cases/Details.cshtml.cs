@@ -1235,14 +1235,17 @@ public sealed partial class DetailsModel(
         Guid id,
         ActionActor actor,
         CaseWorkSelector work,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        CaseDataProjection? knownData = null)
     {
         using var firstReads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
         var frameRead = firstReads.Start(async token =>
         {
             using (DocumentReadTelemetry.Start("web.case.frame"))
             {
-                return await getCasePageFrame.ExecuteAsync(new(id, actor, Work: work), token);
+                // A commit's answer hands in the data the save itself projected,
+                // so the frame reads one row less (#1951).
+                return await getCasePageFrame.ExecuteAsync(new(id, actor, Data: knownData, Work: work), token);
             }
         });
         var workspaceRead = firstReads.Start(async token =>
@@ -2317,6 +2320,7 @@ public sealed partial class DetailsModel(
         string? bankError = null;
         string? saveError = null;
         string? savedEstimate = null;
+        CaseDataProjection? savedData = null;
         var result = await ExecuteCaseCommandAsync(
             id,
             editLeaseToken,
@@ -2558,6 +2562,9 @@ public sealed partial class DetailsModel(
                     workspaceSave = await saveCaseWorkspace.ExecuteAsync(new(id, expectedVersion, actor, operationKey, reason, editLeaseToken)
                     {
                         Work = work,
+                        // Save as you go: the session's lease is kept and its
+                        // next token issued inside the save (R761).
+                        ContinuesSession = true,
                         Valuation = guideValuations.Count == 0 && adoption is null && valuationFields.Count == 0
                             ? null
                             : new(guideValuations, adoption, valuationFields.Count == 0 ? null : valuationFields),
@@ -2625,6 +2632,11 @@ public sealed partial class DetailsModel(
                     throw;
                 }
                 RecordEditorCommit("case-edit-form", operationKey, expectedVersion, workspaceSave.Version);
+                savedData = workspaceSave.Data;
+                if (workspaceSave.SessionLease is { } keptLease)
+                {
+                    ContinueSession(keptLease.Token);
+                }
                 if (workspaceSave.Estimate is { } writtenEstimate)
                 {
                     savedEstimate = writtenEstimate.SpecificationId.ToString("D");
@@ -2652,8 +2664,10 @@ public sealed partial class DetailsModel(
             },
             "Case saved.",
             // Save as you go (operator, 29 September 2026): every save is a
-            // commit of the open edit session, so the lease the save consumed
-            // is claimed again and the page keeps editing. Done releases it.
+            // commit of the open edit session and the page keeps editing. The
+            // save keeps the lease and issues its next token itself (R761);
+            // the reclaim stays for a replay that handed no lease back. Done
+            // releases it.
             caseId => RedirectToSection(caseId, section, savedEstimate),
             keepEditing: true);
 
@@ -2673,7 +2687,7 @@ public sealed partial class DetailsModel(
 
         // The command ran (a refusal redirects too); only Forbid has nothing to answer.
         return AnswersInPlace && result is RedirectToPageResult
-            ? await AnswerCommitAsync(id, section, preparationEdits is { Length: > 0 }, result, cancellationToken)
+            ? await AnswerCommitAsync(id, section, preparationEdits is { Length: > 0 }, savedData, result, cancellationToken)
             : result;
     }
 

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
@@ -363,8 +364,9 @@ internal sealed class CaseMutationGuard
 
     /// <summary>
     /// Ends the request to edit, whatever its state. Done and a claim that changes the holder
-    /// clear it; the holder's own save, which ends and re-claims the lease, leaves it standing
-    /// (R550, 30 October 2026).
+    /// clear it; the holder's own work in the session leaves it standing: a Case save keeps the
+    /// lease (R761), and an action that ends and re-claims it keeps the same holder (R550, 30
+    /// October 2026).
     /// </summary>
     public static void ClearRequest(CaseWorkflowEntity workflow)
     {
@@ -439,6 +441,62 @@ internal sealed class CaseMutationGuard
         {
             ClearLease(workflow);
         }
+    }
+
+    /// <summary>
+    /// Completes a Case save as <see cref="CaseEditAuthority.WriteContinuesSession"/> says: the
+    /// version advances, and either the lease ends (<see cref="EndWriteLease"/>) or it is kept,
+    /// renewed as a heartbeat renews it, and its next token issued here, inside the save's own
+    /// transaction, so the holder's page carries on without a claim (R761). Returns the kept lease,
+    /// or null when the lease ended.
+    /// </summary>
+    public static CaseSessionLease? CompleteSessionWrite(
+        CaseWorkflowEntity workflow,
+        bool continuesSession,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        Advance(workflow);
+        var leavesCaseTerminal = Enum.TryParse<CaseLifecycleState>(workflow.State, out var state)
+            && CaseLifecycleRules.IsTerminal(state);
+        if (CaseEditAuthority.WriteContinuesSession(
+                RetainedHolderKind(workflow.EditLeaseHolderKind), continuesSession, leavesCaseTerminal))
+        {
+            return IssueLeaseToken(workflow, nowUtc);
+        }
+
+        EndWriteLease(workflow);
+        return null;
+    }
+
+    /// <summary>
+    /// Mints the lease's next token on the retained row: 64 hexadecimal characters, its hash, and
+    /// an expiry of <see cref="CaseEditAuthority.LeaseDuration"/> from now. The one place a token
+    /// is issued, for a claim, a hand-over and a session save alike; the holder, kind, operation
+    /// key, request hash and generation are the caller's to set or keep.
+    /// </summary>
+    public static CaseSessionLease IssueLeaseToken(CaseWorkflowEntity workflow, DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+        var expiresAtUtc = nowUtc + CaseEditAuthority.LeaseDuration;
+        workflow.EditLeaseToken = token;
+        workflow.EditLeaseTokenHash = CaseOperationReplay.Hash(token);
+        workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
+        return new CaseSessionLease(token, expiresAtUtc);
+    }
+
+    /// <summary>
+    /// The retained plaintext token, only when it is the one the retained hash proves; anything
+    /// else is unreadable and is never handed back.
+    /// </summary>
+    public static string? RetainedLeaseToken(CaseWorkflowEntity workflow)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        return workflow.EditLeaseToken is { Length: CaseEditAuthority.LeaseTokenLength } token
+            && MatchesRetainedHash(workflow.EditLeaseTokenHash, token)
+                ? token
+                : null;
     }
 
     /// <summary>
