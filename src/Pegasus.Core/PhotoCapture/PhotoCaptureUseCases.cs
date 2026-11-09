@@ -412,9 +412,10 @@ public sealed class ReceivePhotoCaptureItem(
         }
 
         var item = write.Item!;
-        if (write.Write == PhotoCaptureItemWrite.Created || item.StagedReceiptId is null)
+        var received = write.Write == PhotoCaptureItemWrite.Created || item.StagedReceiptId is null;
+        if (received)
         {
-            var received = await intake.ReceiveStreamedAsync(
+            var receivedIntake = await intake.ReceiveStreamedAsync(
                 new Intake.StreamedIntakeSource(
                     item.FileName,
                     request.MediaType,
@@ -427,12 +428,12 @@ public sealed class ReceivePhotoCaptureItem(
                     PhotoCaptureStory.DeclaredDocumentType(request.Kind, request.MediaType)),
                 $"photo-capture-item:{item.Id:N}",
                 cancellationToken);
-            await captures.RecordItemReceiptAsync(item.Id, received.StagedReceiptId, cancellationToken);
-            await intake.PublishCommittedAsync(received, cancellationToken);
-            item = item with { StagedReceiptId = received.StagedReceiptId };
+            await captures.RecordItemReceiptAsync(item.Id, receivedIntake.StagedReceiptId, cancellationToken);
+            await intake.PublishCommittedAsync(receivedIntake, cancellationToken);
+            item = item with { StagedReceiptId = receivedIntake.StagedReceiptId };
         }
 
-        var count = capture.AcceptedItemCount + (write.Write == PhotoCaptureItemWrite.Created ? 1 : 0);
+        var count = capture.AcceptedItemCount + (received ? 1 : 0);
         return new(write.Write, item, count);
     }
 
@@ -509,7 +510,9 @@ public sealed class CompletePhotoCapture(
 
         var trimmed = PhotoCaptureText.Note(note) ?? capture.Note;
         var updated = await captures.RecordSentAsync(capture.Id, trimmed, now, cancellationToken);
-        var items = await captures.ListItemsAsync(capture.Id, cancellationToken);
+        var items = (await captures.ListItemsAsync(capture.Id, cancellationToken))
+            .Where(item => item.StagedReceiptId is not null)
+            .ToArray();
         var missing = PhotoCaptureRequiredItems.Evaluate(
             updated,
             items,

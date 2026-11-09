@@ -149,7 +149,9 @@ public sealed class CaptureContextFactory(
     public async Task<CaptureContext> ForCaptureAsync(CaptureRecord capture, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(capture);
-        var items = await captures.ListItemsAsync(capture.Id, cancellationToken);
+        var items = (await captures.ListItemsAsync(capture.Id, cancellationToken))
+            .Where(item => item.StagedReceiptId is not null)
+            .ToArray();
         var link = capture.StandingLinkId is { } linkId
             ? await standingLinks.GetAsync(linkId, cancellationToken)
             : null;
@@ -229,7 +231,7 @@ public sealed class CaptureContextFactory(
                 details.Steering,
                 details.MarkedAreas);
 
-    private static CaptureCountsView Counts(IReadOnlyList<PhotoCaptureItem> items)
+    private static CaptureCountsView Counts(PhotoCaptureItem[] items)
     {
         var byKind = CaptureCodes.AllKinds.ToDictionary(code => code, _ => 0, StringComparer.Ordinal);
         foreach (var item in items)
@@ -250,6 +252,6 @@ public sealed class CaptureContextFactory(
             .ThenBy(group => group.Key.Stage)
             .Select(group => new CaptureDamageCount(group.Key.Area, CaptureCodes.Stage(group.Key.Stage), group.Count()))
             .ToArray();
-        return new(items.Count, byKind, overviewPositions, damage);
+        return new(items.Length, byKind, overviewPositions, damage);
     }
 }

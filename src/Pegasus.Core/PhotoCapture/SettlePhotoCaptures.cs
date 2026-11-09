@@ -81,7 +81,11 @@ public sealed class SettlePhotoCaptures(
     {
         var capture = pending.Capture;
         var batch = capture.CurrentBatch;
-        var items = pending.Items.Where(item => item.Batch == batch).OrderBy(item => item.Ordinal).ToArray();
+        // An item whose upload never completed (no staged receipt) is not a photo the capture holds.
+        var items = pending.Items
+            .Where(item => item.Batch == batch && item.StagedReceiptId is not null)
+            .OrderBy(item => item.Ordinal)
+            .ToArray();
         if (items.Length > 0 && !await captures.AllItemsProcessedAsync(capture.Id, batch, cancellationToken))
         {
             // A photo is still being processed; the next tick settles.

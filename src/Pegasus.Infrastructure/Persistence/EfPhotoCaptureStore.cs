@@ -252,8 +252,10 @@ public sealed class EfPhotoCaptureStore(
             ReceivedAtUtc = item.ReceivedAtUtc
         };
         context.PhotoCaptureItems.Add(entity);
-        capture.AcceptedItemCount++;
-        capture.AcceptedBytes += item.ContentLength;
+        // The row counts bound what a link may add; what it has received
+        // (AcceptedItemCount, AcceptedBytes, first and last item) is counted
+        // when the item's receipt lands (RecordItemReceiptAsync), so an upload
+        // that failed after its row was written is not a photo the Case has.
         switch (CapKind(item.Kind))
         {
             case ItemCap.Video:
@@ -265,12 +267,6 @@ public sealed class EfPhotoCaptureStore(
             default:
                 capture.PhotoCount++;
                 break;
-        }
-
-        capture.FirstItemAtUtc ??= item.ReceivedAtUtc;
-        if (capture.LastItemAtUtc is null || capture.LastItemAtUtc < item.ReceivedAtUtc)
-        {
-            capture.LastItemAtUtc = item.ReceivedAtUtc;
         }
 
         capture.Version++;
@@ -326,6 +322,27 @@ public sealed class EfPhotoCaptureStore(
         var item = await context.PhotoCaptureItems
             .SingleOrDefaultAsync(value => value.Id == itemId, cancellationToken)
             ?? throw new KeyNotFoundException("The photo link item was not found.");
+        if (item.StagedReceiptId is null)
+        {
+            // The item is received now: the capture's accepted count, bytes
+            // and item times move with the receipt, not the row.
+            await context.Database.ExecuteSqlAsync(
+                $"SELECT 1 FROM [PhotoCaptures] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {item.CaptureId}",
+                cancellationToken);
+            var capture = await context.PhotoCaptures
+                .SingleOrDefaultAsync(value => value.Id == item.CaptureId, cancellationToken)
+                ?? throw new KeyNotFoundException("The photo link was not found.");
+            capture.AcceptedItemCount++;
+            capture.AcceptedBytes += item.ContentLength;
+            capture.FirstItemAtUtc ??= item.ReceivedAtUtc;
+            if (capture.LastItemAtUtc is null || capture.LastItemAtUtc < item.ReceivedAtUtc)
+            {
+                capture.LastItemAtUtc = item.ReceivedAtUtc;
+            }
+
+            capture.Version++;
+        }
+
         item.StagedReceiptId = stagedReceiptId;
         await context.SaveChangesAsync(cancellationToken);
         var processedReceiptId = await context.IntakeWorkItems.AsNoTracking()
@@ -581,8 +598,11 @@ public sealed class EfPhotoCaptureStore(
     public async Task<bool> AllItemsProcessedAsync(Guid captureId, int batch, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // An item whose upload never completed has no staged receipt and is
+        // not waited for; a received item waits for its evaluation.
         return !await context.PhotoCaptureItems.AnyAsync(
-            item => item.CaptureId == captureId && item.Batch == batch && item.IntakeReceiptId == null,
+            item => item.CaptureId == captureId && item.Batch == batch
+                && item.StagedReceiptId != null && item.IntakeReceiptId == null,
             cancellationToken);
     }
 

@@ -73,7 +73,9 @@ public sealed class SettlePhotoCapturesTests
             sentAtUtc: Now);
         var first = Item(PhotoCaptureItemKind.Overview, 1, ordinal: 0, intakeReceiptId: Guid.NewGuid()) with { StagedReceiptId = Staged1 };
         var second = Item(PhotoCaptureItemKind.Video, 1, ordinal: 1, intakeReceiptId: Guid.NewGuid()) with { StagedReceiptId = Staged2 };
-        harness.Captures.Pending.Add(new(capture, [second, first]));
+        // An upload that never completed leaves a row with no receipt: not a photo the capture holds.
+        var dangling = Item(PhotoCaptureItemKind.Damage, 1, "fd", PhotoCaptureStage.Overview, ordinal: 2) with { StagedReceiptId = null };
+        harness.Captures.Pending.Add(new(capture, [second, first, dangling]));
 
         var result = await harness.Settle().ExecuteAsync(50, CancellationToken.None);
 
