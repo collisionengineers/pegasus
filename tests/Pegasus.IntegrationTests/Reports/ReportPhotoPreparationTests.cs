@@ -340,7 +340,7 @@ public sealed class ReportPhotoPreparationTests
                     }
                     if (index == 1)
                     {
-                        await thirdOpened.Task.WaitAsync(TimeSpan.FromSeconds(30));
+                        await thirdOpened.Task.WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
                     }
                     await Task.Delay(20, CancellationToken.None);
                     Interlocked.Decrement(ref running);
