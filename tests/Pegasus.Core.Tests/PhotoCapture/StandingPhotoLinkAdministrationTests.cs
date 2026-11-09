@@ -9,13 +9,15 @@ namespace Pegasus.Core.Tests.PhotoCapture;
 /// R774, R780) have one owner: a contact gets one link and the website one,
 /// each with the defaults a new link takes; every change needs the contacts
 /// right; a change over a stale read is the store's typed refusal. A link
-/// whose contact is deactivated starts nothing (R796).
+/// whose contact is deactivated starts nothing and a retired one never again
+/// (R796); the website's address is the one the Administrator typed (R797).
 /// </summary>
 public sealed class StandingPhotoLinkAdministrationTests
 {
     private static readonly ActionActor Administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
     private static readonly ActionActor Engineer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
     private static readonly Guid Bodyshop = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000001");
+    private const string WebsiteSlug = "collision-photos";
 
     [Fact]
     public async Task AContactsLinkIsCreatedWithTheDefaultsAndASlugOfItsOwn()
@@ -43,12 +45,12 @@ public sealed class StandingPhotoLinkAdministrationTests
         var store = new FakeStandingLinks();
         var administration = new StandingPhotoLinkAdministration(store, new FixedClock(Now));
         await administration.CreateForContactAsync(Administrator, Bodyshop, CancellationToken.None);
-        var website = await administration.CreateWebsiteAsync(Administrator, CancellationToken.None);
+        var website = await administration.CreateWebsiteAsync(Administrator, WebsiteSlug, CancellationToken.None);
 
         var second = await Assert.ThrowsAsync<StandingPhotoLinkException>(
             () => administration.CreateForContactAsync(Administrator, Bodyshop, CancellationToken.None));
         var secondWebsite = await Assert.ThrowsAsync<StandingPhotoLinkException>(
-            () => administration.CreateWebsiteAsync(Administrator, CancellationToken.None));
+            () => administration.CreateWebsiteAsync(Administrator, "another-address", CancellationToken.None));
 
         Assert.Equal(StandingPhotoLinkError.AlreadyExists, second.Error);
         Assert.Equal(StandingPhotoLinkError.AlreadyExists, secondWebsite.Error);
@@ -68,11 +70,13 @@ public sealed class StandingPhotoLinkAdministrationTests
         await Assert.ThrowsAsync<StaffAuthorizationException>(
             () => administration.CreateForContactAsync(Engineer, Guid.NewGuid(), CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(
-            () => administration.CreateWebsiteAsync(Engineer, CancellationToken.None));
+            () => administration.CreateWebsiteAsync(Engineer, WebsiteSlug, CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(
             () => administration.PauseAsync(Engineer, link.Id, link.Version, CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(
-            () => administration.ReplaceAsync(Engineer, link.Id, link.Version, CancellationToken.None));
+            () => administration.ReplaceAsync(Engineer, link.Id, link.Version, typedSlug: null, CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(
+            () => administration.RetireAsync(Engineer, link.Id, link.Version, CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(
             () => administration.UpdateDefaultsAsync(
                 Engineer, link.Id, link.Version, PhotoCaptureMode.Quick, false, 3, false, CancellationToken.None));
@@ -99,7 +103,7 @@ public sealed class StandingPhotoLinkAdministrationTests
         var resumed = await administration.ResumeAsync(Administrator, created.Id, paused.Version, CancellationToken.None);
         Assert.True(resumed.IsActive);
 
-        var replaced = await administration.ReplaceAsync(Administrator, created.Id, resumed.Version, CancellationToken.None);
+        var replaced = await administration.ReplaceAsync(Administrator, created.Id, resumed.Version, typedSlug: null, CancellationToken.None);
         Assert.NotEqual(created.Slug, replaced.Slug);
         Assert.True(PhotoLinkToken.HasSlugShape(replaced.Slug));
         Assert.Equal(4, replaced.Version);
@@ -126,6 +130,91 @@ public sealed class StandingPhotoLinkAdministrationTests
         Assert.Equal(14, updated.LinkLifetimeDays);
         Assert.False(updated.OriginalsInBackground);
         Assert.Equal(2, updated.Version);
+    }
+
+    [Fact]
+    public async Task TheWebsiteLinkTakesTheSlugTheAdministratorTyped()
+    {
+        var store = new FakeStandingLinks();
+        var administration = new StandingPhotoLinkAdministration(store, new FixedClock(Now));
+
+        var website = await administration.CreateWebsiteAsync(Administrator, " Collision-Photos ", CancellationToken.None);
+
+        Assert.Equal(StandingPhotoLinkKind.Website, website.Kind);
+        Assert.Equal(WebsiteSlug, website.Slug);
+    }
+
+    [Fact]
+    public async Task AWebsiteSlugOfTheWrongShapeOrAlreadyInUseIsRefusedBeforeAnyWrite()
+    {
+        var store = new FakeStandingLinks();
+        var administration = new StandingPhotoLinkAdministration(store, new FixedClock(Now));
+        var contact = await administration.CreateForContactAsync(Administrator, Bodyshop, CancellationToken.None);
+        var writes = store.Writes;
+
+        var missing = await Assert.ThrowsAsync<StandingPhotoLinkException>(
+            () => administration.CreateWebsiteAsync(Administrator, null, CancellationToken.None));
+        var tooShort = await Assert.ThrowsAsync<StandingPhotoLinkException>(
+            () => administration.CreateWebsiteAsync(Administrator, "photo", CancellationToken.None));
+        var badCharacters = await Assert.ThrowsAsync<StandingPhotoLinkException>(
+            () => administration.CreateWebsiteAsync(Administrator, "collision photos", CancellationToken.None));
+        var taken = await Assert.ThrowsAsync<StandingPhotoLinkException>(
+            () => administration.CreateWebsiteAsync(Administrator, contact.Slug, CancellationToken.None));
+
+        Assert.Equal(StandingPhotoLinkError.InvalidSlug, missing.Error);
+        Assert.Equal(StandingPhotoLinkError.InvalidSlug, tooShort.Error);
+        Assert.Equal(StandingPhotoLinkError.InvalidSlug, badCharacters.Error);
+        Assert.Equal(StandingPhotoLinkError.SlugTaken, taken.Error);
+        Assert.Equal(writes, store.Writes);
+    }
+
+    [Fact]
+    public async Task ReplacingTheWebsiteLinkTakesTheNewTypedSlug()
+    {
+        var store = new FakeStandingLinks();
+        var administration = new StandingPhotoLinkAdministration(store, new FixedClock(Now));
+        var website = await administration.CreateWebsiteAsync(Administrator, WebsiteSlug, CancellationToken.None);
+        var contact = await administration.CreateForContactAsync(Administrator, Bodyshop, CancellationToken.None);
+
+        var same = await Assert.ThrowsAsync<StandingPhotoLinkException>(
+            () => administration.ReplaceAsync(Administrator, website.Id, website.Version, WebsiteSlug, CancellationToken.None));
+        var invalid = await Assert.ThrowsAsync<StandingPhotoLinkException>(
+            () => administration.ReplaceAsync(Administrator, website.Id, website.Version, typedSlug: null, CancellationToken.None));
+        var replaced = await administration.ReplaceAsync(Administrator, website.Id, website.Version, "photos-for-us", CancellationToken.None);
+        // A contact's slug is always made by Pegasus, whatever is typed.
+        var contactReplaced = await administration.ReplaceAsync(Administrator, contact.Id, contact.Version, "photos-for-them", CancellationToken.None);
+
+        Assert.Equal(StandingPhotoLinkError.SlugTaken, same.Error);
+        Assert.Equal(StandingPhotoLinkError.InvalidSlug, invalid.Error);
+        Assert.Equal("photos-for-us", replaced.Slug);
+        Assert.Equal(PhotoLinkToken.SlugLength, contactReplaced.Slug.Length);
+        Assert.NotEqual(contact.Slug, contactReplaced.Slug);
+    }
+
+    [Fact]
+    public async Task ARetiredLinkStopsAndTheContactMayHaveANewOne()
+    {
+        var store = new FakeStandingLinks();
+        var clock = new FixedClock(Now);
+        var administration = new StandingPhotoLinkAdministration(store, clock);
+        var created = await administration.CreateForContactAsync(Administrator, Bodyshop, CancellationToken.None);
+        // No capture store is given: a slug that resolved would never reach it.
+        var access = new PhotoCaptureAccess(null!, store, clock);
+
+        var stale = await Assert.ThrowsAsync<StandingPhotoLinkException>(
+            () => administration.RetireAsync(Administrator, created.Id, created.Version + 1, CancellationToken.None));
+        var retired = await administration.RetireAsync(Administrator, created.Id, created.Version, CancellationToken.None);
+        var resumed = await administration.ResumeAsync(Administrator, created.Id, retired.Version, CancellationToken.None);
+        var replacement = await administration.CreateForContactAsync(Administrator, Bodyshop, CancellationToken.None);
+
+        Assert.Equal(StandingPhotoLinkError.StaleVersion, stale.Error);
+        Assert.Equal(Now, retired.RetiredAtUtc);
+        Assert.False(retired.StartsCaptures);
+        Assert.False(resumed.IsActive);
+        Assert.False((await access.ResolveSlugAsync(created.Slug, CancellationToken.None)).IsAvailable);
+        Assert.NotEqual(created.Id, replacement.Id);
+        Assert.NotEqual(created.Slug, replacement.Slug);
+        Assert.True((await access.ResolveSlugAsync(replacement.Slug, CancellationToken.None)).IsAvailable);
     }
 
     [Fact]
@@ -220,6 +309,9 @@ public sealed class StandingPhotoLinkAdministrationTests
 
         public Task<StandingPhotoLink> SetPausedAsync(Guid id, long expectedVersion, DateTimeOffset? pausedAtUtc, CancellationToken cancellationToken) =>
             Update(id, expectedVersion, link => link with { PausedAtUtc = pausedAtUtc });
+
+        public Task<StandingPhotoLink> SetRetiredAsync(Guid id, long expectedVersion, DateTimeOffset retiredAtUtc, CancellationToken cancellationToken) =>
+            Update(id, expectedVersion, link => link with { RetiredAtUtc = link.RetiredAtUtc ?? retiredAtUtc });
 
         public Task<StandingPhotoLink> ReplaceSlugAsync(Guid id, long expectedVersion, string newSlug, DateTimeOffset replacedAtUtc, CancellationToken cancellationToken) =>
             Update(id, expectedVersion, link => link with { Slug = newSlug });

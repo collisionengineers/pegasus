@@ -50,10 +50,12 @@ domain is a separate operator decision (EXT-19 stays retired).
 - **Standing-link slugs are not secrets.** `/s/{slug}` only starts a
   capture, which gets a token of its own; it never takes a photo. A
   contact's slug is 12 Crockford base32 characters and the website's is
-  readable. A slug is stored as it is, can be paused or replaced, and is
-  bounded by its daily cap of captures started.
-- **One answer for every unavailable link.** Unknown, expired, revoked and
-  paused credentials get the same page and the same 404, so a guesser learns
+  the readable one an Administrator types (R797). A slug is stored as it
+  is, can be paused, replaced or retired (R796), and is bounded by its daily
+  cap of captures started.
+- **One answer for every unavailable link.** Unknown, expired, revoked,
+  paused and retired credentials, and a standing link whose contact is
+  inactive (R796), get the same page and the same 404, so a guesser learns
   nothing. Opened is recorded on the first API call, never on a page fetch,
   because link previews fetch pages.
 - **Same origin now.** The surface is served by the Web host on its own

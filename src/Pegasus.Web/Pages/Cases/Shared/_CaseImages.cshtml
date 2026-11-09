@@ -308,6 +308,20 @@ else
             {
                 var capture = story.Capture;
                 <section class="photo-story-capture" data-photo-capture-story="@capture.Id" aria-label="@OperatorLabels.PhotoCapture.PhotoLink">
+                    @if (Model.IsPhotoLinkLive(capture))
+                    {
+                        @* Cancel beside the photo link (R795): the link page's own act and
+                           refusal, back to this Case's Files in the view it was asked from. *@
+                        var cancelReturn = Pegasus.Core.Notifications.StaffNotificationPolicy.CaseRoute(workflow.CaseId, "files")
+                            + (Model.ViewRoute is { } cancelView ? "&view=" + cancelView : string.Empty);
+                        <div class="button-row">
+                            <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Cancel" asp-route-id="@capture.Id">
+                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                <input type="hidden" name="returnUrl" value="@cancelReturn" />
+                                <button type="submit" class="btn btn--small btn--danger" data-busy-label="@OperatorLabels.Busy.Revoking">@OperatorLabels.PhotoCapture.CancelLink</button>
+                            </form>
+                        </div>
+                    }
                     <partial name="Shared/_PhotoCaptureDetails" model="capture" />
                     @foreach (var group in PhotoCaptureStoryView.Groups(story.Items, capture.Details.MarkedAreas))
                     {

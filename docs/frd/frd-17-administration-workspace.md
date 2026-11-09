@@ -120,8 +120,8 @@ script, with Replace code in the head of the Contact tab
 ([v41 A3](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 There is no Principal settings panel. A Principal, Claim Source or Repairer
 contact's page also has a **Photo links** tab: the standing URL, its QR code,
-Copy, Pause or Resume, Replace link and the link's defaults (operator,
-9 November 2026; R774;
+Copy, Pause or Resume, Replace link, Retire link (operator, 9 November
+2026; R796) and the link's defaults (operator, 9 November 2026; R774;
 [FRD-28](frd-28-guided-photo-capture.md#standing-photo-links)). It is absent
 while `Features:PhotoCapture` is off.
 A panel's save returns to its tab with its notice inside the panel; a refused

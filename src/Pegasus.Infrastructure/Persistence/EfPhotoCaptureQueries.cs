@@ -104,6 +104,37 @@ public sealed class EfPhotoCaptureQueries(
             .ToDictionary(group => group.Key, group => group.Count());
     }
 
+    public async Task<IReadOnlyList<PhotoLinkAct>> ListHistoryAsync(Guid captureId, CancellationToken cancellationToken)
+    {
+        var aggregateId = captureId.ToString("D");
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == EfPhotoCaptureStore.HistoryAggregateType && item.AggregateId == aggregateId)
+            .OrderBy(item => item.OccurredAtUtc)
+            .ThenBy(item => item.Id)
+            .Select(item => new { item.EventKind, item.OccurredAtUtc, item.ActorSubjectId })
+            .ToListAsync(cancellationToken);
+        if (rows.Count == 0)
+        {
+            return [];
+        }
+
+        var staffIds = rows
+            .Select(row => Guid.TryParse(row.ActorSubjectId, out var staffId) ? staffId : Guid.Empty)
+            .Where(staffId => staffId != Guid.Empty)
+            .Distinct()
+            .ToArray();
+        var names = staffIds.Length == 0
+            ? new Dictionary<Guid, string>()
+            : await staffAccounts.GetNamesAsync(staffIds, cancellationToken);
+        return rows
+            .Select(row => new PhotoLinkAct(
+                row.EventKind,
+                row.OccurredAtUtc,
+                Guid.TryParse(row.ActorSubjectId, out var staffId) && names.TryGetValue(staffId, out var name) ? name : null))
+            .ToArray();
+    }
+
     private sealed record EvaluatedRow(PhotoCaptureListRow Row, PhotoCaptureState State);
 
     private async Task<IReadOnlyList<EvaluatedRow>> EvaluateTabAsync(

@@ -254,8 +254,20 @@
                                             <span>@OperatorLabels.PhotoCapture.ReplaceLink</span>
                                         </button>
                                     </form>
+                                    <button type="button" class="btn btn--small btn--danger" data-dialog-open="retire-photo-link">@OperatorLabels.PhotoCapture.RetireLink</button>
                                 </div>
                             </div>
+                        </div>
+                        @* Retire ends the link for good (R796): confirmed, since it cannot be undone. *@
+                        <div class="dialog-backdrop" data-dialog="retire-photo-link" hidden>
+                            <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="retire-photo-link-title">
+                                <div class="dialog-head"><h2 id="retire-photo-link-title" tabindex="-1" data-dialog-initial-focus>@OperatorLabels.PhotoCapture.RetireLink</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button></div>
+                                <form method="post" asp-page-handler="RetirePhotoLink" asp-route-id="@Model.ContactId">
+                                    <div class="dialog-body"><p>@OperatorLabels.PhotoCapture.RetireLinkConfirmation</p></div>
+                                    <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                    <div class="dialog-foot"><button class="btn" type="button" data-dialog-close>Cancel</button><button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Working">@OperatorLabels.PhotoCapture.RetireLink</button></div>
+                                </form>
+                            </section>
                         </div>
                     }
                     else
@@ -287,26 +299,7 @@
                     <div class="panel-head"><h2 id="photo-link-defaults-title">@OperatorLabels.PhotoCapture.DefaultsForTheirLinks</h2></div>
                     <form method="post" asp-page-handler="UpdatePhotoLinkDefaults" asp-route-id="@Model.ContactId" class="panel-body stack contact-editor">
                         <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
-                        <fieldset class="field fieldset-plain">
-                            <legend>@OperatorLabels.PhotoCapture.PhotoGuidance</legend>
-                            <div class="cluster">
-                                @foreach (var mode in Enum.GetValues<Pegasus.Core.PhotoCapture.PhotoCaptureMode>())
-                                {
-                                    <label class="choice"><input type="radio" name="LinkForwardedMode" value="@mode" checked="@(Model.LinkForwardedMode == mode)" /> <span>@OperatorLabels.PhotoCapture.Mode(mode)</span></label>
-                                }
-                            </div>
-                        </fieldset>
-                        <label class="choice"><input asp-for="LinkLiveCameraOnly" /> <span>@OperatorLabels.PhotoCapture.LiveCameraOnly</span></label>
-                        <div class="field field--narrow">
-                            <label asp-for="LinkLifetimeDays">@OperatorLabels.PhotoCapture.LinksLast</label>
-                            <select asp-for="LinkLifetimeDays">
-                                @foreach (var days in Pegasus.Core.PhotoCapture.CaptureLimits.LifetimeDays)
-                                {
-                                    <option value="@days" selected="@(Model.LinkLifetimeDays == days)">@OperatorLabels.PhotoCapture.Days(days)</option>
-                                }
-                            </select>
-                        </div>
-                        <label class="choice"><input asp-for="LinkOriginalsInBackground" /> <span>@OperatorLabels.PhotoCapture.FullSizeOriginals</span></label>
+                        <partial name="Shared/_PhotoLinkDefaults" model="@((standing, true))" />
                         <div class="button-row"><a asp-page="Index" class="btn">Cancel</a><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
                     </form>
                 </section>

@@ -204,31 +204,43 @@
                                     }
                                 </td>
                                 <td>@(row.Due?.Label ?? Labels.None)</td>
-                                <td class="nowrap">
-                                    @if (row.Due is not null && row.IsLive)
-                                    {
-                                        <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Remind" asp-route-id="@capture.Id">
-                                            <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
-                                            <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Sending">@Labels.Remind</button>
-                                        </form>
-                                    }
-                                    else if (row.State == PhotoCaptureState.NeedsCall)
-                                    {
-                                        <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="LogCall" asp-route-id="@capture.Id">
-                                            <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Logging">@Labels.LogCall</button>
-                                        </form>
-                                    }
-                                    else if (row.State is PhotoCaptureState.SentNotOpened or PhotoCaptureState.Opened)
-                                    {
-                                        <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Resend" asp-route-id="@capture.Id">
-                                            <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
-                                            <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Sending">@Labels.Resend</button>
-                                        </form>
-                                    }
-                                    else if (capture.AcceptedItemCount > 0 && photosHref is not null)
-                                    {
-                                        <a class="btn btn--small" href="@photosHref">@Labels.ViewPhotos</a>
-                                    }
+                                <td class="row-actions">
+                                    <span class="cluster">
+                                        @if (row.Due is not null && row.IsLive)
+                                        {
+                                            <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Remind" asp-route-id="@capture.Id">
+                                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                                <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Sending">@Labels.Remind</button>
+                                            </form>
+                                        }
+                                        else if (row.State == PhotoCaptureState.NeedsCall)
+                                        {
+                                            <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="LogCall" asp-route-id="@capture.Id">
+                                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                                <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Logging">@Labels.LogCall</button>
+                                            </form>
+                                        }
+                                        else if (row.State is PhotoCaptureState.SentNotOpened or PhotoCaptureState.Opened)
+                                        {
+                                            <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Resend" asp-route-id="@capture.Id">
+                                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                                <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Sending">@Labels.Resend</button>
+                                            </form>
+                                        }
+                                        else if (capture.AcceptedItemCount > 0 && photosHref is not null)
+                                        {
+                                            <a class="btn btn--small" href="@photosHref">@Labels.ViewPhotos</a>
+                                        }
+                                        @if (row.IsLive)
+                                        {
+                                            @* Cancel on each live row (R795): the link page's own act and refusal, back to this list. *@
+                                            <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Cancel" asp-route-id="@capture.Id">
+                                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                                <input type="hidden" name="returnUrl" value="@Model.Href()" />
+                                                <button type="submit" class="btn btn--small btn--danger" data-busy-label="@OperatorLabels.Busy.Revoking">@Labels.CancelLink</button>
+                                            </form>
+                                        }
+                                    </span>
                                 </td>
                             </tr>
                         }
@@ -339,7 +351,7 @@
 @if (Model.IsAdministrator && !Model.IsUnavailable)
 {
     @* The one website link for private customers, managed by Administrators
-       here (R780). *@
+       here at the address they type, with its defaults (R797). *@
     <section class="panel photo-link-panel" id="website-link" aria-labelledby="website-link-title">
         <div class="panel-head">
             <h2 id="website-link-title">@Labels.WebsiteLink</h2>
@@ -348,7 +360,7 @@
                 <partial name="Shared/_StatusChip" model="@(chipLink.IsActive ? Labels.Active : Labels.Paused)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = chipLink.IsActive ? "green" : "amber" }' />
             }
         </div>
-        <div class="panel-body">
+        <div class="panel-body stack">
             @if (Model.WebsiteLink is { } link && Model.WebsiteUrl is { } url)
             {
                 <div class="photo-link-standing">
@@ -372,20 +384,43 @@
                                     <span>@(link.IsActive ? OperatorLabels.PhotoCapture.PauseTheirLink : OperatorLabels.PhotoCapture.ResumeTheirLink)</span>
                                 </button>
                             </form>
-                            <form method="post" asp-page-handler="ReplaceWebsiteLink" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)">
-                                <input type="hidden" name="ExpectedVersion" value="@link.Version" />
-                                <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Replacing">
-                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-cw")" /></svg>
-                                    <span>@Labels.ReplaceLink</span>
-                                </button>
-                            </form>
+                            <button type="button" class="btn btn--small btn--danger" data-dialog-open="retire-website-link">@Labels.RetireLink</button>
                         </div>
+                        @* Replace gives the link the address typed here; Pegasus never makes one up (R797). *@
+                        <form method="post" asp-page-handler="ReplaceWebsiteLink" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)" class="photo-link-box">
+                            <input type="hidden" name="ExpectedVersion" value="@link.Version" />
+                            <span class="mono muted">@Model.WebsiteAddressPrefix</span>
+                            <input type="text" name="WebsiteSlug" aria-labelledby="website-link-title" autocomplete="off" spellcheck="false" maxlength="@Pegasus.Core.PhotoCapture.PhotoLinkToken.MaximumSlugLength" required />
+                            <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Replacing">
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-cw")" /></svg>
+                                <span>@Labels.ReplaceLink</span>
+                            </button>
+                        </form>
                     </div>
+                </div>
+                <form method="post" asp-page-handler="UpdateWebsiteLinkDefaults" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)" class="stack contact-editor">
+                    <input type="hidden" name="ExpectedVersion" value="@link.Version" />
+                    <partial name="Shared/_PhotoLinkDefaults" model="@((link, false))" />
+                    <div class="button-row"><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
+                </form>
+                @* Retire ends the link for good (R796): confirmed, since it cannot be undone. *@
+                <div class="dialog-backdrop" data-dialog="retire-website-link" hidden>
+                    <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="retire-website-link-title">
+                        <div class="dialog-head"><h2 id="retire-website-link-title" tabindex="-1" data-dialog-initial-focus>@Labels.RetireLink</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button></div>
+                        <form method="post" asp-page-handler="RetireWebsiteLink" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)">
+                            <div class="dialog-body"><p>@Labels.RetireLinkConfirmation</p></div>
+                            <input type="hidden" name="ExpectedVersion" value="@link.Version" />
+                            <div class="dialog-foot"><button class="btn" type="button" data-dialog-close>Cancel</button><button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Working">@Labels.RetireLink</button></div>
+                        </form>
+                    </section>
                 </div>
             }
             else
             {
-                <form method="post" asp-page-handler="CreateWebsiteLink" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)">
+                @* The Administrator types the website's address (R797). *@
+                <form method="post" asp-page-handler="CreateWebsiteLink" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)" class="photo-link-box">
+                    <span class="mono muted">@Model.WebsiteAddressPrefix</span>
+                    <input type="text" name="WebsiteSlug" aria-labelledby="website-link-title" autocomplete="off" spellcheck="false" maxlength="@Pegasus.Core.PhotoCapture.PhotoLinkToken.MaximumSlugLength" required />
                     <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Creating">
                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
                         <span>@Labels.CreateTheWebsiteLink</span>

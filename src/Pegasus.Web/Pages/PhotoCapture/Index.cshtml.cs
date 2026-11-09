@@ -18,7 +18,7 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// HQ sent from a Case. The left pane is the tab's headline states with their
 /// queried counts, as the Cases list's scopes are; the list is one query
 /// (<see cref="IPhotoCaptureQueries.ListAsync"/>), newest first. Below the
-/// list an Administrator manages the one website link (R780).
+/// list an Administrator manages the one website link (R797).
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -62,6 +62,20 @@ public sealed class IndexModel(
     [BindProperty]
     public long ExpectedVersion { get; set; }
 
+    /// <summary>The website link's address as the Administrator typed it, on Create and Replace (R797).</summary>
+    [BindProperty]
+    public string? WebsiteSlug { get; set; }
+
+    // The website link's defaults (R797); its mode stays guided.
+    [BindProperty]
+    public bool LinkLiveCameraOnly { get; set; }
+
+    [BindProperty]
+    public int LinkLifetimeDays { get; set; }
+
+    [BindProperty]
+    public bool LinkOriginalsInBackground { get; set; }
+
     [TempData]
     public string? Notice { get; set; }
 
@@ -94,6 +108,9 @@ public sealed class IndexModel(
     public string? WebsiteUrl => WebsiteLink is { } link ? PhotoLinkMail.StandingUrl(options.Value, link.Slug) : null;
 
     public string? WebsiteQrSvg => WebsiteUrl is { } url ? PhotoLinkQr.Svg(url) : null;
+
+    /// <summary>What every standing address starts with, shown before the box the Administrator types the website's into.</summary>
+    public string WebsiteAddressPrefix => new Uri(options.Value.PublicOrigin, "s/").AbsoluteUri;
 
     public bool HasPreviousPage => CurrentPage > 1;
 
@@ -213,9 +230,9 @@ public sealed class IndexModel(
         };
     }
 
-    // The website link (R780): Administrators create, pause, resume and
-    // replace it here. Its defaults are a contact link's; the website starts
-    // guided captures.
+    // The website link (R797): Administrators create it at the address they
+    // type, pause, resume, replace it with a newly typed address, retire it
+    // and set its defaults here. It starts guided captures.
     public Task<IActionResult> OnPostCreateWebsiteLinkAsync(CancellationToken cancellationToken) =>
         ChangeWebsiteLinkAsync("create", cancellationToken);
 
@@ -227,6 +244,12 @@ public sealed class IndexModel(
 
     public Task<IActionResult> OnPostReplaceWebsiteLinkAsync(CancellationToken cancellationToken) =>
         ChangeWebsiteLinkAsync("replace", cancellationToken);
+
+    public Task<IActionResult> OnPostRetireWebsiteLinkAsync(CancellationToken cancellationToken) =>
+        ChangeWebsiteLinkAsync("retire", cancellationToken);
+
+    public Task<IActionResult> OnPostUpdateWebsiteLinkDefaultsAsync(CancellationToken cancellationToken) =>
+        ChangeWebsiteLinkAsync("defaults", cancellationToken);
 
     /// <summary>The website link's QR code as a file to print.</summary>
     public async Task<IActionResult> OnGetWebsiteQrAsync(CancellationToken cancellationToken)
@@ -268,7 +291,7 @@ public sealed class IndexModel(
             switch (action)
             {
                 case "create":
-                    await administration.CreateWebsiteAsync(actor, cancellationToken);
+                    await administration.CreateWebsiteAsync(actor, WebsiteSlug, cancellationToken);
                     break;
                 case "pause":
                     await administration.PauseAsync(actor, link!.Id, ExpectedVersion, cancellationToken);
@@ -277,7 +300,22 @@ public sealed class IndexModel(
                     await administration.ResumeAsync(actor, link!.Id, ExpectedVersion, cancellationToken);
                     break;
                 case "replace":
-                    await administration.ReplaceAsync(actor, link!.Id, ExpectedVersion, cancellationToken);
+                    await administration.ReplaceAsync(actor, link!.Id, ExpectedVersion, WebsiteSlug, cancellationToken);
+                    break;
+                case "retire":
+                    await administration.RetireAsync(actor, link!.Id, ExpectedVersion, cancellationToken);
+                    break;
+                case "defaults":
+                    await administration.UpdateDefaultsAsync(
+                        actor,
+                        link!.Id,
+                        ExpectedVersion,
+                        link.ForwardedMode,
+                        LinkLiveCameraOnly,
+                        LinkLifetimeDays,
+                        LinkOriginalsInBackground,
+                        cancellationToken);
+                    Notice = Labels.Saved;
                     break;
                 default:
                     return BadRequest();
@@ -297,6 +335,8 @@ public sealed class IndexModel(
         }
         catch (StandingPhotoLinkException)
         {
+            // A stale read, and a typed address of the wrong shape or already
+            // in use, which have no words of their own yet.
             Refusal = OperatorLabels.ActionNotApplied;
         }
 

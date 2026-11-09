@@ -50,12 +50,14 @@
         @if (Model.OffersLogCall)
         {
             <form method="post" asp-page-handler="LogCall" asp-route-id="@capture.Id">
+                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                 <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Logging">@Labels.LogCall</button>
             </form>
         }
         @if (Model.OffersExtend)
         {
             <form method="post" asp-page-handler="Extend" asp-route-id="@capture.Id" class="cluster">
+                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                 <label class="sr-only" for="photo-link-extend-days">@Labels.LinkLasts</label>
                 <select id="photo-link-extend-days" name="Days">
                     @foreach (var days in CaptureLimits.LifetimeDays)
@@ -69,6 +71,7 @@
         @if (Model.OffersCancel)
         {
             <form method="post" asp-page-handler="Cancel" asp-route-id="@capture.Id">
+                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                 <button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Revoking">@Labels.CancelLink</button>
             </form>
         }

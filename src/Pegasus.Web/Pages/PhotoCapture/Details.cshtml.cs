@@ -57,6 +57,9 @@ public sealed class DetailsModel(
 
     public IReadOnlyList<PhotoCaptureStoryGroup> Story { get; private set; } = [];
 
+    /// <summary>The staff acts on the link, each naming who did it (R805).</summary>
+    public IReadOnlyList<PhotoLinkAct> Acts { get; private set; } = [];
+
     public PhotoCaptureState State { get; private set; }
 
     public DueCaptureReminder? Due { get; private set; }
@@ -111,9 +114,24 @@ public sealed class DetailsModel(
                 Labels.Reminded,
                 capture.LastRemindedAtUtc,
                 capture.ReminderCount > 1 ? capture.ReminderCount.ToString(System.Globalization.CultureInfo.InvariantCulture) : null);
-            Add(Labels.CallLoggedAt, capture.CallLoggedAtUtc);
             Add(Labels.Filed, capture.SettledAtUtc);
-            Add(Labels.Cancelled, capture.RevokedAtUtc);
+            // Cancel, Extend and Log call name who acted: "Cancelled · name",
+            // "Link extended · name", "Call logged · name" (R805).
+            foreach (var act in Acts)
+            {
+                var label = act.Kind switch
+                {
+                    PhotoLinkActs.Cancelled => Labels.Cancelled,
+                    PhotoLinkActs.Extended => Labels.LinkExtended,
+                    PhotoLinkActs.CallLogged => Labels.CallLoggedAt,
+                    _ => null
+                };
+                if (label is not null)
+                {
+                    lines.Add(new(label, act.AtUtc, act.ActorName));
+                }
+            }
+
             return [.. lines.OrderBy(line => line.AtUtc)];
         }
     }
@@ -135,17 +153,23 @@ public sealed class DetailsModel(
         ReissueAsync(isReminder: true, cancellationToken);
 
     public Task<IActionResult> OnPostLogCallAsync(CancellationToken cancellationToken) =>
-        ActAsync((actor, token) => actions.LogCallAsync(actor, Id, token), Labels.CallLogged, cancellationToken);
+        ActAsync((actor, token) => actions.LogCallAsync(actor, Id, OperationKey, token), Labels.CallLogged, returnUrl: null, cancellationToken);
 
     public Task<IActionResult> OnPostExtendAsync(CancellationToken cancellationToken) =>
-        ActAsync((actor, token) => actions.ExtendAsync(actor, Id, Days, token), Labels.LinkExtended, cancellationToken);
+        ActAsync((actor, token) => actions.ExtendAsync(actor, Id, Days, OperationKey, token), Labels.LinkExtended, returnUrl: null, cancellationToken);
 
-    public Task<IActionResult> OnPostCancelAsync(CancellationToken cancellationToken) =>
-        ActAsync((actor, token) => actions.RevokeAsync(actor, Id, token), Labels.LinkCancelled, cancellationToken);
+    /// <summary>
+    /// Cancel, from this page, a Links we sent row or the Case page (R795):
+    /// the same act and the same refusal, which this page shows; a success
+    /// goes back to where it was asked from.
+    /// </summary>
+    public Task<IActionResult> OnPostCancelAsync(string? returnUrl, CancellationToken cancellationToken) =>
+        ActAsync((actor, token) => actions.RevokeAsync(actor, Id, OperationKey, token), Labels.LinkCancelled, returnUrl, cancellationToken);
 
     private async Task<IActionResult> ActAsync(
         Func<ActionActor, CancellationToken, Task<CaptureRecord>> act,
         string notice,
+        string? returnUrl,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -172,6 +196,11 @@ public sealed class DetailsModel(
         }
 
         Notice = notice;
+        if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+        {
+            return LocalRedirect(returnUrl);
+        }
+
         return RedirectToPage(new { id = Id });
     }
 
@@ -202,6 +231,7 @@ public sealed class DetailsModel(
                 Id,
                 byEmail ? PhotoLinkTokenPurpose.Email : PhotoLinkTokenPurpose.Copy,
                 isReminder,
+                OperationKey,
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -266,7 +296,8 @@ public sealed class DetailsModel(
     {
         var row = queries.GetRowAsync(Id, cancellationToken);
         var items = captures.ListItemsAsync(Id, cancellationToken);
-        await Task.WhenAll(row, items);
+        var acts = queries.ListHistoryAsync(Id, cancellationToken);
+        await Task.WhenAll(row, items, acts);
         if (row.Result is not { } found)
         {
             return false;
@@ -278,6 +309,7 @@ public sealed class DetailsModel(
         State = derived.State;
         Due = derived.Due;
         Story = PhotoCaptureStoryView.Groups(items.Result, found.Capture.Details.MarkedAreas);
+        Acts = acts.Result;
         return true;
     }
 }

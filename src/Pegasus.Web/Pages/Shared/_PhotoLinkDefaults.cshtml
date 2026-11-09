@@ -1,0 +1,40 @@
+@*
+    A standing link's defaults (FRD-28 Standing photo links): the mode a link
+    sent on to a customer takes, Live camera only, the lifetime and the
+    originals choice. One partial for a contact's Photo links tab and the
+    website link panel, whose mode is fixed guided (R797), so it leaves the
+    mode out. The fields only: each page draws its own form, version and Save.
+
+    Model: the link, and whether the mode is offered.
+*@
+@model (Pegasus.Core.PhotoCapture.StandingPhotoLink Link, bool OffersMode)
+@using Pegasus.Core.PhotoCapture
+@using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture
+@{
+    var link = Model.Link;
+}
+@if (Model.OffersMode)
+{
+    <fieldset class="field fieldset-plain">
+        <legend>@Labels.PhotoGuidance</legend>
+        <div class="cluster">
+            @foreach (var mode in Enum.GetValues<PhotoCaptureMode>())
+            {
+                <label class="choice"><input type="radio" name="LinkForwardedMode" value="@mode" checked="@(link.ForwardedMode == mode)" /> <span>@Labels.Mode(mode)</span></label>
+            }
+        </div>
+    </fieldset>
+}
+<label class="choice"><input type="checkbox" name="LinkLiveCameraOnly" value="true" checked="@link.LiveCameraOnly" /> <span>@Labels.LiveCameraOnly</span></label>
+<input type="hidden" name="LinkLiveCameraOnly" value="false" />
+<div class="field field--narrow">
+    <label for="LinkLifetimeDays">@Labels.LinksLast</label>
+    <select id="LinkLifetimeDays" name="LinkLifetimeDays">
+        @foreach (var days in CaptureLimits.LifetimeDays)
+        {
+            <option value="@days" selected="@(link.LinkLifetimeDays == days)">@Labels.Days(days)</option>
+        }
+    </select>
+</div>
+<label class="choice"><input type="checkbox" name="LinkOriginalsInBackground" value="true" checked="@link.OriginalsInBackground" /> <span>@Labels.FullSizeOriginals</span></label>
+<input type="hidden" name="LinkOriginalsInBackground" value="false" />

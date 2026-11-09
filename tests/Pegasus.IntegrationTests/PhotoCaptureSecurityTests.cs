@@ -418,17 +418,33 @@ public sealed class PhotoCaptureSecurityTests
             DateTimeOffset settledAtUtc,
             CancellationToken cancellationToken) => throw Outside();
 
-        public Task<CaptureRecord> RevokeAsync(Guid captureId, DateTimeOffset revokedAtUtc, CancellationToken cancellationToken) =>
-            throw Outside();
+        public Task<CaptureRecord> RevokeAsync(
+            Guid captureId,
+            ActionActor actor,
+            string operationKey,
+            DateTimeOffset revokedAtUtc,
+            CancellationToken cancellationToken) => throw Outside();
 
-        public Task<CaptureRecord> ExtendAsync(Guid captureId, DateTimeOffset expiresAtUtc, CancellationToken cancellationToken) =>
-            throw Outside();
+        public Task<CaptureRecord> ExtendAsync(
+            Guid captureId,
+            ActionActor actor,
+            string operationKey,
+            DateTimeOffset expiresAtUtc,
+            CancellationToken cancellationToken) => throw Outside();
 
-        public Task<CaptureRecord> RecordReminderAsync(Guid captureId, DateTimeOffset remindedAtUtc, CancellationToken cancellationToken) =>
-            throw Outside();
+        public Task<CaptureRecord> RecordReminderAsync(
+            Guid captureId,
+            ActionActor actor,
+            string operationKey,
+            DateTimeOffset remindedAtUtc,
+            CancellationToken cancellationToken) => throw Outside();
 
-        public Task<CaptureRecord> RecordCallAsync(Guid captureId, DateTimeOffset calledAtUtc, CancellationToken cancellationToken) =>
-            throw Outside();
+        public Task<CaptureRecord> RecordCallAsync(
+            Guid captureId,
+            ActionActor actor,
+            string operationKey,
+            DateTimeOffset calledAtUtc,
+            CancellationToken cancellationToken) => throw Outside();
 
         public Task<IReadOnlyList<PhotoCaptureWithItems>> ListAwaitingSettleAsync(
             DateTimeOffset nowUtc,
@@ -494,6 +510,12 @@ public sealed class PhotoCaptureSecurityTests
             Guid id,
             long expectedVersion,
             DateTimeOffset? pausedAtUtc,
+            CancellationToken cancellationToken) => throw Outside();
+
+        public Task<StandingPhotoLink> SetRetiredAsync(
+            Guid id,
+            long expectedVersion,
+            DateTimeOffset retiredAtUtc,
             CancellationToken cancellationToken) => throw Outside();
 
         public Task<StandingPhotoLink> ReplaceSlugAsync(

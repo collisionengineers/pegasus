@@ -75,6 +75,11 @@ public sealed class EfStandingPhotoLinkStore(
             {
                 await context.SaveChangesAsync(cancellationToken);
             }
+            catch (DbUpdateException exception) when (IsSlugCollision(exception))
+            {
+                // The website's typed slug, taken between Core's check and this write.
+                throw new StandingPhotoLinkException(StandingPhotoLinkError.SlugTaken);
+            }
             catch (DbUpdateException exception) when (IsUniqueIndexCollision(exception))
             {
                 throw new StandingPhotoLinkException(StandingPhotoLinkError.AlreadyExists);
@@ -87,6 +92,10 @@ public sealed class EfStandingPhotoLinkStore(
 
     private static bool IsUniqueIndexCollision(DbUpdateException exception) =>
         exception.GetBaseException() is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 };
+
+    private static bool IsSlugCollision(DbUpdateException exception) =>
+        exception.GetBaseException() is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 } sqlException
+        && sqlException.Message.Contains("IX_StandingPhotoLinks_Slug", StringComparison.OrdinalIgnoreCase);
 
     public Task<StandingPhotoLink> UpdateDefaultsAsync(
         Guid id,
@@ -110,6 +119,13 @@ public sealed class EfStandingPhotoLinkStore(
         DateTimeOffset? pausedAtUtc,
         CancellationToken cancellationToken) =>
         UpdateAsync(id, expectedVersion, entity => entity.PausedAtUtc = pausedAtUtc, cancellationToken);
+
+    public Task<StandingPhotoLink> SetRetiredAsync(
+        Guid id,
+        long expectedVersion,
+        DateTimeOffset retiredAtUtc,
+        CancellationToken cancellationToken) =>
+        UpdateAsync(id, expectedVersion, entity => entity.RetiredAtUtc ??= retiredAtUtc, cancellationToken);
 
     public Task<StandingPhotoLink> ReplaceSlugAsync(
         Guid id,
@@ -290,6 +306,12 @@ public sealed class EfStandingPhotoLinkStore(
                 {
                     // The row moved between the read above and this write.
                     throw new StandingPhotoLinkException(StandingPhotoLinkError.StaleVersion);
+                }
+                catch (DbUpdateException exception) when (IsSlugCollision(exception))
+                {
+                    // A typed slug taken between Core's check and this write;
+                    // retrying the same slug could only collide again.
+                    throw new StandingPhotoLinkException(StandingPhotoLinkError.SlugTaken);
                 }
 
                 return await ReadOneAsync(context, item => item.Id == id, token)
