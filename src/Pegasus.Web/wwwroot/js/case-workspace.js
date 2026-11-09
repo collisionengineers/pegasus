@@ -1796,10 +1796,14 @@
     // A tag or In report can move every image's place (operator, 7 October
     // 2026), so the whole grid is drawn again in the order and with the
     // places the server now holds; staged rotation and crop stay on the form.
+    // A Case with photo links draws its images as the links' story
+    // (FRD-28), one [data-image-story] block in place of the one grid; the
+    // whole block is drawn again, as the grid is.
     function redrawImageTile(parsed, id, focusInReport) {
         var current = document.querySelector('[data-image-tile="' + id + '"]');
-        var grid = current ? current.closest('[data-image-grid]') : null;
-        var nextGrid = parsed.querySelector('[data-image-grid]');
+        var story = current ? current.closest('[data-image-story]') : null;
+        var grid = story || (current ? current.closest('[data-image-grid]') : null);
+        var nextGrid = parsed.querySelector(story ? '[data-image-story]' : '[data-image-grid]');
         if (!grid || !nextGrid || !nextGrid.querySelector('[data-image-tile="' + id + '"]')) { return; }
         if (window.pegasusCasePreparation && window.pegasusCasePreparation.adopt) {
             Array.prototype.forEach.call(nextGrid.querySelectorAll('[data-preparation-card]'), function (tile) {

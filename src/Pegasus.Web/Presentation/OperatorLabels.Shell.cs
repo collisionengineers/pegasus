@@ -25,6 +25,7 @@ public static partial class OperatorLabels
         public const string Inbox = "Inbox";
         public const string Upload = "Upload";
         public const string Cases = "Cases";
+        public const string PhotoCapture = "Photo capture";
         public const string Search = "Search";
         public const string Administration = "Administration";
     }

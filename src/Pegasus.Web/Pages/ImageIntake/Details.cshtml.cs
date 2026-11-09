@@ -23,9 +23,16 @@ public sealed class DetailsModel(
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IGetPreCaseImagePreparations getPreparations,
     Pegasus.Core.Documents.IReadImageTagVocabulary tagVocabulary,
-    Pegasus.Core.Intake.GetRetainedMail? getRetainedMail = null) : StaffPageModel
+    Pegasus.Core.Intake.GetRetainedMail? getRetainedMail = null,
+    Pegasus.Core.PhotoCapture.IPhotoCaptureQueries? photoCaptureQueries = null) : StaffPageModel
 {
     public ImageIntakeDetail Detail { get; private set; } = null!;
+
+    /// <summary>
+    /// The photo links whose photos made this record (FRD-28): read only when
+    /// the record came from the Photo link channel, for its source card.
+    /// </summary>
+    public IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory> PhotoCaptures { get; private set; } = [];
 
     /// <summary>Each image's recorded crop and tags, by its asset (pre-Case crop and tag, v26).</summary>
     public IReadOnlyDictionary<Guid, PreCaseImagePreparation> Preparations { get; private set; } =
@@ -155,6 +162,10 @@ public sealed class DetailsModel(
             : null;
         var triageRead = reads.Start(token => triageQueries.GetByOriginReceiptAsync(
             detail.Record.Origin.ReceiptId, token));
+        var photoCapturesRead = photoCaptureQueries is not null
+            && detail.Record.Origin.SourceIdentity.Channel == IntakeSourceChannel.PhotoCapture
+                ? reads.Start(token => photoCaptureQueries.ListForImageIntakeAsync(id, token))
+                : null;
         var sourceMessageRead = getRetainedMail is not null && hasActor
             ? reads.Start(token => getRetainedMail.FindIdBySourceAsync(
                 actor!, detail.Record.Origin.SourceIdentity, token))
@@ -217,6 +228,10 @@ public sealed class DetailsModel(
         if (sourceMessageRead is not null)
         {
             SourceMessageId = await sourceMessageRead;
+        }
+        if (photoCapturesRead is not null)
+        {
+            PhotoCaptures = await photoCapturesRead;
         }
 
         return Page();

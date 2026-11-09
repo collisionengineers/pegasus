@@ -43,228 +43,330 @@
     // the report shows.
     IHtmlContent? PreparationMetadata(CaseAssetPreparation? item, PreparedReportImage? placed, bool placeFixed, string previewHref) =>
         item is null || !mayPrepareImages ? null : new HtmlString($"""data-preparation-card="" data-preparation-occurrence="{item.OccurrenceId:D}" data-preparation-version="{item.PreparationVersion}" data-preparation-in-report="{(item.InReport ? "true" : "false")}" data-preparation-order="{placed?.Order?.ToString(CultureInfo.InvariantCulture) ?? string.Empty}" data-preparation-fixed="{(placeFixed ? "true" : "false")}" data-preparation-rotation="{(int)item.Rotation}" data-preparation-crop-left="{item.Crop.Left.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-top="{item.Crop.Top.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-width="{item.Crop.Width.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-height="{item.Crop.Height.ToString(CultureInfo.InvariantCulture)}" data-preparation-full-page="{(item.FullPage ? "true" : "false")}" data-preparation-preview="{previewHref}""" + "\"");
+
+    // Photo links (FRD-28; R771): the Case's images stand in each link's
+    // story, matched to their occurrence by the intake asset the occurrence
+    // was filed from; everything else follows under Other images. With a
+    // story there is no one ordered grid, so a tile's report place is typed
+    // in its order box rather than dragged.
+    var stories = Model.PhotoCaptureStories;
+    var imagesByAsset = new Dictionary<Guid, Pegasus.Core.Documents.CaseFile>();
+    foreach (var image in images)
+    {
+        if (Guid.TryParseExact(image.Occurrence.SourceOccurrenceIdentity.Trim(), "N", out var assetId))
+        {
+            imagesByAsset.TryAdd(assetId, image);
+        }
+    }
+    var storyImages = new HashSet<Guid>();
+
+    // A story item drawn among the images: a photograph on the Case, or one
+    // still filing (no intake asset yet). Paperwork and video file as
+    // documents and are not drawn here; a photograph whose image is no longer
+    // on the Case is not drawn either.
+    bool IsStoryImage(Pegasus.Core.PhotoCapture.PhotoCaptureItem item) =>
+        item.MediaType is "image/jpeg" or "image/png"
+        && (item.IntakeAssetId is not { } assetId || imagesByAsset.ContainsKey(assetId));
+
+    // One image tile: the same tile wherever the image stands.
+    async Task Tile(Pegasus.Core.Documents.CaseFile file)
+    {
+        await Task.CompletedTask;
+        var occurrence = file.Occurrence;
+        var version = file.Version;
+        if (version.CustodyStatus != DocumentCustodyStatus.Confirmed)
+        {
+            @* The image is on the Case but its bytes are not readable:
+               still arriving, or storage failed. The tile names the file
+               and its state and offers nothing that would act on content
+               that cannot be read. *@
+            <li class="image-tile" data-image-tile="@occurrence.Id">
+                <span class="gallery-item th th--placeholder" data-gallery-placeholder>
+                    <span class="gallery-caption">
+                        <strong>@version.FileName</strong>
+                        <small>@(version.CustodyStatus == DocumentCustodyStatus.Failed ? FilesLabels.StorageNotReady : OperatorLabels.CustodyState(version.CustodyStatus))</small>
+                    </span>
+                </span>
+            </li>
+            return;
+        }
+
+        var previewHref = Model.PreviewUrl(file);
+        var downloadHref = Model.DownloadUrl(file);
+        var preparation = Model.PreparationFor(occurrence.Id);
+        var thumbnailHref = Model.ThumbnailUrl(file, preparation);
+        var placed = reportImages.GetValueOrDefault(occurrence.Id);
+        var placeFixed = placed is { Role: not CaseAssetReportRole.Supporting };
+        var mayCrop = mayPrepareImages && preparation is not null;
+        var isRotated = preparation is not null && preparation.Rotation != CaseAssetRotation.None;
+        var rotationBadge = isRotated ? ((int)preparation!.Rotation).ToString(CultureInfo.InvariantCulture) + "°" : string.Empty;
+        var firstTag = occurrence.Tags.FirstOrDefault();
+        var visibleTags = occurrence.Tags.Take(TagLabels.VisibleChips).ToArray();
+        var hiddenTagCount = occurrence.Tags.Count - visibleTags.Length;
+        <li class="image-tile@(mayEdit ? " image-tile--tools" : null)" data-image-tile="@occurrence.Id" @PreparationMetadata(preparation, placed, placeFixed, previewHref)>
+            <a href="@previewHref"
+               class="th"
+               data-evidence-item
+               data-download-href="@downloadHref"
+               data-media-type="@version.MediaType"
+               data-file-name="@version.FileName"
+               data-thumb="@thumbnailHref"
+               data-tag="@firstTag?.Name"
+               data-evidence-occurrence="@occurrence.Id"
+               data-evidence-preparation-occurrence="@(mayCrop ? occurrence.Id.ToString() : null)">
+                <img src="@thumbnailHref" alt="@version.FileName" loading="lazy" data-gallery-image />
+                @if (firstTag is not null)
+                {
+                    <span class="tag">@firstTag.Name</span>
+                }
+                <span class="rot" data-tile-rotation hidden="@(isRotated ? null : "hidden")">@rotationBadge</span>
+                <span class="th-name">@version.FileName</span>
+            </a>
+            @if (mayEdit)
+            {
+                @* While editing, the tile's tools are one panel under the
+                   image: the report decision and its order, then one
+                   toolbar. In report is posted at once like a tag
+                   (operator, 26 September 2026); the viewer's In report
+                   box presses it too, and a click on the image opens the
+                   viewer (operator, 7 October 2026). The order, the
+                   drag handle, Rotate and Full page stage into the one
+                   Case form (P41, P50), so they show once the script has
+                   seeded them; without script the form below edits them.
+                   The Overview's and the Close-up's places are their
+                   tags', so their order is read-only and they have no
+                   drag handle. *@
+                <div class="image-tile-panel image-tile-actions">
+                    @if (preparation is not null)
+                    {
+                        <div class="image-tile-row">
+                            @{
+                                if (inReportAction.Length == 0)
+                                {
+                                    inReportAction = Url.Page("/Cases/Custody", "SetImageInReport", new { id = workflow.CaseId })!;
+                                }
+                            }
+                            <form method="post" action="@inReportAction" asp-antiforgery="true"
+                                  data-image-in-report-form="@occurrence.Id" data-document-action>
+                                <input type="hidden" name="id" value="@workflow.CaseId" />
+                                <input type="hidden" name="occurrenceId" value="@occurrence.Id" />
+                                <input type="hidden" name="inReport" value="@(preparation.InReport ? "false" : "true")" />
+                                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                                <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+                                <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                                <input type="hidden" name="view" value="@Model.ViewRoute" />
+                                <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" class="image-tile-toggle" aria-pressed="@(preparation.InReport ? "true" : "false")" data-image-in-report>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(preparation.InReport ? "icon-square-check" : "icon-square")" /></svg>
+                                    <span>@ReportImageLabels.InReport</span>
+                                </button>
+                            </form>
+                            <label class="image-tile-order" title="@ReportImageLabels.Order" data-image-report data-image-order-cell hidden>
+                                <span>@ReportImageLabels.Order</span>
+                                <input class="fi num" type="number" min="1" step="1" value="@placed?.Order" readonly="@placeFixed" data-preparation-order />
+                            </label>
+                        </div>
+                    }
+                    <div class="image-tile-row image-tile-toolbar">
+                        @{
+                            if (tagAction.Length == 0)
+                            {
+                                tagAction = Url.Page("/Cases/Custody", "TagImage", new { id = workflow.CaseId })!;
+                                untagAction = Url.Page("/Cases/Custody", "UntagImage", new { id = workflow.CaseId })!;
+                                createTagAction = Url.Page("/Cases/Custody", "CreateImageTag", new { id = workflow.CaseId })!;
+                            }
+                        }
+                        <partial name="Cases/Shared/_CaseImageTagPicker"
+                                 model="@(new CaseImageTagPickerView(
+                                     workflow.CaseId,
+                                     workflow.Version,
+                                     occurrence.Id,
+                                     leaseToken,
+                                     vocabulary,
+                                     occurrence.Tags,
+                                     tagAction,
+                                     untagAction,
+                                     createTagAction,
+                                     Model.ViewRoute))" />
+                        @if (mayCrop)
+                        {
+                            <button type="button" class="icon-button" data-preparation-crop data-preparation-crop-occurrence="@occurrence.Id" title="@TagLabels.Crop" aria-label="@TagLabels.Crop"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-crop")" /></svg></button>
+                        }
+                        @if (preparation is not null)
+                        {
+                            <span class="image-tile-tools" data-image-report data-image-tools hidden>
+                                <button type="button" class="icon-button" data-preparation-rotate="90" title="@ReportImageLabels.Rotate" aria-label="@ReportImageLabels.Rotate"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-cw")" /></svg></button>
+                                <button type="button" class="icon-button" data-image-full-page hidden="@(preparation.InReport ? null : "hidden")" aria-pressed="@(preparation.FullPage ? "true" : "false")" title="@ReportImageLabels.PrintOnItsOwnPage" aria-label="@ReportImageLabels.PrintOnItsOwnPage"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-image")" /></svg></button>
+                            </span>
+                            @if (!placeFixed)
+                            {
+                                <span class="grip" data-image-report hidden draggable="true" title="@ReportImageLabels.DragToReorder" aria-hidden="true"><svg class="icon"><use href="@IconSprite.Href("icon-grip-vertical")" /></svg></span>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+            @if (occurrence.Tags.Count > 0)
+            {
+                <span class="tag-chips">
+                    @foreach (var tag in visibleTags)
+                    {
+                        <span class="tag-chip tag-chip--@TagLabels.ColourToken(tag.Colour)">@tag.Name</span>
+                    }
+                    @if (hiddenTagCount > 0)
+                    {
+                        <span class="tag-chip tag-chip--more">@TagLabels.MoreChips(hiddenTagCount)</span>
+                    }
+                </span>
+            }
+            @if (!mayEdit)
+            {
+                @* Out of edit mode the tile states, in one line, whether
+                   the report uses the image, its order and Full page. *@
+                <p class="image-tile-status" data-image-report-read>
+                    @if (preparation is { InReport: true })
+                    {
+                        <span class="image-tile-status-in">@ReportImageLabels.InReport</span>
+                        @if (placed?.Order is { } order)
+                        {
+                            <span>@ReportImageLabels.Order @order</span>
+                        }
+                        @if (preparation.FullPage)
+                        {
+                            <span data-image-full-chip>@ReportImageLabels.FullPage</span>
+                        }
+                    }
+                    else
+                    {
+                        <span>@ReportImageLabels.NotInReport</span>
+                    }
+                </p>
+            }
+            @if (mayPrepareImages && preparation is not null)
+            {
+                <noscript>
+                    <form method="post" asp-page-handler="Save" asp-route-id="@workflow.CaseId" class="stack">
+                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                        <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+                        <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                        <input type="hidden" name="view" value="@Model.ViewRoute" />
+                        <input type="hidden" name="section" value="files" />
+                        <input type="hidden" name="preparationEdits[0].OccurrenceId" value="@occurrence.Id" />
+                        <input type="hidden" name="preparationEdits[0].ExpectedPreparationVersion" value="@preparation.PreparationVersion" />
+                        <input type="hidden" name="preparationEdits[0].CropLeft" value="@preparation.Crop.Left.ToString(CultureInfo.InvariantCulture)" />
+                        <input type="hidden" name="preparationEdits[0].CropTop" value="@preparation.Crop.Top.ToString(CultureInfo.InvariantCulture)" />
+                        <input type="hidden" name="preparationEdits[0].CropWidth" value="@preparation.Crop.Width.ToString(CultureInfo.InvariantCulture)" />
+                        <input type="hidden" name="preparationEdits[0].CropHeight" value="@preparation.Crop.Height.ToString(CultureInfo.InvariantCulture)" />
+                        @if (preparation.InReport)
+                        {
+                            <label>@ReportImageLabels.Order
+                                <input name="preparationEdits[0].Order" type="number" min="1" step="1" value="@placed?.Order" readonly="@placeFixed" />
+                            </label>
+                        }
+                        <label>@ReportImageLabels.Rotation
+                            <select name="preparationEdits[0].Rotation">
+                                @foreach (var rotation in new[] { CaseAssetRotation.None, CaseAssetRotation.Clockwise90, CaseAssetRotation.Half, CaseAssetRotation.Clockwise270 })
+                                {
+                                    <option value="@((int)rotation)" selected="@(preparation.Rotation == rotation)">@((int)rotation)°</option>
+                                }
+                            </select>
+                        </label>
+                        <label>@ReportImageLabels.PrintOnItsOwnPage
+                            <select name="preparationEdits[0].FullPage">
+                                <option value="false" selected="@(!preparation.FullPage)">No</option>
+                                <option value="true" selected="@(preparation.FullPage)">Yes</option>
+                            </select>
+                        </label>
+                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" class="btn btn--small">Save image preparation</button>
+                    </form>
+                </noscript>
+            }
+        </li>
+    }
 }
 
-@if (images.Count == 0 && Model.ImageIntakes.Count == 0)
+@if (images.Count == 0 && Model.ImageIntakes.Count == 0 && stories.Count == 0)
 {
     <p class="muted" data-images-empty>@FilesLabels.NoImages</p>
 }
 else
 {
-    <ul class="thumbs image-grid" data-evidence-set data-image-grid>
-        @foreach (var file in images)
-        {
-            var occurrence = file.Occurrence;
-            var version = file.Version;
-            if (version.CustodyStatus != DocumentCustodyStatus.Confirmed)
+    @if (stories.Count == 0)
+    {
+        <ul class="thumbs image-grid" data-evidence-set data-image-grid>
+            @foreach (var file in images)
             {
-                @* The image is on the Case but its bytes are not readable:
-                   still arriving, or storage failed. The tile names the file
-                   and its state and offers nothing that would act on content
-                   that cannot be read. *@
-                <li class="image-tile" data-image-tile="@occurrence.Id">
-                    <span class="gallery-item th th--placeholder" data-gallery-placeholder>
-                        <span class="gallery-caption">
-                            <strong>@version.FileName</strong>
-                            <small>@(version.CustodyStatus == DocumentCustodyStatus.Failed ? FilesLabels.StorageNotReady : OperatorLabels.CustodyState(version.CustodyStatus))</small>
-                        </span>
-                    </span>
-                </li>
-                continue;
+                await Tile(file);
             }
-
-            var previewHref = Model.PreviewUrl(file);
-            var downloadHref = Model.DownloadUrl(file);
-            var preparation = Model.PreparationFor(occurrence.Id);
-            var thumbnailHref = Model.ThumbnailUrl(file, preparation);
-            var placed = reportImages.GetValueOrDefault(occurrence.Id);
-            var placeFixed = placed is { Role: not CaseAssetReportRole.Supporting };
-            var mayCrop = mayPrepareImages && preparation is not null;
-            var isRotated = preparation is not null && preparation.Rotation != CaseAssetRotation.None;
-            var rotationBadge = isRotated ? ((int)preparation!.Rotation).ToString(CultureInfo.InvariantCulture) + "°" : string.Empty;
-            var firstTag = occurrence.Tags.FirstOrDefault();
-            var visibleTags = occurrence.Tags.Take(TagLabels.VisibleChips).ToArray();
-            var hiddenTagCount = occurrence.Tags.Count - visibleTags.Length;
-            <li class="image-tile@(mayEdit ? " image-tile--tools" : null)" data-image-tile="@occurrence.Id" @PreparationMetadata(preparation, placed, placeFixed, previewHref)>
-                <a href="@previewHref"
-                   class="th"
-                   data-evidence-item
-                   data-download-href="@downloadHref"
-                   data-media-type="@version.MediaType"
-                   data-file-name="@version.FileName"
-                   data-thumb="@thumbnailHref"
-                   data-tag="@firstTag?.Name"
-                   data-evidence-occurrence="@occurrence.Id"
-                   data-evidence-preparation-occurrence="@(mayCrop ? occurrence.Id.ToString() : null)">
-                    <img src="@thumbnailHref" alt="@version.FileName" loading="lazy" data-gallery-image />
-                    @if (firstTag is not null)
+        </ul>
+    }
+    else
+    {
+        <div class="photo-story" data-image-story data-evidence-set>
+            @foreach (var story in stories)
+            {
+                var capture = story.Capture;
+                <section class="photo-story-capture" data-photo-capture-story="@capture.Id" aria-label="@OperatorLabels.PhotoCapture.PhotoLink">
+                    <partial name="Shared/_PhotoCaptureDetails" model="capture" />
+                    @foreach (var group in PhotoCaptureStoryView.Groups(story.Items, capture.Details.MarkedAreas))
                     {
-                        <span class="tag">@firstTag.Name</span>
+                        var groupTiles = group.Stages.SelectMany(stage => stage.Items).Where(IsStoryImage).ToArray();
+                        if (groupTiles.Length == 0)
+                        {
+                            continue;
+                        }
+                        <h3 class="section-label photo-story-heading" data-story-group="@group.Group">@group.Label</h3>
+                        @foreach (var stage in group.Stages)
+                        {
+                            var stageItems = stage.Items.Where(IsStoryImage).ToArray();
+                            if (stageItems.Length == 0)
+                            {
+                                continue;
+                            }
+                            @if (stage.Label is { } stageLabel)
+                            {
+                                <h4 class="photo-story-stage">@stageLabel</h4>
+                            }
+                            <ul class="thumbs image-grid">
+                                @foreach (var item in stageItems)
+                                {
+                                    if (item.IntakeAssetId is { } assetId && imagesByAsset.TryGetValue(assetId, out var storyFile))
+                                    {
+                                        storyImages.Add(storyFile.Occurrence.Id);
+                                        await Tile(storyFile);
+                                    }
+                                    else
+                                    {
+                                        @* Still filing: the photo has arrived and is not on the Case yet. *@
+                                        <li class="image-tile" data-story-item="@item.Id">
+                                            <span class="gallery-item th th--placeholder" data-gallery-placeholder>
+                                                <span class="gallery-caption">
+                                                    <strong>@OperatorLabels.PhotoCapture.ItemLabel(item)</strong>
+                                                    <small>@OperatorLabels.CustodyState(DocumentCustodyStatus.Pending)</small>
+                                                </span>
+                                            </span>
+                                        </li>
+                                    }
+                                }
+                            </ul>
+                        }
                     }
-                    <span class="rot" data-tile-rotation hidden="@(isRotated ? null : "hidden")">@rotationBadge</span>
-                    <span class="th-name">@version.FileName</span>
-                </a>
-                @if (mayEdit)
-                {
-                    @* While editing, the tile's tools are one panel under the
-                       image: the report decision and its order, then one
-                       toolbar. In report is posted at once like a tag
-                       (operator, 26 September 2026); the viewer's In report
-                       box presses it too, and a click on the image opens the
-                       viewer (operator, 7 October 2026). The order, the
-                       drag handle, Rotate and Full page stage into the one
-                       Case form (P41, P50), so they show once the script has
-                       seeded them; without script the form below edits them.
-                       The Overview's and the Close-up's places are their
-                       tags', so their order is read-only and they have no
-                       drag handle. *@
-                    <div class="image-tile-panel image-tile-actions">
-                        @if (preparation is not null)
-                        {
-                            <div class="image-tile-row">
-                                @{
-                                    if (inReportAction.Length == 0)
-                                    {
-                                        inReportAction = Url.Page("/Cases/Custody", "SetImageInReport", new { id = workflow.CaseId })!;
-                                    }
-                                }
-                                <form method="post" action="@inReportAction" asp-antiforgery="true"
-                                      data-image-in-report-form="@occurrence.Id" data-document-action>
-                                    <input type="hidden" name="id" value="@workflow.CaseId" />
-                                    <input type="hidden" name="occurrenceId" value="@occurrence.Id" />
-                                    <input type="hidden" name="inReport" value="@(preparation.InReport ? "false" : "true")" />
-                                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                                    <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
-                                    <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                                    <input type="hidden" name="view" value="@Model.ViewRoute" />
-                                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" class="image-tile-toggle" aria-pressed="@(preparation.InReport ? "true" : "false")" data-image-in-report>
-                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(preparation.InReport ? "icon-square-check" : "icon-square")" /></svg>
-                                        <span>@ReportImageLabels.InReport</span>
-                                    </button>
-                                </form>
-                                <label class="image-tile-order" title="@ReportImageLabels.Order" data-image-report data-image-order-cell hidden>
-                                    <span>@ReportImageLabels.Order</span>
-                                    <input class="fi num" type="number" min="1" step="1" value="@placed?.Order" readonly="@placeFixed" data-preparation-order />
-                                </label>
-                            </div>
-                        }
-                        <div class="image-tile-row image-tile-toolbar">
-                            @{
-                                if (tagAction.Length == 0)
-                                {
-                                    tagAction = Url.Page("/Cases/Custody", "TagImage", new { id = workflow.CaseId })!;
-                                    untagAction = Url.Page("/Cases/Custody", "UntagImage", new { id = workflow.CaseId })!;
-                                    createTagAction = Url.Page("/Cases/Custody", "CreateImageTag", new { id = workflow.CaseId })!;
-                                }
-                            }
-                            <partial name="Cases/Shared/_CaseImageTagPicker"
-                                     model="@(new CaseImageTagPickerView(
-                                         workflow.CaseId,
-                                         workflow.Version,
-                                         occurrence.Id,
-                                         leaseToken,
-                                         vocabulary,
-                                         occurrence.Tags,
-                                         tagAction,
-                                         untagAction,
-                                         createTagAction,
-                                         Model.ViewRoute))" />
-                            @if (mayCrop)
-                            {
-                                <button type="button" class="icon-button" data-preparation-crop data-preparation-crop-occurrence="@occurrence.Id" title="@TagLabels.Crop" aria-label="@TagLabels.Crop"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-crop")" /></svg></button>
-                            }
-                            @if (preparation is not null)
-                            {
-                                <span class="image-tile-tools" data-image-report data-image-tools hidden>
-                                    <button type="button" class="icon-button" data-preparation-rotate="90" title="@ReportImageLabels.Rotate" aria-label="@ReportImageLabels.Rotate"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-cw")" /></svg></button>
-                                    <button type="button" class="icon-button" data-image-full-page hidden="@(preparation.InReport ? null : "hidden")" aria-pressed="@(preparation.FullPage ? "true" : "false")" title="@ReportImageLabels.PrintOnItsOwnPage" aria-label="@ReportImageLabels.PrintOnItsOwnPage"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-image")" /></svg></button>
-                                </span>
-                                @if (!placeFixed)
-                                {
-                                    <span class="grip" data-image-report hidden draggable="true" title="@ReportImageLabels.DragToReorder" aria-hidden="true"><svg class="icon"><use href="@IconSprite.Href("icon-grip-vertical")" /></svg></span>
-                                }
-                            }
-                        </div>
-                    </div>
-                }
-                @if (occurrence.Tags.Count > 0)
-                {
-                    <span class="tag-chips">
-                        @foreach (var tag in visibleTags)
-                        {
-                            <span class="tag-chip tag-chip--@TagLabels.ColourToken(tag.Colour)">@tag.Name</span>
-                        }
-                        @if (hiddenTagCount > 0)
-                        {
-                            <span class="tag-chip tag-chip--more">@TagLabels.MoreChips(hiddenTagCount)</span>
-                        }
-                    </span>
-                }
-                @if (!mayEdit)
-                {
-                    @* Out of edit mode the tile states, in one line, whether
-                       the report uses the image, its order and Full page. *@
-                    <p class="image-tile-status" data-image-report-read>
-                        @if (preparation is { InReport: true })
-                        {
-                            <span class="image-tile-status-in">@ReportImageLabels.InReport</span>
-                            @if (placed?.Order is { } order)
-                            {
-                                <span>@ReportImageLabels.Order @order</span>
-                            }
-                            @if (preparation.FullPage)
-                            {
-                                <span data-image-full-chip>@ReportImageLabels.FullPage</span>
-                            }
-                        }
-                        else
-                        {
-                            <span>@ReportImageLabels.NotInReport</span>
-                        }
-                    </p>
-                }
-                @if (mayPrepareImages && preparation is not null)
-                {
-                    <noscript>
-                        <form method="post" asp-page-handler="Save" asp-route-id="@workflow.CaseId" class="stack">
-                            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                            <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
-                            <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                            <input type="hidden" name="view" value="@Model.ViewRoute" />
-                            <input type="hidden" name="section" value="files" />
-                            <input type="hidden" name="preparationEdits[0].OccurrenceId" value="@occurrence.Id" />
-                            <input type="hidden" name="preparationEdits[0].ExpectedPreparationVersion" value="@preparation.PreparationVersion" />
-                            <input type="hidden" name="preparationEdits[0].CropLeft" value="@preparation.Crop.Left.ToString(CultureInfo.InvariantCulture)" />
-                            <input type="hidden" name="preparationEdits[0].CropTop" value="@preparation.Crop.Top.ToString(CultureInfo.InvariantCulture)" />
-                            <input type="hidden" name="preparationEdits[0].CropWidth" value="@preparation.Crop.Width.ToString(CultureInfo.InvariantCulture)" />
-                            <input type="hidden" name="preparationEdits[0].CropHeight" value="@preparation.Crop.Height.ToString(CultureInfo.InvariantCulture)" />
-                            @if (preparation.InReport)
-                            {
-                                <label>@ReportImageLabels.Order
-                                    <input name="preparationEdits[0].Order" type="number" min="1" step="1" value="@placed?.Order" readonly="@placeFixed" />
-                                </label>
-                            }
-                            <label>@ReportImageLabels.Rotation
-                                <select name="preparationEdits[0].Rotation">
-                                    @foreach (var rotation in new[] { CaseAssetRotation.None, CaseAssetRotation.Clockwise90, CaseAssetRotation.Half, CaseAssetRotation.Clockwise270 })
-                                    {
-                                        <option value="@((int)rotation)" selected="@(preparation.Rotation == rotation)">@((int)rotation)°</option>
-                                    }
-                                </select>
-                            </label>
-                            <label>@ReportImageLabels.PrintOnItsOwnPage
-                                <select name="preparationEdits[0].FullPage">
-                                    <option value="false" selected="@(!preparation.FullPage)">No</option>
-                                    <option value="true" selected="@(preparation.FullPage)">Yes</option>
-                                </select>
-                            </label>
-                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" class="btn btn--small">Save image preparation</button>
-                        </form>
-                    </noscript>
-                }
-            </li>
-        }
-    </ul>
+                </section>
+            }
+            @{
+                var otherImages = images.Where(image => !storyImages.Contains(image.Occurrence.Id)).ToArray();
+            }
+            @if (otherImages.Length > 0)
+            {
+                <h3 class="section-label photo-story-heading">@OperatorLabels.PhotoCapture.OtherImages</h3>
+                <ul class="thumbs image-grid">
+                    @foreach (var file in otherImages)
+                    {
+                        await Tile(file);
+                    }
+                </ul>
+            }
+        </div>
+    }
     <p class="muted image-grid-count"><b data-image-report-count>@ReportImageLabels.InReportCount(includedCount, printableCount)</b></p>
 
     @* The photographs of a Vehicle images record associated with the Case and

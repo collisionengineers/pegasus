@@ -6,8 +6,11 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Microsoft.Extensions.Options;
 using Pegasus.Core.Intake;
+using Pegasus.Core.PhotoCapture;
 using Pegasus.Core.Reports;
+using Pegasus.Web.PhotoCapture;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Administration.Contacts;
@@ -28,7 +31,11 @@ public sealed class EditModel(
     IUpdatePrincipalSalvageMatrix updatePrincipalSalvageMatrix,
     IUpdatePrincipalReportSending updatePrincipalReportSending,
     IApprovedMailboxStore approvedMailboxes,
-    IReplacePrincipal replacePrincipal) : AdministrationPageModel
+    IReplacePrincipal replacePrincipal,
+    IStandingPhotoLinkStore? standingLinks = null,
+    IOptions<PhotoCaptureOptions>? photoCaptureOptions = null,
+    IConfiguration? configuration = null,
+    TimeProvider? timeProvider = null) : AdministrationPageModel
 {
     public ContactDirectoryRecord? Contact { get; private set; }
 
@@ -50,7 +57,44 @@ public sealed class EditModel(
         (ApiTab, OperatorLabels.PrincipalAdministration.PrincipalApi)
     ];
     [BindProperty(SupportsGet = true)] public string? Tab { get; set; }
-    public string CurrentTab => PrincipalTabs.Any(tab => tab.Key == Tab) ? Tab! : ContactTab;
+    public string CurrentTab => Tab == PhotoLinksTab ? PhotoLinksTab : PrincipalTabs.Any(tab => tab.Key == Tab) ? Tab! : ContactTab;
+
+    // A Principal, Claim Source or Repairer contact's standing photo link and
+    // its defaults are its Photo links tab (FRD-28; R771), present only while
+    // photo capture is composed.
+    public const string PhotoLinksTab = "photo-links";
+    public bool OffersPhotoLinks => standingLinks is not null
+        && photoCaptureOptions is not null
+        && configuration is not null
+        && ShellRail.PhotoCaptureEnabled(configuration)
+        && Contact is { Role: ContactRole.Principal or ContactRole.ClaimSource or ContactRole.Repairer };
+
+    /// <summary>The page's tabs: an active Principal's panels, a contact with a Photo links tab beside its Contact tab, else none.</summary>
+    public IReadOnlyList<(string Key, string Label)> Tabs
+    {
+        get
+        {
+            var photoLinks = (PhotoLinksTab, OperatorLabels.PhotoCapture.PhotoLinksTab);
+            if (Principal is { IsActive: true })
+            {
+                return OffersPhotoLinks ? [.. PrincipalTabs, photoLinks] : PrincipalTabs;
+            }
+
+            return OffersPhotoLinks ? [PrincipalTabs[0], photoLinks] : [];
+        }
+    }
+
+    public StandingPhotoLink? StandingLink { get; private set; }
+    public IReadOnlyList<StandingPhotoLinkAddress> StandingLinkAddresses { get; private set; } = [];
+    public string? StandingLinkUrl => StandingLink is { } link && photoCaptureOptions is not null
+        ? Pegasus.Web.Pages.PhotoCapture.PhotoLinkMail.StandingUrl(photoCaptureOptions.Value, link.Slug)
+        : null;
+    public string? StandingLinkQrSvg => StandingLinkUrl is { } url ? PhotoLinkQr.Svg(url) : null;
+    [BindProperty] public long StandingLinkVersion { get; set; }
+    [BindProperty] public PhotoCaptureMode LinkForwardedMode { get; set; } = PhotoCaptureMode.Guided;
+    [BindProperty] public bool LinkLiveCameraOnly { get; set; } = true;
+    [BindProperty] public int LinkLifetimeDays { get; set; } = CaptureLimits.DefaultLifetimeDays;
+    [BindProperty] public bool LinkOriginalsInBackground { get; set; } = true;
     // A refused Replace code shows its message beside Replace code, not in the panel.
     public bool ReplaceRefused { get; private set; }
 
@@ -121,7 +165,99 @@ public sealed class EditModel(
         InitializePrincipalSettings();
         await LoadReportSendingChoicesAsync(actor, cancellationToken);
         await LoadPrincipalChoicesAsync(actor, cancellationToken);
+        await LoadPhotoLinkAsync(cancellationToken);
         return Page();
+    }
+
+    public Task<IActionResult> OnPostCreatePhotoLinkAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "create", cancellationToken);
+    public Task<IActionResult> OnPostPausePhotoLinkAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "pause", cancellationToken);
+    public Task<IActionResult> OnPostResumePhotoLinkAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "resume", cancellationToken);
+    public Task<IActionResult> OnPostReplacePhotoLinkAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "replace", cancellationToken);
+    public Task<IActionResult> OnPostUpdatePhotoLinkDefaultsAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "defaults", cancellationToken);
+
+    /// <summary>The standing link's QR code as a file to print (Download QR).</summary>
+    public async Task<IActionResult> OnGetPhotoLinkQrAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        ContactId = id;
+        Contact = await contacts.GetAsync(actor, id, cancellationToken);
+        if (Contact is null || !OffersPhotoLinks) return NotFound();
+        if (!StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ManageOrganizationsAndPrincipals)) return Forbid();
+        var link = await standingLinks!.FindForOrganizationAsync(id, cancellationToken);
+        if (link is null) return NotFound();
+        var url = Pegasus.Web.Pages.PhotoCapture.PhotoLinkMail.StandingUrl(photoCaptureOptions!.Value, link.Slug);
+        return File(System.Text.Encoding.UTF8.GetBytes(PhotoLinkQr.Svg(url)), "image/svg+xml", PhotoLinkQr.FileName(link.Slug));
+    }
+
+    // One handler per tab, as the other tabs: each change to the contact's
+    // standing link comes back to the Photo links tab.
+    private async Task<IActionResult> ChangePhotoLinkAsync(Guid id, string action, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (id == Guid.Empty) return BadRequest();
+        ContactId = id;
+        Tab = PhotoLinksTab;
+        Contact = await contacts.GetAsync(actor, id, cancellationToken);
+        if (Contact is null || !OffersPhotoLinks) return NotFound();
+        if (!StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ManageOrganizationsAndPrincipals)) return Forbid();
+        if (!CaptureLimits.IsLifetime(LinkLifetimeDays) || !Enum.IsDefined(LinkForwardedMode)) return BadRequest();
+        var now = (timeProvider ?? TimeProvider.System).GetUtcNow();
+        var link = await standingLinks!.FindForOrganizationAsync(id, cancellationToken);
+        switch (action)
+        {
+            case "create" when link is null:
+                await standingLinks.CreateAsync(
+                    StandingPhotoLinkKind.Contact,
+                    id,
+                    PhotoLinkToken.CreateSlug(),
+                    PhotoCaptureMode.Guided,
+                    liveCameraOnly: true,
+                    CaptureLimits.DefaultLifetimeDays,
+                    originalsInBackground: true,
+                    actor,
+                    now,
+                    cancellationToken);
+                break;
+            case "pause" when link is not null:
+                await standingLinks.SetPausedAsync(link.Id, StandingLinkVersion, now, cancellationToken);
+                break;
+            case "resume" when link is not null:
+                await standingLinks.SetPausedAsync(link.Id, StandingLinkVersion, null, cancellationToken);
+                break;
+            case "replace" when link is not null:
+                await standingLinks.ReplaceSlugAsync(link.Id, StandingLinkVersion, PhotoLinkToken.CreateSlug(), now, cancellationToken);
+                break;
+            case "defaults" when link is not null:
+                await standingLinks.UpdateDefaultsAsync(
+                    link.Id,
+                    StandingLinkVersion,
+                    LinkForwardedMode,
+                    LinkLiveCameraOnly,
+                    LinkLifetimeDays,
+                    LinkOriginalsInBackground,
+                    cancellationToken);
+                TempData["AdministrationStatus"] = OperatorLabels.PhotoCapture.Saved;
+                break;
+            default:
+                return BadRequest();
+        }
+
+        return RedirectToPage(new { id = ContactId, tab = Tab });
+    }
+
+    // The standing link, its saved addresses and its defaults, read only for
+    // the Photo links tab, the one tab that draws them.
+    private async Task LoadPhotoLinkAsync(CancellationToken cancellationToken)
+    {
+        if (CurrentTab != PhotoLinksTab || !OffersPhotoLinks) return;
+        StandingLink = await standingLinks!.FindForOrganizationAsync(ContactId, cancellationToken);
+        if (StandingLink is not { } link) return;
+        StandingLinkAddresses = await standingLinks.ListAddressesAsync(link.Id, cancellationToken);
+        StandingLinkVersion = link.Version;
+        LinkForwardedMode = link.ForwardedMode;
+        LinkLiveCameraOnly = link.LiveCameraOnly;
+        LinkLifetimeDays = link.LinkLifetimeDays;
+        LinkOriginalsInBackground = link.OriginalsInBackground;
     }
 
     public async Task<IActionResult> OnPostSaveAsync(Guid id, CancellationToken cancellationToken)

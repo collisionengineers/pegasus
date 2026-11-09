@@ -92,7 +92,9 @@ public sealed partial class DetailsModel(
     ILogger<DetailsModel> logger,
     IGetCaseKind getCaseKind,
     IValidateCaseRenderLease? validateCaseRenderLease = null,
-    IStaffMailSend? staffMailSend = null) : CaseMutationPageModel(logger)
+    IStaffMailSend? staffMailSend = null,
+    Pegasus.Core.PhotoCapture.IPhotoCaptureQueries? photoCaptureQueries = null,
+    IConfiguration? configuration = null) : CaseMutationPageModel(logger)
 {
     /// <summary>Inputs the Repair Spec grid binds to the Case form for each line (<c>_CaseEstimate.cshtml</c>).</summary>
     internal const int EstimateLineInputs = 9;
@@ -205,6 +207,13 @@ public sealed partial class DetailsModel(
     /// </summary>
     public IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> ImagesByIntake { get; private set; } =
         new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
+
+    /// <summary>
+    /// Every photo link whose items are on the Case, with the items, for the
+    /// Files → Images story (FRD-28, FRD-16): one read with the Files body,
+    /// none while photo capture is not composed.
+    /// </summary>
+    public IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory> PhotoCaptureStories { get; private set; } = [];
 
     /// <summary>
     /// Every image occurrence's report preparation (B06), loaded with the
@@ -1885,7 +1894,8 @@ public sealed partial class DetailsModel(
     private sealed record FilesReads(
         IReadOnlyList<ImageIntakeSummary> ImageIntakes,
         IReadOnlyList<ImageTag> TagVocabulary,
-        IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> ImagesByIntake);
+        IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> ImagesByIntake,
+        IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory> PhotoCaptures);
 
     /// <summary>
     /// The Files body alone needs its image-intake and instruction-photo lists.
@@ -1904,8 +1914,15 @@ public sealed partial class DetailsModel(
             ? readImageTagVocabulary.ListAsync(cancellationToken)
             : Task.FromResult<IReadOnlyList<ImageTag>>([]);
         var intakesAndImages = ReadIntakesAndImagesAsync(caseId, cancellationToken);
-        await Task.WhenAll(vocabulary, intakesAndImages);
-        return new(intakesAndImages.Result.Intakes, vocabulary.Result, intakesAndImages.Result.Images);
+        // The photo links on the Case: one statement, with the Files body only
+        // (FRD-28), so its images can stand in story order.
+        var photoCaptures = photoCaptureQueries is not null
+            && configuration is not null
+            && Pegasus.Web.Presentation.ShellRail.PhotoCaptureEnabled(configuration)
+                ? photoCaptureQueries.ListForCaseAsync(caseId, cancellationToken)
+                : Task.FromResult<IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory>>([]);
+        await Task.WhenAll(vocabulary, intakesAndImages, photoCaptures);
+        return new(intakesAndImages.Result.Intakes, vocabulary.Result, intakesAndImages.Result.Images, photoCaptures.Result);
     }
 
     private async Task<(
@@ -1929,6 +1946,7 @@ public sealed partial class DetailsModel(
         ImageIntakes = files.ImageIntakes;
         TagVocabulary = files.TagVocabulary;
         ImagesByIntake = files.ImagesByIntake;
+        PhotoCaptureStories = files.PhotoCaptures;
     }
 
     private async Task LoadDirectSectionsAsync(

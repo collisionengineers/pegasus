@@ -363,6 +363,7 @@ public static partial class OperatorLabels
             EmailTemplatePurpose.TriageOutcomeReply => "Triage outcome reply",
             EmailTemplatePurpose.CaseReportDelivery => "Case report delivery",
             EmailTemplatePurpose.CaseChaser => "Case chaser",
+            EmailTemplatePurpose.PhotoLink => "Photo link",
             _ => throw new InvalidOperationException($"Unknown e-mail template purpose '{(int)purpose}'.")
         };
     }
@@ -449,6 +450,7 @@ public static partial class OperatorLabels
             Pegasus.Core.Notifications.StaffNotificationCause.QueryReceived => "Query received",
             Pegasus.Core.Notifications.StaffNotificationCause.CancellationReceived => "Cancellation received",
             Pegasus.Core.Notifications.StaffNotificationCause.QueryAssigned => "Query assigned",
+            Pegasus.Core.Notifications.StaffNotificationCause.PhotosReceived => "Photos received",
             _ => Humanise(notification.Cause.ToString())
         };
     }
@@ -1273,6 +1275,7 @@ public static partial class OperatorLabels
         IntakeSourceChannel.Mailbox => "E-mail",
         IntakeSourceChannel.Automation => "Automation",
         IntakeSourceChannel.PrincipalApi => PrincipalSubmissionApi.Source,
+        IntakeSourceChannel.PhotoCapture => "Photo link",
         _ => throw new InvalidOperationException(
             $"Unknown intake source channel value '{(int)channel}'.")
     };
@@ -1284,6 +1287,7 @@ public static partial class OperatorLabels
         "mailbox" => "E-mail",
         "automation" => "Automation",
         "principal_api" => PrincipalSubmissionApi.Source,
+        "photo_capture" => "Photo link",
         _ => Humanise(code)
     };
 
@@ -1302,6 +1306,7 @@ public static partial class OperatorLabels
         CaseDataSourceKind.PrincipalSetting => SourceTagWord.Principal,
         CaseDataSourceKind.PrincipalApi => SourceTagWord.PrincipalApi,
         CaseDataSourceKind.CaseAcceptance => SourceTagWord.Automatic,
+        CaseDataSourceKind.PhotoLink => SourceTagWord.PhotoLink,
         _ => null
     };
 
@@ -1336,6 +1341,7 @@ public static partial class OperatorLabels
         public static readonly SourceTagWord Principal = new("Principal", string.Empty);
         public static readonly SourceTagWord PrincipalApi = new(PrincipalSubmissionApi.Source, string.Empty);
         public static readonly SourceTagWord Automatic = new("Automatic", string.Empty);
+        public static readonly SourceTagWord PhotoLink = new("Photo link", string.Empty);
         public static readonly SourceTagWord Triage = new("Triage", string.Empty);
         public static readonly SourceTagWord Ai = new("AI", "ai");
 

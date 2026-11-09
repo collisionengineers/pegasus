@@ -1,0 +1,247 @@
+@page "/PhotoCapture/{id:guid}"
+@model Pegasus.Web.Pages.PhotoCapture.DetailsModel
+@using Pegasus.Core.PhotoCapture
+@using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture
+@{
+    var capture = Model.Capture;
+    var registration = Labels.Registration(capture.NormalizedRegistration);
+    ViewData["Title"] = $"{Labels.PhotoLink} {registration}";
+    var from = Model.Row.OrganizationName
+        ?? (capture.Origin == PhotoCaptureOrigin.Website ? Labels.Website : null);
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/photo-capture.css" asp-append-version="true" />
+}
+
+<header class="page-header">
+    <div class="page-title">
+        <p class="eyebrow"><a asp-page="/PhotoCapture/Index" asp-route-tab="@(Model.IsCaseLink ? Labels.LinksWeSentKey : null)">@Labels.Title</a></p>
+        <h1 class="mono">@registration</h1>
+    </div>
+    <div class="page-actions">
+        @if (Model.PhotosHref is { } photosHref && capture.AcceptedItemCount > 0)
+        {
+            <a class="btn" href="@photosHref">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-images")" /></svg>
+                <span>@(capture.CaseId is null && Model.Row.ImageIntakeId is not null ? Labels.MatchToACase : Labels.ViewPhotos)</span>
+            </a>
+        }
+        @if (Model.OffersResend)
+        {
+            <form method="post" asp-page-handler="Resend" asp-route-id="@capture.Id">
+                <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Sending">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
+                    <span>@Labels.Resend</span>
+                </button>
+            </form>
+            @if (Model.Due is not null)
+            {
+                <form method="post" asp-page-handler="Remind" asp-route-id="@capture.Id">
+                    <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                    <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Sending">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-bell")" /></svg>
+                        <span>@Labels.Remind</span>
+                    </button>
+                </form>
+            }
+        }
+        @if (Model.OffersLogCall)
+        {
+            <form method="post" asp-page-handler="LogCall" asp-route-id="@capture.Id">
+                <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Logging">@Labels.LogCall</button>
+            </form>
+        }
+        @if (Model.OffersExtend)
+        {
+            <form method="post" asp-page-handler="Extend" asp-route-id="@capture.Id" class="cluster">
+                <label class="sr-only" for="photo-link-extend-days">@Labels.LinkLasts</label>
+                <select id="photo-link-extend-days" name="Days">
+                    @foreach (var days in CaptureLimits.LifetimeDays)
+                    {
+                        <option value="@days" selected="@(days == CaptureLimits.DefaultLifetimeDays ? "selected" : null)">@Labels.Days(days)</option>
+                    }
+                </select>
+                <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Saving">@Labels.Extend</button>
+            </form>
+        }
+        @if (Model.OffersCancel)
+        {
+            <form method="post" asp-page-handler="Cancel" asp-route-id="@capture.Id">
+                <button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Revoking">@Labels.CancelLink</button>
+            </form>
+        }
+    </div>
+</header>
+
+@if (Model.Notice is { } notice)
+{
+    <div class="notice notice--success" role="status">
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg>
+        <span>@notice</span>
+    </div>
+}
+
+<partial name="/Pages/Shared/_ErrorSummary.cshtml" />
+
+@if (Model.IssuedUrl is { } issuedUrl)
+{
+    @* A Resend or Remind's new link exists only in this response: shown once
+       to copy, and e-mailed when the link has an address on a Case. *@
+    <section class="panel photo-link-panel" aria-labelledby="photo-link-issued-title" data-photo-link-issued>
+        <div class="panel-head"><h2 id="photo-link-issued-title">@Labels.PhotoLink</h2></div>
+        <div class="panel-body stack">
+            @if (Model.Operation is { } operation)
+            {
+                @if (operation.State == Pegasus.Core.Operations.StaffMailState.Sent)
+                {
+                    <div class="notice notice--success" role="status">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
+                        <span>@Labels.LinkSentTo(capture.CustomerName)</span>
+                    </div>
+                }
+                else
+                {
+                    <p><span class="section-label">@Labels.SendStatus</span> @OperatorLabels.StaffMail.State(operation.State)</p>
+                    @if (operation.State == Pegasus.Core.Operations.StaffMailState.Failed && operation.FailureCode is { Length: > 0 } failureCode)
+                    {
+                        <p class="field-hint">@OperatorLabels.StaffMail.Failure(failureCode)</p>
+                    }
+                }
+            }
+            <div class="photo-link-box">
+                <code id="photo-link-issued-url" class="photo-link-url">@issuedUrl</code>
+                <button type="button" class="btn btn--small" data-copy-target="photo-link-issued-url" hidden>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-copy")" /></svg>
+                    <span>@Labels.CopyLink</span>
+                </button>
+            </div>
+        </div>
+    </section>
+}
+
+<div class="photo-link-grid">
+    <div class="stack">
+        <section class="panel" aria-labelledby="photo-link-facts-title">
+            <div class="panel-head">
+                <h2 id="photo-link-facts-title">@Labels.PhotoLink</h2>
+                <partial name="Shared/_StatusChip" model="@Labels.State(Model.State)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = Labels.StateTone(Model.State) }' />
+            </div>
+            <dl class="definition-list">
+                <div class="definition"><dt>@Labels.Vehicle</dt><dd class="mono">@registration</dd></div>
+                <div class="definition"><dt>@Labels.Customer</dt><dd>@(capture.CustomerName ?? Labels.NotGiven)</dd></div>
+                @if (capture.Mobile is { Length: > 0 } mobile)
+                {
+                    <div class="definition"><dt>@Labels.Mobile</dt><dd>@mobile</dd></div>
+                }
+                @if (capture.Email is { Length: > 0 } email)
+                {
+                    <div class="definition"><dt>@Labels.Email</dt><dd>@email</dd></div>
+                }
+                @if (capture.IncidentDate is { } incidentDate)
+                {
+                    <div class="definition"><dt>@Labels.AccidentDate</dt><dd>@incidentDate.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</dd></div>
+                }
+                <div class="definition">
+                    <dt>@Labels.Case</dt>
+                    <dd>
+                        @if (capture.CaseId is { } caseId)
+                        {
+                            <a class="mono" asp-page="/Cases/Details" asp-route-id="@caseId">@capture.CaseReference</a>
+                        }
+                        else if (Model.Row.ImageIntakeId is { } recordId)
+                        {
+                            <a href="/VehicleImages/@recordId">@Labels.AwaitingInstruction</a>
+                        }
+                        else
+                        {
+                            <span class="muted">@Labels.PhotosComingIn</span>
+                        }
+                    </dd>
+                </div>
+                @if (from is not null)
+                {
+                    <div class="definition"><dt>@Labels.From</dt><dd>@from @if (!Model.IsCaseLink) { <small class="muted photo-capture-sub">@Labels.Source(capture.Origin)</small> }</dd></div>
+                }
+                @if (Model.Row.IssuedByName is { Length: > 0 } issuedBy)
+                {
+                    <div class="definition"><dt>@Labels.SentBy</dt><dd>@issuedBy</dd></div>
+                }
+                <div class="definition"><dt>@Labels.Created</dt><dd>@OperatorLabels.OfficeTime(capture.CreatedAtUtc)</dd></div>
+                <div class="definition"><dt>@Labels.Expires</dt><dd>@OperatorLabels.OfficeTime(capture.ExpiresAtUtc)</dd></div>
+                <div class="definition"><dt>@Labels.Photos</dt><dd>@Labels.PhotoCount(capture.AcceptedItemCount, Model.State == PhotoCaptureState.Complete)</dd></div>
+                @if (Model.IsCaseLink)
+                {
+                    <div class="definition"><dt>@Labels.NextReminder</dt><dd>@(Model.Due?.Label ?? Labels.None)</dd></div>
+                }
+            </dl>
+        </section>
+
+        <partial name="Shared/_PhotoCaptureDetails" model="capture" />
+
+        @if (Model.Row.MissingItems.Count > 0 && Model.State is not (PhotoCaptureState.Cancelled or PhotoCaptureState.Expired))
+        {
+            <section class="panel" aria-labelledby="photo-link-missing-title">
+                <div class="panel-head"><h2 id="photo-link-missing-title">@Labels.SomethingMissing</h2></div>
+                <ul class="blocker-list panel-body">
+                    @foreach (var missing in Model.Row.MissingItems)
+                    {
+                        <li class="blocker"><strong>@missing</strong></li>
+                    }
+                </ul>
+            </section>
+        }
+    </div>
+
+    <div class="stack">
+        @if (Model.Story.Count > 0)
+        {
+            <section class="panel" aria-labelledby="photo-link-items-title">
+                <div class="panel-head">
+                    <h2 id="photo-link-items-title">@Labels.Photos</h2>
+                    @if (Model.PhotosHref is { } storyHref)
+                    {
+                        <a class="btn btn--small" href="@storyHref">@Labels.ViewPhotos</a>
+                    }
+                </div>
+                <div class="panel-body stack">
+                    @foreach (var group in Model.Story)
+                    {
+                        <div class="photo-story-group" data-story-group="@group.Group">
+                            <h3 class="photo-story-heading">@group.Label</h3>
+                            @foreach (var stage in group.Stages)
+                            {
+                                @if (stage.Label is { } stageLabel)
+                                {
+                                    <h4 class="photo-story-stage">@stageLabel</h4>
+                                }
+                                <ul class="photo-story-items">
+                                    @foreach (var item in stage.Items)
+                                    {
+                                        <li><span>@Labels.ItemLabel(item)</span><span class="muted">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</span></li>
+                                    }
+                                </ul>
+                            }
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+
+        <section class="panel" aria-labelledby="photo-link-history-title">
+            <div class="panel-head"><h2 id="photo-link-history-title">@Labels.History</h2></div>
+            <div class="panel-body">
+                <ol class="timeline">
+                    @foreach (var line in Model.History)
+                    {
+                        <li class="timeline-item">
+                            <div class="timeline-title">@line.Label@(line.Detail is { } detail ? $" · {detail}" : null)</div>
+                            <div class="timeline-meta">@OperatorLabels.OfficeTime(line.AtUtc)</div>
+                        </li>
+                    }
+                </ol>
+            </div>
+        </section>
+    </div>
+</div>
