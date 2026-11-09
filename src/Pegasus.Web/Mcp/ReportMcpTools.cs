@@ -298,26 +298,19 @@ internal sealed class ReportMcpTools(
             key,
             async token =>
             {
+                // One custody batch around the report and its fee note: the
+                // Case folder is proved once for both (FRD-05, #1952).
+                await using var batch = generateReport.BeginBatch();
                 var result = await GenerateOneAsync(
                     actor, caseId, expectedVersion, token, key, kind, targetGenerationId, selector, cancellationToken);
                 string? feeNote = null;
-                if (kind == CaseReportArtifactKind.AssessmentReport
-                    && result.Generation is { State: CaseReportGenerationState.Confirmed } generation
-                    && generation.Artifacts.Any(artifact => artifact is
-                    {
-                        Kind: CaseReportArtifactKind.AssessmentReport,
-                        Status: CaseReportArtifactStatus.Confirmed,
-                    })
-                    && !generation.Artifacts.Any(artifact => artifact is
-                    {
-                        Kind: CaseReportArtifactKind.FeeNote,
-                        Status: CaseReportArtifactStatus.Confirmed,
-                    }))
+                if (GenerateCaseReport.FeeNoteTargetOf(kind, result.Generation) is { } feeNoteTarget)
                 {
-                    // The report stands whatever the fee note's outcome.
+                    // The report stands whatever the fee note's outcome (R771: a
+                    // fee note's failure still fails this call, as it did).
                     var feeNoteResult = await GenerateOneAsync(
                         actor, caseId, expectedVersion, token, Derive(key, ":fee-note"),
-                        CaseReportArtifactKind.FeeNote, generation.Id, selector, cancellationToken);
+                        CaseReportArtifactKind.FeeNote, feeNoteTarget, selector, cancellationToken);
                     feeNote = feeNoteResult.Outcome.ToString();
                     if (feeNoteResult.Generation is { } withFeeNote)
                     {

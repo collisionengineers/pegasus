@@ -14,8 +14,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// Loads an <see cref="AssessmentReportProjectionInput"/> for a case by
 /// reusing the same bounded Assessment workspace query as the screen, then
 /// loading confirmed document metadata once. Photograph bytes are opened
-/// one image at a time, when the renderer prints that image; loading the
-/// projection, opening the Assessment screen and freezing a generation
+/// only when the renderer prints that image, a bounded few at a time; loading
+/// the projection, opening the Assessment screen and freezing a generation
 /// never read them.
 /// </summary>
 /// <remarks>
@@ -120,7 +120,8 @@ internal sealed class EfAssessmentReportProjectionSource(
         CaseEditAuthority.RequireVersion(caseId, workspace.Header.Version, workflow.Version);
         // The component reads are independent of one another and each opens its
         // own context, except the three on this method's context, which stay in
-        // order on it. The closing version re-check runs after all of them.
+        // order on it. The closing version re-check runs after all of them,
+        // unless the caller re-checks the version under its own lock.
         var ownReads = ReadOwnComponentsAsync(context, caseId, selectedWork.Id, cancellationToken);
         var profilesRead = staffAccountQueries.ListSignOffEngineersAsync(cancellationToken);
         var preparationsRead = reuse?.PreparationsFor(caseId) is { } reusedPreparations
@@ -230,11 +231,15 @@ internal sealed class EfAssessmentReportProjectionSource(
             preparations,
             ConfirmedImageSources(confirmed));
 
-        var currentVersion = await context.CaseWorkflows.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
-            .Select(item => item.Version)
-            .SingleAsync(cancellationToken);
-        CaseEditAuthority.RequireVersion(caseId, currentVersion, workflow.Version);
+        if (reuse is not { CallerRechecksVersion: true })
+        {
+            var currentVersion = await context.CaseWorkflows.AsNoTracking()
+                .Where(item => item.CaseId == caseId)
+                .Select(item => item.Version)
+                .SingleAsync(cancellationToken);
+            CaseEditAuthority.RequireVersion(caseId, currentVersion, workflow.Version);
+        }
+
         return new CaseReportFreezeInputs(
             projection, readiness, reportReference, workflow.Version)
         {

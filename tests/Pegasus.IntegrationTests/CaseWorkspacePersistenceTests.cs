@@ -1094,12 +1094,14 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
     }
 
     /// <summary>
-    /// One note per save session (R466, operator, 28 October 2026). Saves that
-    /// each follow the claim the Case page makes to keep editing show in Notes
-    /// as one line listing every field the session changed, once each, while
-    /// every save keeps its own workflow event and action history. A release
-    /// (Done) ends the session, and a Case note written between two saves puts
-    /// the save after it on a line of its own.
+    /// One note per save session (R466, operator, 28 October 2026). The
+    /// session is the lease's lifetime: each session save keeps the lease and
+    /// hands back its next token (R770), and saves made one after another with
+    /// those tokens show in Notes as one line listing every field the session
+    /// changed, once each, while every save keeps its own workflow event and
+    /// action history. Done, or a lapse and a claim, starts a new session, and
+    /// a Case note written between two saves puts the save after it on a line
+    /// of its own.
     /// </summary>
     [Fact]
     public async Task TheSavesOfOneEditSessionShowAsOneNoteListingEveryFieldChanged()
@@ -1107,14 +1109,15 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         await using var harness = await Harness.CreateAsync(database);
         var opened = (await harness.GetRequiredDataAsync()).Version;
         var version = opened;
-        var lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-1");
+        var token = (await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-1")).Token;
 
         async Task SaveAsync(string key, CaseWorkspaceOverview overview)
         {
             var saved = await harness.WorkspaceStore.SaveAsync(
-                Request(harness, version, lease.Token, key) with { Overview = overview },
+                Request(harness, version, token, key) with { Overview = overview, ContinuesSession = true },
                 CancellationToken.None);
             version = saved.Version;
+            token = saved.SessionLease!.Token;
         }
 
         async Task<CaseHistoryEntry[]> SavedLinesAsync() =>
@@ -1123,9 +1126,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
                 .Where(entry => entry.EventType == "case_workspace_saved")];
 
         await SaveAsync("session-save-1", Overview("Jane Example"));
-        lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-2");
         await SaveAsync("session-save-2", Overview("Jane Example") with { PrincipalNotes = "Photos to follow." });
-        lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-3");
         await SaveAsync("session-save-3", Overview("John Example") with { PrincipalNotes = "Photos to follow." });
 
         var session = Assert.Single(await SavedLinesAsync());
@@ -1144,13 +1145,13 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
                 && item.EventKind == "case_workspace_saved"));
         }
 
-        // Done releases the lease: the next Edit opens a new session.
-        lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-4");
+        // Done releases the lease with the token the last save handed back:
+        // the next Edit claims and opens a new session.
         await harness.WorkflowStore.ReleaseAsync(
-            new(harness.CaseId, harness.StaffActor, "session-release", lease.Token),
+            new(harness.CaseId, harness.StaffActor, "session-release", token),
             CancellationToken.None);
         var reopened = version;
-        lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-5");
+        token = (await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-2")).Token;
         await SaveAsync("session-save-4", Overview("John Example") with { PrincipalNotes = "Parked outside." });
 
         var lines = await SavedLinesAsync();
@@ -1160,8 +1161,8 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         Assert.DoesNotContain("Claimant name", latest.Reason ?? string.Empty, StringComparison.Ordinal);
         Assert.Contains("Principal notes", latest.Reason ?? string.Empty, StringComparison.Ordinal);
 
-        // A Case note between two saves keeps the timeline in order.
-        lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-6");
+        // A Case note between two saves keeps the timeline in order; the save
+        // after it still carries the token the previous save handed back.
         await new EfCaseNoteStore(harness.Factory).AddAsync(
             new(harness.CaseId, harness.StaffActor, "session-note", "Called the repairer."),
             harness.TimeProvider.GetUtcNow(),
@@ -1531,38 +1532,327 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
     }
 
     /// <summary>
-    /// The save's read-back takes the specification's lines with the
-    /// specification. No statement that reads the lines alone follows the one
-    /// that read them with it.
+    /// A committed save answers from the rows its own transaction holds and
+    /// wrote (#1951): nothing is read back after the commit. The specification
+    /// the save carried is new, so its lines are never read at all, and the
+    /// work's snapshot is read once, the tracked read the save writes through.
     /// </summary>
     [Fact]
-    public async Task ASaveThatCarriesAnEstimateReadsItsLinesOnlyWithTheSpecification()
+    public async Task ACommittedSaveReadsNothingBackAfterItCommits()
     {
         await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
-        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-lines-read");
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-no-read-back");
         var counter = new SqlStatementCounter();
         var store = await StoreCountingStatementsAsync(harness, counter);
 
-        await store.SaveAsync(
-            Request(harness, initial.Version, lease.Token, "workspace-lines-read", engineer) with
+        var saved = await store.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "workspace-no-read-back", engineer) with
             {
                 Estimate = TwoLineEstimate()
             },
             CancellationToken.None);
 
-        var statements = counter.Statements;
-        var message = "The statements, in the order they started:" + Environment.NewLine
-            + string.Join(Environment.NewLine, statements);
-        var lastWithSpecification = statements.ToList().FindLastIndex(text =>
-            text.Contains("[CaseRepairSpecifications]", StringComparison.Ordinal)
-            && text.Contains("[CaseEstimateLines]", StringComparison.Ordinal));
-        Assert.True(lastWithSpecification >= 0, message);
-        Assert.False(
-            statements.Skip(lastWithSpecification + 1).Any(text =>
-                text.Contains("FROM [CaseEstimateLines]", StringComparison.Ordinal)),
-            message);
+        Assert.Equal(2, Assert.IsType<RepairSpecificationVersion>(saved.Estimate).Lines.Count);
+        Assert.True(counter.CountContaining("FROM [CaseEstimateLines]") == 0, counter.Describe());
+        Assert.True(counter.CountContaining("FROM [CaseDataSnapshots]") == 1, counter.Describe());
+    }
+
+    /// <summary>
+    /// The committed save's answer is projected from the tracked rows, the
+    /// replay's is read afresh (#1951); the two are the same Case. One save sets
+    /// a value and clears another, writes one assessment field and removes
+    /// another, and carries a new specification with two lines.
+    /// </summary>
+    [Fact]
+    public async Task ACommittedSaveProjectsExactlyWhatItsReplayReads()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var setupLease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-projection-setup");
+        var setup = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, setupLease.Token, "workspace-projection-setup", engineer) with
+            {
+                Overview = Overview("Jane Example") with { ClaimantContactNumber = "07700 900123" },
+                Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [AssessmentVocabulary.Outcome] = "total_loss"
+                })
+            },
+            CancellationToken.None);
+        Assert.NotNull(setup.Data.Claimant.ContactNumber.Current);
+        Assert.Equal("total_loss", setup.Assessment.Field(AssessmentVocabulary.Outcome)?.Value);
+
+        var lease = await harness.AcquireLeaseAsync(setup.Version, engineer, "lease-projection");
+        var request = Request(harness, setup.Version, lease.Token, "workspace-projection", engineer) with
+        {
+            Overview = Overview("John Example"),
+            Damage = new(null, new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.DamageUnrelated] = "Old rear bumper scrape"
+            }),
+            Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.Outcome] = null
+            }),
+            Estimate = TwoLineEstimate()
+        };
+
+        var first = await harness.WorkspaceStore.SaveAsync(request, CancellationToken.None);
+        var replayed = await harness.WorkspaceStore.SaveAsync(request, CancellationToken.None);
+
+        Assert.False(first.WasReplay);
+        Assert.True(replayed.WasReplay);
+        Assert.Equal("John Example", first.Data.Claimant.Name.Current?.Value);
+        Assert.Null(first.Data.Claimant.ContactNumber.Current);
+        Assert.Equal("Old rear bumper scrape", first.Assessment.Field(AssessmentVocabulary.DamageUnrelated)?.Value);
+        Assert.Null(first.Assessment.Field(AssessmentVocabulary.Outcome));
+
+        Assert.Equal(first.Version, replayed.Version);
+        Assert.Equal(first.Data, replayed.Data);
+        // The committed projection orders the fields ordinally and the
+        // replay's read by the database collation, so both are put in one order.
+        Assert.Equal(
+            first.Assessment.Fields.OrderBy(field => field.Path, StringComparer.Ordinal).ToArray(),
+            replayed.Assessment.Fields.OrderBy(field => field.Path, StringComparer.Ordinal).ToArray());
+        Assert.Equal(first.Assessment.EstimateLines, replayed.Assessment.EstimateLines);
+        var committed = Assert.IsType<RepairSpecificationVersion>(first.Estimate);
+        var read = Assert.IsType<RepairSpecificationVersion>(replayed.Estimate);
+        Assert.Equal(committed.SpecificationId, read.SpecificationId);
+        Assert.Equal(committed.Version, read.Version);
+        Assert.Equal(committed.State, read.State);
+        Assert.Equal(committed.IsCurrent, read.IsCurrent);
+        Assert.Equal(2, committed.Lines.Count);
+        Assert.Equal(committed.Lines, read.Lines);
+    }
+
+    /// <summary>
+    /// A session save keeps the lease it was made under (R770): the same
+    /// holder, kind, operation key and generation, renewed for the lease's
+    /// duration from the save, with its next token issued inside the save and
+    /// handed back. The save records no lease operation.
+    /// </summary>
+    [Fact]
+    public async Task ASessionSaveKeepsTheLeaseAndIssuesItsNextToken()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var initial = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "lease-session-keep");
+        var claimed = await WorkflowRowAsync(harness);
+        var operationsBefore = await LeaseOperationCountAsync(harness);
+
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "workspace-session-keep") with
+            {
+                Overview = Overview("Jane Session"),
+                ContinuesSession = true
+            },
+            CancellationToken.None);
+
+        var kept = Assert.IsType<CaseSessionLease>(saved.SessionLease);
+        Assert.Equal(CaseEditAuthority.LeaseTokenLength, kept.Token.Length);
+        Assert.True(kept.Token.All(char.IsAsciiHexDigit), kept.Token);
+        Assert.NotEqual(lease.Token, kept.Token);
+        Assert.Equal(harness.TimeProvider.GetUtcNow() + CaseEditAuthority.LeaseDuration, kept.ExpiresAtUtc);
+        var row = await WorkflowRowAsync(harness);
+        Assert.Equal(harness.StaffActor.SubjectId, row.EditLeaseHolder);
+        Assert.Equal(nameof(ActorKind.Staff), row.EditLeaseHolderKind);
+        Assert.NotNull(claimed.EditLeaseOperationKey);
+        Assert.Equal(claimed.EditLeaseOperationKey, row.EditLeaseOperationKey);
+        Assert.Equal(claimed.EditLeaseGeneration, row.EditLeaseGeneration);
+        Assert.Equal(kept.ExpiresAtUtc, row.EditLeaseExpiresAtUtc);
+        Assert.NotEqual(claimed.EditLeaseTokenHash, row.EditLeaseTokenHash);
+        Assert.Equal(operationsBefore, await LeaseOperationCountAsync(harness));
+    }
+
+    /// <summary>
+    /// The token a session save replaced has no authority left: a save or a
+    /// heartbeat presenting it is refused as another window's would be, and
+    /// writes nothing. The token the save handed back saves.
+    /// </summary>
+    [Fact]
+    public async Task TheTokenASessionSaveReplacedIsRefusedOnSaveAndHeartbeat()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var initial = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "lease-replaced-token");
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "workspace-replaced-token-1") with
+            {
+                Overview = Overview("Jane Session"),
+                ContinuesSession = true
+            },
+            CancellationToken.None);
+        var historyBefore = await harness.HistoryCountAsync();
+
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.WorkspaceStore.SaveAsync(
+                Request(harness, saved.Version, lease.Token, "workspace-replaced-token-old") with
+                {
+                    Overview = Overview("Never written"),
+                    ContinuesSession = true
+                },
+                CancellationToken.None));
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.WorkflowStore.HeartbeatAsync(
+                new(harness.CaseId, harness.StaffActor, lease.Token),
+                CancellationToken.None));
+        Assert.Equal(saved.Version, (await harness.GetRequiredDataAsync()).Version);
+        Assert.Equal(historyBefore, await harness.HistoryCountAsync());
+
+        var next = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, saved.Version, saved.SessionLease!.Token, "workspace-replaced-token-2") with
+            {
+                Overview = Overview("John Session"),
+                ContinuesSession = true
+            },
+            CancellationToken.None);
+        Assert.Equal(saved.Version + 1, next.Version);
+        Assert.Equal("John Session", next.Data.Claimant.Name.Current?.Value);
+    }
+
+    /// <summary>
+    /// FRD-14's two windows: the same member of staff holds the lease in two
+    /// windows; window one saves and carries on with the next token, and window
+    /// two, still holding the token and version it read, is refused rather
+    /// than overwriting window one's save.
+    /// </summary>
+    [Fact]
+    public async Task ASecondWindowsStaleSaveIsRefusedAfterASessionSave()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var opened = (await harness.GetRequiredDataAsync()).Version;
+        var lease = await harness.AcquireLeaseAsync(opened, harness.StaffActor, "lease-two-windows");
+
+        var windowOne = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, opened, lease.Token, "workspace-window-one") with
+            {
+                Overview = Overview("Window One"),
+                ContinuesSession = true
+            },
+            CancellationToken.None);
+        Assert.Equal(opened + 1, windowOne.Version);
+        Assert.NotNull(windowOne.SessionLease);
+
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.WorkspaceStore.SaveAsync(
+                Request(harness, opened, lease.Token, "workspace-window-two") with
+                {
+                    Overview = Overview("Window Two"),
+                    ContinuesSession = true
+                },
+                CancellationToken.None));
+
+        var after = await harness.GetRequiredDataAsync();
+        Assert.Equal(windowOne.Version, after.Version);
+        Assert.Equal("Window One", after.Claimant.Name.Current?.Value);
+    }
+
+    /// <summary>
+    /// A session save sent again (a retried post) replays: it hands back the
+    /// caller's current token, the one the first save issued, so the page
+    /// carries on with the lease it holds.
+    /// </summary>
+    [Fact]
+    public async Task AReplayedSessionSaveHandsBackTheCurrentToken()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var initial = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "lease-session-replay");
+        var request = Request(harness, initial.Version, lease.Token, "workspace-session-replay") with
+        {
+            Overview = Overview("Jane Replay"),
+            ContinuesSession = true
+        };
+
+        var first = await harness.WorkspaceStore.SaveAsync(request, CancellationToken.None);
+        var replayed = await harness.WorkspaceStore.SaveAsync(request, CancellationToken.None);
+
+        Assert.False(first.WasReplay);
+        Assert.True(replayed.WasReplay);
+        var issued = Assert.IsType<CaseSessionLease>(first.SessionLease);
+        var handedBack = Assert.IsType<CaseSessionLease>(replayed.SessionLease);
+        Assert.Equal(issued.Token, handedBack.Token);
+        Assert.Equal(issued.ExpiresAtUtc, handedBack.ExpiresAtUtc);
+        Assert.Equal(1, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
+    }
+
+    /// <summary>
+    /// The Automation Actor's lease stands across its writes with one token
+    /// (operator, 8 October 2026), and its saves are not a staff edit session:
+    /// two saves under one Automation lease keep two Notes lines and the token
+    /// is never rotated.
+    /// </summary>
+    [Fact]
+    public async Task TwoAutomationSavesKeepTwoNotes()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var automation = ActionActor.Automation("pegasus-automation");
+        var opened = (await harness.GetRequiredDataAsync()).Version;
+        var lease = await harness.AcquireLeaseAsync(opened, automation, "lease-automation-saves");
+        var claimed = await WorkflowRowAsync(harness);
+
+        var first = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, opened, lease.Token, "workspace-automation-1", automation) with
+            {
+                Overview = Overview("Jane Automation")
+            },
+            CancellationToken.None);
+        var second = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, first.Version, lease.Token, "workspace-automation-2", automation) with
+            {
+                Overview = Overview("John Automation")
+            },
+            CancellationToken.None);
+
+        Assert.Null(first.SessionLease);
+        Assert.Null(second.SessionLease);
+        Assert.Equal(opened + 2, second.Version);
+        var row = await WorkflowRowAsync(harness);
+        Assert.Equal(claimed.EditLeaseTokenHash, row.EditLeaseTokenHash);
+        Assert.Equal(automation.SubjectId, row.EditLeaseHolder);
+        var lines = (await new EfCaseQueryStore(harness.Factory, harness.TimeProvider)
+                .ListHistoryAsync(harness.CaseId, CancellationToken.None))
+            .Where(entry => entry.EventType == "case_workspace_saved")
+            .ToArray();
+        Assert.Equal(2, lines.Length);
+        Assert.Contains(lines, entry => (entry.BeforeVersion, entry.AfterVersion) == (opened, first.Version));
+        Assert.Contains(lines, entry => (entry.BeforeVersion, entry.AfterVersion) == (first.Version, second.Version));
+    }
+
+    /// <summary>
+    /// A save that does not ask to continue the session (a one-command or MCP
+    /// write) ends the lease it was made under, as every staff write did
+    /// before R770: no lease comes back and the token it presented is refused.
+    /// </summary>
+    [Fact]
+    public async Task ASaveThatDoesNotContinueTheSessionEndsTheLease()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var initial = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "lease-one-command");
+
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "workspace-one-command") with
+            {
+                Overview = Overview("Jane Command")
+            },
+            CancellationToken.None);
+
+        Assert.Null(saved.SessionLease);
+        var row = await WorkflowRowAsync(harness);
+        Assert.Null(row.EditLeaseHolder);
+        Assert.Null(row.EditLeaseTokenHash);
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+            harness.WorkspaceStore.SaveAsync(
+                Request(harness, saved.Version, lease.Token, "workspace-one-command-again") with
+                {
+                    Overview = Overview("Never written")
+                },
+                CancellationToken.None));
+        Assert.Equal(saved.Version, (await harness.GetRequiredDataAsync()).Version);
     }
 
     /// <summary>
@@ -2627,6 +2917,18 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         await using var context = await harness.Factory.CreateDbContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.PrincipalCancelled)} WHERE CaseId = {harness.CaseId}");
+    }
+
+    private static async Task<CaseWorkflowEntity> WorkflowRowAsync(Harness harness)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        return await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == harness.CaseId);
+    }
+
+    private static async Task<int> LeaseOperationCountAsync(Harness harness)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        return await context.CaseEditLeaseOperations.AsNoTracking().CountAsync(item => item.CaseId == harness.CaseId);
     }
 
     private static async Task<long> WorkflowEventCountAsync(Harness harness, string eventType)

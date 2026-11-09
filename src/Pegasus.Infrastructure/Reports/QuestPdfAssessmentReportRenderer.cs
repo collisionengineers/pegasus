@@ -19,6 +19,20 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate, IM
     /// <summary>How many prepared signatures are kept: the most recently prepared.</summary>
     internal const int SignatureCapacity = 16;
 
+    /// <summary>
+    /// How many photos one render has open at once (operator, 8 November 2026,
+    /// R772; the bounded two-at-a-time read-ahead R305 approved). Two, fixed:
+    /// one photo's blob read overlaps the other's decode, and on a two-core
+    /// plan both decode together. Not the processor count, so the memory bound
+    /// is the same on every host. Each photo in flight holds its source bytes
+    /// (a few MB), the decoded bitmap (a 12 MP source decoded at half scale
+    /// for a 2000 px page is 12 MB; a tight crop forces the whole 48 MB) and
+    /// the output bitmap (up to 16 MB): about 60 MB for two ordinary photos
+    /// and about 150 MB at worst. The gate admits one render at a time, so
+    /// that is the process's whole image memory.
+    /// </summary>
+    internal const int ImagesPreparedAtOnce = 2;
+
     private readonly ReportRenderGate gate = gate ?? throw new ArgumentNullException(nameof(gate));
 
     private readonly IMemoryCache cache = cache ?? throw new ArgumentNullException(nameof(cache));
@@ -57,10 +71,10 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate, IM
     }
 
     /// <summary>
-    /// Prepares the images, one source image in memory at a time, then lays
-    /// the document out. The token is the gate's: cancelled when the caller
-    /// stops waiting, and checked between images so an abandoned render stops
-    /// instead of running on.
+    /// Prepares the images, at most <see cref="ImagesPreparedAtOnce"/> source
+    /// images in memory at a time, then lays the document out. The token is
+    /// the gate's: cancelled when the caller stops waiting, and checked
+    /// between images so an abandoned render stops instead of running on.
     /// </summary>
     private async Task<byte[]> RenderPdfAsync(
         AssessmentReportSnapshot snapshot,
@@ -85,11 +99,13 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate, IM
     /// Overview and prints it again first on the image pages, ahead of the
     /// Close-up (operator, 4 November 2026, R660); the image pack prints every
     /// image in the grid. Full page applies to every image on the image pages,
-    /// the Overview among them, and never to page 1's slot. Each image is
-    /// opened, prepared and let go of before the next is opened; the Overview
-    /// is opened once and prepared for both its slot and the image pages. A
-    /// report generated without vehicle images opens none: it has no lead and
-    /// no image pages, and its image pack still prints every image.
+    /// the Overview among them, and never to page 1's slot. At most
+    /// <see cref="ImagesPreparedAtOnce"/> images are open at a time, each let
+    /// go once it is prepared, and each prints in its own place whatever order
+    /// they finish in; the Overview is opened once and prepared for both its
+    /// slot and the image pages. A report generated without vehicle images
+    /// opens none: it has no lead and no image pages, and its image pack still
+    /// prints every image.
     /// </summary>
     private async Task<PreparedReportImages> PrepareAsync(
         AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind, CancellationToken cancellationToken)
@@ -107,17 +123,29 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate, IM
             ? ordered.FirstOrDefault(photo => photo.Role == CaseAssetReportRole.Overview)
             : null;
         byte[]? leadImage = null;
-        var photos = new List<PreparedReportPhoto>(ordered.Count);
-        foreach (var photo in ordered)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var content = await photo.OpenAsync(cancellationToken).ConfigureAwait(false);
-            if (ReferenceEquals(photo, lead))
+        var photos = new PreparedReportPhoto[ordered.Count];
+        // Each photo lands in its own place, so the order the Engineer gave is
+        // the order printed whatever order the photos finish in. The loop's
+        // token is the gate's, linked: a photo that fails cancels the others
+        // in flight and no further photo is opened. A render that is abandoned
+        // keeps its gate slot until both photos in flight have stopped.
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, ordered.Count),
+            new ParallelOptions
             {
-                leadImage = Prepare(content, photo, ReportChrome.LeadSlotHeight, cancellationToken);
-            }
-            photos.Add(new PreparedReportPhoto(Prepare(content, photo, null, cancellationToken), photo.FullPage));
-        }
+                MaxDegreeOfParallelism = ImagesPreparedAtOnce,
+                CancellationToken = cancellationToken,
+            },
+            async (index, token) =>
+            {
+                var photo = ordered[index];
+                var content = await photo.OpenAsync(token).ConfigureAwait(false);
+                if (ReferenceEquals(photo, lead))
+                {
+                    leadImage = Prepare(content, photo, ReportChrome.LeadSlotHeight, token);
+                }
+                photos[index] = new PreparedReportPhoto(Prepare(content, photo, null, token), photo.FullPage);
+            }).ConfigureAwait(false);
         return new(leadImage, photos, SignatureFor(snapshot.Signatory), ReportResources.Logo());
     }
 

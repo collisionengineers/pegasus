@@ -200,6 +200,11 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         }
         var saveCommands = counter.Count;
         var saveDescription = counter.Describe();
+        // The save keeps the session's lease and issues its next token in its own
+        // transaction (R770): no claim follows it, so no lease operation is written
+        // and the Case's workflow row is locked once, by the save.
+        var leaseOperationWrites = counter.CountContaining("INSERT", "[CaseEditLeaseOperations]");
+        var workflowLocks = counter.CountContaining("[CaseWorkflows] WITH (UPDLOCK");
 
         Assert.True(
             pageCommands <= CasePageCommands,
@@ -210,6 +215,14 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         Assert.True(
             saveCommands <= CaseSaveCommands,
             $"One accepted save sent {saveCommands} SQL commands; at most {CaseSaveCommands} are allowed."
+            + Environment.NewLine + saveDescription);
+        Assert.True(
+            leaseOperationWrites == 0,
+            $"A session save wrote {leaseOperationWrites} lease operations; it claims nothing after it."
+            + Environment.NewLine + saveDescription);
+        Assert.True(
+            workflowLocks <= 1,
+            $"A session save locked the Case's workflow {workflowLocks} times; the save's own lock is the only one."
             + Environment.NewLine + saveDescription);
     }
 
@@ -381,13 +394,22 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// 30 before B3-04: the save read the whole workspace (workflow, snapshot,
-    /// assessment fields, Current spec with its lines, latest observation: five
-    /// statements) to keep three recorded values, and now reads those values in
-    /// one, so 30 - 5 + 1 = 26. One note per save session (R466) reads, in one
-    /// statement, whether the save carries its session on: 27.
+    /// 27 before #1951 (B3-04 brought it from 30 to 26, and the R466 note's
+    /// session read made it 27). The measured POST has no script header, so
+    /// it is the save and what used to follow it. Now the committed save
+    /// projects its answer from the rows it tracks, so its three post-commit
+    /// re-reads (the snapshot, the workflow and the assessment fields; this
+    /// fixture posts no estimate, so there is no estimate re-read) are gone:
+    /// -3. Core passes the sign-off Engineers in, a kept list (#1950), so the
+    /// store no longer reads them under its lock: -1. The save keeps the
+    /// session's lease and issues its next token itself (R770), so the reclaim
+    /// that followed (the page's workflow read, the claim transaction's lock,
+    /// its workflow read, two lease-operation replay probes and its write) is
+    /// gone: -6. 27 - 3 - 1 - 6 = 17. It is a ceiling; the failure's
+    /// <see cref="SqlStatementCounter.Describe"/> output in CI names every
+    /// command and corrects this figure.
     /// </summary>
-    private const int CaseSaveCommands = 27;
+    private const int CaseSaveCommands = 17;
 
     /// <summary>
     /// What a spec tab, New repair spec or Compare switch costs in SQL commands
@@ -481,7 +503,15 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             client, editing, caseId, CurrentCaseSaveValues(editing, caseId, vehicleMake: "Vauxhall"), script: true);
         var firstCommands = counter.Count;
         var firstDescription = counter.Describe();
+        var firstSnapshotReads = counter.CountContaining("FROM [CaseDataSnapshots]");
         Assert.Equal(HttpStatusCode.OK, first.Status);
+        // The save kept the lease and issued its next token (R770); the answer carries that one.
+        Assert.NotEqual(InputValue(editing, "editLeaseToken"), SaveFormValue(first.Body, "editLeaseToken"));
+        Assert.True(
+            firstSnapshotReads <= 3,
+            $"An answered commit read the Case data snapshot {firstSnapshotReads} times; the edit basis, the save's"
+            + " tracked read and the answer's workspace are the most allowed."
+            + Environment.NewLine + firstDescription);
         var firstCommit = EditorCommit(first.Body);
         Assert.Equal(startVersion, firstCommit.ExpectedVersion);
         Assert.Equal(startVersion + 1, firstCommit.Version);
@@ -547,9 +577,69 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// AI jobs and the workflow configuration, the valuation opening, and the workspace extras.
     /// The report snapshot takes the Case's works from the frame, as the page's does. The
     /// frame includes the Next action's linked-cancellation read and the Linked cases card's
-    /// linked-Triage read, one statement each.
+    /// linked-Triage read, one statement each. 28 before #1951: the answer hands the frame the
+    /// Case data the save projected, so the frame no longer reads the data row (-1), and the
+    /// report snapshot's sign-off list is a kept one since #1950 (-1; this fixture resolves no
+    /// sign-off Engineer, so no signature is read): 28 - 2 = 26. It is a ceiling; CI's
+    /// <see cref="SqlStatementCounter.Describe"/> output corrects it.
     /// </summary>
-    private const int CommitAnswerCommands = 28;
+    private const int CommitAnswerCommands = 26;
+
+    /// <summary>
+    /// R770: a save keeps the session's lease and issues its next token, so the token
+    /// it was made under is spent. A commit that still sends that token, at the
+    /// version the save answered, is refused as a lost lease is: the refused shape
+    /// with the shared refusal as its notice, and nothing is written to the Case.
+    /// </summary>
+    [Fact]
+    public async Task ACommitThatStillSendsTheTokenTheSaveReplacedIsRefused()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-replaced-session-token", withMileage: false);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        var spentToken = InputValue(editing, "editLeaseToken");
+        var startVersion = long.Parse(InputValue(editing, "expectedVersion"), CultureInfo.InvariantCulture);
+
+        var first = await CommitAsync(
+            client, editing, caseId, CurrentCaseSaveValues(editing, caseId, vehicleMake: "Vauxhall"), script: true);
+        Assert.Equal(HttpStatusCode.OK, first.Status);
+        Assert.Equal(startVersion + 1, EditorCommit(first.Body).Version);
+        Assert.NotEqual(spentToken, SaveFormValue(first.Body, "editLeaseToken"));
+
+        // The answer's version and operation key, with the token the first page carried.
+        (string Name, string Value)[] stale =
+        [
+            .. WithAuthority(CurrentCaseSaveValues(editing, caseId, vehicleMake: "Renault"), first.Body)
+                .Select(field => field.Name == "editLeaseToken" ? (field.Name, spentToken) : field)
+        ];
+        counter.Reset();
+        var refused = await CommitAsync(client, editing, caseId, stale, script: true);
+        var workflowEventWrites = counter.CountContaining("INSERT", "[CaseWorkflowEvents]");
+        var refusedDescription = counter.Describe();
+
+        Assert.Equal(HttpStatusCode.OK, refused.Status);
+        Assert.DoesNotMatch("data-editor-commit=\"[^\"]+\"", refused.Body);
+        Assert.Contains("role=\"alert\"", refused.Body, StringComparison.Ordinal);
+        Assert.Contains(
+            "The case action was not applied because the case changed, edit mode was lost, or the action is not permitted.",
+            refused.Body,
+            StringComparison.Ordinal);
+        Assert.Contains($"data-case-version=\"{startVersion + 1}\"", refused.Body, StringComparison.Ordinal);
+        Assert.True(
+            workflowEventWrites == 0,
+            $"A commit under a spent token wrote {workflowEventWrites} workflow events."
+            + Environment.NewLine + refusedDescription);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.Equal("Vauxhall", data!.Vehicle.Make.Confirmed?.Value);
+    }
 
     private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
         HttpClient client,

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -179,7 +180,12 @@ internal static partial class CaseWebTestSupport
         AssertClaimant(workspace, request.Actor);
         Assert.Equal(workspace.Store.CaseId, request.CaseId);
         Assert.Equal(expectedVersion ?? workspace.Store.CaseVersion, request.ExpectedVersion);
-        Assert.Equal(workspace.Store.LeaseToken, request.EditLeaseToken);
+        // A Case save is made under the token the lease held when it arrived; a session save
+        // then replaces that token (R770), so the store's current one is the next save's.
+        var heldToken = request is SaveCaseWorkspaceRequest && workspace.Store.LeaseTokenBeforeLastSave is { } before
+            ? before
+            : workspace.Store.LeaseToken;
+        Assert.Equal(heldToken, request.EditLeaseToken);
         Assert.Equal(operationKey, request.OperationKey);
         Assert.Equal(reason, request.Reason);
     }
@@ -934,7 +940,25 @@ internal static partial class CaseWebTestSupport
 
         public IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails { get; init; } = [];
 
-        public string LeaseToken { get; } = new('a', CaseEditAuthority.LeaseTokenLength);
+        /// <summary>
+        /// The live lease's token. A session save replaces it with the next one, as the store's
+        /// <c>CaseMutationGuard.CompleteSessionWrite</c> does (R770); a claim or resume hands back
+        /// whichever is current.
+        /// </summary>
+        public string LeaseToken { get; private set; } = new('a', CaseEditAuthority.LeaseTokenLength);
+
+        /// <summary>
+        /// Whether a session save keeps the lease and hands its next token back (R770). False
+        /// answers as a replay that found no lease does: the lease is consumed and the page falls
+        /// back to its reclaim.
+        /// </summary>
+        public bool KeepsSessionOnSave { get; init; } = true;
+
+        /// <summary>
+        /// The token the lease held when the last Case save arrived: the one that save was made
+        /// under, which a session save then replaces (R770).
+        /// </summary>
+        public string? LeaseTokenBeforeLastSave { get; private set; }
 
         public bool RenderLeaseIsCurrent { get; set; } = true;
 
@@ -1296,9 +1320,25 @@ internal static partial class CaseWebTestSupport
             cancellationToken.ThrowIfCancellationRequested();
             ThrowNextFailure();
             Saves.Add(request);
+            LeaseTokenBeforeLastSave = LeaseToken;
             if (AcceptWorkspaceSaves)
             {
                 CaseVersion++;
+                if (request.ContinuesSession
+                    && KeepsSessionOnSave
+                    && _leaseHolder is not null
+                    && _leaseHolderKind == ActorKind.Staff)
+                {
+                    // The session save keeps the lease (same holder and operation key) and issues
+                    // its next token, so the token the page posted is spent (R770).
+                    LeaseToken = Convert.ToHexStringLower(
+                        RandomNumberGenerator.GetBytes(CaseEditAuthority.LeaseTokenLength / 2));
+                    return Task.FromResult(new SaveCaseWorkspaceResult(CreateData(), EngineeringAssessment(), null, false)
+                    {
+                        SessionLease = new(LeaseToken, _now.AddMinutes(5))
+                    });
+                }
+
                 ConsumeLease();
                 return Task.FromResult(new SaveCaseWorkspaceResult(CreateData(), EngineeringAssessment(), null, false));
             }
