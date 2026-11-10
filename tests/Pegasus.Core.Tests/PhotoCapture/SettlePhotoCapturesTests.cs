@@ -799,7 +799,7 @@ public sealed class SettlePhotoCapturesTests
                     .ToArray());
             };
             forwarder.Overrides[nameof(IPhotoCaptureStore.ListBatchFilingsAsync)] = args =>
-                Task.FromResult(Filings((Guid)args[0]!, (int)args[1]!, (Guid?)args[2]));
+                Task.FromResult<IReadOnlyList<PhotoCaptureItemFiling>>(Filings((Guid)args[0]!, (int)args[1]!, (Guid?)args[2]));
             forwarder.Overrides[nameof(IPhotoCaptureStore.CloseBatchAsync)] = args =>
             {
                 var captureId = (Guid)args[0]!;
@@ -989,7 +989,7 @@ public sealed class SettlePhotoCapturesTests
             return row;
         }
 
-        private IReadOnlyList<PhotoCaptureItemFiling> Filings(Guid captureId, int batch, Guid? caseId) =>
+        private PhotoCaptureItemFiling[] Filings(Guid captureId, int batch, Guid? caseId) =>
             Items[captureId]
                 .Where(item => item.Batch == batch && item.StagedReceiptId is not null)
                 .Select(item =>
