@@ -1505,6 +1505,17 @@
                 });
             }
             carryForward(parsed);
+            // Wording the Case refused while its report was not ready is
+            // offered again by the page once the Case as it now stands draws
+            // its wording blocks, which it does only when the report can be
+            // put together (R894). The commit carries what the Engineer
+            // wrote and nothing the page merely still shows.
+            var keptWording = record.querySelector('[data-report-wording]');
+            if (keptWording && keptWording.pegasusWording
+                && parsed.querySelector('[data-report-wording] [data-wording-row]')
+                && keptWording.pegasusWording.offerAgain()) {
+                commitPending = true;
+            }
         }
         (commitRefused ? [] : ['class', 'data-case-version', 'data-case-editing', 'data-section-current', 'data-case-view']).forEach(function (name) {
             var value = incoming.getAttribute(name);
@@ -4608,13 +4619,23 @@
                 }));
             }
             var landed = state();
-            // What the Case last refused while its report was not ready.
+            // What the Case last refused while its report was not ready, and
+            // the refused wording the page has already offered again itself.
             var refused = null;
+            var offered = null;
             panel.pegasusWording = {
                 state: state,
                 changed: function () { var now = state(); return now !== landed && now !== refused; },
                 landed: function (sent) { landed = sent; refused = null; },
-                refused: function (sent) { refused = sent; }
+                refused: function (sent) { refused = sent; },
+                // Once for each refused wording: refused again, it waits for
+                // the Engineer to change it.
+                offerAgain: function () {
+                    if (refused === null || refused !== state() || refused === offered) { return false; }
+                    offered = refused;
+                    refused = null;
+                    return true;
+                }
             };
 
             function rows() {
