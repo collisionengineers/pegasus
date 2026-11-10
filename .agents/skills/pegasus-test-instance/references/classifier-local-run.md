@@ -88,9 +88,9 @@ run build`) after each move of the checkout (skill section 6).
 
 ## Claude Code on the instance's MCP
 
-The MCP serves tailnet agents as well as the classifier (R679), with no
-connector redirect, so Claude Code reaches it with a client-credentials token
-from a `headersHelper`. The helper prints one JSON object of headers:
+The MCP serves tailnet agents as well as the classifier (R679), and Claude
+Code reaches it with a client-credentials token from a `headersHelper`. The
+helper prints one JSON object of headers:
 
 ```bash
 #!/usr/bin/env bash
@@ -115,6 +115,16 @@ reaches real recipients; add it to `PEGASUS_TEST_MCP_SCOPES` only for a send
 the operator names. Tokens last ten minutes and the development keys change
 at each Web start; the helper runs again on reconnect (`/mcp` in Claude
 Code). Calls are attributed to `pegasus-automation`, as the classifier's are.
+
+## A claude.ai custom connector on the instance's MCP
+
+With port 443 Funnelled and `AutomationMcp__RedirectUris` set (R899),
+claude.ai reaches the MCP from Anthropic's cloud. Add a custom connector with
+URL `https://<host>.<tailnet>.ts.net/mcp`, client ID `pegasus-automation` and
+the instance's client secret; the connector's sign-in opens
+`/connect/authorize`, where an Administrator signs in and approves the
+scopes. A run started before the line went in needs Stop and
+`Start -RunId <id>` to pick it up.
 
 ## What to watch
 

@@ -383,10 +383,12 @@ refuses. Omitted on a restart, the recorded origin stands. In front of the run, 
 https+insecure://localhost:7139` (the Windows host's Tailscale through WSL
 localhost forwarding, or Tailscale inside WSL) answers with the tailnet's
 certificate, so no development certificate is exported. Tailscale Funnel
-exposes one path alone, the Graph webhook, on its own port (R676):
+exposes the Graph webhook on its own port (R676):
 `tailscale funnel --bg --https=8443 --set-path /hooks/microsoft-graph/mail
-https+insecure://localhost:7139/hooks/microsoft-graph/mail`; port 443 stays
-tailnet-only. OpenIddict issues tokens for the host a request arrived on, so a
+https+insecure://localhost:7139/hooks/microsoft-graph/mail`. On the hosted test
+instance, Funnel also exposes the whole origin on 443 (`tailscale funnel` in
+place of `tailscale serve`), behind password sign-in, so a claude.ai custom
+connector reaches the MCP (R899). OpenIddict issues tokens for the host a request arrived on, so a
 classifier or connector uses the public origin for both the token endpoint and
 the MCP endpoint.
 
