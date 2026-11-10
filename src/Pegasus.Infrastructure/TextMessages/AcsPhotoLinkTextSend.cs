@@ -81,7 +81,7 @@ public sealed partial class AcsPhotoLinkTextSend(
             }
 
             var body = await response.Content.ReadFromJsonAsync<SendResponse>(cancellationToken);
-            var result = body?.Value?.FirstOrDefault();
+            var result = body?.Value is { Count: > 0 } results ? results[0] : null;
             if (result is { Successful: true })
             {
                 return PhotoLinkTextOutcome.Sent(result.MessageId);
