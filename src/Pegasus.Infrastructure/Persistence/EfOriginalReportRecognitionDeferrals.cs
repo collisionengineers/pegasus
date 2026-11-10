@@ -22,8 +22,8 @@ internal sealed class EfOriginalReportRecognitionDeferrals(
     internal const string DeferredEventType = "original_report_recognition_deferred";
     internal const string SettledEventType = "original_report_recognition_settled";
     private const string SystemWorkerKind = nameof(ActorKind.SystemWorker);
-    private const string DeferredKeyPrefix = "original-report-recognition-deferred:";
-    private const string SettledKeyPrefix = "original-report-recognition-settled:";
+    private const string DeferredKeyPrefix = "original-report-wait:";
+    private const string SettledKeyPrefix = "original-report-settled:";
 
     public async Task RecordAsync(
         Guid caseId,
