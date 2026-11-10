@@ -2453,8 +2453,11 @@
                 return name.toLowerCase().endsWith(extension) ? name.slice(0, -extension.length) : name;
             }
             function current() { return posted.value || defaultName; }
+            // Rename's accessible name follows the shown name, as v48 drew it.
+            var renameWord = rename.getAttribute('title') || '';
             function show(name) {
                 label.textContent = name;
+                rename.setAttribute('aria-label', renameWord + ' ' + name);
                 if (open) { open.setAttribute('data-file-name', name); }
             }
             function start() {
