@@ -117,7 +117,7 @@ else
                             <input type="hidden" asp-for="StandardBody" data-photo-link-standard />
                             <p class="field-hint" data-photo-link-edited hidden="@(!Model.BodyEdited)">
                                 @Labels.EditedForThisOneOnly
-                                <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.SendModel.StandardWording" class="btn btn--small" formnovalidate data-photo-link-reset>@Labels.PutTheStandardWordingBack</button>
+                                <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.SendModel.StandardWording" class="btn btn--small" formnovalidate data-photo-link-reset data-busy-label="@OperatorLabels.Busy.Restoring">@Labels.PutTheStandardWordingBack</button>
                             </p>
                         </div>
                     </div>
