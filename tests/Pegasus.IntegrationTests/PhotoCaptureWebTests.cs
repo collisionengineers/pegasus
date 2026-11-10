@@ -761,6 +761,148 @@ public sealed class PhotoCaptureWebTests
         Assert.Equal(typedSlug, updated.Slug);
     }
 
+    /// <summary>Each tab carries how many captures it holds (R806): Coming in its standing captures, Links we sent its Case links.</summary>
+    [Fact]
+    public async Task TheTabsCountTheCapturesEachHolds()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await IssueLinkAsync(factory, caseId);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        await StandingCaptureDriver.StartAsync(factory, client, link, "ZZ99 QQQ");
+        await StandingCaptureDriver.StartAsync(factory, client, link, "ZZ88 HHH");
+
+        var list = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture");
+
+        var counts = System.Text.RegularExpressions.Regex.Matches(list, "<span class=\"tab-count\">(\\d+)</span>")
+            .Select(match => match.Groups[1].Value)
+            .ToArray();
+        Assert.Equal(2, counts.Length);
+        Assert.Equal("2", counts[0]);
+        Assert.Equal("1", counts[1]);
+    }
+
+    /// <summary>Coming in's "No case yet" lists only the captures with no Case (R806).</summary>
+    [Fact]
+    public async Task NoCaseYetListsOnlyTheCapturesWithNoCase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await StandingCaptureDriver.SetCaseRegistrationAsync(factory, caseId, "XY99ZZZ");
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var onCase = await StandingCaptureDriver.StartAsync(factory, client, link, "XY99 ZZZ");
+        var noCase = await StandingCaptureDriver.StartAsync(factory, client, link, "ZZ99 QQQ");
+        Assert.Equal(caseId, onCase.Capture.CaseId);
+
+        var all = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture");
+        var filtered = await IntakeWebDriver.GetHtmlAsync(
+            client, $"/PhotoCapture?origin={OperatorLabels.PhotoCapture.NoCaseYetKey}");
+
+        Assert.Contains(RowMarker(onCase.Capture.Id), all, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(RowMarker(noCase.Capture.Id), all, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(RowMarker(noCase.Capture.Id), filtered, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(RowMarker(onCase.Capture.Id), filtered, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Ask for it is on a live Coming in row whose status is Something
+    /// missing, and not on a dead one (R806, R816).
+    /// </summary>
+    [Fact]
+    public async Task ComingInOffersAskForItOnlyOnALiveRowWithSomethingMissing()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var live = await StandingCaptureDriver.StartAsync(factory, client, link, "ZZ99 QQQ");
+        var dead = await StandingCaptureDriver.StartAsync(factory, client, link, "ZZ88 HHH");
+        var now = IntakeWebApplicationFactory.FixedUtcNow;
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            // Both were sent with nothing in them; the second link has since expired.
+            await db.PhotoCaptures.Where(value => value.Id == live.Capture.Id).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.SentAtUtc, (DateTimeOffset?)now.AddHours(-1)));
+            await db.PhotoCaptures.Where(value => value.Id == dead.Capture.Id).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.SentAtUtc, (DateTimeOffset?)now.AddDays(-2))
+                .SetProperty(value => value.ExpiresAtUtc, now.AddDays(-1)));
+        }
+
+        var list = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture");
+
+        var askForIt = $">{OperatorLabels.PhotoCapture.AskForIt}</button>";
+        var liveRow = StandingCaptureDriver.ListRow(list, live.Capture.Id);
+        Assert.Contains(
+            $">{OperatorLabels.PhotoCapture.State(PhotoCaptureState.SomethingMissing)}</span>",
+            liveRow,
+            StringComparison.Ordinal);
+        Assert.Contains(askForIt, liveRow, StringComparison.Ordinal);
+        Assert.DoesNotContain(askForIt, StandingCaptureDriver.ListRow(list, dead.Capture.Id), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Case page shows each photo link's status beside it (R806): a link
+    /// with a photo its count; a live Case link with nothing its status,
+    /// "No photos yet" and "Resend the link".
+    /// </summary>
+    [Fact]
+    public async Task TheCasePageShowsEachLinksStatusAndAnEmptyLinksResend()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(factory, client, "AB12 CDE", "LINK-STATUS-01");
+        var withPhoto = await IssueLinkAsync(factory, caseId);
+        var empty = await IssueLinkAsync(factory, caseId);
+        using (var sent = await PutItemAsync(client, withPhoto.Token, Guid.NewGuid(), FirstOverview, MultiFormatFixture.Photograph(1)))
+        {
+            Assert.Equal(HttpStatusCode.Created, sent.StatusCode);
+        }
+
+        var files = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}?section=files");
+
+        var photoStory = StoryBlock(files, withPhoto.Capture.Id);
+        Assert.Contains(OperatorLabels.PhotoCapture.PhotoCount(1, complete: false), photoStory, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.PhotoCapture.NoPhotosYet, photoStory, StringComparison.Ordinal);
+        var emptyStory = StoryBlock(files, empty.Capture.Id);
+        Assert.Contains(
+            $">{OperatorLabels.PhotoCapture.State(PhotoCaptureState.SentNotOpened)}</span>",
+            emptyStory,
+            StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.PhotoCapture.NoPhotosYet, emptyStory, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.PhotoCapture.ResendTheLink, emptyStory, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A kept paperwork file of a capture with no Case opens from the link's
+    /// page through the received-file page (R807), which serves it.
+    /// </summary>
+    [Fact]
+    public async Task AKeptPaperworkFileOpensFromTheLinksPage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var started = await StandingCaptureDriver.StartAsync(factory, client, link, "ZZ99 QQQ");
+        var pdf = IntakeTestEvidence.CreatePdf("Repair estimate");
+        var sent = await StandingCaptureDriver.SendItemAsync(
+            factory, client, started, "kind=paperwork&position=1&live=false&original=false", pdf, "application/pdf");
+        await StandingCaptureDriver.DrainAsync(factory, sent);
+        var item = await ItemAsync(factory, started.Capture.Id, sent.ClientItemId);
+        var receiptId = item.IntakeReceiptId
+            ?? throw new InvalidOperationException("The paperwork did not learn its receipt.");
+        var assetId = item.IntakeAssetId
+            ?? throw new InvalidOperationException("The paperwork did not learn its asset.");
+        var keptHref = $"/Received/{receiptId:D}/Asset/{assetId:D}";
+
+        var page = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture/{started.Capture.Id:D}");
+
+        Assert.Contains($"href=\"{keptHref}\"", page, StringComparison.OrdinalIgnoreCase);
+        using var kept = await client.GetAsync(keptHref);
+        Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
+        Assert.Equal(pdf, await kept.Content.ReadAsByteArrayAsync());
+    }
+
     /// <summary>Issues a link for the Case as a member of staff does from it (FRD-28 "Photo links").</summary>
     private static async Task<IssuedPhotoLink> IssueLinkAsync(IntakeWebApplicationFactory factory, Guid caseId)
     {
@@ -1091,6 +1233,18 @@ public sealed class PhotoCaptureWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<IStandingPhotoLinkStore>()
             .FindWebsiteAsync(CancellationToken.None);
+    }
+
+    private static string RowMarker(Guid captureId) => $"data-photo-capture-row=\"{captureId:D}\"";
+
+    /// <summary>One photo link's block on the Case page, from its marker to its section's first close.</summary>
+    private static string StoryBlock(string html, Guid captureId)
+    {
+        var start = html.IndexOf($"data-photo-capture-story=\"{captureId:D}\"", StringComparison.OrdinalIgnoreCase);
+        Assert.True(start >= 0, $"The Case page shows no photo link {captureId:D}.");
+        var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
+        Assert.True(end > start, $"The photo link {captureId:D}'s block does not end.");
+        return html[start..end];
     }
 
     private sealed record CaptureCounts(int OriginalCount, long AcceptedBytes);
