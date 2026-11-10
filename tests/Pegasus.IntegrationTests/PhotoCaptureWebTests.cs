@@ -921,6 +921,51 @@ public sealed class PhotoCaptureWebTests
     }
 
     /// <summary>
+    /// A contact's own address is offered on its standing link's form with
+    /// its postcode once: an address whose text already ends with the
+    /// postcode is not given it again, and one without it is followed by it.
+    /// </summary>
+    [Fact]
+    public async Task AContactsAddressIsOfferedWithItsPostcodeOnce()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        _ = factory.Services;
+        var endsWithPostcode = Guid.NewGuid();
+        var withoutPostcode = Guid.NewGuid();
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            db.Organizations.AddRange(
+                new OrganizationEntity
+                {
+                    Id = endsWithPostcode, Name = "Dunnswood Repairs", Role = "repairer", Active = true, Version = 0,
+                    Address = "1 Dunnswood Road, G67 3EN", Postcode = "G67 3EN"
+                },
+                new OrganizationEntity
+                {
+                    Id = withoutPostcode, Name = "Example Repairs", Role = "repairer", Active = true, Version = 0,
+                    Address = "2 Example Street, Exampleton", Postcode = "EX1 2AB"
+                });
+            await db.SaveChangesAsync();
+        }
+
+        StandingPhotoLink first;
+        StandingPhotoLink second;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var administration = scope.ServiceProvider.GetRequiredService<StandingPhotoLinkAdministration>();
+            first = await administration.CreateForContactAsync(Issuer, endsWithPostcode, CancellationToken.None);
+            second = await administration.CreateForContactAsync(Issuer, withoutPostcode, CancellationToken.None);
+        }
+
+        Assert.Equal(
+            new StandingPhotoLinkAddress("Dunnswood Repairs", "1 Dunnswood Road, G67 3EN"),
+            Assert.Single((await AddressBookAsync(factory, first.Id)).FromContact));
+        Assert.Equal(
+            new StandingPhotoLinkAddress("Example Repairs", "2 Example Street, Exampleton, EX1 2AB"),
+            Assert.Single((await AddressBookAsync(factory, second.Id)).FromContact));
+    }
+
+    /// <summary>
     /// An address saved on a contact's Photo links tab is offered on the
     /// firm's form after the contact's own (R806, R815); changing it changes
     /// it there, removing it takes it away, and a change over a stale read is

@@ -1119,12 +1119,15 @@ function startWith(ctx){
   SEQ = STEPS.filter(s=>s!=='handoff');
   TITLES = {welcome:'Start',instruction:SRC&&SRC.kind==='client'?'Your details':SRC&&SRC.kind==='bodyshop'?'The job':'The claim',handoff:'Send to customer',location:'Damage location',damage:'Damage photos',corners:'Overview shots',plate:'Registration plate',dash:'Dashboard',video:'Walk-around video',extras:'Extras',scene:'Accident scene',questions:'Notes',summary:'Review',done:'Submitted'};
   KEY='ce-capture-'+(CTX.linkKey||'');
+  /* What the server already holds, before this phone's own saved copy is laid over it: only that counts as sent. */
+  S=BLANK(); applyServer(CTX); const held=JSON.stringify(detailsBody());
   S=load()||BLANK();
   applyServer(CTX);
   const nm=STEPS[S.step];
   if(nm==='done'||nm==='handoff') S.step=0;
   if(isStanding() && S.step>STEPS.indexOf('instruction')) S.step=Math.max(0,STEPS.indexOf('instruction'));
-  detailsSig=JSON.stringify(detailsBody());
+  /* Details restored from this phone that the server does not hold (areas marked before a reload) go on the next step or at Send. */
+  detailsSig=held;
   render();
 }
 function boot(){
