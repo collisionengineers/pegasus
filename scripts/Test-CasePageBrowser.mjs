@@ -1,7 +1,7 @@
-// Browser evidence for the Case page's own script (issues 1496 and 1497): section jumps across lazy
-// sections. Runs the production case-workspace.js against a fixture Case page and scripted local answers
-// in an isolated headless Chrome, Chromium or Edge profile. On demand, not in CI; it makes no request
-// beyond its own local server.
+// Browser evidence for the Case page's own script: section jumps across lazy sections (issues 1496 and
+// 1497) and report wording the Case refused (issue 1814). Runs the production case-workspace.js against
+// a fixture Case page and scripted local answers in an isolated headless Chrome, Chromium or Edge
+// profile. On demand, not in CI; it makes no request beyond its own local server.
 // Usage: node scripts/Test-CasePageBrowser.mjs [absolute-path-to-browser]
 //        or CHROME in the environment.
 // Every scenario runs; the exit code is 1 when any failed. Evidence is written under
@@ -25,12 +25,16 @@ await mkdir(output, { recursive: true });
 // The shared layout script first, as the layout loads it: the Case page's script reads its helpers.
 const siteScript = await readFile(join(root, 'src/Pegasus.Web/wwwroot/js/site.js'));
 const workspaceScript = await readFile(join(root, 'src/Pegasus.Web/wwwroot/js/case-workspace.js'));
+// The sentence a wording change is refused with on the page, read from its one owner.
+const wordingOwner = await readFile(join(root, 'src/Pegasus.Web/Presentation/ReportWordingEdits.cs'), 'utf8');
+const wordingRefusal = /const string Unavailable =\s*"([^"]+)";/.exec(wordingOwner)[1]
+    + /const string UnavailableOnPage = Unavailable \+ "([^"]+)";/.exec(wordingOwner)[1];
 
 // The page as the Case page draws it, as far as the frame's script reads it: the sticky block and its
 // section row, the sections in their order with the deferred ones as placeholders (Vehicle and Valuation
-// while reading; Files and Notes always), the aside's blocker links and, while editing, the Save form.
-// The page scrolls smoothly, as site.css has it. ?editing=1 edits, ?section= addresses a section,
-// ?short=a,b gives those sections a short body.
+// while reading; Files and Notes always), the aside's blocker links and, while editing, the Save form
+// and the Report section's wording panel with one block. The page scrolls smoothly, as site.css has it.
+// ?editing=1 edits, ?section= addresses a section, ?short=a,b gives those sections a short body.
 function fixture() {
     return `<!doctype html><html><head><meta charset="utf-8"><title>Case page fixture</title>
     <style>
@@ -50,7 +54,10 @@ function fixture() {
     var parentOf = { valuation: 'vehicle' };
     var lazy = editing ? { files: 1, notes: 1 } : { vehicle: 1, valuation: 1, files: 1, notes: 1 };
     window.trace = []; window.holding = {}; window.held = {}; window.failing = {};
-    window.state = { version: 1, lease: editing ? 'lease-1' : '', reference: 'CL-1' };
+    window.state = { version: 1, lease: editing ? 'lease-1' : '', reference: 'CL-1', wording: 'Composed.' };
+    // While false the Case's report cannot be put together, and a save carrying wording is refused.
+    window.reportReady = true;
+    var wordingRefusal = ${JSON.stringify(wordingRefusal)};
     // The addressed section and its parent draw with the page, as SectionIsDeferred has it.
     function deferred(key) {
         return !!lazy[key] && key !== addressed && key !== parentOf[addressed]
@@ -76,6 +83,14 @@ function fixture() {
         }
         if (key === 'valuation') { inside = '<div class="cell cell--top" data-field="retail-trade">Retail/Trade</div>'; }
         if (key === 'settlement') { inside = '<a id="to-valuation" href="/case?section=valuation" data-section-jump="valuation">Valuation</a>'; }
+        if (key === 'report' && editing) {
+            inside = '<div class="sub-panel wording" data-report-wording data-wording-refusal="' + wordingRefusal + '"><div data-wording-settings></div>'
+                + '<div data-wording-list><div class="wb" data-wording-row data-wording-block="nature" data-wording-composed="Composed.">'
+                + '<input type="hidden" name="wordingEdits[0].Key" value="nature" form="case-edit-form" data-wording-key>'
+                + '<input type="hidden" name="wordingEdits[0].Order" value="0" form="case-edit-form" data-wording-order>'
+                + '<textarea id="wording" name="wordingEdits[0].Text" form="case-edit-form" data-wording-text>' + state.wording + '</textarea>'
+                + '</div></div></div>';
+        }
         return '<section class="record-section panel' + (shortOnes.indexOf(key) >= 0 ? ' is-short' : '') + '"' + attributes(key) + '>'
             + '<h2>' + key + '</h2>' + inside + '</section>';
     }
@@ -108,8 +123,8 @@ function fixture() {
     }
     // What the server answers a commit with (FRD-16): the wrapper that confirms it, the swap roots and
     // the Save form the next commit carries forward, with no section.
-    function answer(commit) {
-        return '<div data-case-notices></div>' + record(commit) + ribbon() + saveForm() + aside() + '</article><div data-case-dialogs></div>';
+    function answer(commit, notice) {
+        return '<div data-case-notices>' + (notice || '') + '</div>' + record(commit) + ribbon() + saveForm() + aside() + '</article><div data-case-dialogs></div>';
     }
     document.write(page());
     // Every answer is local. One held (holding[key]) waits for release(key): a section by its key, the
@@ -124,10 +139,19 @@ function fixture() {
             if (failing[key]) { status = 500; text = ''; } else { text = body(key); }
         } else if (url.indexOf('handler=Save') >= 0) {
             key = 'save'; entry.save = true;
-            var commit = { editor: 'case-edit-form', operationKey: options.body.get('operationKey'),
-                expectedVersion: Number(options.body.get('expectedVersion')), version: ++state.version };
-            state.lease = 'lease-' + state.version; state.reference = options.body.get('reference');
-            text = answer(commit); answered = location.origin + '/case?handler=Save';
+            entry.wording = Array.from(options.body.keys()).some(function (name) { return name.indexOf('wordingEdits[') === 0; });
+            entry.refused = entry.wording && !reportReady;
+            if (entry.refused) {
+                // R572: nothing in a save carrying wording lands while the report is not ready.
+                text = answer(null, '<div class="notice" role="alert"><span>' + wordingRefusal + '</span></div>');
+            } else {
+                var commit = { editor: 'case-edit-form', operationKey: options.body.get('operationKey'),
+                    expectedVersion: Number(options.body.get('expectedVersion')), version: ++state.version };
+                state.lease = 'lease-' + state.version; state.reference = options.body.get('reference');
+                if (entry.wording) { state.wording = options.body.get('wordingEdits[0].Text'); }
+                text = answer(commit);
+            }
+            answered = location.origin + '/case?handler=Save';
         } else { text = page(); }
         var response = { ok: status === 200, status: status, redirected: false, url: answered,
             headers: { get: function () { return 'text/html'; } }, text: function () { return Promise.resolve(text); } };
@@ -153,6 +177,12 @@ function fixture() {
     function drag(top) { realScrollTo.call(window, { top: top, behavior: 'instant' }); }
     function press(selector) { document.querySelector(selector).click(); }
     function edit(value) { var input = document.getElementById('reference'); input.value = value; input.dispatchEvent(new Event('change', { bubbles: true })); }
+    // The Engineer types in the wording block and leaves the panel, which commits it.
+    function type(value) {
+        var text = document.getElementById('wording'); text.value = value;
+        text.dispatchEvent(new Event('input', { bubbles: true }));
+        text.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+    }
     function readingLine() { return document.querySelector('[data-sticky-block]').getBoundingClientRect().bottom; }
     // The section link the reading line stands in, worked out apart from the script under test.
     function under() {
@@ -180,7 +210,10 @@ function fixture() {
             marked: marked ? marked.getAttribute('data-field') : null,
             markedCentre: box ? Math.round(box.top + box.height / 2) : null, middle: Math.round((line + window.innerHeight) / 2),
             markedInView: box ? box.top >= line && box.bottom <= window.innerHeight : null,
-            version: document.querySelector('[data-case-record]').getAttribute('data-case-version')
+            version: document.querySelector('[data-case-record]').getAttribute('data-case-version'),
+            saves: trace.filter(function (entry) { return entry.save; }).map(function (entry) { return (entry.wording ? 'with wording' : 'without wording') + (entry.refused ? ', refused' : ', landed'); }),
+            wording: (document.getElementById('wording') || {}).value, reference: state.reference,
+            status: (function (line) { return line && !line.hidden ? line.textContent.trim() : null; })(document.querySelector('[data-lease-line]'))
         };
     }
     </script><script src="/site.js"></script><script src="/workspace.js"></script><script>window.fixtureReady=true;</script></body></html>`;
@@ -416,6 +449,34 @@ try {
         landedOn(landed, 'estimate');
         assert.equal(landed.current, 'estimate');
         return landed;
+    });
+
+    await scenario('Wording the Case refused is left out of the saves that follow, and stays on screen (1814, R891)', async () => {
+        const saved = count => waitFor(`trace.filter(function (entry) { return entry.save; }).length === ${count} && (held.save || []).length === 0`);
+        await open('editing=1');
+        await evaluate("reportReady = false; type('My own words.')");
+        await saved(1); await delay(600);
+        const refused = await evaluate('at()');
+        assert.deepEqual(refused.saves, ['with wording, refused']);
+        assert.equal(refused.status, wordingRefusal, 'The ribbon says why in the sentence its owner holds');
+        assert.equal(refused.wording, 'My own words.');
+        await evaluate("edit('CL-2')");
+        await saved(2); await delay(600);
+        const landed = await evaluate('at()');
+        assert.deepEqual(landed.saves, ['with wording, refused', 'without wording, landed'], 'The save that follows leaves the refused wording out');
+        assert.equal(landed.version, '2');
+        assert.equal(landed.reference, 'CL-2');
+        assert.equal(landed.wording, 'My own words.', 'The typed wording is still on the page after the catch up');
+        await evaluate("type('My own words, changed.')");
+        await saved(3); await delay(600);
+        const again = await evaluate('at()');
+        assert.equal(again.saves[2], 'with wording, refused', 'Wording changed further is offered again');
+        await evaluate("reportReady = true; type('My final words.')");
+        await saved(4); await delay(600);
+        const stored = await evaluate('at()');
+        assert.equal(stored.saves[3], 'with wording, landed');
+        assert.equal(stored.wording, 'My final words.');
+        return { refused, landed, again, stored };
     });
 
     await scenario('No browser runtime exception', async () => { assert.deepEqual(errors, []); });

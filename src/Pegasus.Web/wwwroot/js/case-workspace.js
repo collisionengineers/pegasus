@@ -1174,8 +1174,11 @@
     // The report's wording blocks travel with a commit only when the Engineer
     // changed them since they were drawn or last landed (#1800, R572): rows
     // drawn before the report stopped projecting would otherwise refuse a
-    // commit that never touched them. Returns what was sent, which a landed
-    // commit makes the panel's baseline.
+    // commit that never touched them. Wording the Case refused because its
+    // report is not ready does not travel again as it stands (#1814, R891),
+    // or it would refuse every save after it, the one that makes the report
+    // ready among them. Returns what was sent, which a landed commit makes
+    // the panel's baseline.
     function withoutUnchangedWording(form, body) {
         var panel = form.getAttribute('id') === 'case-edit-form' ? record.querySelector('[data-report-wording]') : null;
         var wording = panel ? panel.pegasusWording : null;
@@ -1503,6 +1506,12 @@
         } else if (commitRefused) {
             var refusal = document.querySelector('[data-case-notices] [role="alert"]');
             setCommitStatus('refused', refusal ? refusal.textContent.trim() : 'The change was not saved.');
+            // The refusal the wording panel names: this wording is left out
+            // of the saves that follow until the Engineer changes it (R891).
+            var wordingRefusal = command.wording ? command.wording.panel.getAttribute('data-wording-refusal') : null;
+            if (wordingRefusal && refusal && refusal.textContent.indexOf(wordingRefusal) >= 0) {
+                command.wording.panel.pegasusWording.refused(command.wording.state);
+            }
             abandonWaiters();
             // The refusal drew only the notices and the aside: the rest of
             // the Case, and the ribbon's authority, catch up next.
@@ -1625,7 +1634,16 @@
         } : null;
         var isCommit = !!command && command.editor === 'case-edit-form'
             && record.getAttribute('data-case-editing') === 'true';
-        if (isCommit) { commitInFlight = true; setCommitStatus('saving'); command.sent = sendingState(form); }
+        if (isCommit) {
+            commitInFlight = true;
+            setCommitStatus('saving');
+            // Wording left out of the commit was not sent, so a landed commit
+            // does not mark it sent: its section still holds it, and no catch
+            // up draws it away.
+            command.sent = sendingState(form).filter(function (state) {
+                return wordingSent || (state.control.name || '').indexOf('wordingEdits[') !== 0;
+            });
+        }
         var done = false;
         var action = (submitter && submitter.getAttribute('formaction')) || form.getAttribute('action') || window.location.href;
         var method = ((submitter && submitter.getAttribute('formmethod')) || form.getAttribute('method') || 'get').toUpperCase();
@@ -4557,10 +4575,13 @@
                 }));
             }
             var landed = state();
+            // What the Case last refused while its report was not ready.
+            var refused = null;
             panel.pegasusWording = {
                 state: state,
-                changed: function () { return state() !== landed; },
-                landed: function (sent) { landed = sent; }
+                changed: function () { var now = state(); return now !== landed && now !== refused; },
+                landed: function (sent) { landed = sent; refused = null; },
+                refused: function (sent) { refused = sent; }
             };
 
             function rows() {

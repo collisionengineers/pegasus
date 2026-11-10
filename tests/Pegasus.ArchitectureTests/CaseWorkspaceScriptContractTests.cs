@@ -284,7 +284,10 @@ public sealed class CaseWorkspaceScriptContractTests
     /// otherwise make the Save re-read a report that cannot be projected and refuse a
     /// commit that never touched the wording. A commit and the closing tab's beacon
     /// both drop unchanged rows, and a landed commit makes what it sent the panel's
-    /// baseline.
+    /// baseline. #1814 (R891): wording the Case refused because its report is not
+    /// ready, known by the sentence the panel carries, does not travel again as it
+    /// stands, so the saves after it land; and wording a commit left out is not
+    /// marked sent when that commit lands, so its section keeps it on screen.
     /// </summary>
     [Fact]
     public void TheWordingBlocksTravelWithACommitOnlyWhenTheyChanged()
@@ -304,7 +307,27 @@ public sealed class CaseWorkspaceScriptContractTests
             script);
 
         Assert.Contains("command.wording.panel.pegasusWording.landed(command.wording.state);", script, StringComparison.Ordinal);
-        Assert.Contains("changed: function () { return state() !== landed; },", script, StringComparison.Ordinal);
+        Assert.Contains(
+            "changed: function () { var now = state(); return now !== landed && now !== refused; },",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains("landed: function (sent) { landed = sent; refused = null; },", script, StringComparison.Ordinal);
+        Assert.Contains("refused: function (sent) { refused = sent; }", script, StringComparison.Ordinal);
+
+        var swap = FunctionBody(script, "function swap(html, command, preferred, options) {", "    ");
+        Assert.Matches(
+            new Regex(@"var wordingRefusal = command\.wording \? command\.wording\.panel\.getAttribute\('data-wording-refusal'\) : null;\s*if \(wordingRefusal && refusal && refusal\.textContent\.indexOf\(wordingRefusal\) >= 0\) \{\s*command\.wording\.panel\.pegasusWording\.refused\(command\.wording\.state\);"),
+            swap);
+        Assert.Matches(
+            new Regex(@"command\.sent = sendingState\(form\)\.filter\(function \(state\) \{\s*return wordingSent \|\| \(state\.control\.name \|\| ''\)\.indexOf\('wordingEdits\['\) !== 0;"),
+            submit);
+
+        var panel = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "Pages", "Cases", "Shared", "_CaseReport.cshtml"));
+        Assert.Contains(
+            "data-report-wording data-wording-refusal=\"@ReportWordingEdits.UnavailableOnPage\"",
+            panel,
+            StringComparison.Ordinal);
     }
 
     private static string FunctionBody(string script, string signature, string indent = "        ")
