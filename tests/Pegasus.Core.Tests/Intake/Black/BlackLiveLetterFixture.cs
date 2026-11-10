@@ -4,7 +4,7 @@ namespace Pegasus.Core.Tests.Intake.Black;
 
 /// <summary>
 /// The live Blackstone Legal instruction e-mail as the reader presents it (the
-/// engineers@ copies of 25 September to 15 October 2026 behind R796 and R797):
+/// engineers@ copies of 25 September to 15 October 2026 behind R832 and R833):
 /// a one-line body, "Please see attached new instructions.", above the firm's
 /// signature, and the attached letter "Letter - instructing Collision
 /// engineers.pdf" as one page fragment. The letter's wording, labels and line

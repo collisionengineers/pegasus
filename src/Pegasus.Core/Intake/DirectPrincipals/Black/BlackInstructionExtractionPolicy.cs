@@ -9,7 +9,7 @@ namespace Pegasus.Core.Intake;
 /// 25 September to 15 October 2026 carry them: the "Our ref:" line follows the
 /// signature, where version 1 looked only above the salutation, and the vehicle
 /// line may omit the dash before the registration ("Make Model REG"), which
-/// version 1 required (operator, 9 November 2026, R797).
+/// version 1 required (operator, 9 November 2026, R833).
 /// </summary>
 public sealed partial class BlackInstructionExtractionPolicy
     : IInstructionExtractionPolicy, IInstructionDocumentProfile, IInstructionFieldRoles

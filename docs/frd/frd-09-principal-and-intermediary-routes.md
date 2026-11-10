@@ -240,7 +240,7 @@ N / New instructions" or "Our Client - name / Our Reference - N"), whose
 body says "Please accept this correspondence as formal instructions to
 inspect our clients vehicle and prepare a report"; that explicit inspect
 request classifies `new-instruction` for an Inspection (operator, 9 November
-2026, [R796](../rulings.md)).
+2026, [R832](../rulings.md)).
 
 **Case matching.** `PrincipalCaseMatchPolicy` is bound the same way. Its
 non-QDOS keys come from the profile's typed role-labelled fields and keep the

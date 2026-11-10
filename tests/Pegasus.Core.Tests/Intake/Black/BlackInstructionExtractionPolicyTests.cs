@@ -52,7 +52,7 @@ public sealed class BlackInstructionExtractionPolicyTests
     }
 
     /// <summary>
-    /// R797: the live letter (engineers@ copies of 25 September to 15 October
+    /// R833: the live letter (engineers@ copies of 25 September to 15 October
     /// 2026) carries its "Our ref:" line after the signature, where version 1 did
     /// not read; the recorded letters carried it above the salutation.
     /// </summary>
@@ -73,7 +73,7 @@ public sealed class BlackInstructionExtractionPolicyTests
     }
 
     /// <summary>
-    /// R797: the vehicle line is "Make Model - REG" or, as the live letter of
+    /// R833: the vehicle line is "Make Model - REG" or, as the live letter of
     /// 9 October 2026 wrote it, "Make Model REG". Without the dash only a dated
     /// registration shape ends the description, so a model that merely looks
     /// like a dateless plate stays part of it, and a dashed line that does not

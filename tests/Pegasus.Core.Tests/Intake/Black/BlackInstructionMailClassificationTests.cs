@@ -5,7 +5,7 @@ using Pegasus.Core.Tests.Support;
 namespace Pegasus.Core.Tests.Intake.Black;
 
 /// <summary>
-/// R796: an e-mail from the Blackstone Legal route whose attached letter says
+/// R832: an e-mail from the Blackstone Legal route whose attached letter says
 /// "Please accept this correspondence as formal instructions to inspect our
 /// clients vehicle and prepare a report" is a new instruction for an
 /// Inspection, under either of the firm's subjects. The shape is the live
