@@ -903,6 +903,271 @@ public sealed class PhotoCaptureWebTests
         Assert.Equal(pdf, await kept.Content.ReadAsByteArrayAsync());
     }
 
+    /// <summary>
+    /// An address saved on a contact's Photo links tab is offered on the
+    /// firm's form after the contact's own (R806, R815); changing it changes
+    /// it there, removing it takes it away, and a change over a stale read is
+    /// refused and saves nothing.
+    /// </summary>
+    [Fact]
+    public async Task AContactsSavedAddressIsOfferedOnItsFormAfterTheContactsOwn()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var organizationId = link.OrganizationId
+            ?? throw new InvalidOperationException("A contact's link names no contact.");
+        var contactPage = $"/Administration/Contacts/Edit/{organizationId:D}";
+        var fromContact = await StandingAddressesAsync(client, link);
+
+        using (var added = await PostStaffFormAsync(client, $"{contactPage}?handler=AddPhotoLinkAddress", new Dictionary<string, string>
+        {
+            ["StandingLinkVersion"] = link.Version.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["SavedAddressName"] = "Back yard",
+            ["SavedAddressText"] = "1 Example Street, Exampleton"
+        }))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, added.StatusCode);
+        }
+
+        var afterAdd = await StandingAddressesAsync(client, link);
+        Assert.Equal(fromContact, afterAdd[..^1]);
+        Assert.Equal(("Back yard", "1 Example Street, Exampleton"), afterAdd[^1]);
+
+        var saved = Assert.Single((await AddressBookAsync(factory, link.Id)).Saved);
+        var readBeforeChange = await StandingLinkAsync(factory, link.Id);
+        using (var changed = await PostStaffFormAsync(client, $"{contactPage}?handler=ChangePhotoLinkAddress", new Dictionary<string, string>
+        {
+            ["StandingLinkVersion"] = readBeforeChange.Version.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["SavedAddressId"] = saved.Id.ToString("D"),
+            ["SavedAddressName"] = "Front yard",
+            ["SavedAddressText"] = "2 Example Street, Exampleton"
+        }))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, changed.StatusCode);
+        }
+
+        Assert.Equal(("Front yard", "2 Example Street, Exampleton"), (await StandingAddressesAsync(client, link))[^1]);
+
+        using (var stale = await PostStaffFormAsync(client, $"{contactPage}?handler=ChangePhotoLinkAddress", new Dictionary<string, string>
+        {
+            ["StandingLinkVersion"] = readBeforeChange.Version.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["SavedAddressId"] = saved.Id.ToString("D"),
+            ["SavedAddressName"] = "Side gate",
+            ["SavedAddressText"] = "3 Example Street, Exampleton"
+        }))
+        {
+            Assert.Equal(HttpStatusCode.OK, stale.StatusCode);
+        }
+
+        var afterStale = Assert.Single((await AddressBookAsync(factory, link.Id)).Saved);
+        Assert.Equal("Front yard", afterStale.Name);
+        Assert.Equal("2 Example Street, Exampleton", afterStale.Address);
+
+        var readBeforeRemove = await StandingLinkAsync(factory, link.Id);
+        using (var removed = await PostStaffFormAsync(client, $"{contactPage}?handler=RemovePhotoLinkAddress", new Dictionary<string, string>
+        {
+            ["StandingLinkVersion"] = readBeforeRemove.Version.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["SavedAddressId"] = saved.Id.ToString("D")
+        }))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, removed.StatusCode);
+        }
+
+        Assert.Equal(fromContact, await StandingAddressesAsync(client, link));
+    }
+
+    /// <summary>The website link has no contact and keeps no saved addresses (R806): adding one is refused and nothing is saved.</summary>
+    [Fact]
+    public async Task TheWebsiteLinkTakesNoSavedAddress()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        _ = factory.Services;
+        await using var scope = factory.Services.CreateAsyncScope();
+        var administration = scope.ServiceProvider.GetRequiredService<StandingPhotoLinkAdministration>();
+        var website = await administration.CreateWebsiteAsync(Issuer, "ce-vehicle-photos", CancellationToken.None);
+
+        var refused = await Assert.ThrowsAsync<StandingPhotoLinkException>(() => administration.AddAddressAsync(
+            Issuer, website.Id, website.Version, "Back yard", "1 Example Street, Exampleton", CancellationToken.None));
+
+        Assert.Equal(StandingPhotoLinkError.NotFound, refused.Error);
+        Assert.True((await AddressBookAsync(factory, website.Id)).IsEmpty);
+        Assert.Equal(website.Version, (await StandingLinkAsync(factory, website.Id)).Version);
+    }
+
+    /// <summary>
+    /// Send with Quick stores who the link is for (R808); with Guided it
+    /// stores no one even when a Type is posted; Quick without a Type is not
+    /// the page's own post and issues nothing.
+    /// </summary>
+    [Fact]
+    public async Task SendStoresAQuickLinksTypeAndOnlyAQuickLinks()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var send = $"/PhotoCapture/Send/{caseId:D}";
+
+        var quick = await SendFormAsync(factory, client, send, caseId, nameof(PhotoCaptureMode.Quick), nameof(PhotoCaptureQuickLinkFor.AccidentManagement));
+        Assert.Equal(PhotoCaptureQuickLinkFor.AccidentManagement, quick?.QuickLinkFor);
+        var guided = await SendFormAsync(factory, client, send, caseId, nameof(PhotoCaptureMode.Guided), nameof(PhotoCaptureQuickLinkFor.Bodyshop));
+        Assert.NotNull(guided);
+        Assert.False(guided!.QuickLinkFor.HasValue, "A guided link stored who it is for.");
+
+        var before = await CaptureIdsAsync(factory, caseId);
+        using (var untyped = await PostStaffFormAsync(client, send, new Dictionary<string, string>
+        {
+            ["Mode"] = nameof(PhotoCaptureMode.Quick),
+            ["Days"] = "7",
+            ["Submit"] = Pegasus.Web.Pages.PhotoCapture.SendModel.ToCopy
+        }))
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, untyped.StatusCode);
+        }
+
+        Assert.Equal(before, await CaptureIdsAsync(factory, caseId));
+    }
+
+    /// <summary>
+    /// The firm's token on a quick Case link opens the firm's own start: quick,
+    /// naming who it is for, and for Accident management the Case's Principal
+    /// as the firm; a Bodyshop is named nowhere and offered no address (R798, R808).
+    /// </summary>
+    [Fact]
+    public async Task AQuickCaseLinksContextIsTheFirmsOwn()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var principalName = await PrincipalNameAsync(factory, caseId);
+        var accidentManagement = await IssueQuickLinkAsync(factory, caseId, PhotoCaptureQuickLinkFor.AccidentManagement);
+        var bodyshop = await IssueQuickLinkAsync(factory, caseId, PhotoCaptureQuickLinkFor.Bodyshop);
+
+        var forFirm = await ContextAsync(client, accidentManagement.Token);
+        Assert.Equal("quick", forFirm.GetProperty("mode").GetString());
+        Assert.Equal("accident-management", forFirm.GetProperty("quickLinkFor").GetString());
+        Assert.Equal(principalName, forFirm.GetProperty("standing").GetProperty("name").GetString());
+        Assert.Equal(CaptureCodes.CaseKind, forFirm.GetProperty("standing").GetProperty("kind").GetString());
+
+        var forBodyshop = await ContextAsync(client, bodyshop.Token);
+        Assert.Equal("quick", forBodyshop.GetProperty("mode").GetString());
+        Assert.Equal("bodyshop", forBodyshop.GetProperty("quickLinkFor").GetString());
+        var bodyshopView = forBodyshop.GetProperty("standing");
+        Assert.Equal(JsonValueKind.Null, bodyshopView.GetProperty("name").ValueKind);
+        Assert.Equal(0, bodyshopView.GetProperty("addresses").GetArrayLength());
+    }
+
+    /// <summary>
+    /// The firm hands a quick Case link on to their customer (R798): the same
+    /// capture gains a customer's link and a Session token, its Opened stands,
+    /// Links we sent says it was sent on, and the customer's link opens the
+    /// guided app with no firm's start. A guided Case link cannot be handed on.
+    /// </summary>
+    [Fact]
+    public async Task AQuickCaseLinkIsHandedOnToTheFirmsCustomer()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await SeedCaseRegistrationAsync(factory, caseId, "AB12 CDE");
+        var quick = await IssueQuickLinkAsync(factory, caseId, PhotoCaptureQuickLinkFor.AccidentManagement);
+        var guided = await IssueLinkAsync(factory, caseId);
+        await ContextAsync(client, quick.Token);
+        var openedBefore = (await StandingCaptureDriver.CaptureAsync(factory, quick.Capture.Id)).OpenedAtUtc;
+        var capturesBefore = await CaptureIdsAsync(factory, caseId);
+
+        using var handedOn = await SendAsync(
+            client, HttpMethod.Post, $"{Api}/handoff", quick.Token, new StringContent("{}", Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.Created, handedOn.StatusCode);
+        var answer = await JsonAsync(handedOn);
+        Assert.Equal("AB12 CDE", answer.GetProperty("registration").GetString());
+        var url = answer.GetProperty("url").GetString()
+            ?? throw new InvalidOperationException("The hand-on answered no link.");
+        var sessionToken = answer.GetProperty("sessionToken").GetString();
+        var customerToken = url[(url.LastIndexOf('/') + 1)..];
+        Assert.NotEqual(customerToken, sessionToken);
+        Assert.NotEqual(quick.Token.Value, customerToken);
+        Assert.Equal(capturesBefore, await CaptureIdsAsync(factory, caseId));
+        Assert.Equal(openedBefore, (await StandingCaptureDriver.CaptureAsync(factory, quick.Capture.Id)).OpenedAtUtc);
+        var row = ListRow(
+            await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}"),
+            quick.Capture.Id);
+        Assert.Contains(OperatorLabels.PhotoCapture.SentOnToTheirCustomer, row, StringComparison.Ordinal);
+
+        var forCustomer = await ContextAsync(client, new CaptureLinkSecret(customerToken));
+        Assert.Equal("guided", forCustomer.GetProperty("mode").GetString());
+        Assert.Equal(JsonValueKind.Null, forCustomer.GetProperty("quickLinkFor").ValueKind);
+        Assert.Equal(JsonValueKind.Null, forCustomer.GetProperty("standing").ValueKind);
+
+        using var refused = await SendAsync(
+            client, HttpMethod.Post, $"{Api}/handoff", guided.Token, new StringContent("{}", Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.NotFound, refused.StatusCode);
+        Assert.Equal(PhotoCaptureRefusals.Unavailable, (await JsonAsync(refused)).GetProperty("code").GetString());
+    }
+
+    /// <summary>A Bodyshop's quick Case link owes the VIN (R808); an Accident management one does not.</summary>
+    [Fact]
+    public async Task ABodyshopsQuickCaseLinkOwesTheVin()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var bodyshop = await IssueQuickLinkAsync(factory, caseId, PhotoCaptureQuickLinkFor.Bodyshop);
+        var accidentManagement = await IssueQuickLinkAsync(factory, caseId, PhotoCaptureQuickLinkFor.AccidentManagement);
+
+        var bodyshopMissing = await MissingOnCompleteAsync(client, bodyshop.Token);
+        var accidentManagementMissing = await MissingOnCompleteAsync(client, accidentManagement.Token);
+
+        Assert.Contains(("vin", "No VIN photo"), bodyshopMissing);
+        Assert.DoesNotContain(accidentManagementMissing, missing => missing.Code == "vin");
+    }
+
+    /// <summary>
+    /// Send opens with the standard wording filled in, the link still a
+    /// placeholder until it exists (R806), and "Put the standard wording
+    /// back" returns the standard wording over what staff typed. The message
+    /// is drawn only where a staff send is composed and the Case has a
+    /// mailbox that can send: here a double that never sends, and a seeded
+    /// Outgoing mailbox.
+    /// </summary>
+    [Fact]
+    public async Task SendOpensWithTheStandardWordingAndPutsItBack()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(baseFactory);
+        await SeedCaseRegistrationAsync(baseFactory, caseId, "AB12 CDE");
+        await SeedSendableMailboxAsync(baseFactory);
+        using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            CaseWebTestSupport.Substitute<Pegasus.Core.Operations.IStaffMailSend>(services, new NeverSendingStaffMailSend())));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var send = $"/PhotoCapture/Send/{caseId:D}";
+        var expiry = OperatorLabels.OfficeDate(IntakeWebApplicationFactory.FixedUtcNow.AddDays(CaptureLimits.DefaultLifetimeDays));
+
+        var opened = TextareaValue(await IntakeWebDriver.GetHtmlAsync(client, send), "Body");
+
+        Assert.Contains("Collision Engineers need a few photos of AB12 CDE to assess the damage.", opened, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.PhotoCapture.PhotoLinkPlaceholder, opened, StringComparison.Ordinal);
+        Assert.Contains($"The link works until {expiry}.", opened, StringComparison.Ordinal);
+
+        using var reset = await PostStaffFormAsync(client, send, new Dictionary<string, string>
+        {
+            ["Mode"] = nameof(PhotoCaptureMode.Guided),
+            ["Days"] = "7",
+            ["LiveCameraOnly"] = "true",
+            ["OriginalsInBackground"] = "true",
+            ["Subject"] = "Photos",
+            ["Body"] = "Words staff typed instead.",
+            ["StandardBody"] = opened,
+            ["Submit"] = Pegasus.Web.Pages.PhotoCapture.SendModel.StandardWording
+        });
+        Assert.Equal(HttpStatusCode.OK, reset.StatusCode);
+        var putBack = TextareaValue(await reset.Content.ReadAsStringAsync(), "Body");
+        Assert.DoesNotContain("Words staff typed instead.", putBack, StringComparison.Ordinal);
+        Assert.Contains("Collision Engineers need a few photos of AB12 CDE to assess the damage.", putBack, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.PhotoCapture.PhotoLinkPlaceholder, putBack, StringComparison.Ordinal);
+    }
+
     /// <summary>Issues a link for the Case as a member of staff does from it (FRD-28 "Photo links").</summary>
     private static async Task<IssuedPhotoLink> IssueLinkAsync(IntakeWebApplicationFactory factory, Guid caseId)
     {
@@ -1237,6 +1502,152 @@ public sealed class PhotoCaptureWebTests
             .FindWebsiteAsync(CancellationToken.None);
     }
 
+    /// <summary>Issues a quick link from the Case for <paramref name="quickLinkFor"/>, as Send's Type sets it (R808).</summary>
+    private static async Task<IssuedPhotoLink> IssueQuickLinkAsync(
+        IntakeWebApplicationFactory factory,
+        Guid caseId,
+        PhotoCaptureQuickLinkFor quickLinkFor)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IssuePhotoLink>().ExecuteAsync(
+            new IssuePhotoLinkRequest(
+                caseId,
+                Issuer,
+                CustomerName: null,
+                Mobile: null,
+                Email: null,
+                IncidentDate: null,
+                PhotoCaptureMode.Quick,
+                quickLinkFor,
+                LiveCameraOnly: false,
+                OriginalsInBackground: false,
+                CaptureLimits.DefaultLifetimeDays,
+                PhotoLinkTokenPurpose.Copy),
+            CancellationToken.None);
+    }
+
+    /// <summary>The capture app's context on a token.</summary>
+    private static async Task<JsonElement> ContextAsync(HttpClient client, CaptureLinkSecret token)
+    {
+        using var context = await SendAsync(client, HttpMethod.Get, $"{Api}/context", token);
+        Assert.Equal(HttpStatusCode.OK, context.StatusCode);
+        return await JsonAsync(context);
+    }
+
+    /// <summary>The sender presses Send; answers what the capture is still missing, by code and label.</summary>
+    private static async Task<(string? Code, string? Label)[]> MissingOnCompleteAsync(HttpClient client, CaptureLinkSecret token)
+    {
+        using var completed = await SendAsync(client, HttpMethod.Post, $"{Api}/complete", token);
+        Assert.Equal(HttpStatusCode.OK, completed.StatusCode);
+        return [.. (await JsonAsync(completed)).GetProperty("missing").EnumerateArray()
+            .Select(entry => (entry.GetProperty("code").GetString(), entry.GetProperty("label").GetString()))];
+    }
+
+    /// <summary>The addresses a standing link's form offers, in order, from its context.</summary>
+    private static async Task<(string? Name, string? Address)[]> StandingAddressesAsync(HttpClient client, StandingPhotoLink link)
+    {
+        using var context = await StandingCaptureDriver.SendAsync(
+            client, HttpMethod.Get, $"{Api}/context", StandingCaptureDriver.Standing(link));
+        Assert.Equal(HttpStatusCode.OK, context.StatusCode);
+        return [.. (await JsonAsync(context)).GetProperty("standing").GetProperty("addresses").EnumerateArray()
+            .Select(address => (address.GetProperty("name").GetString(), address.GetProperty("address").GetString()))];
+    }
+
+    private static async Task<StandingPhotoLinkAddressBook> AddressBookAsync(IntakeWebApplicationFactory factory, Guid standingLinkId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IStandingPhotoLinkStore>()
+            .GetAddressBookAsync(standingLinkId, CancellationToken.None);
+    }
+
+    private static async Task<StandingPhotoLink> StandingLinkAsync(IntakeWebApplicationFactory factory, Guid standingLinkId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IStandingPhotoLinkStore>()
+            .GetAsync(standingLinkId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The standing link was not found.");
+    }
+
+    /// <summary>The ids of the captures on the Case, in id order.</summary>
+    private static async Task<Guid[]> CaptureIdsAsync(IntakeWebApplicationFactory factory, Guid caseId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        var ids = await db.PhotoCaptures.AsNoTracking()
+            .Where(value => value.CaseId == caseId)
+            .Select(value => value.Id)
+            .ToArrayAsync();
+        return [.. ids.Order()];
+    }
+
+    /// <summary>
+    /// Posts Send's form to copy a link with the mode and Type given; answers
+    /// the capture it issued, or null when it issued none.
+    /// </summary>
+    private static async Task<CaptureRecordView?> SendFormAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client,
+        string send,
+        Guid caseId,
+        string mode,
+        string quickLinkFor)
+    {
+        var before = await CaptureIdsAsync(factory, caseId);
+        using (var posted = await PostStaffFormAsync(client, send, new Dictionary<string, string>
+        {
+            ["Mode"] = mode,
+            ["QuickLinkFor"] = quickLinkFor,
+            ["Days"] = "7",
+            ["LiveCameraOnly"] = "true",
+            ["OriginalsInBackground"] = "false",
+            ["Submit"] = Pegasus.Web.Pages.PhotoCapture.SendModel.ToCopy
+        }))
+        {
+            Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+        }
+
+        var issued = (await CaptureIdsAsync(factory, caseId)).Except(before).ToArray();
+        if (issued.Length == 0)
+        {
+            return null;
+        }
+
+        var capture = await StandingCaptureDriver.CaptureAsync(factory, Assert.Single(issued));
+        return new(capture.Id, capture.QuickLinkFor);
+    }
+
+    private static async Task<string> PrincipalNameAsync(IntakeWebApplicationFactory factory, Guid caseId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        return await db.Cases.Where(value => value.Id == caseId)
+            .Select(value => value.Principal.Organization.Name)
+            .SingleAsync();
+    }
+
+    /// <summary>An Outgoing mailbox that can send, as <c>StaffCorrespondenceWebTests</c> seeds one.</summary>
+    private static async Task SeedSendableMailboxAsync(IntakeWebApplicationFactory factory)
+    {
+        _ = factory.Services;
+        await using var context = await (await factory.DatabaseAsync).CreateContextAsync();
+        var mailboxId = await TestMailboxId.EnsureApprovedAsync(
+            context, "photo-link-sender", "photo-link-sender@collisionengineers.co.uk", IntakeWebApplicationFactory.FixedUtcNow.AddDays(-1));
+        await context.SaveChangesAsync();
+        var mailbox = await context.ApprovedMailboxes.SingleAsync(item => item.Id == mailboxId);
+        mailbox.AllowOutgoing = true;
+        mailbox.SentFolderIdentity = "sent-items";
+        mailbox.MailboxGeneration = 1;
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>A textarea's text as the page drew it.</summary>
+    private static string TextareaValue(string html, string name)
+    {
+        var textarea = System.Text.RegularExpressions.Regex.Match(
+            html,
+            "<textarea[^>]*name=\"" + System.Text.RegularExpressions.Regex.Escape(name) + "\"[^>]*>(?<text>[\\s\\S]*?)</textarea>");
+        Assert.True(textarea.Success, $"The page draws no {name} message.");
+        return WebUtility.HtmlDecode(textarea.Groups["text"].Value);
+    }
+
     private static string RowMarker(Guid captureId) => $"data-photo-capture-row=\"{captureId:D}\"";
 
     /// <summary>One photo link's block on the Case page, from its marker to its section's first close.</summary>
@@ -1250,6 +1661,37 @@ public sealed class PhotoCaptureWebTests
     }
 
     private sealed record CaptureCounts(int OriginalCount, long AcceptedBytes);
+
+    /// <summary>A capture Send issued: its id and who a quick link is for.</summary>
+    private sealed record CaptureRecordView(Guid Id, PhotoCaptureQuickLinkFor? QuickLinkFor);
+
+    /// <summary>A staff send that is composed, so Send draws its message, and that is never asked to send.</summary>
+    private sealed class NeverSendingStaffMailSend : Pegasus.Core.Operations.IStaffMailSend
+    {
+        public Task<Pegasus.Core.Operations.StaffMailOperation> SendAsync(
+            Pegasus.Core.Operations.StaffMailSendCommand command,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Opening Send and putting its wording back send nothing.");
+
+        public Task<Pegasus.Core.Operations.StaffMailOperation?> GetAsync(
+            ActionActor actor,
+            Guid operationId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<Pegasus.Core.Operations.StaffMailOperation?>(null);
+
+        public Task<Pegasus.Core.Operations.StaffMailOperation?> GetLatestForOriginalAsync(
+            ActionActor actor,
+            Guid retainedMessageId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<Pegasus.Core.Operations.StaffMailOperation?>(null);
+
+        public Task<Pegasus.Core.Operations.StaffMailOperation> CancelAsync(
+            ActionActor actor,
+            Guid operationId,
+            long expectedVersion,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Opening Send and putting its wording back cancel nothing.");
+    }
 
     private sealed record ImageVersions(int Versions, int Current);
 
