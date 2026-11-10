@@ -6,8 +6,10 @@ namespace Pegasus.Core.Operations;
 /// <summary>
 /// The staff message whose body an Administrator may edit (FRD-17 E-mail
 /// templates). Each purpose has its own placeholder set and built-in body.
+/// <see cref="EmailTemplatePurpose.PhotoLinkText"/> is the photo link's text message, edited on the
+/// same page (R917).
 /// </summary>
-public enum EmailTemplatePurpose { TriageOutcomeReply, CaseReportDelivery, CaseChaser, PhotoLink }
+public enum EmailTemplatePurpose { TriageOutcomeReply, CaseReportDelivery, CaseChaser, PhotoLink, PhotoLinkText }
 
 /// <summary>
 /// One purpose's body as it stands: the saved text, or the built-in body at
@@ -129,12 +131,27 @@ public static partial class EmailTemplates
         + "Kind regards\n"
         + "Collision Engineers";
 
+    /// <summary>
+    /// The photo link text (FRD-28 The photo link text; R917): the e-mail's
+    /// message cut to what a text carries, in plain characters so it stays in
+    /// the cheaper SMS alphabet. The wording is the agent's draft awaiting the
+    /// operator's sign-off (operator, 10 November 2026: "make something
+    /// reasonable and give it to me to sign off on").
+    /// </summary>
+    private const string PhotoLinkTextDefault =
+        "Hi {claimant},\n"
+        + "Collision Engineers need a few photos of {registration} to assess the damage. "
+        + "Please open this link on your phone:\n"
+        + "{photo link}\n"
+        + "The link works until {link expiry}.";
+
     public static IReadOnlyList<string> Placeholders(EmailTemplatePurpose purpose) => purpose switch
     {
         EmailTemplatePurpose.TriageOutcomeReply => TriageOutcomeReplyPlaceholders,
         EmailTemplatePurpose.CaseReportDelivery => CaseReportDeliveryPlaceholders,
         EmailTemplatePurpose.CaseChaser => CaseChaserPlaceholders,
         EmailTemplatePurpose.PhotoLink => PhotoLinkPlaceholders,
+        EmailTemplatePurpose.PhotoLinkText => PhotoLinkPlaceholders,
         _ => throw new ArgumentOutOfRangeException(nameof(purpose))
     };
 
@@ -144,6 +161,7 @@ public static partial class EmailTemplates
         EmailTemplatePurpose.CaseReportDelivery => CaseReportDeliveryDefault,
         EmailTemplatePurpose.CaseChaser => CaseChaserDefault,
         EmailTemplatePurpose.PhotoLink => PhotoLinkDefault,
+        EmailTemplatePurpose.PhotoLinkText => PhotoLinkTextDefault,
         _ => throw new ArgumentOutOfRangeException(nameof(purpose))
     };
 

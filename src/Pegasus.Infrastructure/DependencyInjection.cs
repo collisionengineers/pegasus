@@ -206,6 +206,10 @@ public static class DependencyInjection
         services.AddScoped<ReceivePhotoCaptureItem>();
         services.AddScoped<CompletePhotoCapture>();
         services.AddScoped<PhotoLinkActions>();
+        // A photo link text (R916): unavailable unless the host composes the
+        // Azure Communication Services send over a configured number.
+        services.AddScoped<SendPhotoLinkText>();
+        services.TryAddSingleton<IPhotoLinkTextSend, Pegasus.Infrastructure.TextMessages.UnavailablePhotoLinkTextSend>();
         services.AddScoped<StandingPhotoLinkAdministration>();
         // A factory, because IProcessQueuedIntake is the Worker's own: the
         // Web never resolves the settle, and its build-time validation does

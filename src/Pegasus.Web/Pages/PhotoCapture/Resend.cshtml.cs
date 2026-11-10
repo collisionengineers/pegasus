@@ -24,13 +24,17 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// <see cref="PhotoLinkActions.ResendAsync"/> makes the link and counts the
 /// reminder (R914, R842). A sent message returns to where it was asked from
 /// with "Link sent to … by e-mail"; a link to copy, or a message whose sending
-/// is not yet settled, is shown here, once.
+/// is not yet settled, is shown here, once. Where a text provider is
+/// configured the composer also offers <b>Send by text</b> to the mobile in
+/// To (the link's own, which staff may change) with the Photo link (text)
+/// wording (R916, R917); a text counts as a reminder as an e-mail does.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed class ResendModel(
     IPhotoCaptureQueries queries,
     PhotoLinkActions actions,
+    SendPhotoLinkText sendText,
     IPhotoCaptureCaseReader caseReader,
     IStaffMailSend staffMailSend,
     IGetCaseHeader getCaseHeader,
@@ -40,8 +44,10 @@ public sealed class ResendModel(
     ILogger<ResendModel> logger) : PhotoCapturePageModel
 {
     public const string ByEmail = "email";
+    public const string ByText = "text";
     public const string ToCopy = "copy";
     public const string StandardWording = "standard";
+    public const string StandardTextWording = "standard-text";
 
     private readonly PhotoLinkMail _mail = new(staffMailSend, getCaseHeader, senders, renderTemplate, options);
     private string? _principalName;
@@ -65,10 +71,21 @@ public sealed class ResendModel(
     [BindProperty]
     public string? StandardBody { get; set; }
 
+    /// <summary>The mobile a text goes to: the link's own until staff change it.</summary>
+    [BindProperty, Display(Name = Labels.Mobile), StringLength(CaptureLimits.MobileLength)]
+    public string? Mobile { get; set; }
+
+    [BindProperty, Display(Name = Labels.TextMessage), StringLength(SendPhotoLinkText.MaximumLength)]
+    public string? TextBody { get; set; }
+
+    /// <summary>The text's standard wording as the page last drew it (R917).</summary>
+    [BindProperty]
+    public string? StandardTextBody { get; set; }
+
     [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();
 
-    /// <summary>Which button sent the form: <see cref="ByEmail"/>, <see cref="ToCopy"/> or <see cref="StandardWording"/>.</summary>
+    /// <summary>Which button sent the form: <see cref="ByEmail"/>, <see cref="ByText"/>, <see cref="ToCopy"/>, <see cref="StandardWording"/> or <see cref="StandardTextWording"/>.</summary>
     [BindProperty]
     public string? Submit { get; set; }
 
@@ -85,9 +102,19 @@ public sealed class ResendModel(
     public bool CanEmail => _mail.Available && Senders.Mailboxes.Count > 0
         && Capture.CaseId is not null && !string.IsNullOrWhiteSpace(Capture.Email);
 
+    /// <summary>Whether the link can go by text: a text provider is configured (R916).</summary>
+    public bool CanText => sendText.Available;
+
     /// <summary>Whether staff edited the message: "Edited for this one only." (R806).</summary>
     public bool BodyEdited => Body is not null && StandardBody is not null
         && !string.Equals(Normalized(Body), Normalized(StandardBody), StringComparison.Ordinal);
+
+    /// <summary>Whether staff edited the text (R806, R917).</summary>
+    public bool TextBodyEdited => TextBody is not null && StandardTextBody is not null
+        && !string.Equals(Normalized(TextBody), Normalized(StandardTextBody), StringComparison.Ordinal);
+
+    /// <summary>What the text provider answered when it did not accept the text just sent.</summary>
+    public PhotoLinkTextOutcome? TextOutcome { get; private set; }
 
     /// <summary>The link just made, shown once to copy; null otherwise.</summary>
     public string? IssuedUrl { get; private set; }
@@ -106,14 +133,16 @@ public sealed class ResendModel(
         {
             FromMailboxId = Senders.Default?.Mailbox.Id;
             Subject = PhotoLinkMail.Subject(Capture.NormalizedRegistration);
-            try
-            {
-                await DrawStandardWordingAsync(actor, cancellationToken);
-            }
-            catch (StaffAuthorizationException)
-            {
-                return Forbid();
-            }
+        }
+
+        Mobile = Capture.Mobile;
+        try
+        {
+            await DrawStandardWordingAsync(actor, email: true, text: true, cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
         }
 
         return Page();
@@ -123,20 +152,37 @@ public sealed class ResendModel(
     {
         if (!TryGetActor(out var actor)) return Forbid();
         if (!await LoadAsync(cancellationToken)) return NotFound();
-        if (Submit is not (ByEmail or ToCopy or StandardWording)) return BadRequest();
+        if (Submit is not (ByEmail or ByText or ToCopy or StandardWording or StandardTextWording)) return BadRequest();
 
         var byEmail = Submit == ByEmail;
-        if (Submit != ToCopy && !CanEmail) return BadRequest();
+        var byText = Submit == ByText;
+        if ((Submit is ByEmail or StandardWording) && !CanEmail) return BadRequest();
+        if ((Submit is ByText or StandardTextWording) && !CanText) return BadRequest();
         try
         {
             // Put the standard wording back, without script.
-            if (Submit == StandardWording)
+            if (Submit is StandardWording or StandardTextWording)
             {
-                await DrawStandardWordingAsync(actor, cancellationToken);
+                var email = Submit == StandardWording;
+                await DrawStandardWordingAsync(actor, email, !email, cancellationToken);
                 return Page();
             }
 
             var edited = BodyEdited;
+            var textEdited = TextBodyEdited;
+            if (byText)
+            {
+                if (UkMobile.ToE164(Mobile) is null)
+                    ModelState.AddModelError(nameof(Mobile), SendPhotoLinkText.NotAUkMobile);
+                if (string.IsNullOrWhiteSpace(TextBody))
+                    ModelState.AddModelError(nameof(TextBody), SendPhotoLinkText.MessageRequired);
+                if (!ModelState.IsValid)
+                {
+                    await DrawStandardWordingAsync(actor, !edited, !textEdited, cancellationToken);
+                    return Page();
+                }
+            }
+
             if (byEmail)
             {
                 if (Senders.Sender(FromMailboxId) is null)
@@ -147,7 +193,7 @@ public sealed class ResendModel(
                     ModelState.AddModelError(nameof(Body), "A message is required.");
                 if (!ModelState.IsValid)
                 {
-                    if (!edited) await DrawStandardWordingAsync(actor, cancellationToken);
+                    await DrawStandardWordingAsync(actor, !edited, !textEdited, cancellationToken);
                     return Page();
                 }
             }
@@ -158,7 +204,9 @@ public sealed class ResendModel(
                 issued = await actions.ResendAsync(
                     actor,
                     Id,
-                    byEmail ? PhotoLinkTokenPurpose.Email : PhotoLinkTokenPurpose.Copy,
+                    byEmail ? PhotoLinkTokenPurpose.Email
+                        : byText ? PhotoLinkTokenPurpose.Text
+                        : PhotoLinkTokenPurpose.Copy,
                     OperationKey,
                     cancellationToken);
             }
@@ -169,10 +217,36 @@ public sealed class ResendModel(
             }
 
             IssuedUrl = _mail.CaptureUrl(issued.Token);
-            if (!byEmail) return Page();
-
             var capture = issued.Capture;
             var values = PhotoLinkMail.Values(capture.NormalizedRegistration, capture.CustomerName, _principalName, IssuedUrl, capture.ExpiresAtUtc);
+            if (byText)
+            {
+                // An edited text is sent as staff wrote it; an unedited one is
+                // the standard wording for the link as made.
+                var text = textEdited
+                    ? PhotoLinkMail.Complete(TextBody!, values, IssuedUrl)
+                    : PhotoLinkMail.Complete(await _mail.RenderTextAsync(actor, values, cancellationToken), values, IssuedUrl);
+                try
+                {
+                    TextOutcome = await sendText.ExecuteAsync(actor, capture.Id, Mobile, text, OperationKey, cancellationToken);
+                }
+                catch (PhotoCaptureRefusalException refusal)
+                {
+                    ModelState.AddModelError(string.Empty, refusal.Message);
+                    return Page();
+                }
+
+                if (TextOutcome.Accepted)
+                {
+                    TempData["Notice"] = Labels.LinkTextedTo(capture.CustomerName);
+                    return LocalRedirect(BackHref);
+                }
+
+                return Page();
+            }
+
+            if (!byEmail) return Page();
+
             try
             {
                 // An edited message is sent as staff wrote it; an unedited one is
@@ -231,7 +305,7 @@ public sealed class ResendModel(
     /// and the link's expiry filled in, and <c>{photo link}</c> kept until the
     /// link exists (R806).
     /// </summary>
-    private async Task DrawStandardWordingAsync(ActionActor actor, CancellationToken cancellationToken)
+    private async Task DrawStandardWordingAsync(ActionActor actor, bool email, bool text, CancellationToken cancellationToken)
     {
         var values = PhotoLinkMail.Values(
             Capture.NormalizedRegistration,
@@ -239,9 +313,19 @@ public sealed class ResendModel(
             _principalName,
             Labels.PhotoLinkPlaceholder,
             Capture.ExpiresAtUtc);
-        Body = StandardBody = await _mail.RenderAsync(actor, values, cancellationToken);
-        ModelState.Remove(nameof(Body));
-        ModelState.Remove(nameof(StandardBody));
+        if (email && CanEmail)
+        {
+            Body = StandardBody = await _mail.RenderAsync(actor, values, cancellationToken);
+            ModelState.Remove(nameof(Body));
+            ModelState.Remove(nameof(StandardBody));
+        }
+
+        if (text && CanText)
+        {
+            TextBody = StandardTextBody = await _mail.RenderTextAsync(actor, values, cancellationToken);
+            ModelState.Remove(nameof(TextBody));
+            ModelState.Remove(nameof(StandardTextBody));
+        }
     }
 
     private static string Normalized(string text) =>

@@ -293,13 +293,14 @@ public sealed record StandingPhotoLinkAddressBook(
     public bool IsEmpty => FromContact.Count == 0 && Saved.Count == 0;
 }
 
-/// <summary>One token issued for a capture: the link in one message, one copy, one hand-off or one phone session.</summary>
+/// <summary>One token issued for a capture: the link in one e-mail or text, one copy, one hand-off or one phone session.</summary>
 public enum PhotoLinkTokenPurpose
 {
     Email,
     Copy,
     Handoff,
-    Session
+    Session,
+    Text
 }
 
 public sealed record NewPhotoCapture(
@@ -584,7 +585,19 @@ public static class PhotoLinkActs
     public const string Extended = "photo_link_extended";
     public const string CallLogged = "photo_link_call_logged";
     public const string Reminded = "photo_link_reminded";
+
+    /// <summary>A text was handed to the provider: written before it is, so one operation key sends one text.</summary>
+    public const string TextSubmitted = "photo_link_text_submitted";
+
+    /// <summary>The provider accepted the text (R919): "Sent by text · name".</summary>
+    public const string TextSent = "photo_link_text_sent";
+
+    /// <summary>The provider refused the text or could not be reached: "Text not sent · name".</summary>
+    public const string TextFailed = "photo_link_text_failed";
 }
+
+/// <summary>What a text act records: the number it went to, and the provider's message id or failure code.</summary>
+public sealed record PhotoLinkTextRecord(string To, string? MessageId = null, string? FailureCode = null);
 
 /// <summary>One staff act on a link: which act (<see cref="PhotoLinkActs"/>), when, and who did it, null when no name is known.</summary>
 public sealed record PhotoLinkAct(string Kind, DateTimeOffset AtUtc, string? ActorName);
@@ -799,6 +812,21 @@ public interface IPhotoCaptureStore
         ActionActor actor,
         string operationKey,
         DateTimeOffset calledAtUtc,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Writes one text act (<see cref="PhotoLinkActs.TextSubmitted"/>,
+    /// <see cref="PhotoLinkActs.TextSent"/> or <see cref="PhotoLinkActs.TextFailed"/>)
+    /// to the link's history. False when the operation key already recorded
+    /// that act on this capture, so nothing was written.
+    /// </summary>
+    Task<bool> RecordTextAsync(
+        Guid captureId,
+        ActionActor actor,
+        string operationKey,
+        string act,
+        PhotoLinkTextRecord record,
+        DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken);
 
     /// <summary>

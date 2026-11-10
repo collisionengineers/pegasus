@@ -472,6 +472,15 @@ public sealed class PhotoCaptureSecurityTests
             DateTimeOffset calledAtUtc,
             CancellationToken cancellationToken) => throw Outside();
 
+        public Task<bool> RecordTextAsync(
+            Guid captureId,
+            ActionActor actor,
+            string operationKey,
+            string act,
+            PhotoLinkTextRecord record,
+            DateTimeOffset occurredAtUtc,
+            CancellationToken cancellationToken) => throw Outside();
+
         public Task<IReadOnlyList<PhotoCaptureSettleCandidate>> ListAwaitingSettleAsync(
             DateTimeOffset nowUtc,
             PhotoCaptureSettleCursor? after,
