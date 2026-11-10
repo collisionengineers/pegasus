@@ -12,8 +12,10 @@ namespace Pegasus.Core.Intake;
 /// A receipt filed here is not held; holding custody and Case custody use
 /// different operation identities, and confirmation in the holding area is
 /// not filing. Once filed, an open Audit awaiting its original report has it
-/// recognised among the filed files (FRD-16); a later pass whose filing is
-/// already complete recognises again, so a deferred recognition is retried.
+/// recognised among the filed files (FRD-16). A recording that waits for a
+/// Case editor neither fails nor holds back the filing:
+/// <see cref="RetryDeferredOriginalReportRecognition"/> records it once the
+/// lease ends (R728, #1981).
 /// </summary>
 public sealed class PromoteAssociatedIntakeCaseEvidence(
     IIntakeArtifactStore artifactStore,

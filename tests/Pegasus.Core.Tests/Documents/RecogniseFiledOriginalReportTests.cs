@@ -150,6 +150,65 @@ public sealed class RecogniseFiledOriginalReportTests
     }
 
     [Fact]
+    public async Task ACaseEditorLeavesTheRecordingWaitingInsteadOfFailingTheFiling()
+    {
+        // #1981, R728: the filing that found the report neither fails nor waits.
+        var report = Pdf("report.pdf");
+        var harness = new Harness(Receipt(report), deferred: true);
+        harness.Reader.Recognise(report);
+        harness.Store.Failure = new IntakeDependencyUnavailableException("The Case is being edited.");
+
+        Assert.Equal(
+            OriginalReportRecognitionResult.WaitingForEditor,
+            await harness.Sut.ExecuteAsync(CaseId, harness.Receipt));
+        Assert.Empty(harness.Store.Recorded);
+        Assert.Equal([new OriginalReportRecognitionDeferral(CaseId, harness.Receipt.Id)], harness.Deferrals.Waiting);
+    }
+
+    [Fact]
+    public async Task AWaitingRecordingIsRecordedOnceTheEditorLetsGo()
+    {
+        var report = Pdf("report.pdf");
+        var harness = new Harness(Receipt(report), deferred: true);
+        harness.Reader.Recognise(report);
+        harness.Store.Failure = new IntakeDependencyUnavailableException("The Case is being edited.");
+        await harness.Sut.ExecuteAsync(CaseId, harness.Receipt);
+        var retry = new RetryDeferredOriginalReportRecognition(
+            harness.Deferrals, new SingleReceipt(harness.Receipt), harness.Sut);
+
+        Assert.Equal(new RetryDeferredOriginalReportRecognitionResult(1, 0, 1, 0), await retry.ExecuteAsync(50));
+        Assert.Single(harness.Deferrals.Waiting);
+
+        harness.Store.Failure = null;
+        Assert.Equal(new RetryDeferredOriginalReportRecognitionResult(1, 1, 0, 0), await retry.ExecuteAsync(50));
+        Assert.Single(harness.Store.Recorded);
+        Assert.Empty(harness.Deferrals.Waiting);
+        Assert.Equal(new RetryDeferredOriginalReportRecognitionResult(0, 0, 0, 0), await retry.ExecuteAsync(50));
+    }
+
+    [Fact]
+    public async Task AWaitingRecordingEndsWhenItsReceiptIsGoneOrTheCaseNoLongerAwaitsIt()
+    {
+        var report = Pdf("report.pdf");
+        var gone = new Harness(Receipt(report), deferred: true);
+        await gone.Deferrals.RecordAsync(CaseId, gone.Receipt.Id, 0, CancellationToken.None);
+        var notAwaiting = new Harness(Receipt(report), awaiting: false, deferred: true);
+        await notAwaiting.Deferrals.RecordAsync(CaseId, notAwaiting.Receipt.Id, 0, CancellationToken.None);
+
+        Assert.Equal(
+            new RetryDeferredOriginalReportRecognitionResult(1, 1, 0, 0),
+            await new RetryDeferredOriginalReportRecognition(gone.Deferrals, new SingleReceipt(null), gone.Sut)
+                .ExecuteAsync(50));
+        Assert.Equal(
+            new RetryDeferredOriginalReportRecognitionResult(1, 1, 0, 0),
+            await new RetryDeferredOriginalReportRecognition(
+                    notAwaiting.Deferrals, new SingleReceipt(notAwaiting.Receipt), notAwaiting.Sut)
+                .ExecuteAsync(50));
+        Assert.Empty(gone.Deferrals.Waiting);
+        Assert.Empty(notAwaiting.Deferrals.Waiting);
+    }
+
+    [Fact]
     public async Task AnUnfiledCandidateOnACaseThatAwaitsItsReportIsAwaitingFiling()
     {
         var report = Pdf("report.pdf");
@@ -208,17 +267,50 @@ public sealed class RecogniseFiledOriginalReportTests
 
     private sealed class Harness
     {
-        public Harness(IntakeReceipt receipt, bool awaiting = true)
+        public Harness(IntakeReceipt receipt, bool awaiting = true, bool deferred = false)
         {
             Receipt = receipt;
             Store = new(awaiting);
-            Sut = new RecogniseFiledOriginalReport(Store, Reader);
+            Sut = new RecogniseFiledOriginalReport(Store, Reader, deferred ? Deferrals : null);
         }
 
         public IntakeReceipt Receipt { get; }
+        public RecordingDeferrals Deferrals { get; } = new();
         public RecordingStore Store { get; }
         public RecordingReader Reader { get; } = new();
         public RecogniseFiledOriginalReport Sut { get; }
+    }
+
+    private sealed class RecordingDeferrals : IOriginalReportRecognitionDeferrals
+    {
+        public List<OriginalReportRecognitionDeferral> Waiting { get; } = [];
+
+        public Task RecordAsync(Guid caseId, Guid receiptId, long intakeVersion, CancellationToken cancellationToken)
+        {
+            var deferral = new OriginalReportRecognitionDeferral(caseId, receiptId);
+            if (!Waiting.Contains(deferral))
+            {
+                Waiting.Add(deferral);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<OriginalReportRecognitionDeferral>> ListAsync(
+            int maximumItems, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<OriginalReportRecognitionDeferral>>([.. Waiting.Take(maximumItems)]);
+
+        public Task SettleAsync(OriginalReportRecognitionDeferral deferral, CancellationToken cancellationToken)
+        {
+            Waiting.Remove(deferral);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class SingleReceipt(IntakeReceipt? receipt) : IIntakeReceiptQueries
+    {
+        public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(receipt?.Id == id ? receipt : null);
     }
 
     private sealed class RecordingStore(bool awaiting) : IRecogniseOriginalReportStore
