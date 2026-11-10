@@ -479,25 +479,6 @@ public sealed class EfPhotoCaptureStore(
         await transaction.CommitAsync(cancellationToken);
     }
 
-    public async Task RecordItemProcessedAsync(
-        Guid itemId,
-        Guid intakeReceiptId,
-        Guid? intakeAssetId,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var changed = await context.PhotoCaptureItems
-            .Where(item => item.Id == itemId)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(item => item.IntakeReceiptId, (Guid?)intakeReceiptId)
-                .SetProperty(item => item.IntakeAssetId, intakeAssetId),
-                cancellationToken);
-        if (changed == 0)
-        {
-            throw new KeyNotFoundException("The photo link item was not found.");
-        }
-    }
-
     public Task<bool> ReserveOriginalAsync(Guid itemId, long contentLength, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(contentLength);
@@ -589,23 +570,108 @@ public sealed class EfPhotoCaptureStore(
             return Task.CompletedTask;
         }, cancellationToken);
 
-    public Task<PhotoCapture> RecordSettledAsync(
+    public Task<PhotoCaptureBatchClosed> CloseBatchAsync(
         Guid captureId,
-        long expectedVersion,
-        Guid? submissionGroupId,
-        DateTimeOffset settledAtUtc,
-        CancellationToken cancellationToken) =>
-        UpdateAsync(captureId, expectedVersion, (_, entity, _) =>
-        {
-            entity.SettledAtUtc = settledAtUtc;
-            entity.SettledBatches++;
-            if (submissionGroupId is not null)
-            {
-                entity.SubmissionGroupId = submissionGroupId;
-            }
+        int batch,
+        DateTimeOffset nowUtc,
+        PhotoCaptureDeclaredGroup? group,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batch);
+        return StoreConcurrencyRetry.ExecuteAsync(
+            token => CloseBatchOnceAsync(captureId, batch, nowUtc, group, token),
+            cancellationToken,
+            StoreConcurrencyRetry.IsDeadlockOrKeyCollision);
+    }
 
-            return Task.CompletedTask;
-        }, cancellationToken);
+    /// <summary>
+    /// Under the capture row's lock, the one an item add takes, so the batch
+    /// an item joins and the batch that closes are decided by one writer at a
+    /// time (F-R6b): no item lands in a batch after it closed, and a Send
+    /// recorded since the listing changes nothing here.
+    /// </summary>
+    private async Task<PhotoCaptureBatchClosed> CloseBatchOnceAsync(
+        Guid captureId,
+        int batch,
+        DateTimeOffset nowUtc,
+        PhotoCaptureDeclaredGroup? group,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [PhotoCaptures] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {captureId}",
+            cancellationToken);
+        var capture = await context.PhotoCaptures
+            .SingleOrDefaultAsync(item => item.Id == captureId, cancellationToken)
+            ?? throw new KeyNotFoundException("The photo link was not found.");
+        if (capture.SettledBatches >= batch)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return new(PhotoCaptureBatchClose.AlreadyClosed, Map(capture), []);
+        }
+
+        if (batch != capture.SettledBatches + 1)
+        {
+            throw new InvalidOperationException("Only the capture's open batch can close.");
+        }
+
+        var items = await StoryOrdered(context.PhotoCaptureItems.AsNoTracking()
+                .Where(item => item.CaptureId == captureId && item.Batch == batch))
+            .ToListAsync(cancellationToken);
+        var inFlightSince = nowUtc - SettlePhotoCaptures.UploadInFlightGrace;
+        if (items.Exists(item => item.StagedReceiptId == null && item.ReceivedAtUtc > inFlightSince))
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return new(PhotoCaptureBatchClose.Waiting, Map(capture), []);
+        }
+
+        // An item with no receipt older than the grace never reached intake;
+        // its retry joins the next batch (AddItemOnceAsync).
+        var received = items.Where(item => item.StagedReceiptId != null).ToArray();
+        if (group is not null)
+        {
+            var photographs = received
+                .Where(item => PhotoCaptureStory.IsPhotographKind(PhotoCaptureCodes.ParseItemKind(item.Kind)))
+                .OrderBy(item => item.Ordinal)
+                .ToArray();
+            if (photographs.Length > 0)
+            {
+                // Its members keep their items' ordinals, which their receipts'
+                // member tokens already name; paperwork and video are not
+                // members and wait for the Case (R803).
+                var submissionGroup = await EfIntakeSubmissionGroupStore.GetOrAddGroupAsync(
+                    context,
+                    PhotoCaptureIntakeRules.BatchGroupId(captureId, batch),
+                    IntakeSourceChannel.PhotoCapture,
+                    PhotoCaptureIntakeRules.BatchToken(captureId, batch),
+                    photographs.Length,
+                    IntakeActorIdentity.PhotoCapture(captureId),
+                    photographs[0].ReceivedAtUtc,
+                    parentReceiptId: null,
+                    group.Registration,
+                    group.IncidentDate,
+                    cancellationToken);
+                foreach (var photograph in photographs)
+                {
+                    await EfIntakeSubmissionGroupStore.AddMemberEntityAsync(
+                        context, submissionGroup, photograph.Ordinal, photograph.StagedReceiptId!.Value, cancellationToken);
+                }
+
+                capture.SubmissionGroupId = submissionGroup.Id;
+            }
+        }
+
+        capture.SettledBatches = batch;
+        // A Send recorded after this settle's listing but before its close is
+        // for photos this batch holds, so the close covers it: the batch it
+        // opens is listed again only on a Send after this one.
+        capture.SettledAtUtc = capture.SentAtUtc is { } sent && sent > nowUtc ? sent : nowUtc;
+        capture.Version++;
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(PhotoCaptureBatchClose.Closed, Map(capture), received.Select(Map).ToArray());
+    }
 
     public Task<PhotoCapture> RevokeAsync(
         Guid captureId,
@@ -727,26 +793,57 @@ public sealed class EfPhotoCaptureStore(
             StoreConcurrencyRetry.IsRetryable);
     }
 
-    public async Task<IReadOnlyList<PhotoCaptureWithItems>> ListAwaitingSettleAsync(
+    public async Task<IReadOnlyList<PhotoCaptureSettleCandidate>> ListAwaitingSettleAsync(
         DateTimeOffset nowUtc,
+        PhotoCaptureSettleCursor? after,
         int maximumItems,
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
+        var paperwork = PhotoCaptureCodes.ToCode(PhotoCaptureItemKind.Paperwork);
+        var video = PhotoCaptureCodes.ToCode(PhotoCaptureItemKind.Video);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // PhotoCapture.HasUnsettledSend, as SQL.
-        var captures = await context.PhotoCaptures.AsNoTracking()
-            .Where(capture => capture.RevokedAtUtc == null
+        // A received photograph in the open batch, and PhotoCapture.IsDueToSettle
+        // as SQL: a Send since the last settle, an expiry or a cancellation
+        // (R792, R794), as a cancelled link's photos still settle.
+        var listed = context.PhotoCaptures.AsNoTracking()
+            .Where(capture => context.PhotoCaptureItems.Any(item => item.CaptureId == capture.Id
+                    && item.Batch == capture.SettledBatches + 1
+                    && item.StagedReceiptId != null
+                    && item.Kind != paperwork
+                    && item.Kind != video)
                 && ((capture.SentAtUtc != null
                         && (capture.SettledAtUtc == null || capture.SettledAtUtc < capture.SentAtUtc))
-                    || (capture.ExpiresAtUtc <= nowUtc
-                        && ((capture.SettledAtUtc == null && capture.AcceptedItemCount > 0)
-                            || (capture.SettledAtUtc != null && capture.LastItemAtUtc > capture.SettledAtUtc)))))
+                    || capture.ExpiresAtUtc <= nowUtc
+                    || capture.RevokedAtUtc != null));
+        if (after is { } cursor)
+        {
+            listed = listed.Where(capture => capture.CreatedAtUtc > cursor.CreatedAtUtc
+                || (capture.CreatedAtUtc == cursor.CreatedAtUtc && capture.Id.CompareTo(cursor.Id) > 0));
+        }
+
+        var rows = await listed
             .OrderBy(capture => capture.CreatedAtUtc)
             .ThenBy(capture => capture.Id)
             .Take(maximumItems)
+            .Select(capture => new
+            {
+                Capture = capture,
+                CaseArchived = capture.CaseId != null && context.CaseWorkflows.Any(workflow =>
+                    workflow.CaseId == capture.CaseId && workflow.ArchivedAtUtc != null),
+                CaseIsTriage = capture.CaseId != null && !context.CaseWorkflows.Any(workflow =>
+                    workflow.CaseId == capture.CaseId)
+            })
             .ToListAsync(cancellationToken);
-        return await WithItemsAsync(context, captures, cancellationToken);
+        var items = await ItemsByCaptureAsync(context, rows.Select(row => row.Capture.Id).ToArray(), cancellationToken);
+        return rows
+            .Select(row => new PhotoCaptureSettleCandidate(
+                Map(row.Capture),
+                items.TryGetValue(row.Capture.Id, out var list) ? list : [],
+                row.Capture.CaseId,
+                row.CaseArchived,
+                row.CaseIsTriage))
+            .ToArray();
     }
 
     public async Task<IReadOnlyList<PhotoCaptureItem>> ListItemsAsync(Guid captureId, CancellationToken cancellationToken)
@@ -766,7 +863,7 @@ public sealed class EfPhotoCaptureStore(
         return entity is null ? null : Map(entity);
     }
 
-    public async Task<IReadOnlyList<(PhotoCaptureWithItems Capture, Guid CaseId, string CaseReference)>> ListSettledReachingCaseAsync(
+    public async Task<IReadOnlyList<PhotoCaptureSettleCandidate>> ListSettledReachingCaseAsync(
         int maximumItems,
         CancellationToken cancellationToken)
     {
@@ -837,38 +934,101 @@ public sealed class EfPhotoCaptureStore(
             .ThenBy(capture => capture.Id)
             .Take(maximumItems)
             .ToListAsync(cancellationToken);
-        var references = await context.Cases.AsNoTracking()
+        // Whether each reached Case is archived (R793) or a Triage Case,
+        // which has no workflow and keeps no Notes.
+        var cases = await context.Cases.AsNoTracking()
             .Where(item => EF.Parameter(caseIds).Contains(item.Id))
-            .Select(item => new { item.Id, item.Reference })
-            .ToDictionaryAsync(item => item.Id, item => item.Reference, cancellationToken);
+            .Select(item => new
+            {
+                item.Id,
+                Archived = context.CaseWorkflows.Any(workflow => workflow.CaseId == item.Id && workflow.ArchivedAtUtc != null),
+                Triage = !context.CaseWorkflows.Any(workflow => workflow.CaseId == item.Id)
+            })
+            .ToDictionaryAsync(item => item.Id, cancellationToken);
         var withItems = await WithItemsAsync(context, captures, cancellationToken);
         return withItems
-            .Where(pending => references.ContainsKey(reached[pending.Capture.Id]))
-            .Select(pending => (pending, reached[pending.Capture.Id], references[reached[pending.Capture.Id]]))
+            .Where(pending => cases.ContainsKey(reached[pending.Capture.Id]))
+            .Select(pending =>
+            {
+                var reachedCase = cases[reached[pending.Capture.Id]];
+                return new PhotoCaptureSettleCandidate(
+                    pending.Capture, pending.Items, reachedCase.Id, reachedCase.Archived, reachedCase.Triage);
+            })
             .ToArray();
     }
 
-    public Task<PhotoCapture> RecordCaseAsync(Guid captureId, Guid caseId, string caseReference, CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(caseReference);
-        return UpdateAsync(captureId, expectedVersion: null, (_, entity, _) =>
-        {
-            entity.CaseId = caseId;
-            entity.CaseReference = caseReference;
-            entity.Destination = PhotoCaptureCodes.ToCode(PhotoCaptureDestination.Case);
-            return Task.CompletedTask;
-        }, cancellationToken);
-    }
+    public Task<PhotoCaptureCaseRecorded> RecordCaseAsync(
+        Guid captureId,
+        Guid caseId,
+        string? routingReason,
+        DateTimeOffset? imagesCompletedAtUtc,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(
+            async token =>
+            {
+                await using var context = await contextFactory.CreateDbContextAsync(token);
+                var entity = await context.PhotoCaptures
+                    .SingleOrDefaultAsync(item => item.Id == captureId, token)
+                    ?? throw new KeyNotFoundException("The photo link was not found.");
+                if (entity.CaseId is not null)
+                {
+                    // The Case a capture has stands: a second record or a
+                    // repeated settle changes nothing.
+                    return new PhotoCaptureCaseRecorded(Map(entity), Changed: false);
+                }
 
-    public async Task<bool> AllItemsProcessedAsync(Guid captureId, int batch, CancellationToken cancellationToken)
+                entity.CaseReference = await context.Cases.AsNoTracking()
+                    .Where(item => item.Id == caseId)
+                    .Select(item => item.Reference)
+                    .SingleOrDefaultAsync(token)
+                    ?? throw new KeyNotFoundException("The Case the photo link reached was not found.");
+                entity.CaseId = caseId;
+                entity.Destination = PhotoCaptureCodes.ToCode(PhotoCaptureDestination.Case);
+                if (routingReason is not null)
+                {
+                    entity.RoutingReason = routingReason;
+                }
+
+                entity.ImagesCompletedAtUtc ??= imagesCompletedAtUtc;
+                entity.Version++;
+                await context.SaveChangesAsync(token);
+                return new PhotoCaptureCaseRecorded(Map(entity), Changed: true);
+            },
+            cancellationToken,
+            StoreConcurrencyRetry.IsRetryable);
+
+    public async Task<bool> AllItemsSettledAsync(Guid captureId, int batch, Guid? caseId, CancellationToken cancellationToken)
     {
+        var paperwork = PhotoCaptureCodes.ToCode(PhotoCaptureItemKind.Paperwork);
+        var video = PhotoCaptureCodes.ToCode(PhotoCaptureItemKind.Video);
+        const string completed = EfCaseFilingReplayStore.PromotionCompletedEventType;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // An item whose upload never completed has no staged receipt and is
-        // not waited for; a received item waits for its evaluation.
-        return !await context.PhotoCaptureItems.AnyAsync(
-            item => item.CaptureId == captureId && item.Batch == batch
-                && item.StagedReceiptId != null && item.IntakeReceiptId == null,
-            cancellationToken);
+        // A received photograph settles once its receipt is evaluated, or its
+        // work has failed for good (F-R12); on a Case, once it has also filed
+        // there (the filing's completion marker) or its association has since
+        // moved elsewhere. An item whose upload never completed has no staged
+        // receipt and is not waited for.
+        var photographs = await context.PhotoCaptureItems.AsNoTracking()
+            .Where(item => item.CaptureId == captureId
+                && item.Batch == batch
+                && item.StagedReceiptId != null
+                && item.Kind != paperwork
+                && item.Kind != video)
+            .Select(item => new
+            {
+                Evaluated = item.IntakeReceiptId != null,
+                Failed = context.IntakeWorkItems.Any(work => work.StagedReceiptId == item.StagedReceiptId && work.State == "failed"),
+                Filed = caseId != null && context.IntakeMutationHistory.Any(history =>
+                    history.IntakeReceiptId == item.IntakeReceiptId
+                    && history.CaseId == caseId
+                    && history.EventType == completed),
+                MovedElsewhere = caseId != null && context.IntakeManualAssociations.Any(association =>
+                    association.IntakeReceiptId == item.IntakeReceiptId
+                    && (!association.IsActive || association.CaseId != caseId))
+            })
+            .ToListAsync(cancellationToken);
+        return photographs.TrueForAll(item =>
+            item.Failed || (item.Evaluated && (caseId == null || item.Filed || item.MovedElsewhere)));
     }
 
     /// <summary>
@@ -996,7 +1156,8 @@ public sealed class EfPhotoCaptureStore(
         entity.ReminderCount,
         entity.LastRemindedAtUtc,
         entity.CallLoggedAtUtc,
-        entity.Version);
+        entity.Version,
+        entity.ImagesCompletedAtUtc);
 
     internal static PhotoCaptureItem Map(PhotoCaptureItemEntity entity) => new(
         entity.Id,

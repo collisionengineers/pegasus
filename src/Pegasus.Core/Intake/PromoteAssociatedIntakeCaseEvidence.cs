@@ -121,7 +121,12 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
                     stream,
                     // A file a member of staff uploaded to a declared Case
                     // takes the type they chose for it (FRD-18; R564, R565).
-                    receipt.HasDeclaredDestination && asset.Kind == IntakeAssetKind.Source
+                    // A photo link's paperwork and video file as Other,
+                    // including those kept until their capture reached a Case
+                    // (FRD-28; operator, 9 November 2026, R803).
+                    (receipt.HasDeclaredDestination
+                        || receipt.SourceIdentity.Channel == IntakeSourceChannel.PhotoCapture)
+                    && asset.Kind == IntakeAssetKind.Source
                         ? IntakeCaseEvidenceRoles.ForDeclaredUpload(asset.MediaType, receipt.DeclaredDocumentType)
                         : IntakeCaseEvidenceRoles.For(asset.Kind, asset.MediaType),
                     DocumentSource.Intake,

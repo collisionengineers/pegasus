@@ -781,7 +781,7 @@ internal sealed class EfIntakeMutationStore(
             ?? throw new IntakeAssociationConflictException("Automatic image association requires a registered Image intake.");
         ImageIntakeLifecycleRules.RequireTransitionable(
             EfImageIntakeStore.ParseState(imageIntake.LifecycleState));
-        var memberCount = await EfImageIntakeStore.GroupExpectedMemberCountAsync(
+        var (memberCount, declaredIncidentDate) = await EfImageIntakeStore.GroupFactsAsync(
             context, imageIntake.SubmissionGroupId, cancellationToken);
         var originAssociation = imageIntake.SubmissionGroupId is null ? null
             : await context.IntakeManualAssociations.AsNoTracking().SingleOrDefaultAsync(
@@ -820,7 +820,7 @@ internal sealed class EfIntakeMutationStore(
                 context, imageIntake.NormalizedVehicleRegistration, cancellationToken);
             var currentTarget = ImageIntakeCasePairing.SelectRegisteredTarget(candidates,
                 imageIntake.NormalizedVehicleRegistration, imageIntake.PrincipalId, memberCount,
-                sourceChannel, imageIntake.CreatedAtUtc);
+                sourceChannel, imageIntake.CreatedAtUtc, declaredIncidentDate);
             if (currentTarget?.CaseId != request.CaseId)
             {
                 throw new IntakeAssociationConflictException(

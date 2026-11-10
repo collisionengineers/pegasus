@@ -209,7 +209,9 @@ public static class DependencyInjection
         // not ask for a dependency only the Worker composes.
         services.AddScoped(provider => new SettlePhotoCaptures(
             provider.GetRequiredService<IPhotoCaptureStore>(),
-            provider.GetRequiredService<IIntakeSubmissionGroupStore>(),
+            provider.GetRequiredService<IStandingPhotoLinkStore>(),
+            provider.GetRequiredService<RoutePhotoCapture>(),
+            provider.GetRequiredService<IIntakeMutationStore>(),
             provider.GetRequiredService<IProcessQueuedIntake>(),
             provider.GetRequiredService<IPhotoCaptureCaseWriter>(),
             provider.GetRequiredService<IAddCaseNote>(),

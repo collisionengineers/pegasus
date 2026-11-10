@@ -214,6 +214,60 @@ public sealed class ImageIntakeCasePairingTests
             "AB12CDE", Guid.NewGuid(), 1));
     }
 
+    /// <summary>
+    /// A photo link's record carries its sender's typed accident date, which
+    /// excludes and never matches (FRD-22; operator, 9 November 2026, R791):
+    /// a later instruction whose date contradicts it never pairs, and a date
+    /// missing on either side excludes nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(28, 28, true)]
+    [InlineData(28, 25, false)]
+    [InlineData(28, null, true)]
+    [InlineData(null, 25, true)]
+    public void ATypedAccidentDateExcludesACaseWhoseDateContradictsIt(int? typedDay, int? caseDay, bool selected)
+    {
+        DateOnly? typed = typedDay is { } day ? new DateOnly(2026, 10, day) : null;
+        ImageIntakeCaseCandidate[] candidates =
+        [
+            new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch,
+                IncidentDate: caseDay is { } other ? new DateOnly(2026, 10, other) : null)
+        ];
+
+        var result = ImageIntakeCasePairing.SelectRegisteredTarget(
+            candidates, "AB12CDE", null, 3, IntakeSourceChannel.PhotoCapture, Registered, typed);
+
+        Assert.Equal(selected, result is not null);
+    }
+
+    /// <summary>
+    /// The date excludes after the Principal's scope and before the group's
+    /// uniqueness count: of two Cases for the vehicle, the one whose date
+    /// contradicts is no tie, and a Case the date excludes is no Principal's
+    /// disagreement.
+    /// </summary>
+    [Fact]
+    public void ACaseTheTypedDateExcludesIsNoTieAndNoDisagreement()
+    {
+        var typed = new DateOnly(2026, 10, 28);
+        ImageIntakeCaseCandidate[] candidates =
+        [
+            new(CaseId, "QDS26001", 0, "AB12CDE", DateTimeOffset.UnixEpoch, IncidentDate: typed),
+            new(Guid.NewGuid(), "QDS26002", 0, "AB12CDE", DateTimeOffset.UnixEpoch, IncidentDate: typed.AddDays(-3))
+        ];
+
+        Assert.Null(ImageIntakeCasePairing.SelectRegisteredTarget(
+            candidates, "AB12CDE", null, 3, IntakeSourceChannel.PhotoCapture, Registered));
+        Assert.Equal(CaseId, ImageIntakeCasePairing.SelectRegisteredTarget(
+            candidates, "AB12CDE", null, 3, IntakeSourceChannel.PhotoCapture, Registered, typed)?.CaseId);
+        Assert.Null(ImageIntakeCasePairing.ExplainWithheld(candidates, "AB12CDE", null, 3, typed));
+        Assert.Null(ImageIntakeCasePairing.ExplainWithheld(
+            [candidates[1]], "AB12CDE", Guid.NewGuid(), 1, typed));
+        Assert.True(IncidentDateExclusion.Admits(candidates[0], typed));
+        Assert.False(IncidentDateExclusion.Admits(candidates[1], typed));
+        Assert.True(IncidentDateExclusion.Admits(candidates[1], null));
+    }
+
     [Theory]
     [InlineData(IntakeSourceChannel.ManualUpload, -1, false)]
     [InlineData(IntakeSourceChannel.ManualUpload, 0, false)]
