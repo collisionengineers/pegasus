@@ -61,17 +61,17 @@ public sealed class ReportWordingTests
     }
 
     /// <summary>
-    /// The unroadworthy note and the Engineer's own comments join the mileage
-    /// sentence as paragraphs of the one block, in the order they print.
+    /// The unroadworthy note joins the mileage sentence as a second paragraph
+    /// of the one block, and nothing else composes into it: the Engineer's own
+    /// comments are the block's wording (R922).
     /// </summary>
     [Fact]
-    public void TheCommentsBlockCarriesTheMileageTheUnroadworthyNoteAndTheEngineersWords()
+    public void TheCommentsBlockComposesTheMileageAndTheUnroadworthyNoteOnly()
     {
         var snapshot = Repairable() with
         {
             LegalStatus = "unroadworthy",
             UnroadworthyReason = "due to the illegal offside front tyre",
-            EngineerComments = "The repairer has the vehicle.",
         };
 
         var comments = ReportWordingComposition
@@ -80,8 +80,7 @@ public sealed class ReportWordingTests
 
         Assert.Equal(
             "The mileage has been calculated from online data."
-            + "\n\nPlease note the vehicle is unroadworthy due to the illegal offside front tyre."
-            + "\n\nThe repairer has the vehicle.",
+            + "\n\nPlease note the vehicle is unroadworthy due to the illegal offside front tyre.",
             comments.Text);
     }
 

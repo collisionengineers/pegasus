@@ -400,7 +400,7 @@ public sealed class CaseEditModeWebTests
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.HistoryCheck), ""),
             // The Vehicle section renders this select in every engineering edit form.
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.VehicleCondition), "good"),
-            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.EngineersComments), "Engineer comments recorded"),
+            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.FeeDescriptionLines), "Engineering assessment"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportIncludeUnrelatedDamage), "false"),
             ("storagePerDay", "14.50"), ("recoveryCharge", "0")
         };
@@ -414,7 +414,7 @@ public sealed class CaseEditModeWebTests
         Assert.Equal("false", saved.Settlement.AssessmentFields[AssessmentVocabulary.SettlementClaimantVatRegistered]);
         Assert.Null(saved.Vehicle!.AssessmentFields![AssessmentVocabulary.HistoryCheck]);
         Assert.Equal("good", saved.Vehicle.AssessmentFields[AssessmentVocabulary.VehicleCondition]);
-        Assert.Equal("Engineer comments recorded", saved.Report!.AssessmentFields![AssessmentVocabulary.EngineersComments]);
+        Assert.Equal("Engineering assessment", saved.Report!.AssessmentFields![AssessmentVocabulary.FeeDescriptionLines]);
         Assert.Equal(new DateOnly(2031, 5, 6), saved.Report.ReportDate);
         Assert.Equal(14.50m, saved.Inspection!.StoragePerDay);
         Assert.Equal(0m, saved.Inspection.RecoveryCharge);

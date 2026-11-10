@@ -201,7 +201,6 @@ public static class AssessmentReportProjection
                 : null,
             Settlement: BuildSettlement(reportOutcome, fields),
             HistoryCheck: Field(assessment, AssessmentVocabulary.HistoryCheck)!,
-            EngineerComments: Field(assessment, AssessmentVocabulary.EngineersComments),
             Signatory: new ReportSignatory(
                 signatory.PrintedName,
                 string.IsNullOrWhiteSpace(signatory.Qualifications) ? null : signatory.Qualifications,

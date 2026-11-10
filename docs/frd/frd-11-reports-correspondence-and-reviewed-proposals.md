@@ -123,6 +123,11 @@ Nature of Incident keeps one sentence to a line with no space between them
 (R645); the space between the Case page's sentences is the page's alone
 (v47 item G, R649).
 
+Engineer's Comments composes the mileage sentence and, when the vehicle is
+unroadworthy, the unroadworthy sentence; the Engineer's own comments are its
+wording, with no separate field (operator, 10 November 2026;
+[R922](../rulings.md)).
+
 A block tracks the Case's own facts until the Engineer writes wording in its
 place. The Engineer may rename a block, move it, take it off the report, put
 it back, and add a paragraph of their own. PAV commentary and Unrelated

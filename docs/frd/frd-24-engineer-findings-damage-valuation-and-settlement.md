@@ -75,8 +75,10 @@ ruling, 15 October 2026). The report's wording blocks are in
 | Salvage | Decisions | Salvage and Settlement |
 | Roadworthiness | Decisions | Engineer's Comments, when unroadworthy |
 
-The Vehicle History Check and the Engineer's comments are text staff record;
-the report prints the recorded check verbatim and the comments as recorded.
+The Vehicle History Check is text staff record; the report prints it
+verbatim. The Engineer's comments are not a recorded field: the Engineer
+writes them as the Engineer's Comments block's wording (operator, 10 November
+2026; [R922](../rulings.md)).
 
 **Corrections.** A correction never edits an issued report in place. It
 creates a reasoned superseding report or addendum with actor, time, source,

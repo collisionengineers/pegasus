@@ -641,7 +641,6 @@ public sealed partial class AssessmentReportDraftWebTests
             }),
             Report = new(new Dictionary<string, string?>(StringComparer.Ordinal)
             {
-                [AssessmentVocabulary.EngineersComments] = "Scuffed",
                 [AssessmentVocabulary.AgreedFee] = "120.00",
                 [AssessmentVocabulary.FeeDescriptionLines] = "Assessment report",
                 [AssessmentVocabulary.ReportDiscloseGuideSource] = "true",
@@ -684,7 +683,6 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal("false", persisted.Field(AssessmentVocabulary.SettlementClaimantVatRegistered)?.Value);
         Assert.Equal(new ReportSettlement(), snapshot.Settlement);
         Assert.Equal("History clear", snapshot.HistoryCheck);
-        Assert.Equal("Scuffed", snapshot.EngineerComments);
         Assert.Equal(120m, snapshot.AgreedFee);
         Assert.Equal(["Assessment report"], snapshot.FeeDescriptionLines);
         Assert.Equal(new CaseReportContentSwitches(true, false, false), snapshot.Content);
