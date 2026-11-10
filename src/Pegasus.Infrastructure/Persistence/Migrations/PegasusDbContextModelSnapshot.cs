@@ -3245,6 +3245,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[DocumentVersionId] IS NOT NULL");
 
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("DocumentVersionId", "Variant"), new[] { "ExpiresAtUtc" });
+
                     b.HasIndex("IntakeAssetId", "Variant")
                         .IsUnique()
                         .HasFilter("[IntakeAssetId] IS NOT NULL");
