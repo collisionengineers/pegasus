@@ -59,7 +59,7 @@ public interface ISentReportInstructionTidyStore
 }
 
 /// <summary>One Outlook move of an answered instruction: from its folder to Deleted Items.</summary>
-public sealed record SentReportInstructionMove(
+public sealed record RetainedMessageMove(
     string MailboxIdentity,
     string SourceFolderId,
     string ImmutableMessageId,
@@ -67,9 +67,9 @@ public sealed record SentReportInstructionMove(
 
 /// <summary>
 /// The mailbox side of the tidy (ADR-0071). Only the Worker composes the Graph
-/// mover; every other host has <see cref="UnavailableSentReportInstructionMover"/>.
+/// mover; every other host has <see cref="UnavailableRetainedMessageMover"/>.
 /// </summary>
-public interface ISentReportInstructionMover
+public interface IRetainedMessageMover
 {
     bool IsAvailable { get; }
 
@@ -85,11 +85,11 @@ public interface ISentReportInstructionMover
         CancellationToken cancellationToken);
 
     Task MoveAsync(
-        SentReportInstructionMove move,
+        RetainedMessageMove move,
         CancellationToken cancellationToken);
 }
 
-public sealed class UnavailableSentReportInstructionMover : ISentReportInstructionMover
+public sealed class UnavailableRetainedMessageMover : IRetainedMessageMover
 {
     public bool IsAvailable => false;
 
@@ -99,7 +99,7 @@ public sealed class UnavailableSentReportInstructionMover : ISentReportInstructi
     public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
         throw new InvalidOperationException("Outlook moves are unavailable in this runtime.");
 
-    public Task MoveAsync(SentReportInstructionMove move, CancellationToken cancellationToken) =>
+    public Task MoveAsync(RetainedMessageMove move, CancellationToken cancellationToken) =>
         throw new InvalidOperationException("Outlook moves are unavailable in this runtime.");
 }
 
@@ -111,7 +111,7 @@ public sealed class UnavailableSentReportInstructionMover : ISentReportInstructi
 /// </summary>
 public sealed class TidySentReportInstructions(
     ISentReportInstructionTidyStore store,
-    ISentReportInstructionMover mover,
+    IRetainedMessageMover mover,
     TimeProvider timeProvider)
 {
     public const int MaximumAttempts = 3;
@@ -240,7 +240,7 @@ public sealed class TidySentReportInstructions(
             }
 
             await mover.MoveAsync(
-                new SentReportInstructionMove(
+                new RetainedMessageMove(
                     candidate.MailboxIdentity,
                     parent,
                     candidate.ImmutableMessageId,

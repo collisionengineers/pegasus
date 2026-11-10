@@ -1556,7 +1556,9 @@ public sealed class StaffCorrespondenceWebTests
     /// tick only for a reply or reply all to a message that holds an open
     /// query, and ticks it when reached from Answer query
     /// (<c>markQueryDone=true</c>). A forward, a message with no query, or a
-    /// Case whose open query is on another message, offers none.
+    /// Case whose open query is on another message, offers none. Delete case
+    /// correspondence is offered exactly where Mark query done is (R904), and
+    /// unticked on every open, Answer query's included.
     /// </summary>
     [Theory]
     [InlineData("reply", "reply", true, false, true)]
@@ -1593,10 +1595,16 @@ public sealed class StaffCorrespondenceWebTests
         var tick = Regex.Match(composer, "<input[^>]*data-mark-query-done[^>]*>", RegexOptions.CultureInvariant);
         Assert.Equal(offered, tick.Success);
         Assert.Equal(offered, composer.Contains(OperatorLabels.StaffMail.MarkQueryDone, StringComparison.Ordinal));
+        var deleteTick = Regex.Match(
+            composer, "<input[^>]*data-delete-case-correspondence[^>]*>", RegexOptions.CultureInvariant);
+        Assert.Equal(offered, deleteTick.Success);
+        Assert.Equal(offered, composer.Contains(OperatorLabels.StaffMail.DeleteCaseCorrespondence, StringComparison.Ordinal));
         if (offered)
         {
             Assert.Contains("type=\"checkbox\"", tick.Value, StringComparison.Ordinal);
             Assert.Equal(fromAnswerQuery, tick.Value.Contains("checked", StringComparison.Ordinal));
+            Assert.Contains("type=\"checkbox\"", deleteTick.Value, StringComparison.Ordinal);
+            Assert.DoesNotContain("checked", deleteTick.Value, StringComparison.Ordinal);
         }
         Assert.Equal(0, send.SendCalls);
     }
@@ -1620,6 +1628,7 @@ public sealed class StaffCorrespondenceWebTests
 
         Assert.DoesNotContain("data-mark-query-done", html, StringComparison.Ordinal);
         Assert.DoesNotContain(OperatorLabels.StaffMail.MarkQueryDone, html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-delete-case-correspondence", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1657,6 +1666,50 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(caseId, command.ContextId);
         Assert.Equal(StaffMailComposeMode.Reply, command.ComposeMode);
         Assert.Equal(ticked, command.MarksQueryDone);
+    }
+
+    /// <summary>
+    /// Delete case correspondence (R902 to R905): a ticked reply to the
+    /// message's open query carries the tick to the send command, an unticked
+    /// one does not, and a tick posted on a reply to a message that holds no
+    /// open query is ignored, as the composer never offered it.
+    /// </summary>
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    public async Task AReplyCarriesDeleteCaseCorrespondenceOnlyWhereTheComposerOffersIt(
+        bool ticked, bool queryOnThisMessage, bool carried)
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 DELETE CORRESPONDENCE", "SC08-MSG-DELETE-CORRESPONDENCE");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        if (queryOnThisMessage)
+        {
+            await OpenQueryOnMessageAsync(baseFactory, caseId, seeded.ReceiptId);
+        }
+        using var factory = Configure(baseFactory, send);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var html = await get.Content.ReadAsStringAsync();
+        var form = RetainedReplyForm(html, InputValue(html, "CorrespondenceOperationKey"), "Answered the query.");
+        if (ticked)
+        {
+            form["DeleteCaseCorrespondence"] = "true";
+        }
+
+        using var response = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(caseId, command.ContextId);
+        Assert.Equal(StaffMailComposeMode.Reply, command.ComposeMode);
+        Assert.Equal(carried, command.TidiesCaseCorrespondence);
+        Assert.False(command.MarksQueryDone);
     }
 
     /// <summary>

@@ -28,7 +28,7 @@ public sealed class TidySentReportInstructionsTests
         var result = await Use(store, mover).ExecuteAsync(10, WorkerActor);
 
         var move = Assert.Single(mover.Moves);
-        Assert.Equal(new SentReportInstructionMove(Mailbox, "inbox-id", "msg-1", "deleted-id"), move);
+        Assert.Equal(new RetainedMessageMove(Mailbox, "inbox-id", "msg-1", "deleted-id"), move);
         var recorded = Assert.Single(store.Recorded);
         Assert.Equal(SentReportInstructionTidyOutcome.Moved, recorded.Outcome);
         Assert.Null(recorded.FailureCode);
@@ -150,7 +150,7 @@ public sealed class TidySentReportInstructionsTests
     {
         var store = new FakeStore(Candidate("msg-1"));
 
-        var result = await Use(store, new UnavailableSentReportInstructionMover()).ExecuteAsync(10, WorkerActor);
+        var result = await Use(store, new UnavailableRetainedMessageMover()).ExecuteAsync(10, WorkerActor);
 
         Assert.Equal(new SentReportInstructionTidyResult(0, 0, 0, 0, 0), result);
         Assert.Null(store.RequestedMaximum);
@@ -339,7 +339,7 @@ public sealed class TidySentReportInstructionsTests
 
     private static TidySentReportInstructions Use(
         ISentReportInstructionTidyStore store,
-        ISentReportInstructionMover mover) =>
+        IRetainedMessageMover mover) =>
         new(store, mover, new FixedClock(NowUtc));
 
     private static SentReportInstructionCandidate Candidate(
@@ -389,7 +389,7 @@ public sealed class TidySentReportInstructionsTests
         }
     }
 
-    private sealed class FakeMover : ISentReportInstructionMover
+    private sealed class FakeMover : IRetainedMessageMover
     {
         private readonly Lock gate = new();
         private readonly ConcurrentDictionary<string, string> movedTo = new(StringComparer.Ordinal);
@@ -414,16 +414,16 @@ public sealed class TidySentReportInstructionsTests
         // Awaited inside the matching call, so a test can hold a candidate there.
         public Func<string, Task>? OnParentRead { get; set; }
         public Func<string, Task>? OnResolve { get; set; }
-        public Func<SentReportInstructionMove, Task>? OnMove { get; set; }
+        public Func<RetainedMessageMove, Task>? OnMove { get; set; }
 
         public int ParentCalls => Volatile.Read(ref parentCalls);
         public int ResolveCalls => Volatile.Read(ref resolveCalls);
         public int MovesInFlight => Volatile.Read(ref movesInFlight);
         public int MaxMovesInFlight => Volatile.Read(ref maxMovesInFlight);
         public Task ThrottleRaised => throttleRaised.Task;
-        public ConcurrentQueue<SentReportInstructionMove> Moves { get; } = new();
+        public ConcurrentQueue<RetainedMessageMove> Moves { get; } = new();
 
-        public async Task MoveAsync(SentReportInstructionMove move, CancellationToken cancellationToken)
+        public async Task MoveAsync(RetainedMessageMove move, CancellationToken cancellationToken)
         {
             lock (gate)
             {

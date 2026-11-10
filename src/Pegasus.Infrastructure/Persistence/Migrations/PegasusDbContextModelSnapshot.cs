@@ -7220,6 +7220,22 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int>("CorrespondenceMoveAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("CorrespondenceMoveFailureCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CorrespondenceMoveState")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset?>("CorrespondenceMovedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -7329,6 +7345,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("SubmittedAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<bool>("TidiesCaseCorrespondence")
+                        .HasColumnType("bit");
+
                     b.Property<DateTimeOffset?>("UploadSessionExpiresAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -7346,11 +7365,16 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Purpose", "State", "ObservedSentAtUtc");
 
+                    b.HasIndex(new[] { "State", "ObservedSentAtUtc" }, "IX_StaffMailSendOperations_CorrespondenceTidyDue")
+                        .HasFilter("[TidiesCaseCorrespondence] = 1 AND [CorrespondenceMoveState] IS NULL");
+
                     b.ToTable("StaffMailSendOperations", null, t =>
                         {
                             t.HasCheckConstraint("CK_StaffMailSendOperations_ActorKind", "[ActorKind] IN ('Staff', 'Automation')");
 
                             t.HasCheckConstraint("CK_StaffMailSendOperations_AttemptStage", "[AttemptStage] IS NULL OR [AttemptStage] IN ('CreateDraft', 'Attach', 'Send', 'ObserveSent')");
+
+                            t.HasCheckConstraint("CK_StaffMailSendOperations_CorrespondenceTidy", "[TidiesCaseCorrespondence] = 0 OR [Purpose] IN ('CaseReport', 'TriageOutcomeReply') OR ([Purpose] = 'GeneralCorrespondence' AND [ComposeMode] IN ('Reply', 'ReplyAll'))");
 
                             t.HasCheckConstraint("CK_StaffMailSendOperations_SecondReport", "([SecondContextId] IS NULL AND [SecondContextVersion] IS NULL) OR ([SecondContextId] IS NOT NULL AND [SecondContextVersion] > 0 AND [Purpose] = 'CaseReport' AND [SecondContextId] <> [ContextId])");
 

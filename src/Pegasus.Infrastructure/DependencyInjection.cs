@@ -1167,8 +1167,9 @@ public static class DependencyInjection
 
         services.AddGraphApprovedMailReads(graphOptions);
         // The Worker alone may move a retained message: it tidies the instruction a
-        // confirmed report send answered (ADR-0071). Web composes no mover.
-        services.Replace(ServiceDescriptor.Singleton<ISentReportInstructionMover, GraphSentReportInstructionMover>());
+        // confirmed report send answered (ADR-0071) and the Case's received e-mails
+        // after a ticked send (ADR-0071, R902). Web composes no mover.
+        services.Replace(ServiceDescriptor.Singleton<IRetainedMessageMover, GraphRetainedMessageMover>());
         // The Sent-evidence poll settles the Web's Submitted sends against the
         // Sent folder; the send itself is the Web's (AddProductionApprovedMailboxResolver).
         AddStaffMailSendStore(services);
@@ -1237,9 +1238,23 @@ public static class DependencyInjection
     public static IServiceCollection AddSentReportInstructionTidy(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.TryAddSingleton<ISentReportInstructionMover, UnavailableSentReportInstructionMover>();
+        services.TryAddSingleton<IRetainedMessageMover, UnavailableRetainedMessageMover>();
         services.AddScoped<ISentReportInstructionTidyStore, EfSentReportInstructionTidyStore>();
         services.AddScoped<TidySentReportInstructions>();
+        return services;
+    }
+
+    /// <summary>
+    /// The Worker's tidy of a Case's received e-mails after a send that carried the
+    /// Delete case correspondence tick (ADR-0071, R902). It shares the instruction tidy's
+    /// mover, so it too does nothing where that mover is unavailable.
+    /// </summary>
+    public static IServiceCollection AddSentCaseCorrespondenceTidy(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<IRetainedMessageMover, UnavailableRetainedMessageMover>();
+        services.AddScoped<ISentCaseCorrespondenceTidyStore, EfSentCaseCorrespondenceTidyStore>();
+        services.AddScoped<TidySentCaseCorrespondence>();
         return services;
     }
 

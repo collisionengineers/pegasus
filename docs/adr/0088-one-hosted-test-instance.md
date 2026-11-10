@@ -109,7 +109,7 @@ their Tailscale network, at no Azure cost (R623).
   with every approved mailbox deactivated on import (R627), the copied
   subscription rows cleared (R678), the copied Principal API credentials
   paused (R679) and the copied pending answered-instruction tidies closed
-  (R680); each copy is a live production read the operator approves, into
+  (R680), with the copied Delete case correspondence tidies (R902); each copy is a live production read the operator approves, into
   the instance's run on its host alone, and the extract is removed once
   published (R696). The Box custody fence keeps the instance on the
   local-test root whatever the copied rows say.

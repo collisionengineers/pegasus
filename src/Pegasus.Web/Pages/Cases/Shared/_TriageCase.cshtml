@@ -754,6 +754,17 @@
                                 }
                             </fieldset>
                         }
+                        @if (view.IsOutcomeReply)
+                        {
+                            @* Reply with finding alone; the chaser never offers it (R904). *@
+                            <div class="field">
+                                <label>
+                                    <input type="checkbox" name="deleteCaseCorrespondence" value="true"
+                                           checked="@view.DeleteCaseCorrespondence" data-delete-case-correspondence />
+                                    @OperatorLabels.StaffMail.DeleteCaseCorrespondence
+                                </label>
+                            </div>
+                        }
                     </div>
                     <footer class="mail-compose-footer">
                         <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--primary">

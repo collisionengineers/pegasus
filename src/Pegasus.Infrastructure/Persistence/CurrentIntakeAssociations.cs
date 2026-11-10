@@ -85,6 +85,21 @@ internal static class CurrentIntakeAssociations
             .Select(receipt => receipt.Id);
 
     /// <summary>
+    /// The receipts that stand linked to one Case now, by the rule
+    /// <see cref="LinkedReceiptIds"/> reads: an active association row to that
+    /// Case, else an accepted link to it where no association row exists. A
+    /// query to compose into one statement.
+    /// </summary>
+    internal static IQueryable<Guid> ReceiptIdsLinkedTo(PegasusDbContext context, Guid caseId) =>
+        context.IntakeReceipts
+            .Where(receipt => context.IntakeManualAssociations.Any(item =>
+                    item.IntakeReceiptId == receipt.Id && item.IsActive && item.CaseId == caseId)
+                || (!context.IntakeManualAssociations.Any(item => item.IntakeReceiptId == receipt.Id)
+                    && context.CaseIntakeLinks.Any(item =>
+                        item.IntakeReceiptId == receipt.Id && item.CaseId == caseId)))
+            .Select(receipt => receipt.Id);
+
+    /// <summary>
     /// The Cases the given receipts hold, as the mail association evidence
     /// reads a thread or the messages a reply answers: the Case each receipt
     /// stands linked to now, and the Triage Case each one opened. A Triage's

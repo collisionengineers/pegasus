@@ -16,9 +16,10 @@
 - A report sent outside Pegasus is detected from the Sent mailbox, not
   asserted.
   If the match is unclear, the item waits for staff to link it.
-- Staff have no Delete or Flag control. The one automatic move is the answered
-  instruction going to Deleted Items after its report send is confirmed.
-  It is recoverable.
+- Staff have no Delete or Flag control. Two moves send mail to Deleted Items,
+  both recoverable: the answered instruction, automatically, after its report
+  send is confirmed; and the Case's received e-mails after a send that staff
+  ticked **Delete case correspondence** on (9 November 2026, R902).
 
 ## Purpose
 
@@ -101,6 +102,44 @@ sent without a retained instruction, and never changes the Case, its state or
 the retained message's evidence. Web cannot perform it, and an environment
 without the Worker's mailbox access leaves the instruction where it is
 (`mailbox_not_permitted`).
+
+**Delete case correspondence.** Send report, a reply that answers a query and
+the Triage Case's Reply with finding each carry one optional tick, **Delete
+case correspondence**, unticked each time the form opens (operator,
+9 November 2026; R902 to R905): a tick left on a dialog that was closed
+without sending is cleared when the dialog next opens (10 November 2026,
+R916). The reply composer offers it exactly where it
+offers Mark query done: on a Reply or Reply all to a message that holds an
+open query on the Case (R904). Forward, Send chaser and the Triage chaser
+never offer it, and a send of any other kind that names it is refused. The
+tick is kept on the send. Once the Sent item is confirmed, the Worker moves
+the Case's received e-mails to the Deleted Items folder of the mailbox each
+sits in (R902), within about five minutes, in the same recovery run as the
+instruction tidy and after it. The received e-mails are the Inbox-scope
+retained messages linked to the Case now, with the request e-mail a Triage
+Case was opened from, that sit in a mailbox still Approved and activated
+(10 November 2026, R916) and that Pegasus held when the send was prepared; a
+message dismissed in Pegasus is among them. Where one of them is a Collision
+Engineers staff forward held in instructions@ (R586, R651), the original it
+was made from goes too, whether or not that original is linked to the Case: the Inbox message
+of the mailbox that sent the forward which the forward's In-Reply-To and
+References name. An original that stands linked to another Case is left
+(10 November 2026, R917). Pegasus's own Sent items, uploaded `.eml` files and
+mail that arrives after the send are left (R903). The move is recoverable and changes nothing
+in Pegasus: the retained copies, their links, the Case, its state and its
+correspondence view stay as they are. A send that is not confirmed Sent
+moves nothing. The send records each run. A run with no failure ends the
+tidy and, when a message was moved or was already in Deleted Items, writes
+the Case history event `correspondence_moved_to_deleted_items` with how many
+were moved, already there and no longer in the mailbox. A run in which a
+message could not be moved writes `correspondence_move_failed` with a
+failure code, and the send is tried again in a later run, which finds the
+messages already moved where they are; after three such runs Pegasus stops
+and leaves the rest. A mailbox asking Pegasus to slow down is not a failure.
+Two ticked sends on one Case are tidied one after the other. Web cannot
+perform the move. `pegasus_report_send` and `pegasus_mail_send` take
+`deleteCaseCorrespondence` under the same rule (R905;
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md)).
 
 Triage completion is based on the recorded outcome, under
 [FRD-03](frd-03-triage.md). Its optional Reply with finding is a staff send
@@ -311,11 +350,14 @@ correspondence was sent, with the subject
 until that Sent item exists. A send that Graph refuses leaves no evidence and
 shows as a failure on the composer, never as sent.
 
-**No Flag, no Delete control. One automatic move.** There is no flag control,
-no delete control and no staff action that moves a message to Deleted Items,
-on any surface. The one exception is not a control: after a report send is
-confirmed, Pegasus moves the instruction it answered to Deleted Items
-([ADR-0071](../adr/0071-move-answered-instruction-to-deleted-items.md)). No
+**No Flag, no Delete control. Two moves to Deleted Items.** There is no flag
+control, no delete control and no staff action that moves a chosen message to
+Deleted Items, on any surface. Two things move mail there and neither is a
+control on a message: after a report send is confirmed, Pegasus moves the
+instruction it answered; and after a send that staff ticked **Delete case
+correspondence** on is confirmed, Pegasus moves the Case's received e-mails
+(9 November 2026, R902 to R905;
+[ADR-0071](../adr/0071-move-answered-instruction-to-deleted-items.md)). No
 surface, action or tool deletes a mailbox item permanently. Dismissing a
 message is Pegasus data only and is defined in
 [FRD-20](frd-20-mailbox-workspace.md#dismiss).
@@ -381,6 +423,18 @@ document never moves a Case by itself.
   is not held on the item (a.QDOS26157, 4 November 2026).
 - The answered instruction cannot be moved (permission refused, Graph error):
   three attempts, each in Case history, then it stays where it is.
+- One of a ticked send's Case e-mails cannot be moved: the others are moved;
+  three runs, each in Case history, then the rest stay where they are.
+- A ticked send whose Case has no received e-mail in an approved mailbox: the
+  tidy ends and writes no history.
+- An e-mail that arrives on the Case after a ticked send was prepared: it
+  stays in the Inbox.
+- A staff forward whose original Pegasus never retained, because it arrived
+  before its mailbox was activated or the forward names none: the forward is
+  moved alone.
+- A Case e-mail in a mailbox that is Approved but not activated, as every
+  mailbox is on the test instance after a production copy: it is left and
+  counted nowhere.
 
 ## Acceptance evidence
 
@@ -409,5 +463,6 @@ document never moves a Case by itself.
   [ADR-0052](../adr/0052-dismiss-by-logical-folder.md) (dismiss by logical
   folder),
   [ADR-0071](../adr/0071-move-answered-instruction-to-deleted-items.md)
-  (answered instruction to Deleted Items),
+  (answered instruction, and a ticked send's Case correspondence, to Deleted
+  Items),
   [ADR-0044](../adr/0044-mail-occurrence-and-business-identity.md) (mail identity).

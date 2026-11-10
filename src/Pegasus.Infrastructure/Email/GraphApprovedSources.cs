@@ -307,7 +307,7 @@ internal sealed class GraphMailClient(
     }
 
     public async Task MoveMessageAsync(
-        SentReportInstructionMove move,
+        RetainedMessageMove move,
         CancellationToken cancellationToken)
     {
         var uri = new Uri(
@@ -1393,11 +1393,11 @@ internal sealed record GraphSearchHit(
     DateTimeOffset? ReceivedAtUtc,
     string? Preview);
 
-internal sealed class GraphSentReportInstructionMover(GraphMailClient client) : ISentReportInstructionMover
+internal sealed class GraphRetainedMessageMover(GraphMailClient client) : IRetainedMessageMover
 {
     public bool IsAvailable => true;
 
-    public Task MoveAsync(SentReportInstructionMove move, CancellationToken cancellationToken) =>
+    public Task MoveAsync(RetainedMessageMove move, CancellationToken cancellationToken) =>
         client.MoveMessageAsync(move, cancellationToken);
 
     public Task<string?> GetParentFolderIdAsync(string mailboxIdentity, string immutableMessageId, CancellationToken cancellationToken) =>

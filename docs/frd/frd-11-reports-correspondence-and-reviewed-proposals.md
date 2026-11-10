@@ -381,7 +381,10 @@ Report section's **Send report** opens the delivery composer, a dialog that
 holds From, the recipients, the subject, the covering message and the
 documents to attach, each under its name, and its one **Send report** sends
 them (operator, 4 November 2026, R665;
-[FRD-16](frd-16-case-record-workspace.md#assessment)). There is no separate
+[FRD-16](frd-16-case-record-workspace.md#assessment)). Its last row is the
+**Delete case correspondence** tick, unticked on every open, which
+[FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)
+owns (9 November 2026, R902). There is no separate
 preparation and no second confirmation. The
 staff-send operation is the record of what was sent. The composer stays offered
 after a send, whatever its outcome, so the same report can be sent again.

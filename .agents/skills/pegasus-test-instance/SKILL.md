@@ -313,7 +313,8 @@ the run database with users, logins, role memberships, permissions and
 database options left out, every approved
 mailbox deactivated (R627), the copied subscription rows cleared (R678), the
 copied Principal API keys paused (R679), the copied pending
-answered-instruction tidies closed (R680) and the copied Glass's logins
+answered-instruction and Delete case correspondence tidies closed (R680,
+R902) and the copied Glass's logins
 cleared (R708), so the instance subscribes under its own webhook,
 authenticates no production key, moves only what its own sends answered and
 never tries to decrypt what production's key ring protects. The extract is removed once published, whether or not the publish succeeded,
