@@ -100,7 +100,19 @@ public static class KnownGraphics
         // (operator, R540).
         new("Mirrored text strip 360x243", 0x000000000095aef9UL, 4, 360, 243),
         // 4 e-mails; nearest other 16.
-        new("Text disclaimer image", 0xc0b4ca9e943aa2b0UL, 4, 882, 369)
+        new("Text disclaimer image", 0xc0b4ca9e943aa2b0UL, 4, 882, 369),
+        // Signature graphics measured on 9 November 2026 with the reader's own
+        // fingerprint over the hosted test instance's retained mail (370
+        // distinct images in 251 e-mails); none has another image of its size
+        // there (operator, R787).
+        // 4 QDOS EREF e-mails, one encoding; nearest other image 19.
+        new("QDOS Assistance logo", 0x92452b2975255592UL, 4, 200, 200),
+        // Touch Ups Glasgow's signature, U74 "M500ULD"; nearest other image 11.
+        new("Touch Ups BYD approved banner", 0x20c0e0b0b28aa8c0UL, 4, 400, 200),
+        // The same signature; nearest other image 20.
+        new("Touch Ups VW group approved banner", 0xfd3375b595978f97UL, 4, 540, 302),
+        // 1 forwarded instruction e-mail, "SBL-B1070299"; nearest other image 16.
+        new("Sutton Car Repairs banner", 0x8021298a8a2b6080UL, 4, 3319, 1181)
     ];
 
     /// <summary>Whether a candidate image is one of the named graphics.</summary>
