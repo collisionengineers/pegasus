@@ -793,10 +793,10 @@ public sealed class EfImageIntakeStore(
             {
                 var candidates = await EfImageIntakeCaseCandidates.FindEligibleByRegistrationAsync(
                     context, entity.NormalizedVehicleRegistration, cancellationToken);
-                var memberCount = await GroupExpectedMemberCountAsync(context, entity.SubmissionGroupId, cancellationToken);
+                var group = await GroupFactsAsync(context, entity.SubmissionGroupId, cancellationToken);
                 if (ImageIntakeCasePairing.SelectRegisteredTarget(candidates,
-                        entity.NormalizedVehicleRegistration, entity.PrincipalId, memberCount,
-                        ParseChannel(entity.SourceChannel), entity.CreatedAtUtc)?.CaseId != targetCaseId)
+                        entity.NormalizedVehicleRegistration, entity.PrincipalId, group.ExpectedMemberCount,
+                        ParseChannel(entity.SourceChannel), entity.CreatedAtUtc, group.DeclaredIncidentDate)?.CaseId != targetCaseId)
                 {
                     throw new IntakeAssociationConflictException("The automatic image association is no longer unambiguous.");
                 }
@@ -1062,7 +1062,7 @@ public sealed class EfImageIntakeStore(
                 intake.NormalizedVehicleRegistration, candidate.ConfirmedRegistration)).ToArray();
             var automaticTarget = ImageIntakeCasePairing.SelectRegisteredTarget(matches,
                 intake.NormalizedVehicleRegistration, intake.PrincipalId, intake.GroupExpectedMemberCount,
-                intake.Source, intake.RegisteredAtUtc);
+                intake.Source, intake.RegisteredAtUtc, intake.DeclaredIncidentDate);
             var targetCaseId = automaticTarget?.CaseId;
             var staffDecision = false;
             if (intake.AssociatedCaseId is { } linkedCaseId)
@@ -1558,6 +1558,7 @@ public sealed class EfImageIntakeStore(
         CancellationToken cancellationToken)
     {
         var association = await AssociationAsync(context, entity.OriginReceiptId, cancellationToken);
+        var group = await GroupFactsAsync(context, entity.SubmissionGroupId, cancellationToken);
         return new ImageIntakeDetail(
             Map(entity),
             entity.CreatedAtUtc,
@@ -1565,15 +1566,30 @@ public sealed class EfImageIntakeStore(
             association?.CaseReference,
             ParseCustodyState(entity.CustodyState),
             principalCode,
-            await GroupExpectedMemberCountAsync(context, entity.SubmissionGroupId, cancellationToken),
-            association?.CaseVersion);
+            group.ExpectedMemberCount,
+            association?.CaseVersion,
+            group.DeclaredIncidentDate);
     }
 
-    internal static async Task<int> GroupExpectedMemberCountAsync(
-        PegasusDbContext context, Guid? groupId, CancellationToken cancellationToken) =>
-        groupId is null ? 1 : await context.IntakeSubmissionGroups.AsNoTracking()
-            .Where(group => group.Id == groupId).Select(group => group.ExpectedMemberCount)
+    /// <summary>
+    /// What pairing reads from a record's group in one read: its expected
+    /// member count, and the accident date a photo link's sender typed (R791).
+    /// A record with no group is a lone image with no date.
+    /// </summary>
+    internal static async Task<(int ExpectedMemberCount, DateOnly? DeclaredIncidentDate)> GroupFactsAsync(
+        PegasusDbContext context, Guid? groupId, CancellationToken cancellationToken)
+    {
+        if (groupId is null)
+        {
+            return (1, null);
+        }
+
+        var facts = await context.IntakeSubmissionGroups.AsNoTracking()
+            .Where(group => group.Id == groupId)
+            .Select(group => new { group.ExpectedMemberCount, group.DeclaredIncidentDate })
             .SingleAsync(cancellationToken);
+        return (facts.ExpectedMemberCount, facts.DeclaredIncidentDate);
+    }
 
     private static async Task<IReadOnlyList<ImageIntakeSummary>> ProjectAsync(
         IQueryable<ImageIntakeEntity> query,
@@ -1598,6 +1614,9 @@ public sealed class EfImageIntakeStore(
                 GroupExpectedMemberCount = context.IntakeSubmissionGroups
                     .Where(group => group.Id == intake.SubmissionGroupId)
                     .Select(group => (int?)group.ExpectedMemberCount).FirstOrDefault() ?? 1,
+                DeclaredIncidentDate = context.IntakeSubmissionGroups
+                    .Where(group => group.Id == intake.SubmissionGroupId)
+                    .Select(group => group.DeclaredIncidentDate).FirstOrDefault(),
                 // The one set-based projection carries the principal code as a
                 // LEFT JOIN: no per-row read, so the queue's read count does not
                 // grow with the number of rows.
@@ -1706,7 +1725,8 @@ public sealed class EfImageIntakeStore(
                     // The fold files them on the Case the record merged into,
                     // which after a reversal may not be the Case it is
                     // associated with now.
-                    row.CustodyState == ImageCustodyStates.Merged && row.MergedIntoCaseId == caseId);
+                    row.CustodyState == ImageCustodyStates.Merged && row.MergedIntoCaseId == caseId,
+                    row.DeclaredIncidentDate);
             })
             .ToArray();
     }

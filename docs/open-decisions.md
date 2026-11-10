@@ -53,18 +53,3 @@ durable owner.
   a separate decision (operator, 9 November 2026, R779); EXT-19 stays
   retired, so a custom domain would take a new capability identity. Links
   already sent keep the hostname they were sent with until they expire.
-
-## Photo capture: a typed mileage and inspection location against existing evidence rules
-
-- **Owner**: the operator.
-- **Affected contract**: [FRD-23](frd/frd-23-case-draft-fields-provenance-and-global-checks.md#vehicle-details-and-mileage-evidence)
-  (the mileage evidence order), [FRD-06](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address)
-  (a physical-address Principal's location is extracted and confirmed by an
-  operator) and [FRD-28](frd/frd-28-guided-photo-capture.md#case-field-filling).
-- **Decision needed**: R783 fills an empty mileage and inspection location
-  from what the sender typed, as Facts with Photo link provenance. FRD-23's
-  four-tier mileage order has no place for a Photo link value, so it is open
-  whether a later DVSA estimate may replace it or it ranks above the
-  estimate; and FRD-06 has a physical-address Principal's location confirmed
-  by an operator, so it is open whether a Photo link location needs that
-  confirmation before the report uses it.

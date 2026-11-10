@@ -139,10 +139,14 @@ Arrival-time proximity never associates or consolidates material. The
 incident date is an excluding rule, not a matching rule. A vehicle could have
 two accidents on the same date, so a matching incident date is not a reliable
 matcher; two different incident dates mean it is not the same Case.
-A standing photo link's capture uses it the same way: an eligible Case whose
-incident date differs from the accident date the sender typed is not a
-candidate for its photos; a date missing on either side excludes nothing
-(operator, 9 November 2026, [R776](../rulings.md);
+A standing photo link's capture uses it the same way, at its routing, again
+when it settles, and at its Vehicle images record's later pairing, which
+carries the typed date: an eligible Case whose incident date differs from
+the accident date the sender typed is not a candidate for its photos, so a
+later instruction with a contradicting date never pairs; a date missing on
+either side excludes nothing. The date excludes after a known Principal's
+scope, before any uniqueness count (operator, 9 November 2026,
+[R776](../rulings.md), [R791](../rulings.md);
 [FRD-28](frd-28-guided-photo-capture.md#routing-and-filing)).
 
 For automatic mail association the incident date has one narrower job: when a

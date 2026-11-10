@@ -13,7 +13,8 @@
   captures; each capture it starts is a photo link of its own.
 - Each photo is its own received file on the Photo capture channel. A
   capture for a known Case files each photo on the Case as it arrives; one
-  with no Case waits and, when it settles, becomes a Vehicle images record
+  with no Case waits and, when it settles, files on the one Case its typed
+  registration and date then match, or becomes a Vehicle images record
   under the registration the sender typed. A capture's photos never become
   Unidentified.
 - Inspection images arrive In report; additional information (the scene,
@@ -235,31 +236,50 @@ and a capture keeps receiving, so a capture is not one group from the start.
   2026; R790, amending R776 for a Case link).
 - **A standing capture with no such Case** waits. Its receipts are
   processed, with no identification, never Unidentified and never held in
-  Box holding. When the capture settles they are formed into one submission
-  group carrying the typed registration, and the existing group routing
-  registers it as a Vehicle images record (Awaiting instruction, its own Box
-  folder, pairing when the instruction arrives, and staff choosing on the
-  record's page when several Cases match), or files it on a Case that has
-  appeared since ([FRD-19](frd-19-image-led-intake-and-pairing.md)). There
-  is no check-the-match state (R776).
+  Box holding. When the capture settles, Pegasus matches again with the
+  link's Principal and the typed accident date: one eligible Case takes the
+  batch straight onto it, each receipt filed there as the routing's system
+  work, with no Vehicle images record; none or several form the batch's
+  photographs into one submission group carrying the typed registration and
+  accident date, which registers as a Vehicle images record (Awaiting
+  instruction, its own Box folder, and staff choosing on the record's page
+  when several Cases match). The record pairs when the instruction arrives,
+  by FRD-19's rules as they stand, without the link's Principal, and never
+  with a Case whose incident date contradicts the typed one
+  ([FRD-19](frd-19-image-led-intake-and-pairing.md),
+  [FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association);
+  operator, 9 November 2026, R791). Paperwork and video are not members of
+  the group: they are kept with the capture and file as documents of type
+  Other when its record reaches a Case (R803). There is no check-the-match
+  state (R776).
 
-A capture **settles** when the sender presses **Send**, or the link expires
-with photos on it, and every photo has been processed. On settling, a
-capture on a Case:
+A batch **settles** once it holds a photo and the sender has pressed
+**Send**, or the link has expired, or staff cancelled it: a cancelled
+link's photos still settle as normal (operator, 9 November 2026; R794). A
+Send with no photos settles nothing. A batch on a Case settles when every
+photo in it has filed in Box (R792); then, on the Case:
 
-- completes the Case's images (R781;
+- the Case's images complete (R781;
   [FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)),
-  never on the first photo;
-- writes the sender's note into the Case's Notes as
-  "Customer's note (photo link): …";
-- fills empty Case fields from the typed details
+  never on the first photo, and once per capture: only for a batch with
+  photos, and never after staff marked them incomplete (R792);
+- the sender's note is written into the Case's Notes as
+  "Customer's note (photo link): …", once; a changed note is appended
+  (R792);
+- empty Case fields fill from the typed details
   ([Case field filling](#case-field-filling));
-- raises the Case Engineer's bell, **Photos received**.
+- the Case Engineer's bell rings, **Photos received**, once for each batch
+  that brought photos (R792).
 
-A capture that settled with no Case does this when its Vehicle images record
-reaches a Case. Photos added after a settle form the next batch; with no
-Case, that batch becomes a further Vehicle images record for the same
-registration. A full-size original files as the next version of the same
+A batch whose Case is archived settles with none of these: the photos
+already filed stay (R793). A capture that settled with no Case writes the
+note, fills the fields and files its kept paperwork and video when its
+Vehicle images record reaches a Case, and the Engineer's bell rings once
+then (operator, 9 November 2026; R803, R804); the record's merge completes
+the images ([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)).
+Photos added after a settle form the next batch, matched again when it
+settles; with no Case, it becomes a further Vehicle images record for the
+same registration. A full-size original files as the next version of the same
 Case image: the image keeps its tile, tags, report place and crop, Box shows
 the compressed picture as the earlier version of the one file (R664), and
 the report prints the original once it is filed. Until then, and should the
@@ -361,17 +381,20 @@ name and lifetime the form holds when the link is sent (operator,
 ### Case field filling
 
 When a capture settles on a Case, the claimant name, contact number,
-accident date, inspection location and mileage the sender typed fill the
-Case's empty fields as Facts with source kind Photo link, shown with the
-source tag **Photo link**
+accident date and mileage the sender typed fill the Case's empty fields as
+Facts with source kind Photo link, shown with the source tag **Photo link**
 ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds)).
 A value already on the Case is never overwritten (R783). The registration is
-never written: it routed the capture. The sender's views that have no Case
-field (roadworthy, preferred outcome, in hire, airbags and steering) stay on
-the capture and show with the photos. Where a Photo link mileage ranks
-among FRD-23's mileage evidence, and whether a Photo link inspection
-location needs an operator's confirmation, are
-[open decisions](../open-decisions.md#photo-capture-a-typed-mileage-and-inspection-location-against-existing-evidence-rules).
+never written: it routed the capture. The typed inspection location is not
+written to the Case: it stays on the capture with the photos, and staff
+type the address if they want it (operator, 9 November 2026; R811,
+narrowing R783). The sender's views that have no Case field (roadworthy,
+preferred outcome, in hire, airbags and steering) also stay on the capture
+and show with the photos. A typed mileage ranks below anything from the
+instruction and above the DVSA estimate, so the estimate never replaces it,
+and the report keeps the instructing principal's sentence whoever typed it
+(operator, 9 November 2026; R810;
+[FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#vehicle-details-and-mileage-evidence)).
 
 ### Staff pages
 
@@ -449,7 +472,8 @@ all three (operator, 9 November 2026; R813, R817).
 A photo link is live from issue until it expires, is cancelled, or its Case
 is archived (operator, 9 November 2026; R793). **Extend**
 adds 3, 7 or 14 days to its expiry, from the later of now and the expiry;
-**Cancel** revokes every token. A standing link is active, paused,
+**Cancel** revokes every token and stops uploads only: the photos already
+received still settle (operator, 9 November 2026; R794). A standing link is active, paused,
 replaced or retired; **Resume** makes a paused link active again, and a
 retired link is never active again (R796). A capture
 moves through its derived statuses
@@ -484,8 +508,11 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
   and is never held in Box holding: a file the surface could not take was
   refused at the door, and a receipt that waits does so for its capture.
 - **Batches after settle.** Photos added after a settle are the next
-  batch; with no Case they make a further Vehicle images record for the same
-  registration.
+  batch, matched again when it settles; with no Case they make a further
+  Vehicle images record for the same registration (R791).
+- **Upload in flight.** A batch with an item still on its way, received in
+  the last five minutes with no receipt yet, waits; an older one never
+  reached intake, and its retry joins the next batch.
 - **Registration.** Once a photo has filed against a capture's
   registration, the registration is locked: a different one would be a
   different vehicle. Until its first photo a standing capture is routed

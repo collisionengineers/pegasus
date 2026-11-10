@@ -425,8 +425,8 @@ public sealed class ImageIntakeAutomation(
         // later association, so its identity cannot be split into a second
         // Image intake.
         // A photo link's batch carries the registration its sender typed
-        // (FRD-28): every member, its paperwork and video included, reads as
-        // that registration and no plate is read.
+        // (FRD-28): every member, each a photograph (R803), reads as that
+        // registration and no plate is read.
         var declared = PhotoCapture.PhotoCaptureIntakeRules.UsesDeclaredRegistration(group);
         var imageReceipts = declared
             ? receipts.ToArray()
@@ -592,9 +592,13 @@ public sealed class ImageIntakeAutomation(
         var actor = ActionActor.SystemWorker(ActorId);
         var read = routing.NormalizedRegistration!;
         // Manual submissions always retain staff confirmation over the case
-        // link, even where one photograph read a unique existing case.
+        // link, even where one photograph read a unique existing case. A
+        // photo link's batch was matched at its settle with its Principal and
+        // typed date, which this count does not see, so it always registers
+        // and its record pairs by those (operator, 9 November 2026; R791).
         var associationAllowed = group.Channel != IntakeSourceChannel.ManualUpload
-            && routing.Decision == ImageIntakeGroupRoutingDecision.AssociateExistingCase;
+            && routing.Decision == ImageIntakeGroupRoutingDecision.AssociateExistingCase
+            && !PhotoCapture.PhotoCaptureIntakeRules.UsesDeclaredRegistration(group);
         try
         {
             var origin = await originResolver.ResolveOriginAsync(primary.Id, cancellationToken);

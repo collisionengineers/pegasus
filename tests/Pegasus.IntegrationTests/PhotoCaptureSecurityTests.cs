@@ -423,12 +423,6 @@ public sealed class PhotoCaptureSecurityTests
         public Task RecordItemReceiptAsync(Guid itemId, Guid stagedReceiptId, CancellationToken cancellationToken) =>
             throw Outside();
 
-        public Task RecordItemProcessedAsync(
-            Guid itemId,
-            Guid intakeReceiptId,
-            Guid? intakeAssetId,
-            CancellationToken cancellationToken) => throw Outside();
-
         public Task<bool> ReserveOriginalAsync(Guid itemId, long contentLength, CancellationToken cancellationToken) =>
             throw Outside();
 
@@ -443,11 +437,11 @@ public sealed class PhotoCaptureSecurityTests
             DateTimeOffset sentAtUtc,
             CancellationToken cancellationToken) => throw Outside();
 
-        public Task<CaptureRecord> RecordSettledAsync(
+        public Task<PhotoCaptureBatchClosed> CloseBatchAsync(
             Guid captureId,
-            long expectedVersion,
-            Guid? submissionGroupId,
-            DateTimeOffset settledAtUtc,
+            int batch,
+            DateTimeOffset nowUtc,
+            PhotoCaptureDeclaredGroup? group,
             CancellationToken cancellationToken) => throw Outside();
 
         public Task<CaptureRecord> RevokeAsync(
@@ -478,8 +472,9 @@ public sealed class PhotoCaptureSecurityTests
             DateTimeOffset calledAtUtc,
             CancellationToken cancellationToken) => throw Outside();
 
-        public Task<IReadOnlyList<PhotoCaptureWithItems>> ListAwaitingSettleAsync(
+        public Task<IReadOnlyList<PhotoCaptureSettleCandidate>> ListAwaitingSettleAsync(
             DateTimeOffset nowUtc,
+            PhotoCaptureSettleCursor? after,
             int maximumItems,
             CancellationToken cancellationToken) => throw Outside();
 
@@ -489,17 +484,18 @@ public sealed class PhotoCaptureSecurityTests
         public Task<PhotoCaptureItem?> FindItemAsync(Guid captureId, Guid clientItemId, CancellationToken cancellationToken) =>
             throw Outside();
 
-        public Task<IReadOnlyList<(PhotoCaptureWithItems Capture, Guid CaseId, string CaseReference)>> ListSettledReachingCaseAsync(
+        public Task<IReadOnlyList<PhotoCaptureSettleCandidate>> ListSettledReachingCaseAsync(
             int maximumItems,
             CancellationToken cancellationToken) => throw Outside();
 
-        public Task<CaptureRecord> RecordCaseAsync(
+        public Task<PhotoCaptureCaseRecorded> RecordCaseAsync(
             Guid captureId,
             Guid caseId,
-            string caseReference,
+            string? routingReason,
+            DateTimeOffset? imagesCompletedAtUtc,
             CancellationToken cancellationToken) => throw Outside();
 
-        public Task<bool> AllItemsProcessedAsync(Guid captureId, int batch, CancellationToken cancellationToken) =>
+        public Task<bool> AllItemsSettledAsync(Guid captureId, int batch, Guid? caseId, CancellationToken cancellationToken) =>
             throw Outside();
     }
 

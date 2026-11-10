@@ -112,6 +112,10 @@ public interface IRegisterImageIntake
 /// filed its photographs as that Case's images. The Case shows them as its
 /// own, so it does not list them again under the record.
 /// </param>
+/// <param name="DeclaredIncidentDate">
+/// The accident date a photo link's sender typed, read from the record's
+/// group: it excludes a Case whose date contradicts it from pairing (R791).
+/// </param>
 public sealed record ImageIntakeSummary(
     Guid Id,
     Guid OriginReceiptId,
@@ -128,7 +132,8 @@ public sealed record ImageIntakeSummary(
     string? PrincipalCode = null,
     Guid? PrincipalId = null,
     int GroupExpectedMemberCount = 1,
-    bool PhotographsAreCaseImages = false);
+    bool PhotographsAreCaseImages = false,
+    DateOnly? DeclaredIncidentDate = null);
 
 public sealed record ImageIntakeLifecycleEvent(
     Guid Id,
@@ -149,7 +154,9 @@ public sealed record ImageIntakeLifecycleEvent(
 /// lifecycle is not restated here — <see cref="Record"/> is its one owner and
 /// these forward to it, so the two can never disagree. Lifecycle history is a
 /// separate read (<see cref="IImageIntakeStore.ListHistoryAsync"/>): only the
-/// Image-initiated Case page renders it.
+/// Image-initiated Case page renders it. <see cref="DeclaredIncidentDate"/>
+/// is the accident date a photo link's sender typed, read from the record's
+/// group as its expected member count is (R791).
 /// </summary>
 public sealed record ImageIntakeDetail(
     ImageIntakeRecord Record,
@@ -159,7 +166,8 @@ public sealed record ImageIntakeDetail(
     ImageCustodyState? Custody = null,
     string? PrincipalCode = null,
     int GroupExpectedMemberCount = 1,
-    long? AssociatedCaseVersion = null)
+    long? AssociatedCaseVersion = null,
+    DateOnly? DeclaredIncidentDate = null)
 {
     public ImageInitiatedCaseState State => Record.State;
 

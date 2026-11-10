@@ -134,7 +134,8 @@ public static class PhotoCaptureIntakeRules
     /// A capture's receipt with no group yet is waiting for its capture to
     /// settle; image automation leaves it exactly as the pipeline decided it,
     /// registers nothing and holds nothing, and the settle forms the group
-    /// that routes it.
+    /// that routes a photograph or files the receipt on the Case its capture
+    /// reaches.
     /// </summary>
     public static bool WaitsForSettle(IntakeReceipt receipt, IntakeSubmissionGroup? group)
     {
@@ -143,11 +144,12 @@ public static class PhotoCaptureIntakeRules
     }
 
     /// <summary>
-    /// A capture's receipt routes with its batch's group whatever it holds,
-    /// a video or paperwork included: the group reads as the registration
-    /// the sender typed, so no member needs to be an image to drive it. The
-    /// grouped-image sweep re-drives a capture's group through any member,
-    /// as its listing (<c>ListPendingImageGroupReceiptsAsync</c>) admits it.
+    /// A capture's receipt routes with its batch's group: the group reads as
+    /// the registration the sender typed, so no member's plate is read. Its
+    /// members are the batch's photographs; paperwork and video wait outside
+    /// it for the Case (operator, 9 November 2026; R803). The grouped-image
+    /// sweep re-drives a capture's group through any member, as its listing
+    /// (<c>ListPendingImageGroupReceiptsAsync</c>) admits it.
     /// </summary>
     public static bool RoutesWithItsGroup(IntakeReceipt receipt)
     {

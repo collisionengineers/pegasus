@@ -37,6 +37,14 @@ public sealed record IntakeSubmissionGroup(
     /// a submission whose images are read for their plates.
     /// </summary>
     public string? DeclaredRegistration { get; init; }
+
+    /// <summary>
+    /// The accident date a photo link's sender typed, which the record the
+    /// group registers carries so that it never pairs with a Case whose
+    /// incident date contradicts it (operator, 9 November 2026; R791). Null
+    /// when none was typed and for every other submission.
+    /// </summary>
+    public DateOnly? DeclaredIncidentDate { get; init; }
 }
 
 /// <summary>
@@ -135,23 +143,6 @@ public interface IIntakeSubmissionGroupStore
         DateTimeOffset receivedAtUtc,
         Guid? parentReceiptId,
         CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// As <see cref="GetOrCreateAsync"/>, for a submission that declares the
-    /// registration its images are of: a photo link's batch (FRD-28). The
-    /// declared registration stands in for plate recognition in the group's
-    /// routing and is recorded on the group.
-    /// </summary>
-    Task<IntakeSubmissionGroup> GetOrCreateDeclaredAsync(
-        Guid groupId,
-        IntakeSourceChannel channel,
-        string submissionToken,
-        int expectedMemberCount,
-        string actor,
-        DateTimeOffset receivedAtUtc,
-        string declaredRegistration,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("A declared registration is not supported by this store.");
 
     Task<IntakeSubmissionGroupMember> AddMemberAsync(
         Guid groupId,

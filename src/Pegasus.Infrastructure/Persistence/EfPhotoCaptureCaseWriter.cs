@@ -17,8 +17,9 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The Case-side writes of a settled photo link (FRD-28): the images-complete
-/// transition, as system work under the Case's workflow lock and keyed by the
-/// settle's operation key; and the fill of the Case's empty fields from the
+/// transition, as system work under the Case's workflow lock, once per
+/// capture (R792) and keyed by the settle's operation key; and the fill of
+/// the Case's empty fields from the
 /// sender's details, as <see cref="EfVehicleCaptureFill"/> fills from a
 /// capture document. A closed, archived or Triage Case records nothing.
 /// </summary>
@@ -36,13 +37,33 @@ public sealed partial class EfPhotoCaptureCaseWriter(
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task CompleteImagesAsync(Guid caseId, string operationKey, string reason, CancellationToken cancellationToken)
+    public async Task CompleteImagesAsync(
+        Guid caseId,
+        Guid captureId,
+        string operationKey,
+        string reason,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, caseId, cancellationToken);
+        // Once per capture (R792): the capture's marker is read and written
+        // under the Case's workflow lock, in the transaction that completes the
+        // images, so a later batch never completes them again, even after
+        // staff marked them incomplete.
+        var capture = await context.PhotoCaptures
+            .SingleOrDefaultAsync(item => item.Id == captureId, cancellationToken)
+            ?? throw new KeyNotFoundException("The photo link was not found.");
+        if (capture.ImagesCompletedAtUtc is not null)
+        {
+            return;
+        }
+
+        var now = timeProvider.GetUtcNow();
+        capture.ImagesCompletedAtUtc = now;
+        capture.Version++;
         var workflow = await context.CaseWorkflows
             .Include(item => item.Case)
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
@@ -51,18 +72,15 @@ public sealed partial class EfPhotoCaptureCaseWriter(
             || workflow.ArchivedAtUtc is not null
             || !Enum.TryParse<CaseLifecycleState>(workflow.State, ignoreCase: false, out var state)
             || CaseLifecycleRules.IsTerminal(state)
-            || workflow.Case.ImagesComplete)
-        {
-            return;
-        }
-
-        if (await context.CaseWorkflowEvents.AsNoTracking()
+            || workflow.Case.ImagesComplete
+            || await context.CaseWorkflowEvents.AsNoTracking()
                 .AnyAsync(item => item.CaseId == caseId && item.OperationKey == operationKey, cancellationToken))
         {
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return;
         }
 
-        var now = timeProvider.GetUtcNow();
         var (before, after, evaluation) = await EfCaseArtifactCustody.CompleteCaseImagesAsync(
             context, workflow, now, cancellationToken);
         var beforeVersion = workflow.Version;

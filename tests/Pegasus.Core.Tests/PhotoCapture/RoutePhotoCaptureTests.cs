@@ -68,6 +68,25 @@ public sealed class RoutePhotoCaptureTests
         Assert.Equal(undated.CaseId, RoutePhotoCapture.Decide([other, undated], "RY65OFG", typed, null).CaseId);
     }
 
+    /// <summary>
+    /// The routing, the settle's match and the record's later pairing read
+    /// one date rule (FRD-22; operator, 9 November 2026, R791).
+    /// </summary>
+    [Theory]
+    [InlineData(28, true)]
+    [InlineData(14, false)]
+    [InlineData(null, true)]
+    public void TheRoutingExcludesByTheDateRuleTheRecordsPairingUses(int? caseDay, bool admitted)
+    {
+        var typed = new DateOnly(2026, 10, 28);
+        var candidate = Candidate(incidentDate: caseDay is { } day ? new DateOnly(2026, 10, day) : null);
+
+        Assert.Equal(admitted, IncidentDateExclusion.Admits(candidate, typed));
+        Assert.Equal(
+            admitted,
+            RoutePhotoCapture.Decide([candidate], "RY65OFG", typed, null).Destination == PhotoCaptureDestination.Case);
+    }
+
     [Fact]
     public void AKnownPrincipalScopesTheCandidatesToItsOwnCases()
     {

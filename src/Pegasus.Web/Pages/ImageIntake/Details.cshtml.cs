@@ -222,7 +222,8 @@ public sealed class DetailsModel(
                 AssociationCandidates,
                 detail.Record.NormalizedVehicleRegistration,
                 detail.Record.PrincipalId,
-                detail.GroupExpectedMemberCount)
+                detail.GroupExpectedMemberCount,
+                detail.DeclaredIncidentDate)
             : null;
         Triage = await triageRead;
         if (sourceMessageRead is not null)

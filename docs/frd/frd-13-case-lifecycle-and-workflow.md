@@ -136,13 +136,15 @@ Photographs from a merged Vehicle images record count the same way: they
 complete the Case's images when the fold files them as Case images
 ([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)).
 A photo link's photos complete the Case's images when its capture settles:
-the sender has pressed Send, or the link has expired with photos on it, and
-every photo has filed; never on the first photo (operator, 9 November 2026,
-[R781](../rulings.md);
+the sender has pressed Send, or the link has expired or was cancelled with
+photos on it, and every photo has filed; never on the first photo (operator,
+9 November 2026, [R781](../rulings.md), [R794](../rulings.md);
 [FRD-28](frd-28-guided-photo-capture.md#routing-and-filing)). This
-completion is recorded once, with its actor; running it again does not
-override a later staff change. It does not clear other blockers, assign an
-Engineer, or skip Review.
+completion is recorded once per capture, with its actor, and only for a
+batch with photos: a later batch never completes the images again, so a
+later staff change stands ([R792](../rulings.md)). A capture whose Vehicle
+images record reaches a Case completes them through the record's merge, as
+above. It does not clear other blockers, assign an Engineer, or skip Review.
 
 **Saving does not unlock.** An action is available exactly when its stated
 prerequisites are met. Saving unchanged or unrelated data never unlocks an

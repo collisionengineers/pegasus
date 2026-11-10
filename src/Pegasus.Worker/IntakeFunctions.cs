@@ -100,8 +100,8 @@ public sealed partial class PendingWorkRecoveryFunction(
                 if (photoCaptureGate is { Enabled: true } && settlePhotoCaptures is not null)
                 {
                     // A photo link's capture settles here (FRD-28): once the
-                    // sender has pressed Send, or the link ran out with photos,
-                    // and every photo has been processed.
+                    // sender has pressed Send, or the link ran out or was
+                    // cancelled with photos, and every photo has filed.
                     await RunFoldedJobAsync("photo-capture settle", RunPhotoCaptureSettleAsync, foldedFailures, cancellationToken);
                 }
                 await RunFoldedJobAsync("approved-inbox recovery", RunInboxRecoveryAsync, foldedFailures, cancellationToken);

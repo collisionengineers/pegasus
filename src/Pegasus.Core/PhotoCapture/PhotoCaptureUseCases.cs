@@ -372,7 +372,7 @@ public sealed class RoutePhotoCapture(ImageIntake.IImageIntakeCaseCandidates cas
         var exact = scoped
             .Where(candidate => !candidate.IsTriage
                 && string.Equals(candidate.ConfirmedRegistration, normalizedRegistration, StringComparison.Ordinal)
-                && (incidentDate is null || candidate.IncidentDate is null || candidate.IncidentDate == incidentDate))
+                && ImageIntake.IncidentDateExclusion.Admits(candidate, incidentDate))
             .ToArray();
         return exact.Length switch
         {

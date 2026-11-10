@@ -950,6 +950,33 @@ public sealed class AutomaticImageIntakeTests
             harness.MutationStore.AutoLinks.Select(link => link.ReceiptId).OrderBy(id => id));
     }
 
+    /// <summary>
+    /// A photo link's batch was matched at its settle with the link's
+    /// Principal and the typed date, which the group's own count does not
+    /// see, so its group registers its record and never associates in the
+    /// same pass, even with one eligible Case; the record pairs by the typed
+    /// date afterwards (operator, 9 November 2026; R791).
+    /// </summary>
+    [Fact]
+    public async Task APhotoLinkGroupWithOneEligibleCaseRegistersAndDoesNotAssociate()
+    {
+        var harness = new GroupHarness(memberCount: 2, sourceChannel: IntakeSourceChannel.PhotoCapture);
+        harness.GroupStore.Group = harness.GroupStore.Group! with
+        {
+            DeclaredRegistration = "AB12CDE",
+            DeclaredIncidentDate = new DateOnly(2026, 10, 28)
+        };
+        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26013", 1, "AB12CDE", DateTimeOffset.UnixEpoch)];
+
+        await harness.ApplyAsync(triggerOrdinal: 1);
+
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal("AB12CDE", registration.NormalizedVehicleRegistration);
+        Assert.Equal(harness.GroupId, registration.SubmissionGroupId);
+        Assert.Empty(harness.MutationStore.AutoLinks);
+        Assert.Equal(0, harness.Engine.Calls);
+    }
+
     [Fact]
     public async Task TriageClassifiedSiblingIsNotScannedOrRegisteredWithThePhotoGroup()
     {
