@@ -36,6 +36,7 @@ public sealed class EfPhotoCaptureCaseReader(
                 caseEntity.Type,
                 caseEntity.PrincipalId,
                 PrincipalName = organization.Name,
+                PrincipalOrganizationId = organization.Id,
                 HasWorkflow = workflow != null,
                 ArchivedAtUtc = workflow == null ? null : workflow.ArchivedAtUtc
             })
@@ -85,6 +86,7 @@ public sealed class EfPhotoCaptureCaseReader(
             Current(CaseDataFieldNames.ClaimantContactNumber),
             row.PrincipalName,
             row.PrincipalId,
+            row.PrincipalOrganizationId,
             row.ArchivedAtUtc is not null,
             isTriage);
     }

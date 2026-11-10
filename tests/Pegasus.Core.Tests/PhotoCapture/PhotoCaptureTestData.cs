@@ -48,6 +48,7 @@ internal static class PhotoCaptureTestData
             details ?? (mileage is null ? PhotoCaptureDetails.Empty : new PhotoCaptureDetails(Mileage: mileage)),
             note,
             PhotoCaptureMode.Guided,
+            QuickLinkFor: null,
             LiveCameraOnly: false,
             OriginalsInBackground: true,
             IssuedByStaffId: null,

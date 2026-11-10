@@ -138,6 +138,16 @@ else
                             }
                         </div>
                     </fieldset>
+                    @* Asked, and required, only when Quick is chosen (R808); photo-link-send.js follows the choice. *@
+                    <fieldset class="field fieldset-plain" data-photo-link-type hidden="@(Model.Mode != PhotoCaptureMode.Quick)">
+                        <legend>@Labels.QuickLinkType</legend>
+                        <div class="cluster">
+                            @foreach (var quickLinkFor in Enum.GetValues<PhotoCaptureQuickLinkFor>())
+                            {
+                                <label class="choice"><input type="radio" name="QuickLinkFor" value="@quickLinkFor" checked="@(Model.QuickLinkFor == quickLinkFor)" required="@(Model.Mode == PhotoCaptureMode.Quick)" /> <span>@Labels.QuickLinkFor(quickLinkFor)</span></label>
+                            }
+                        </div>
+                    </fieldset>
                     <label class="choice"><input asp-for="LiveCameraOnly" /> <span>@Labels.LiveCameraOnly</span></label>
                     <div class="field field--narrow">
                         <label asp-for="Days">@Labels.LinkLasts</label>

@@ -33,7 +33,7 @@ public sealed class LinkModel(
         }
 
         Document = new(
-            CaptureContextFactory.Serialize(await contexts.ForCaptureAsync(capture, cancellationToken)),
+            CaptureContextFactory.Serialize(await contexts.ForCaptureAsync(capture, resolved.TokenPurpose, cancellationToken)),
             assets.ManifestJson(Request.PathBase));
         return Page();
     }

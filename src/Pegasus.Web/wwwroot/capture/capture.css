@@ -315,6 +315,7 @@ ol.nextsteps li span{color:var(--muted);font-size:14px}
 .livenote-ico{color:var(--red);flex:0 0 auto;width:16px;height:16px}
 /* forms */
 .field input.reginput[type=text]{text-transform:uppercase;font-weight:600;letter-spacing:.08em;font-size:18px}
+.field input.reginput[readonly]{background:var(--soft);color:var(--muted)}
 .optl{font-weight:400}
 .finput{width:100%;font:inherit;padding:12px 14px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--fg)}
 .fselect{appearance:auto}

@@ -62,6 +62,10 @@ public sealed class SendModel(
     [BindProperty]
     public PhotoCaptureMode Mode { get; set; } = PhotoCaptureMode.Guided;
 
+    /// <summary>Who a quick link is for, "Type" (R808): asked, and required, only when Quick is chosen.</summary>
+    [BindProperty]
+    public PhotoCaptureQuickLinkFor? QuickLinkFor { get; set; }
+
     [BindProperty]
     public bool LiveCameraOnly { get; set; } = true;
 
@@ -179,6 +183,14 @@ public sealed class SendModel(
             return Page();
         }
 
+        // The browser asks for the Type before a quick link is sent; a post
+        // without one is not the page's own.
+        if ((Mode == PhotoCaptureMode.Quick && QuickLinkFor is null)
+            || (QuickLinkFor is { } posted && !Enum.IsDefined(posted)))
+        {
+            return BadRequest();
+        }
+
         var edited = BodyEdited;
 
         if (byEmail)
@@ -236,6 +248,7 @@ public sealed class SendModel(
                     Email,
                     AccidentDate,
                     Mode,
+                    Mode == PhotoCaptureMode.Quick ? QuickLinkFor : null,
                     LiveCameraOnly,
                     OriginalsInBackground,
                     Days,

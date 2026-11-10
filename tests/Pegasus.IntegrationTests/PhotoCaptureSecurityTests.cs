@@ -305,6 +305,7 @@ public sealed class PhotoCaptureSecurityTests
         Details: PhotoCaptureDetails.Empty,
         Note: null,
         Mode: PhotoCaptureMode.Guided,
+        QuickLinkFor: null,
         LiveCameraOnly: false,
         OriginalsInBackground: false,
         IssuedByStaffId: null,

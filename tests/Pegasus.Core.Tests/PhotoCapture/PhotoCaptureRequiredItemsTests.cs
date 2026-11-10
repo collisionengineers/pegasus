@@ -70,9 +70,26 @@ public sealed class PhotoCaptureRequiredItemsTests
 
         Assert.Contains(PhotoCaptureRequiredItems.Evaluate(Capture(), items, vinRequired: true), item => item.Code == "vin");
         Assert.DoesNotContain(PhotoCaptureRequiredItems.Evaluate(Capture(), items, vinRequired: false), item => item.Code == "vin");
-        Assert.True(PhotoCaptureRequiredItems.VinRequired(PhotoCaptureOrigin.StandingStaff, standingLinkIsRepairer: true));
-        Assert.False(PhotoCaptureRequiredItems.VinRequired(PhotoCaptureOrigin.StandingForwarded, standingLinkIsRepairer: true));
-        Assert.False(PhotoCaptureRequiredItems.VinRequired(PhotoCaptureOrigin.StandingStaff, standingLinkIsRepairer: false));
+        Assert.True(PhotoCaptureRequiredItems.VinRequired(Capture(PhotoCaptureOrigin.StandingStaff), standingLinkIsRepairer: true));
+        Assert.False(PhotoCaptureRequiredItems.VinRequired(Capture(PhotoCaptureOrigin.StandingForwarded), standingLinkIsRepairer: true));
+        Assert.False(PhotoCaptureRequiredItems.VinRequired(Capture(PhotoCaptureOrigin.StandingStaff), standingLinkIsRepairer: false));
+    }
+
+    /// <summary>
+    /// A quick link sent from a Case for a Bodyshop asks the bodyshop's staff
+    /// for the VIN as their own standing link does (R808); one for Accident
+    /// management, and a guided link, do not.
+    /// </summary>
+    [Fact]
+    public void AQuickCaseLinkForABodyshopRequiresTheVin()
+    {
+        var quick = Capture() with { Mode = PhotoCaptureMode.Quick };
+
+        Assert.True(PhotoCaptureRequiredItems.VinRequired(
+            quick with { QuickLinkFor = PhotoCaptureQuickLinkFor.Bodyshop }, standingLinkIsRepairer: false));
+        Assert.False(PhotoCaptureRequiredItems.VinRequired(
+            quick with { QuickLinkFor = PhotoCaptureQuickLinkFor.AccidentManagement }, standingLinkIsRepairer: false));
+        Assert.False(PhotoCaptureRequiredItems.VinRequired(Capture(), standingLinkIsRepairer: false));
     }
 
     [Fact]

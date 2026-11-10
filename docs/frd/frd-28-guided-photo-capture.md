@@ -63,6 +63,26 @@ video can always come from the camera roll, as in the handover's app (R778;
 text and WhatsApp are Copy link and the staff member's own phone. Pegasus
 has no SMS or WhatsApp provider.
 
+When Quick is chosen, Send asks who the link is for, **Type**: **Accident
+management** or **Bodyshop**, and requires it; a guided link has none
+(operator, 9 November 2026; R808). A quick link sent from a Case opens the
+handover app's staff start and form for that kind of firm, with the
+registration read-only and no reference (R782). Accident management gets
+"Photos needed for {registration}", "Thanks for the instruction – we’re
+waiting on the photos for this one." and the form **About this claim**, with
+the Case's Principal as the instructing firm and the saved addresses of the
+Principal's own standing link. Bodyshop gets "Photos needed for
+{registration}", "Collision Engineers have been instructed on this vehicle
+and are waiting for the photos.", "Confirm a few details, then take the
+guided photos – or send the customer a link if the car isn’t with you." and
+the form **About this job**, with no saved address; its staff are asked for
+the VIN, as a bodyshop's own staff are. **Send customer a link** there hands
+the same capture on: what the firm typed is kept, and a guided link to the
+same Case, carried by the staff member's own phone, opens the customer's
+app, so the Case keeps one link. The firm's Opened stands, and **Links we
+sent** shows the link as **Sent on to their customer** (operator, 9 November
+2026; R798, R808).
+
 A link is `https://pegasus-prod-web-252ow37gij.azurewebsites.net/c/{token}`
 (R779): Pegasus's own hostname, from `PhotoCapture:PublicOrigin`. The token
 is 256 random bits written as 43 base64url characters, and Pegasus keeps
@@ -173,7 +193,8 @@ dashboard, unless the sender said they have no keys: the skip is recorded on
 the capture, the dashboard is not listed as missing, and staff see
 **Dashboard** "Skipped – no keys available" (operator, 9 November 2026;
 R799). The VIN is required only when a bodyshop's own staff took the
-photos. Extras, additional information and the note are never required.
+photos, on their standing link or a quick Case link for a Bodyshop
+(9 November 2026; R808). Extras, additional information and the note are never required.
 **Something missing** is derived from this list. After Send, with items
 still missing, the app asks **Could you add a few more?**, lists them, and
 offers **Add more** and **That’s everything** (operator, 9 November 2026;

@@ -198,6 +198,7 @@ public static class DependencyInjection
         services.AddScoped<PhotoCaptureAccess>();
         services.AddScoped<IssuePhotoLink>();
         services.AddScoped<MintFromStandingLink>();
+        services.AddScoped<HandOnCaseLink>();
         services.AddScoped<RecordPhotoCaptureDetails>();
         services.AddScoped<RoutePhotoCapture>();
         services.AddScoped<ReceivePhotoCaptureItem>();
