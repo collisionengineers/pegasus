@@ -188,7 +188,7 @@ public static class AssessmentVocabulary
         + "On the motorbike (vehicle.type motorcycle or scooter) the body runs x 0.3 to 0.7, the wheels x 0.42 to "
         + "0.58 at y 0 to 0.25 and 0.74 to 1, and the handlebars reach x 0.02 and 0.98 at y 0.26 to 0.31. "
         + "A marker records a position only; the impacts are assessment.impacts. "
-        + "Example, damage along the car's LH front wing: "
+        + "The example marks damage along the car's LH front wing. Example: "
         + "[{\"x\":0.03,\"y\":0.2,\"r\":0.07},{\"x\":0.03,\"y\":0.26,\"r\":0.07},{\"x\":0.03,\"y\":0.32,\"r\":0.07}]";
 
     private static string Unit(double value) =>
