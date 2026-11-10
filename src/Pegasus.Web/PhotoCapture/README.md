@@ -3,7 +3,10 @@
 The phone app behind `/c/{token}` and `/s/{slug}`. It is the Collision Engineers
 photo app from the handover of 5 November 2026 (Base44 test build v10.34,
 `public/capture-v10.html`), converted into static assets. The operator-approved
-wording of 5 November 2026 is kept verbatim.
+wording of 5 November 2026 is kept verbatim, with the sentences the operator
+added or settled on 9 November 2026: no connection (R786), the after-Send
+nudge (R787), the unavailable screen (R789), the other vehicle row (R800),
+the wordings listed in R805 and the standing link's done-page sentence (R809).
 
 ## Files
 

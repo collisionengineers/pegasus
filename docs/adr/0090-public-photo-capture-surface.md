@@ -54,12 +54,19 @@ domain is a separate operator decision (EXT-19 stays retired).
   is, can be paused, replaced or retired (R796), and is bounded by its daily
   cap of captures started.
 - **One answer for every unavailable link.** Unknown, expired, revoked,
-  paused and retired credentials, and a standing link whose contact is
-  inactive (R796), get the same page and the same 404, so a guesser learns
-  nothing. Opened is recorded on the first API call, never on a page fetch,
-  because link previews fetch pages, and never on a Session token: the
-  phone that made a capture (a hand-off's staff phone, or one taking the
-  photos now, which is Opened as the capture is made) does not open it.
+  paused and retired credentials, a link whose Case is archived (R793), and
+  a standing link whose contact is inactive (R796), get the same page and
+  the same 404, so a guesser learns nothing. Opened is recorded on the first
+  API call, never on a page fetch, because link previews fetch pages, and
+  never on a Session token: the phone that made a capture (a hand-off's
+  staff phone, or one taking the photos now, which is Opened as the capture
+  is made) does not open it.
+- **A token's purpose is recorded with it.** A token is issued for an
+  e-mail, a copy, a hand-off or a session, and the purpose travels with
+  the token. Only a Session token never records Opened. On a quick link
+  sent from a Case, the Hand-off token is the customer's: it opens the
+  guided app, while the link's other tokens open the firm's staff start
+  (9 November 2026; R798, R808).
 - **Same origin now.** The surface is served by the Web host on its own
   origin, `https://pegasus-prod-web-252ow37gij.azurewebsites.net/`, read from
   `PhotoCapture:PublicOrigin` (R779). A custom capture domain later changes
@@ -92,10 +99,14 @@ domain is a separate operator decision (EXT-19 stays retired).
 - The capture app is static content under `wwwroot/capture/`, with its own
   Collision Engineers branding, outside the internal application's imagery
   rule ([design](../design/README.md#public-capture-surface)).
-- The surface adds four tables and one column by an additive migration
-  (PhotoCaptures, PhotoCaptureTokens, PhotoCaptureItems, StandingPhotoLinks;
-  `IntakeSubmissionGroups.DeclaredRegistration`). No Key Vault secret is
-  added.
+- The surface adds its tables and columns by two additive migrations:
+  `PhotoCapture` (PhotoCaptures, PhotoCaptureTokens, PhotoCaptureItems,
+  StandingPhotoLinks; `IntakeSubmissionGroups.DeclaredRegistration`) and
+  `PhotoCaptureSettleFacts` (StandingPhotoLinkAddresses;
+  `PhotoCaptures.ImagesCompletedAtUtc` and `QuickLinkFor`,
+  `PhotoCaptureItems.DeclaredCaseId`,
+  `IntakeSubmissionGroups.DeclaredIncidentDate`, and Send a photo link's
+  settings on `WorkflowConfigurations`). No Key Vault secret is added.
 - Moving to a custom domain needs the operator's decision, a hostname on the
   Web App, and `PhotoCapture:PublicOrigin`; links already sent keep the old
   hostname until they expire.
@@ -112,6 +123,7 @@ domain is a separate operator decision (EXT-19 stays retired).
 ## Links
 
 - Behaviour: [FRD-28](../frd/frd-28-guided-photo-capture.md).
-- Rulings: R773 to R785 in [rulings](../rulings.md).
+- Rulings: R773 to R785, and R793, R796 to R798 and R808, which amend it,
+  in [rulings](../rulings.md).
 - Hosting: [ADR-0049](0049-host-web-on-app-service-code-deploy.md).
 - Test instance: [ADR-0088](0088-one-hosted-test-instance.md).

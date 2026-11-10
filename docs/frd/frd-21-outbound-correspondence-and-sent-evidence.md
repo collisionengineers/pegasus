@@ -273,7 +273,10 @@ the link ([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-e-mail)).
 It is recorded like any other send. Remind and Resend are each one click by
 a member of staff; Pegasus never sends either by itself, and text and
 WhatsApp are Copy link and the staff member's own phone (operator,
-9 November 2026, [R773](../rulings.md)).
+9 November 2026, [R773](../rulings.md)). **Ask for it**, on a capture that
+came in on a standing or website link, sends the same e-mail when the
+capture is on a Case and holds an e-mail address, and otherwise shows the
+link to copy (operator, 9 November 2026; R816).
 
 **Reply targets.** Pegasus keeps the structured MIME Reply-To addresses in
 their original order and uses the From addresses only when Reply-To is
