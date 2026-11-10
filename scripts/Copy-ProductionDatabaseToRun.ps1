@@ -108,6 +108,11 @@ $pauseCredentialsStatement = "UPDATE dbo.PrincipalApiCredentials SET State = 'Pa
 # pending tidies are closed here; the instance then moves only the instructions
 # its own sends answered.
 $closeTidiesStatement = "UPDATE dbo.StaffMailSendOperations SET InstructionMoveState = 'Failed', InstructionMoveFailureCode = 'production_copy' WHERE InstructionMoveState IS NULL AND Purpose = 'CaseReport' AND State = 'Sent';"
+# R680, ADR-0091: the Delete case correspondence tidy does not check activation
+# either, so the copied ticked sends are closed too, whatever their state: a
+# copied Submitted send later seen as Sent must not move production mail. A
+# copy from before the column existed has none to close.
+$closeCorrespondenceTidiesStatement = "IF COL_LENGTH('dbo.StaffMailSendOperations', 'CorrespondenceMoveState') IS NOT NULL EXEC('UPDATE dbo.StaffMailSendOperations SET CorrespondenceMoveState = ''Failed'', CorrespondenceMoveFailureCode = ''production_copy'' WHERE TidiesCaseCorrespondence = 1 AND CorrespondenceMoveState IS NULL;');"
 # R708: per-user external credentials (Glass's logins) are protected under
 # production's key ring, which stays in production; the copied rows are cleared
 # as Clear does, and the logins are re-entered on the instance.
@@ -120,6 +125,7 @@ Write-Host "Then:     $deactivateStatement"
 Write-Host "          $clearSubscriptionsStatement"
 Write-Host "          $pauseCredentialsStatement"
 Write-Host "          $closeTidiesStatement"
+Write-Host "          $closeCorrespondenceTidiesStatement"
 Write-Host "          $clearExternalCredentialsStatement"
 Write-Host "Skipped:  $excludedObjectTypes; database options"
 if (-not $Approve) {
@@ -199,7 +205,7 @@ function Remove-Extract {
 # and Start refuses it until the copy is re-run (R696).
 $published = $false
 $statementsCompleted = $false
-$deactivated = $subscriptionsCleared = $credentialsPaused = $tidiesClosed = $externalCredentialsCleared = $migrationHead = $caseCount = $null
+$deactivated = $subscriptionsCleared = $credentialsPaused = $tidiesClosed = $correspondenceTidiesClosed = $externalCredentialsCleared = $migrationHead = $caseCount = $null
 function Write-CopyRecord {
     $record = [ordered]@{
         kind = 'Pegasus.LocalDevelopment.ProductionCopy'
@@ -215,6 +221,7 @@ function Write-CopyRecord {
         subscriptionsCleared = $(if ($null -ne $subscriptionsCleared) { [int]$subscriptionsCleared } else { $null })
         principalCredentialsPaused = $(if ($null -ne $credentialsPaused) { [int]$credentialsPaused } else { $null })
         instructionTidiesClosed = $(if ($null -ne $tidiesClosed) { [int]$tidiesClosed } else { $null })
+        correspondenceTidiesClosed = $(if ($null -ne $correspondenceTidiesClosed) { [int]$correspondenceTidiesClosed } else { $null })
         externalCredentialsCleared = $(if ($null -ne $externalCredentialsCleared) { [int]$externalCredentialsCleared } else { $null })
     }
     [System.IO.File]::WriteAllText($recordPath, (($record | ConvertTo-Json -Depth 5) + "`n"), [System.Text.UTF8Encoding]::new($false))
@@ -277,12 +284,14 @@ try {
     #    activated rows, and the test Worker must poll nothing until an
     #    Administrator enables a mailbox on the instance. Then clear the copied
     #    subscriptions (R678), pause the copied Principal API keys (R679) and
-    #    close the copied pending instruction tidies (R680) and clear the copied
+    #    close the copied pending instruction and correspondence tidies (R680,
+    #    ADR-0091) and clear the copied
     #    external credentials production's key ring protects (R708).
     $deactivated = Invoke-RunSql -Query ($deactivateStatement + ' SELECT @@ROWCOUNT;')
     $subscriptionsCleared = Invoke-RunSql -Query ($clearSubscriptionsStatement + ' SELECT @@ROWCOUNT;')
     $credentialsPaused = Invoke-RunSql -Query ($pauseCredentialsStatement + ' SELECT @@ROWCOUNT;')
     $tidiesClosed = Invoke-RunSql -Query ($closeTidiesStatement + ' SELECT @@ROWCOUNT;')
+    $correspondenceTidiesClosed = Invoke-RunSql -Query ($closeCorrespondenceTidiesStatement + ' SELECT @@ROWCOUNT;')
     $externalCredentialsCleared = Invoke-RunSql -Query ($clearExternalCredentialsStatement + ' SELECT @@ROWCOUNT;')
     $migrationHead = Invoke-RunSql -Query 'SELECT TOP 1 MigrationId FROM dbo.__EFMigrationsHistory ORDER BY MigrationId DESC;'
     $caseCount = Invoke-RunSql -Query 'SELECT COUNT(*) FROM dbo.Cases;'
@@ -297,6 +306,6 @@ finally {
     if ($published) { Write-CopyRecord }
 }
 
-Write-Host "Copied. Migration head $migrationHead; $caseCount Cases; $deactivated mailbox row(s) deactivated; $subscriptionsCleared subscription row(s) cleared; $credentialsPaused Principal API key(s) paused; $tidiesClosed pending instruction tidy(ies) closed; $externalCredentialsCleared external credential(s) cleared."
+Write-Host "Copied. Migration head $migrationHead; $caseCount Cases; $deactivated mailbox row(s) deactivated; $subscriptionsCleared subscription row(s) cleared; $credentialsPaused Principal API key(s) paused; $tidiesClosed pending instruction tidy(ies) closed; $correspondenceTidiesClosed pending correspondence tidy(ies) closed; $externalCredentialsCleared external credential(s) cleared."
 Write-Host "Record: $recordPath"
 Write-Host "Next: pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -RunId $RunId  (migrates the copy forward), then enable a mailbox in Administration > Mailboxes for intake and send, and re-enter Glass's logins in Administration > Accounts."

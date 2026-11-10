@@ -105,6 +105,7 @@ internal sealed class EfStaffMailSendStore(
             OriginalInternetMessageId = command.OriginalMessage?.InternetMessageId,
             OriginalConversationId = command.OriginalMessage?.ConversationId,
             ResolvesCaseQueries = command.MarksQueryDone,
+            TidiesCaseCorrespondence = command.TidiesCaseCorrespondence,
             RecipientsJson = JsonSerializer.Serialize(new Recipients(command.To, command.Cc)),
             Subject = command.Subject,
             Body = command.Body,

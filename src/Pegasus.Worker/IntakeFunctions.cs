@@ -28,7 +28,8 @@ namespace Pegasus.Worker;
 /// own five-minute timers, so they use this timer's warm instance instead of
 /// starting a cold one: the due-work sweep, then the approved-inbox fallback
 /// poll (Graph subscription maintenance first), then the sent-report instruction
-/// tidy (ADR-0071), a third job that was never on its own timer. On every other
+/// tidy (ADR-0071) and the sent-mail correspondence tidy (ADR-0091), two jobs
+/// that were never on their own timers. On every other
 /// minute it runs one folded job, the pending-wake poll: each mailbox whose wake
 /// found it leased or not yet due is polled then, not at the next fallback poll.
 /// When guided photo capture is on, every minute first runs the photo capture
@@ -58,6 +59,7 @@ public sealed partial class PendingWorkRecoveryFunction(
     MaintainMailboxChangeSubscriptions maintainMailboxChangeSubscriptions,
     PollApprovedInbox pollApprovedInbox,
     TidySentReportInstructions tidySentReportInstructions,
+    TidySentCaseCorrespondence tidySentCaseCorrespondence,
     TimeProvider timeProvider,
     ILogger<PendingWorkRecoveryFunction> logger,
     PhotoCaptureWorkerGate? photoCaptureGate = null,
@@ -73,6 +75,9 @@ public sealed partial class PendingWorkRecoveryFunction(
 
     private static readonly ActionActor InstructionTidyActor =
         ActionActor.SystemWorker("sent-report-instruction-tidy");
+
+    private static readonly ActionActor CorrespondenceTidyActor =
+        ActionActor.SystemWorker("sent-mail-correspondence-tidy");
 
     [Function(nameof(PendingWorkRecoveryFunction))]
     public async Task RunAsync(
@@ -111,6 +116,7 @@ public sealed partial class PendingWorkRecoveryFunction(
                 await RunFoldedJobAsync("due-work sweep", RunDueWorkSweepAsync, foldedFailures, cancellationToken);
                 await RunFoldedJobAsync("approved-inbox recovery", RunInboxRecoveryAsync, foldedFailures, cancellationToken);
                 await RunFoldedJobAsync("sent-report instruction tidy", RunInstructionTidyAsync, foldedFailures, cancellationToken);
+                await RunFoldedJobAsync("sent-mail correspondence tidy", RunCorrespondenceTidyAsync, foldedFailures, cancellationToken);
             }
             else
             {
@@ -195,6 +201,23 @@ public sealed partial class PendingWorkRecoveryFunction(
             result.FailedCount);
     }
 
+    private async Task RunCorrespondenceTidyAsync(CancellationToken cancellationToken)
+    {
+        // Ten sends a run: each costs two or three Graph calls for every received
+        // e-mail of its Case, inside the folded job's budget.
+        var result = await tidySentCaseCorrespondence.ExecuteAsync(
+            10,
+            CorrespondenceTidyActor,
+            cancellationToken);
+        LogCorrespondenceTidy(
+            logger,
+            result.ExaminedCount,
+            result.MovedCount,
+            result.AlreadyMovedCount,
+            result.MessageMissingCount,
+            result.FailedCount);
+    }
+
     private async Task RunFoldedJobAsync(
         string job,
         Func<CancellationToken, Task> run,
@@ -263,6 +286,17 @@ public sealed partial class PendingWorkRecoveryFunction(
         Message = "Sent-report instruction tidy: {MovedCount} moved to Deleted Items, {AlreadyMovedCount} already there, {MessageMissingCount} no longer in the mailbox, {FailedCount} failed.")]
     private static partial void LogInstructionTidy(
         ILogger logger,
+        int movedCount,
+        int alreadyMovedCount,
+        int messageMissingCount,
+        int failedCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Sent-mail correspondence tidy: {SendCount} sends, {MovedCount} e-mails moved to Deleted Items, {AlreadyMovedCount} already there, {MessageMissingCount} no longer in the mailbox, {FailedCount} failed.")]
+    private static partial void LogCorrespondenceTidy(
+        ILogger logger,
+        int sendCount,
         int movedCount,
         int alreadyMovedCount,
         int messageMissingCount,

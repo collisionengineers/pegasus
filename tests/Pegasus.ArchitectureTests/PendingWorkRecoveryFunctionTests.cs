@@ -523,11 +523,11 @@ public sealed class PendingWorkRecoveryFunctionTests
     }
 
     /// <summary>A reachable mailbox: the tidy reads its store, which is empty, so nothing moves.</summary>
-    private sealed class AvailableMover : ISentReportInstructionMover
+    private sealed class AvailableMover : IRetainedMessageMover
     {
         public bool IsAvailable => true;
 
-        public Task MoveAsync(SentReportInstructionMove move, CancellationToken cancellationToken) =>
+        public Task MoveAsync(RetainedMessageMove move, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<string?> GetParentFolderIdAsync(string mailboxIdentity, string immutableMessageId, CancellationToken cancellationToken) =>

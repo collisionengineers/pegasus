@@ -381,6 +381,10 @@
                             </div>
                         }
                     }
+                    @* Unticked on every open: once the Sent item is observed the
+                       Worker moves the Case's received e-mails to Deleted Items
+                       (operator, 9 November 2026; R902 to R905). *@
+                    <label class="choice"><input type="checkbox" name="deleteCaseCorrespondence" value="true" data-delete-case-correspondence /><span>@OperatorLabels.StaffMail.DeleteCaseCorrespondence</span></label>
                 </div>
                 <footer class="mail-compose-footer">
                     <button type="button" class="btn" data-dialog-close>@ReportLabels.Cancel</button>

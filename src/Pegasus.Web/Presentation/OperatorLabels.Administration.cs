@@ -149,6 +149,11 @@ public static partial class OperatorLabels
         public const string Forward = "Forward";
         /// <summary>The reply composer's tick that marks the replied message's open query done on observed Sent.</summary>
         public const string MarkQueryDone = "Mark query done";
+        /// <summary>
+        /// The tick on Send report, a query reply and the Triage outcome reply: the Case's
+        /// received e-mails go to Deleted Items once the Sent item is observed (R902 to R905).
+        /// </summary>
+        public const string DeleteCaseCorrespondence = "Delete case correspondence";
 
         public static string State(Pegasus.Core.Operations.StaffMailState state) => state switch
         {

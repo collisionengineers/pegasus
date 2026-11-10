@@ -78,6 +78,21 @@ internal sealed class StaffMailSendOperationEntity : IApplicationManagedConcurre
     public int InstructionMoveAttempts { get; set; }
     public DateTimeOffset? InstructionMovedAtUtc { get; set; }
     public string? InstructionMoveFailureCode { get; set; }
+
+    /// <summary>
+    /// The send's Delete case correspondence tick (ADR-0091): once the Sent item is
+    /// observed, the Worker moves the Case's received e-mails to Deleted Items.
+    /// </summary>
+    public bool TidiesCaseCorrespondence { get; set; }
+
+    /// <summary>
+    /// The tidy of the Case's received e-mails after a ticked send is confirmed
+    /// (ADR-0091): null while due, then Done, or Failed (the third failed run).
+    /// </summary>
+    public string? CorrespondenceMoveState { get; set; }
+    public int CorrespondenceMoveAttempts { get; set; }
+    public DateTimeOffset? CorrespondenceMovedAtUtc { get; set; }
+    public string? CorrespondenceMoveFailureCode { get; set; }
     public long Version { get; set; }
     public Guid ConcurrencyToken { get; set; }
 }

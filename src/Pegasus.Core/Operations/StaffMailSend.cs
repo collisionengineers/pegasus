@@ -72,6 +72,12 @@ public static class StaffMailCorrelationHeaders
 /// whose draft the reply was composed on (FRD-27): a send that the provider
 /// accepts completes that job, as **Use repair spec** completes an Estimate
 /// job. It is left out of the payload hash while absent, for the same reason.
+/// <paramref name="TidiesCaseCorrespondence"/> is the **Delete case
+/// correspondence** tick of Send report, a query reply and the Triage
+/// outcome reply (operator, 9 November 2026; R902 to R905, ADR-0091): once
+/// the Sent item is observed, the Worker moves the Case's received e-mails to
+/// Deleted Items. It is left out of the payload hash while false, for the
+/// same reason.
 /// </summary>
 public sealed record StaffMailSendCommand(
     ActionActor Actor, Guid ApprovedMailboxId, long ExpectedMailboxGeneration,
@@ -85,8 +91,25 @@ public sealed record StaffMailSendCommand(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     StaffMailSecondReport? SecondReport = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    Guid? AiJobId = null)
+    Guid? AiJobId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    bool TidiesCaseCorrespondence = false)
 {
+    /// <summary>
+    /// Whether a send of this purpose and compose mode may carry the Delete
+    /// case correspondence tick (R904): a report send, a reply or reply-all to
+    /// Case correspondence, and the Triage outcome reply. A chaser, a forward
+    /// and a photo link never do.
+    /// </summary>
+    public static bool MayTidyCaseCorrespondence(StaffMailPurpose purpose, StaffMailComposeMode mode) =>
+        purpose switch
+        {
+            StaffMailPurpose.CaseReport or StaffMailPurpose.TriageOutcomeReply => true,
+            StaffMailPurpose.GeneralCorrespondence =>
+                mode is StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll,
+            _ => false
+        };
+
     /// <summary>
     /// What a report send records with its operation; null for every other
     /// purpose, and then left out of the payload hash like the two above.
