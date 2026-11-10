@@ -80,6 +80,14 @@
     function readingLine() {
         return block.getBoundingClientRect().bottom;
     }
+    // The reading line once the page has moved and the block has stuck. At
+    // the top of the page the block stands lower, under the page's padding
+    // and any notice, so a landing worked out from where it stands now would
+    // stop that much short.
+    function stuckLine() {
+        var top = parseFloat(window.getComputedStyle(block).top);
+        return isNaN(top) ? readingLine() : Math.min(readingLine(), top + block.offsetHeight);
+    }
 
     function bindMounted(root) {
         (window.pegasusMountBinders || []).forEach(function (bind) { bind(root); });
@@ -262,7 +270,7 @@
     // to get there.
     function land(host) {
         measure();
-        var line = readingLine();
+        var line = stuckLine();
         var top = window.scrollY + host.getBoundingClientRect().top - line - 8;
         var marked = host.querySelector('.is-jump-target');
         if (marked) {
@@ -465,10 +473,14 @@
     ['wheel', 'touchstart', 'pointerdown', 'keydown'].forEach(function (name) {
         window.addEventListener(name, function () { pendingAnchor = null; jumpedKey = null; navigationVersion += 1; }, { passive: true });
     });
+    // A jump still settling lands again in the new layout; a link held only
+    // because the page stood at its bottom is let go.
     window.addEventListener('resize', function () {
-        pendingAnchor = null;
-        jumpedKey = null;
+        if (!pendingAnchor) {
+            jumpedKey = null;
+        }
         measure();
+        settlePendingAnchor();
         spy();
     });
     if ('ResizeObserver' in window) {

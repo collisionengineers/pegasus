@@ -27,14 +27,15 @@ const siteScript = await readFile(join(root, 'src/Pegasus.Web/wwwroot/js/site.js
 const workspaceScript = await readFile(join(root, 'src/Pegasus.Web/wwwroot/js/case-workspace.js'));
 
 // The page as the Case page draws it, as far as the frame's script reads it: the sticky block and its
-// section row, the sections in their order with the deferred ones as placeholders (Vehicle and Valuation
+// section row (standing 19px lower at the top of the page than once it has stuck, as under the real
+// page's padding), the sections in their order with the deferred ones as placeholders (Vehicle and Valuation
 // while reading; Files and Notes always), the aside's blocker links and, while editing, the Save form.
 // The page scrolls smoothly, as site.css has it. ?editing=1 edits, ?section= addresses a section,
 // ?short=a,b gives those sections a short body.
 function fixture() {
     return `<!doctype html><html><head><meta charset="utf-8"><title>Case page fixture</title>
     <style>
-    html{scroll-behavior:smooth}body{margin:0;font:13px sans-serif}
+    html{scroll-behavior:smooth}body{margin:0;padding-top:19px;font:13px sans-serif}
     [data-sticky-block]{position:sticky;top:0;height:96px;background:#fff;z-index:1}
     .record-section{box-sizing:border-box;height:1200px;overflow:hidden;border-top:1px solid #999}
     .record-section.is-short{height:300px}.record-section.section-placeholder{height:120px}
@@ -383,20 +384,30 @@ try {
         return { landed, dragged };
     });
 
-    await scenario('A resize ends a jump still waiting: the mark follows the page (1497 T4)', async () => {
+    await scenario('A resize does not lose a jump still waiting, and lets go a link held at the bottom (1497 T4)', async () => {
         await open();
         await evaluate("holding.files = true; press('[data-section-link=\"files\"]')");
         await mounted('vehicle'); await mounted('valuation');
-        const held = await evaluate('at()');
-        assert.equal(held.current, 'files', 'The clicked link is held while its section is read');
+        await evaluate("window.dispatchEvent(new Event('resize'))");
+        await delay(200);
+        const waiting = await evaluate('at()');
+        assert.equal(waiting.current, 'files', 'The clicked link is held while its section is read');
+        await evaluate("release('files')");
+        const landed = await settled();
+        landedOn(landed, 'files');
+        assert.equal(landed.current, 'files');
+        // Notes is the last section and short, so the page stands at its bottom with Files under the row.
+        await open('short=notes');
+        await evaluate("press('[data-section-link=\"notes\"]')");
+        const bottom = await settled();
+        assert.equal(bottom.current, 'notes', 'The clicked link is held at the bottom of the page');
+        assert.notEqual(bottom.under, 'notes');
+        await evaluate('drag(at().scrollY - 200)');
         await evaluate("window.dispatchEvent(new Event('resize'))");
         await delay(200);
         const released = await evaluate('at()');
         assert.equal(released.current, released.under);
-        await evaluate("release('files')");
-        const after = await settled();
-        assert.equal(after.current, after.under);
-        return { held, released, after };
+        return { waiting, landed, bottom, released };
     });
 
     await scenario('A section that cannot be read ends the jump to it (1497 T4)', async () => {

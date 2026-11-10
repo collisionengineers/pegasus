@@ -430,7 +430,14 @@ public sealed class CaseWorkspaceScriptContractTests
             "A read thrown away is made again while its placeholder stands, and settles the jump otherwise.");
         Assert.Equal(2, Regex.Count(mount, @"if \(!stillCurrent\(\)\) \{\s*thrownAway\(\);\s*return;"));
 
+        // Worked out from the reading line the block holds once stuck, or a jump from the
+        // top of the page stops short by the page's padding.
         var land = FunctionBody(script, "function land(host) {", "    ");
+        Assert.Contains("var line = stuckLine();", land, StringComparison.Ordinal);
+        Assert.Contains(
+            "return isNaN(top) ? readingLine() : Math.min(readingLine(), top + block.offsetHeight);",
+            FunctionBody(script, "function stuckLine() {", "    "),
+            StringComparison.Ordinal);
         Assert.Contains("top = Math.max(top, ", land, StringComparison.Ordinal);
         Assert.Contains("window.scrollTo({ top: top, behavior: 'instant' });", land, StringComparison.Ordinal);
         Assert.Contains("return window.scrollY < top - 1;", land, StringComparison.Ordinal);
@@ -478,6 +485,10 @@ public sealed class CaseWorkspaceScriptContractTests
             "window.addEventListener(name, function () { pendingAnchor = null; jumpedKey = null; navigationVersion += 1; }, { passive: true });",
             script,
             StringComparison.Ordinal);
+        // A resize lands a jump still settling again and lets go only a link held at the bottom.
+        Assert.Matches(
+            new Regex(@"window\.addEventListener\('resize', function \(\) \{\s*if \(!pendingAnchor\) \{\s*jumpedKey = null;\s*\}\s*measure\(\);\s*settlePendingAnchor\(\);\s*spy\(\);"),
+            script);
     }
 
     /// <summary>
