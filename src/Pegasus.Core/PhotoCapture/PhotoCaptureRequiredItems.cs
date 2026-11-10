@@ -4,6 +4,28 @@ namespace Pegasus.Core.PhotoCapture;
 public sealed record MissingCaptureItem(string Code, string Label);
 
 /// <summary>
+/// What <see cref="PhotoCaptureRequiredItems.Evaluate"/> reads of one item:
+/// its kind, a damage photo's area and stage, and an overview's position.
+/// The Photo capture lists read only this, once for each distinct value
+/// (#2020); every other caller projects its items with <c>Of</c>.
+/// </summary>
+public sealed record PhotoCaptureItemPresence(PhotoCaptureItemKind Kind, string? Area, PhotoCaptureStage? Stage, int Position)
+{
+    public static PhotoCaptureItemPresence Of(PhotoCaptureItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        return new(item.Kind, item.Area, item.Stage, item.Position);
+    }
+
+    /// <summary>The presence of each of <paramref name="items"/>, in their order.</summary>
+    public static IReadOnlyList<PhotoCaptureItemPresence> Of(IEnumerable<PhotoCaptureItem> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        return [.. items.Select(item => Of(item))];
+    }
+}
+
+/// <summary>
 /// What a capture must hold before it is complete: the app's non-optional
 /// steps (FRD-28). Eight overviews; for each damaged area an overview, a
 /// closer shot and at least one close-up; the number plate; the dashboard
@@ -18,7 +40,7 @@ public static class PhotoCaptureRequiredItems
 {
     public static IReadOnlyList<MissingCaptureItem> Evaluate(
         PhotoCapture capture,
-        IReadOnlyList<PhotoCaptureItem> items,
+        IReadOnlyList<PhotoCaptureItemPresence> items,
         bool vinRequired)
     {
         ArgumentNullException.ThrowIfNull(capture);

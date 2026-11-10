@@ -6,12 +6,18 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The staff reads of photo links (FRD-28). A capture's status is derived
-/// on read and never stored, so a list reads its tab's captures and their
-/// items, evaluates each one's missing items and status in memory, and then
-/// filters, searches and pages. The tabs hold hundreds of links, not
-/// millions, and the statement count is fixed whatever the row count: the
-/// captures, their items, their contacts, which quick Case links were handed
-/// on, their Vehicle images records, the issuers' names (kept in
+/// on read and never stored, so a list reads its whole tab's captures and
+/// evaluates each one's missing items and status in memory, once per request:
+/// that one evaluation gives the left pane's counts by state, before any
+/// filter, and the rows the From, "No case yet", state and search filters
+/// keep, which are then paged. Of the items it reads only what the required
+/// items rule and the photograph count use, grouped in SQL
+/// (<see cref="ItemFactsAsync"/>), so a repeated photo of the same thing adds
+/// to a count and not a row; issue #2020 measured the lists at scale before
+/// this and keeps measuring them (<c>PhotoCaptureListScaleTests</c>; R881,
+/// R882). The statement count is fixed whatever the row count: the captures,
+/// their item facts, their contacts, which quick Case links were handed on,
+/// their Vehicle images records, the issuers' names (kept in
 /// <see cref="StaffAccountReads"/>) and which of their Cases are archived.
 /// The rows shown then read their From and pairing (<see cref="ShownAsync"/>).
 /// </summary>
@@ -32,12 +38,26 @@ public sealed class EfPhotoCaptureQueries(
         PhotoCaptureCodes.ToCode(PhotoCaptureOrigin.Website)
     ];
 
+    /// <summary>The photograph kinds' stored codes: the items the lists count and the only ones the required items rule reads.</summary>
+    private static readonly string[] PhotographKinds =
+    [
+        .. Enum.GetValues<PhotoCaptureItemKind>()
+            .Where(PhotoCaptureStory.IsPhotographKind)
+            .Select(kind => PhotoCaptureCodes.ToCode(kind))
+    ];
+
     public async Task<PhotoCaptureListPage> ListAsync(PhotoCaptureListFilter filter, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(filter);
-        var evaluated = await EvaluateTabAsync(filter.SentByUs, filter.Origin, cancellationToken);
+        // One evaluation of the whole tab gives both the left pane's counts,
+        // before any filter, and the rows the filters keep (#2020).
+        var evaluated = await EvaluateTabAsync(filter.SentByUs, cancellationToken);
+        var countsByState = evaluated
+            .GroupBy(row => row.State)
+            .ToDictionary(group => group.Key, group => group.Count());
         var search = filter.Search?.Trim();
         var matching = evaluated
+            .Where(row => filter.Origin is null || row.Row.Capture.Origin == filter.Origin)
             .Where(row => filter.State is null || row.State == filter.State)
             .Where(row => !filter.NoCaseYet || row.Row.Capture.CaseId is null)
             .Where(row => string.IsNullOrEmpty(search) || Matches(row.Row, search))
@@ -51,11 +71,11 @@ public sealed class EfPhotoCaptureQueries(
             .ToArray();
         if (rows.Length == 0)
         {
-            return new(rows, matching.Length);
+            return new(rows, matching.Length, countsByState);
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return new(await ShownAsync(context, rows, cancellationToken), matching.Length);
+        return new(await ShownAsync(context, rows, cancellationToken), matching.Length, countsByState);
     }
 
     public async Task<PhotoCaptureListRow?> GetRowAsync(Guid captureId, CancellationToken cancellationToken)
@@ -111,14 +131,6 @@ public sealed class EfPhotoCaptureQueries(
             .Where(member => member.GroupId == record.SubmissionGroupId)
             .Select(member => (Guid?)member.StagedReceiptId));
 
-    public async Task<IReadOnlyDictionary<PhotoCaptureState, int>> CountByStateAsync(bool sentByUs, CancellationToken cancellationToken)
-    {
-        var evaluated = await EvaluateTabAsync(sentByUs, origin: null, cancellationToken);
-        return evaluated
-            .GroupBy(row => row.State)
-            .ToDictionary(group => group.Key, group => group.Count());
-    }
-
     public async Task<PhotoCaptureTabCounts> CountByTabAsync(CancellationToken cancellationToken)
     {
         // One grouped count in SQL, not the tabs' evaluation (R806).
@@ -165,23 +177,10 @@ public sealed class EfPhotoCaptureQueries(
 
     private sealed record EvaluatedRow(PhotoCaptureListRow Row, PhotoCaptureState State);
 
-    private async Task<IReadOnlyList<EvaluatedRow>> EvaluateTabAsync(
-        bool sentByUs,
-        PhotoCaptureOrigin? origin,
-        CancellationToken cancellationToken)
+    /// <summary>Every capture of the tab, newest first, each with its missing items and status.</summary>
+    private async Task<IReadOnlyList<EvaluatedRow>> EvaluateTabAsync(bool sentByUs, CancellationToken cancellationToken)
     {
         var origins = sentByUs ? SentByUsOrigins : ComingInOrigins;
-        if (origin is { } wanted)
-        {
-            var code = PhotoCaptureCodes.ToCode(wanted);
-            origins = origins.Contains(code, StringComparer.Ordinal) ? [code] : [];
-        }
-
-        if (origins.Length == 0)
-        {
-            return [];
-        }
-
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var captures = await context.PhotoCaptures.AsNoTracking()
             .Where(capture => origins.Contains(capture.Origin))
@@ -202,11 +201,12 @@ public sealed class EfPhotoCaptureQueries(
             return [];
         }
 
-        var withItems = await EfPhotoCaptureStore.WithItemsAsync(context, captures, cancellationToken);
+        var mapped = captures.Select(capture => EfPhotoCaptureStore.Map(capture)).ToArray();
+        var itemFacts = await ItemFactsAsync(context, captures, cancellationToken);
         var contacts = await ContactsAsync(context, captures, cancellationToken);
         // Read before the required items, so a handed-on link's missing VIN,
         // its status, the tab's counts and its "Sent on" agree (R874).
-        var handedOn = await HandedOnAsync(context, withItems.Select(pending => pending.Capture), cancellationToken);
+        var handedOn = await HandedOnAsync(context, mapped, cancellationToken);
         var groupIds = captures
             .Where(capture => capture.SubmissionGroupId is not null)
             .Select(capture => capture.SubmissionGroupId!.Value)
@@ -251,19 +251,19 @@ public sealed class EfPhotoCaptureQueries(
                 .ToHashSet();
 
         var now = timeProvider.GetUtcNow();
-        var rows = new List<EvaluatedRow>(withItems.Count);
-        foreach (var pending in withItems)
+        var rows = new List<EvaluatedRow>(mapped.Length);
+        foreach (var capture in mapped)
         {
-            var capture = pending.Capture;
             var contact = capture.OrganizationId is { } organizationId && contacts.TryGetValue(organizationId, out var found)
                 ? found
                 : ((string Name, bool IsRepairer)?)null;
+            var facts = itemFacts.TryGetValue(capture.Id, out var read) ? read : ItemFacts.None;
             var missing = PhotoCaptureRequiredItems.Evaluate(
                 capture,
-                pending.Items,
+                facts.Presence,
                 PhotoCaptureRequiredItems.VinRequired(capture, contact?.IsRepairer ?? false, handedOn.Contains(capture.Id)));
             var caseArchived = capture.CaseId is { } caseId && archivedCases.Contains(caseId);
-            var photographs = pending.Items.Count(item => PhotoCaptureStory.IsPhotographKind(item.Kind));
+            var photographs = facts.Photographs;
             var state = PhotoCaptureStatus.Evaluate(capture, missing, photographs, now, caseArchived);
             (Guid Id, string Reference)? record = capture.SubmissionGroupId is { } groupId
                 && records.TryGetValue(groupId, out var groupRecord)
@@ -285,6 +285,82 @@ public sealed class EfPhotoCaptureQueries(
         }
 
         return rows;
+    }
+
+    /// <summary>What a list needs of one capture's items: what the required items rule reads, and how many photographs it holds.</summary>
+    private sealed class ItemFacts
+    {
+        public static readonly ItemFacts None = new();
+
+        public List<PhotoCaptureItemPresence> Presence { get; } = [];
+
+        public int Photographs { get; set; }
+    }
+
+    /// <summary>
+    /// What the lists need of the captures' items, in one statement for all
+    /// of them and never the item rows themselves (#2020). Only photographs
+    /// are read: they are what the Photos column counts and what decides
+    /// Opened or Photos coming in, paperwork or video alone not being photos
+    /// (R877), and the required items rule asks for nothing else. They are
+    /// grouped by capture and kind with only the columns the rule reads of
+    /// that kind, a damage photo's area and stage and an overview's position,
+    /// so a repeated photo of the same thing adds to its group's count and not
+    /// a row; the counts summed are the capture's photographs, every item row
+    /// of a photograph kind, as the lists counted them when they read every
+    /// row. The capture's own <c>PhotoCount</c> is not read instead: it is the
+    /// caps' counter, kept by the item add alone, and nothing holds it equal
+    /// to the rows.
+    /// </summary>
+    private static async Task<Dictionary<Guid, ItemFacts>> ItemFactsAsync(
+        PegasusDbContext context,
+        List<PhotoCaptureEntity> captures,
+        CancellationToken cancellationToken)
+    {
+        // One JSON parameter, so no tab of captures can reach the parameter limit.
+        var ids = captures.Select(capture => capture.Id).ToArray();
+        var photographKinds = PhotographKinds;
+        // Constants, so the grouping and the select list carry the same text.
+        var overview = PhotoCaptureCodes.ToCode(PhotoCaptureItemKind.Overview);
+        var damage = PhotoCaptureCodes.ToCode(PhotoCaptureItemKind.Damage);
+        var groups = await context.PhotoCaptureItems.AsNoTracking()
+            .Where(item => EF.Parameter(ids).Contains(item.CaptureId) && photographKinds.Contains(item.Kind))
+            .GroupBy(item => new
+            {
+                item.CaptureId,
+                item.Kind,
+                Area = item.Kind == EF.Constant(damage) ? item.Area : null,
+                Stage = item.Kind == EF.Constant(damage) ? item.Stage : null,
+                Position = item.Kind == EF.Constant(overview) ? item.Position : 0
+            })
+            .Select(group => new
+            {
+                group.Key.CaptureId,
+                group.Key.Kind,
+                group.Key.Area,
+                group.Key.Stage,
+                group.Key.Position,
+                Items = group.Count()
+            })
+            .ToListAsync(cancellationToken);
+        var facts = new Dictionary<Guid, ItemFacts>();
+        foreach (var group in groups)
+        {
+            if (!facts.TryGetValue(group.CaptureId, out var held))
+            {
+                held = new ItemFacts();
+                facts.Add(group.CaptureId, held);
+            }
+
+            held.Presence.Add(new(
+                PhotoCaptureCodes.ParseItemKind(group.Kind),
+                group.Area,
+                PhotoCaptureCodes.ParseOptionalStage(group.Stage),
+                group.Position));
+            held.Photographs += group.Items;
+        }
+
+        return facts;
     }
 
     /// <summary>

@@ -32,8 +32,9 @@ public sealed class PhotoCaptureListScaleSerialTests
 /// stays as the before-and-after measure for the fix (operator, 10 November
 /// 2026; R881); the budget is 500 ms (R882). Nothing here asserts a time:
 /// a request sends the same statements at 2,000 captures as at 500 (a
-/// no-growth pair), and the page's counts are the ones the seed was built
-/// with.
+/// no-growth pair), the page's counts are the ones the seed was built with,
+/// and a tab reads of its items only what the list uses, under a ceiling per
+/// capture.
 /// </summary>
 [Trait("Category", "SqlServer")]
 [Collection(PhotoCaptureListScaleSerialTests.Name)]
@@ -46,6 +47,23 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
     private const int TimedRequests = 20;
     private const int FirstSize = 500;
     private const int SecondSize = 2_000;
+
+    /// <summary>The items of a capture with photos (<c>ScaleSeed.Shapes</c>).</summary>
+    private const int ItemsPerCaptureWithPhotos = 30;
+
+    /// <summary>
+    /// The most item rows a list may read for one capture with photos: its 30
+    /// items hold 20 distinct things the list uses (eight overview positions,
+    /// seven damage area stages counting the extra, the number plate, the VIN,
+    /// the dashboard, and one row each for the scene and the other vehicle's
+    /// photos), and paperwork and video are not read (#2020).
+    /// </summary>
+    private const int ItemRowsReadPerCapture = 20;
+
+    private const string ItemsTable = "[PhotoCaptureItems]";
+
+    /// <summary>A column only a read of whole item rows selects.</summary>
+    private const string WholeItemRowColumn = "[ContentHash]";
 
     private const string ComingInUrl = "/PhotoCapture";
     private const string LinksWeSentUrl = $"/PhotoCapture?tab={Labels.LinksWeSentKey}";
@@ -83,6 +101,7 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
         foreach (var reading in readings)
         {
             AssertPageCounts(reading);
+            AssertItemReadsBounded(reading);
         }
 
         foreach (var sentByUs in new[] { false, true })
@@ -120,6 +139,8 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
         var times = new List<double>(TimedRequests);
         var statements = int.MaxValue;
         var statementText = string.Empty;
+        var itemRowsRead = 0;
+        var readsWholeItemRows = false;
         var html = string.Empty;
         for (var index = 0; index < TimedRequests; index++)
         {
@@ -134,6 +155,11 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
             {
                 statements = counter.Count;
                 statementText = counter.Describe();
+                var itemReads = counter.Reads
+                    .Where(read => read.CommandText.Contains(ItemsTable, StringComparison.Ordinal))
+                    .ToArray();
+                itemRowsRead = itemReads.Sum(read => read.Rows);
+                readsWholeItemRows = itemReads.Any(read => read.CommandText.Contains(WholeItemRowColumn, StringComparison.Ordinal));
             }
 
             html = body;
@@ -147,6 +173,8 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
             NearestRank(times, 95),
             statements,
             statementText,
+            itemRowsRead,
+            readsWholeItemRows,
             seeding.TotalSeconds,
             html);
     }
@@ -186,6 +214,26 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
         }
 
         Assert.Equal(PageSize, Regex.Count(html, "data-photo-capture-row=\""));
+    }
+
+    /// <summary>
+    /// The list reads of the tab's items only what the required items rule
+    /// and the photograph count use, grouped in SQL (#2020): never whole item
+    /// rows, and at most <see cref="ItemRowsReadPerCapture"/> rows for each
+    /// capture with photos, fewer than its <see cref="ItemsPerCaptureWithPhotos"/>
+    /// items. A ceiling, never an exact total.
+    /// </summary>
+    private static void AssertItemReadsBounded(Reading reading)
+    {
+        var where = $"{reading.TabLabel} at {reading.Expected.Captures} captures";
+        Assert.True(reading.ItemRowsRead > 0, $"{where}: the interceptor observed no read of the items.");
+        Assert.False(
+            reading.ReadsWholeItemRows,
+            $"{where}: a statement read whole item rows." + Environment.NewLine + reading.StatementText);
+        var ceiling = reading.TabItems / ItemsPerCaptureWithPhotos * ItemRowsReadPerCapture;
+        Assert.True(
+            reading.ItemRowsRead <= ceiling,
+            $"{where}: the list read {reading.ItemRowsRead} item rows, more than {ceiling} for {reading.TabItems / ItemsPerCaptureWithPhotos} captures with photos.");
     }
 
     /// <summary>The count beside the left pane's state button whose value is <paramref name="stateKey"/> (All's is empty), or null when it has none.</summary>
@@ -248,7 +296,7 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
         Dictionary<PhotoCaptureState, int> ComingInStates,
         Dictionary<PhotoCaptureState, int> LinksWeSentStates);
 
-    /// <summary>One tab at one size: its timings, its statements and the last page it rendered.</summary>
+    /// <summary>One tab at one size: its timings, its statements, the item rows they read and the last page it rendered.</summary>
     private sealed record Reading(
         bool SentByUs,
         SeedCounts Expected,
@@ -256,6 +304,8 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
         double P95,
         int Statements,
         string StatementText,
+        int ItemRowsRead,
+        bool ReadsWholeItemRows,
         double SeedSeconds,
         string Html)
     {
@@ -263,7 +313,7 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
 
         private int TabCaptures => SentByUs ? Expected.LinksWeSent : Expected.ComingIn;
 
-        private int TabItems => SentByUs ? Expected.LinksWeSentItems : Expected.ComingInItems;
+        public int TabItems => SentByUs ? Expected.LinksWeSentItems : Expected.ComingInItems;
 
         public string Line => string.Create(
             CultureInfo.InvariantCulture,
@@ -698,7 +748,9 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
             List<PhotoCaptureItem> items = shapes.Count == 0 ? []
                 : intended == PhotoCaptureState.SomethingMissing ? missingPlateItems : fullItems;
             var missing = PhotoCaptureRequiredItems.Evaluate(
-                mapped, items, PhotoCaptureRequiredItems.VinRequired(mapped, repairer));
+                mapped,
+                PhotoCaptureItemPresence.Of(items),
+                PhotoCaptureRequiredItems.VinRequired(mapped, repairer, handedOn: false));
             var photographs = items.Count(item => PhotoCaptureStory.IsPhotographKind(item.Kind));
             var state = PhotoCaptureStatus.Evaluate(mapped, missing, photographs, Now, caseArchived);
             if (state != intended)
@@ -864,9 +916,9 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
             }
 
             Add(PhotoCaptureItemKind.Video, null, null, 1);
-            if (shapes.Count != 30)
+            if (shapes.Count != ItemsPerCaptureWithPhotos)
             {
-                throw new InvalidOperationException($"A capture with photos holds 30 items, not {shapes.Count}.");
+                throw new InvalidOperationException($"A capture with photos holds {ItemsPerCaptureWithPhotos} items, not {shapes.Count}.");
             }
 
             return shapes;

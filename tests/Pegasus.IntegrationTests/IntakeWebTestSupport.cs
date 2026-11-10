@@ -347,7 +347,10 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         public Task<Pegasus.Core.PhotoCapture.PhotoCaptureListPage> ListAsync(
             Pegasus.Core.PhotoCapture.PhotoCaptureListFilter filter,
             CancellationToken cancellationToken) =>
-            Task.FromResult(new Pegasus.Core.PhotoCapture.PhotoCaptureListPage([], 0));
+            Task.FromResult(new Pegasus.Core.PhotoCapture.PhotoCaptureListPage(
+                [],
+                0,
+                new Dictionary<Pegasus.Core.PhotoCapture.PhotoCaptureState, int>()));
 
         public Task<Pegasus.Core.PhotoCapture.PhotoCaptureListRow?> GetRowAsync(Guid captureId, CancellationToken cancellationToken) =>
             Task.FromResult<Pegasus.Core.PhotoCapture.PhotoCaptureListRow?>(null);
@@ -357,10 +360,6 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
 
         public Task<IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory>> ListForImageIntakeAsync(Guid imageIntakeId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory>>([]);
-
-        public Task<IReadOnlyDictionary<Pegasus.Core.PhotoCapture.PhotoCaptureState, int>> CountByStateAsync(bool sentByUs, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyDictionary<Pegasus.Core.PhotoCapture.PhotoCaptureState, int>>(
-                new Dictionary<Pegasus.Core.PhotoCapture.PhotoCaptureState, int>());
 
         public Task<IReadOnlyList<Pegasus.Core.PhotoCapture.PhotoLinkAct>> ListHistoryAsync(Guid captureId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<Pegasus.Core.PhotoCapture.PhotoLinkAct>>([]);

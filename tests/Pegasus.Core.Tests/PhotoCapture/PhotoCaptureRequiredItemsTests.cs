@@ -28,7 +28,7 @@ public sealed class PhotoCaptureRequiredItemsTests
     {
         var capture = Capture(details: new PhotoCaptureDetails(DamageAreas: ["fd"]));
 
-        Assert.Empty(PhotoCaptureRequiredItems.Evaluate(capture, CompleteItems("fd"), vinRequired: false));
+        Assert.Empty(PhotoCaptureRequiredItems.Evaluate(capture, PhotoCaptureItemPresence.Of(CompleteItems("fd")), vinRequired: false));
     }
 
     /// <summary>
@@ -48,7 +48,7 @@ public sealed class PhotoCaptureRequiredItemsTests
             .Append(Item(PhotoCaptureItemKind.Damage, 2))
             .ToList();
 
-        var missing = PhotoCaptureRequiredItems.Evaluate(capture, items, vinRequired: false);
+        var missing = PhotoCaptureRequiredItems.Evaluate(capture, PhotoCaptureItemPresence.Of(items), vinRequired: false);
 
         Assert.Equal(MarkedAreaStageCodes, missing.Select(item => item.Code));
     }
@@ -58,7 +58,7 @@ public sealed class PhotoCaptureRequiredItemsTests
     {
         var items = Enumerable.Range(1, 5).Select(position => Item(PhotoCaptureItemKind.Overview, position)).ToList();
 
-        var missing = PhotoCaptureRequiredItems.Evaluate(Capture(), items, vinRequired: false);
+        var missing = PhotoCaptureRequiredItems.Evaluate(Capture(), PhotoCaptureItemPresence.Of(items), vinRequired: false);
 
         Assert.Equal("Overview 5 of 8", missing.Single(item => item.Code == "overview").Label);
     }
@@ -68,8 +68,8 @@ public sealed class PhotoCaptureRequiredItemsTests
     {
         var items = CompleteItems();
 
-        Assert.Contains(PhotoCaptureRequiredItems.Evaluate(Capture(), items, vinRequired: true), item => item.Code == "vin");
-        Assert.DoesNotContain(PhotoCaptureRequiredItems.Evaluate(Capture(), items, vinRequired: false), item => item.Code == "vin");
+        Assert.Contains(PhotoCaptureRequiredItems.Evaluate(Capture(), PhotoCaptureItemPresence.Of(items), vinRequired: true), item => item.Code == "vin");
+        Assert.DoesNotContain(PhotoCaptureRequiredItems.Evaluate(Capture(), PhotoCaptureItemPresence.Of(items), vinRequired: false), item => item.Code == "vin");
         Assert.True(PhotoCaptureRequiredItems.VinRequired(Capture(PhotoCaptureOrigin.StandingStaff), standingLinkIsRepairer: true, handedOn: false));
         Assert.False(PhotoCaptureRequiredItems.VinRequired(Capture(PhotoCaptureOrigin.StandingForwarded), standingLinkIsRepairer: true, handedOn: false));
         Assert.False(PhotoCaptureRequiredItems.VinRequired(Capture(PhotoCaptureOrigin.StandingStaff), standingLinkIsRepairer: false, handedOn: false));
@@ -117,10 +117,10 @@ public sealed class PhotoCaptureRequiredItemsTests
         var items = CompleteItems().Where(item => item.Kind != PhotoCaptureItemKind.Dashboard).ToList();
 
         Assert.Contains(
-            PhotoCaptureRequiredItems.Evaluate(Capture(), items, vinRequired: false),
+            PhotoCaptureRequiredItems.Evaluate(Capture(), PhotoCaptureItemPresence.Of(items), vinRequired: false),
             item => item.Code == "dashboard");
         Assert.DoesNotContain(
-            PhotoCaptureRequiredItems.Evaluate(Capture(details: new PhotoCaptureDetails(NoKeys: true)), items, vinRequired: false),
+            PhotoCaptureRequiredItems.Evaluate(Capture(details: new PhotoCaptureDetails(NoKeys: true)), PhotoCaptureItemPresence.Of(items), vinRequired: false),
             item => item.Code == "dashboard");
     }
 }

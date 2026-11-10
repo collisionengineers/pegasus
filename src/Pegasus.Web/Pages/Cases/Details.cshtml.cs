@@ -234,7 +234,7 @@ public sealed partial class DetailsModel(
         var capture = story.Capture;
         var missing = Pegasus.Core.PhotoCapture.PhotoCaptureRequiredItems.Evaluate(
             capture,
-            story.Items,
+            Pegasus.Core.PhotoCapture.PhotoCaptureItemPresence.Of(story.Items),
             Pegasus.Core.PhotoCapture.PhotoCaptureRequiredItems.VinRequired(capture, story.StandingLinkIsRepairer, story.HandedOn));
         var photographs = story.Items.Count(item => Pegasus.Core.PhotoCapture.PhotoCaptureStory.IsPhotographKind(item.Kind));
         return Pegasus.Core.PhotoCapture.PhotoCaptureStatus.Evaluate(
