@@ -309,6 +309,14 @@ Its subject is "Photos of {registration} for Collision Engineers", and
 (operator, 9 November 2026; R788); staff may edit it before sending. There
 is no automatic or scheduled send.
 
+On the Send page the message shows the wording with the customer's name,
+the registration, the Principal and the link's expiry filled in;
+`{photo link}` stays until the link exists. Once staff edit it, it says
+"Edited for this one only." with **Put the standard wording back**. An
+edited message is sent as staff wrote it; one they did not edit follows the
+name and lifetime the form holds when the link is sent (operator,
+9 November 2026; R806).
+
 ### Case field filling
 
 When a capture settles on a Case, the claimant name, contact number,
@@ -333,12 +341,20 @@ with no count (R774;
 - **Coming in**: standing and website captures, with Vehicle, From,
   Customer, Case, Status, Photos and Received. The Case column reads
   **Awaiting instruction** for a capture with no Case (operator, 9 November
-  2026; R805);
+  2026; R805). The From filter also offers **No case yet**, the captures
+  with no Case. **Ask for it**, on a live row whose status is Something
+  missing, makes a fresh link for that capture: when the capture is on a
+  Case and holds an e-mail address it e-mails the link, as Resend does;
+  otherwise it shows the link for staff to copy and send themselves
+  (operator, 9 November 2026; R806, R816);
 - **Links we sent**: Case links, with Vehicle, Customer and mobile, Case,
   From, Sent by, Status, Photos and Next reminder, and the actions Resend,
   Remind, Log call and View photos, with **Cancel link** on each live row.
   From is the Case's Principal (operator, 9 November 2026; R805). Remind is
   offered only while the link is live.
+
+Each tab shows how many captures it holds (operator, 9 November 2026;
+R806).
 
 `/PhotoCapture/Send/{caseId}` sends a link ([Photo links](#photo-links)).
 `/PhotoCapture/{id}` is a link's detail: its facts, the typed details, the
@@ -348,8 +364,16 @@ who acted: "Cancelled · name", "Link extended · name" and "Call logged ·
 name" (operator, 9 November 2026; R805). A live link on a Case also offers
 **Cancel link** beside it in the Case's Files → Images. Cancel is the same
 act wherever it is offered, with the same refusal, and a repeated click
-cancels once (operator, 9 November 2026; R795). The Vehicle images record
-page shows the source **Photo link** with the details and the note.
+cancels once (operator, 9 November 2026; R795). Beside a photo link in the
+Case's Files → Images stand its status, in the words above, and its photo
+count; while a live link has nothing yet, **No photos yet** and, on a link
+sent from the Case, **Resend the link**, which is the link page's Resend
+(operator, 9 November 2026; R806). Paperwork and video a capture with no
+Case received stay kept and unfiled, and each opens from the link's page as
+any received file opens; nothing new is filed, chased or deleted, and a
+capture that sent only paperwork stays on Coming in (operator, 9 November
+2026; R807). The Vehicle images record page shows the source **Photo link**
+with the details and the note.
 
 ### Limits
 

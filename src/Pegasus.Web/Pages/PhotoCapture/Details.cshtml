@@ -222,7 +222,18 @@
                                 <ul class="photo-story-items">
                                     @foreach (var item in stage.Items)
                                     {
-                                        <li><span>@Labels.ItemLabel(item)</span><span class="muted">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</span></li>
+                                        <li>
+                                            @if (Model.KeptFileHref(item) is { } keptHref)
+                                            {
+                                                @* A kept file opens where staff can read it (R807); nothing is filed. *@
+                                                <a href="@keptHref" target="_blank" rel="noopener">@Labels.ItemLabel(item)</a>
+                                            }
+                                            else
+                                            {
+                                                <span>@Labels.ItemLabel(item)</span>
+                                            }
+                                            <span class="muted">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</span>
+                                        </li>
                                     }
                                 </ul>
                             }

@@ -301,7 +301,8 @@ public sealed class CaseAssetPreparationWebTests
                 Item(overviewAsset, PhotoCaptureItemKind.Overview, null, null, 1, 0),
                 Item(closeUpAsset, PhotoCaptureItemKind.Damage, "fd", PhotoCaptureStage.CloseUp, 1, 1)
             ],
-            null);
+            null,
+            StandingLinkIsRepairer: false);
         using var workspace = await EnterEngineerEditModeAsync(
             store,
             services =>
@@ -352,6 +353,9 @@ public sealed class CaseAssetPreparationWebTests
 
         public Task<IReadOnlyList<PhotoLinkAct>> ListHistoryAsync(Guid captureId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PhotoLinkAct>>([]);
+
+        public Task<PhotoCaptureTabCounts> CountByTabAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(new PhotoCaptureTabCounts(0, 0));
     }
 
     /// <summary>

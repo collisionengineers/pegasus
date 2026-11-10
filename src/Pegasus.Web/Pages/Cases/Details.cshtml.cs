@@ -215,9 +215,30 @@ public sealed partial class DetailsModel(
     /// </summary>
     public IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory> PhotoCaptureStories { get; private set; } = [];
 
-    /// <summary>Whether a photo link on the Case still takes photos, so its story offers Cancel (R795).</summary>
+    /// <summary>
+    /// Whether a photo link on the Case still takes photos, so its story
+    /// offers Cancel (R795) and, with nothing yet, Resend the link (R806). A
+    /// link on an archived Case is dead (R793).
+    /// </summary>
     public bool IsPhotoLinkLive(Pegasus.Core.PhotoCapture.PhotoCapture capture) =>
-        Pegasus.Core.PhotoCapture.PhotoCaptureAccess.IsLive(capture, clock.GetUtcNow());
+        Pegasus.Core.PhotoCapture.PhotoCaptureAccess.IsLive(capture, clock.GetUtcNow(), CurrentWorkflow?.Archive is not null);
+
+    /// <summary>
+    /// A photo link's derived status beside it on the Case (R806), the way
+    /// the Photo capture lists derive it: from its record and what it still
+    /// lacks, never stored.
+    /// </summary>
+    public Pegasus.Core.PhotoCapture.PhotoCaptureState PhotoLinkState(Pegasus.Core.PhotoCapture.CasePhotoCaptureStory story)
+    {
+        ArgumentNullException.ThrowIfNull(story);
+        var capture = story.Capture;
+        var missing = Pegasus.Core.PhotoCapture.PhotoCaptureRequiredItems.Evaluate(
+            capture,
+            story.Items,
+            Pegasus.Core.PhotoCapture.PhotoCaptureRequiredItems.VinRequired(capture.Origin, story.StandingLinkIsRepairer));
+        return Pegasus.Core.PhotoCapture.PhotoCaptureStatus.Evaluate(
+            capture, missing, clock.GetUtcNow(), CurrentWorkflow?.Archive is not null);
+    }
 
     /// <summary>
     /// Every image occurrence's report preparation (B06), loaded with the

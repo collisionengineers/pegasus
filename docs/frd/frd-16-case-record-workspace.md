@@ -869,7 +869,11 @@ card with the details the sender typed and their note, then its photos in
 story order under their story groups (the overview all the way round, each
 damaged area, the number plate, the VIN, the dashboard, then the additional
 information) (operator, 9 November 2026; R774;
-[FRD-28](frd-28-guided-photo-capture.md#baskets-and-names)). Each
+[FRD-28](frd-28-guided-photo-capture.md#baskets-and-names)). Beside each
+capture stand its status and photo count, **Cancel link** while it is live,
+and, while a live link has nothing yet, **No photos yet** and **Resend the
+link** (operator, 9 November 2026; R795, R806;
+[FRD-28](frd-28-guided-photo-capture.md#staff-pages)). Each
 tile shows:
 
 - a lazy-loaded thumbnail that expands to the full image, with the original

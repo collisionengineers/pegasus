@@ -14,6 +14,10 @@
     <link rel="stylesheet" href="~/css/photo-capture.css" asp-append-version="true" />
 }
 
+@section Scripts {
+    <script src="~/js/photo-link-send.js" asp-append-version="true"></script>
+}
+
 <header class="page-header">
     <div class="page-title">
         <p class="eyebrow"><a class="mono" asp-page="/Cases/Details" asp-route-id="@facts.CaseId">@facts.Reference</a></p>
@@ -104,7 +108,18 @@ else
                             </div>
                             <div class="field"><label asp-for="Subject">@Labels.Subject</label><input asp-for="Subject" /><span asp-validation-for="Subject"></span></div>
                         </div>
-                        <div class="field"><label asp-for="Body">@Labels.Message</label><textarea asp-for="Body" rows="9"></textarea><span asp-validation-for="Body"></span></div>
+                        <div class="field">
+                            <label asp-for="Body">@Labels.Message</label>
+                            @* The standard wording with the name, registration, Principal and expiry
+                               filled in; {photo link} stays until the link exists (R806). *@
+                            <textarea asp-for="Body" rows="9" data-photo-link-message></textarea>
+                            <span asp-validation-for="Body"></span>
+                            <input type="hidden" asp-for="StandardBody" data-photo-link-standard />
+                            <p class="field-hint" data-photo-link-edited hidden="@(!Model.BodyEdited)">
+                                @Labels.EditedForThisOneOnly
+                                <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.SendModel.StandardWording" class="btn btn--small" formnovalidate data-photo-link-reset>@Labels.PutTheStandardWordingBack</button>
+                            </p>
+                        </div>
                     </div>
                 </section>
             }
