@@ -57,6 +57,16 @@ public sealed class PhotoCaptureCaseFieldsTests
     /// (operator, 9 November 2026; R801).
     /// </summary>
     [Fact]
+    public void AnItemDeclaresTheCapturesCaseOnlyWhileItsPhotosFileThere()
+    {
+        var onCase = Capture(origin: PhotoCaptureOrigin.StandingStaff);
+
+        Assert.Equal(onCase.CaseId, onCase.DeclaredCaseId);
+        Assert.Null(Capture(origin: PhotoCaptureOrigin.Website, destination: PhotoCaptureDestination.VehicleImages).DeclaredCaseId);
+        Assert.Null(Capture(origin: PhotoCaptureOrigin.Website, destination: PhotoCaptureDestination.Undecided).DeclaredCaseId);
+    }
+
+    [Fact]
     public void OnlyACaptureFilingOnACaseAsItArrivesTakesOriginals()
     {
         Assert.True(Capture().TakesOriginals);

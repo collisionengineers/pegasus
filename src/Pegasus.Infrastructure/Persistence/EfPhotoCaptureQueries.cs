@@ -71,13 +71,15 @@ public sealed class EfPhotoCaptureQueries(
     public async Task<IReadOnlyList<CasePhotoCaptureStory>> ListForCaseAsync(Guid caseId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // The captures recorded on the Case, and those whose Vehicle images
-        // record was merged into it before the settle sweep recorded the Case.
+        // The captures recorded on the Case, and those any of whose Vehicle
+        // images records was merged into it before the settle sweep recorded
+        // the Case: each batch makes its own record (FRD-28).
+        var mergedReceipts = MemberReceipts(
+            context, context.ImageIntakes.Where(record => record.MergedIntoCaseId == caseId));
         var captures = await context.PhotoCaptures.AsNoTracking()
             .Where(capture => capture.CaseId == caseId
-                || (capture.SubmissionGroupId != null
-                    && context.ImageIntakes.Any(record => record.SubmissionGroupId == capture.SubmissionGroupId
-                        && record.MergedIntoCaseId == caseId)))
+                || context.PhotoCaptureItems.Any(item => item.CaptureId == capture.Id
+                    && mergedReceipts.Contains(item.StagedReceiptId)))
             .OrderBy(capture => capture.CreatedAtUtc)
             .ThenBy(capture => capture.Id)
             .ToListAsync(cancellationToken);
@@ -87,15 +89,27 @@ public sealed class EfPhotoCaptureQueries(
     public async Task<IReadOnlyList<CasePhotoCaptureStory>> ListForImageIntakeAsync(Guid imageIntakeId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var recordReceipts = MemberReceipts(
+            context, context.ImageIntakes.Where(record => record.Id == imageIntakeId));
         var captures = await context.PhotoCaptures.AsNoTracking()
-            .Where(capture => capture.SubmissionGroupId != null
-                && context.ImageIntakes.Any(record => record.Id == imageIntakeId
-                    && record.SubmissionGroupId == capture.SubmissionGroupId))
+            .Where(capture => context.PhotoCaptureItems.Any(item => item.CaptureId == capture.Id
+                && recordReceipts.Contains(item.StagedReceiptId)))
             .OrderBy(capture => capture.CreatedAtUtc)
             .ThenBy(capture => capture.Id)
             .ToListAsync(cancellationToken);
         return await StoriesAsync(context, captures, cancellationToken);
     }
+
+    /// <summary>
+    /// The staged receipts of the records' submission groups. A capture names
+    /// only its latest batch's group (<c>SubmissionGroupId</c>), so a record
+    /// finds its capture through the items whose receipts are its group's
+    /// members: every batch's record finds it, not only the latest.
+    /// </summary>
+    private static IQueryable<Guid?> MemberReceipts(PegasusDbContext context, IQueryable<ImageIntakeEntity> records) =>
+        records.SelectMany(record => context.IntakeSubmissionGroupMembers
+            .Where(member => member.GroupId == record.SubmissionGroupId)
+            .Select(member => (Guid?)member.StagedReceiptId));
 
     public async Task<IReadOnlyDictionary<PhotoCaptureState, int>> CountByStateAsync(bool sentByUs, CancellationToken cancellationToken)
     {

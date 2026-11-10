@@ -409,8 +409,6 @@ public sealed class ReceivePhotoCaptureItem(
                 area,
                 request.Stage,
                 request.Position,
-                capture.CurrentBatch,
-                Ordinal: 0,
                 group,
                 sequence,
                 fileName,
@@ -434,10 +432,13 @@ public sealed class ReceivePhotoCaptureItem(
         var received = write.Write == PhotoCaptureItemWrite.Created || item.StagedReceiptId is null;
         if (received)
         {
-            // A document type is declared only with the Case it files on:
-            // intake refuses one without the other, and a capture with no Case
-            // has none to declare (FRD-28).
-            var declaredCaseId = capture.Destination == PhotoCaptureDestination.Case ? capture.CaseId : null;
+            // The item's batch and declared Case are the store's, taken under
+            // the capture's lock, not the capture as this request read it, so
+            // a retry declares what its first attempt did. A document type is
+            // declared only with the Case it files on: intake refuses one
+            // without the other, and a capture with no Case has none to
+            // declare (FRD-28).
+            var declaredCaseId = item.DeclaredCaseId;
             var receivedIntake = await intake.ReceiveStreamedAsync(
                 new Intake.StreamedIntakeSource(
                     item.FileName,
