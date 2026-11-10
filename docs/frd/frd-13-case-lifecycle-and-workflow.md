@@ -144,10 +144,13 @@ completion is recorded once per capture, with its actor, and only for a
 batch with a photo filed on the Case: a later batch never completes the
 images again, so a later staff change stands ([R792](../rulings.md)). A
 photo whose filing ended for good without filing does not hold the batch
-back (the lead's reading of R792, 9 November 2026, pending the operator;
+back (operator, 10 November 2026, [R840](../rulings.md);
 [FRD-28](frd-28-guided-photo-capture.md#routing-and-filing)). A capture whose Vehicle
 images record reaches a Case completes them through the record's merge, as
-above. It does not clear other blockers, assign an Engineer, or skip Review.
+above, only when the capture has not completed a Case's images before: a
+later record of the same capture does not complete them again (operator,
+10 November 2026, [R841](../rulings.md)). It does not clear other
+blockers, assign an Engineer, or skip Review.
 
 **Saving does not unlock.** An action is available exactly when its stated
 prerequisites are met. Saving unchanged or unrelated data never unlocks an
