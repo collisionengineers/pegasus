@@ -546,8 +546,10 @@ resource webAppDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-pre
   scope: webApp
   properties: {
     workspaceId: logAnalytics.id
+    // No AppServiceHTTPLogs: the front end records the raw path before the
+    // application runs, and a photo link's path is its credential (ADR-0090,
+    // R923). Request timings come from Application Insights.
     logs: [
-      { category: 'AppServiceHTTPLogs', enabled: true }
       { category: 'AppServiceConsoleLogs', enabled: true }
       { category: 'AppServiceAppLogs', enabled: true }
       { category: 'AppServicePlatformLogs', enabled: true }

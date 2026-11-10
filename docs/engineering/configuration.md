@@ -75,16 +75,16 @@ version and a configuration read-back, not a release. The selected repository
 ## Photo capture
 
 Guided photo capture ([FRD-28](../frd/frd-28-guided-photo-capture.md),
-[ADR-0090](../adr/0090-public-photo-capture-surface.md)) has two settings.
+[ADR-0090](../adr/0090-public-photo-capture-surface.md)) has four settings.
 
 | Setting | Effect |
 | --- | --- |
-| `Features:PhotoCapture` | The composition gate. Off, nothing of photo capture is registered: `/c`, `/s`, `/capture` and `/PhotoCapture` answer 404 before routing, and the rail item, the Case ribbon's Send photo link, the contact's Photo links tab and Send a photo link's settings in Administration › Configuration are absent. Bicep sets it on Web and on the Worker, which settles captures. |
+| `Features:PhotoCapture` | The composition gate. Off, nothing of photo capture is registered: `/c`, `/s`, `/capture` and `/PhotoCapture` answer 404 before routing, and the rail item, the Case ribbon's Send photo link, the contact's Photo links tab and Administration › Photo links are absent (R911). Bicep sets it on Web and on the Worker, which settles captures. |
 | `PhotoCapture:PublicOrigin` | The absolute `https` origin printed in photo links and standing links. Required when the gate is on. Production's is `https://pegasus-prod-web-252ow37gij.azurewebsites.net/` (R779); the hosted test instance's is its `:8443` Funnel origin (R785). Bicep sets it on Web. |
 | `TextMessages:Endpoint` | The Azure Communication Services endpoint a photo link text goes through ([FRD-28](../frd/frd-28-guided-photo-capture.md#the-photo-link-text); R918). Bicep sets it on Web from the resource it creates; the Web's managed identity holds Contributor on that resource. |
 | `TextMessages:From` | The SMS-enabled UK mobile number, in E.164, texts are sent from. It is bought on the resource in the portal and set through `PEGASUS_PHOTO_LINK_TEXT_FROM`; while it is empty, or outside Production, no page offers Send by text. |
 
-Neither is a secret, so there is no Key Vault change. The capture limits are
+None is a secret, so there is no Key Vault change. The capture limits are
 constants in Core, not configuration. Send a photo link's starting values and
 the lifetimes it offers are Administration › Photo links settings an
 Administrator changes, not deployment settings

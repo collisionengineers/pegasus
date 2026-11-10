@@ -625,7 +625,8 @@ public sealed partial class PhotoCaptureWebTests
         {
             var aggregateId = link.Capture.Id.ToString("D");
             var acts = await db.ActionHistory.AsNoTracking()
-                .Where(item => item.AggregateType == "photo_capture" && item.AggregateId == aggregateId)
+                .Where(item => item.AggregateType == "photo_capture" && item.AggregateId == aggregateId
+                    && item.EventKind != PhotoLinkActs.Issued)
                 .ToListAsync();
             Assert.Equal(3, acts.Count);
             foreach (var (key, kind) in new[]
@@ -1591,7 +1592,8 @@ public sealed partial class PhotoCaptureWebTests
                 LiveCameraOnly: false,
                 OriginalsInBackground: false,
                 CaptureLimits.DefaultLifetimeDays,
-                PhotoLinkTokenPurpose.Copy),
+                PhotoLinkTokenPurpose.Copy,
+                NewOperationKey()),
             CancellationToken.None);
     }
 
@@ -1615,7 +1617,8 @@ public sealed partial class PhotoCaptureWebTests
                 LiveCameraOnly: false,
                 originalsInBackground,
                 CaptureLimits.DefaultLifetimeDays,
-                PhotoLinkTokenPurpose.Copy),
+                PhotoLinkTokenPurpose.Copy,
+                NewOperationKey()),
             CancellationToken.None);
     }
 
@@ -1928,7 +1931,8 @@ public sealed partial class PhotoCaptureWebTests
                 LiveCameraOnly: false,
                 OriginalsInBackground: false,
                 CaptureLimits.DefaultLifetimeDays,
-                PhotoLinkTokenPurpose.Copy),
+                PhotoLinkTokenPurpose.Copy,
+                NewOperationKey()),
             CancellationToken.None);
     }
 

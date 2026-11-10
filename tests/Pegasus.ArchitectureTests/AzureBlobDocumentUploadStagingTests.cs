@@ -77,6 +77,38 @@ public sealed class AzureBlobDocumentUploadStagingTests
         await Assert.ThrowsAsync<ArgumentException>(() => staging.DeleteAsync("staging/x/y", Written, default));
     }
 
+    /// <summary>
+    /// A part is read as a stream of the blob's body, never as a whole
+    /// download, and once its call has kept the upload the manifest and every
+    /// part are deleted unconditionally; a part already gone is no error.
+    /// </summary>
+    [Fact]
+    public async Task APartStreamsBackAndTheWholeUploadIsDeletedAtOnce()
+    {
+        var container = new InMemoryContainer();
+        var staging = new AzureBlobDocumentUploadStaging(container);
+        await staging.CreateManifestAsync(new DocumentUploadManifest(UploadId, "photo-capture", 5, string.Empty, Written), default);
+        byte[] first = [1, 2, 3];
+        byte[] second = [4, 5];
+        await staging.CreatePartAsync(UploadId, 1, first, Sha256Of(first), default);
+        await staging.CreatePartAsync(UploadId, 2, second, Sha256Of(second), default);
+
+        await using (var stream = await staging.OpenPartAsync(UploadId, 1, default))
+        {
+            using var copy = new MemoryStream();
+            await stream!.CopyToAsync(copy);
+            Assert.Equal(first, copy.ToArray());
+        }
+
+        Assert.Equal(0, container.Blobs[$"uploads/{UploadId:D}/0001"].Downloads);
+        Assert.Null(await staging.OpenPartAsync(UploadId, 3, default));
+
+        await staging.DeleteUploadAsync(UploadId, 3, default);
+
+        Assert.Empty(container.Blobs);
+        Assert.Null(container.LastDeleteConditions);
+    }
+
     private static string Sha256Of(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
 
     /// <summary>A container that keeps blobs in memory, each written at <see cref="Written"/>.</summary>
@@ -173,6 +205,15 @@ public sealed class AzureBlobDocumentUploadStagingTests
                     (Response)new OkResponse()))
                 : throw new RequestFailedException(404, "Blob not found.");
         }
+
+        public override Task<Response<BlobDownloadStreamingResult>> DownloadStreamingAsync(
+            BlobDownloadOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            container.Blobs.ContainsKey(Name)
+                ? Task.FromResult(Response.FromValue(
+                    BlobsModelFactory.BlobDownloadStreamingResult(new MemoryStream(Body, writable: false)),
+                    (Response)new OkResponse()))
+                : throw new RequestFailedException(404, "Blob not found.");
 
         public override Task<Response<bool>> DeleteIfExistsAsync(
             DeleteSnapshotsOption snapshotsOption = default,

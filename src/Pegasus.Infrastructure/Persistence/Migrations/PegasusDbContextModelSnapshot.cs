@@ -6122,6 +6122,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[SubmissionGroupId] IS NOT NULL");
 
+                    b.HasIndex(new[] { "SubmissionGroupId" }, "IX_PhotoCaptureBatches_SubmissionGroupId_Unreached")
+                        .HasFilter("[SubmissionGroupId] IS NOT NULL AND [ReachedAtUtc] IS NULL");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex(new[] { "SubmissionGroupId" }, "IX_PhotoCaptureBatches_SubmissionGroupId_Unreached"), new[] { "ClosedAtUtc" });
+
                     b.ToTable("PhotoCaptureBatches", (string)null);
                 });
 
@@ -6279,6 +6284,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsDescending(false, true);
 
                     b.HasIndex("StandingLinkId", "CreatedAtUtc");
+
+                    b.HasIndex("CreatedAtUtc", "Id");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("CreatedAtUtc", "Id"), new[] { "SettledBatches", "SentAtUtc", "SettledAtUtc", "ExpiresAtUtc", "RevokedAtUtc" });
 
                     b.HasIndex("SettledAtUtc", "SentAtUtc", "ExpiresAtUtc");
 

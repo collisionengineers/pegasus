@@ -27,7 +27,8 @@ public static class PhotoCaptureRefusals
 /// <summary>
 /// What a staff member asks for when they issue a photo link from a Case.
 /// A quick link names who it is for (<see cref="QuickLinkFor"/>, R808); a
-/// guided link names nobody.
+/// guided link names nobody. <see cref="OperationKey"/> is the form's: one
+/// key issues one link however often the form is posted.
 /// </summary>
 public sealed record IssuePhotoLinkRequest(
     Guid CaseId,
@@ -41,15 +42,31 @@ public sealed record IssuePhotoLinkRequest(
     bool LiveCameraOnly,
     bool OriginalsInBackground,
     int LifetimeDays,
-    PhotoLinkTokenPurpose TokenPurpose);
+    PhotoLinkTokenPurpose TokenPurpose,
+    string OperationKey);
 
-public sealed record IssuedPhotoLink(PhotoCapture Capture, CaptureLinkSecret Token);
+/// <summary>
+/// A link as issued: its capture and the raw token, which exists only in
+/// this answer (ADR-0090). <see cref="Replayed"/> answers a post repeated
+/// under an operation key that already issued the link: the capture as it
+/// is and no token, since only the token's digest is kept, so the repeat
+/// makes neither a second capture nor a second token.
+/// </summary>
+public sealed record IssuedPhotoLink(PhotoCapture Capture, CaptureLinkSecret Token)
+{
+    public bool Replayed { get; private init; }
+
+    public static IssuedPhotoLink Replay(PhotoCapture capture) => new(capture, default) { Replayed = true };
+}
 
 /// <summary>
 /// HQ issues a link for a Case it already has (handover §6 "Send a photo
 /// link"): one capture per issue, with its first token. Casework is the
 /// right to do it; an archived Case takes no more evidence, and a closed one
-/// sends no photo link (operator, 10 November 2026; R847).
+/// sends no photo link (operator, 10 November 2026; R847). The issue is
+/// recorded under the form's operation key, so the same form posted again
+/// answers the link it made, <see cref="IssuedPhotoLink.Replayed"/>, and
+/// makes no other, as the link's other acts replay by their key.
 /// </summary>
 public sealed class IssuePhotoLink(
     IPhotoCaptureStore captures,
@@ -62,6 +79,7 @@ public sealed class IssuePhotoLink(
     public async Task<IssuedPhotoLink> ExecuteAsync(IssuePhotoLinkRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         if (request.Mode == PhotoCaptureMode.Quick && request.QuickLinkFor is null)
         {
@@ -81,7 +99,7 @@ public sealed class IssuePhotoLink(
 
         var now = timeProvider.GetUtcNow();
         var token = PhotoLinkToken.Create();
-        var capture = await captures.CreateAsync(
+        var (capture, issued) = await captures.IssueAsync(
             new NewPhotoCapture(
                 Guid.NewGuid(),
                 PhotoCaptureOrigin.CaseLink,
@@ -104,9 +122,10 @@ public sealed class IssuePhotoLink(
                 OpenedAtUtc: null),
             PhotoLinkToken.Digest(token),
             request.TokenPurpose,
-            sessionTokenDigest: null,
+            request.Actor,
+            request.OperationKey,
             cancellationToken);
-        return new(capture, token);
+        return issued ? new(capture, token) : IssuedPhotoLink.Replay(capture);
     }
 }
 
@@ -390,6 +409,12 @@ public sealed class RoutePhotoCapture(ImageIntake.IImageIntakeCaseCandidates cas
 }
 
 /// <summary>One upload from the phone: a photo, a document or a video, or the full-size original of an earlier photo.</summary>
+/// <param name="Sha256">
+/// The SHA-256 of exactly the bytes <paramref name="OpenContentAsync"/>
+/// returns, when the caller has already read them through and checked them
+/// against the phone's own digest (a file sent in parts); null to hash them
+/// here. The copy intake keeps is hashed again as it is written.
+/// </param>
 public sealed record ReceivePhotoCaptureItemRequest(
     Guid ClientItemId,
     PhotoCaptureItemKind Kind,
@@ -402,7 +427,8 @@ public sealed record ReceivePhotoCaptureItemRequest(
     string? FileName,
     string MediaType,
     long ContentLength,
-    Func<CancellationToken, ValueTask<Stream>> OpenContentAsync);
+    Func<CancellationToken, ValueTask<Stream>> OpenContentAsync,
+    string? Sha256 = null);
 
 public sealed record ReceivedPhotoCaptureItem(PhotoCaptureItemWrite Write, PhotoCaptureItem Item, int ItemCount);
 
@@ -429,21 +455,7 @@ public sealed class ReceivePhotoCaptureItem(
         ArgumentNullException.ThrowIfNull(capture);
         ArgumentNullException.ThrowIfNull(request);
         var now = timeProvider.GetUtcNow();
-        if (!PhotoCaptureAccess.IsLive(capture, now))
-        {
-            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.Unavailable, "The link is no longer active.");
-        }
-
-        if (!PhotoCaptureStory.AcceptsMediaType(request.Kind, request.MediaType))
-        {
-            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.UnsupportedType, "That kind of file is not accepted here.");
-        }
-
-        if (request.ContentLength <= 0 || request.ContentLength > CaptureLimits.MaximumBytesFor(request.Kind, request.IsOriginal))
-        {
-            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.TooLarge, "The file is larger than this link accepts.");
-        }
-
+        RequireAcceptable(capture, request.Kind, request.IsOriginal, request.MediaType, request.ContentLength, now);
         if (request.IsOriginal)
         {
             return await ReceiveOriginalAsync(capture, request, cancellationToken);
@@ -458,12 +470,7 @@ public sealed class ReceivePhotoCaptureItem(
         // phone's own camera) is kept as a loose damage photo, not refused
         // (operator, 9 November 2026; R802); its stage stays as sent.
         var area = PhotoCaptureStory.ItemArea(request.Kind, request.Area);
-        var hash = await Intake.ReceiveIntake.StreamHashAsync(
-            new Intake.StreamedIntakeSource(
-                "item", request.MediaType, request.ContentLength, request.OpenContentAsync, now,
-                Intake.IntakeActorIdentity.PhotoCapture(capture.Id),
-                new(Intake.IntakeSourceChannel.PhotoCapture, "hash")),
-            cancellationToken);
+        var hash = await HashAsync(capture, request, "item", now, cancellationToken);
         var group = PhotoCaptureStory.Group(request.Kind, area, capture.Details.MarkedAreas);
         var sequence = PhotoCaptureStory.Sequence(request.Kind, request.Stage, request.Position);
         var fileName = PhotoCaptureStory.FileName(
@@ -493,7 +500,7 @@ public sealed class ReceivePhotoCaptureItem(
             case PhotoCaptureItemWrite.Conflict:
                 throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.ItemConflict, "This photo was already sent with different content.");
             case PhotoCaptureItemWrite.CapReached:
-                throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.CapReached, "This link has received as much as it can take.");
+                throw CapReached();
         }
 
         var item = write.Item!;
@@ -516,7 +523,8 @@ public sealed class ReceivePhotoCaptureItem(
                     Intake.IntakeActorIdentity.PhotoCapture(capture.Id),
                     new(Intake.IntakeSourceChannel.PhotoCapture, PhotoCaptureIntakeRules.MemberToken(capture.Id, item.Batch, item.Ordinal)),
                     declaredCaseId,
-                    PhotoCaptureStory.DeclaredDocumentType(item.Kind)),
+                    PhotoCaptureStory.DeclaredDocumentType(item.Kind),
+                    hash),
                 $"photo-capture-item:{item.Id:N}",
                 cancellationToken);
             await captures.RecordItemReceiptAsync(item.Id, receivedIntake.StagedReceiptId, cancellationToken);
@@ -533,14 +541,7 @@ public sealed class ReceivePhotoCaptureItem(
         ReceivePhotoCaptureItemRequest request,
         CancellationToken cancellationToken)
     {
-        // Only a capture filing on its Case as each photo arrives takes
-        // originals; for any other the refusal is final, so the phone sends
-        // and retries nothing (operator, 9 November 2026; R801).
-        if (!capture.TakesOriginals || !PhotoCaptureStory.IsPhotographKind(request.Kind))
-        {
-            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.UnsupportedType, "This link does not take full-size originals.");
-        }
-
+        RequireTakesOriginal(capture, request.Kind);
         var item = await captures.FindItemAsync(capture.Id, request.ClientItemId, cancellationToken)
             ?? throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.NotReady, "Send the photo before its original.");
         if (item.OriginalReceived)
@@ -558,18 +559,13 @@ public sealed class ReceivePhotoCaptureItem(
         // it is filed, and is given back if it does not file.
         if (!await captures.ReserveOriginalAsync(item.Id, request.ContentLength, cancellationToken))
         {
-            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.CapReached, "This link has received as much as it can take.");
+            throw CapReached();
         }
 
         bool filed;
         try
         {
-            var hash = await Intake.ReceiveIntake.StreamHashAsync(
-                new Intake.StreamedIntakeSource(
-                    "original", request.MediaType, request.ContentLength, request.OpenContentAsync, timeProvider.GetUtcNow(),
-                    Intake.IntakeActorIdentity.PhotoCapture(capture.Id),
-                    new(Intake.IntakeSourceChannel.PhotoCapture, "hash")),
-                cancellationToken);
+            var hash = await HashAsync(capture, request, "original", timeProvider.GetUtcNow(), cancellationToken);
             filed = await originals.FileAsync(
                 item,
                 item.FileName,
@@ -594,6 +590,156 @@ public sealed class ReceivePhotoCaptureItem(
         await captures.RecordItemOriginalAsync(item.Id, cancellationToken);
         return new(PhotoCaptureItemWrite.Created, item with { OriginalReceived = true }, capture.AcceptedItemCount);
     }
+
+    /// <summary>
+    /// What a part of a file sent in parts is refused before its bytes are
+    /// kept: what the commit would refuse from the part's declaration alone,
+    /// with the same answer. That is the link, the file's kind, type and size,
+    /// a full-size original on a link that takes none, the link's bytes as
+    /// last counted, and on the first part the count of its kind. The commit
+    /// still decides; a part of an item the link already holds passes the
+    /// caps, as its commit is a replay.
+    /// </summary>
+    public async Task AdmitPartAsync(
+        PhotoCapture capture,
+        Guid clientItemId,
+        PhotoCaptureItemKind kind,
+        bool isOriginal,
+        string mediaType,
+        long totalBytes,
+        bool firstPart,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        RequireAcceptable(capture, kind, isOriginal, mediaType, totalBytes, timeProvider.GetUtcNow());
+        if (isOriginal)
+        {
+            RequireTakesOriginal(capture, kind);
+        }
+
+        // The bytes are on the capture as it was read; a kind's count is only
+        // on its items, so it is read once a file, with the first part.
+        IReadOnlyList<PhotoCaptureItem>? items = null;
+        var capReached = capture.AcceptedBytes + totalBytes > CaptureLimits.MaximumBytesPerCapture;
+        if (!capReached && firstPart && !isOriginal)
+        {
+            items = await captures.ListItemsAsync(capture.Id, cancellationToken);
+            capReached = items.Count(item => CountsWith(item.Kind, kind)) >= MaximumItemsOf(kind);
+        }
+
+        if (!capReached)
+        {
+            return;
+        }
+
+        var existing = items is null
+            ? await captures.FindItemAsync(capture.Id, clientItemId, cancellationToken)
+            : items.FirstOrDefault(item => item.ClientItemId == clientItemId);
+        if (existing is null || (isOriginal && !existing.OriginalReceived))
+        {
+            throw CapReached();
+        }
+    }
+
+    /// <summary>
+    /// The answer an earlier commit of the item gave, when it was received
+    /// in full with this digest and length (its original, when it is one) and
+    /// its staged parts are gone; null when it was not, so the caller refuses
+    /// as it would have. A retried commit is answered without its parts.
+    /// </summary>
+    public async Task<ReceivedPhotoCaptureItem?> FindReplayAsync(
+        PhotoCapture capture,
+        Guid clientItemId,
+        bool isOriginal,
+        string sha256,
+        long contentLength,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sha256);
+        if (!PhotoCaptureAccess.IsLive(capture, timeProvider.GetUtcNow()))
+        {
+            throw Unavailable();
+        }
+
+        var item = await captures.FindItemAsync(capture.Id, clientItemId, cancellationToken);
+        var replayed = item is not null && (isOriginal
+            ? item.OriginalReceived
+            : item.StagedReceiptId is not null
+                && item.ContentLength == contentLength
+                && string.Equals(item.ContentHash, sha256, StringComparison.OrdinalIgnoreCase));
+        return replayed ? new(PhotoCaptureItemWrite.Replayed, item!, capture.AcceptedItemCount) : null;
+    }
+
+    /// <summary>The link is live and takes a file of this kind, type and size.</summary>
+    private static void RequireAcceptable(
+        PhotoCapture capture,
+        PhotoCaptureItemKind kind,
+        bool isOriginal,
+        string mediaType,
+        long contentLength,
+        DateTimeOffset now)
+    {
+        if (!PhotoCaptureAccess.IsLive(capture, now))
+        {
+            throw Unavailable();
+        }
+
+        if (!PhotoCaptureStory.AcceptsMediaType(kind, mediaType))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.UnsupportedType, "That kind of file is not accepted here.");
+        }
+
+        if (contentLength <= 0 || contentLength > CaptureLimits.MaximumBytesFor(kind, isOriginal))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.TooLarge, "The file is larger than this link accepts.");
+        }
+    }
+
+    /// <summary>
+    /// Only a capture filing on its Case as each photo arrives takes
+    /// originals; for any other the refusal is final, so the phone sends and
+    /// retries nothing (operator, 9 November 2026; R801).
+    /// </summary>
+    private static void RequireTakesOriginal(PhotoCapture capture, PhotoCaptureItemKind kind)
+    {
+        if (!capture.TakesOriginals || !PhotoCaptureStory.IsPhotographKind(kind))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.UnsupportedType, "This link does not take full-size originals.");
+        }
+    }
+
+    /// <summary>The request's digest when its caller computed it, else one read of its content.</summary>
+    private static async Task<string> HashAsync(
+        PhotoCapture capture,
+        ReceivePhotoCaptureItemRequest request,
+        string name,
+        DateTimeOffset now,
+        CancellationToken cancellationToken) =>
+        Intake.ReceiveIntake.KnownSha256(request.Sha256)
+            ?? await Intake.ReceiveIntake.StreamHashAsync(
+                new Intake.StreamedIntakeSource(
+                    name, request.MediaType, request.ContentLength, request.OpenContentAsync, now,
+                    Intake.IntakeActorIdentity.PhotoCapture(capture.Id),
+                    new(Intake.IntakeSourceChannel.PhotoCapture, "hash")),
+                cancellationToken);
+
+    /// <summary>Whether an item of <paramref name="kind"/> counts against the same per-link cap as one of <paramref name="other"/>: videos, paperwork, or photographs.</summary>
+    private static bool CountsWith(PhotoCaptureItemKind kind, PhotoCaptureItemKind other) =>
+        kind == other || (PhotoCaptureStory.IsPhotographKind(kind) && PhotoCaptureStory.IsPhotographKind(other));
+
+    private static int MaximumItemsOf(PhotoCaptureItemKind kind) => kind switch
+    {
+        PhotoCaptureItemKind.Video => CaptureLimits.MaximumVideosPerCapture,
+        PhotoCaptureItemKind.Paperwork => CaptureLimits.MaximumDocumentsPerCapture,
+        _ => CaptureLimits.MaximumPhotosPerCapture
+    };
+
+    private static PhotoCaptureRefusalException Unavailable() =>
+        new(PhotoCaptureRefusals.Unavailable, "The link is no longer active.");
+
+    private static PhotoCaptureRefusalException CapReached() =>
+        new(PhotoCaptureRefusals.CapReached, "This link has received as much as it can take.");
 }
 
 public sealed record CompletedPhotoCapture(PhotoCapture Capture, IReadOnlyList<MissingCaptureItem> Missing);
@@ -718,7 +864,9 @@ public sealed class PhotoLinkActions(
     /// A fresh token for the same capture: the earlier message keeps working,
     /// and the new one is counted as a reminder when
     /// <paramref name="isReminder"/>. Staff reach it through
-    /// <see cref="ResendAsync"/>, which decides that.
+    /// <see cref="ResendAsync"/>, which decides that. One operation key makes
+    /// one token: the form posted again is <see cref="IssuedPhotoLink.Replayed"/>,
+    /// with no token and no second reminder.
     /// </summary>
     public async Task<IssuedPhotoLink> ReissueAsync(
         ActionActor actor,
@@ -746,13 +894,11 @@ public sealed class PhotoLinkActions(
         }
 
         var token = PhotoLinkToken.Create();
-        await captures.AddTokenAsync(
-            captureId,
-            PhotoLinkToken.Digest(token),
-            purpose,
-            Guid.TryParse(actor.SubjectId, out var staffId) ? staffId : null,
-            now,
-            cancellationToken);
+        if (!await captures.ReissueAsync(captureId, PhotoLinkToken.Digest(token), purpose, actor, operationKey, now, cancellationToken))
+        {
+            return IssuedPhotoLink.Replay(capture);
+        }
+
         if (isReminder)
         {
             capture = await captures.RecordReminderAsync(captureId, actor, operationKey, now, cancellationToken);

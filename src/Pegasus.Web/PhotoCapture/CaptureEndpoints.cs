@@ -47,8 +47,11 @@ public sealed record CaptureCompleteResponse(IReadOnlyList<MissingCaptureItem> M
 /// form or model binding. Nothing here logs a token: the start response
 /// carries one, so it, like the hand-off's link, is never compressed.
 /// </summary>
-public static class CaptureEndpoints
+public static partial class CaptureEndpoints
 {
+    /// <summary>The leading bytes kept for the signature: an ISO media header names its brands within its first 40.</summary>
+    private const int HeaderBytes = 64;
+
     private static readonly string[] AcceptedMediaTypes =
     [
         "image/jpeg",
@@ -204,6 +207,7 @@ public static class CaptureEndpoints
         int part,
         HttpContext context,
         [FromServices] IDocumentUploadStaging staging,
+        [FromServices] ReceivePhotoCaptureItem receive,
         [FromServices] TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
@@ -217,10 +221,10 @@ public static class CaptureEndpoints
             throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.InvalidRequest, "The total size must be positive.");
         }
 
-        if (totalBytes > CaptureLimits.MaximumBytesFor(query.Kind, query.Original))
-        {
-            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.TooLarge, "The file is larger than this link accepts.");
-        }
+        // What the commit would refuse from the declaration alone is refused
+        // before the part's bytes are read or kept.
+        await receive.AdmitPartAsync(
+            capture, itemId, query.Kind, query.Original, mediaType, totalBytes, firstPart: part == 1, cancellationToken);
 
         // The whole file's digest is optional here and required on the commit,
         // which checks the staged bytes against it.
@@ -291,6 +295,7 @@ public static class CaptureEndpoints
         HttpContext context,
         [FromServices] IDocumentUploadStaging staging,
         [FromServices] ReceivePhotoCaptureItem receive,
+        [FromServices] ILoggerFactory loggers,
         CancellationToken cancellationToken)
     {
         var capture = CaptureLinkAdmission.Access(context).Capture!;
@@ -300,7 +305,17 @@ public static class CaptureEndpoints
         var sha256 = NormalizeSha256(commit!.Sha256)
             ?? throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.InvalidRequest, DocumentUploadRefusals.Sha256);
         var manifest = await staging.ReadManifestAsync(uploadId, cancellationToken);
-        if (manifest is null || !string.Equals(manifest.Owner, Owner(capture), StringComparison.Ordinal))
+        if (manifest is null)
+        {
+            // A commit that kept the item cleared its parts; its retry is
+            // answered as that commit was.
+            return ItemResult(
+                itemId,
+                await receive.FindReplayAsync(capture, itemId, query.Original, sha256, commit.TotalBytes, cancellationToken)
+                    ?? throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.NotReady, DocumentUploadRefusals.Unavailable));
+        }
+
+        if (!string.Equals(manifest.Owner, Owner(capture), StringComparison.Ordinal))
         {
             throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.NotReady, DocumentUploadRefusals.Unavailable);
         }
@@ -311,27 +326,34 @@ public static class CaptureEndpoints
             throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.ItemConflict, DocumentUploadRefusals.OperationKeyConflict);
         }
 
+        var partCount = CaptureLimits.PartCount(manifest.TotalBytes);
         var received = await staging.ListPartNumbersAsync(uploadId, cancellationToken);
-        var missing = Enumerable.Range(1, CaptureLimits.PartCount(manifest.TotalBytes)).Except(received).ToArray();
+        var missing = Enumerable.Range(1, partCount).Except(received).ToArray();
         if (missing.Length > 0)
         {
-            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.NotReady, DocumentUploadRefusals.MissingParts(missing));
+            return ItemResult(
+                itemId,
+                await receive.FindReplayAsync(capture, itemId, query.Original, sha256, commit.TotalBytes, cancellationToken)
+                    ?? throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.NotReady, DocumentUploadRefusals.MissingParts(missing)));
+        }
+
+        // The parts are read through once here, before anything is kept, for
+        // the phone's digest and the first part's signature. Core and intake
+        // are given that digest rather than reading the parts again for it;
+        // the copy intake keeps is the one other read, and it hashes what it
+        // writes and refuses anything but this digest.
+        string actual;
+        byte[] header;
+        await using (var parts = new ConcatenatedPartsStream(staging, uploadId, manifest.TotalBytes))
+        {
+            (actual, header) = await HashAsync(parts, cancellationToken);
         }
 
         // The parts were sent under the file's own type; the commit is JSON,
         // so it names the type or the first part's signature does.
         var mediaType = commit.MediaType is { Length: > 0 } declaredType
             ? RequireMediaType(declaredType)
-            : await SniffMediaTypeAsync(staging, uploadId, cancellationToken);
-
-        // Core does not compare the staged bytes with the phone's digest, so
-        // the parts are read through once here before anything is kept.
-        string actual;
-        await using (var parts = new ConcatenatedPartsStream(staging, uploadId, manifest.TotalBytes))
-        {
-            actual = await HashAsync(parts, cancellationToken);
-        }
-
+            : SniffMediaType(header);
         if (!string.Equals(actual, sha256, StringComparison.Ordinal))
         {
             throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.ItemConflict, DocumentUploadRefusals.Sha256Mismatch);
@@ -344,8 +366,21 @@ public static class CaptureEndpoints
                 mediaType,
                 manifest.TotalBytes,
                 Bound(commit.Name) ?? query.Name,
-                _ => ValueTask.FromResult<Stream>(new ConcatenatedPartsStream(staging, uploadId, manifest.TotalBytes))),
+                _ => ValueTask.FromResult<Stream>(new ConcatenatedPartsStream(staging, uploadId, manifest.TotalBytes)),
+                actual),
             cancellationToken);
+
+        // The item is kept, so its parts are no longer needed; a retry is
+        // answered from the item. A delete that fails is left to the sweep.
+        try
+        {
+            await staging.DeleteUploadAsync(uploadId, partCount, CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            LogPartsNotCleared(loggers.CreateLogger(typeof(CaptureEndpoints)), exception, uploadId);
+        }
+
         return ItemResult(itemId, result);
     }
 
@@ -362,38 +397,48 @@ public static class CaptureEndpoints
             CaptureContextFactory.JsonOptions);
     }
 
-    /// <summary>The accepted type whose signature the first part carries; the QuickTime brand is told from MP4's.</summary>
-    private static async Task<string> SniffMediaTypeAsync(
-        IDocumentUploadStaging staging,
-        Guid uploadId,
-        CancellationToken cancellationToken)
+    /// <summary>The accepted type whose signature the file's leading bytes carry; the QuickTime brand is told from MP4's.</summary>
+    private static string SniffMediaType(byte[] header)
     {
-        if (await staging.ReadPartAsync(uploadId, 1, cancellationToken) is { } first)
+        foreach (var candidate in AcceptedMediaTypes)
         {
-            foreach (var candidate in AcceptedMediaTypes)
+            if (IntakeUploadFilePolicy.HeaderMatches(null, candidate, header) == true)
             {
-                if (IntakeUploadFilePolicy.HeaderMatches(null, candidate, first.Span) == true)
-                {
-                    return candidate;
-                }
+                return candidate;
             }
         }
 
         throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.UnsupportedType, "That kind of file is not accepted here.");
     }
 
-    private static async Task<string> HashAsync(Stream stream, CancellationToken cancellationToken)
+    /// <summary>The stream's SHA-256, and its leading bytes, enough for any accepted type's signature.</summary>
+    private static async Task<(string Sha256, byte[] Header)> HashAsync(Stream stream, CancellationToken cancellationToken)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var buffer = new byte[81920];
+        var header = new byte[HeaderBytes];
+        var headerLength = 0;
         int read;
         while ((read = await stream.ReadAsync(buffer, cancellationToken)) > 0)
         {
+            if (headerLength < header.Length)
+            {
+                var copied = Math.Min(read, header.Length - headerLength);
+                buffer.AsSpan(0, copied).CopyTo(header.AsSpan(headerLength));
+                headerLength += copied;
+            }
+
             hash.AppendData(buffer, 0, read);
         }
 
-        return Convert.ToHexString(hash.GetHashAndReset());
+        return (Convert.ToHexString(hash.GetHashAndReset()), header[..headerLength]);
     }
+
+    [LoggerMessage(
+        EventId = 2,
+        Level = LogLevel.Warning,
+        Message = "The staged parts of committed upload {UploadId} were not deleted; the abandoned-upload sweep deletes them.")]
+    private static partial void LogPartsNotCleared(ILogger logger, Exception exception, Guid uploadId);
 
     private static IResult ItemResult(Guid itemId, ReceivedPhotoCaptureItem received) =>
         Results.Json(
@@ -602,7 +647,8 @@ public sealed record CaptureItemQuery(
         string mediaType,
         long contentLength,
         string? fileName,
-        Func<CancellationToken, ValueTask<Stream>> openContentAsync) =>
+        Func<CancellationToken, ValueTask<Stream>> openContentAsync,
+        string? sha256 = null) =>
         new(
             clientItemId,
             Kind,
@@ -615,7 +661,8 @@ public sealed record CaptureItemQuery(
             fileName,
             mediaType,
             contentLength,
-            openContentAsync);
+            openContentAsync,
+            sha256);
 
     private static string? Optional(IQueryCollection query, string key)
     {

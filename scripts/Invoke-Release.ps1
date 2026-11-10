@@ -919,6 +919,62 @@ function Read-Protection {
     }
 }
 
+function Get-CheckValue {
+    param([Parameter(Mandatory)][object] $Check, [Parameter(Mandatory)][string[]] $Names)
+    foreach ($name in $Names) {
+        $property = $Check.PSObject.Properties[$name]
+        if ($null -ne $property -and -not [string]::IsNullOrWhiteSpace([string]$property.Value)) { return [string]$property.Value }
+    }
+    return ''
+}
+
+function Get-CheckTime {
+    # ConvertFrom-Json turns gh's ISO timestamps into DateTime values.
+    param([Parameter(Mandatory)][object] $Check)
+    foreach ($name in 'startedAt', 'completedAt', 'createdAt') {
+        $property = $Check.PSObject.Properties[$name]
+        if ($null -eq $property -or $null -eq $property.Value) { continue }
+        if ($property.Value -is [datetime]) { return [datetimeoffset]::new(([datetime]$property.Value).ToUniversalTime()) }
+        $parsed = [datetimeoffset]::MinValue
+        if ([datetimeoffset]::TryParse([string]$property.Value, [cultureinfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal, [ref]$parsed)) { return $parsed }
+    }
+    return [datetimeoffset]::MinValue
+}
+
+function Select-CurrentChecks {
+    # A pull request's rollup keeps every run its head ever had: a run that a
+    # later push or a re-run superseded stays in it, cancelled or failed. Each
+    # workflow is judged by its latest run, and within that run each check by
+    # its latest attempt; a commit status by its latest report. A latest run
+    # that is not green still counts, so nothing is waived (R691, R924).
+    param([object[]] $Checks)
+    $latestRun = @{}
+    foreach ($check in @($Checks)) {
+        $workflow = Get-CheckValue -Check $check -Names @('workflowName')
+        $url = Get-CheckValue -Check $check -Names @('detailsUrl')
+        if ($workflow -and $url -match '/actions/runs/(\d+)') {
+            $run = [long]$Matches[1]
+            if (-not $latestRun.ContainsKey($workflow) -or $run -gt $latestRun[$workflow]) { $latestRun[$workflow] = $run }
+        }
+    }
+    $current = [ordered]@{}
+    foreach ($check in @($Checks)) {
+        $workflow = Get-CheckValue -Check $check -Names @('workflowName')
+        $url = Get-CheckValue -Check $check -Names @('detailsUrl')
+        if ($workflow -and $url -match '/actions/runs/(\d+)') {
+            if ([long]$Matches[1] -ne $latestRun[$workflow]) { continue }
+            $key = "run:$workflow/$(Get-CheckValue -Check $check -Names @('name'))"
+        }
+        else {
+            $key = "other:$(Get-CheckValue -Check $check -Names @('name', 'context'))"
+        }
+        if (-not $current.Contains($key) -or (Get-CheckTime -Check $check) -gt (Get-CheckTime -Check $current[$key])) {
+            $current[$key] = $check
+        }
+    }
+    return @($current.Values)
+}
+
 function Read-CandidateChecks {
     # The push-to-dev run on the candidate is its exact-head evidence (R683);
     # the merged pull requests in the range and their checks are listed with
@@ -964,7 +1020,7 @@ function Read-CandidateChecks {
                 $bugFixesReason = "#$number closes #$issue ($(if ($typeLabels.Count -gt 0) { $typeLabels -join ', ' } else { 'no type label' }))"
             }
         }
-        $checks = @($pull.statusCheckRollup)
+        $checks = @(Select-CurrentChecks -Checks @($pull.statusCheckRollup))
         # A check run carries a conclusion; a commit status carries a state.
         $failing = @($checks | Where-Object {
             $verdict = ''

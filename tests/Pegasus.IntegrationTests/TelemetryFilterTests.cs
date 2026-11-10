@@ -199,12 +199,12 @@ public sealed class TelemetryFilterTests
     [Fact]
     public void AQuietPathIsMatchedByWholeSegments()
     {
-        foreach (var path in new[] { "/health/ready", "/css/x.css", "/js/x.js", "/fonts/x.woff2", "/images/x.png", "/diagnostics/version" })
+        foreach (var path in new[] { "/health/ready", "/css/x.css", "/js/x.js", "/fonts/x.woff2", "/images/x.png", "/diagnostics/version", "/capture/capture.css", "/capture/capture.js", "/capture/img/1.jpg" })
         {
             Assert.True(QuietRequestTelemetryFilter.IsQuietPath(path), path);
         }
 
-        foreach (var path in new[] { "/", "/Index", "/Cases/Details", "/Mail/Index", "/healthy-food", "/cssx" })
+        foreach (var path in new[] { "/", "/Index", "/Cases/Details", "/Mail/Index", "/healthy-food", "/cssx", "/capture/api/v1/context", "/capture/capture.css.map" })
         {
             Assert.False(QuietRequestTelemetryFilter.IsQuietPath(path), path);
         }

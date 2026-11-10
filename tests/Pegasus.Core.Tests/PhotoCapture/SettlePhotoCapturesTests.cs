@@ -56,7 +56,6 @@ public sealed class SettlePhotoCapturesTests
         var result = await harness.Settle().ExecuteAsync(50, CancellationToken.None);
 
         Assert.Equal(1, result.Settled);
-        Assert.Equal(0, result.Failures);
         var close = Assert.Single(harness.Store.Closes);
         Assert.Null(close.Request.Group);
         Assert.True(close.Request.BellOwed);
@@ -223,16 +222,19 @@ public sealed class SettlePhotoCapturesTests
         harness.Store.AddFiled(Capture(sentAtUtc: Now), CaseId, OnCase(PhotoCaptureItemKind.Overview, 0));
         harness.Notifier.FailNext = 1;
 
-        var failed = await harness.Settle().ExecuteAsync(50, CancellationToken.None);
+        // The run settles the batch and then throws the bell's failure, naming the capture.
+        var failed = await Assert.ThrowsAsync<AggregateException>(
+            () => harness.Settle().ExecuteAsync(50, CancellationToken.None));
 
-        Assert.Equal(1, failed.Settled);
-        Assert.Equal(1, failed.Failures);
+        var failure = Assert.Single(failed.InnerExceptions);
+        Assert.Contains(harness.Store.Captures.Keys.Single().ToString("D"), failure.Message, StringComparison.Ordinal);
+        Assert.Equal("The bell could not be raised just now.", failure.InnerException?.Message);
+        Assert.Single(harness.Store.Closes);
         Assert.Empty(harness.Notifier.Raised);
         Assert.Single(harness.Store.BellsOwed);
 
-        var next = await harness.Settle(Now.AddMinutes(5)).ExecuteAsync(50, CancellationToken.None);
+        await harness.Settle(Now.AddMinutes(5)).ExecuteAsync(50, CancellationToken.None);
 
-        Assert.Equal(0, next.Failures);
         Assert.Equal((StaffNotificationCause.PhotosReceived, CaseId), Assert.Single(harness.Notifier.Raised));
         Assert.Empty(harness.Store.BellsOwed);
         Assert.Single(harness.Store.Closes);
@@ -245,9 +247,8 @@ public sealed class SettlePhotoCapturesTests
         harness.Store.AddFiled(Capture(sentAtUtc: Now), CaseId, OnCase(PhotoCaptureItemKind.Overview, 0));
         harness.CaseWriter.FailImages = 1;
 
-        var failed = await harness.Settle().ExecuteAsync(50, CancellationToken.None);
+        await Assert.ThrowsAsync<AggregateException>(() => harness.Settle().ExecuteAsync(50, CancellationToken.None));
 
-        Assert.Equal(1, failed.Failures);
         Assert.Empty(harness.Store.Closes);
         Assert.Empty(harness.Notifier.Raised);
 
@@ -256,6 +257,56 @@ public sealed class SettlePhotoCapturesTests
         Assert.Equal(1, retried.Settled);
         Assert.Single(harness.CaseWriter.ImagesCompleted);
         Assert.Single(harness.Store.Closes);
+        Assert.Single(harness.Notifier.Raised);
+    }
+
+    /// <summary>
+    /// A fill that fails leaves the batch open, so the customer's typed
+    /// fields are written by the next run rather than lost with the close.
+    /// </summary>
+    [Fact]
+    public async Task AFailedFillLeavesTheBatchOpenAndTheNextRunFillsAndCloses()
+    {
+        var harness = new Harness();
+        harness.Store.AddFiled(Capture(sentAtUtc: Now, mileage: 48_210), CaseId, OnCase(PhotoCaptureItemKind.Overview, 0));
+        harness.CaseWriter.FailFill = 1;
+
+        await Assert.ThrowsAsync<AggregateException>(() => harness.Settle().ExecuteAsync(50, CancellationToken.None));
+
+        Assert.Empty(harness.CaseWriter.Filled);
+        Assert.Empty(harness.Store.Closes);
+        Assert.Empty(harness.Notifier.Raised);
+
+        var retried = await harness.Settle(Now.AddMinutes(1)).ExecuteAsync(50, CancellationToken.None);
+
+        Assert.Equal(1, retried.Settled);
+        Assert.Single(harness.CaseWriter.Filled);
+        Assert.Single(harness.Store.Closes);
+        Assert.Single(harness.Notifier.Raised);
+    }
+
+    /// <summary>
+    /// One capture's failure neither stops the others nor goes unseen: the
+    /// run settles what it can, then throws each failure naming its capture.
+    /// </summary>
+    [Fact]
+    public async Task AFailingCaptureDoesNotStopTheOthersAndItsFailureNamesIt()
+    {
+        var harness = new Harness();
+        var failing = Capture(sentAtUtc: Now, createdAtUtc: Now.AddHours(-2)) with { Id = Guid.NewGuid() };
+        var ready = Capture(sentAtUtc: Now, createdAtUtc: Now.AddHours(-1)) with { Id = Guid.NewGuid() };
+        harness.Store.AddFiled(failing, CaseId, OnCase(PhotoCaptureItemKind.Overview, 0));
+        harness.Store.AddFiled(ready, CaseId, OnCase(PhotoCaptureItemKind.Overview, 0));
+        harness.CaseWriter.FailImages = 1;
+
+        var thrown = await Assert.ThrowsAsync<AggregateException>(
+            () => harness.Settle().ExecuteAsync(50, CancellationToken.None));
+
+        var failure = Assert.Single(thrown.InnerExceptions);
+        Assert.Contains(failing.Id.ToString("D"), failure.Message, StringComparison.Ordinal);
+        Assert.IsType<InvalidOperationException>(failure.InnerException);
+        Assert.Equal(ready.Id, Assert.Single(harness.Store.Closes).CaptureId);
+        // The settled batch's bell still rang in the same run.
         Assert.Single(harness.Notifier.Raised);
     }
 
@@ -279,7 +330,6 @@ public sealed class SettlePhotoCapturesTests
         var result = await harness.Settle().ExecuteAsync(50, CancellationToken.None);
 
         Assert.Equal(1, result.Settled);
-        Assert.Equal(0, result.Failures);
         Assert.Single(harness.Notifier.Raised);
     }
 
@@ -838,7 +888,7 @@ public sealed class SettlePhotoCapturesTests
 
         var result = await harness.Settle().ExecuteAsync(50, CancellationToken.None);
 
-        Assert.Equal((1, 0, 0, 0), (result.Examined, result.Settled, result.ReachedCase, result.Failures));
+        Assert.Equal((1, 0, 0), (result.Examined, result.Settled, result.ReachedCase));
         Assert.Equal(IdleRunReads, harness.Store.Calls);
     }
 
@@ -1345,6 +1395,8 @@ public sealed class SettlePhotoCapturesTests
         public List<Guid> FilledOn { get; } = [];
         public int FailImages { get; set; }
 
+        public int FailFill { get; set; }
+
         public Task CompleteImagesAsync(Guid caseId, Guid captureId, string operationKey, string reason, CancellationToken cancellationToken)
         {
             if (FailImages > 0)
@@ -1361,6 +1413,12 @@ public sealed class SettlePhotoCapturesTests
 
         public Task<IReadOnlyList<string>> FillEmptyFieldsAsync(Guid caseId, IReadOnlyDictionary<string, string> values, Guid captureId, string sourceLabel, CancellationToken cancellationToken)
         {
+            if (FailFill > 0)
+            {
+                FailFill--;
+                throw new InvalidOperationException("The Case's fields could not be written just now.");
+            }
+
             Filled.Add(values);
             FilledOn.Add(caseId);
             events.Add("fill");

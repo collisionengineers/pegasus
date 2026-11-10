@@ -701,8 +701,10 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
   batch, matched again when it settles; with no Case they make a further
   Vehicle images record for the same registration (R791).
 - **Upload in flight.** A batch with an item still on its way, received in
-  the last five minutes with no receipt yet, waits; an older one never
-  reached intake, and its retry joins the next batch.
+  the last five minutes with no receipt yet, waits. An older one whose file
+  reached intake is counted into the batch as it settles, so a retry finds
+  it there; one that never reached intake joins the next batch on its retry
+  (10 November 2026; R925).
 - **Registration.** Once a photo has filed against a capture's
   registration, the registration is locked: a different one would be a
   different vehicle. Until its first photo a standing capture is routed
@@ -711,10 +713,20 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
   stands. A link sent from a Case keeps its Case's registration, which it
   shows read-only ([Photo links](#photo-links)), and a typed one is ignored.
 - **Feature off.** With `Features:PhotoCapture` off, `/c`, `/s`, `/capture`
-  and `/PhotoCapture` answer 404, and the rail item, Send photo link, the
-  Photo links tab and the **Photo links** settings in Administration ›
-  Configuration are absent
+  and `/PhotoCapture` answer 404, as does Administration › Photo links
+  before sign-in, and the rail item, Send photo link and the Photo links tab
+  are absent
   ([configuration](../engineering/configuration.md#photo-capture)).
+- **A staff form posted again.** A Send, Resend or Ask for it posted again
+  under the same operation key (a refresh, or Back and send) issues, sends
+  and texts nothing more. The link was shown to the first post alone, as
+  only its digest is kept ([ADR-0090](../adr/0090-public-photo-capture-surface.md)):
+  a repeated text is refused with "This text was already sent.", and any
+  other repeat opens the link's page, or returns the composer to where it
+  was opened from (10 November 2026; R925).
+- **A fault while settling.** A fault while a batch fills its Case's fields
+  leaves the batch unsettled, and the next settle tries it again; the
+  customer's typed values are not dropped (10 November 2026; R925).
 
 ## Acceptance evidence
 

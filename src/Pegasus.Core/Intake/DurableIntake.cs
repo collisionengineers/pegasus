@@ -476,7 +476,9 @@ public sealed class ReceiveIntake(
         CancellationToken cancellationToken = default)
     {
         var safeFileName = ValidateStreamedSource(source, operationKey);
-        var hash = await StreamHashAsync(source, cancellationToken);
+        // A digest the caller already computed is not computed again: the
+        // staging copy below hashes the bytes it keeps and refuses a mismatch.
+        var hash = KnownSha256(source.ContentSha256) ?? await StreamHashAsync(source, cancellationToken);
         var existing = await workStore.FindBySourceIdentityAsync(
             source.SourceIdentity,
             cancellationToken);
@@ -574,6 +576,22 @@ public sealed class ReceiveIntake(
                 type,
                 "The document type is not one an upload may choose.");
         }
+    }
+
+    /// <summary>The caller's digest in the form <see cref="StreamHashAsync"/> gives, or null when it named none.</summary>
+    internal static string? KnownSha256(string? sha256)
+    {
+        if (sha256 is null)
+        {
+            return null;
+        }
+
+        if (sha256.Length != 64 || !sha256.All(char.IsAsciiHexDigit))
+        {
+            throw new ArgumentException("The content SHA-256 must be 64 hexadecimal characters.", nameof(sha256));
+        }
+
+        return sha256.ToUpperInvariant();
     }
 
     internal static async Task<string> StreamHashAsync(StreamedIntakeSource source, CancellationToken cancellationToken)

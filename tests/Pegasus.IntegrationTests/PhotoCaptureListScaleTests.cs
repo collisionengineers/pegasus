@@ -862,6 +862,8 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
             InReportOnArrival = PhotoCaptureStory.StartsInReport(shape.Kind),
             ContentHash = $"{captureId:N}{ordinal:x32}",
             ContentLength = shape.Length,
+            // Received: its upload reached intake, so the lists count it.
+            StagedReceiptId = Guid.NewGuid(),
             ReceivedAtUtc = receivedAtUtc,
             DeclaredCaseId = caseId
         };

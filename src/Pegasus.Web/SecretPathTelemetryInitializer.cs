@@ -22,6 +22,13 @@ public sealed class SecretPathTelemetryInitializer : ITelemetryInitializer
 
     public void Initialize(ITelemetry telemetry)
     {
+        // Whatever the item, its operation name may carry the raw path: a row
+        // emitted before routing is named by the path, not the route template.
+        if (telemetry.Context.Operation.Name is { Length: > 0 } operationName)
+        {
+            telemetry.Context.Operation.Name = Scrub(operationName);
+        }
+
         if (telemetry is not RequestTelemetry { Url: { IsAbsoluteUri: true } url } request)
         {
             return;
@@ -48,5 +55,21 @@ public sealed class SecretPathTelemetryInitializer : ITelemetryInitializer
 
             return;
         }
+    }
+
+    /// <summary>An operation name such as <c>GET /c/token</c> with a secret path rewritten to its template.</summary>
+    private static string Scrub(string operationName)
+    {
+        var space = operationName.IndexOf(' ', StringComparison.Ordinal);
+        var path = space < 0 ? operationName : operationName[(space + 1)..];
+        foreach (var (prefix, template) in SecretPaths)
+        {
+            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return space < 0 ? template : operationName[..(space + 1)] + template;
+            }
+        }
+
+        return operationName;
     }
 }

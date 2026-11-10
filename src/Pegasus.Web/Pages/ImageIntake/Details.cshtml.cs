@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
@@ -40,6 +41,10 @@ public sealed class DetailsModel(
 
     /// <summary>The tag vocabulary the viewer's Tag select offers.</summary>
     public IReadOnlyList<Pegasus.Core.Documents.ImageTag> ImageTags { get; private set; } = [];
+
+    /// <summary>Whether the staff photo-capture pages exist; the photo count links to them only then.</summary>
+    public bool PhotoCaptureEnabled => Pegasus.Web.Presentation.ShellRail.PhotoCaptureEnabled(
+        HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>());
 
     /// <summary>The Inbox message the images came in, when they came by e-mail (Open message).</summary>
     public Guid? SourceMessageId { get; private set; }

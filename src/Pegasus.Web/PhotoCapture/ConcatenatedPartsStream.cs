@@ -5,9 +5,9 @@ namespace Pegasus.Web.PhotoCapture;
 
 /// <summary>
 /// A staged upload's parts read back in order as one forward-only stream,
-/// one part in memory at a time. Each part must have the length
-/// <see cref="CaptureLimits.PartLength"/> gives it; a missing or misfit part
-/// is the same file sent differently, an item conflict.
+/// each part streamed from staging as it is read, never held whole. Each part
+/// must have the length <see cref="CaptureLimits.PartLength"/> gives it; a
+/// missing or misfit part is the same file sent differently, an item conflict.
 /// </summary>
 public sealed class ConcatenatedPartsStream : Stream
 {
@@ -16,7 +16,8 @@ public sealed class ConcatenatedPartsStream : Stream
     private readonly long totalBytes;
     private readonly int partCount;
     private int nextPart = 1;
-    private ReadOnlyMemory<byte> current = ReadOnlyMemory<byte>.Empty;
+    private Stream? current;
+    private long currentRemaining;
     private long position;
 
     public ConcatenatedPartsStream(IDocumentUploadStaging staging, Guid uploadId, long totalBytes)
@@ -50,30 +51,42 @@ public sealed class ConcatenatedPartsStream : Stream
             return 0;
         }
 
-        while (current.IsEmpty)
+        while (true)
         {
-            if (nextPart > partCount)
+            if (current is null)
             {
-                return 0;
+                if (nextPart > partCount)
+                {
+                    return 0;
+                }
+
+                current = await staging.OpenPartAsync(uploadId, nextPart, cancellationToken) ?? throw Misfit();
+                currentRemaining = CaptureLimits.PartLength(totalBytes, nextPart);
+                nextPart++;
             }
 
-            var part = await staging.ReadPartAsync(uploadId, nextPart, cancellationToken);
-            if (part is not { } bytes || bytes.Length != CaptureLimits.PartLength(totalBytes, nextPart))
+            if (currentRemaining == 0)
             {
-                throw new PhotoCaptureRefusalException(
-                    PhotoCaptureRefusals.ItemConflict,
-                    DocumentUploadRefusals.LengthMismatch);
+                // The part must end exactly where its length says.
+                if (await current.ReadAsync(new byte[1], cancellationToken) != 0)
+                {
+                    throw Misfit();
+                }
+
+                await CloseCurrentAsync();
+                continue;
             }
 
-            current = bytes;
-            nextPart++;
+            var count = await current.ReadAsync(buffer[..(int)Math.Min(buffer.Length, currentRemaining)], cancellationToken);
+            if (count == 0)
+            {
+                throw Misfit();
+            }
+
+            currentRemaining -= count;
+            position += count;
+            return count;
         }
-
-        var count = Math.Min(buffer.Length, current.Length);
-        current[..count].CopyTo(buffer);
-        current = current[count..];
-        position += count;
-        return count;
     }
 
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
@@ -91,4 +104,27 @@ public sealed class ConcatenatedPartsStream : Stream
     public override void SetLength(long value) => throw new NotSupportedException();
 
     public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            current?.Dispose();
+            current = null;
+        }
+
+        base.Dispose(disposing);
+    }
+
+    private async ValueTask CloseCurrentAsync()
+    {
+        if (current is not null)
+        {
+            await current.DisposeAsync();
+            current = null;
+        }
+    }
+
+    private static PhotoCaptureRefusalException Misfit() =>
+        new(PhotoCaptureRefusals.ItemConflict, DocumentUploadRefusals.LengthMismatch);
 }

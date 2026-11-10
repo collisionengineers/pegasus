@@ -229,7 +229,7 @@ public sealed partial class WorkflowConfigurationWebTests
                 new IssuePhotoLinkRequest(
                     caseId, PhotoLinkIssuer, CustomerName: null, Mobile: null, Email: null, IncidentDate: null,
                     PhotoCaptureMode.Guided, QuickLinkFor: null, LiveCameraOnly: false, OriginalsInBackground: false,
-                    LifetimeDays: 14, PhotoLinkTokenPurpose.Copy),
+                    LifetimeDays: 14, PhotoLinkTokenPurpose.Copy, OperationKey: Guid.NewGuid().ToString("N")),
                 CancellationToken.None);
         }
 
