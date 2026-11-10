@@ -326,7 +326,7 @@ public sealed partial class PhotoCaptureWebTests
         var name = await StaffNameAsync(factory, DevelopmentOfflineIdentity.AdministratorId);
         var details = await IntakeWebDriver.GetHtmlAsync(client, page);
         var line = HtmlEncoder.Default.Encode($"Reminded · {name}");
-        Assert.Equal(2, Regex.Matches(details, Regex.Escape(line)).Count);
+        Assert.Equal(2, Regex.Count(details, Regex.Escape(line)));
     }
 
     /// <summary>
