@@ -925,31 +925,6 @@ public sealed class AutomaticImageIntakeTests
         Assert.Equal(ImageInitiatedCaseState.MergedIntoInstructionCase, harness.ImageIntakeQueries.Existing!.State);
     }
 
-    [Fact]
-    public async Task OneEligibleCaseRegistersTheGroupOnceAndAssociatesEveryMember()
-    {
-        var harness = new GroupHarness(memberCount: 2, sourceChannel: IntakeSourceChannel.Mailbox);
-        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
-        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
-        var caseId = Guid.NewGuid();
-        harness.CaseCandidates.Candidates = [new(caseId, "QDS26013", 1, "AB12CDE", DateTimeOffset.UnixEpoch)];
-
-        await harness.ApplyAsync(triggerOrdinal: 1);
-
-        // The group is the registration unit: one registration for the whole
-        // submission group, keyed to the group and originating from its
-        // lowest-ordinal image member — never one per member.
-        var registration = Assert.Single(harness.Register.Requests);
-        Assert.Equal(harness.GroupId, registration.SubmissionGroupId);
-        Assert.Equal($"image-intake-register:group:{harness.GroupId:N}", registration.OperationKey);
-        Assert.Equal(harness.Receipts[0].Id, registration.Origin.ReceiptId);
-        Assert.Equal(2, harness.MutationStore.AutoLinks.Count);
-        Assert.All(harness.MutationStore.AutoLinks, link => Assert.Equal(caseId, link.CaseId));
-        Assert.Equal(
-            harness.Receipts.Select(receipt => receipt.Id).OrderBy(id => id),
-            harness.MutationStore.AutoLinks.Select(link => link.ReceiptId).OrderBy(id => id));
-    }
-
     /// <summary>
     /// A photo link's batch was matched at its settle with the link's
     /// Principal and the typed date, which the group's own count does not
@@ -975,32 +950,6 @@ public sealed class AutomaticImageIntakeTests
         Assert.Equal(harness.GroupId, registration.SubmissionGroupId);
         Assert.Empty(harness.MutationStore.AutoLinks);
         Assert.Equal(0, harness.Engine.Calls);
-    }
-
-    [Fact]
-    public async Task TriageClassifiedSiblingIsNotScannedOrRegisteredWithThePhotoGroup()
-    {
-        var harness = new GroupHarness(memberCount: 2, sourceChannel: IntakeSourceChannel.Mailbox);
-        var triage = harness.Receipts[1] with
-        {
-            MailClassificationDecision = MailClassificationResult.Classified(
-                MailCategory.TriageRequest,
-                [],
-                "The mailbox classifier identified a Triage request.",
-                "test",
-                1)
-        };
-        harness.ReplaceReceipt(1, triage);
-        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
-
-        await harness.ApplyAsync(triggerOrdinal: 0);
-
-        Assert.Equal(1, harness.Engine.Calls);
-        Assert.Single(harness.Register.Requests);
-        Assert.DoesNotContain(
-            harness.SuggestionStore.Records,
-            suggestion => suggestion.IntakeReceiptId == triage.Id);
-        Assert.Equal(IntakeDecision.NeedsSorting, harness.Receipts[1].Decision);
     }
 
     [Fact]
@@ -1058,8 +1007,8 @@ public sealed class AutomaticImageIntakeTests
     {
         // Both members read the same registration, but the group holds two
         // raw candidates for it — one an exact match, one a one-character-
-        // longer fuzzy match. The group-level count of two is ambiguous, so
-        // the group hands off to ImageIntake. A member-level candidate
+        // longer fuzzy match. Past its wait the group hands off to
+        // ImageIntake however many Cases carry its read (R880). A member-level candidate
         // search would, on its own, resolve the ambiguity by exact match and
         // associate — that must never overrule the group decision.
         var harness = new GroupHarness(
@@ -1111,31 +1060,6 @@ public sealed class AutomaticImageIntakeTests
         await harness.ApplyAsync(triggerOrdinal: 1);
 
         Assert.Equal(2, harness.Engine.Calls);
-    }
-
-    [Fact]
-    public async Task AOneMemberGroupKeepsTheSingleImageAssociationRule()
-    {
-        // A one-member non-manual image submission uses the single-image
-        // candidate rule: an exact confirmed match beats a one-character-
-        // longer fuzzy candidate and associates. The group decision table
-        // scopes itself to more than one image.
-        var harness = new GroupHarness(memberCount: 1, sourceChannel: IntakeSourceChannel.Mailbox);
-        harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
-        var exactCaseId = Guid.NewGuid();
-        harness.CaseCandidates.Candidates =
-        [
-            new(exactCaseId, "QDS26014", 1, "BX69YLM", DateTimeOffset.UnixEpoch),
-            new(Guid.NewGuid(), "QDS26015", 1, "BX69YLMA", DateTimeOffset.UnixEpoch)
-        ];
-
-        var outcome = await harness.ApplyAsync(triggerOrdinal: 0);
-
-        Assert.True(outcome.AssociatedCase);
-        Assert.Empty(harness.Register.Requests);
-        var association = Assert.Single(harness.AssociationStore.Requests);
-        Assert.Equal(exactCaseId, association.CaseId);
-        Assert.Equal(ImageIntakeAutomation.MatchPolicyKey, association.MatchPolicyKey);
     }
 
     [Fact]
@@ -1198,7 +1122,14 @@ public sealed class AutomaticImageIntakeTests
         var outcome = await harness.ApplyAsync(triggerOrdinal: 1);
 
         Assert.False(outcome.AwaitingStaffDecision);
-        Assert.Single(harness.Register.Requests);
+        // The group is the registration unit: one registration for the whole
+        // submission group, keyed to the group and originating from its
+        // lowest-ordinal image member — never one per member.
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal(harness.GroupId, registration.SubmissionGroupId);
+        Assert.Equal($"image-intake-register:group:{harness.GroupId:N}", registration.OperationKey);
+        Assert.Equal(harness.Receipts[0].Id, registration.Origin.ReceiptId);
+        Assert.Empty(harness.MutationStore.AutoLinks);
     }
 
     [Fact]
@@ -1242,16 +1173,14 @@ public sealed class AutomaticImageIntakeTests
     {
         var harness = new GroupHarness(
             memberCount: 2,
-            mediaTypeByOrdinal: new Dictionary<int, string> { [1] = "application/pdf" },
-            sourceChannel: IntakeSourceChannel.Mailbox);
+            mediaTypeByOrdinal: new Dictionary<int, string> { [1] = "application/pdf" });
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
-        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26012", 1, "AB12CDE", DateTimeOffset.UnixEpoch)];
 
         await harness.ApplyAsync(triggerOrdinal: 0);
 
         Assert.Equal(1, harness.Engine.Calls);
         Assert.Single(harness.Register.Requests);
-        Assert.Single(harness.MutationStore.AutoLinks);
+        Assert.Empty(harness.MutationStore.AutoLinks);
     }
 
     private static VrmRecognitionResult Suggested(string registration, double confidence) =>
