@@ -2292,8 +2292,10 @@ public sealed class AutomationAssessmentIngressTests
                 Pegasus.Web.Presentation.CaseWorkspaceLabels.Valuation.AlreadyFetched(ValuationSource.Glasses),
                 refused.GetProperty("message").GetString());
         }
+        // The host's clock is the real one, so the later month 2031-05 is the
+        // current month's ask.
         Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM GuideValuationFetches WHERE CaseId = '{caseId:D}' AND Source = N'Glasses' AND GuideMonth = '2031-05-01' AND Registration = N'AB12CDE' AND Mileage = 52000 AND State = N'Answered'"));
+            $"SELECT COUNT(*) FROM GuideValuationFetches WHERE CaseId = '{caseId:D}' AND Source = N'Glasses' AND Registration = N'AB12CDE' AND Mileage = 52000 AND State = N'Answered'"));
         var request = Assert.Single(provider.Requests);
         Assert.Equal(52_000L, request.Mileage);
 
