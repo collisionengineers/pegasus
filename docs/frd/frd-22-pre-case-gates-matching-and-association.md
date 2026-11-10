@@ -272,7 +272,11 @@ inside the bounded replay window it already has, the existing two hours
 ([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface)) from the
 association's link, for system associations only; staff links have no
 window; after the window the mail stays No Case Found for a
-person (operator, 22 October 2026; R189, R377).
+person (operator, 22 October 2026; R189, R377). A No Case Found e-mail whose
+own conversation comes to hold a Case is associated again within two hours of
+its processing, and that association files the same way
+([FRD-08](frd-08-email-mailbox-and-background-processing.md); operator,
+10 November 2026; R884).
 
 ## States and transitions
 

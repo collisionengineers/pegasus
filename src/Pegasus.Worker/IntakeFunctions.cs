@@ -485,6 +485,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ReconcilePendingArtifactCustody reconcilePendingArtifactCustody,
     ISettleFiledCaseReportArtifacts settleFiledCaseReportArtifacts,
     ReconcileGroupedImageIntake reconcileGroupedImageIntake,
+    AssociateThreadSiblings associateThreadSiblings,
     ReplayCaseFilings replayCaseFilings,
     IImageIntakeCasePairing imageIntakeCasePairing,
     ITriageCasePairing triageCasePairing,
@@ -655,6 +656,25 @@ public sealed partial class StagedArtifactReconciliationFunction(
                     groupedImageResult.Retried,
                     groupedImageResult.Escaped,
                     groupedImageResult.Failures);
+            }
+        }, failures, cancellationToken);
+
+        // Links a No Case Found e-mail whose own mailbox conversation has come
+        // to hold a Case since it was processed, within two hours (R884,
+        // #1831). It runs before the Case filings so what it links files in
+        // the same pass.
+        await RunStepAsync("thread siblings", async () =>
+        {
+            var siblings = await associateThreadSiblings.ExecuteAsync(50, cancellationToken);
+            if (siblings.Candidates > 0)
+            {
+                var siblingsLevel = FailureLevel(siblings.Failures);
+                LogThreadSiblingAssociation(
+                    logger,
+                    siblingsLevel,
+                    siblings.Candidates,
+                    siblings.Associated,
+                    siblings.Failures);
             }
         }, failures, cancellationToken);
 
@@ -1003,6 +1023,15 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int candidates,
         int retried,
         int escaped,
+        int failures);
+
+    [LoggerMessage(
+        Message = "Thread siblings: {Candidates} candidates, {Associated} associated, {Failures} failures.")]
+    private static partial void LogThreadSiblingAssociation(
+        ILogger logger,
+        LogLevel level,
+        int candidates,
+        int associated,
         int failures);
 
     [LoggerMessage(

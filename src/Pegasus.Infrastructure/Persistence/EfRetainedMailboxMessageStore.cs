@@ -718,7 +718,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         // no-Case predicate is shared. Pre-Pegasus mail is not excluded as No
         // Case Found excludes it: staff or the agent set that category, never
         // the pipeline, so such a decision is not counted anyway.
-        var holdingNoCase = ReceiptsHoldingNoCase(context);
+        var holdingNoCase = CurrentIntakeAssociations.ReceiptsHoldingNoCase(context);
         return await context.RetainedMailboxMessages
             .AsNoTracking()
             .Where(message => message.FolderScope == inbox && message.DismissedAtUtc == null)
@@ -1417,7 +1417,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             // No Case Found: received mail whose receipt stands linked to no
             // Case. A message decided to be a Pre-Pegasus case has left the
             // scope (operator, 30 October 2026, R561).
-            var holdingNoCase = ReceiptsHoldingNoCase(context);
+            var holdingNoCase = CurrentIntakeAssociations.ReceiptsHoldingNoCase(context);
             return messages.Where(message => holdingNoCase.Any(receipt =>
                 receipt.SourceChannel == "mailbox"
                 && receipt.ExternalReceiptToken == message.ExternalReceiptToken
@@ -1430,29 +1430,6 @@ internal sealed class EfRetainedMailboxMessageStore(
         // Found mail included (operator, 30 October 2026, R570).
         return messages;
     }
-
-    /// <summary>
-    /// The receipts that stand linked to no Case, read in the order the
-    /// summaries read the Case in (<see cref="MapSummariesAsync"/>): an active
-    /// association; else an accepted link when no association row exists; else
-    /// the Case the latest allocation created, unless an association was
-    /// reversed; else the Triage the receipt opened. A query to compose into
-    /// one statement.
-    /// </summary>
-    private static IQueryable<IntakeReceiptEntity> ReceiptsHoldingNoCase(PegasusDbContext context) =>
-        context.IntakeReceipts.Where(receipt =>
-            !context.IntakeManualAssociations.Any(association =>
-                association.IntakeReceiptId == receipt.Id && association.IsActive)
-            && (context.IntakeManualAssociations.Any(association => association.IntakeReceiptId == receipt.Id)
-                || !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == receipt.Id))
-            && (context.IntakeManualAssociations.Any(association =>
-                    association.IntakeReceiptId == receipt.Id && !association.IsActive)
-                || context.IntakeAllocationAttempts
-                    .Where(attempt => attempt.IntakeReceiptId == receipt.Id)
-                    .OrderByDescending(attempt => attempt.AttemptNumber)
-                    .Select(attempt => attempt.CaseId)
-                    .FirstOrDefault() == null)
-            && !context.Triage.Any(triage => triage.OriginReceiptId == receipt.Id));
 
     /// <summary>
     /// The excerpt as the sender wrote it, line breaks kept: runs of spaces

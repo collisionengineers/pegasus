@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Notifications;
 
 namespace Pegasus.Core.Intake;
@@ -110,6 +111,36 @@ public sealed class AssociateRetainedMailWithCase(
     internal sealed record MailAssociationTarget(
         Guid CaseId,
         IReadOnlyList<MailAssociationSignal> Signals);
+
+    /// <summary>
+    /// Associates a mailbox receipt that holds no Case, reading its
+    /// photographs first: the plate they read, inside its PDF or attached
+    /// beside it, is a mail-linking signal (R474, R733). The receipt's own
+    /// processing pass and the thread sibling sweep both come here
+    /// (<see cref="AssociateThreadSiblings"/>).
+    /// </summary>
+    /// <returns>Null when the receipt is not retained mail or already holds a Case.</returns>
+    public async Task<AutomaticCaseAssociationOutcome?> ExecuteForReceiptAsync(
+        IntakeReceipt receipt,
+        IImageIntakeAutomation? photographs,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        if (receipt.CurrentCaseId is not null
+            || receipt.SourceIdentity.Channel != IntakeSourceChannel.Mailbox)
+        {
+            return null;
+        }
+
+        var photographRegistration = photographs is null
+            ? null
+            : await photographs.ReadMailedPhotographsAsync(receipt, cancellationToken);
+        return await ExecuteAsync(
+            receipt.Id,
+            receipt.CaseMatchDecision,
+            photographRegistration,
+            cancellationToken);
+    }
 
     public async Task<AutomaticCaseAssociationOutcome?> ExecuteAsync(
         Guid intakeReceiptId,

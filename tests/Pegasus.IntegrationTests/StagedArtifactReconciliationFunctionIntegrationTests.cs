@@ -73,6 +73,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 new EmptyStagedArtifactStore()),
             settlement,
             groupedImageReconciler,
+            NoThreadSiblings(),
             CaseFilingReplay(caseFilings),
             pairing,
             triagePairing,
@@ -395,6 +396,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new ReconcileGroupedImageIntake(receipts, new UnreachableGroupStore(), workStore,
                 new UnreachableProcessQueuedIntake(),
                 new RegisterUnidentifiedSubmissionGroup(null!, new UnreachableRegisterUnidentified())),
+            NoThreadSiblings(),
             CaseFilingReplay(new EmptyCaseFilingReplayStore()),
             pairing,
             triagePairing ?? new TriageCasePairing(new EfTriageStore(contextFactory,
@@ -421,6 +423,19 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
     }
 
     /// <summary>A Case-filing replay over an empty page: the filer is never reached.</summary>
+    private static AssociateThreadSiblings NoThreadSiblings() =>
+        new(new EmptyThreadSiblingCandidates(), new EmptyIntakeReceiptQueries(),
+            new AssociateRetainedMailWithCase(null!, null!, TimeProvider.System), TimeProvider.System);
+
+    private sealed class EmptyThreadSiblingCandidates : IThreadSiblingAssociationCandidates
+    {
+        public Task<IReadOnlyList<Guid>> ListAsync(
+            DateTimeOffset completedAfterUtc,
+            int maximumItems,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+    }
+
     private static ReplayCaseFilings CaseFilingReplay(ICaseFilingReplayStore store) =>
         new(store, new EmptyIntakeReceiptQueries(), new PromoteAssociatedIntakeCaseEvidence(null!, null!, null!), TimeProvider.System);
 
