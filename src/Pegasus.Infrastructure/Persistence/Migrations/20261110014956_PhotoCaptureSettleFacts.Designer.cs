@@ -12,7 +12,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PegasusDbContext))]
-    [Migration("20261110001939_PhotoCaptureSettleFacts")]
+    [Migration("20261110014956_PhotoCaptureSettleFacts")]
     partial class PhotoCaptureSettleFacts
     {
         /// <inheritdoc />
@@ -6023,6 +6023,43 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PhotoCaptureBatchEntity", b =>
+                {
+                    b.Property<Guid>("CaptureId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Batch")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("BellOwedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ClosedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("ReachedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("SubmissionGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("CaptureId", "Batch");
+
+                    b.HasIndex("BellOwedAtUtc")
+                        .HasFilter("[BellOwedAtUtc] IS NOT NULL");
+
+                    b.HasIndex("CaseId");
+
+                    b.HasIndex("SubmissionGroupId")
+                        .IsUnique()
+                        .HasFilter("[SubmissionGroupId] IS NOT NULL");
+
+                    b.ToTable("PhotoCaptureBatches", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PhotoCaptureEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -9448,6 +9485,20 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("StagedReceipt");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PhotoCaptureBatchEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.PhotoCaptureEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CaptureId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PhotoCaptureEntity", b =>

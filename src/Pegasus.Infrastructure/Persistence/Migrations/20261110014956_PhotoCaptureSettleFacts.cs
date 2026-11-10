@@ -74,6 +74,35 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 nullable: true);
 
             migrationBuilder.CreateTable(
+                name: "PhotoCaptureBatches",
+                columns: table => new
+                {
+                    CaptureId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Batch = table.Column<int>(type: "int", nullable: false),
+                    SubmissionGroupId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    CaseId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ClosedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    ReachedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    BellOwedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PhotoCaptureBatches", x => new { x.CaptureId, x.Batch });
+                    table.ForeignKey(
+                        name: "FK_PhotoCaptureBatches_Cases_CaseId",
+                        column: x => x.CaseId,
+                        principalTable: "Cases",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_PhotoCaptureBatches_PhotoCaptures_CaptureId",
+                        column: x => x.CaptureId,
+                        principalTable: "PhotoCaptures",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "StandingPhotoLinkAddresses",
                 columns: table => new
                 {
@@ -112,22 +141,47 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 sql: "[PhotoLinkStartMode] IN ('guided', 'quick')");
 
             migrationBuilder.CreateIndex(
+                name: "IX_PhotoCaptureBatches_BellOwedAtUtc",
+                table: "PhotoCaptureBatches",
+                column: "BellOwedAtUtc",
+                filter: "[BellOwedAtUtc] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PhotoCaptureBatches_CaseId",
+                table: "PhotoCaptureBatches",
+                column: "CaseId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PhotoCaptureBatches_SubmissionGroupId",
+                table: "PhotoCaptureBatches",
+                column: "SubmissionGroupId",
+                unique: true,
+                filter: "[SubmissionGroupId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_StandingPhotoLinkAddresses_StandingPhotoLinkId",
                 table: "StandingPhotoLinkAddresses",
                 column: "StandingPhotoLinkId");
 
-            // The runtime roles' grants on the new table (RuntimePermissions.csv):
+            // The runtime roles' grants on the new tables (RuntimePermissions.csv):
             // the Web reads, adds, edits and removes a standing link's own saved
-            // addresses; the Worker never deletes them.
+            // addresses and the Worker never deletes them; the Worker alone writes a
+            // capture's batches as it settles them, and neither role deletes one.
             migrationBuilder.Sql("""
                 GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[dbo].[StandingPhotoLinkAddresses] TO [pegasus_web_runtime_role];
                 DENY DELETE ON OBJECT::[dbo].[StandingPhotoLinkAddresses] TO [pegasus_worker_runtime_role];
+                DENY DELETE ON OBJECT::[dbo].[PhotoCaptureBatches] TO [pegasus_web_runtime_role];
+                DENY DELETE ON OBJECT::[dbo].[PhotoCaptureBatches] TO [pegasus_worker_runtime_role];
+                GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[PhotoCaptureBatches] TO [pegasus_worker_runtime_role];
                 """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "PhotoCaptureBatches");
+
             migrationBuilder.DropTable(
                 name: "StandingPhotoLinkAddresses");
 
