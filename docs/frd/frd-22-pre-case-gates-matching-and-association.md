@@ -17,7 +17,10 @@
 - Automatic mail association never writes the Case row, so it never breaks
   a staff edit. Other automatic association yields to a live edit lease.
 - Staff may link material to any Case or Triage Case, in any state.
-  Automatic association keeps its own, narrower rules.
+  Automatic association keeps its own, narrower rules; a photo link's kept
+  paperwork and video follow their record onto whatever Case it reached
+  ([FRD-28](frd-28-guided-photo-capture.md#routing-and-filing); operator,
+  10 November 2026, [R844](../rulings.md)).
 
 ## Purpose
 
