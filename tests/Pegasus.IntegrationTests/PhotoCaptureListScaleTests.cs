@@ -19,7 +19,7 @@ namespace Pegasus.IntegrationTests;
 /// parallel one).
 /// </summary>
 [CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class PhotoCaptureListScaleCollection
+public sealed class PhotoCaptureListScaleSerialTests
 {
     public const string Name = "Photo capture list scale";
 }
@@ -36,7 +36,7 @@ public sealed class PhotoCaptureListScaleCollection
 /// with.
 /// </summary>
 [Trait("Category", "SqlServer")]
-[Collection(PhotoCaptureListScaleCollection.Name)]
+[Collection(PhotoCaptureListScaleSerialTests.Name)]
 public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
 {
     /// <summary>The list's page size (<c>IndexModel.PageSize</c>).</summary>
