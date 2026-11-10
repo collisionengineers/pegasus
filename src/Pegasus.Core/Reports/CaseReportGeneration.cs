@@ -239,7 +239,7 @@ public sealed record CaseReportGenerationSnapshot(
     /// <summary>
     /// The guide of the valuation card <see cref="AppliedValuationId"/>'s
     /// calculation was based on, as the report was frozen: the guide the
-    /// Original report card names beside the Engineer's Value (R666, R886).
+    /// Original report card names beside the Engineer's Value (R666, R898).
     /// Null for a typed value, and on a snapshot frozen before the guide was
     /// kept, where only <see cref="Guides"/> holds it.
     /// </summary>

@@ -1251,7 +1251,7 @@ public sealed class CaseViewsWebTests
     /// Inspection report as generated: its printed repair cost, its salvage
     /// value as it was a Total loss, and its Engineer's Value with the guide
     /// its basis card came from, money as Figures draws it. The guide is the
-    /// one the snapshot froze (R666, R886): a card re-applied since names
+    /// one the snapshot froze (R666, R898): a card re-applied since names
     /// another guide, and the card still reads the frozen one and no
     /// valuation. The Inspection view draws no card.
     /// </summary>
@@ -1318,7 +1318,7 @@ public sealed class CaseViewsWebTests
         new([Pegasus.Core.Assessment.ValuationSource.Cazana, Pegasus.Core.Assessment.ValuationSource.Glasses]);
 
     /// <summary>
-    /// A snapshot frozen before the guide was kept (R886) names its guide
+    /// A snapshot frozen before the guide was kept (R898) names its guide
     /// only when its report was taken from a single guide; with two, the
     /// Engineer's Value is drawn without brackets.
     /// </summary>

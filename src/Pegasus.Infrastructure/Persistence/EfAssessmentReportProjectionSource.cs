@@ -279,7 +279,7 @@ internal sealed class EfAssessmentReportProjectionSource(
     /// The valuation guides the Case's accepted values were taken from. Only
     /// these decide the report's source-aware guide wording. Each card's guide
     /// comes back by card too, so the applied valuation's basis card names
-    /// its guide without a second read (R886).
+    /// its guide without a second read (R898).
     /// </summary>
     private static async Task<(ReportGuideSources Guides, IReadOnlyDictionary<Guid, ValuationSource> ByCard)> GuidesOfAsync(
         PegasusDbContext context, Guid workId, CancellationToken cancellationToken)

@@ -248,7 +248,7 @@ public sealed partial class DetailsModel
     /// <summary>
     /// The card's figures from the Inspection report's snapshot, with the
     /// guide the Engineer's Value came from, as the snapshot froze it (R666,
-    /// R886). A typed value names no calculation row and gets no guide. A
+    /// R898). A typed value names no calculation row and gets no guide. A
     /// snapshot frozen before the guide was kept names it only when it was
     /// taken from a single guide; otherwise the brackets are left off. No
     /// read beyond the generation the page already holds.

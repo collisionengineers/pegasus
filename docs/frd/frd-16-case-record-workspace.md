@@ -331,7 +331,7 @@ printed, followed in brackets by the guide its basis card came from
 a typed value. The guide is the one the snapshot froze, so a card applied
 since does not change it; a report generated before the guide was frozen
 names it only when that report was taken from a single guide, and otherwise
-shows no brackets (operator, 10 November 2026; [R886](../rulings.md)); then "Settlement", only when that report's outcome was a Total
+shows no brackets (operator, 10 November 2026; [R898](../rulings.md)); then "Settlement", only when that report's outcome was a Total
 loss: the settlement it printed, the pre-accident value less salvage
 (operator, 6 November 2026; [R730](../rulings.md)). Until an Inspection
 report exists every figure is the absent glyph. No new breakpoint: below 1441px the card is one more cell of the

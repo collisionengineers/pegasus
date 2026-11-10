@@ -324,12 +324,12 @@ submission is not part of it.
   (omitted, every confirmed document the generation holds, the fee note
   included; an empty list, the report alone with any companion the Principal
   requires, operator, 5 November 2026, R702), `subject` (omitted, the derived subject; a changed one at most 500
-  characters, a line break a space, R885)
+  characters, a line break a space, R897)
   and `attachmentNames`, names for the generation's documents by kind, each
   ending in `.pdf` (omitted or blank, their delivery names; filed estimates
   keep their filed names; a kind named twice is refused), as the Case page's
   composer takes them (operator, 4 November 2026, R667, R670, R671; names
-  made file-safe, bounded and numbered as FRD-11 says, R883, R884), and the
+  made file-safe, bounded and numbered as FRD-11 says, R895, R896), and the
   covering message as written. It is a reply to the
   Case's instruction e-mail; `fromMailbox` names the Outgoing mailbox it
   leaves from, and omitted, the same default as the Case page applies: the

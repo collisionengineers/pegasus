@@ -931,7 +931,7 @@ public sealed class CaseReportDeliveryTests
     }
 
     /// <summary>
-    /// #1912 (operator, 10 November 2026; R670, R885): an instruction subject
+    /// #1912 (operator, 10 November 2026; R670, R897): an instruction subject
     /// long enough to take "Re:" and it past 500 characters still sends, left
     /// blank or as prefilled, since the bound is on a subject staff changed.
     /// </summary>
@@ -1140,7 +1140,7 @@ public sealed class CaseReportDeliveryTests
     }
 
     /// <summary>
-    /// #1910 (operator, 10 November 2026; R884): no two attachments of one
+    /// #1910 (operator, 10 November 2026; R896): no two attachments of one
     /// send share a name. A document staff named as the filed estimate is
     /// numbered, since the estimate keeps its filed name (R671), and a later
     /// document named as an earlier one is numbered after it.

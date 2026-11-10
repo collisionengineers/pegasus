@@ -862,7 +862,7 @@ public sealed partial class AssessmentReportDraftWebTests
     /// When Core refuses the send, the refusal it states is shown on the
     /// Case, so staff read why the report was not sent: a changed dispatch,
     /// a subject staff made too long and a name past custody's bound (#1912,
-    /// R883, R885), never "Retry the operation".
+    /// R895, R897), never "Retry the operation".
     /// </summary>
     [Theory]
     [MemberData(nameof(Refusals))]
@@ -1175,7 +1175,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var reportName = Regex.Match(reportRow, "data-default-name=\"([^\"]+)\"").Groups[1].Value;
         Assert.Contains($"aria-label=\"Rename {reportName}\"", reportRow, StringComparison.Ordinal);
         Assert.Contains("<input type=\"hidden\" name=\"fileName-AssessmentReport\" value=\"\" data-send-file-name />", reportRow, StringComparison.Ordinal);
-        // A name is at most custody's 120 characters, .pdf included (R883),
+        // A name is at most custody's 120 characters, .pdf included (R895),
         // and its box owns its Escape so the dialog stays open (#1911).
         Assert.Contains(
             $"maxlength=\"{CaseReportDeliveryNaming.MaximumFileNameLength - CaseReportDeliveryNaming.Extension.Length}\" aria-label=\"{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.FileName}\" data-send-file-stem data-own-escape />",

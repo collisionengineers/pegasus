@@ -260,11 +260,11 @@ public static class CaseReportDeliveryNaming
     /// <summary>
     /// The longest name a delivered document may carry, its extension
     /// included: custody's bound for a file name (operator, 10 November
-    /// 2026; R883).
+    /// 2026; R895).
     /// </summary>
     public const int MaximumFileNameLength = 120;
 
-    /// <summary>The refusal of a staff name past <see cref="MaximumFileNameLength"/> (R883).</summary>
+    /// <summary>The refusal of a staff name past <see cref="MaximumFileNameLength"/> (R895).</summary>
     public static readonly string FileNameTooLong =
         $"A file name cannot exceed {MaximumFileNameLength} characters.";
 
@@ -273,7 +273,7 @@ public static class CaseReportDeliveryNaming
     /// v48 item E): trimmed, ending in <see cref="Extension"/> with something
     /// before it, each character no file name can hold made <c>_</c> as
     /// custody makes it, and at most <see cref="MaximumFileNameLength"/>
-    /// characters (operator, 10 November 2026; R883). A name without the
+    /// characters (operator, 10 November 2026; R895). A name without the
     /// extension is refused; one too long is refused with
     /// <see cref="FileNameTooLong"/>, which staff are shown.
     /// </summary>
@@ -295,7 +295,7 @@ public static class CaseReportDeliveryNaming
 
     /// <summary>
     /// The attachments of one send with no two sharing a name, case ignored
-    /// (operator, 10 November 2026; R884): a later document whose name an
+    /// (operator, 10 November 2026; R896): a later document whose name an
     /// earlier attachment already carries gains " (2)", " (3)" and so on
     /// before its extension, its stem cut so the name stays within
     /// <see cref="MaximumFileNameLength"/>. An attachment
@@ -449,7 +449,7 @@ public static class CaseReportDeliveryPolicy
     /// space. The <see cref="MaximumSubjectLength"/> bound is on a subject
     /// staff changed: a subject sent as derived, blank or submitted as it was
     /// prefilled, keeps only the mail command's ceiling (operator, 10
-    /// November 2026; R670, R885). A changed subject past the bound is refused
+    /// November 2026; R670, R897). A changed subject past the bound is refused
     /// with <see cref="SubjectTooLong"/>.
     /// </summary>
     public static string Subject(string? edited, string derived)
@@ -996,7 +996,7 @@ public sealed class SendCaseReport(
             ];
         }
 
-        // No two attachments share a name (R884): a later document is
+        // No two attachments share a name (R896): a later document is
         // numbered, and a filed estimate, between the two reports'
         // documents, keeps the name it was filed under (R671).
         var firstEstimate = attachedKinds.Count;

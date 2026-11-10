@@ -231,7 +231,7 @@ public sealed class EfCaseReportGenerationStore(
                 CaseTypeCodes.Parse(naming.Type),
                 reportInputs.WorkKind) + CaseReportDeliveryNaming.Extension,
             // The guide the Engineer's Value came from, as the Original
-            // report card names it (R666, R886).
+            // report card names it (R666, R898).
             EngineerValueGuide = reportInputs.EngineerValueGuide,
         };
         var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken).ConfigureAwait(false);

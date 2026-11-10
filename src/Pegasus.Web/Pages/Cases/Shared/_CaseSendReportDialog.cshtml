@@ -66,7 +66,7 @@
         name.EndsWith(CaseReportDeliveryNaming.Extension, StringComparison.OrdinalIgnoreCase)
             ? name[..^CaseReportDeliveryNaming.Extension.Length]
             : name;
-    // A name, its .pdf included, is at most custody's bound (R883).
+    // A name, its .pdf included, is at most custody's bound (R895).
     var stemLength = CaseReportDeliveryNaming.MaximumFileNameLength - CaseReportDeliveryNaming.Extension.Length;
 }
 <div id="case-send-report-dialog" class="dialog-backdrop" data-dialog="case-send-report-dialog" data-dialog-carry

@@ -180,7 +180,7 @@ public sealed class CaseReportDeliveryNamingTests
     /// Operator, 4 November 2026 (v48 item C): the subject staff edited is
     /// sent, trimmed; left blank, the derived one. A line break becomes a
     /// space, and only a subject staff changed is held to 500 characters: the
-    /// derived subject, blank or as prefilled, goes however long (R670, R885).
+    /// derived subject, blank or as prefilled, goes however long (R670, R897).
     /// </summary>
     [Fact]
     public void TheSubjectIsStaffsWhenGivenElseTheDerivedOneAndAChangedOneIsBounded()
@@ -205,7 +205,7 @@ public sealed class CaseReportDeliveryNamingTests
     }
 
     /// <summary>
-    /// Operator, 10 November 2026 (R883): a staff name keeps to custody's
+    /// Operator, 10 November 2026 (R895): a staff name keeps to custody's
     /// rule: a character no file name can hold becomes <c>_</c>, and the
     /// whole name, .pdf included, is at most 120 characters.
     /// </summary>
@@ -222,7 +222,7 @@ public sealed class CaseReportDeliveryNamingTests
     }
 
     /// <summary>
-    /// Operator, 10 November 2026 (R884): no two attachments of one send share
+    /// Operator, 10 November 2026 (R896): no two attachments of one send share
     /// a name, case ignored. A later document is numbered before its .pdf;
     /// a filed estimate keeps the name it was filed under (R671), so the
     /// document carrying its name is numbered instead; a number that would
