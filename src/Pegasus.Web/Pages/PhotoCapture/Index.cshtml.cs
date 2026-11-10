@@ -89,6 +89,12 @@ public sealed class IndexModel(
 
     public PhotoCaptureOrigin? Origin => SentByUs ? null : Labels.OriginFromKey(OriginFilter);
 
+    /// <summary>Coming in's "No case yet": only the captures with no Case (R806), chosen where the From filter is.</summary>
+    public bool NoCaseYet => !SentByUs && OriginFilter == Labels.NoCaseYetKey;
+
+    /// <summary>How many captures each tab holds, shown on the tabs (R806).</summary>
+    public PhotoCaptureTabCounts? TabCounts { get; private set; }
+
     public IReadOnlyList<Row> Rows { get; private set; } = [];
 
     public int TotalCount { get; private set; }
@@ -141,16 +147,18 @@ public sealed class IndexModel(
         try
         {
             var page = queries.ListAsync(
-                new(SentByUs, Query, State, Origin, PageSize, CurrentPage),
+                new(SentByUs, Query, State, Origin, NoCaseYet, PageSize, CurrentPage),
                 cancellationToken);
             var counts = queries.CountByStateAsync(SentByUs, cancellationToken);
+            var tabCounts = queries.CountByTabAsync(cancellationToken);
             var website = IsAdministrator && StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ManageOrganizationsAndPrincipals)
                 ? standingLinks.FindWebsiteAsync(cancellationToken)
                 : Task.FromResult<StandingPhotoLink?>(null);
-            await Task.WhenAll(page, counts, website);
+            await Task.WhenAll(page, counts, tabCounts, website);
             TotalCount = page.Result.TotalCount;
             Rows = [.. page.Result.Rows.Select(row => Derive(row, Now))];
             Counts = counts.Result;
+            TabCounts = tabCounts.Result;
             WebsiteLink = website.Result;
             LoadedAtUtc = Now;
         }

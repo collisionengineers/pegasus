@@ -39,6 +39,7 @@ public sealed class EfPhotoCaptureQueries(
         var search = filter.Search?.Trim();
         var matching = evaluated
             .Where(row => filter.State is null || row.State == filter.State)
+            .Where(row => !filter.NoCaseYet || row.Row.Capture.CaseId is null)
             .Where(row => string.IsNullOrEmpty(search) || Matches(row.Row, search))
             .ToArray();
         var pageSize = Math.Max(1, filter.PageSize);
@@ -102,6 +103,19 @@ public sealed class EfPhotoCaptureQueries(
         return evaluated
             .GroupBy(row => row.State)
             .ToDictionary(group => group.Key, group => group.Count());
+    }
+
+    public async Task<PhotoCaptureTabCounts> CountByTabAsync(CancellationToken cancellationToken)
+    {
+        // One grouped count in SQL, not the tabs' evaluation (R806).
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var byOrigin = await context.PhotoCaptures.AsNoTracking()
+            .GroupBy(capture => capture.Origin)
+            .Select(group => new { Origin = group.Key, Count = group.Count() })
+            .ToListAsync(cancellationToken);
+        return new(
+            byOrigin.Where(item => ComingInOrigins.Contains(item.Origin, StringComparer.Ordinal)).Sum(item => item.Count),
+            byOrigin.Where(item => SentByUsOrigins.Contains(item.Origin, StringComparer.Ordinal)).Sum(item => item.Count));
     }
 
     public async Task<IReadOnlyList<PhotoLinkAct>> ListHistoryAsync(Guid captureId, CancellationToken cancellationToken)
@@ -350,12 +364,14 @@ public sealed class EfPhotoCaptureQueries(
         var withItems = await EfPhotoCaptureStore.WithItemsAsync(context, captures, cancellationToken);
         var contacts = await ContactsAsync(context, captures, cancellationToken);
         return withItems
-            .Select(pending => new CasePhotoCaptureStory(
-                pending.Capture,
-                pending.Items,
-                pending.Capture.OrganizationId is { } organizationId && contacts.TryGetValue(organizationId, out var contact)
-                    ? contact.Name
-                    : null))
+            .Select(pending =>
+            {
+                (string Name, bool IsRepairer)? contact = pending.Capture.OrganizationId is { } organizationId
+                    && contacts.TryGetValue(organizationId, out var found)
+                        ? found
+                        : null;
+                return new CasePhotoCaptureStory(pending.Capture, pending.Items, contact?.Name, contact?.IsRepairer ?? false);
+            })
             .ToArray();
     }
 

@@ -41,6 +41,9 @@ public static partial class OperatorLabels
         public const string Apply = "Apply";
         public const string Clear = "Clear";
         public const string NothingHere = "No photo links";
+        // The prototype's own filter for captures with no Case (R806).
+        public const string NoCaseYet = "No case yet";
+        public const string NoCaseYetKey = "nocase";
 
         // How the photos came (FRD-28 Standing photo links).
         public const string TheirStaffTookThem = "Their staff took them";
@@ -163,6 +166,14 @@ public static partial class OperatorLabels
         public const string CopyLink = "Copy link";
         public const string Copy = "Copy";
         public const string MatchToACase = "Match to a case";
+
+        // The prototype's words the operator chose (R806): Ask for it on Coming
+        // in, the Send message's reset, and the Case page's empty state.
+        public const string AskForIt = "Ask for it";
+        public const string EditedForThisOneOnly = "Edited for this one only.";
+        public const string PutTheStandardWordingBack = "Put the standard wording back";
+        public const string NoPhotosYet = "No photos yet";
+        public const string ResendTheLink = "Resend the link";
 
         // The Send page (handover § Send a photo link).
         public const string WhoItsFor = "Who it’s for";

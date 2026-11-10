@@ -16,9 +16,10 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// One photo link (FRD-28 Staff pages): its facts, what the sender told us,
 /// the note, the status and what is missing, the items in story order and the
 /// history, with Resend, Remind, Log call, Extend and Cancel. Resend and
-/// Remind mint a fresh token (<see cref="PhotoLinkActions.ReissueAsync"/>):
-/// it is e-mailed when the link has an address on a Case, and otherwise shown
-/// once here to copy, since only the issuing response ever holds it.
+/// Remind, and Coming in's Ask for it (R816), which posts to Remind, mint a
+/// fresh token (<see cref="PhotoLinkActions.ReissueAsync"/>): it is e-mailed
+/// when the link has an address on a Case, and otherwise shown once here to
+/// copy, since only the issuing response ever holds it.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -26,6 +27,7 @@ public sealed class DetailsModel(
     IPhotoCaptureQueries queries,
     IPhotoCaptureStore captures,
     PhotoLinkActions actions,
+    IPhotoCaptureCaseReader caseReader,
     IStaffMailSend staffMailSend,
     IGetCaseHeader getCaseHeader,
     ResolveCaseMailSender senders,
@@ -88,6 +90,23 @@ public sealed class DetailsModel(
 
     /// <summary>Where the photos are: the Case's Files section, else the Vehicle images record.</summary>
     public string? PhotosHref => IndexModel.PhotosHref(Row);
+
+    /// <summary>
+    /// Where a kept file opens (R807): paperwork or video a capture with no
+    /// Case holds, served by the existing received-file page under its own
+    /// access rule. Null for anything else, and for a file not yet received
+    /// into intake.
+    /// </summary>
+    public string? KeptFileHref(PhotoCaptureItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        return Capture.CaseId is null
+            && item.Kind is (PhotoCaptureItemKind.Paperwork or PhotoCaptureItemKind.Video)
+            && item.IntakeReceiptId is { } receiptId
+            && item.IntakeAssetId is { } assetId
+                ? $"/Received/{receiptId:D}/Asset/{assetId:D}"
+                : null;
+    }
 
     public IReadOnlyList<HistoryLine> History
     {
@@ -253,9 +272,12 @@ public sealed class DetailsModel(
         {
             try
             {
+                // {principal name} is the Case's Principal, whichever link the
+                // capture came from (a Coming in capture's From is its contact).
+                var principalName = (await caseReader.GetAsync(capture.CaseId!.Value, cancellationToken))?.PrincipalName;
                 var body = await _mail.RenderAsync(
                     actor,
-                    PhotoLinkMail.Values(capture.NormalizedRegistration, capture.CustomerName, Row.OrganizationName, IssuedUrl, capture.ExpiresAtUtc),
+                    PhotoLinkMail.Values(capture.NormalizedRegistration, capture.CustomerName, principalName, IssuedUrl, capture.ExpiresAtUtc),
                     cancellationToken);
                 Operation = await _mail.SendAsync(
                     actor,

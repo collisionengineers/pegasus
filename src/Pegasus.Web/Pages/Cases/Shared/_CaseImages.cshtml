@@ -308,20 +308,44 @@ else
             {
                 var capture = story.Capture;
                 <section class="photo-story-capture" data-photo-capture-story="@capture.Id" aria-label="@OperatorLabels.PhotoCapture.PhotoLink">
-                    @if (Model.IsPhotoLinkLive(capture))
-                    {
-                        @* Cancel beside the photo link (R795): the link page's own act and
-                           refusal, back to this Case's Files in the view it was asked from. *@
-                        var cancelReturn = Pegasus.Core.Notifications.StaffNotificationPolicy.CaseRoute(workflow.CaseId, "files")
-                            + (Model.ViewRoute is { } cancelView ? "&view=" + cancelView : string.Empty);
-                        <div class="button-row">
+                    @{
+                        // Beside the photo link: its derived status in the Photo capture
+                        // pages' words with the photo count, or, while a live link has
+                        // nothing yet, "No photos yet" and Resend the link (R806).
+                        var linkState = Model.PhotoLinkState(story);
+                        var linkLive = Model.IsPhotoLinkLive(capture);
+                    }
+                    <div class="button-row" data-photo-link-status>
+                        <partial name="Shared/_StatusChip" model="@OperatorLabels.PhotoCapture.State(linkState)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.PhotoCapture.StateTone(linkState) }' />
+                        @if (capture.AcceptedItemCount > 0)
+                        {
+                            <span>@OperatorLabels.PhotoCapture.PhotoCount(capture.AcceptedItemCount, linkState == Pegasus.Core.PhotoCapture.PhotoCaptureState.Complete)</span>
+                        }
+                        else if (linkLive)
+                        {
+                            <strong>@OperatorLabels.PhotoCapture.NoPhotosYet</strong>
+                            @if (capture.Origin == Pegasus.Core.PhotoCapture.PhotoCaptureOrigin.CaseLink)
+                            {
+                                @* The link page's own Resend, which shows the new link or the e-mail it sent. *@
+                                <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Resend" asp-route-id="@capture.Id">
+                                    <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                    <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Sending">@OperatorLabels.PhotoCapture.ResendTheLink</button>
+                                </form>
+                            }
+                        }
+                        @if (linkLive)
+                        {
+                            @* Cancel beside the photo link (R795): the link page's own act and
+                               refusal, back to this Case's Files in the view it was asked from. *@
+                            var cancelReturn = Pegasus.Core.Notifications.StaffNotificationPolicy.CaseRoute(workflow.CaseId, "files")
+                                + (Model.ViewRoute is { } cancelView ? "&view=" + cancelView : string.Empty);
                             <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Cancel" asp-route-id="@capture.Id">
                                 <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                                 <input type="hidden" name="returnUrl" value="@cancelReturn" />
                                 <button type="submit" class="btn btn--small btn--danger" data-busy-label="@OperatorLabels.Busy.Revoking">@OperatorLabels.PhotoCapture.CancelLink</button>
                             </form>
-                        </div>
-                    }
+                        }
+                    </div>
                     <partial name="Shared/_PhotoCaptureDetails" model="capture" />
                     @foreach (var group in PhotoCaptureStoryView.Groups(story.Items, capture.Details.MarkedAreas))
                     {

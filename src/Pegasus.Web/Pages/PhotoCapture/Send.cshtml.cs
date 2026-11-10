@@ -19,7 +19,11 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// originals. <b>Send by e-mail</b> issues the link and sends it as the Send
 /// chaser sends (<see cref="PhotoLinkMail"/>); <b>Create link to copy</b>
 /// issues it for staff to carry. Either way the link is shown once, here,
-/// because only the issuing response holds its token.
+/// because only the issuing response holds its token. The message shows the
+/// standard wording with the customer's name, the registration, the
+/// Principal and the expiry filled in; <c>{photo link}</c> stays until the
+/// link exists. A message staff edited is sent as edited, and one they did
+/// not is composed again from what the form holds when it is sent (R806).
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -31,10 +35,12 @@ public sealed class SendModel(
     ResolveCaseMailSender senders,
     RenderEmailTemplate renderTemplate,
     IOptions<PhotoCaptureOptions> options,
+    TimeProvider timeProvider,
     ILogger<SendModel> logger) : PhotoCapturePageModel
 {
     public const string ByEmail = "email";
     public const string ToCopy = "copy";
+    public const string StandardWording = "standard";
 
     private readonly PhotoLinkMail _mail = new(staffMailSend, getCaseHeader, senders, renderTemplate, options);
 
@@ -74,10 +80,18 @@ public sealed class SendModel(
     [BindProperty, Display(Name = Labels.Message), StringLength(EmailTemplates.MaximumBodyLength)]
     public string? Body { get; set; }
 
+    /// <summary>The standard wording as the page last drew it, carried so a post knows whether staff edited the message.</summary>
+    [BindProperty]
+    public string? StandardBody { get; set; }
+
+    /// <summary>Whether staff edited the message: "Edited for this one only." (R806).</summary>
+    public bool BodyEdited => Body is not null && StandardBody is not null
+        && !string.Equals(Normalized(Body), Normalized(StandardBody), StringComparison.Ordinal);
+
     [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();
 
-    /// <summary>Which button sent the form: <see cref="ByEmail"/> or <see cref="ToCopy"/>.</summary>
+    /// <summary>Which button sent the form: <see cref="ByEmail"/>, <see cref="ToCopy"/> or <see cref="StandardWording"/>.</summary>
     [BindProperty]
     public string? Submit { get; set; }
 
@@ -114,13 +128,7 @@ public sealed class SendModel(
         Subject = PhotoLinkMail.Subject(facts.NormalizedRegistration);
         try
         {
-            // The values staff may still change, and the link itself, stay
-            // as their placeholders until the link is issued.
-            var values = PhotoLinkMail.Values(facts.NormalizedRegistration, null, facts.PrincipalName, null, null);
-            values[Pegasus.Core.Operations.EmailTemplates.Claimant] = "{" + Pegasus.Core.Operations.EmailTemplates.Claimant + "}";
-            values[Pegasus.Core.Operations.EmailTemplates.PhotoLink] = Labels.PhotoLinkPlaceholder;
-            values[Pegasus.Core.Operations.EmailTemplates.LinkExpiry] = "{" + Pegasus.Core.Operations.EmailTemplates.LinkExpiry + "}";
-            Body = await _mail.RenderAsync(actor, values, cancellationToken);
+            await DrawStandardWordingAsync(actor, cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
@@ -143,12 +151,35 @@ public sealed class SendModel(
         }
 
         var byEmail = Submit == ByEmail;
-        if (Submit is not (ByEmail or ToCopy)
+        if (Submit is not (ByEmail or ToCopy or StandardWording)
             || !CaptureLimits.IsLifetime(Days)
             || !Enum.IsDefined(Mode))
         {
             return BadRequest();
         }
+
+        // Put the standard wording back, without script: the page returns with
+        // the standard wording for what the form holds now.
+        if (Submit == StandardWording)
+        {
+            if (!CanEmail)
+            {
+                return BadRequest();
+            }
+
+            try
+            {
+                await DrawStandardWordingAsync(actor, cancellationToken);
+            }
+            catch (StaffAuthorizationException)
+            {
+                return Forbid();
+            }
+
+            return Page();
+        }
+
+        var edited = BodyEdited;
 
         if (byEmail)
         {
@@ -177,6 +208,19 @@ public sealed class SendModel(
 
         if (!ModelState.IsValid)
         {
+            if (CanEmail && !edited)
+            {
+                try
+                {
+                    // An unedited message follows the name and lifetime the form holds now.
+                    await DrawStandardWordingAsync(actor, cancellationToken);
+                }
+                catch (StaffAuthorizationException)
+                {
+                    return Forbid();
+                }
+            }
+
             return Page();
         }
 
@@ -221,13 +265,18 @@ public sealed class SendModel(
                 capture.ExpiresAtUtc);
             try
             {
+                // An edited message is sent as staff wrote it; an unedited one
+                // is the standard wording for the link as issued.
+                var message = edited
+                    ? PhotoLinkMail.Complete(Body!, values, IssuedUrl)
+                    : PhotoLinkMail.Complete(await _mail.RenderAsync(actor, values, cancellationToken), values, IssuedUrl);
                 Operation = await _mail.SendAsync(
                     actor,
                     CaseId,
                     FromMailboxId,
                     capture.Email!,
                     Subject!,
-                    PhotoLinkMail.Complete(Body!, values, IssuedUrl),
+                    message,
                     OperationKey,
                     cancellationToken);
                 if (Operation.State == StaffMailState.Failed)
@@ -252,6 +301,29 @@ public sealed class SendModel(
 
         return Page();
     }
+
+    /// <summary>
+    /// The message box and the standard wording it is compared with: the
+    /// Photo link template with the customer's name, the registration, the
+    /// Principal and the expiry the form's lifetime gives filled in, and
+    /// <c>{photo link}</c> kept until the link exists (R806).
+    /// </summary>
+    private async Task DrawStandardWordingAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
+        var values = PhotoLinkMail.Values(
+            Facts!.NormalizedRegistration,
+            CustomerName,
+            Facts.PrincipalName,
+            Labels.PhotoLinkPlaceholder,
+            timeProvider.GetUtcNow().AddDays(Days));
+        Body = StandardBody = await _mail.RenderAsync(actor, values, cancellationToken);
+        // The drawn wording replaces what was posted.
+        ModelState.Remove(nameof(Body));
+        ModelState.Remove(nameof(StandardBody));
+    }
+
+    private static string Normalized(string text) =>
+        text.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
 
     private async Task<bool> LoadAsync(CancellationToken cancellationToken)
     {

@@ -365,6 +365,9 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         public Task<IReadOnlyList<Pegasus.Core.PhotoCapture.PhotoLinkAct>> ListHistoryAsync(Guid captureId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<Pegasus.Core.PhotoCapture.PhotoLinkAct>>([]);
 
+        public Task<Pegasus.Core.PhotoCapture.PhotoCaptureTabCounts> CountByTabAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(new Pegasus.Core.PhotoCapture.PhotoCaptureTabCounts(0, 0));
+
         public Task<Pegasus.Core.PhotoCapture.PhotoCaptureCaseFacts?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<Pegasus.Core.PhotoCapture.PhotoCaptureCaseFacts?>(null);
 

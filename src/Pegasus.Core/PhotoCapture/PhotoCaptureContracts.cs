@@ -306,13 +306,21 @@ public sealed record PhotoCaptureItemWriteResult(PhotoCaptureItemWrite Write, Ph
 /// <summary>What the settle sweep reads for one capture: the capture and its items in story order.</summary>
 public sealed record PhotoCaptureWithItems(PhotoCapture Capture, IReadOnlyList<PhotoCaptureItem> Items);
 
+/// <summary>
+/// One list's filter. <see cref="NoCaseYet"/> keeps only the captures with no
+/// Case, Coming in's "No case yet" (R806).
+/// </summary>
 public sealed record PhotoCaptureListFilter(
     bool SentByUs,
     string? Search,
     PhotoCaptureState? State,
     PhotoCaptureOrigin? Origin,
+    bool NoCaseYet,
     int PageSize,
     int Page);
+
+/// <summary>How many captures each tab holds, counted together (R806).</summary>
+public sealed record PhotoCaptureTabCounts(int ComingIn, int LinksWeSent);
 
 /// <summary>
 /// How a Coming in capture reached its Case: it filed there as its photos
@@ -362,11 +370,17 @@ public static class PhotoLinkActs
 /// <summary>One staff act on a link: which act (<see cref="PhotoLinkActs"/>), when, and who did it, null when no name is known.</summary>
 public sealed record PhotoLinkAct(string Kind, DateTimeOffset AtUtc, string? ActorName);
 
-/// <summary>Where a capture's items sit on a Case, for the Files → Images story (FRD-16).</summary>
+/// <summary>
+/// Where a capture's items sit on a Case, for the Files → Images story
+/// (FRD-16). <see cref="StandingLinkIsRepairer"/> is what the required items
+/// need to know (a repairer's own staff owe the VIN), so the Case page derives
+/// the link's status in the lists' own way.
+/// </summary>
 public sealed record CasePhotoCaptureStory(
     PhotoCapture Capture,
     IReadOnlyList<PhotoCaptureItem> Items,
-    string? OrganizationName);
+    string? OrganizationName,
+    bool StandingLinkIsRepairer);
 
 /// <summary>The capture store: writes are replay-safe by operation key where one is taken.</summary>
 public interface IPhotoCaptureStore
@@ -549,6 +563,9 @@ public interface IPhotoCaptureQueries
 
     /// <summary>How many captures each of the five Links we sent and Coming in headline states holds.</summary>
     Task<IReadOnlyDictionary<PhotoCaptureState, int>> CountByStateAsync(bool sentByUs, CancellationToken cancellationToken);
+
+    /// <summary>How many captures Coming in and Links we sent each hold, from one count by origin.</summary>
+    Task<PhotoCaptureTabCounts> CountByTabAsync(CancellationToken cancellationToken);
 
     /// <summary>The staff acts on the link, oldest first, each with the name of who did it.</summary>
     Task<IReadOnlyList<PhotoLinkAct>> ListHistoryAsync(Guid captureId, CancellationToken cancellationToken);

@@ -19,7 +19,7 @@
     }
 
     var tabLabel = Model.SentByUs ? Labels.LinksWeSent : Labels.ComingIn;
-    var hasFilters = Model.Origin is not null || Model.Query is not null;
+    var hasFilters = Model.Origin is not null || Model.NoCaseYet || Model.Query is not null;
 }
 
 @section Styles {
@@ -53,8 +53,21 @@
 @* Each tab is its own server-rendered address (?tab=), so the tabs are a nav
    of links with aria-current, as on Logs and a Principal contact. *@
 <nav class="tabs photo-capture-tabs" aria-label="@Labels.Title">
-    <a class="tab" href="@Model.Href(tab: Labels.ComingInKey, keepState: false)" aria-current="@(Model.SentByUs ? null : "page")">@Labels.ComingIn</a>
-    <a class="tab" href="@Model.Href(tab: Labels.LinksWeSentKey, keepState: false)" aria-current="@(Model.SentByUs ? "page" : null)">@Labels.LinksWeSent</a>
+    @* Each tab carries how many captures it holds (R806). *@
+    <a class="tab" href="@Model.Href(tab: Labels.ComingInKey, keepState: false)" aria-current="@(Model.SentByUs ? null : "page")">
+        <span>@Labels.ComingIn</span>
+        @if (Model.TabCounts is { } comingInCount)
+        {
+            <span class="tab-count">@comingInCount.ComingIn</span>
+        }
+    </a>
+    <a class="tab" href="@Model.Href(tab: Labels.LinksWeSentKey, keepState: false)" aria-current="@(Model.SentByUs ? "page" : null)">
+        <span>@Labels.LinksWeSent</span>
+        @if (Model.TabCounts is { } sentCount)
+        {
+            <span class="tab-count">@sentCount.LinksWeSent</span>
+        }
+    </a>
 </nav>
 
 @if (!Model.IsUnavailable)
@@ -128,6 +141,7 @@
                             {
                                 <option value="@Labels.OriginKey(origin)" selected="@(Model.Origin == origin ? "selected" : null)">@Labels.Source(origin)</option>
                             }
+                            <option value="@Labels.NoCaseYetKey" selected="@(Model.NoCaseYet ? "selected" : null)">@Labels.NoCaseYet</option>
                         </select>
                     </div>
                 }
@@ -315,15 +329,27 @@
                                     }
                                 </td>
                                 <td class="nowrap">@OperatorLabels.OfficeTime(capture.LastItemAtUtc ?? capture.CreatedAtUtc)</td>
-                                <td class="nowrap">
-                                    @if (capture.CaseId is not null && photosHref is not null)
-                                    {
-                                        <a class="btn btn--small" href="@photosHref">@Labels.ViewPhotos</a>
-                                    }
-                                    else if (row.Source.ImageIntakeId is not null && photosHref is not null)
-                                    {
-                                        <a class="btn btn--small" href="@photosHref">@Labels.MatchToACase</a>
-                                    }
+                                <td class="row-actions">
+                                    <span class="cluster">
+                                        @if (capture.CaseId is not null && photosHref is not null)
+                                        {
+                                            <a class="btn btn--small" href="@photosHref">@Labels.ViewPhotos</a>
+                                        }
+                                        else if (row.Source.ImageIntakeId is not null && photosHref is not null)
+                                        {
+                                            <a class="btn btn--small" href="@photosHref">@Labels.MatchToACase</a>
+                                        }
+                                        @if (row.State == PhotoCaptureState.SomethingMissing && row.IsLive)
+                                        {
+                                            @* Ask for it (R806, R816): a fresh link for this capture, e-mailed
+                                               when it is on a Case and holds an address, else shown to copy;
+                                               the link page's Remind does both. *@
+                                            <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Remind" asp-route-id="@capture.Id">
+                                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                                <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Sending">@Labels.AskForIt</button>
+                                            </form>
+                                        }
+                                    </span>
                                 </td>
                             </tr>
                         }
