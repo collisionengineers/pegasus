@@ -10,9 +10,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// image's tags, and applies a preparation edit inside the Case workspace
 /// save's own transaction with a per-row <c>PreparationVersion</c> optimistic
 /// check. Original bytes and <c>DocumentVersion.Sha256</c> are never touched.
-/// A Case's set carries each photo link photograph's story place
-/// (<see cref="StoryPlacesAsync"/>), which orders it until someone does
-/// (R854).
+/// A Case's set carries the story place of each photo link photograph in
+/// the report nobody has ordered (<see cref="StoryPlacesAsync"/>), which
+/// orders it until someone does (R854).
 /// </summary>
 public sealed class EfCaseAssetPreparationStore(
     IDbContextFactory<PegasusDbContext> contextFactory) : ICaseAssetPreparationQueries
@@ -140,8 +140,14 @@ public sealed class EfCaseAssetPreparationStore(
 
         var tags = await TagsAsync(context, [.. occurrences.Select(item => item.Id)], cancellationToken);
         // The save renumbers the report's images, so the story places its
-        // unordered photo link photos as the read does (R854).
-        var stories = await StoryPlacesAsync(context, occurrences, cancellationToken);
+        // unordered photo link photos as the read does, an edit's order
+        // standing in for the stored one (R854).
+        var stories = await StoryPlacesAsync(
+            context,
+            [.. occurrences.Where(item => CaseAssetPreparationPolicy.TakesStoryPlace(
+                item.InReport,
+                editsByOccurrence.TryGetValue(item.Id, out var pending) ? pending.Order : item.SupportingOrder))],
+            cancellationToken);
         var proposedByOccurrence = occurrences.ToDictionary(
             occurrence => occurrence.Id,
             occurrence => ToPreparation(occurrence, pinnedVersionsById[occurrence.VersionId], tags, stories));
@@ -229,7 +235,10 @@ public sealed class EfCaseAssetPreparationStore(
             .Where(version => versionIds.Contains(version.Id))
             .ToDictionaryAsync(version => version.Id, cancellationToken);
         var tags = await TagsAsync(context, [.. occurrences.Select(item => item.Id)], cancellationToken);
-        var stories = await StoryPlacesAsync(context, occurrences, cancellationToken);
+        var stories = await StoryPlacesAsync(
+            context,
+            [.. occurrences.Where(item => CaseAssetPreparationPolicy.TakesStoryPlace(item.InReport, item.SupportingOrder))],
+            cancellationToken);
 
         return occurrences
             .Select(occurrence => ToPreparation(occurrence, versionsById[occurrence.VersionId], tags, stories))
@@ -254,8 +263,12 @@ public sealed class EfCaseAssetPreparationStore(
         new Dictionary<Guid, CaseAssetStoryPlace>();
 
     /// <summary>
-    /// The story place of each image a photo link sent, by occurrence, in one
-    /// statement for the Case and none when no image came through intake. A
+    /// The story place of each of <paramref name="unordered"/> a photo link
+    /// sent, by occurrence, in one statement for the Case. The callers pass
+    /// only the images a story can place
+    /// (<see cref="CaseAssetPreparationPolicy.TakesStoryPlace"/>), so a Case
+    /// whose images are all ordered, or none of whose unordered images came
+    /// through intake, sends no statement (R854). A
     /// photo link's image is filed from its intake asset, which the
     /// occurrence names directly or through a Vehicle images record's fold
     /// (<see cref="IntakeImageOccurrenceIdentity"/>), and the capture item
@@ -263,11 +276,11 @@ public sealed class EfCaseAssetPreparationStore(
     /// </summary>
     private static async Task<IReadOnlyDictionary<Guid, CaseAssetStoryPlace>> StoryPlacesAsync(
         PegasusDbContext context,
-        IReadOnlyCollection<DocumentOccurrenceEntity> occurrences,
+        IReadOnlyCollection<DocumentOccurrenceEntity> unordered,
         CancellationToken cancellationToken)
     {
         var assetByOccurrence = new Dictionary<Guid, Guid>();
-        foreach (var occurrence in occurrences)
+        foreach (var occurrence in unordered)
         {
             if (occurrence.Source == DocumentSource.Intake
                 && IntakeImageOccurrenceIdentity.TryReadAssetId(occurrence.SourceOccurrenceIdentity, out var assetId))

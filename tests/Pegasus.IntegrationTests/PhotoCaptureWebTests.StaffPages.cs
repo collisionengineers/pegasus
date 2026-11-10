@@ -362,7 +362,12 @@ public sealed partial class PhotoCaptureWebTests
         Assert.Null(await WebsiteLinkAsync(factory));
     }
 
-    /// <summary>A saved address with no name or no address is refused beside its form with the operator's sentence (R868).</summary>
+    /// <summary>
+    /// A saved address with no name or no address is refused beside its form
+    /// with the operator's sentence (R868), once: beside the add form, or
+    /// beside the one saved address's form that was sent, however many
+    /// addresses the contact has saved.
+    /// </summary>
     [Fact]
     public async Task ASavedAddressWithNoAddressIsSaidBesideItsForm()
     {
@@ -372,24 +377,61 @@ public sealed partial class PhotoCaptureWebTests
         var organizationId = link.OrganizationId
             ?? throw new InvalidOperationException("A contact's link names no contact.");
         var contactPage = $"/Administration/Contacts/Edit/{organizationId:D}";
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var administration = scope.ServiceProvider.GetRequiredService<StandingPhotoLinkAdministration>();
+            link = await administration.AddAddressAsync(
+                Issuer, NewOperationKey(), link.Id, link.Version, "Back yard", "1 Example Street, Exampleton", CancellationToken.None);
+            link = await administration.AddAddressAsync(
+                Issuer, NewOperationKey(), link.Id, link.Version, "Front yard", "2 Example Street, Exampleton", CancellationToken.None);
+        }
 
-        using var refused = await PostStaffFormAsync(
+        var saved = (await AddressBookAsync(factory, link.Id)).Saved;
+        Assert.Equal(2, saved.Count);
+        var sentence = HtmlEncoder.Default.Encode("A saved address needs a name and an address.");
+
+        using (var refused = await PostStaffFormAsync(
             client,
             $"{contactPage}?handler=AddPhotoLinkAddress&savedAddress=new",
             new Dictionary<string, string>
             {
                 ["PhotoLinkOperationKey"] = NewOperationKey(),
                 ["StandingLinkVersion"] = link.Version.ToString(CultureInfo.InvariantCulture),
-                ["SavedAddressName"] = "Back yard",
+                ["SavedAddressName"] = "Side gate",
                 ["SavedAddressText"] = "   "
-            });
+            }))
+        {
+            Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+            var html = await refused.Content.ReadAsStringAsync();
+            Assert.Contains(sentence, FormFor(html, "handler=AddPhotoLinkAddress"), StringComparison.Ordinal);
+            Assert.Equal(1, Regex.Count(html, Regex.Escape(sentence)));
+        }
 
-        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
-        var html = await refused.Content.ReadAsStringAsync();
-        var sentence = HtmlEncoder.Default.Encode("A saved address needs a name and an address.");
-        Assert.Contains(sentence, FormFor(html, "handler=AddPhotoLinkAddress"), StringComparison.Ordinal);
-        Assert.Single(Regex.Matches(html, Regex.Escape(sentence)));
-        Assert.Empty((await AddressBookAsync(factory, link.Id)).Saved);
+        var changing = saved[0];
+        using (var refused = await PostStaffFormAsync(
+            client,
+            $"{contactPage}?handler=ChangePhotoLinkAddress&savedAddress={changing.Id:D}",
+            new Dictionary<string, string>
+            {
+                ["PhotoLinkOperationKey"] = NewOperationKey(),
+                ["StandingLinkVersion"] = link.Version.ToString(CultureInfo.InvariantCulture),
+                ["SavedAddressId"] = changing.Id.ToString("D"),
+                ["SavedAddressName"] = "   ",
+                ["SavedAddressText"] = "1 Example Street, Exampleton"
+            }))
+        {
+            Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+            var html = await refused.Content.ReadAsStringAsync();
+            var form = FormFor(html, "handler=ChangePhotoLinkAddress");
+            Assert.Contains(changing.Id.ToString("D"), form, StringComparison.Ordinal);
+            Assert.Contains(sentence, form, StringComparison.Ordinal);
+            Assert.Equal(1, Regex.Count(html, Regex.Escape(sentence)));
+        }
+
+        // Neither refusal changed what was saved.
+        Assert.Equal(
+            saved.OrderBy(address => address.Id),
+            (await AddressBookAsync(factory, link.Id)).Saved.OrderBy(address => address.Id));
     }
 
     /// <summary>The contact's current standing link.</summary>

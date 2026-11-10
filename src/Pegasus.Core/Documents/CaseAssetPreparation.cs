@@ -145,7 +145,8 @@ public sealed record CaseAssetPreparation(
     /// <summary>
     /// The image's place in the story of the photo link that sent it; null
     /// for an image from any other channel. It orders the image only while
-    /// nobody has ordered it (R854).
+    /// nobody has ordered it (R854), so it is read only for an image
+    /// <see cref="CaseAssetPreparationPolicy.TakesStoryPlace"/> names.
     /// </summary>
     public CaseAssetStoryPlace? Story { get; init; }
 }
@@ -432,6 +433,14 @@ public static class CaseAssetPreparationPolicy
 
         return result;
     }
+
+    /// <summary>
+    /// Whether a photo link's story can place the image: only an image in the
+    /// report that nobody has ordered (<see cref="InReportOrder"/>). An image
+    /// an engineer ordered, or one out of the report, never reads it
+    /// (operator, 10 November 2026; R854).
+    /// </summary>
+    public static bool TakesStoryPlace(bool inReport, int? order) => inReport && order is null;
 
     private static PreparedReportImage Prepared(CaseAssetPreparation item, CaseAssetReportRole role, int? order) =>
         new(
