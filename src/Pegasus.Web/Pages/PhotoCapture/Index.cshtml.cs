@@ -174,9 +174,9 @@ public sealed class IndexModel(
         IReadOnlyList<MissingCaptureItem> missing = [.. row.MissingItems.Select(label => new MissingCaptureItem(label, label))];
         return new(
             row,
-            PhotoCaptureStatus.Evaluate(row.Capture, missing, now, row.CaseArchived),
+            PhotoCaptureStatus.Evaluate(row.Capture, missing, row.Photographs, now, row.CaseArchived),
             row.Capture.Origin == PhotoCaptureOrigin.CaseLink
-                ? PhotoCaptureStatus.DueReminder(row.Capture, missing, now, row.CaseArchived)
+                ? PhotoCaptureStatus.DueReminder(row.Capture, missing, row.Photographs, now, row.CaseArchived)
                 : null,
             PhotoCaptureAccess.IsLive(row.Capture, now, row.CaseArchived));
     }

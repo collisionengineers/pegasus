@@ -28,6 +28,7 @@ public sealed class EfPhotoCaptureStore(
         NewPhotoCapture capture,
         string tokenDigest,
         PhotoLinkTokenPurpose tokenPurpose,
+        string? sessionTokenDigest,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(capture);
@@ -65,6 +66,7 @@ public sealed class EfPhotoCaptureStore(
             IssuedByStaffId = capture.IssuedByStaffId,
             CreatedAtUtc = capture.CreatedAtUtc,
             ExpiresAtUtc = capture.ExpiresAtUtc,
+            OpenedAtUtc = capture.OpenedAtUtc,
             Version = 1
         };
         context.PhotoCaptures.Add(entity);
@@ -76,6 +78,17 @@ public sealed class EfPhotoCaptureStore(
             IssuedAtUtc = capture.CreatedAtUtc,
             IssuedByStaffId = capture.IssuedByStaffId
         });
+        if (sessionTokenDigest is not null)
+        {
+            context.PhotoCaptureTokens.Add(new()
+            {
+                TokenDigest = sessionTokenDigest,
+                CaptureId = entity.Id,
+                Purpose = PhotoCaptureCodes.ToCode(PhotoLinkTokenPurpose.Session),
+                IssuedAtUtc = capture.CreatedAtUtc,
+                IssuedByStaffId = capture.IssuedByStaffId
+            });
+        }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
@@ -89,7 +102,7 @@ public sealed class EfPhotoCaptureStore(
         return entity is null ? null : Map(entity);
     }
 
-    public async Task<(PhotoCapture Capture, bool TokenRevoked, bool CaseArchived)?> FindByTokenDigestAsync(
+    public async Task<(PhotoCapture Capture, bool TokenRevoked, bool CaseArchived, PhotoLinkTokenPurpose Purpose)?> FindByTokenDigestAsync(
         string tokenDigest,
         CancellationToken cancellationToken)
     {
@@ -107,6 +120,7 @@ public sealed class EfPhotoCaptureStore(
             {
                 Capture = capture,
                 token.RevokedAtUtc,
+                token.Purpose,
                 CaseArchived = workflow != null && workflow.ArchivedAtUtc != null
             })
             .SingleOrDefaultAsync(cancellationToken);
@@ -115,7 +129,7 @@ public sealed class EfPhotoCaptureStore(
             return null;
         }
 
-        return (Map(row.Capture), row.RevokedAtUtc is not null, row.CaseArchived);
+        return (Map(row.Capture), row.RevokedAtUtc is not null, row.CaseArchived, PhotoCaptureCodes.ParseTokenPurpose(row.Purpose));
     }
 
     public async Task AddTokenAsync(

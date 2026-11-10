@@ -356,17 +356,22 @@ public sealed class PhotoCaptureSecurityTests
     /// <summary>The captures a test lists by their token; a token it did not list names nothing.</summary>
     private sealed class ListedCaptures : IPhotoCaptureStore
     {
-        private readonly ConcurrentDictionary<string, (CaptureRecord Capture, bool TokenRevoked, bool CaseArchived)> byDigest =
+        private readonly ConcurrentDictionary<string, (CaptureRecord Capture, bool TokenRevoked, bool CaseArchived, PhotoLinkTokenPurpose Purpose)> byDigest =
             new(StringComparer.Ordinal);
 
-        public void Add(CaptureLinkSecret token, CaptureRecord capture, bool tokenRevoked, bool caseArchived = false) =>
-            byDigest[PhotoLinkToken.Digest(token)] = (capture, tokenRevoked, caseArchived);
+        public void Add(
+            CaptureLinkSecret token,
+            CaptureRecord capture,
+            bool tokenRevoked,
+            bool caseArchived = false,
+            PhotoLinkTokenPurpose purpose = PhotoLinkTokenPurpose.Email) =>
+            byDigest[PhotoLinkToken.Digest(token)] = (capture, tokenRevoked, caseArchived, purpose);
 
-        public Task<(CaptureRecord Capture, bool TokenRevoked, bool CaseArchived)?> FindByTokenDigestAsync(
+        public Task<(CaptureRecord Capture, bool TokenRevoked, bool CaseArchived, PhotoLinkTokenPurpose Purpose)?> FindByTokenDigestAsync(
             string tokenDigest,
             CancellationToken cancellationToken)
         {
-            (CaptureRecord Capture, bool TokenRevoked, bool CaseArchived)? found = byDigest.TryGetValue(tokenDigest, out var listed)
+            (CaptureRecord Capture, bool TokenRevoked, bool CaseArchived, PhotoLinkTokenPurpose Purpose)? found = byDigest.TryGetValue(tokenDigest, out var listed)
                 ? listed
                 : null;
             return Task.FromResult(found);
@@ -376,6 +381,7 @@ public sealed class PhotoCaptureSecurityTests
             NewPhotoCapture capture,
             string tokenDigest,
             PhotoLinkTokenPurpose tokenPurpose,
+            string? sessionTokenDigest,
             CancellationToken cancellationToken) => throw Outside();
 
         public Task<CaptureRecord?> GetAsync(Guid captureId, CancellationToken cancellationToken) => throw Outside();

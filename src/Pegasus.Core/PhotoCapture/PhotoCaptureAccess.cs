@@ -8,8 +8,9 @@ namespace Pegasus.Core.PhotoCapture;
 /// (R796). They are never told apart
 /// on the wire (FRD-28, ADR-0090): the sender's next step is the same, to
 /// ask for a new link, and one answer gives a guesser nothing.
+/// <see cref="TokenPurpose"/> is the presented token's purpose, for a capture.
 /// </summary>
-public sealed record CaptureAccess(PhotoCapture? Capture, StandingPhotoLink? StandingLink)
+public sealed record CaptureAccess(PhotoCapture? Capture, StandingPhotoLink? StandingLink, PhotoLinkTokenPurpose? TokenPurpose = null)
 {
     public static CaptureAccess Unavailable { get; } = new(null, null);
 
@@ -62,11 +63,19 @@ public sealed class PhotoCaptureAccess(
             return CaptureAccess.Unavailable;
         }
 
-        var (capture, tokenRevoked, caseArchived) = found.Value;
+        var (capture, tokenRevoked, caseArchived, purpose) = found.Value;
         return IsLive(capture, timeProvider.GetUtcNow(), caseArchived) && !tokenRevoked
-            ? new(capture, null)
+            ? new(capture, null, purpose)
             : CaptureAccess.Unavailable;
     }
+
+    /// <summary>
+    /// Whether a call on a token of this purpose records the capture Opened.
+    /// A Session token is the phone that made the capture (a hand-off's staff
+    /// phone sending the form's paperwork, or "Take photos now", which is
+    /// Opened when it is made), so it never opens the link for its sender.
+    /// </summary>
+    public static bool MarksOpened(PhotoLinkTokenPurpose? purpose) => purpose != PhotoLinkTokenPurpose.Session;
 
     public async Task<CaptureAccess> ResolveSlugAsync(string? slug, CancellationToken cancellationToken)
     {

@@ -57,7 +57,9 @@ domain is a separate operator decision (EXT-19 stays retired).
   paused and retired credentials, and a standing link whose contact is
   inactive (R796), get the same page and the same 404, so a guesser learns
   nothing. Opened is recorded on the first API call, never on a page fetch,
-  because link previews fetch pages.
+  because link previews fetch pages, and never on a Session token: the
+  phone that made a capture (a hand-off's staff phone, or one taking the
+  photos now, which is Opened as the capture is made) does not open it.
 - **Same origin now.** The surface is served by the Web host on its own
   origin, `https://pegasus-prod-web-252ow37gij.azurewebsites.net/`, read from
   `PhotoCapture:PublicOrigin` (R779). A custom capture domain later changes

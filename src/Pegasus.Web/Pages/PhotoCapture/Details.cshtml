@@ -173,7 +173,7 @@
                 }
                 <div class="definition"><dt>@Labels.Created</dt><dd>@OperatorLabels.OfficeTime(capture.CreatedAtUtc)</dd></div>
                 <div class="definition"><dt>@Labels.Expires</dt><dd>@OperatorLabels.OfficeTime(capture.ExpiresAtUtc)</dd></div>
-                <div class="definition"><dt>@Labels.Photos</dt><dd>@Labels.PhotoCount(capture.AcceptedItemCount, Model.State == PhotoCaptureState.Complete)</dd></div>
+                <div class="definition"><dt>@Labels.Photos</dt><dd>@Labels.PhotoCount(Model.Row.Photographs, Model.State == PhotoCaptureState.Complete)</dd></div>
                 @if (Model.IsCaseLink)
                 {
                     <div class="definition"><dt>@Labels.NextReminder</dt><dd>@(Model.Due?.Label ?? Labels.None)</dd></div>

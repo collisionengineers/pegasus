@@ -232,7 +232,8 @@ public sealed class EfPhotoCaptureQueries(
                 pending.Items,
                 PhotoCaptureRequiredItems.VinRequired(capture.Origin, contact?.IsRepairer ?? false));
             var caseArchived = capture.CaseId is { } caseId && archivedCases.Contains(caseId);
-            var state = PhotoCaptureStatus.Evaluate(capture, missing, now, caseArchived);
+            var photographs = pending.Items.Count(item => PhotoCaptureStory.IsPhotographKind(item.Kind));
+            var state = PhotoCaptureStatus.Evaluate(capture, missing, photographs, now, caseArchived);
             (Guid Id, string Reference)? record = capture.SubmissionGroupId is { } groupId
                 && records.TryGetValue(groupId, out var groupRecord)
                     ? groupRecord
@@ -246,7 +247,8 @@ public sealed class EfPhotoCaptureQueries(
                     missing.Select(item => item.Label).ToArray(),
                     capture.IssuedByStaffId is { } issuer && issuers.TryGetValue(issuer, out var name) ? name : null,
                     PhotoCapturePairing.None,
-                    caseArchived),
+                    caseArchived,
+                    photographs),
                 state));
         }
 
