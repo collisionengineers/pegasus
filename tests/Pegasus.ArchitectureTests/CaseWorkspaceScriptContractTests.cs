@@ -397,10 +397,16 @@ public sealed class CaseWorkspaceScriptContractTests
     }
 
     /// <summary>
-    /// Issue 1463 (FRD-16): clicking a section link mounts any preceding lazy
-    /// placeholders, re-scrolls the target as preceding or bottom-clamping lazy
-    /// sections finish loading, and holds the jumped link current only while
-    /// that settle is pending or the page is clamped at its bottom.
+    /// Issues 1463, 1496 and 1497 (FRD-16, R888): a jump lands in one scroll made at
+    /// once, the section under the section row or its marked field centred when the
+    /// field lies deeper, and never by <c>scrollIntoView</c>, which would glide and
+    /// back the page up into the section before. It settles again as each section
+    /// mounts, in one pass over the placeholders: those before the target are read and
+    /// waited on, those after it only while the document is too short to land. A read
+    /// the Case moved on under is made again, or settles the jump when its placeholder
+    /// has gone. The clicked link stays current only while the jump is pending or the
+    /// page stands at its bottom. What the page then does is
+    /// <c>scripts/Test-CasePageBrowser.mjs</c>'s to show; this pins the shape.
     /// </summary>
     [Fact]
     public void JumpingToASectionSettlesAcrossLazyMountsAndKeepsTheClickedLinkCurrent()
@@ -409,31 +415,53 @@ public sealed class CaseWorkspaceScriptContractTests
             RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
 
         var mount = FunctionBody(script, "function mount(placeholder, then) {", "    ");
-        var waiting = mount.IndexOf("waiting.splice(0, waiting.length)", StringComparison.Ordinal);
-        var settleInMount = mount.IndexOf("settlePendingAnchor();", StringComparison.Ordinal);
-        var spyInMount = mount.IndexOf("spy();", StringComparison.Ordinal);
+        var mounted = mount[mount.IndexOf("placeholder.replaceWith(host);", StringComparison.Ordinal)..];
+        var waiting = mounted.IndexOf("waiting.splice(0, waiting.length)", StringComparison.Ordinal);
+        var settleInMount = mounted.IndexOf("settlePendingAnchor();", StringComparison.Ordinal);
+        var spyInMount = mounted.IndexOf("spy();", StringComparison.Ordinal);
         Assert.True(waiting >= 0 && waiting < settleInMount && settleInMount < spyInMount);
 
-        var pendingLazy = FunctionBody(script, "function pendingLazyFor(target) {", "    ");
-        Assert.Contains("lazyBefore(target)", pendingLazy, StringComparison.Ordinal);
-        Assert.Contains("lazyAfter(target)", pendingLazy, StringComparison.Ordinal);
-        Assert.Contains(
-            "|| window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40;",
-            pendingLazy,
-            StringComparison.Ordinal);
+        var thrownAway = FunctionBody(mount, "function thrownAway() {");
+        var readAgain = thrownAway.IndexOf("mount(placeholder);", StringComparison.Ordinal);
+        var settledInstead = thrownAway.IndexOf("settlePendingAnchor();", StringComparison.Ordinal);
+        Assert.Contains("if (placeholder.isConnected && main.contains(placeholder)) {", thrownAway, StringComparison.Ordinal);
+        Assert.True(
+            readAgain >= 0 && settledInstead > readAgain,
+            "A read thrown away is made again while its placeholder stands, and settles the jump otherwise.");
+        Assert.Equal(2, Regex.Count(mount, @"if \(!stillCurrent\(\)\) \{\s*thrownAway\(\);\s*return;"));
+
+        var land = FunctionBody(script, "function land(host) {", "    ");
+        Assert.Contains("top = Math.max(top, ", land, StringComparison.Ordinal);
+        Assert.Contains("window.scrollTo({ top: top, behavior: 'instant' });", land, StringComparison.Ordinal);
+        Assert.Contains("return window.scrollY < top - 1;", land, StringComparison.Ordinal);
 
         var settle = FunctionBody(script, "function settlePendingAnchor() {", "    ");
-        Assert.Contains("if (target.hasAttribute('data-lazy')) {", settle, StringComparison.Ordinal);
-        Assert.Contains("scrollSectionIntoView(target);", settle, StringComparison.Ordinal);
-        Assert.Contains("var remaining = pendingLazyFor(target);", settle, StringComparison.Ordinal);
-        Assert.Contains("remaining.forEach(function (placeholder) { mount(placeholder); });", settle, StringComparison.Ordinal);
-        Assert.Contains("if (!remaining.length) {", settle, StringComparison.Ordinal);
+        Assert.Equal(1, Regex.Count(settle, @"querySelectorAll\('\[data-lazy\]'\)"));
+        var beforeTarget = settle.IndexOf("Node.DOCUMENT_POSITION_FOLLOWING) !== 0) {", StringComparison.Ordinal);
+        var readBefore = settle.IndexOf("mount(placeholder);", StringComparison.Ordinal);
+        var keptAfter = settle.IndexOf("after.push(placeholder);", StringComparison.Ordinal);
+        Assert.True(
+            beforeTarget >= 0 && readBefore > beforeTarget && keptAfter > readBefore,
+            "A placeholder the target follows is read; one after it is kept for the landing to weigh.");
+        Assert.Matches(new Regex(@"if \(target\.hasAttribute\('data-lazy'\)\) \{\s*mount\(target\);\s*return;"), settle);
+        Assert.Contains("var short = land(target);", settle, StringComparison.Ordinal);
+        Assert.Contains("var reached = after.filter(approaching);", settle, StringComparison.Ordinal);
+        Assert.Contains("if (!before && !(short && reached.length)) {", settle, StringComparison.Ordinal);
 
         var jumpTo = FunctionBody(script, "function jumpTo(key, focus, tab, field) {", "    ");
         Assert.Contains("jumpedKey = ownerKey(key);", jumpTo, StringComparison.Ordinal);
         Assert.Contains("pendingAnchor = { key: key };", jumpTo, StringComparison.Ordinal);
-        Assert.Contains("lazyBefore(target).forEach(function (placeholder) { mount(placeholder); });", jumpTo, StringComparison.Ordinal);
-        Assert.Contains("settlePendingAnchor();", jumpTo, StringComparison.Ordinal);
+        Assert.Contains("mount(target, arrive);", jumpTo, StringComparison.Ordinal);
+        Assert.EndsWith("settlePendingAnchor();\n        spy();", jumpTo.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+
+        // The landing is the jump's one scroll.
+        var markField = FunctionBody(script, "function markField(host, field) {", "    ");
+        foreach (var body in new[] { settle, jumpTo, markField })
+        {
+            Assert.DoesNotContain("scrollIntoView", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("scrollTo(", body, StringComparison.Ordinal);
+        }
+        Assert.DoesNotContain("function pendingLazyFor(", script, StringComparison.Ordinal);
 
         var spy = FunctionBody(script, "function spy() {", "    ");
         Assert.Contains(

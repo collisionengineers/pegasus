@@ -76,7 +76,12 @@ lasts while the page is open (operator, 6 October 2026). The rule is in
 the current section as you scroll, and carries **Refresh**. The page always
 scrolls; there is no Tabs layout (operator, 9 October 2026). Each section's
 folded state is remembered per browser and painted by the server.
-`?section=` jumps to a section. Sections below the fold load lazily.
+`?section=` jumps to a section. Sections below the fold load lazily. A jump
+lands in one movement, made at once, with the section under the section row;
+a jump to a blocker's field outlines the field and centres it beneath the row
+only when it lies deeper in its section than that, so the page never backs up
+into the section before the one asked for and the section row marks the
+section clicked (operator, 10 November 2026; R888).
 
 Every editable section head has its own **Edit**, which starts the one
 page-wide edit session without moving the page. When the state does not
