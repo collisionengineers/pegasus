@@ -11,9 +11,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// Original report recordings that waited for a Case editor, kept as the
 /// receipt's own append-only intake history (R728, #1981). The n-th wait of a
 /// receipt and Case pair and its settlement share n in their operation keys,
-/// n being how many waits were settled before it, so a wait is open while its
-/// settlement key is absent, and recording a wait that is already open, or
-/// settling one twice, writes nothing.
+/// n being how many waits were settled before it, so recording a wait that is
+/// already open, or settling one twice, writes nothing. A wait is open while
+/// no settlement for its pair follows it.
 /// </summary>
 internal sealed class EfOriginalReportRecognitionDeferrals(
     IDbContextFactory<PegasusDbContext> contextFactory,
