@@ -380,7 +380,7 @@ public sealed class SettlePhotoCaptures(
         }
     }
 
-    private Task RingAsync(PhotoCapture capture, Guid caseId, CancellationToken cancellationToken) =>
+    private Task<StaffNotification?> RingAsync(PhotoCapture capture, Guid caseId, CancellationToken cancellationToken) =>
         notifier.NotifyAsync(
             StaffNotificationCause.PhotosReceived,
             caseId,
