@@ -5,10 +5,11 @@ using Pegasus.Core.Intake.Unidentified;
 namespace Pegasus.Core.ImageIntake;
 
 /// <summary>
-/// The one decision table used when a manual upload contains more than one
-/// image. Recognition is evaluated across the whole group, so a close-up that
+/// The one decision table for an image submission group: a manual upload of
+/// more than one image, or a photo link's batch that settled with no Case
+/// (R791). Recognition is evaluated across the whole group, so a close-up that
 /// has no plate cannot detach itself from an overview that identifies the
-/// vehicle.
+/// vehicle. No group associates a Case while it routes (R880).
 /// </summary>
 public enum ImageIntakeGroupRoutingDecision
 {
