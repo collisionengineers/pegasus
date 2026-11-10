@@ -1769,7 +1769,11 @@ public sealed partial class PhotoCaptureWebTests
             SourceSha256 = new string('A', 64), MimeSha256 = new string('B', 64),
             SentAtUtc = DateTimeOffset.UtcNow, DiscoveredAtUtc = DateTimeOffset.UtcNow,
             DiscoveredByKind = nameof(ActorKind.SystemWorker), DiscoveredBySubjectId = "test",
-            RetentionOperationKey = "retained-sent-test", RetentionRequestHash = new string('C', 64)
+            RetentionOperationKey = "retained-sent-test", RetentionRequestHash = new string('C', 64),
+            // Linked evidence carries who linked it, as the sent poll records
+            // it; without it the Case's reads refuse the row.
+            LinkedAtUtc = DateTimeOffset.UtcNow, LinkedByKind = nameof(ActorKind.SystemWorker),
+            LinkedBySubjectId = "approved-mailbox-sent-poll", LinkedByRolesJson = "[]"
         };
         db.Add(workflow.ReportSentEvidence);
         await db.SaveChangesAsync();
