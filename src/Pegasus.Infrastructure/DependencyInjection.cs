@@ -216,6 +216,7 @@ public static class DependencyInjection
             provider.GetRequiredService<IProcessQueuedIntake>(),
             provider.GetRequiredService<IPhotoCaptureCaseWriter>(),
             provider.GetRequiredService<IAddCaseNote>(),
+            provider.GetRequiredService<AddTriageNote>(),
             provider.GetRequiredService<ICaseStaffNotifier>(),
             provider.GetRequiredService<TimeProvider>()));
         services.AddScoped<EfUnidentifiedStore>();

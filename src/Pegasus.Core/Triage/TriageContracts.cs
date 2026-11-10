@@ -646,6 +646,20 @@ public interface ITriageStore : ITriageQueries, ITriageResponseEvidenceCandidate
         Task.FromException<TriageRecord>(
             new NotSupportedException("Triage notes are not available."));
 
+    /// <summary>
+    /// Appends a note system work writes as the same note entry, with no edit
+    /// scope and the Triage's version left alone; a repeated operation key
+    /// replays and writes nothing, and a completed or cancelled Triage takes
+    /// no note (<see cref="AddTriageNote.ExecuteForSystemAsync"/>). Answers
+    /// whether the note was written now.
+    /// </summary>
+    Task<bool> AddSystemNoteAsync(
+        Guid triageCaseId,
+        ActionActor actor,
+        string operationKey,
+        string note,
+        CancellationToken cancellationToken);
+
     Task<TriageRecord> CreateAsync(
         CreateTriageFromIntakeRequest request,
         CancellationToken cancellationToken);

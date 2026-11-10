@@ -757,6 +757,7 @@ public sealed class EfPhotoCaptureStore(
                         association.CaseId,
                         association.IsActive,
                         association.ActorKind,
+                        association.ActorSubjectId,
                         association.LinkedAtUtc
                     })
                     .FirstOrDefault(),
@@ -786,7 +787,10 @@ public sealed class EfPhotoCaptureStore(
                     : new PhotoCaptureItemLink(
                         row.Link.CaseId,
                         row.Link.IsActive,
-                        string.Equals(row.Link.ActorKind, systemWorker, StringComparison.Ordinal),
+                        // A link that follows a record's merge files as a
+                        // member of staff's does, with no window (R844).
+                        string.Equals(row.Link.ActorKind, systemWorker, StringComparison.Ordinal)
+                            && !PhotoCaptureIntakeRules.FollowsRecordMerge(row.Link.ActorKind, row.Link.ActorSubjectId),
                         row.Link.LinkedAtUtc),
                 row.FilingStarted,
                 row.Filed,
@@ -1056,8 +1060,10 @@ public sealed class EfPhotoCaptureStore(
             async token =>
             {
                 // One transaction under the capture row's update lock: the
-                // batch's reach and owed bell, and the capture's Case and
-                // images marker when it has no Case yet, are written together.
+                // batch's reach and owed bell, and the capture's Case when it
+                // has no Case yet, are written together. The images marker is
+                // the merge's: the fold that merged the record wrote it with
+                // the images it completed, or found spent (R841).
                 await using var context = await contextFactory.CreateDbContextAsync(token);
                 await using var transaction = await context.Database.BeginReadCommittedAsync(token);
                 await context.Database.ExecuteSqlAsync(
@@ -1091,9 +1097,6 @@ public sealed class EfPhotoCaptureStore(
                     capture.Destination = PhotoCaptureCodes.ToCode(PhotoCaptureDestination.Case);
                 }
 
-                // The record's merge completed the Case's images: the
-                // capture's one images-complete is spent.
-                capture.ImagesCompletedAtUtc ??= nowUtc;
                 capture.Version++;
                 await context.SaveChangesAsync(token);
                 await transaction.CommitAsync(token);
