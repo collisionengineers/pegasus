@@ -1071,6 +1071,56 @@ public sealed class CaseValuationSectionWebTests
     }
 
     /// <summary>
+    /// A source that has answered for the Case is not asked again for the same
+    /// month at the same registration and mileage (operator, 10 November 2026,
+    /// R900): the button stays, and a second press is refused on the card with
+    /// the operator's sentence, asking and recording nothing. Another month is
+    /// asked.
+    /// </summary>
+    [Fact]
+    public async Task ASecondGetValuationForTheSameMonthIsRefusedWithoutAskingAgain()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var provider = new FakeGuideValuationProvider(ValuationSource.Brego, 13_250m, 11_000m);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ICaseDataQueries>(services, store);
+            services.AddSingleton<IGuideValuationProvider>(provider);
+        });
+
+        using (var first = await PostGetValuationAsync(workspace, ValuationSource.Brego, "2026-08", asJson: true))
+        {
+            using var answer = JsonDocument.Parse(await first.Content.ReadAsStringAsync());
+            Assert.Equal("ok", answer.RootElement.GetProperty("status").GetString());
+        }
+
+        using (var again = await PostGetValuationAsync(workspace, ValuationSource.Brego, "2026-08", asJson: true))
+        {
+            Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+            using var answer = JsonDocument.Parse(await again.Content.ReadAsStringAsync());
+            Assert.Equal("refused", answer.RootElement.GetProperty("status").GetString());
+            Assert.Equal(
+                "Brego has already been asked for this Case.",
+                answer.RootElement.GetProperty("message").GetString());
+        }
+
+        Assert.Single(provider.Requests);
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+        Assert.Contains("data-valuation-get", EntryCard(html, "brego"), StringComparison.Ordinal);
+
+        using (var otherMonth = await PostGetValuationAsync(workspace, ValuationSource.Brego, "2026-07", asJson: true))
+        {
+            using var answer = JsonDocument.Parse(await otherMonth.Content.ReadAsStringAsync());
+            Assert.Equal("ok", answer.RootElement.GetProperty("status").GetString());
+        }
+
+        Assert.Equal(2, provider.Requests.Count);
+        Assert.Empty(store.Saves);
+    }
+
+    /// <summary>
     /// Glass's connected (ADR-0060): the card is offered Get valuation, which
     /// answers Retail Transacted and Glass's Trade for the posted month, and
     /// the valuation's report — the stocked vehicle's "Values Only" print over
@@ -1510,7 +1560,11 @@ public sealed class CaseValuationSectionWebTests
             Substitute<IListValuationPresets>(services, this);
             Substitute<IAiJobQueries>(services, this);
             Substitute<IStartMarketResearch>(services, this);
+            Substitute<IGuideValuationFetchLedger>(services, Ledger);
         }
+
+        /// <summary>The Case is a recording fake, so its asks are kept in memory.</summary>
+        public MemoryGuideValuationFetchLedger Ledger { get; } = new();
 
         /// <summary>
         /// A recorded adoption over <paramref name="basis"/>: a 10 per cent

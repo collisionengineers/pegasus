@@ -2271,7 +2271,31 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal("Glasses", card.GetProperty("source").GetString());
             Assert.Equal(12_500m, card.GetProperty("retailValue").GetDecimal());
             Assert.True(fetched.GetProperty("caseVersion").GetInt64() > version);
+            version = fetched.GetProperty("caseVersion").GetInt64();
         }
+        // The same source and month at the same registration and mileage is
+        // not asked again (R900): nothing is fetched, charged or recorded.
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(50, "pegasus_valuation_get", new
+        {
+            caseId,
+            expectedVersion = version,
+            editLeaseToken = leaseToken,
+            operationKey = "mcp:one-lease-valuation-again",
+            source = "Glasses",
+            guideMonth = "2031-05",
+            reason = "Automation fetched the Glass's valuation again."
+        })))
+        {
+            var refused = await ReadStructuredContentAsync(response);
+            Assert.Equal("AlreadyAsked", refused.GetProperty("outcome").GetString());
+            Assert.Equal(
+                Pegasus.Web.Presentation.CaseWorkspaceLabels.Valuation.AlreadyFetched(ValuationSource.Glasses),
+                refused.GetProperty("message").GetString());
+        }
+        // The host's clock is the real one, so the later month 2031-05 is the
+        // current month's ask.
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM GuideValuationFetches WHERE CaseId = '{caseId:D}' AND Source = N'Glasses' AND Registration = N'AB12CDE' AND Mileage = 52000 AND State = N'Answered'"));
         var request = Assert.Single(provider.Requests);
         Assert.Equal(52_000L, request.Mileage);
 

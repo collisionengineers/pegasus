@@ -226,7 +226,10 @@ that card with the figures, as the section's Save would (operator, 8 October
 credential and, where the provider offers them, files its report and fills an
 empty VIN, exactly as for staff. An unavailable source, a vehicle the source
 does not value (`VehicleAge`) or a registration it holds no data for
-(`NoVehicleData`) records nothing. Adopting a basis card, which writes the report's Retail and Trade,
+(`NoVehicleData`) records nothing, and so does a source already answered for
+that guide month at the Case's registration and mileage (`AlreadyAsked`;
+operator, 10 November 2026, R900;
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)). Adopting a basis card, which writes the report's Retail and Trade,
 stays with `pegasus_valuation_save`; the Engineer's Value stays with
 `pegasus_assessment_update`.
 

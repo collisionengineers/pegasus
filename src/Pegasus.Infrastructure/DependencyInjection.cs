@@ -576,6 +576,7 @@ public static class DependencyInjection
         services.AddScoped<IAppliedValuationStore>(provider =>
             provider.GetRequiredService<EfValuationStore>());
         services.AddScoped<IAutomaticGuideValuationStore, EfAutomaticGuideValuationStore>();
+        services.AddScoped<IGuideValuationFetchLedger, EfGuideValuationFetchLedger>();
         services.AddScoped<EfValuationPresetStore>();
         services.AddScoped<IValuationPresetStore>(provider =>
             provider.GetRequiredService<EfValuationPresetStore>());
