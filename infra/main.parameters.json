@@ -101,6 +101,9 @@
     "bregoValuationPasswordSecretUri": {
       "value": "${BREGO_VALUATION_PASSWORD_SECRET_URI}"
     },
+    "photoLinkTextFrom": {
+      "value": "${PEGASUS_PHOTO_LINK_TEXT_FROM=}"
+    },
     "dvsaApiKeySecretUri": {
       "value": "${DVSA_API_KEY_SECRET_URI}"
     },

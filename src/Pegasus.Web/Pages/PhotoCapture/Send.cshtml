@@ -40,6 +40,20 @@
             </a>
         </div>
         <div class="panel-body stack">
+            @if (Model.TextOutcome is { } textOutcome)
+            {
+                @if (textOutcome.Accepted)
+                {
+                    <div class="notice notice--success" role="status">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
+                        <span>@Labels.LinkTextedTo(issued.CustomerName)</span>
+                    </div>
+                }
+                else
+                {
+                    <p><span class="section-label">@Labels.SendStatus</span> @Labels.TextNotSent <span class="mono">@textOutcome.FailureCode</span></p>
+                }
+            }
             @if (Model.Operation is { } operation)
             {
                 @if (operation.State == Pegasus.Core.Operations.StaffMailState.Sent)
@@ -97,37 +111,54 @@ else
                 </div>
             </section>
 
-            @if (Model.CanEmail)
+            @if (Model.CanEmail || Model.CanText)
             {
                 <section class="panel" aria-labelledby="photo-link-how-title">
                     <div class="panel-head"><h2 id="photo-link-how-title">@Labels.HowToSendIt</h2></div>
                     <div class="panel-body stack">
-                        <div class="form-grid form-grid--2">
-                            <div class="field">
-                                <label asp-for="FromMailboxId">@Labels.FromMailbox</label>
-                                <select asp-for="FromMailboxId">
-                                    <option value=""></option>
-                                    @foreach (var mailbox in Model.Senders.Mailboxes)
-                                    {
-                                        <option value="@mailbox.Id" selected="@(Model.FromMailboxId == mailbox.Id)">@mailbox.Address</option>
-                                    }
-                                </select>
-                                <span asp-validation-for="FromMailboxId"></span>
+                        @if (Model.CanEmail)
+                        {
+                            <div class="form-grid form-grid--2">
+                                <div class="field">
+                                    <label asp-for="FromMailboxId">@Labels.FromMailbox</label>
+                                    <select asp-for="FromMailboxId">
+                                        <option value=""></option>
+                                        @foreach (var mailbox in Model.Senders.Mailboxes)
+                                        {
+                                            <option value="@mailbox.Id" selected="@(Model.FromMailboxId == mailbox.Id)">@mailbox.Address</option>
+                                        }
+                                    </select>
+                                    <span asp-validation-for="FromMailboxId"></span>
+                                </div>
+                                <div class="field"><label asp-for="Subject">@Labels.Subject</label><input asp-for="Subject" /><span asp-validation-for="Subject"></span></div>
                             </div>
-                            <div class="field"><label asp-for="Subject">@Labels.Subject</label><input asp-for="Subject" /><span asp-validation-for="Subject"></span></div>
-                        </div>
-                        <div class="field">
-                            <label asp-for="Body">@Labels.Message</label>
-                            @* The standard wording with the name, registration, Principal and expiry
-                               filled in; {photo link} stays until the link exists (R806). *@
-                            <textarea asp-for="Body" rows="9" data-photo-link-message></textarea>
-                            <span asp-validation-for="Body"></span>
-                            <input type="hidden" asp-for="StandardBody" data-photo-link-standard />
-                            <p class="field-hint" data-photo-link-edited hidden="@(!Model.BodyEdited)">
-                                @Labels.EditedForThisOneOnly
-                                <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.SendModel.StandardWording" class="btn btn--small" formnovalidate data-photo-link-reset data-busy-label="@OperatorLabels.Busy.Restoring">@Labels.PutTheStandardWordingBack</button>
-                            </p>
-                        </div>
+                            <div class="field" data-photo-link-wording>
+                                <label asp-for="Body">@Labels.Message</label>
+                                @* The standard wording with the name, registration, Principal and expiry
+                                   filled in; {photo link} stays until the link exists (R806). *@
+                                <textarea asp-for="Body" rows="9" data-photo-link-message></textarea>
+                                <span asp-validation-for="Body"></span>
+                                <input type="hidden" asp-for="StandardBody" data-photo-link-standard />
+                                <p class="field-hint" data-photo-link-edited hidden="@(!Model.BodyEdited)">
+                                    @Labels.EditedForThisOneOnly
+                                    <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.SendModel.StandardWording" class="btn btn--small" formnovalidate data-photo-link-reset data-busy-label="@OperatorLabels.Busy.Restoring">@Labels.PutTheStandardWordingBack</button>
+                                </p>
+                            </div>
+                        }
+                        @if (Model.CanText)
+                        {
+                            @* The Photo link (text) wording, sent to the mobile above (R916, R917). *@
+                            <div class="field" data-photo-link-wording>
+                                <label asp-for="TextBody">@Labels.TextMessage</label>
+                                <textarea asp-for="TextBody" rows="5" data-photo-link-message></textarea>
+                                <span asp-validation-for="TextBody"></span>
+                                <input type="hidden" asp-for="StandardTextBody" data-photo-link-standard />
+                                <p class="field-hint" data-photo-link-edited hidden="@(!Model.TextBodyEdited)">
+                                    @Labels.EditedForThisOneOnly
+                                    <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.SendModel.StandardTextWording" class="btn btn--small" formnovalidate data-photo-link-reset data-busy-label="@OperatorLabels.Busy.Restoring">@Labels.PutTheStandardWordingBack</button>
+                                </p>
+                            </div>
+                        }
                     </div>
                 </section>
             }
@@ -177,6 +208,13 @@ else
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
                     <span>@Labels.CreateLinkToCopy</span>
                 </button>
+                @if (Model.CanText)
+                {
+                    <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.SendModel.ByText" class="btn@(Model.CanEmail ? "" : " btn--primary")" data-busy-label="@OperatorLabels.Busy.Sending">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
+                        <span>@Labels.SendByText</span>
+                    </button>
+                }
                 @if (Model.CanEmail)
                 {
                     <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.SendModel.ByEmail" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Sending">

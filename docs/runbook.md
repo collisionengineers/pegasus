@@ -963,6 +963,7 @@ The approved release operator supplies these deployment inputs:
 | `CAZANA_COMPANION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `cazana-companion-password`, that account's password. No default. |
 | `BREGO_VALUATION_EMAIL_SECRET_URI` | Exact versioned Key Vault secret URI of `brego-valuation-email`, the Brego valuation account e-mail ([ADR-0084](adr/0084-brego-valuation-account-and-valuation-report.md)). No default. |
 | `BREGO_VALUATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `brego-valuation-password`, that account's password. No default. |
+| `PEGASUS_PHOTO_LINK_TEXT_FROM` | SMS-enabled UK mobile number in E.164, bought by hand in the portal on the `pegasus-prod-acs-` Communication Services resource; the Web App sends photo-link texts from it. Empty (the default) leaves texting unavailable. |
 | `ANTHROPIC_API_KEY_SECRET_URI` | Exact versioned Key Vault secret URI of the Anthropic API key the classifier agent uses. The classifier identity reads it, and the Automation MCP client secret, through grants at each secret's scope. No default. |
 | `PEGASUS_CLASSIFIER_ACTIVATION` | `approved` creates the classifier Function App (`infra/modules/classifier.bicep`); anything else leaves it absent. Defaults to `disabled`. |
 | `PEGASUS_CLASSIFIER_DRY_RUN` | `true` makes every classifier tick log its proposals and write nothing; `false` lets it write. Defaults to `false`. Set with `azd env set PEGASUS_CLASSIFIER_DRY_RUN true -e pegasus-prod`; it changes only by a provision (operator, 16 October 2026). |

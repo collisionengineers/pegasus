@@ -168,7 +168,7 @@ garage-procedure automation remain deferred.
 - BND-01: Import predecessor cases or application data.
 - BND-02: Keep the predecessor application available after cutover.
 - BND-03: Reuse predecessor application code.
-- BND-04: SMS integration.
+- BND-04: SMS integration, other than texting a photo link (R916).
 - BND-05: Microsoft Teams integration.
 - BND-06: Persistent external case/customer portal.
 - BND-07: Independent Engineer accounts.
@@ -180,12 +180,14 @@ garage-procedure automation remain deferred.
 - BND-11: Training/demo environment.
 
 Guided photo capture ([FRD-28](../frd/frd-28-guided-photo-capture.md))
-keeps these exclusions. It sends no SMS: a link goes by staff e-mail or by
-Copy link and the staff member's own phone (BND-04). A photo link is for
+keeps these exclusions. Its one SMS is the photo link itself, which staff
+may text from Pegasus's own UK mobile number as well as e-mail or copy
+(operator, 10 November 2026; R916); nothing else is texted and replies are
+not read (BND-04). A photo link is for
 one vehicle's photos and expires, a standing link only starts such links,
 and neither shows a Case, its state or any reference, only the
 registration, so neither is a persistent customer portal (BND-06). Pegasus
-sends no reminder by itself; staff send each one with a click (MAIL-19).
+sends no reminder by itself; staff send each one through the composer (MAIL-19).
 The sender has no account and signs in to nothing (ACC-12).
 
 

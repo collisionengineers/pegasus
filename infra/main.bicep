@@ -98,6 +98,8 @@ param cazanaCompanionPasswordSecretUri string
 param bregoValuationEmailSecretUri string
 @description('Versioned Key Vault secret URI containing the Brego valuation account password (ADR-0084).')
 param bregoValuationPasswordSecretUri string
+@description('SMS-enabled UK mobile number in E.164 bought on the Communication Services resource by hand; empty leaves photo-link texting unavailable.')
+param photoLinkTextFrom string = ''
 @description('Versioned Key Vault secret URI containing the DVSA API key.')
 param dvsaApiKeySecretUri string
 @description('Approved DVSA OAuth token endpoint.')
@@ -155,6 +157,7 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     cazanaCompanionPasswordSecretUri: cazanaCompanionPasswordSecretUri
     bregoValuationEmailSecretUri: bregoValuationEmailSecretUri
     bregoValuationPasswordSecretUri: bregoValuationPasswordSecretUri
+    photoLinkTextFrom: photoLinkTextFrom
     dvsaApiKeySecretUri: dvsaApiKeySecretUri
     dvsaTokenUri: dvsaTokenUri
     dvsaScope: dvsaScope

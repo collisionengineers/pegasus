@@ -6365,7 +6365,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("PhotoCaptureTokens", null, t =>
                         {
-                            t.HasCheckConstraint("CK_PhotoCaptureTokens_Purpose", "[Purpose] IN ('email', 'copy', 'handoff', 'session')");
+                            t.HasCheckConstraint("CK_PhotoCaptureTokens_Purpose", "[Purpose] IN ('email', 'copy', 'handoff', 'session', 'text')");
                         });
                 });
 

@@ -249,7 +249,9 @@ Case chaser
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)), and
 the Photo link e-mail
 ([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-e-mail); operator,
-9 November 2026; R773).
+9 November 2026; R773) and the Photo link (text)
+([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-text); operator,
+10 November 2026; R917).
 
 **Edit** opens a dialog: the body, up to 5000 characters, a row of
 placeholder buttons that insert at the cursor, and Cancel and Save. The
@@ -267,7 +269,8 @@ and means nothing to the party chased (operator, 5 October 2026). Its
 built-in body is the one sentence the due-chaser sweep writes, without the
 reference, and the sign-off. The Photo link's are `{registration}`,
 `{claimant}`, `{photo link}`, `{link expiry}` and `{principal name}`; its
-built-in body is the one FRD-28 gives. A body naming any other placeholder
+built-in body is the one FRD-28 gives. The Photo link (text) has the same
+placeholders and the short built-in body FRD-28 gives for the text. A body naming any other placeholder
 is refused, and the message names it. Save acts on the click with the rendered version. A
 stale save is refused and asks the Administrator to reload.
 

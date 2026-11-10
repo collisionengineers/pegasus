@@ -21,6 +21,7 @@ namespace Pegasus.Web.Pages.PhotoCapture;
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed class IndexModel(
     IPhotoCaptureQueries queries,
+    IPhotoLinkTextSend textSend,
     TimeProvider timeProvider) : PhotoCapturePageModel
 {
     private const int PageSize = 25;
@@ -201,10 +202,15 @@ public sealed class IndexModel(
     public static string ResendHref(Guid captureId, string returnUrl) =>
         QueryHelpers.AddQueryString($"/PhotoCapture/{captureId:D}/Resend", "returnUrl", returnUrl);
 
-    /// <summary>Whether Ask for it can go by e-mail: a capture on a Case that holds an address (R816).</summary>
-    public static bool CanEmail(Pegasus.Core.PhotoCapture.PhotoCapture capture)
+    /// <summary>
+    /// Whether Ask for it opens the composer: the capture can be e-mailed, a
+    /// capture on a Case that holds an address (R816), or texted, one that
+    /// holds a mobile where texting is configured (R918).
+    /// </summary>
+    public bool CanSend(Pegasus.Core.PhotoCapture.PhotoCapture capture)
     {
         ArgumentNullException.ThrowIfNull(capture);
-        return capture.CaseId is not null && !string.IsNullOrWhiteSpace(capture.Email);
+        return (capture.CaseId is not null && !string.IsNullOrWhiteSpace(capture.Email))
+            || (textSend.Available && !string.IsNullOrWhiteSpace(capture.Mobile));
     }
 }

@@ -364,6 +364,7 @@ public static partial class OperatorLabels
             EmailTemplatePurpose.CaseReportDelivery => "Case report delivery",
             EmailTemplatePurpose.CaseChaser => "Case chaser",
             EmailTemplatePurpose.PhotoLink => "Photo link",
+            EmailTemplatePurpose.PhotoLinkText => "Photo link (text)",
             _ => throw new InvalidOperationException($"Unknown e-mail template purpose '{(int)purpose}'.")
         };
     }
