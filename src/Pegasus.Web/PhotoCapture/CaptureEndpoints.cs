@@ -30,7 +30,8 @@ public sealed record CaptureCompleteBody(string? Note);
 
 public sealed record CaptureStartResponse(string Token, string LinkKey, CaptureContext Context);
 
-public sealed record CaptureHandoffResponse(string Url, string Message, string Registration);
+/// <summary>The customer's link and message, and the Session token the staff phone sends the form's paperwork under, which never marks the link Opened.</summary>
+public sealed record CaptureHandoffResponse(string Url, string Message, string Registration, string SessionToken);
 
 public sealed record CaptureItemResponse(Guid ItemId, string Write, int Count);
 
@@ -140,7 +141,8 @@ public static class CaptureEndpoints
             new CaptureHandoffResponse(
                 PhotoLinkUrls.CaptureUrl(options.PublicOrigin, minted.Token),
                 minted.Message,
-                PhotoCaptureText.DisplayRegistration(minted.Capture.NormalizedRegistration ?? string.Empty)),
+                PhotoCaptureText.DisplayRegistration(minted.Capture.NormalizedRegistration ?? string.Empty),
+                minted.SessionToken?.Value ?? throw new InvalidOperationException("A hand-off is minted with a Session token.")),
             CaptureContextFactory.JsonOptions,
             statusCode: StatusCodes.Status201Created);
     }

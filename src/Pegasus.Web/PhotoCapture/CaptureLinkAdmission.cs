@@ -121,7 +121,8 @@ public sealed partial class CaptureLinkAdmission(
                     return CaptureProblems.RateLimited();
                 }
 
-                if (capture.OpenedAtUtc is null)
+                // The phone that made the capture holds a Session token, which never opens the link.
+                if (capture.OpenedAtUtc is null && PhotoCaptureAccess.MarksOpened(resolved.TokenPurpose))
                 {
                     resolved = resolved with
                     {

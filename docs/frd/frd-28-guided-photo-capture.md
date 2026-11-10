@@ -78,7 +78,12 @@ whoever holds the phone, where opening that link again starts a new capture,
 says instead "Forgot something? Open the link again and enter the same
 registration to send more photos for this vehicle." (operator, 9 November
 2026; R809). **Opened** is recorded on the link's first call to the app's
-API, not when the page is fetched, because link previews fetch pages.
+API, not when the page is fetched, because link previews fetch pages. A
+capture a standing link starts to take the photos now is Opened as it is
+made. A hand-off's staff phone carries on under a session credential of its
+own, which never records Opened, so the paperwork it sends from its form
+leaves the customer's link not opened until the customer opens it
+(9 November 2026).
 
 ### Standing photo links
 
@@ -261,13 +266,15 @@ then the photos in story groups
 
 ### Statuses and reminders
 
-A capture's status is derived each time it is read, never stored:
+A capture's status is derived each time it is read, never stored. Its
+Photos count, on both tabs and the link's page, counts photographs, not
+paperwork or video:
 
 | Status | When |
 | --- | --- |
 | Sent not opened | The link has not been opened |
 | Opened | Opened, no photo yet |
-| Photos coming in | Photos received, not yet sent |
+| Photos coming in | Photos received, not yet sent; paperwork or video alone is not photos (9 November 2026) |
 | Something missing | Sent, or expired with photos, and a required item is missing |
 | Needs a phone call | Two reminders and nothing back since |
 | Complete | Sent, or expired with photos, and nothing required is missing |

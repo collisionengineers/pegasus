@@ -85,9 +85,11 @@ public sealed class IssuePhotoLink(
                 request.OriginalsInBackground,
                 Guid.TryParse(request.Actor.SubjectId, out var staffId) ? staffId : null,
                 now,
-                now.AddDays(request.LifetimeDays)),
+                now.AddDays(request.LifetimeDays),
+                OpenedAtUtc: null),
             PhotoLinkToken.Digest(token),
             request.TokenPurpose,
+            sessionTokenDigest: null,
             cancellationToken);
         return new(capture, token);
     }
@@ -102,7 +104,12 @@ public sealed record StandingCaptureForm(
     string? Email,
     PhotoCaptureDetails Details);
 
-public sealed record MintedCapture(PhotoCapture Capture, CaptureLinkSecret Token, string Message);
+/// <summary>
+/// A capture a standing link started: its token and the hand-off message,
+/// and for a hand-off the <see cref="SessionToken"/> the staff phone carries
+/// on, so what it still sends never marks the customer's link Opened.
+/// </summary>
+public sealed record MintedCapture(PhotoCapture Capture, CaptureLinkSecret Token, string Message, CaptureLinkSecret? SessionToken);
 
 /// <summary>
 /// A standing link starts captures and nothing else. <see cref="StartAsync"/>
@@ -110,7 +117,10 @@ public sealed record MintedCapture(PhotoCapture Capture, CaptureLinkSecret Token
 /// contact's staff, guided for the website); <see cref="HandoffAsync"/> is
 /// their "Send customer a link", which mints a guided link the phone's own
 /// SMS or WhatsApp carries (no server send; operator, 9 November 2026). Both
-/// count against the link's daily cap.
+/// count against the link's daily cap. A capture started to take the photos
+/// now is Opened as it is made, under a Session token; a hand-off is not
+/// Opened until the customer opens it, and the staff phone gets a Session
+/// token of its own for the form's paperwork.
 /// </summary>
 public sealed class MintFromStandingLink(
     IPhotoCaptureStore captures,
@@ -168,6 +178,8 @@ public sealed class MintFromStandingLink(
         }
 
         var token = PhotoLinkToken.Create();
+        var handoff = purpose == PhotoLinkTokenPurpose.Handoff;
+        CaptureLinkSecret? session = handoff ? PhotoLinkToken.Create() : null;
         var capture = await captures.CreateAsync(
             new NewPhotoCapture(
                 Guid.NewGuid(),
@@ -186,14 +198,16 @@ public sealed class MintFromStandingLink(
                 link.OriginalsInBackground,
                 IssuedByStaffId: null,
                 now,
-                now.AddDays(link.LinkLifetimeDays)),
+                now.AddDays(link.LinkLifetimeDays),
+                OpenedAtUtc: handoff ? null : now),
             PhotoLinkToken.Digest(token),
             purpose,
+            session is { } sessionToken ? PhotoLinkToken.Digest(sessionToken) : null,
             cancellationToken);
         // The form's registration routes the capture at once, so the first
         // photo already knows where it files.
         capture = await recordDetails.ExecuteAsync(capture, link, form, cancellationToken);
-        return new(capture, token, PhotoCaptureMessages.Handoff(capture.CustomerName, registration));
+        return new(capture, token, PhotoCaptureMessages.Handoff(capture.CustomerName, registration), session);
     }
 }
 

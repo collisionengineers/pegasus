@@ -329,7 +329,7 @@ async function sendHandoff(btn){
   btn.disabled=true; let r;
   try{ r=await api('POST','handoff',{json:detailsBody()}); }catch(e){ r={status:0}; }
   if(GONE) return;
-  if(r.status===201 && r.data && r.data.url){ S.handoffRes={url:String(r.data.url), message:String(r.data.message||''), registration:String(r.data.registration||'')}; S.handoff=true; go(STEPS.indexOf('handoff')); return; }
+  if(r.status===201 && r.data && r.data.url){ S.handoffRes={url:String(r.data.url), message:String(r.data.message||''), registration:String(r.data.registration||''), session:String(r.data.sessionToken||'')}; S.handoff=true; go(STEPS.indexOf('handoff')); return; }
   btn.disabled=false; if(r.status!==404) problemNote(r.data);
 }
 async function completeCapture(){
@@ -855,9 +855,8 @@ const R = {
     cta.innerHTML = `<button class="btn ghost" id="back" aria-label="Back">${ICON.back}</button><button class="btn primary" id="finish">I’ve sent it – finish</button>`;
     $('#back').onclick=()=>{ S.handoff=false; S.handoffRes=null; go(STEPS.indexOf('instruction')); };
     $('#finish').onclick=()=>{
-      /* documents added on the form go onto the capture just made for the customer */
-      const m=/\/c\/([^/?#]+)\/?$/.exec(link.replace(/[?#].*$/,''));
-      if(m && JOBS.some(j=>j.state==='queued')){ LINK='c.'+m[1]; detailsSig=JSON.stringify(detailsBody()); pump(); }
+      /* documents added on the form go onto the capture just made for the customer, under this phone's own session credential, which never marks the customer's link opened */
+      if(H.session && JOBS.some(j=>j.state==='queued')){ LINK='c.'+H.session; detailsSig=JSON.stringify(detailsBody()); pump(); }
       go(STEPS.indexOf('done')); };
   },
   location(){

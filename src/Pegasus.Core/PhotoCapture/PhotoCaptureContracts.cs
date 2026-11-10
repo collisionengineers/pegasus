@@ -268,7 +268,8 @@ public sealed record NewPhotoCapture(
     bool OriginalsInBackground,
     Guid? IssuedByStaffId,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset ExpiresAtUtc);
+    DateTimeOffset ExpiresAtUtc,
+    DateTimeOffset? OpenedAtUtc);
 
 public sealed record NewPhotoCaptureItem(
     Guid Id,
@@ -332,7 +333,9 @@ public enum PhotoCapturePairing
 /// link's contact, or for a Case link the Case's Principal (R805), read when
 /// the row is shown. <see cref="Pairing"/> is read only for the rows shown.
 /// <see cref="CaseArchived"/> is whether the capture's Case is archived: its
-/// link is then dead and reads Expired (R793).
+/// link is then dead and reads Expired (R793). <see cref="Photographs"/> is
+/// how many of its items are photographs, not paperwork or video: what the
+/// Photos column counts and what decides Opened or Photos coming in.
 /// </summary>
 public sealed record PhotoCaptureListRow(
     PhotoCapture Capture,
@@ -342,7 +345,8 @@ public sealed record PhotoCaptureListRow(
     IReadOnlyList<string> MissingItems,
     string? IssuedByName,
     PhotoCapturePairing Pairing,
-    bool CaseArchived);
+    bool CaseArchived,
+    int Photographs);
 
 public sealed record PhotoCaptureListPage(IReadOnlyList<PhotoCaptureListRow> Rows, int TotalCount);
 
@@ -367,19 +371,26 @@ public sealed record CasePhotoCaptureStory(
 /// <summary>The capture store: writes are replay-safe by operation key where one is taken.</summary>
 public interface IPhotoCaptureStore
 {
+    /// <summary>
+    /// Creates the capture with its first token and, when
+    /// <paramref name="sessionTokenDigest"/> is given, a Session token for
+    /// the phone that made it (a hand-off's staff phone), in one save.
+    /// </summary>
     Task<PhotoCapture> CreateAsync(
         NewPhotoCapture capture,
         string tokenDigest,
         PhotoLinkTokenPurpose tokenPurpose,
+        string? sessionTokenDigest,
         CancellationToken cancellationToken);
 
     Task<PhotoCapture?> GetAsync(Guid captureId, CancellationToken cancellationToken);
 
     /// <summary>
     /// The capture one presented token names, with whether that token is
-    /// itself revoked and whether the capture's Case is archived (R793).
+    /// itself revoked, whether the capture's Case is archived (R793), and the
+    /// token's purpose.
     /// </summary>
-    Task<(PhotoCapture Capture, bool TokenRevoked, bool CaseArchived)?> FindByTokenDigestAsync(
+    Task<(PhotoCapture Capture, bool TokenRevoked, bool CaseArchived, PhotoLinkTokenPurpose Purpose)?> FindByTokenDigestAsync(
         string tokenDigest,
         CancellationToken cancellationToken);
 

@@ -171,9 +171,9 @@ public sealed class SettlePhotoCapturesTests
             return Task.FromResult(capture with { CaseId = caseId, CaseReference = caseReference, Destination = PhotoCaptureDestination.Case });
         }
 
-        public Task<Core.PhotoCapture.PhotoCapture> CreateAsync(NewPhotoCapture capture, string tokenDigest, PhotoLinkTokenPurpose tokenPurpose, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Core.PhotoCapture.PhotoCapture> CreateAsync(NewPhotoCapture capture, string tokenDigest, PhotoLinkTokenPurpose tokenPurpose, string? sessionTokenDigest, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Core.PhotoCapture.PhotoCapture?> GetAsync(Guid captureId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<(Core.PhotoCapture.PhotoCapture Capture, bool TokenRevoked, bool CaseArchived)?> FindByTokenDigestAsync(string tokenDigest, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<(Core.PhotoCapture.PhotoCapture Capture, bool TokenRevoked, bool CaseArchived, PhotoLinkTokenPurpose Purpose)?> FindByTokenDigestAsync(string tokenDigest, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task AddTokenAsync(Guid captureId, string tokenDigest, PhotoLinkTokenPurpose purpose, Guid? issuedByStaffId, DateTimeOffset issuedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Core.PhotoCapture.PhotoCapture> RecordOpenedAsync(Guid captureId, DateTimeOffset openedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Core.PhotoCapture.PhotoCapture> RecordDetailsAsync(Guid captureId, long expectedVersion, string? normalizedRegistration, DateOnly? incidentDate, string? customerName, string? mobile, string? email, PhotoCaptureDetails details, CancellationToken cancellationToken) => throw new NotSupportedException();

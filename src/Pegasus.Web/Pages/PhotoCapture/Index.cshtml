@@ -194,9 +194,9 @@
                                 <td>@row.Source.IssuedByName</td>
                                 <td><partial name="Shared/_StatusChip" model="@Labels.State(row.State)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = Labels.StateTone(row.State) }' /></td>
                                 <td>
-                                    @if (capture.AcceptedItemCount > 0)
+                                    @if (row.Source.Photographs > 0)
                                     {
-                                        <span>@Labels.PhotoCount(capture.AcceptedItemCount, row.State == PhotoCaptureState.Complete)</span>
+                                        <span>@Labels.PhotoCount(row.Source.Photographs, row.State == PhotoCaptureState.Complete)</span>
                                     }
                                     @if (row.Source.MissingItems.Count > 0 && row.State is PhotoCaptureState.SomethingMissing or PhotoCaptureState.PhotosComingIn)
                                     {
@@ -308,7 +308,7 @@
                                 </td>
                                 <td><partial name="Shared/_StatusChip" model="@Labels.State(row.State)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = Labels.StateTone(row.State) }' /></td>
                                 <td>
-                                    <span>@Labels.PhotoCount(capture.AcceptedItemCount, row.State == PhotoCaptureState.Complete)</span>
+                                    <span>@Labels.PhotoCount(row.Source.Photographs, row.State == PhotoCaptureState.Complete)</span>
                                     @if (row.Source.MissingItems.Count > 0 && row.State is PhotoCaptureState.SomethingMissing or PhotoCaptureState.PhotosComingIn)
                                     {
                                         <small class="muted photo-capture-sub">@row.Source.MissingItems[0]</small>
