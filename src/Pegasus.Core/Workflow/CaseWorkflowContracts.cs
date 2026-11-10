@@ -114,12 +114,29 @@ public sealed record CaseWorkflowConfiguration(
     /// <summary>Whether Send starts with full-size originals on (R813).</summary>
     public bool PhotoLinkStartOriginals { get; init; } = true;
 
+    // Held as text so two configurations with the same lifetimes are equal:
+    // a record compares a list by reference, and this one is compared by value.
+    private readonly string _photoLinkLifetimesOffered =
+        FormatLifetimes(Pegasus.Core.PhotoCapture.CaptureLimits.LifetimeDays);
+
     /// <summary>
     /// The lifetimes Send offers, in days, from 3, 7 and 14 (R817); Extend and
     /// a contact's link defaults keep all three.
     /// </summary>
-    public IReadOnlyList<int> PhotoLinkLifetimesOffered { get; init; } =
-        Pegasus.Core.PhotoCapture.CaptureLimits.LifetimeDays;
+    public IReadOnlyList<int> PhotoLinkLifetimesOffered
+    {
+        get => [.. _photoLinkLifetimesOffered
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(day => int.Parse(day, System.Globalization.CultureInfo.InvariantCulture))];
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _photoLinkLifetimesOffered = FormatLifetimes(value);
+        }
+    }
+
+    private static string FormatLifetimes(IEnumerable<int> days) =>
+        string.Join(',', days.Select(day => day.ToString(System.Globalization.CultureInfo.InvariantCulture)));
 
     /// <summary>The offered lifetime Send starts selected (R817).</summary>
     public int PhotoLinkDefaultLifetimeDays { get; init; } =
