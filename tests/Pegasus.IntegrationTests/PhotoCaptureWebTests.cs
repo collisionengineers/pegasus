@@ -50,6 +50,20 @@ public sealed class PhotoCaptureWebTests
     private const string LooseDamage =
         "kind=damage&position=1&takenAt=2031-05-06T10%3A20%3A00.000Z&live=false&original=false";
 
+    private const string SecondOverview =
+        "kind=overview&position=2&takenAt=2031-05-06T10%3A20%3A00.000Z&live=true&original=false";
+
+    /// <summary>The workflow event a Case note is recorded as, the sender's note included.</summary>
+    private const string AddCaseNoteEventType = Pegasus.Core.Cases.AddCaseNote.EventType;
+
+    /// <summary>The Case fields a Case link's typed details fill on a Case that holds a mileage, in ordinal order.</summary>
+    private static readonly string[] FilledFromThePhotoLink =
+    [
+        Pegasus.Core.Cases.CaseDataFieldNames.ClaimantContactNumber,
+        Pegasus.Core.Cases.CaseDataFieldNames.ClaimantName,
+        Pegasus.Core.Cases.CaseDataFieldNames.IncidentDate
+    ];
+
     private static readonly ActionActor Issuer =
         ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
 
@@ -1166,6 +1180,219 @@ public sealed class PhotoCaptureWebTests
         Assert.DoesNotContain("Words staff typed instead.", putBack, StringComparison.Ordinal);
         Assert.Contains("Collision Engineers need a few photos of AB12 CDE to assess the damage.", putBack, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.PhotoCapture.PhotoLinkPlaceholder, putBack, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A Case link's Send settles its batch once its photo has filed (R781,
+    /// R792): the Case's images complete, the sender's note is written, the
+    /// batch closes and the Engineer's bell rings. A second settle with
+    /// nothing new writes nothing.
+    /// </summary>
+    [Fact]
+    public async Task ACaseLinksSendSettlesItsBatchOnce()
+    {
+        const string note = "Please call before 5pm.";
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await StandingCaptureDriver.AssignEngineerAsync(factory, caseId);
+        var link = await IssueLinkAsync(factory, caseId);
+        await SendAndDrainAsync(factory, client, link, FirstOverview, seed: 1);
+        await StandingCaptureDriver.CompleteAsync(client, link.Token.Value, note);
+        Assert.False(await StandingCaptureDriver.ImagesCompleteAsync(factory, caseId));
+
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        Assert.True(await StandingCaptureDriver.ImagesCompleteAsync(factory, caseId));
+        await AssertSettledOnceAsync(factory, caseId, link.Capture.Id, note);
+        Assert.True((await StandingCaptureDriver.CaptureAsync(factory, link.Capture.Id)).ImagesCompletedAtUtc.HasValue);
+
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        await AssertSettledOnceAsync(factory, caseId, link.Capture.Id, note);
+    }
+
+    /// <summary>
+    /// A second batch after staff marked the Case's images incomplete settles
+    /// without completing them again: images complete once per capture
+    /// (R792). The note is not written twice, and the bell rings for the
+    /// second batch's photos too.
+    /// </summary>
+    [Fact]
+    public async Task ASecondBatchNeverCompletesTheImagesAgain()
+    {
+        const string note = "Please call before 5pm.";
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await StandingCaptureDriver.AssignEngineerAsync(factory, caseId);
+        var link = await IssueLinkAsync(factory, caseId);
+        await SendAndDrainAsync(factory, client, link, FirstOverview, seed: 1);
+        await StandingCaptureDriver.CompleteAsync(client, link.Token.Value, note);
+        await StandingCaptureDriver.SettleAsync(factory);
+        Assert.True(await StandingCaptureDriver.ImagesCompleteAsync(factory, caseId));
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            // Staff mark the images incomplete; nothing on the capture changes.
+            await db.Cases.Where(value => value.Id == caseId).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.ImagesComplete, false));
+        }
+
+        await StandingCaptureDriver.MoveLastSettleBackAsync(factory, link.Capture.Id);
+        await SendAndDrainAsync(factory, client, link, SecondOverview, seed: 2);
+        await StandingCaptureDriver.CompleteAsync(client, link.Token.Value);
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        Assert.False(await StandingCaptureDriver.ImagesCompleteAsync(factory, caseId));
+        Assert.Single(await StandingCaptureDriver.CaseEventReasonsAsync(factory, caseId, EfPhotoCaptureCaseWriter.ImagesCompletedEventType));
+        Assert.Single(await StandingCaptureDriver.CaseEventReasonsAsync(factory, caseId, AddCaseNoteEventType));
+        Assert.Equal(2, (await StandingCaptureDriver.CaptureAsync(factory, link.Capture.Id)).SettledBatches);
+        Assert.Equal(2, await StandingCaptureDriver.PhotosReceivedCountAsync(factory, caseId));
+    }
+
+    /// <summary>A Send with no photos settles nothing (R792): no batch closes and the Case is untouched.</summary>
+    [Fact]
+    public async Task ASendWithNoPhotosSettlesNothing()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var link = await IssueLinkAsync(factory, caseId);
+        await StandingCaptureDriver.CompleteAsync(client, link.Token.Value, "Nothing to add.");
+
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        var capture = await StandingCaptureDriver.CaptureAsync(factory, link.Capture.Id);
+        Assert.Equal(0, capture.SettledBatches);
+        Assert.False(capture.SettledAtUtc.HasValue, "A Send with no photos recorded a settle.");
+        Assert.False(await StandingCaptureDriver.ImagesCompleteAsync(factory, caseId));
+        Assert.Empty(await StandingCaptureDriver.CaseEventReasonsAsync(factory, caseId, AddCaseNoteEventType));
+    }
+
+    /// <summary>
+    /// Cancelling a link stops uploads only (R794): photos it already
+    /// received still settle and complete the Case's images; a cancelled link
+    /// with no photos settles nothing.
+    /// </summary>
+    [Fact]
+    public async Task ACancelledLinksPhotosStillSettle()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var withPhotos = await IssueLinkAsync(factory, caseId);
+        var empty = await IssueLinkAsync(factory, caseId);
+        await SendAndDrainAsync(factory, client, withPhotos, FirstOverview, seed: 1);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var actions = scope.ServiceProvider.GetRequiredService<PhotoLinkActions>();
+            await actions.RevokeAsync(Issuer, withPhotos.Capture.Id, NewOperationKey(), CancellationToken.None);
+            await actions.RevokeAsync(Issuer, empty.Capture.Id, NewOperationKey(), CancellationToken.None);
+        }
+
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        Assert.True(await StandingCaptureDriver.ImagesCompleteAsync(factory, caseId));
+        Assert.Single(await StandingCaptureDriver.CaseEventReasonsAsync(factory, caseId, EfPhotoCaptureCaseWriter.ImagesCompletedEventType));
+        Assert.Equal(1, (await StandingCaptureDriver.CaptureAsync(factory, withPhotos.Capture.Id)).SettledBatches);
+        Assert.Equal(0, (await StandingCaptureDriver.CaptureAsync(factory, empty.Capture.Id)).SettledBatches);
+    }
+
+    /// <summary>
+    /// The sender's typed details fill the Case's empty fields as Photo link
+    /// facts (R783); the typed inspection location is not written to the
+    /// Case and stays on the capture (R811); a field the Case already holds
+    /// is not overwritten.
+    /// </summary>
+    [Fact]
+    public async Task TheTypedDetailsFillOnlyTheCasesEmptyFieldsAndNeverTheLocation()
+    {
+        const string location = "12 Example Road, Exampleton";
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var link = await IssueLinkAsync(factory, caseId);
+        using (var typed = await SendAsync(
+            client,
+            HttpMethod.Post,
+            $"{Api}/details",
+            link.Token,
+            new StringContent(
+                JsonSerializer.Serialize(new
+                {
+                    customerName = "Sam Example",
+                    mobile = "07700 900123",
+                    incidentDate = "2031-04-30",
+                    details = new { inspectionLocation = location, mileage = 99999 }
+                }),
+                Encoding.UTF8,
+                "application/json")))
+        {
+            Assert.Equal(HttpStatusCode.OK, typed.StatusCode);
+        }
+
+        await SendAndDrainAsync(factory, client, link, FirstOverview, seed: 1);
+        await StandingCaptureDriver.CompleteAsync(client, link.Token.Value);
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            var filled = await db.CaseDataFields.AsNoTracking()
+                .Where(value => value.WorkId == caseId && value.SourceKind == CaseDataCodes.PhotoLink)
+                .ToListAsync();
+            Assert.Equal(FilledFromThePhotoLink, filled.Select(value => value.FieldName).Order(StringComparer.Ordinal));
+            Assert.All(filled, value =>
+            {
+                Assert.Equal(CaseDataCodes.Fact, value.ValueKind);
+                Assert.Equal(PhotoCaptureCaseFields.SourceLabel(link.Capture), value.SourceLabel);
+            });
+            Assert.Equal("Sam Example", Assert.Single(filled, value => value.FieldName == Pegasus.Core.Cases.CaseDataFieldNames.ClaimantName).Value);
+            Assert.Equal("07700 900123", Assert.Single(filled, value => value.FieldName == Pegasus.Core.Cases.CaseDataFieldNames.ClaimantContactNumber).Value);
+            Assert.Equal("2031-04-30", Assert.Single(filled, value => value.FieldName == Pegasus.Core.Cases.CaseDataFieldNames.IncidentDate).Value);
+            Assert.False(await db.CaseDataFields.AnyAsync(value =>
+                value.WorkId == caseId && value.FieldName == Pegasus.Core.Cases.CaseDataFieldNames.InspectionAddress));
+        }
+
+        var page = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture/{link.Capture.Id:D}");
+        Assert.Contains(HtmlEncoder.Default.Encode(location), page, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A link whose Case is archived closes its batch with nothing written to
+    /// the Case (R793): no images completed, no note, no bell.
+    /// </summary>
+    [Fact]
+    public async Task AnArchivedCasesBatchClosesWithNothingWritten()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await StandingCaptureDriver.AssignEngineerAsync(factory, caseId);
+        var link = await IssueLinkAsync(factory, caseId);
+        await SendAndDrainAsync(factory, client, link, FirstOverview, seed: 1);
+        await StandingCaptureDriver.CompleteAsync(client, link.Token.Value, "Please call before 5pm.");
+        await ArchiveCaseAsync(factory, caseId);
+
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        var capture = await StandingCaptureDriver.CaptureAsync(factory, link.Capture.Id);
+        Assert.Equal(1, capture.SettledBatches);
+        Assert.False(capture.ImagesCompletedAtUtc.HasValue, "An archived Case's images were completed.");
+        Assert.False(await StandingCaptureDriver.ImagesCompleteAsync(factory, caseId));
+        Assert.Empty(await StandingCaptureDriver.CaseEventReasonsAsync(factory, caseId, EfPhotoCaptureCaseWriter.ImagesCompletedEventType));
+        Assert.Empty(await StandingCaptureDriver.CaseEventReasonsAsync(factory, caseId, AddCaseNoteEventType));
+        Assert.Equal(0, await StandingCaptureDriver.PhotosReceivedCountAsync(factory, caseId));
+    }
+
+    /// <summary>What one settle of a Case link's first batch leaves, however often the settle runs.</summary>
+    private static async Task AssertSettledOnceAsync(IntakeWebApplicationFactory factory, Guid caseId, Guid captureId, string note)
+    {
+        Assert.Single(await StandingCaptureDriver.CaseEventReasonsAsync(factory, caseId, EfPhotoCaptureCaseWriter.ImagesCompletedEventType));
+        Assert.Equal(
+            "Customer's note (photo link): " + note,
+            Assert.Single(await StandingCaptureDriver.CaseEventReasonsAsync(factory, caseId, AddCaseNoteEventType)));
+        Assert.Equal(1, (await StandingCaptureDriver.CaptureAsync(factory, captureId)).SettledBatches);
+        Assert.Equal(1, await StandingCaptureDriver.PhotosReceivedCountAsync(factory, caseId));
     }
 
     /// <summary>Issues a link for the Case as a member of staff does from it (FRD-28 "Photo links").</summary>

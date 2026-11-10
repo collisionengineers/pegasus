@@ -23,7 +23,7 @@ namespace Pegasus.IntegrationTests;
 /// (FRD-28 "Standing photo links" and "Routing and filing"): the phone starts
 /// or hands on a capture with <c>X-Capture-Link: s.{slug}</c> and sends its
 /// photos on the capture's token, and the in-process drain stands in for the
-/// Worker. Nothing here sends a capture or settles one.
+/// Worker. The settle tests run the Worker's settle in process as well.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class StandingCaptureWebTests
@@ -44,6 +44,12 @@ public sealed class StandingCaptureWebTests
         "kind=overview&position=1&takenAt=2031-05-06T10%3A20%3A00.000Z&live=true&original=true";
 
     private const string Paperwork = "kind=paperwork&position=1&live=false&original=false";
+
+    /// <summary>The accident date the settle tests type on the start form.</summary>
+    private static readonly DateOnly TypedAccidentDate = new(2031, 4, 30);
+
+    private static readonly ActionActor Administrator =
+        ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
 
     /// <summary>
     /// A contact's link starts a capture for a registration no Case holds:
@@ -358,6 +364,432 @@ public sealed class StandingCaptureWebTests
             factory, client, started, SecondOverview, stagedPhoto, "image/jpeg", staged.ClientItemId);
         Assert.Equal((1, 1), (kept.Batch, kept.Ordinal));
     }
+
+    /// <summary>
+    /// A capture with no Case settles as one submission group of its
+    /// photographs on the Photo capture channel, carrying the typed
+    /// registration and date (R791); the paperwork waits outside it (R803).
+    /// The group registers a Vehicle images record awaiting its instruction,
+    /// nothing is Unidentified, and the record's page shows the Photo link.
+    /// </summary>
+    [Fact]
+    public async Task ACaptureWithNoCaseSettlesAsOneGroupThatRegistersItsRecord()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var started = await StandingCaptureDriver.StartWithFormAsync(
+            factory, client, link, new { registration = UnheldRegistration, incidentDate = "2031-04-30" });
+        var (photographs, _, paperwork) = await SendPhotographsAndPaperworkAsync(factory, client, started);
+        await StandingCaptureDriver.CompleteAsync(client, started.Token, "Please call before 5pm.");
+
+        await SettleAndReconcileAsync(factory);
+
+        var capture = await StandingCaptureDriver.CaptureAsync(factory, started.Capture.Id);
+        Assert.Equal(1, capture.SettledBatches);
+        Assert.False(capture.CaseId.HasValue, "A capture whose registration no Case holds reached a Case.");
+        var groupId = capture.SubmissionGroupId
+            ?? throw new InvalidOperationException("The settle formed no submission group.");
+        Assert.Equal(PhotoCaptureIntakeRules.BatchGroupId(capture.Id, 1), groupId);
+        var group = await GroupAsync(factory, groupId);
+        Assert.Equal(IntakeSourceChannel.PhotoCapture, group.Channel);
+        Assert.Equal("ZZ99QQQ", group.DeclaredRegistration);
+        Assert.Equal(TypedAccidentDate, group.DeclaredIncidentDate);
+        Assert.Equal(photographs.Length, group.ExpectedMemberCount);
+        Assert.Equal(
+            photographs.Select(item => item.StagedReceiptId!.Value).Order(),
+            group.Members.Select(member => member.StagedReceiptId).Order());
+        Assert.DoesNotContain(group.Members, member => member.StagedReceiptId == paperwork.StagedReceiptId);
+
+        var record = await StandingCaptureDriver.RecordForGroupAsync(factory, groupId);
+        Assert.Equal("awaiting_instruction", record.LifecycleState);
+        Assert.False(await AnythingUnidentifiedAsync(factory), "A photo link's capture was registered Unidentified.");
+        await AssertRecordShowsThePhotoLinkAsync(client, record.Id, capture.Id);
+    }
+
+    /// <summary>
+    /// A Case that appears after the start, under the link's Principal with
+    /// the registration and no contradicting date, takes the batch at the
+    /// settle (R791): the photos file straight on it, with no group and no
+    /// Vehicle images record, and the capture records the Case.
+    /// </summary>
+    [Fact]
+    public async Task ACaseThatAppearsBeforeTheSettleTakesThePhotosStraight()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var started = await StandingCaptureDriver.StartAsync(factory, client, link, "XY99 ZZZ");
+        Assert.Equal(PhotoCaptureDestination.VehicleImages, started.Capture.Destination);
+        var photo = await StandingCaptureDriver.SendItemAsync(
+            factory, client, started, FirstOverview, MultiFormatFixture.Photograph(1), "image/jpeg");
+        await StandingCaptureDriver.DrainAsync(factory, photo);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await StandingCaptureDriver.SetCaseRegistrationAsync(factory, caseId, "XY99ZZZ");
+        await StandingCaptureDriver.AssignEngineerAsync(factory, caseId);
+        await StandingCaptureDriver.CompleteAsync(client, started.Token);
+
+        // A second tick is what the Worker's timer would run should the first find the filing still in flight.
+        await StandingCaptureDriver.SettleAsync(factory);
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        var capture = await StandingCaptureDriver.CaptureAsync(factory, started.Capture.Id);
+        Assert.Equal(caseId, capture.CaseId);
+        Assert.Equal(PhotoCaptureDestination.Case, capture.Destination);
+        Assert.False(capture.SubmissionGroupId.HasValue, "A capture that found its Case at the settle formed a group.");
+        Assert.Equal(1, capture.SettledBatches);
+        Assert.Contains(photo.FileName, await StandingCaptureDriver.CaseImageNamesAsync(factory, caseId));
+        Assert.Null(await FindGroupAsync(factory, PhotoCaptureIntakeRules.BatchGroupId(capture.Id, 1)));
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            Assert.False(await db.ImageIntakes.AnyAsync(), "A capture that found its Case at the settle registered a record.");
+        }
+
+        Assert.True(await StandingCaptureDriver.ImagesCompleteAsync(factory, caseId));
+        Assert.Equal(1, await StandingCaptureDriver.PhotosReceivedCountAsync(factory, caseId));
+    }
+
+    /// <summary>Two eligible Cases are no match (R791): the settle makes the record and files on neither.</summary>
+    [Fact]
+    public async Task TwoEligibleCasesMakeTheRecordAndNeitherTakesThePhotos()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var started = await StandingCaptureDriver.StartAsync(factory, client, link, "XY99 ZZZ");
+        var photo = await StandingCaptureDriver.SendItemAsync(
+            factory, client, started, FirstOverview, MultiFormatFixture.Photograph(1), "image/jpeg");
+        await StandingCaptureDriver.DrainAsync(factory, photo);
+        var first = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var second = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory, sequence: 10);
+        await StandingCaptureDriver.SetCaseRegistrationAsync(factory, first, "XY99ZZZ");
+        await StandingCaptureDriver.SetCaseRegistrationAsync(factory, second, "XY99ZZZ");
+        await StandingCaptureDriver.CompleteAsync(client, started.Token);
+
+        await SettleAndReconcileAsync(factory);
+
+        var capture = await StandingCaptureDriver.CaptureAsync(factory, started.Capture.Id);
+        Assert.False(capture.CaseId.HasValue, "A capture with two eligible Cases was filed on one.");
+        var groupId = capture.SubmissionGroupId
+            ?? throw new InvalidOperationException("The settle formed no submission group.");
+        Assert.Equal("awaiting_instruction", (await StandingCaptureDriver.RecordForGroupAsync(factory, groupId)).LifecycleState);
+        Assert.Empty(await StandingCaptureDriver.CaseImageNamesAsync(factory, first));
+        Assert.Empty(await StandingCaptureDriver.CaseImageNamesAsync(factory, second));
+    }
+
+    /// <summary>
+    /// A Case whose incident date contradicts the typed one is no match at the
+    /// settle (R791): the batch makes the record, which carries the typed date
+    /// and does not pair with that Case.
+    /// </summary>
+    [Fact]
+    public async Task ACaseWhoseDateContradictsTheTypedDateIsNoMatch()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var started = await StandingCaptureDriver.StartWithFormAsync(
+            factory, client, link, new { registration = "XY99 ZZZ", incidentDate = "2031-04-30" });
+        var photo = await StandingCaptureDriver.SendItemAsync(
+            factory, client, started, FirstOverview, MultiFormatFixture.Photograph(1), "image/jpeg");
+        await StandingCaptureDriver.DrainAsync(factory, photo);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await StandingCaptureDriver.SetCaseRegistrationAsync(factory, caseId, "XY99ZZZ");
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            await db.CaseMatchIndex.Where(value => value.CaseId == caseId).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.IncidentDate, (DateOnly?)new DateOnly(2031, 3, 1)));
+        }
+
+        await StandingCaptureDriver.CompleteAsync(client, started.Token);
+        await SettleAndReconcileAsync(factory);
+
+        var capture = await StandingCaptureDriver.CaptureAsync(factory, started.Capture.Id);
+        Assert.False(capture.CaseId.HasValue, "A capture was filed on a Case whose incident date contradicts the typed one.");
+        var groupId = capture.SubmissionGroupId
+            ?? throw new InvalidOperationException("The settle formed no submission group.");
+        Assert.Equal(TypedAccidentDate, (await GroupAsync(factory, groupId)).DeclaredIncidentDate);
+        var record = await StandingCaptureDriver.RecordForGroupAsync(factory, groupId);
+        Assert.Equal("awaiting_instruction", record.LifecycleState);
+        Assert.False(record.MergedIntoCaseId.HasValue, "The record paired with a Case whose date contradicts the typed one.");
+        Assert.Empty(await StandingCaptureDriver.CaseImageNamesAsync(factory, caseId));
+    }
+
+    /// <summary>
+    /// A settled capture whose record later reaches a Case finishes there
+    /// (R803, R804): the note is written, the kept paperwork files as Other,
+    /// the capture records the Case and the bell rings once. The record is
+    /// merged by staff as the merge tests do, and its fold run as the Worker
+    /// runs it.
+    /// </summary>
+    [Fact]
+    public async Task ARecordThatReachesACaseFinishesItsCaptureThere()
+    {
+        const string note = "Please call before 5pm.";
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var started = await StandingCaptureDriver.StartAsync(factory, client, link, UnheldRegistration);
+        var (_, photographReceipts, paperwork) = await SendPhotographsAndPaperworkAsync(factory, client, started);
+        await StandingCaptureDriver.CompleteAsync(client, started.Token, note);
+        await SettleAndReconcileAsync(factory);
+        var settled = await StandingCaptureDriver.CaptureAsync(factory, started.Capture.Id);
+        var record = await StandingCaptureDriver.RecordForGroupAsync(
+            factory, settled.SubmissionGroupId ?? throw new InvalidOperationException("The settle formed no submission group."));
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await StandingCaptureDriver.AssignEngineerAsync(factory, caseId);
+        await ImageIntakeTestData.ProcessImageCaseCustodyAsync(factory);
+        await MergeRecordIntoCaseAsync(factory, record.Id, photographReceipts, caseId);
+        await ImageIntakeTestData.ProcessCustodyAsync(factory, Pegasus.Core.Custody.ExternalWorkKinds.MergeImageCaseCustody);
+
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        var reached = await StandingCaptureDriver.CaptureAsync(factory, started.Capture.Id);
+        Assert.Equal(caseId, reached.CaseId);
+        Assert.Equal(
+            "Customer's note (photo link): " + note,
+            Assert.Single(await StandingCaptureDriver.CaseEventReasonsAsync(factory, caseId, Pegasus.Core.Cases.AddCaseNote.EventType)));
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            var kept = await (from occurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                              join version in db.Set<DocumentVersionEntity>().AsNoTracking() on occurrence.VersionId equals version.Id
+                              where occurrence.CaseId == caseId && version.FileName == paperwork.FileName
+                              select occurrence.SemanticRole).ToListAsync();
+            Assert.Equal(DocumentSemanticRole.Other, Assert.Single(kept));
+        }
+
+        Assert.NotEmpty(await StandingCaptureDriver.CaseImageNamesAsync(factory, caseId));
+        Assert.Equal(1, await StandingCaptureDriver.PhotosReceivedCountAsync(factory, caseId));
+
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        Assert.Equal(1, await StandingCaptureDriver.PhotosReceivedCountAsync(factory, caseId));
+        Assert.Single(await StandingCaptureDriver.CaseEventReasonsAsync(factory, caseId, Pegasus.Core.Cases.AddCaseNote.EventType));
+    }
+
+    /// <summary>
+    /// A further photo after the first record forms the next batch: its own
+    /// group and record for the same registration, and both records' pages
+    /// show the capture's Photo link.
+    /// </summary>
+    [Fact]
+    public async Task ASecondBatchMakesASecondRecordAndBothShowTheCapture()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var started = await StandingCaptureDriver.StartAsync(factory, client, link, UnheldRegistration);
+        var first = await StandingCaptureDriver.SendItemAsync(
+            factory, client, started, FirstOverview, MultiFormatFixture.Photograph(1), "image/jpeg");
+        await StandingCaptureDriver.DrainAsync(factory, first);
+        await StandingCaptureDriver.CompleteAsync(client, started.Token);
+        await SettleAndReconcileAsync(factory);
+        await StandingCaptureDriver.MoveLastSettleBackAsync(factory, started.Capture.Id);
+
+        var further = await StandingCaptureDriver.SendItemAsync(
+            factory, client, started, SecondOverview, MultiFormatFixture.Photograph(2), "image/jpeg");
+        Assert.Equal(2, further.Batch);
+        await StandingCaptureDriver.DrainAsync(factory, further);
+        await StandingCaptureDriver.CompleteAsync(client, started.Token);
+        await SettleAndReconcileAsync(factory);
+
+        var capture = await StandingCaptureDriver.CaptureAsync(factory, started.Capture.Id);
+        Assert.Equal(2, capture.SettledBatches);
+        var firstGroupId = PhotoCaptureIntakeRules.BatchGroupId(capture.Id, 1);
+        var secondGroupId = PhotoCaptureIntakeRules.BatchGroupId(capture.Id, 2);
+        Assert.Equal(secondGroupId, capture.SubmissionGroupId);
+        Assert.Equal("ZZ99QQQ", (await GroupAsync(factory, secondGroupId)).DeclaredRegistration);
+        var firstRecord = await StandingCaptureDriver.RecordForGroupAsync(factory, firstGroupId);
+        var secondRecord = await StandingCaptureDriver.RecordForGroupAsync(factory, secondGroupId);
+        Assert.NotEqual(firstRecord.Id, secondRecord.Id);
+        await AssertRecordShowsThePhotoLinkAsync(client, firstRecord.Id, capture.Id);
+        await AssertRecordShowsThePhotoLinkAsync(client, secondRecord.Id, capture.Id);
+    }
+
+    /// <summary>
+    /// A photo link's group is never Unidentified (FRD-28): a settled
+    /// capture's group past its window, and a waiting capture's receipt past
+    /// it, are left as they are by the grouped-image sweep.
+    /// </summary>
+    [Fact]
+    public async Task ACaptureIsNeverUnidentifiedOnceItsWindowHasPassed()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var settled = await StandingCaptureDriver.StartAsync(factory, client, link, UnheldRegistration);
+        var settledPhoto = await StandingCaptureDriver.SendItemAsync(
+            factory, client, settled, FirstOverview, MultiFormatFixture.Photograph(1), "image/jpeg");
+        await StandingCaptureDriver.DrainAsync(factory, settledPhoto);
+        await StandingCaptureDriver.CompleteAsync(client, settled.Token);
+        await SettleAndReconcileAsync(factory);
+        var groupId = (await StandingCaptureDriver.CaptureAsync(factory, settled.Capture.Id)).SubmissionGroupId
+            ?? throw new InvalidOperationException("The settle formed no submission group.");
+        var waiting = await StandingCaptureDriver.StartAsync(factory, client, link, "ZZ88 HHH");
+        var waitingPhoto = await StandingCaptureDriver.SendItemAsync(
+            factory, client, waiting, FirstOverview, MultiFormatFixture.Photograph(2), "image/jpeg");
+        var waitingReceiptId = await StandingCaptureDriver.DrainAsync(factory, waitingPhoto);
+        // The window is judged on the SQL server's clock, not the test's fixed one.
+        var longAgo = DateTimeOffset.UtcNow - IntakeEscapeWindow.Length - TimeSpan.FromDays(1);
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            Assert.Equal(1, await db.IntakeSubmissionGroups.Where(value => value.Id == groupId).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.ReceivedAtUtc, longAgo)));
+            await db.IntakeStagedReceipts.Where(value => value.Id == waitingPhoto.StagedReceiptId).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.ReceivedAtUtc, longAgo));
+            await db.IntakeReceipts.Where(value => value.Id == waitingReceiptId).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.ReceivedAtUtc, longAgo));
+        }
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(scope.ServiceProvider);
+        }
+
+        Assert.False(await AnythingUnidentifiedAsync(factory), "A photo link's capture was registered Unidentified.");
+        Assert.Equal("awaiting_instruction", (await StandingCaptureDriver.RecordForGroupAsync(factory, groupId)).LifecycleState);
+        await using var verify = factory.Services.CreateAsyncScope();
+        var receipt = await verify.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(waitingReceiptId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The waiting photo's receipt was not found.");
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+    }
+
+    /// <summary>
+    /// The settle lists a cancelled capture that holds a photo, whose photos
+    /// still settle (R794), and not a cancelled one with none (R792).
+    /// </summary>
+    [Fact]
+    public async Task ACancelledCaptureWithPhotosIsListedForSettleAndOneWithoutIsNot()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var withPhoto = await StandingCaptureDriver.StartAsync(factory, client, link, UnheldRegistration);
+        var withoutPhoto = await StandingCaptureDriver.StartAsync(factory, client, link, "ZZ88 HHH");
+        var photo = await StandingCaptureDriver.SendItemAsync(
+            factory, client, withPhoto, FirstOverview, MultiFormatFixture.Photograph(1), "image/jpeg");
+        await StandingCaptureDriver.DrainAsync(factory, photo);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var actions = scope.ServiceProvider.GetRequiredService<PhotoLinkActions>();
+        await actions.RevokeAsync(Administrator, withPhoto.Capture.Id, Guid.NewGuid().ToString("N"), CancellationToken.None);
+        await actions.RevokeAsync(Administrator, withoutPhoto.Capture.Id, Guid.NewGuid().ToString("N"), CancellationToken.None);
+
+        var listed = await scope.ServiceProvider.GetRequiredService<IPhotoCaptureStore>()
+            .ListAwaitingSettleAsync(IntakeWebApplicationFactory.FixedUtcNow, after: null, 50, CancellationToken.None);
+
+        Assert.Contains(listed, candidate => candidate.Capture.Id == withPhoto.Capture.Id);
+        Assert.DoesNotContain(listed, candidate => candidate.Capture.Id == withoutPhoto.Capture.Id);
+    }
+
+    /// <summary>
+    /// Two photographs and a paperwork PDF on the capture, each drained as the
+    /// Worker would; answers the photographs' processed receipts beside them.
+    /// </summary>
+    private static async Task<(PhotoCaptureItem[] Photographs, Guid[] PhotographReceipts, PhotoCaptureItem Paperwork)> SendPhotographsAndPaperworkAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client,
+        StartedCapture started)
+    {
+        var first = await StandingCaptureDriver.SendItemAsync(
+            factory, client, started, FirstOverview, MultiFormatFixture.Photograph(1), "image/jpeg");
+        var second = await StandingCaptureDriver.SendItemAsync(
+            factory, client, started, SecondOverview, MultiFormatFixture.Photograph(2), "image/jpeg");
+        var paperwork = await StandingCaptureDriver.SendItemAsync(
+            factory, client, started, Paperwork, IntakeTestEvidence.CreatePdf("Repair estimate"), "application/pdf");
+        var firstReceipt = await StandingCaptureDriver.DrainAsync(factory, first);
+        var secondReceipt = await StandingCaptureDriver.DrainAsync(factory, second);
+        await StandingCaptureDriver.DrainAsync(factory, paperwork);
+        return ([first, second], [firstReceipt, secondReceipt], paperwork);
+    }
+
+    /// <summary>The settle, then the grouped-image sweep that re-drives a group whose first member's replay did not register it.</summary>
+    private static async Task SettleAndReconcileAsync(IntakeWebApplicationFactory factory)
+    {
+        await StandingCaptureDriver.SettleAsync(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(scope.ServiceProvider);
+    }
+
+    private static async Task<IntakeSubmissionGroup?> FindGroupAsync(IntakeWebApplicationFactory factory, Guid groupId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>()
+            .GetAsync(groupId, CancellationToken.None);
+    }
+
+    private static async Task<IntakeSubmissionGroup> GroupAsync(IntakeWebApplicationFactory factory, Guid groupId) =>
+        await FindGroupAsync(factory, groupId)
+        ?? throw new InvalidOperationException("The submission group was not found.");
+
+    /// <summary>Whether the estate holds any Unidentified item; the tests' databases start with none.</summary>
+    private static async Task<bool> AnythingUnidentifiedAsync(IntakeWebApplicationFactory factory)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        return await db.UnidentifiedItems.AnyAsync();
+    }
+
+    private static async Task AssertRecordShowsThePhotoLinkAsync(HttpClient client, Guid recordId, Guid captureId)
+    {
+        var page = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{recordId:D}");
+        Assert.Contains("id=\"image-intake-photo-link-title\"", page, StringComparison.Ordinal);
+        Assert.Contains($"/PhotoCapture/{captureId:D}", page, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Staff link the record's photograph receipts to the Case and merge the
+    /// record into it, as <c>ImageCaseCustodyIntegrationTests</c> does; the
+    /// merge queues the fold.
+    /// </summary>
+    private static async Task MergeRecordIntoCaseAsync(
+        IntakeWebApplicationFactory factory,
+        Guid recordId,
+        IReadOnlyList<Guid> receiptIds,
+        Guid caseId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var store = services.GetRequiredService<Pegasus.Core.ImageIntake.IImageIntakeStore>();
+        var mutations = services.GetRequiredService<IIntakeMutationStore>();
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var workflows = services.GetRequiredService<Pegasus.Core.Workflow.ICaseWorkflowQueries>();
+        foreach (var receiptId in receiptIds)
+        {
+            var workflow = await workflows.GetAsync(caseId, CancellationToken.None);
+            var lease = await services.GetRequiredService<Pegasus.Core.Workflow.ILeaseCaseForEdit>().ClaimAsync(
+                new(caseId, workflow!.Version, Administrator, $"photo-capture-link-lease:{receiptId:N}"),
+                CancellationToken.None);
+            var receipt = await receipts.GetAsync(receiptId, CancellationToken.None);
+            await mutations.LinkAsync(
+                new(receiptId, caseId, receipt!.Version, workflow.Version, lease.Token, Administrator,
+                    $"photo-capture-link:{receiptId:N}", "Staff confirmed these photos belong to the instruction Case."),
+                DateTimeOffset.UtcNow,
+                CancellationToken.None);
+        }
+
+        var detail = await store.GetAsync(recordId, CancellationToken.None);
+        var recordLease = await services.GetRequiredService<Pegasus.Core.Workflow.IEditScopeLeases>().ClaimAsync(
+            new(
+                Pegasus.Core.Workflow.EditScopeKind.ImageIntake,
+                recordId,
+                detail!.LifecycleVersion,
+                Administrator,
+                $"photo-capture-merge-lease:{recordId:N}"),
+            CancellationToken.None);
+        await store.MergeAsync(
+            new(
+                recordId,
+                caseId,
+                Administrator,
+                $"photo-capture-merge:{recordId:N}",
+                "The Image-initiated case was merged into the linked formal Case.",
+                detail.LifecycleVersion,
+                ExpectedStaffOriginAssociationVersion: 0)
+            {
+                EditLeaseToken = recordLease.Token
+            },
+            CancellationToken.None);
+    }
 }
 
 /// <summary>A capture a standing link started or handed on: a token it is reached by, and the capture as it then stood.</summary>
@@ -517,5 +949,92 @@ internal static class StandingCaptureDriver
         var end = html.IndexOf("</tr>", start, StringComparison.Ordinal);
         Assert.True(end > start, $"The row for capture {captureId:D} does not end.");
         return html[start..end];
+    }
+
+    /// <summary>Starts a capture on the link with the whole short form the phone sends; answers its token and the capture.</summary>
+    internal static async Task<StartedCapture> StartWithFormAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client,
+        StandingPhotoLink link,
+        object form)
+    {
+        using var started = await SendAsync(
+            client, HttpMethod.Post, $"{Api}/start", Standing(link), Json(JsonSerializer.Serialize(form)));
+        Assert.Equal(HttpStatusCode.Created, started.StatusCode);
+        var token = (await JsonAsync(started)).GetProperty("token").GetString()
+            ?? throw new InvalidOperationException("The start answered no token.");
+        return new(token, await CaptureByTokenAsync(factory, token));
+    }
+
+    /// <summary>The sender presses Send on the capture's token, with a note when one is given.</summary>
+    internal static async Task CompleteAsync(HttpClient client, string token, string? note = null)
+    {
+        using var completed = await SendAsync(
+            client,
+            HttpMethod.Post,
+            $"{Api}/complete",
+            Capture(token),
+            note is null ? null : Json(JsonSerializer.Serialize(new { note })));
+        Assert.Equal(HttpStatusCode.OK, completed.StatusCode);
+    }
+
+    /// <summary>Runs the Worker's settle once, standing in for its timer.</summary>
+    internal static async Task<SettlePhotoCapturesResult> SettleAsync(IntakeWebApplicationFactory factory)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        return await IntakeWebDriver.SettlePhotoCapturesAsync(scope.ServiceProvider);
+    }
+
+    /// <summary>Makes the development Administrator the Case's Engineer, so the Case's bell has someone to ring for.</summary>
+    internal static async Task AssignEngineerAsync(IntakeWebApplicationFactory factory, Guid caseId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        await db.CaseWorkflows.Where(value => value.CaseId == caseId).ExecuteUpdateAsync(update => update
+            .SetProperty(value => value.AssignedEngineerId, (Guid?)DevelopmentOfflineIdentity.AdministratorId));
+    }
+
+    /// <summary>How many "Photos received" notifications the Case raised.</summary>
+    internal static async Task<int> PhotosReceivedCountAsync(IntakeWebApplicationFactory factory, Guid caseId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        var photosReceived = nameof(Pegasus.Core.Notifications.StaffNotificationCause.PhotosReceived);
+        return await db.Set<StaffNotificationEntity>().AsNoTracking()
+            .CountAsync(value => value.CaseId == caseId && value.Cause == photosReceived);
+    }
+
+    /// <summary>The reasons of the Case's workflow events of one type, in the order they were written.</summary>
+    internal static async Task<string?[]> CaseEventReasonsAsync(IntakeWebApplicationFactory factory, Guid caseId, string eventType)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        return await db.CaseWorkflowEvents.AsNoTracking()
+            .Where(value => value.CaseId == caseId && value.EventType == eventType)
+            .OrderBy(value => value.OccurredAtUtc)
+            .Select(value => value.Reason)
+            .ToArrayAsync();
+    }
+
+    internal static async Task<bool> ImagesCompleteAsync(IntakeWebApplicationFactory factory, Guid caseId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        return await db.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync();
+    }
+
+    /// <summary>
+    /// Moves the capture's last settle an hour back. The test clock is fixed,
+    /// so a Send after a settle would otherwise carry the settle's own time
+    /// and read as already settled.
+    /// </summary>
+    internal static async Task MoveLastSettleBackAsync(IntakeWebApplicationFactory factory, Guid captureId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        await db.PhotoCaptures.Where(value => value.Id == captureId).ExecuteUpdateAsync(update => update
+            .SetProperty(value => value.SettledAtUtc, (DateTimeOffset?)IntakeWebApplicationFactory.FixedUtcNow.AddHours(-1)));
+    }
+
+    /// <summary>The Vehicle images record a submission group registered.</summary>
+    internal static async Task<ImageIntakeEntity> RecordForGroupAsync(IntakeWebApplicationFactory factory, Guid groupId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        return await db.ImageIntakes.AsNoTracking().SingleAsync(value => value.SubmissionGroupId == groupId);
     }
 }
