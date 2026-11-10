@@ -752,6 +752,16 @@ public sealed partial class DetailsModel(
         new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// <summary>
+    /// The heading each offered block carries when the Engineer has not
+    /// renamed it. With <see cref="ReportWordingComposed"/> it lets the page
+    /// send a block it still shows as drawn as no change, so a section kept
+    /// on screen while the Case moved on stores nothing the Engineer did not
+    /// write (issue 2042).
+    /// </summary>
+    public IReadOnlyDictionary<string, string> ReportWordingHeadings { get; private set; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>
     /// The Damage section's Incident narrative: the report's Nature of Incident
     /// block as Core composes it for this view's work (operator, 24 September
     /// 2026), in every state the workspace loads. Null while there is none.
@@ -1394,6 +1404,12 @@ public sealed partial class DetailsModel(
                         block => block.Key,
                         block => ReportWordingComposition.ComposedText(
                             block.Key, wordingSnapshot, wordingSnapshot.Presentation()),
+                        StringComparer.Ordinal)
+                    : new Dictionary<string, string>(StringComparer.Ordinal);
+                ReportWordingHeadings = wording.Snapshot is { } headingSnapshot
+                    ? ReportWording.Where(block => !block.Manual).ToDictionary(
+                        block => block.Key,
+                        block => ReportWordingComposition.StandardTitle(block.Key, headingSnapshot.Presentation()),
                         StringComparer.Ordinal)
                     : new Dictionary<string, string>(StringComparer.Ordinal);
             }

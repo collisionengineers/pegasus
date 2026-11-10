@@ -1195,11 +1195,32 @@
         var panel = form.getAttribute('id') === 'case-edit-form' ? record.querySelector('[data-report-wording]') : null;
         var wording = panel ? panel.pegasusWording : null;
         if (!wording) { return null; }
-        if (wording.changed()) { return { panel: panel, state: wording.state() }; }
+        if (wording.changed()) {
+            asComposed(panel, body);
+            return { panel: panel, state: wording.state() };
+        }
         Array.from(body.keys()).forEach(function (name) {
             if (name.indexOf('wordingEdits[') === 0) { body.delete(name); }
         });
         return null;
+    }
+    // A block still showing the sentence or the heading the page drew it with
+    // travels with them blank, which the Save stores as no change: the block
+    // keeps tracking its fields. The Save compares what it is sent with the
+    // sentence as composed now, so a section kept on screen while the Case
+    // moved on would otherwise store its out-of-date sentences as the
+    // Engineer's own (issue 2042). Only what is sent changes; the page shows
+    // what it showed.
+    function asComposed(panel, body) {
+        function same(shown, drawn) {
+            return !!drawn && shown.replace(/\r\n?/g, '\n').trim() === drawn.replace(/\r\n?/g, '\n').trim();
+        }
+        panel.querySelectorAll('[data-wording-row]').forEach(function (row) {
+            var text = row.querySelector('[data-wording-text]');
+            if (text && same(text.value, row.getAttribute('data-wording-composed'))) { body.set(text.name, ''); }
+            var title = row.querySelector('input.wbt');
+            if (title && same(title.value, row.getAttribute('data-wording-heading'))) { body.set(title.name, ''); }
+        });
     }
     function requestCatchUp() {
         catchUpWanted = true;

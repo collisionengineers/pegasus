@@ -131,7 +131,11 @@ their only on/off, and are offered whatever the switch says; PAV
 commentary's words are the recorded valuation commentary text (or the
 applied valuation's reason), never wording held against the block
 (operator, 2 November 2026; R641 A, E). Wording that reads the same as the
-composed sentence is no change, so the block keeps tracking its fields. The
+composed sentence is no change, so the block keeps tracking its fields. That
+holds for the sentence and the heading a block was drawn with as it does for
+the ones composed at the save, so a Report section kept on screen while the
+Case moved on stores nothing the Engineer did not write (#2042, 10 November
+2026). The
 Engineer's changes are held per Case, separately for the Inspection and the
 Audit once an Audit exists, and written by the one Case save. The save
 carries the wording only when the Engineer changed it; a wording change is
