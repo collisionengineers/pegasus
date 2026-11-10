@@ -153,8 +153,8 @@ public sealed class RecordPhotoCaptureDetailsTests
             };
             forwarder.Overrides[nameof(IPhotoCaptureStore.RecordDetailsAsync)] = args =>
             {
-                var registration = (string?)args[2];
-                var incidentDate = (DateOnly?)args[3];
+                var registration = (string?)args[1];
+                var incidentDate = (DateOnly?)args[2];
                 Details.Add((registration, incidentDate));
                 Current = Current with
                 {

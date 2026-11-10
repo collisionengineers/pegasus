@@ -32,6 +32,15 @@ public sealed partial class CaptureAssetContractTests
     [GeneratedRegex(@"\bconst ORIGMAX=(\d+)")]
     private static partial Regex OriginalConstant();
 
+    [GeneratedRegex(@"\bconst PHOTOMAX=(\d+)")]
+    private static partial Regex PhotoConstant();
+
+    [GeneratedRegex(@"\bconst DOCMAX=(\d+)")]
+    private static partial Regex DocumentConstant();
+
+    [GeneratedRegex(@"\bconst VIDEOMAX=(\d+)")]
+    private static partial Regex VideoConstant();
+
     [GeneratedRegex(@"<input type=""file""[^>]*>")]
     private static partial Regex FileInput();
 
@@ -111,6 +120,20 @@ public sealed partial class CaptureAssetContractTests
         Assert.Equal(CaptureLimits.OriginalBytes, int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture));
     }
 
+    /// <summary>
+    /// The app refuses a photo, document or video larger than the API takes
+    /// before reading it to hash, so the bounds it holds are the API's.
+    /// </summary>
+    [Fact]
+    public void TheAppsFileBoundsAreTheApisFileBounds()
+    {
+        var script = Read(ScriptPath);
+
+        Assert.Equal(CaptureLimits.PhotoBytes, Bound(PhotoConstant(), script, "PHOTOMAX"));
+        Assert.Equal(CaptureLimits.DocumentBytes, Bound(DocumentConstant(), script, "DOCMAX"));
+        Assert.Equal(CaptureLimits.VideoBytes, Bound(VideoConstant(), script, "VIDEOMAX"));
+    }
+
     /// <summary>A link that dies while the app is open says what the page an unavailable link gets says (R789).</summary>
     [Fact]
     public void TheAppsUnavailableScreenSaysTheUnavailablePagesTwoLines()
@@ -156,6 +179,13 @@ public sealed partial class CaptureAssetContractTests
 
         Assert.Equal(4, shell.Length);
         Assert.Equal(shell, partial);
+    }
+
+    private static int Bound(Regex declaration, string script, string name)
+    {
+        var match = declaration.Match(script);
+        Assert.True(match.Success, $"capture.js no longer declares {name}.");
+        return int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
     }
 
     private static string Read(string relative)
