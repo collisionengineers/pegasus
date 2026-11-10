@@ -222,6 +222,46 @@ public sealed partial class PhotoCaptureWebTests
         Assert.True(withThree.StoryReads <= 1, withThree.Description);
     }
 
+    /// <summary>
+    /// A story orders only an image in the report nobody has ordered
+    /// (operator, 10 November 2026; R854), so once an engineer has ordered a
+    /// photo link's photos the Case's preparation read sends no statement to
+    /// the capture items, and no more statements than it did while the photos
+    /// were unordered.
+    /// </summary>
+    [Fact]
+    public async Task TheCasesPreparationReadSkipsTheStoryOnceAnEngineerOrderedThePhotos()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var link = await IssueLinkAsync(factory, caseId);
+        await SendAndDrainAsync(factory, client, link, FirstOverview, seed: 1);
+        await SendAndDrainAsync(factory, client, link, RulesNumberPlate, seed: 2);
+        var unordered = await PreparationReadAsync(factory, counter, caseId);
+        await OrderedByAnEngineerAsync(factory, caseId);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<ICaseAssetPreparationQueries>();
+        counter.Reset();
+        var preparations = await queries.ListForCaseAsync(caseId, CancellationToken.None);
+        var (count, storyReads, description) = (counter.Count, counter.CountMentioning("[PhotoCaptureItems]"), counter.Describe());
+
+        Assert.True(unordered.StoryReads >= 1, "The interceptor saw no story read while the photos were unordered." + Environment.NewLine + unordered.Description);
+        Assert.True(storyReads == 0, "The read asked for the story of ordered photos:" + Environment.NewLine + description);
+        Assert.True(
+            count <= unordered.Count,
+            $"The read of ordered photos sent {count} commands against {unordered.Count} for unordered ones."
+            + Environment.NewLine + description);
+        Assert.Equal(2, preparations.Count);
+        Assert.All(preparations, item =>
+        {
+            Assert.NotNull(item.Order);
+            Assert.Null(item.Story);
+        });
+    }
+
     private static async Task AssertTypedMileageAsync(IntakeWebApplicationFactory factory, Guid caseId)
     {
         await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
@@ -366,6 +406,27 @@ public sealed partial class PhotoCaptureWebTests
             var fileName = items[index].FileName;
             Assert.Single(images, image => image.FileName == fileName).Occurrence.RecordedAtUtc =
                 IntakeWebApplicationFactory.FixedUtcNow.AddMinutes(index);
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// An engineer ordered the Case's images: each in the report takes a
+    /// place, in the order they arrived.
+    /// </summary>
+    private static async Task OrderedByAnEngineerAsync(IntakeWebApplicationFactory factory, Guid caseId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        var images = await db.Set<DocumentOccurrenceEntity>()
+            .Where(occurrence => occurrence.CaseId == caseId && occurrence.SemanticRole == DocumentSemanticRole.Image)
+            .OrderBy(occurrence => occurrence.RecordedAtUtc)
+            .ThenBy(occurrence => occurrence.Id)
+            .ToListAsync();
+        Assert.All(images, image => Assert.True(image.InReport));
+        for (var index = 0; index < images.Count; index++)
+        {
+            images[index].SupportingOrder = index + 1;
         }
 
         await db.SaveChangesAsync();
