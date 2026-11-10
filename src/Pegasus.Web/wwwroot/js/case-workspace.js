@@ -80,6 +80,14 @@
     function readingLine() {
         return block.getBoundingClientRect().bottom;
     }
+    // The reading line once the page has moved and the block has stuck. At
+    // the top of the page the block stands lower, under the page's padding
+    // and any notice, so a landing worked out from where it stands now would
+    // stop that much short.
+    function stuckLine() {
+        var top = parseFloat(window.getComputedStyle(block).top);
+        return isNaN(top) ? readingLine() : Math.min(readingLine(), top + block.offsetHeight);
+    }
 
     function bindMounted(root) {
         (window.pegasusMountBinders || []).forEach(function (bind) { bind(root); });
@@ -125,6 +133,20 @@
             return placeholder.isConnected && requestedMain === main && main.contains(placeholder)
                 && record.getAttribute('data-case-version') === requestedVersion && editLeaseToken() === lease;
         }
+        // The Case moved on under the read (a commit landed first, issue
+        // 1497). A placeholder still standing is read again with the Case's
+        // authority now, and keeps who waits on it; one a swap replaced has
+        // gone, and a jump waiting on it settles on what stands there now.
+        function thrownAway() {
+            delete placeholder.dataset.lazyState;
+            if (placeholder.isConnected && main.contains(placeholder)) {
+                mount(placeholder);
+                return;
+            }
+            waiting.length = 0;
+            settlePendingAnchor();
+            spy();
+        }
         if (lease) {
             headers['X-Pegasus-Edit-Lease'] = lease;
         }
@@ -141,8 +163,7 @@
             })
             .then(function (html) {
                 if (!stillCurrent()) {
-                    waiting.length = 0;
-                    delete placeholder.dataset.lazyState;
+                    thrownAway();
                     return;
                 }
                 var parsed = document.createElement('div');
@@ -162,8 +183,7 @@
             })
             .catch(function (error) {
                 if (!stillCurrent()) {
-                    waiting.length = 0;
-                    delete placeholder.dataset.lazyState;
+                    thrownAway();
                     return;
                 }
                 placeholder.dataset.lazyState = 'failed';
@@ -229,34 +249,43 @@
                 }
             });
     });
+    // A body is read as the reader nears it: within two and a half screens.
+    function approaching(placeholder) {
+        return placeholder.getBoundingClientRect().top < window.innerHeight * 2.5;
+    }
     function mountApproaching() {
-        var limit = window.innerHeight * 2.5;
         main.querySelectorAll('[data-lazy]').forEach(function (placeholder) {
-            if (placeholder.getBoundingClientRect().top < limit) {
+            if (approaching(placeholder)) {
                 mount(placeholder);
             }
         });
     }
 
     // ---- jumping and the scroll spy ----------------------------------------
-    function lazyBefore(target) {
-        return Array.prototype.filter.call(main.querySelectorAll('[data-lazy]'), function (placeholder) {
-            return (placeholder.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
-                && placeholder.dataset.lazyState !== 'failed';
-        });
+    // Where a jump lands, in one scroll made at once: the section under the
+    // section row, or lower, with its marked field in the middle of what
+    // shows beneath the row, when the field lies deeper than that (operator,
+    // 10 November 2026; R888). The page never backs up into the section
+    // before the one asked for. Answers whether the document was too short
+    // to get there.
+    function land(host) {
+        measure();
+        var line = stuckLine();
+        var top = window.scrollY + host.getBoundingClientRect().top - line - 8;
+        var marked = host.querySelector('.is-jump-target');
+        if (marked) {
+            var cell = marked.getBoundingClientRect();
+            top = Math.max(top, window.scrollY + cell.top + cell.height / 2 - (line + window.innerHeight) / 2);
+        }
+        top = Math.max(0, Math.round(top));
+        window.scrollTo({ top: top, behavior: 'instant' });
+        return window.scrollY < top - 1;
     }
-    function lazyAfter(target) {
-        return Array.prototype.filter.call(main.querySelectorAll('[data-lazy]'), function (placeholder) {
-            return (placeholder.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_PRECEDING) !== 0
-                && placeholder.dataset.lazyState !== 'failed';
-        });
-    }
-    function pendingLazyFor(target) {
-        var before = lazyBefore(target);
-        var clamped = target.getBoundingClientRect().top > readingLine() + 16
-            || window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40;
-        return clamped ? before.concat(lazyAfter(target)) : before;
-    }
+    // A jump settles as it starts and again as each section mounts. Every
+    // placeholder before the target is read and waited on, since each moves
+    // the target as it mounts. Those after it are read as the reader nears
+    // them and are waited on only while the document is too short to land:
+    // once they mount there is room (issue 1496).
     function settlePendingAnchor() {
         if (!pendingAnchor) {
             return;
@@ -267,25 +296,29 @@
             jumpedKey = null;
             return;
         }
+        var before = 0;
+        var after = [];
+        main.querySelectorAll('[data-lazy]').forEach(function (placeholder) {
+            if (placeholder === target || placeholder.dataset.lazyState === 'failed') {
+                return;
+            }
+            if ((placeholder.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0) {
+                before += 1;
+                mount(placeholder);
+            } else {
+                after.push(placeholder);
+            }
+        });
         if (target.hasAttribute('data-lazy')) {
+            mount(target);
             return;
         }
-        var marked = target.querySelector('.is-jump-target');
-        if (marked) {
-            marked.scrollIntoView({ block: 'center' });
-        } else {
-            scrollSectionIntoView(target);
-        }
-        var remaining = pendingLazyFor(target);
-        remaining.forEach(function (placeholder) { mount(placeholder); });
-        if (!remaining.length) {
+        var short = land(target);
+        var reached = after.filter(approaching);
+        reached.forEach(function (placeholder) { mount(placeholder); });
+        if (!before && !(short && reached.length)) {
             pendingAnchor = null;
         }
-    }
-    function scrollSectionIntoView(host) {
-        measure();
-        var top = window.scrollY + host.getBoundingClientRect().top - readingLine() - 8;
-        window.scrollTo({ top: Math.max(0, top), behavior: 'instant' });
     }
     function focusSection(host) {
         var heading = host.querySelector('h2');
@@ -325,7 +358,8 @@
     // A jump to a report blocker outlines the cell recording its field
     // (data-field, a space-separated list), unfolding any panel folded over
     // it, and focuses its control while the record edits. The outline lasts
-    // until the next jump. Answers whether a control took focus.
+    // until the next jump; the jump's landing brings it into view. Answers
+    // whether a control took focus.
     function markField(host, field) {
         record.querySelectorAll('.is-jump-target').forEach(function (cell) { cell.classList.remove('is-jump-target'); });
         var cell = host && field ? host.querySelector('[data-field~="' + field + '"]') : null;
@@ -337,7 +371,6 @@
             if (toggle) { toggle.click(); }
         }
         cell.classList.add('is-jump-target');
-        cell.scrollIntoView({ block: 'center' });
         var control = cell.querySelector('.fi');
         if (!control) {
             return false;
@@ -353,23 +386,20 @@
         }
         jumpedKey = ownerKey(key);
         pendingAnchor = { key: key };
-        lazyBefore(target).forEach(function (placeholder) { mount(placeholder); });
+        // The section as the jump asked for it: its tab open, its field
+        // marked, focus in it. A later navigation wins over a section still
+        // mounting.
+        function arrive(host) {
+            if (navigation !== navigationVersion) { return; }
+            openSubTab(host, tab);
+            if (!markField(host, field) && focus) { focusSection(host); }
+        }
         if (target.hasAttribute('data-lazy')) {
             markField(null);
-            spy();
-            mount(target, function (host) {
-                if (navigation !== navigationVersion) { return; }
-                openSubTab(host, tab);
-                scrollSectionIntoView(host);
-                mountApproaching();
-                if (!markField(host, field) && focus) { focusSection(host); }
-            });
-            return;
+            mount(target, arrive);
+        } else {
+            arrive(target);
         }
-        openSubTab(target, tab);
-        scrollSectionIntoView(target);
-        mountApproaching();
-        if (!markField(target, field) && focus) { focusSection(target); }
         settlePendingAnchor();
         spy();
     }
@@ -443,10 +473,14 @@
     ['wheel', 'touchstart', 'pointerdown', 'keydown'].forEach(function (name) {
         window.addEventListener(name, function () { pendingAnchor = null; jumpedKey = null; navigationVersion += 1; }, { passive: true });
     });
+    // A jump still settling lands again in the new layout; a link held only
+    // because the page stood at its bottom is let go.
     window.addEventListener('resize', function () {
-        pendingAnchor = null;
-        jumpedKey = null;
+        if (!pendingAnchor) {
+            jumpedKey = null;
+        }
         measure();
+        settlePendingAnchor();
         spy();
     });
     if ('ResizeObserver' in window) {
