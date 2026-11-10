@@ -314,12 +314,14 @@ else
                         // nothing yet, "No photos yet" and Resend the link (R806).
                         var linkState = Model.PhotoLinkState(story);
                         var linkLive = Model.IsPhotoLinkLive(capture);
+                        // Photographs only, as the lists count them: paperwork or video alone is not photos.
+                        var linkPhotographs = story.Items.Count(item => Pegasus.Core.PhotoCapture.PhotoCaptureStory.IsPhotographKind(item.Kind));
                     }
                     <div class="button-row" data-photo-link-status>
                         <partial name="Shared/_StatusChip" model="@OperatorLabels.PhotoCapture.State(linkState)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.PhotoCapture.StateTone(linkState) }' />
-                        @if (capture.AcceptedItemCount > 0)
+                        @if (linkPhotographs > 0)
                         {
-                            <span>@OperatorLabels.PhotoCapture.PhotoCount(capture.AcceptedItemCount, linkState == Pegasus.Core.PhotoCapture.PhotoCaptureState.Complete)</span>
+                            <span>@OperatorLabels.PhotoCapture.PhotoCount(linkPhotographs, linkState == Pegasus.Core.PhotoCapture.PhotoCaptureState.Complete)</span>
                         }
                         else if (linkLive)
                         {
