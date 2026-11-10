@@ -10,7 +10,7 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// The photo link text through the Azure Communication Services SMS REST API
-/// (R916, R919), against a stand-in transport: the request the adapter makes,
+/// (R918, R921), against a stand-in transport: the request the adapter makes,
 /// and how each answer becomes Sent or a failure code rather than an
 /// exception, so the link's history records what happened.
 /// </summary>

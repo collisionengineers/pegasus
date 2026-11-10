@@ -209,7 +209,7 @@ public static partial class OperatorLabels
         public const string Message = "Message";
         public const string SendByEmail = "Send by e-mail";
 
-        // The photo link text (R916 to R919); the wording awaits the operator's sign-off.
+        // The photo link text (R918 to R921); the wording awaits the operator's sign-off.
         public const string SendByText = "Send by text";
         public const string TextMessage = "Text message";
         public const string TextNotSent = "Text not sent";

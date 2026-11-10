@@ -29,7 +29,7 @@
         return text.replace(/\r\n/g, '\n').trim();
     }
 
-    // One group per message: the e-mail's and the text's (R917).
+    // One group per message: the e-mail's and the text's (R919).
     document.querySelectorAll('[data-photo-link-wording]').forEach(function (group) {
         var message = group.querySelector('[data-photo-link-message]');
         var standard = group.querySelector('[data-photo-link-standard]');

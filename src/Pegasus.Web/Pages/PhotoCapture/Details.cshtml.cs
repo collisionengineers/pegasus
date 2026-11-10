@@ -136,7 +136,7 @@ public sealed class DetailsModel(
             // included (R842), name who acted: "Cancelled · name", "Link
             // extended · name", "Call logged · name" (R805) and one
             // "Reminded · name" per reminder (operator, 10 November 2026; R870),
-            // and each text, "Sent by text · name" or "Text not sent · name" (R919).
+            // and each text, "Sent by text · name" or "Text not sent · name" (R921).
             foreach (var act in Acts)
             {
                 var label = act.Kind switch

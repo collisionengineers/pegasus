@@ -206,7 +206,7 @@ public static class DependencyInjection
         services.AddScoped<ReceivePhotoCaptureItem>();
         services.AddScoped<CompletePhotoCapture>();
         services.AddScoped<PhotoLinkActions>();
-        // A photo link text (R916): unavailable unless the host composes the
+        // A photo link text (R918): unavailable unless the host composes the
         // Azure Communication Services send over a configured number.
         services.AddScoped<SendPhotoLinkText>();
         services.TryAddSingleton<IPhotoLinkTextSend, Pegasus.Infrastructure.TextMessages.UnavailablePhotoLinkTextSend>();

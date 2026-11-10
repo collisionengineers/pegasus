@@ -8,7 +8,7 @@ using Pegasus.Core.PhotoCapture;
 namespace Pegasus.Infrastructure.TextMessages;
 
 /// <summary>
-/// Where texts are sent from (R916): the Azure Communication Services
+/// Where texts are sent from (R918): the Azure Communication Services
 /// endpoint and the SMS-enabled UK mobile number bought on it, in E.164.
 /// Texting is unavailable while either is empty.
 /// </summary>
@@ -36,7 +36,7 @@ public sealed class UnavailablePhotoLinkTextSend : IPhotoLinkTextSend
 /// One photo link text through the Azure Communication Services SMS REST API
 /// (<c>POST {endpoint}/sms</c>), authorised with the Web's managed identity
 /// (Microsoft Entra ID; Contributor on the resource). Delivery reports are not
-/// asked for (R919): accepted is what the provider says on the request. A
+/// asked for (R921): accepted is what the provider says on the request. A
 /// refusal, an HTTP failure or no answer becomes a failure code, never an
 /// exception, so the link's history records what happened.
 /// </summary>

@@ -880,7 +880,7 @@ public sealed class EfPhotoCaptureStore(
         CancellationToken cancellationToken) =>
         (await RecordActAsync(captureId, actor, operationKey, act, occurredAtUtc, afterJson, change, cancellationToken)).Capture;
 
-    /// <summary>A text act on the link's history (R919): the row changes only by its version.</summary>
+    /// <summary>A text act on the link's history (R921): the row changes only by its version.</summary>
     public async Task<bool> RecordTextAsync(
         Guid captureId,
         Pegasus.Core.Identity.ActionActor actor,

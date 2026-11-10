@@ -316,7 +316,7 @@ sends only on **Send by e-mail**; no button sends an e-mail on its own
 photo link by itself. The composer may also text it from Pegasus's own UK
 mobile number; a text is not mail and has no Sent evidence, and the link's
 history records it ([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-text);
-[R916](../rulings.md) to R919). WhatsApp is Copy link and the staff
+[R918](../rulings.md) to R921). WhatsApp is Copy link and the staff
 member's own phone (operator, 9 November 2026, [R773](../rulings.md)).
 **Ask for it**, on a capture that came in on a standing or website link,
 opens the same composer when the capture is on a Case and holds an e-mail

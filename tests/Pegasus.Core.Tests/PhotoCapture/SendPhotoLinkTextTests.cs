@@ -6,7 +6,7 @@ using static Pegasus.Core.Tests.PhotoCapture.PhotoCaptureTestData;
 namespace Pegasus.Core.Tests.PhotoCapture;
 
 /// <summary>
-/// The photo link text (FRD-28 The photo link text; R916 to R919): only a UK
+/// The photo link text (FRD-28 The photo link text; R918 to R921): only a UK
 /// mobile is texted, the text act is written before the provider is called so
 /// one operation key sends one text, and the provider's answer is written
 /// after it as Sent by text or Text not sent.
@@ -22,7 +22,7 @@ public sealed class SendPhotoLinkTextTests
 
     /// <summary>
     /// A UK mobile is read however it is written, and becomes E.164; a
-    /// landline, a short number, letters or a number abroad is not one (R916).
+    /// landline, a short number, letters or a number abroad is not one (R918).
     /// </summary>
     [Theory]
     [InlineData("07700 900123", "+447700900123")]
@@ -44,7 +44,7 @@ public sealed class SendPhotoLinkTextTests
     /// <summary>
     /// An accepted text writes Text submitted to the link's history before the
     /// provider is called, then Text sent with the provider's message id, each
-    /// under its own key from the form's operation key (R919).
+    /// under its own key from the form's operation key (R921).
     /// </summary>
     [Fact]
     public async Task AnAcceptedTextIsWrittenBeforeTheProviderAndSentAfterIt()
@@ -81,7 +81,7 @@ public sealed class SendPhotoLinkTextTests
             });
     }
 
-    /// <summary>A text the provider refuses is written as Text not sent with its failure code (R919).</summary>
+    /// <summary>A text the provider refuses is written as Text not sent with its failure code (R921).</summary>
     [Fact]
     public async Task ARefusedTextIsWrittenAsNotSent()
     {

@@ -205,7 +205,7 @@ public sealed class IndexModel(
     /// <summary>
     /// Whether Ask for it opens the composer: the capture can be e-mailed, a
     /// capture on a Case that holds an address (R816), or texted, one that
-    /// holds a mobile where texting is configured (R918).
+    /// holds a mobile where texting is configured (R920).
     /// </summary>
     public bool CanSend(Pegasus.Core.PhotoCapture.PhotoCapture capture)
     {

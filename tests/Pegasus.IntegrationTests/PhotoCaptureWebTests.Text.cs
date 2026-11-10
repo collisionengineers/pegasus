@@ -12,7 +12,7 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The photo link text (FRD-28 The photo link text; R916 to R919): Send and
+/// The photo link text (FRD-28 The photo link text; R918 to R921): Send and
 /// the Resend composer offer Send by text only where a text provider is
 /// configured, a text goes only to a UK mobile, the link it carries exists
 /// before it is sent, and the link's history says "Sent by text · name".
@@ -25,7 +25,7 @@ public sealed partial class PhotoCaptureWebTests
 
     /// <summary>
     /// Send offers Send by text and draws the text message only where a text
-    /// provider is configured (R916); with none, neither is drawn.
+    /// provider is configured (R918); with none, neither is drawn.
     /// </summary>
     [Fact]
     public async Task SendOffersSendByTextOnlyWhereATextProviderIsConfigured()
@@ -55,7 +55,7 @@ public sealed partial class PhotoCaptureWebTests
     /// <summary>
     /// Send by text issues the link for a text, sends one text to the mobile
     /// in E.164 carrying the link just made, says "Link sent to … by text",
-    /// and the link's history reads "Sent by text · name" (R916, R919).
+    /// and the link's history reads "Sent by text · name" (R918, R921).
     /// </summary>
     [Fact]
     public async Task SendByTextIssuesTheLinkAndTextsIt()
@@ -95,7 +95,7 @@ public sealed partial class PhotoCaptureWebTests
 
     /// <summary>
     /// A number that is not a UK mobile is refused beside Mobile in the
-    /// operator's words (R916): no link is issued and nothing is texted.
+    /// operator's words (R918): no link is issued and nothing is texted.
     /// </summary>
     [Fact]
     public async Task SendByTextToANumberThatIsNotAUkMobileIsRefused()
@@ -122,7 +122,7 @@ public sealed partial class PhotoCaptureWebTests
     /// <summary>
     /// The Resend composer (R915) sends by text to the mobile in To and
     /// returns to where it was asked from with "Link sent to … by text";
-    /// the link's history reads "Sent by text · name" (R916, R919).
+    /// the link's history reads "Sent by text · name" (R918, R921).
     /// </summary>
     [Fact]
     public async Task TheComposerSendsByTextAndReturnsWithTheNotice()
@@ -176,7 +176,7 @@ public sealed partial class PhotoCaptureWebTests
     /// <summary>
     /// A text act is written to the link's history once per operation key:
     /// the same key again writes nothing and answers false, which is what
-    /// keeps a reposted form from texting twice (R919).
+    /// keeps a reposted form from texting twice (R921).
     /// </summary>
     [Fact]
     public async Task ATextActIsWrittenOncePerOperationKey()

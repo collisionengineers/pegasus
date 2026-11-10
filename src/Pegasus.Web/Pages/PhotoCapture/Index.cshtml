@@ -359,7 +359,7 @@
                                         @if (askForIt)
                                         {
                                             @* Ask for it (R806, R816): a fresh link for this capture, through the
-                                               composer when it can be e-mailed or texted (R915, R918), else made to copy. *@
+                                               composer when it can be e-mailed or texted (R915, R920), else made to copy. *@
                                             @if (Model.CanSend(capture))
                                             {
                                                 <a class="btn btn--small" href="@Pegasus.Web.Pages.PhotoCapture.IndexModel.ResendHref(capture.Id, Model.Href())">@Labels.AskForIt</a>

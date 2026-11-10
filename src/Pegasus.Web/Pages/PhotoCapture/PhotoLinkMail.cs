@@ -74,7 +74,7 @@ public sealed class PhotoLinkMail(
         CancellationToken cancellationToken) =>
         renderTemplate.ExecuteAsync(actor, EmailTemplatePurpose.PhotoLink, values, cancellationToken);
 
-    /// <summary>The Photo link (text) template rendered for these values (R917).</summary>
+    /// <summary>The Photo link (text) template rendered for these values (R919).</summary>
     public Task<string> RenderTextAsync(
         ActionActor actor,
         IReadOnlyDictionary<string, string?> values,

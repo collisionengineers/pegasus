@@ -27,7 +27,7 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// is not yet settled, is shown here, once. Where a text provider is
 /// configured the composer also offers <b>Send by text</b> to the mobile in
 /// To (the link's own, which staff may change) with the Photo link (text)
-/// wording (R916, R917); a text counts as a reminder as an e-mail does.
+/// wording (R918, R919); a text counts as a reminder as an e-mail does.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -78,7 +78,7 @@ public sealed class ResendModel(
     [BindProperty, Display(Name = Labels.TextMessage), StringLength(SendPhotoLinkText.MaximumLength)]
     public string? TextBody { get; set; }
 
-    /// <summary>The text's standard wording as the page last drew it (R917).</summary>
+    /// <summary>The text's standard wording as the page last drew it (R919).</summary>
     [BindProperty]
     public string? StandardTextBody { get; set; }
 
@@ -102,14 +102,14 @@ public sealed class ResendModel(
     public bool CanEmail => _mail.Available && Senders.Mailboxes.Count > 0
         && Capture.CaseId is not null && !string.IsNullOrWhiteSpace(Capture.Email);
 
-    /// <summary>Whether the link can go by text: a text provider is configured (R916).</summary>
+    /// <summary>Whether the link can go by text: a text provider is configured (R918).</summary>
     public bool CanText => sendText.Available;
 
     /// <summary>Whether staff edited the message: "Edited for this one only." (R806).</summary>
     public bool BodyEdited => Body is not null && StandardBody is not null
         && !string.Equals(Normalized(Body), Normalized(StandardBody), StringComparison.Ordinal);
 
-    /// <summary>Whether staff edited the text (R806, R917).</summary>
+    /// <summary>Whether staff edited the text (R806, R919).</summary>
     public bool TextBodyEdited => TextBody is not null && StandardTextBody is not null
         && !string.Equals(Normalized(TextBody), Normalized(StandardTextBody), StringComparison.Ordinal);
 

@@ -28,7 +28,7 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// photo link." and no form (operator, 10 November 2026; R847).
 /// <b>Send by text</b> issues it and texts the form's mobile the Photo link
 /// (text) wording, edited or not, through <see cref="SendPhotoLinkText"/>
-/// (R916, R917), where a text provider is configured.
+/// (R918, R919), where a text provider is configured.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -110,11 +110,11 @@ public sealed class SendModel(
     [BindProperty, Display(Name = Labels.TextMessage), StringLength(SendPhotoLinkText.MaximumLength)]
     public string? TextBody { get; set; }
 
-    /// <summary>The text's standard wording as the page last drew it (R917).</summary>
+    /// <summary>The text's standard wording as the page last drew it (R919).</summary>
     [BindProperty]
     public string? StandardTextBody { get; set; }
 
-    /// <summary>Whether staff edited the text: "Edited for this one only." (R806, R917).</summary>
+    /// <summary>Whether staff edited the text: "Edited for this one only." (R806, R919).</summary>
     public bool TextBodyEdited => TextBody is not null && StandardTextBody is not null
         && !string.Equals(Normalized(TextBody), Normalized(StandardTextBody), StringComparison.Ordinal);
 
@@ -132,7 +132,7 @@ public sealed class SendModel(
     /// <summary>Whether the link can go by e-mail here: a staff send and a mailbox that can send.</summary>
     public bool CanEmail => _mail.Available && Senders.Mailboxes.Count > 0;
 
-    /// <summary>Whether the link can go by text here: a text provider is configured (R916).</summary>
+    /// <summary>Whether the link can go by text here: a text provider is configured (R918).</summary>
     public bool CanText => sendText.Available;
 
     /// <summary>What the text provider answered for the text just sent; null when none was sent.</summary>

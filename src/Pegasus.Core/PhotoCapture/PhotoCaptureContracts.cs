@@ -589,7 +589,7 @@ public static class PhotoLinkActs
     /// <summary>A text was handed to the provider: written before it is, so one operation key sends one text.</summary>
     public const string TextSubmitted = "photo_link_text_submitted";
 
-    /// <summary>The provider accepted the text (R919): "Sent by text · name".</summary>
+    /// <summary>The provider accepted the text (R921): "Sent by text · name".</summary>
     public const string TextSent = "photo_link_text_sent";
 
     /// <summary>The provider refused the text or could not be reached: "Text not sent · name".</summary>

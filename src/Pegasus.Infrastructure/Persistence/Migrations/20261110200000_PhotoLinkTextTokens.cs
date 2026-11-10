@@ -7,7 +7,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 
 /// <summary>
 /// A photo link can be texted (FRD-28 The photo link text; operator,
-/// 10 November 2026, R916), so a token may be issued for a text as well as
+/// 10 November 2026, R918), so a token may be issued for a text as well as
 /// for an e-mail, a copy, a hand-off or a phone session. The purpose check
 /// gains <c>text</c>. Additive: the constraint only widens, and no row
 /// changes; Down narrows it again and fails while a text token exists.

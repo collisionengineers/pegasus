@@ -3,7 +3,7 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Core.PhotoCapture;
 
 /// <summary>
-/// The text provider port (FRD-28 The photo link text; R916): one text to
+/// The text provider port (FRD-28 The photo link text; R918): one text to
 /// one UK mobile from Pegasus's own number. Infrastructure answers it with
 /// Azure Communication Services, or with an unavailable send where no number
 /// is configured, so no page offers Send by text.
@@ -20,7 +20,7 @@ public interface IPhotoLinkTextSend
 /// <summary>
 /// What the provider answered: accepted with its message id, or refused with
 /// a failure code. Accepted is not delivered: delivery reports are not read
-/// (R919).
+/// (R921).
 /// </summary>
 public sealed record PhotoLinkTextOutcome(bool Accepted, string? MessageId, string? FailureCode)
 {
@@ -30,7 +30,7 @@ public sealed record PhotoLinkTextOutcome(bool Accepted, string? MessageId, stri
 }
 
 /// <summary>
-/// A UK mobile number, the only number a photo link is texted to (R916):
+/// A UK mobile number, the only number a photo link is texted to (R918):
 /// 07… with eleven digits, or the same as +44 7…, 0044 7… or 44 7…, with
 /// spaces, dashes, dots and brackets ignored and "+44 (0)7…" read as written.
 /// </summary>
@@ -97,8 +97,8 @@ public static class UkMobile
 }
 
 /// <summary>
-/// Texts a photo link that already exists (FRD-28 The photo link text; R916
-/// to R919). Staff reach it only through a composer (R915): the Send page or
+/// Texts a photo link that already exists (FRD-28 The photo link text; R918
+/// to R921). Staff reach it only through a composer (R915): the Send page or
 /// the Resend composer makes the link, then this sends the message staff
 /// confirmed. The text act is written to the link's history before the
 /// provider is called, so one operation key sends one text however often the

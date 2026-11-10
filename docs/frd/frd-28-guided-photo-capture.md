@@ -31,7 +31,7 @@ This document owns Pegasus's own guided capture, the product idea of issue
 #1683, built under new capability identities (operator, 9 November 2026;
 R773 to R817). It serves the PRD outcomes for image-led work and complete
 images before Review, while keeping its exclusions: no SMS integration
-beyond texting the photo link itself (BND-04; R916), no persistent customer portal (BND-06), no automatic outbound
+beyond texting the photo link itself (BND-04; R918), no persistent customer portal (BND-06), no automatic outbound
 message (MAIL-19) and no customer account (ACC-12)
 ([PRD](../prd/pegasus-product.md#operating-and-commercial-constraints)).
 Tractable capture still arrives as an e-mailed PDF
@@ -73,7 +73,7 @@ photos: the scene and other-vehicle photos, paperwork and the walk-around
 video can always come from the camera roll, as in the handover's app (R778;
 9 November 2026). The link goes by e-mail, by Copy link, or both (R773),
 or by text to the mobile on the form ([The photo link
-text](#the-photo-link-text); R916, R918); WhatsApp is Copy link and the
+text](#the-photo-link-text); R918, R920); WhatsApp is Copy link and the
 staff member's own phone, and Pegasus has no WhatsApp provider.
 
 When Quick is chosen, Send asks who the link is for, **Type**: **Accident
@@ -494,7 +494,7 @@ name and lifetime the form holds when the link is sent (operator,
 ### The photo link text
 
 Staff may text a photo link as well as e-mail it (operator, 10 November
-2026; R916). Pegasus sends the text through Azure Communication Services
+2026; R918). Pegasus sends the text through Azure Communication Services
 from an SMS-enabled UK mobile number bought on its resource, over the Web's
 managed identity; the number is the `TextMessages:From` setting
 ([configuration](../engineering/configuration.md)), and while it is empty no
@@ -504,17 +504,17 @@ and brackets ignored; any other number is refused with "Enter a UK mobile
 number to send by text." beside it. Replies are not read.
 
 **Send by text** sits beside **Send by e-mail** on Send a photo link and in
-the Resend / Ask for it composer (R918); no button texts on its own (R915).
+the Resend / Ask for it composer (R920); no button texts on its own (R915).
 On the Send page the text goes to the form's **Mobile**; in the composer, to
 the link's mobile, which staff may change there. The message is the
 template purpose **Photo link (text)**
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) with the
 Photo link e-mail's placeholders, drawn and edited as the e-mail is
 ("Edited for this one only." and **Put the standard wording back**; R806,
-R917); a text with no `{photo link}` gets the link on its own line, and one
+R919); a text with no `{photo link}` gets the link on its own line, and one
 over 1,530 characters (ten SMS segments) or empty is refused with "A text
 message is required.". Its built-in body, the agent's draft awaiting the
-operator's sign-off (R917):
+operator's sign-off (R919):
 
 ```text
 Hi {claimant},
@@ -525,7 +525,7 @@ The link works until {link expiry}.
 
 The link is issued as for an e-mail, with a token of its own for the text,
 and a texted Resend counts as a reminder as an e-mailed one does (R914,
-R918). One operation key sends one text: the act is written to the link's
+R920). One operation key sends one text: the act is written to the link's
 history before the provider is asked, and a repeated post is refused with
 "This text was already sent.". The provider's answer is written after:
 "Sent by text · name" with its message id when it accepts the text, and
@@ -533,7 +533,7 @@ history before the provider is asked, and a repeated post is refused with
 be reached; the Send page and the composer then show **Text not sent** and
 the code, and a sent text returns from the composer with "Link sent to …
 by text". Accepted is not delivered: Pegasus does not yet read delivery
-reports (R919; issue #2054).
+reports (R921; issue #2054).
 
 ### Case field filling
 

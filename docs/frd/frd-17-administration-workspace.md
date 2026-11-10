@@ -251,7 +251,7 @@ the Photo link e-mail
 ([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-e-mail); operator,
 9 November 2026; R773) and the Photo link (text)
 ([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-text); operator,
-10 November 2026; R917).
+10 November 2026; R919).
 
 **Edit** opens a dialog: the body, up to 5000 characters, a row of
 placeholder buttons that insert at the cursor, and Cancel and Save. The

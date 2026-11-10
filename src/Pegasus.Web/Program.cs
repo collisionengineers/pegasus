@@ -989,7 +989,7 @@ if (photoCaptureOptions is not null)
     builder.Services.AddSingleton<CaptureAssets>();
     builder.Services.AddSingleton<CaptureItemRateLimiter>();
     // A photo link text goes through Azure Communication Services from the
-    // number configured for it (R916), over the Web's managed identity; with
+    // number configured for it (R918), over the Web's managed identity; with
     // no number the infrastructure's unavailable send stays and no page
     // offers Send by text.
     var textMessageOptions = builder.Configuration
