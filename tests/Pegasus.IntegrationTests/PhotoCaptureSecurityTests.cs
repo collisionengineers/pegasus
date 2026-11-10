@@ -229,6 +229,27 @@ public sealed class PhotoCaptureSecurityTests
         Assert.Empty(baseFactory.DatabaseOpenAttempts);
     }
 
+    /// <summary>
+    /// A retired standing link is ended for good and answers like an unknown
+    /// one (R796): its page is an unknown slug's bytes.
+    /// </summary>
+    [Fact]
+    public async Task ARetiredContactsSlugAnswersLikeAnUnknownOne()
+    {
+        var retiredSlug = PhotoLinkToken.CreateSlug();
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = WithListedLinks(
+            baseFactory,
+            new ListedCaptures(),
+            new ListedStandingLinks(RetiredLink(retiredSlug)));
+        using var client = PhoneClient(factory);
+
+        var unknown = await UnavailableBytesAsync(client, $"/s/{PhotoLinkToken.CreateSlug()}");
+
+        Assert.Equal(unknown, await UnavailableBytesAsync(client, $"/s/{retiredSlug}"));
+        Assert.Empty(baseFactory.DatabaseOpenAttempts);
+    }
+
     private static WebApplicationFactory<Program> WithListedLinks(
         IntakeWebApplicationFactory baseFactory,
         ListedCaptures captures,
@@ -324,6 +345,10 @@ public sealed class PhotoCaptureSecurityTests
     /// <summary>A contact's link that is neither paused nor retired, whose contact is deactivated.</summary>
     private static StandingPhotoLink InactiveContactsLink(string slug) =>
         PausedLink(slug) with { ContactActive = false, PausedAtUtc = null };
+
+    /// <summary>A contact's link, its contact active, that was retired and is not paused.</summary>
+    private static StandingPhotoLink RetiredLink(string slug) =>
+        PausedLink(slug) with { PausedAtUtc = null, RetiredAtUtc = Now.AddDays(-1) };
 
     private static NotSupportedException Outside() =>
         new("Only a presented token's capture or slug's standing link is read on the refused paths.");

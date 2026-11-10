@@ -36,6 +36,10 @@ public sealed class PhotoCaptureWebTests
     private const string FirstOverview =
         "kind=overview&position=1&takenAt=2031-05-06T10%3A20%3A00.000Z&live=true&original=false";
 
+    /// <summary>The full-size original of the first overview, sent under the same item id (capture.js itemQuery).</summary>
+    private const string FirstOverviewOriginal =
+        "kind=overview&position=1&takenAt=2031-05-06T10%3A20%3A00.000Z&live=true&original=true";
+
     private const string FirstScene =
         "kind=scene&position=1&takenAt=2031-05-06T10%3A20%3A00.000Z&live=false&original=false";
 
@@ -404,6 +408,359 @@ public sealed class PhotoCaptureWebTests
         Assert.DoesNotContain("handler=Remind", ListRow(list, expired.Capture.Id), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Once its Case is archived a link is dead (R793): its page is the
+    /// unknown token's, an upload is refused as unavailable, the photos it
+    /// already filed stay on the Case, Links we sent reads it Expired with no
+    /// Remind or Resend, and it is neither sent again nor extended.
+    /// </summary>
+    [Fact]
+    public async Task ALinkWhoseCaseIsArchivedIsDead()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var link = await IssueLinkAsync(factory, caseId);
+        var filed = await SendAndDrainAsync(factory, client, link, FirstOverview, seed: 1);
+        await ArchiveCaseAsync(factory, caseId);
+
+        var unknown = await NotFoundBytesAsync(client, $"/c/{PhotoLinkToken.Create().Value}");
+        Assert.Equal(unknown, await NotFoundBytesAsync(client, $"/c/{link.Token.Value}"));
+        using (var sent = await PutItemAsync(client, link.Token, Guid.NewGuid(), FirstScene, MultiFormatFixture.Photograph(2)))
+        {
+            Assert.Equal(HttpStatusCode.NotFound, sent.StatusCode);
+            Assert.Equal(PhotoCaptureRefusals.Unavailable, (await JsonAsync(sent)).GetProperty("code").GetString());
+        }
+
+        Assert.Single(await CaseImagesAsync(factory, caseId), image => image.FileName == filed.FileName);
+        var row = ListRow(
+            await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}"),
+            link.Capture.Id);
+        Assert.Contains(
+            $">{OperatorLabels.PhotoCapture.State(PhotoCaptureState.Expired)}</span>",
+            row,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Remind", row, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Resend", row, StringComparison.Ordinal);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var actions = scope.ServiceProvider.GetRequiredService<PhotoLinkActions>();
+        var reissue = await Assert.ThrowsAsync<PhotoCaptureRefusalException>(() => actions.ReissueAsync(
+            Issuer, link.Capture.Id, PhotoLinkTokenPurpose.Copy, isReminder: false, NewOperationKey(), CancellationToken.None));
+        Assert.Equal(PhotoCaptureRefusals.CaseUnavailable, reissue.Code);
+        var extend = await Assert.ThrowsAsync<PhotoCaptureRefusalException>(() => actions.ExtendAsync(
+            Issuer, link.Capture.Id, CaptureLimits.DefaultLifetimeDays, NewOperationKey(), CancellationToken.None));
+        Assert.Equal(PhotoCaptureRefusals.CaseUnavailable, extend.Code);
+    }
+
+    /// <summary>
+    /// A Case link with originals on tells the app so; a filed photo's
+    /// full-size original is taken, counted against the link's originals and
+    /// bytes, and becomes the image's next version (FRD-28; R801).
+    /// </summary>
+    [Fact]
+    public async Task AnOriginalOnACaseLinkIsCountedAndBecomesTheImagesNextVersion()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var link = await IssueLinkAsync(factory, caseId, originalsInBackground: true);
+        using (var context = await SendAsync(client, HttpMethod.Get, $"{Api}/context", link.Token))
+        {
+            Assert.Equal(HttpStatusCode.OK, context.StatusCode);
+            Assert.True((await JsonAsync(context)).GetProperty("originals").GetBoolean());
+        }
+
+        var filed = await SendAndDrainAsync(factory, client, link, FirstOverview, seed: 1);
+        var before = await CaptureCountsAsync(factory, link.Capture.Id);
+        var original = MultiFormatFixture.Photograph(2);
+
+        using (var sent = await PutItemAsync(client, link.Token, filed.ClientItemId, FirstOverviewOriginal, original))
+        {
+            Assert.Equal(HttpStatusCode.Created, sent.StatusCode);
+        }
+
+        var after = await CaptureCountsAsync(factory, link.Capture.Id);
+        Assert.Equal(before.OriginalCount + 1, after.OriginalCount);
+        Assert.Equal(before.AcceptedBytes + original.Length, after.AcceptedBytes);
+        Assert.True((await ItemAsync(factory, link.Capture.Id, filed.ClientItemId)).OriginalReceived);
+        var image = Assert.Single(await CaseImagesAsync(factory, caseId), value => value.FileName == filed.FileName);
+        var versions = await ImageVersionsAsync(factory, image.OccurrenceId);
+        Assert.Equal(2, versions.Versions);
+        Assert.Equal(2, versions.Current);
+    }
+
+    /// <summary>
+    /// An original that would carry the link past its bytes is refused as the
+    /// cap reached, and nothing is counted or filed.
+    /// </summary>
+    [Fact]
+    public async Task AnOriginalPastTheLinksBytesIsRefusedAndNothingIsCounted()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var link = await IssueLinkAsync(factory, caseId, originalsInBackground: true);
+        var filed = await SendAndDrainAsync(factory, client, link, FirstOverview, seed: 1);
+        var original = MultiFormatFixture.Photograph(2);
+        var nearlyFull = CaptureLimits.MaximumBytesPerCapture - original.Length + 1;
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            await db.PhotoCaptures.Where(value => value.Id == link.Capture.Id).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.AcceptedBytes, nearlyFull));
+        }
+
+        using (var sent = await PutItemAsync(client, link.Token, filed.ClientItemId, FirstOverviewOriginal, original))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, sent.StatusCode);
+            Assert.Equal(PhotoCaptureRefusals.CapReached, (await JsonAsync(sent)).GetProperty("code").GetString());
+        }
+
+        var counts = await CaptureCountsAsync(factory, link.Capture.Id);
+        Assert.Equal(0, counts.OriginalCount);
+        Assert.Equal(nearlyFull, counts.AcceptedBytes);
+        Assert.False((await ItemAsync(factory, link.Capture.Id, filed.ClientItemId)).OriginalReceived);
+        var image = Assert.Single(await CaseImagesAsync(factory, caseId), value => value.FileName == filed.FileName);
+        Assert.Equal(1, (await ImageVersionsAsync(factory, image.OccurrenceId)).Versions);
+    }
+
+    /// <summary>A link sent from a Case keeps its Case's registration: one the sender types is ignored.</summary>
+    [Fact]
+    public async Task ACaseLinksTypedRegistrationIsIgnored()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await SeedCaseRegistrationAsync(factory, caseId, "AB12 CDE");
+        var link = await IssueLinkAsync(factory, caseId);
+        Assert.Equal("AB12CDE", link.Capture.NormalizedRegistration);
+
+        using (var typed = await SendAsync(
+            client,
+            HttpMethod.Post,
+            $"{Api}/details",
+            link.Token,
+            new StringContent("{\"registration\":\"XY99 ZZZ\"}", Encoding.UTF8, "application/json")))
+        {
+            Assert.Equal(HttpStatusCode.OK, typed.StatusCode);
+            Assert.Equal("AB12CDE", (await JsonAsync(typed)).GetProperty("registration").GetString());
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var capture = await scope.ServiceProvider.GetRequiredService<IPhotoCaptureStore>()
+            .GetAsync(link.Capture.Id, CancellationToken.None);
+        Assert.Equal("AB12CDE", capture?.NormalizedRegistration);
+    }
+
+    /// <summary>
+    /// Extend, Log call and Cancel through the link's page each record one
+    /// act in the member of staff's name, once per operation key: posting
+    /// the same key again adds nothing; the link's history names who acted
+    /// (R805).
+    /// </summary>
+    [Fact]
+    public async Task CancelExtendAndLogCallEachRecordWhoDidItOnce()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var link = await IssueLinkAsync(factory, caseId);
+        var page = $"/PhotoCapture/{link.Capture.Id:D}";
+        var extendKey = NewOperationKey();
+        var callKey = NewOperationKey();
+        var cancelKey = NewOperationKey();
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            using (var extended = await PostStaffFormAsync(client, $"{page}?handler=Extend", extendKey, "Days", "7"))
+            {
+                Assert.Equal(HttpStatusCode.Redirect, extended.StatusCode);
+            }
+
+            using (var called = await PostStaffFormAsync(client, $"{page}?handler=LogCall", callKey))
+            {
+                Assert.Equal(HttpStatusCode.Redirect, called.StatusCode);
+            }
+
+            using (var cancelled = await PostStaffFormAsync(client, $"{page}?handler=Cancel", cancelKey))
+            {
+                Assert.Equal(HttpStatusCode.Redirect, cancelled.StatusCode);
+            }
+        }
+
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            var aggregateId = link.Capture.Id.ToString("D");
+            var acts = await db.ActionHistory.AsNoTracking()
+                .Where(item => item.AggregateType == "photo_capture" && item.AggregateId == aggregateId)
+                .ToListAsync();
+            Assert.Equal(3, acts.Count);
+            foreach (var (key, kind) in new[]
+                     {
+                         (extendKey, PhotoLinkActs.Extended),
+                         (callKey, PhotoLinkActs.CallLogged),
+                         (cancelKey, PhotoLinkActs.Cancelled)
+                     })
+            {
+                var act = Assert.Single(acts, item => item.CorrelationId == key);
+                Assert.Equal(kind, act.EventKind);
+                Assert.Equal(nameof(ActorKind.Staff), act.ActorKind);
+                Assert.Equal(DevelopmentOfflineIdentity.AdministratorId, Guid.Parse(act.ActorSubjectId));
+            }
+        }
+
+        var name = await StaffNameAsync(factory, DevelopmentOfflineIdentity.AdministratorId);
+        var details = await IntakeWebDriver.GetHtmlAsync(client, page);
+        Assert.Contains(HtmlEncoder.Default.Encode($"{OperatorLabels.PhotoCapture.Cancelled} · {name}"), details, StringComparison.Ordinal);
+        Assert.Contains(HtmlEncoder.Default.Encode($"{OperatorLabels.PhotoCapture.LinkExtended} · {name}"), details, StringComparison.Ordinal);
+        Assert.Contains(HtmlEncoder.Default.Encode($"{OperatorLabels.PhotoCapture.CallLoggedAt} · {name}"), details, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Cancel is on each live Links we sent row and on no dead one (R795);
+    /// posted from the list it goes back to the list, and a return address
+    /// that is not this application's goes to the link's page instead.
+    /// </summary>
+    [Fact]
+    public async Task LinksWeSentOffersCancelOnLiveRowsAndReturnsToTheList()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var live = await IssueLinkAsync(factory, caseId);
+        var other = await IssueLinkAsync(factory, caseId);
+        var expired = await IssueLinkAsync(factory, caseId);
+        var now = IntakeWebApplicationFactory.FixedUtcNow;
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            await db.PhotoCaptures.Where(value => value.Id == expired.Capture.Id).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.CreatedAtUtc, now.AddDays(-8))
+                .SetProperty(value => value.ExpiresAtUtc, now.AddDays(-1)));
+        }
+
+        var listPath = $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}";
+        var list = await IntakeWebDriver.GetHtmlAsync(client, listPath);
+        Assert.Contains("handler=Cancel", ListRow(list, live.Capture.Id), StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Cancel", ListRow(list, expired.Capture.Id), StringComparison.Ordinal);
+
+        using (var cancelled = await PostStaffFormAsync(
+            client, $"/PhotoCapture/{live.Capture.Id:D}?handler=Cancel", NewOperationKey(), "returnUrl", listPath))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, cancelled.StatusCode);
+            Assert.Equal(listPath, cancelled.Headers.Location?.OriginalString);
+        }
+
+        using (var elsewhere = await PostStaffFormAsync(
+            client, $"/PhotoCapture/{other.Capture.Id:D}?handler=Cancel", NewOperationKey(), "returnUrl", "https://example.invalid/photos"))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, elsewhere.StatusCode);
+            Assert.Equal(
+                $"/PhotoCapture/{other.Capture.Id:D}",
+                elsewhere.Headers.Location?.OriginalString,
+                ignoreCase: true);
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IPhotoCaptureStore>();
+        Assert.True((await store.GetAsync(live.Capture.Id, CancellationToken.None))?.IsRevoked);
+        Assert.True((await store.GetAsync(other.Capture.Id, CancellationToken.None))?.IsRevoked);
+    }
+
+    /// <summary>
+    /// Retire ends a contact's standing link for good (R796): its address
+    /// answers like an unknown one, and the contact may be given a new link.
+    /// </summary>
+    [Fact]
+    public async Task ARetiredContactLinkAnswersLikeAnUnknownOneAndTheContactMayHaveANewLink()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var organizationId = await QdosOrganizationIdAsync(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var administration = scope.ServiceProvider.GetRequiredService<StandingPhotoLinkAdministration>();
+        var first = await administration.CreateForContactAsync(Issuer, organizationId, CancellationToken.None);
+
+        await administration.RetireAsync(Issuer, first.Id, first.Version, CancellationToken.None);
+
+        var unknown = await NotFoundBytesAsync(client, $"/s/{PhotoLinkToken.CreateSlug()}");
+        Assert.Equal(unknown, await NotFoundBytesAsync(client, $"/s/{first.Slug}"));
+        var second = await administration.CreateForContactAsync(Issuer, organizationId, CancellationToken.None);
+        Assert.NotEqual(first.Id, second.Id);
+        Assert.NotEqual(first.Slug, second.Slug);
+        var current = await scope.ServiceProvider.GetRequiredService<IStandingPhotoLinkStore>()
+            .FindForOrganizationAsync(organizationId, CancellationToken.None);
+        Assert.Equal(second.Id, current?.Id);
+    }
+
+    /// <summary>
+    /// The website link is created at the address the Administrator typed
+    /// (R797): an address of the wrong shape, and one a link already holds,
+    /// are each refused and write nothing; its defaults save, and its mode
+    /// stays guided whatever is posted.
+    /// </summary>
+    [Fact]
+    public async Task TheWebsiteLinkIsCreatedAtTheTypedAddressAndItsDefaultsSave()
+    {
+        const string typedSlug = "ce-vehicle-photos";
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var organizationId = await QdosOrganizationIdAsync(factory);
+        StandingPhotoLink contactLink;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            contactLink = await scope.ServiceProvider.GetRequiredService<StandingPhotoLinkAdministration>()
+                .CreateForContactAsync(Issuer, organizationId, CancellationToken.None);
+        }
+
+        var linksBefore = await StandingLinkCountAsync(factory);
+        using (var wrongShape = await PostStaffFormAsync(
+            client, "/PhotoCapture?handler=CreateWebsiteLink", NewOperationKey(), "WebsiteSlug", "Not a slug!"))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, wrongShape.StatusCode);
+        }
+
+        using (var inUse = await PostStaffFormAsync(
+            client, "/PhotoCapture?handler=CreateWebsiteLink", NewOperationKey(), "WebsiteSlug", contactLink.Slug))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, inUse.StatusCode);
+        }
+
+        Assert.Equal(linksBefore, await StandingLinkCountAsync(factory));
+        Assert.Null(await WebsiteLinkAsync(factory));
+
+        using (var created = await PostStaffFormAsync(
+            client, "/PhotoCapture?handler=CreateWebsiteLink", NewOperationKey(), "WebsiteSlug", typedSlug))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
+        }
+
+        var website = await WebsiteLinkAsync(factory);
+        Assert.NotNull(website);
+        Assert.Equal(typedSlug, website!.Slug);
+        Assert.Equal(PhotoCaptureMode.Guided, website.ForwardedMode);
+
+        var defaults = new Dictionary<string, string>
+        {
+            ["ExpectedVersion"] = website.Version.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["LinkLiveCameraOnly"] = "false",
+            ["LinkLifetimeDays"] = "14",
+            ["LinkOriginalsInBackground"] = "false",
+            ["LinkForwardedMode"] = nameof(PhotoCaptureMode.Quick)
+        };
+        using (var saved = await PostStaffFormAsync(client, "/PhotoCapture?handler=UpdateWebsiteLinkDefaults", defaults))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        }
+
+        var updated = await WebsiteLinkAsync(factory);
+        Assert.NotNull(updated);
+        Assert.False(updated!.LiveCameraOnly);
+        Assert.Equal(14, updated.LinkLifetimeDays);
+        Assert.False(updated.OriginalsInBackground);
+        Assert.Equal(PhotoCaptureMode.Guided, updated.ForwardedMode);
+        Assert.Equal(typedSlug, updated.Slug);
+    }
+
     /// <summary>Issues a link for the Case as a member of staff does from it (FRD-28 "Photo links").</summary>
     private static async Task<IssuedPhotoLink> IssueLinkAsync(IntakeWebApplicationFactory factory, Guid caseId)
     {
@@ -419,6 +776,29 @@ public sealed class PhotoCaptureWebTests
                 PhotoCaptureMode.Guided,
                 LiveCameraOnly: false,
                 OriginalsInBackground: false,
+                CaptureLimits.DefaultLifetimeDays,
+                PhotoLinkTokenPurpose.Copy),
+            CancellationToken.None);
+    }
+
+    /// <summary>Issues a link for the Case with full-size originals on or off, as Send photo link's choice sets it.</summary>
+    private static async Task<IssuedPhotoLink> IssueLinkAsync(
+        IntakeWebApplicationFactory factory,
+        Guid caseId,
+        bool originalsInBackground)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IssuePhotoLink>().ExecuteAsync(
+            new IssuePhotoLinkRequest(
+                caseId,
+                Issuer,
+                CustomerName: null,
+                Mobile: null,
+                Email: null,
+                IncidentDate: null,
+                PhotoCaptureMode.Guided,
+                LiveCameraOnly: false,
+                originalsInBackground,
                 CaptureLimits.DefaultLifetimeDays,
                 PhotoLinkTokenPurpose.Copy),
             CancellationToken.None);
@@ -586,6 +966,136 @@ public sealed class PhotoCaptureWebTests
         Assert.True(end > start, $"The row for capture {captureId:D} does not end.");
         return html[start..end];
     }
+
+    private static string NewOperationKey() => Guid.NewGuid().ToString("N");
+
+    /// <summary>A page answer that must be 404; answers its bytes.</summary>
+    private static async Task<byte[]> NotFoundBytesAsync(HttpClient client, string path)
+    {
+        using var response = await client.GetAsync(path);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        return await response.Content.ReadAsByteArrayAsync();
+    }
+
+    /// <summary>
+    /// Archives the Case, as <c>AssociatedMailEvidenceIntegrationTests</c>
+    /// archives one: the workflow's archive time and who archived it.
+    /// </summary>
+    private static async Task ArchiveCaseAsync(IntakeWebApplicationFactory factory, Guid caseId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        var workflow = await db.CaseWorkflows.SingleAsync(value => value.CaseId == caseId);
+        workflow.ArchivedAtUtc = DateTimeOffset.UtcNow;
+        workflow.ArchivedByKind = nameof(ActorKind.Staff);
+        workflow.ArchivedBySubjectId = Guid.NewGuid().ToString();
+        workflow.ArchivedByRolesJson = "[\"Administrator\"]";
+        workflow.ArchiveReason = "Archived while a photo link was live.";
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>The Case's confirmed registration, as its record carries one.</summary>
+    private static async Task SeedCaseRegistrationAsync(IntakeWebApplicationFactory factory, Guid caseId, string registration)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        db.Add(new CaseDataFieldEntity
+        {
+            WorkId = caseId, FieldName = Pegasus.Core.Cases.CaseDataFieldNames.VehicleRegistration,
+            ValueKind = CaseDataCodes.Confirmed, ValueType = CaseDataCodes.Text, Value = registration,
+            SourceKind = "intake_evidence", SourceIdentity = "registration", SourceLabel = "photo capture fixture",
+            PolicyKey = "photo-capture-fixture", PolicyVersion = 1,
+            ConfirmedByActor = "staff", ConfirmedAtUtc = IntakeWebApplicationFactory.FixedUtcNow
+        });
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>The capture's originals and its bytes, as its row counts them.</summary>
+    private static async Task<CaptureCounts> CaptureCountsAsync(IntakeWebApplicationFactory factory, Guid captureId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        return await db.PhotoCaptures.AsNoTracking()
+            .Where(value => value.Id == captureId)
+            .Select(value => new CaptureCounts(value.OriginalCount, value.AcceptedBytes))
+            .SingleAsync();
+    }
+
+    /// <summary>How many versions the image's document has, and which one its occurrence names.</summary>
+    private static async Task<ImageVersions> ImageVersionsAsync(IntakeWebApplicationFactory factory, Guid occurrenceId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        var occurrence = await db.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            .SingleAsync(value => value.Id == occurrenceId);
+        var versions = await db.Set<DocumentVersionEntity>().AsNoTracking()
+            .Where(value => value.DocumentId == occurrence.DocumentId)
+            .Select(value => new { value.Id, value.Version })
+            .ToArrayAsync();
+        return new(versions.Length, versions.Single(value => value.Id == occurrence.VersionId).Version);
+    }
+
+    /// <summary>
+    /// Posts a staff page's form as the browser does: the antiforgery token
+    /// the session's pages carry, the act's operation key, and at most one
+    /// further field.
+    /// </summary>
+    private static Task<HttpResponseMessage> PostStaffFormAsync(
+        HttpClient client,
+        string url,
+        string operationKey,
+        string? name = null,
+        string? value = null)
+    {
+        var fields = new Dictionary<string, string> { ["OperationKey"] = operationKey };
+        if (name is not null)
+        {
+            fields[name] = value ?? string.Empty;
+        }
+
+        return PostStaffFormAsync(client, url, fields);
+    }
+
+    private static async Task<HttpResponseMessage> PostStaffFormAsync(
+        HttpClient client,
+        string url,
+        Dictionary<string, string> fields)
+    {
+        var form = new Dictionary<string, string>(fields)
+        {
+            ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client)
+        };
+        using var content = new FormUrlEncodedContent(form);
+        return await client.PostAsync(url, content);
+    }
+
+    private static async Task<string> StaffNameAsync(IntakeWebApplicationFactory factory, Guid staffId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var names = await scope.ServiceProvider.GetRequiredService<IStaffAccountQueries>()
+            .GetNamesAsync([staffId], CancellationToken.None);
+        return names[staffId];
+    }
+
+    private static async Task<Guid> QdosOrganizationIdAsync(IntakeWebApplicationFactory factory)
+    {
+        _ = factory.Services;
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        return await db.Principals.Where(value => value.Code == "QDOS").Select(value => value.OrganizationId).SingleAsync();
+    }
+
+    private static async Task<int> StandingLinkCountAsync(IntakeWebApplicationFactory factory)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        return await db.StandingPhotoLinks.CountAsync();
+    }
+
+    private static async Task<StandingPhotoLink?> WebsiteLinkAsync(IntakeWebApplicationFactory factory)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IStandingPhotoLinkStore>()
+            .FindWebsiteAsync(CancellationToken.None);
+    }
+
+    private sealed record CaptureCounts(int OriginalCount, long AcceptedBytes);
+
+    private sealed record ImageVersions(int Versions, int Current);
 
     private sealed record CaseFile(DocumentSemanticRole Role, string FileName);
 
