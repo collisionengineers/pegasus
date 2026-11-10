@@ -1169,7 +1169,7 @@ and under it an "Already sent on 3 Oct 2026 14:02 to a@x, b@y" line when a
 report of this work has already been sent, reading and editing alike; it
 repeats no delivery cells. The dialog is a composer in the Triage composer's
 shape, 880px wide: its head names the report ("Report · a.{Case/PO}" on the
-Audit view, "Report · {Case/PO}" otherwise; operator, 9 November 2026, R773),
+Audit view, "Report · {Case/PO}" otherwise; operator, 9 November 2026, R821),
 its body holds From, a choice of
 Outgoing mailbox starting on the mailbox the Case's instruction email arrived
 in, else on the Principal's Send from (operator, 12 October 2026; 4 November
