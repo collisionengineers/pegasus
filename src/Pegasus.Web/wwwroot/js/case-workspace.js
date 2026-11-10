@@ -2467,7 +2467,10 @@
                 stem.focus();
                 stem.select();
             }
-            function end(keep) {
+            // Enter, Escape, Rename and Reset return focus to Rename; leaving
+            // the box for another field keeps the name and leaves focus where
+            // staff put it.
+            function end(keep, refocus) {
                 if (keep) {
                     var typed = stem.value.trim();
                     var name = typed.length ? typed + extension : defaultName;
@@ -2476,21 +2479,22 @@
                 }
                 editor.hidden = true;
                 open && (open.hidden = false);
-                rename.focus();
+                if (refocus) { rename.focus(); }
             }
-            rename.addEventListener('click', function () { editor.hidden ? start() : end(true); });
+            rename.addEventListener('click', function () { editor.hidden ? start() : end(true, true); });
+            // The box owns its Escape (data-own-escape): the dialog stays open.
             stem.addEventListener('keydown', function (event) {
-                if (event.key === 'Enter') { event.preventDefault(); end(true); }
-                if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); end(false); }
+                if (event.key === 'Enter') { event.preventDefault(); end(true, true); }
+                if (event.key === 'Escape') { event.preventDefault(); end(false, true); }
             });
             stem.addEventListener('blur', function () {
                 // Reset is a click on the same row: let it act before the row closes.
-                window.setTimeout(function () { if (!editor.hidden && !editor.contains(document.activeElement)) { end(true); } }, 0);
+                window.setTimeout(function () { if (!editor.hidden && !editor.contains(document.activeElement)) { end(true, false); } }, 0);
             });
             if (reset) {
                 reset.addEventListener('click', function () {
                     stem.value = stemOf(defaultName);
-                    end(true);
+                    end(true, true);
                 });
             }
         });

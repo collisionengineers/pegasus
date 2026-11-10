@@ -247,30 +247,24 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The card's figures from the Inspection report's snapshot, with the
-    /// guide the Engineer's Value came from: the snapshot names the
-    /// calculation row, that row its basis card, and the card its source. A
-    /// typed value names no row and gets no guide. Two reads, on the Audit
-    /// view only, and only once an Inspection report exists.
+    /// guide the Engineer's Value came from, as the snapshot froze it (R666,
+    /// R886). A typed value names no calculation row and gets no guide. A
+    /// snapshot frozen before the guide was kept names it only when it was
+    /// taken from a single guide; otherwise the brackets are left off. No
+    /// read beyond the generation the page already holds.
     /// </summary>
-    private async Task<OriginalReportFigures?> ReadOriginalReportAsync(Guid id, CancellationToken cancellationToken)
+    private OriginalReportFigures? ReadOriginalReport()
     {
         if (!DrawsOriginalReport || OtherReportGeneration is not { } inspection)
         {
             return null;
         }
         var snapshot = inspection.Snapshot;
-        string? guide = null;
-        if (snapshot.AppliedValuationId is { } appliedId)
-        {
-            var applied = (await listAppliedValuations.ExecuteAsync(id, CaseWorkSelector.Primary, cancellationToken))
-                .FirstOrDefault(row => row.Id == appliedId);
-            if (applied is not null)
-            {
-                var card = (await listCaseValuations.ExecuteAsync(id, CaseWorkSelector.Primary, cancellationToken))
-                    .FirstOrDefault(valuation => valuation.ValuationId == applied.GuideValuationId);
-                guide = card is null ? null : CaseWorkspaceLabels.Valuation.SourceLabel(card.Details.Source);
-            }
-        }
+        var source = snapshot.AppliedValuationId is null
+            ? null
+            : snapshot.EngineerValueGuide
+                ?? (snapshot.Guides.ValuationGuides.Count == 1 ? snapshot.Guides.ValuationGuides[0] : null);
+        var guide = source is { } named ? CaseWorkspaceLabels.Valuation.SourceLabel(named) : null;
         var totalLoss = snapshot.Report.Outcome == AssessmentReportOutcome.TotalLoss;
         return new(
             snapshot.Costs.Printed.Gross,

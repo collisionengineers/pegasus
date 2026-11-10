@@ -239,6 +239,68 @@ public sealed class AutomationSendIngressTests
     }
 
     /// <summary>
+    /// #1910: attachmentNames reads as the Case page posts its names. A blank
+    /// name keeps the document's delivery name, as an unrenamed Files row
+    /// does, and a kind named twice once its key is trimmed is refused in
+    /// words, before anything is sent.
+    /// </summary>
+    [Fact]
+    public async Task ABlankAttachmentNameKeepsTheDeliveryNameAndAKindNamedTwiceIsRefused()
+    {
+        var sends = new RecordingReportSend();
+        var generationId = Guid.NewGuid();
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ISendCaseReport>();
+                services.AddSingleton<ISendCaseReport>(sends);
+                WithCurrentGeneration(services, generationId);
+            }));
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, SendScopes);
+        await EnsureInReviewAsync(mcpFactory, client, token, caseId);
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+
+        using (var twice = await PostMcpAsync(client, token, ToolCallPayload(14, "pegasus_report_send", new
+        {
+            caseId,
+            expectedVersion = version,
+            operationKey = "mcp:report-send-named-twice",
+            coveringMessage = "Please find our report attached.",
+            attachmentNames = new Dictionary<string, string>
+            {
+                ["FeeNote"] = "Fee.pdf",
+                [" FeeNote "] = "Our fee.pdf",
+            },
+        })))
+        {
+            Assert.Contains("names FeeNote more than once", await ReadErrorTextAsync(twice), StringComparison.Ordinal);
+        }
+        Assert.Empty(sends.Requests);
+
+        using var blank = await PostMcpAsync(client, token, ToolCallPayload(15, "pegasus_report_send", new
+        {
+            caseId,
+            expectedVersion = version,
+            operationKey = "mcp:report-send-blank-name",
+            coveringMessage = "Please find our report attached.",
+            attachmentNames = new Dictionary<string, string>
+            {
+                ["AssessmentReport"] = "  ",
+                ["FeeNote"] = "Our fee.pdf",
+            },
+        }));
+        await ReadStructuredContentAsync(blank);
+
+        var request = Assert.Single(sends.Requests);
+        var names = Assert.IsAssignableFrom<IReadOnlyDictionary<CaseReportArtifactKind, string>>(request.AttachmentNames);
+        Assert.Equal("Our fee.pdf", Assert.Single(names, pair => pair.Key == CaseReportArtifactKind.FeeNote).Value);
+        Assert.False(names.ContainsKey(CaseReportArtifactKind.AssessmentReport));
+    }
+
+    /// <summary>
     /// mode chaser is the Case's Send chaser (operator, 12 October 2026): a
     /// Case with no instruction e-mail to reply to sends a new message from
     /// the Outgoing mailbox fromMailbox names, recorded as the Case's chaser.
