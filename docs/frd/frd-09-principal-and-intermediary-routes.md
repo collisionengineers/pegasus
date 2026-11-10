@@ -222,8 +222,12 @@ profile matches.
 **Classification.** The one `PrincipalMailClassificationPolicy`
 implementation is bound to each extraction registration. QDOS keeps its
 generated Inspection, Audit, combined and Triage tells (below). Other
-profiles need the evidenced explicit inspect or examine request, or the
-FW instruction template. A DFD instruction is the attached form titled
+profiles need the evidenced explicit inspect or examine request, or a
+Principal's evidenced template tell: DFD's `Engineer instruction request`,
+FW's `New INSTRUCTIONS:`, and Baker & Coleman's letter sentence `prepare a
+desktop report` (operator, 9 November 2026, [R793](../rulings.md); their
+earlier letters ask to inspect the vehicle and pass the generic request).
+A DFD instruction is the attached form titled
 `Engineer instruction request`, sent from the `dfd-solicitors.co.uk` route;
 it classifies `new-instruction` for an Inspection (operator, 9 November
 2026, [R825](../rulings.md)). PCH's explicit Audit request beats its generic
