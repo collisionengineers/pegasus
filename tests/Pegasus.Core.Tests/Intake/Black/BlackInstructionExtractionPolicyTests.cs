@@ -51,6 +51,49 @@ public sealed class BlackInstructionExtractionPolicyTests
         Assert.Null(Assert.IsType<InstructionDraft>(nonTerminal.InstructionDraft).VehicleMake);
     }
 
+    /// <summary>
+    /// R797: the live letter (engineers@ copies of 25 September to 15 October
+    /// 2026) carries its "Our ref:" line after the signature, where version 1 did
+    /// not read; the recorded letters carried it above the salutation.
+    /// </summary>
+    [Fact]
+    public void TheLiveLetterReadsItsReferenceAfterTheSignature()
+    {
+        var result = Extract(BlackLiveLetterFixture.Letter());
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal(BlackLiveLetterFixture.Reference, draft.ClaimNumber);
+        Assert.Equal("Mr A Example", draft.ClaimantName);
+        Assert.Equal("AB12CDE", draft.VehicleRegistration);
+        Assert.Equal("Toyota Prius", draft.VehicleMake);
+        Assert.Equal("2026-10-01", Date(draft.DateOfIncident));
+        Assert.Equal("1 Example Street, Exampleton, EX1 1AA", Field(result, "Claimant address").SuggestedValue);
+        Assert.Equal("07700900000", Field(result, "Claimant mobile").SuggestedValue);
+        Assert.DoesNotContain("Claim reference", result.MissingFields);
+    }
+
+    /// <summary>
+    /// R797: the vehicle line is "Make Model - REG" or, as the live letter of
+    /// 9 October 2026 wrote it, "Make Model REG". Without the dash only a dated
+    /// registration shape ends the description, so a model that merely looks
+    /// like a dateless plate stays part of it, and a dashed line that does not
+    /// end in a registration still yields none.
+    /// </summary>
+    [Theory]
+    [InlineData("Toyota Prius - AB12 CDE", "Toyota Prius", "AB12CDE")]
+    [InlineData("Toyota Prius AB12CDE", "Toyota Prius", "AB12CDE")]
+    [InlineData("Toyota Prius AB12 CDE", "Toyota Prius", "AB12CDE")]
+    [InlineData("BMW 320D", null, null)]
+    [InlineData("Toyota Prius", null, null)]
+    [InlineData("Toyota Prius - AB12 CDE - vehicle details", null, null)]
+    public void TheVehicleLineEndsInItsRegistrationWithOrWithoutTheDash(string vehicleLine, string? vehicle, string? registration)
+    {
+        var draft = Assert.IsType<InstructionDraft>(Extract(BlackLiveLetterFixture.Letter(vehicleLine)).InstructionDraft);
+
+        Assert.Equal(registration, draft.VehicleRegistration);
+        Assert.Equal(vehicle, draft.VehicleMake);
+    }
+
     private static InstructionExtractionResult Extract(string text) =>
         new BlackInstructionExtractionPolicy().Extract(
             new(IntakeSourceReadStatus.Readable,

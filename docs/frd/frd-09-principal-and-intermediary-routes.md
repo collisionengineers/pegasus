@@ -234,7 +234,13 @@ it classifies `new-instruction` for an Inspection (operator, 9 November
 inspection footer; a separate credit-repair inspection request stays
 distinct. Replies, unknown work and competing work types cannot allocate a
 new Case. Missing ordinary fields do not withhold an otherwise definitive
-Case's reference.
+Case's reference. A Blackstone Legal instruction is the attached letter from
+the `blackstone-legal.co.uk` route, under either of its subjects ("Our ref:
+N / New instructions" or "Our Client - name / Our Reference - N"), whose
+body says "Please accept this correspondence as formal instructions to
+inspect our clients vehicle and prepare a report"; that explicit inspect
+request classifies `new-instruction` for an Inspection (operator, 9 November
+2026, [R796](../rulings.md)).
 
 **Case matching.** `PrincipalCaseMatchPolicy` is bound the same way. Its
 non-QDOS keys come from the profile's typed role-labelled fields and keep the
