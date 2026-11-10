@@ -384,7 +384,7 @@ public sealed class ReceiveIntake(
             MaximumExternalReceiptTokenLength,
             nameof(source.SourceIdentity.ExternalReceiptToken));
         ValidateLength(operationKey, MaximumOperationKeyLength, nameof(operationKey));
-        RequireDeclaredDocumentType(source.DeclaredCaseId, source.DeclaredDocumentType);
+        RequireDeclaredDocumentType(source.SourceIdentity.Channel, source.DeclaredCaseId, source.DeclaredDocumentType);
         if (source.Content.IsEmpty)
         {
             throw new InvalidDataException("The intake source is empty.");
@@ -401,6 +401,7 @@ public sealed class ReceiveIntake(
             IntakeSourceChannel.Mailbox => IntakeEnvelopeLimits.MaximumMailboxContentLength,
             IntakeSourceChannel.Automation => IntakeEnvelopeLimits.MaximumContentLength,
             IntakeSourceChannel.PrincipalApi => IntakeEnvelopeLimits.MaximumPrincipalApiRequestLength,
+            IntakeSourceChannel.PhotoCapture => IntakeEnvelopeLimits.MaximumContentLength,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(source),
                 source.SourceIdentity.Channel,
@@ -546,15 +547,21 @@ public sealed class ReceiveIntake(
     /// <summary>
     /// A type chosen at upload belongs to a declared Case and is one the
     /// Upload page offers (<see cref="DocumentTypePolicy.UploadChoices"/>):
-    /// anything else is a malformed submission, refused before staging.
+    /// anything else is a malformed submission, refused before staging. A
+    /// photo link's file declares its type by its kind whether or not its
+    /// capture has a Case yet, so its paperwork and video file as Other when
+    /// they reach one (FRD-28; operator, 9 November 2026, R803).
     /// </summary>
-    internal static void RequireDeclaredDocumentType(Guid? declaredCaseId, DocumentSemanticRole? declaredDocumentType)
+    internal static void RequireDeclaredDocumentType(
+        IntakeSourceChannel channel,
+        Guid? declaredCaseId,
+        DocumentSemanticRole? declaredDocumentType)
     {
         if (declaredDocumentType is not { } type)
         {
             return;
         }
-        if (declaredCaseId is null)
+        if (declaredCaseId is null && channel != IntakeSourceChannel.PhotoCapture)
         {
             throw new ArgumentException(
                 "A document type chosen at upload needs the Case the upload was declared for.",
@@ -618,12 +625,14 @@ public sealed class ReceiveIntake(
             MaximumExternalReceiptTokenLength,
             nameof(source.SourceIdentity.ExternalReceiptToken));
         ValidateLength(operationKey, MaximumOperationKeyLength, nameof(operationKey));
-        RequireDeclaredDocumentType(source.DeclaredCaseId, source.DeclaredDocumentType);
-        if (source.SourceIdentity.Channel != IntakeSourceChannel.ManualUpload)
+        RequireDeclaredDocumentType(source.SourceIdentity.Channel, source.DeclaredCaseId, source.DeclaredDocumentType);
+        // The streamed path is the staff upload's and the photo link's (FRD-28):
+        // both hand over one file whose bytes stay out of Web memory.
+        if (source.SourceIdentity.Channel is not (IntakeSourceChannel.ManualUpload or IntakeSourceChannel.PhotoCapture))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(source),
-                "Streamed intake is only supported for manual upload.");
+                "Streamed intake is only supported for manual upload and photo capture.");
         }
 
         if (source.ContentLength is <= 0 or > IntakeEnvelopeLimits.MaximumContentLength)
@@ -802,11 +811,16 @@ public sealed class ProcessQueuedIntake(
     IIntakeSubmissionGroupStore? submissionGroups = null,
     ICaseStaffNotifier? caseNotifier = null,
     PromoteAssociatedIntakeCaseEvidence? promoteAssociatedCaseEvidence = null,
-    IIntakeMutationStore? mutationStore = null) : IProcessQueuedIntake
+    IIntakeMutationStore? mutationStore = null,
+    PhotoCapture.IPhotoCaptureStore? photoCaptures = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
 
-    /// <summary>The reason every declared-destination link records (FRD-18 Add evidence).</summary>
+    /// <summary>
+    /// The reason a staff upload's declared-destination link records (FRD-18
+    /// Add evidence); a photo link's names its own decider
+    /// (<see cref="PhotoCapture.PhotoCaptureIntakeRules.DeclaredDestinationReason"/>).
+    /// </summary>
     internal const string DeclaredDestinationReason = "Destination declared by staff on upload.";
 
     /// <summary>
@@ -1239,6 +1253,7 @@ public sealed class ProcessQueuedIntake(
             // The caller has already held this receipt; its siblings are held
             // from the receipts the automation pass read.
             await new RegisterUnidentifiedSubmissionGroup(processIntake, registerUnidentified).ExecuteAsync(
+                receipt.SourceIdentity.Channel,
                 unidentifiedGroup,
                 (imageOutcome.GroupReading?.Receipts ?? []).Where(member => member.Id != receipt.Id),
                 cancellationToken);
@@ -1295,7 +1310,27 @@ public sealed class ProcessQueuedIntake(
             return false;
         }
 
-        if (!IntakeActorIdentity.TryParseStaff(stagedReceipt.Actor, out var staffSubjectId))
+        // A member of staff declared the Case on upload (FRD-18); a photo
+        // link's capture declared it when HQ issued the link for the Case, the
+        // decision of the member of staff who sent it, or when its typed
+        // registration routed to the one eligible Case, the routing's system
+        // work (FRD-28; R790). The capture is read once, here, to tell which.
+        ActionActor decider;
+        var reason = DeclaredDestinationReason;
+        if (IntakeActorIdentity.TryParseStaff(stagedReceipt.Actor, out var staffSubjectId)
+            && Guid.TryParse(staffSubjectId, out var staffId))
+        {
+            decider = ActionActor.Staff(staffId, [StaffRole.User]);
+        }
+        else if (IntakeActorIdentity.TryParsePhotoCapture(stagedReceipt.Actor, out var captureId))
+        {
+            var capture = photoCaptures is null
+                ? null
+                : await photoCaptures.GetAsync(captureId, cancellationToken);
+            decider = PhotoCapture.PhotoCaptureIntakeRules.DeclaredDestinationDecider(capture);
+            reason = PhotoCapture.PhotoCaptureIntakeRules.DeclaredDestinationReason(capture);
+        }
+        else
         {
             Activity.Current?.SetTag("intake.declared_destination", "actor_not_staff");
             return false;
@@ -1305,9 +1340,9 @@ public sealed class ProcessQueuedIntake(
             new(
                 receipt.Id,
                 declaredCaseId,
-                staffSubjectId,
+                decider,
                 $"declared-destination:{receipt.Id:N}",
-                DeclaredDestinationReason),
+                reason),
             timeProvider.GetUtcNow(),
             cancellationToken);
         Activity.Current?.SetTag("intake.declared_destination", outcome.ToString());

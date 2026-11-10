@@ -146,6 +146,14 @@ repeat every minute.
   custody completes cannot reach Box, because the Case has no folder yet. If
   it holds one of those numbers, it moves to the Case's next free number when
   custody completes (R719, 6 November 2026).
+- A photo link's items file flat in the Case's Box folder, with no
+  subfolder, each named by its Case document number, its story position and
+  a plain label, as `014 02-03 Front driver corner closer.jpg` (operator,
+  9 November 2026; R775;
+  [FRD-28](frd-28-guided-photo-capture.md#baskets-and-names)). Its
+  inspection images arrive In report and its additional information does
+  not ([Image tags](#image-tags)). A full-size original files as the next
+  version of the same Case image.
 - Staff may add manually received WhatsApp evidence with its source and
   channel provenance. That does not switch on a WhatsApp integration.
 - Case and file changes use the normal role, lease and version guards.
@@ -178,7 +186,11 @@ suppressed allocation, and material a member of staff links later. Intake
 that automation files to a new Case, to a matched Case or to a Vehicle
 images record, and an upload whose Case was declared before the upload
 ([FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)), goes
-straight to that destination's Box folder and never through holding. When
+straight to that destination's Box folder and never through holding. A
+photo link's receipt is never held: it files on its Case as it arrives, or
+waits for its capture to settle and goes to the Vehicle images record its
+batch becomes (operator, 9 November 2026; R776;
+[FRD-28](frd-28-guided-photo-capture.md#routing-and-filing)). When
 a member of staff later links held material to a Case, its copies are filed
 on that Case; the holding copies remain as retained intake. The holding
 decision is taken after destination automation; a held source, its
@@ -417,13 +429,17 @@ against every existing name ignoring case, with one of six fixed design
 tints. An occurrence may carry any number of tags.
 
 Tags carry meaning for the report (operator, 26 September 2026). A new
-image is in the report. The first image in the report tagged Overview prints
-as the Overview, at place 1, and the first other one tagged Close-up as the
-Close-up, at place 2; the rest print as supporting images (operator,
-7 October 2026). The Overview prints again first on the image pages, before
-the Close-up and the supporting images (R660, 4 November 2026; #1902). Tagging an
-image Third party or Reflection takes it out of the report; staff may put it
-back in ([FRD-06](frd-06-vehicle-and-engineering-evidence.md)).
+image is in the report, except a photo link's additional information (the
+accident scene, the other vehicle, paperwork and video), which arrives not In
+report; the other vehicle's photos also arrive tagged Third party (operator,
+9 November 2026; R775;
+[FRD-28](frd-28-guided-photo-capture.md#baskets-and-names)). The first
+image in the report tagged Overview prints as the Overview, at place 1, and
+the first other one tagged Close-up as the Close-up, at place 2; the rest
+print as supporting images (operator, 7 October 2026). The Overview prints
+again first on the image pages, before the Close-up and the supporting
+images (R660, 4 November 2026; #1902). Tagging an image Third party or
+Reflection takes it out of the report; staff may put it back in ([FRD-06](frd-06-vehicle-and-engineering-evidence.md)).
 
 Applying or removing a tag on a Case image has the same guards as any other
 Case change: the current Case edit lease, the expected Case version and an

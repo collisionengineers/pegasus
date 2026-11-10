@@ -27,6 +27,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.PrincipalApi;
+using Pegasus.Web.PhotoCapture;
 using Pegasus.Web;
 using Azure.Core;
 using Azure.Identity;
@@ -301,7 +302,7 @@ if (productionProfile)
         // Probe, ping and static-file rows carry nothing and spend the daily
         // cap; the SDK runs this before adaptive sampling.
         builder.Services.AddApplicationInsightsTelemetryProcessor<QuietRequestTelemetryFilter>();
-        builder.Services.AddSingleton<ITelemetryInitializer, GlassCallbackTelemetryInitializer>();
+        builder.Services.AddSingleton<ITelemetryInitializer, SecretPathTelemetryInitializer>();
         builder.Services.AddSingleton<DocumentReadTelemetryBridge>();
         builder.Services.Configure<TelemetryConfiguration>(
             telemetry => telemetry.SetAzureTokenCredential(credential));
@@ -351,6 +352,15 @@ var automationMcpOptions = AutomationMcpOptions.TryCreate(builder.Configuration)
 // The Principal API (API-01) is gated the same way: off by default, and
 // without the flag no /api/principal route, scheme or policy exists.
 var principalApiEnabled = builder.Configuration.GetValue<bool>(PrincipalApi.FeatureFlag);
+
+// Guided photo capture (FRD-28, ADR-0090) is gated the same way: off, nothing
+// below registers and /c, /s, /capture and /PhotoCapture answer 404. On, the
+// origin its links print is read now, so a deployment without it fails at
+// start naming the key rather than at a staff member's Send photo link.
+var photoCaptureEnabled = builder.Configuration.GetValue<bool>(PhotoCaptureSurface.FeatureFlag);
+var photoCaptureOptions = photoCaptureEnabled
+    ? PhotoCaptureOptions.Create(builder.Configuration)
+    : null;
 
 // ShellPageFilter supplies the shell's rendered time, the bell's unread count
 // and the release note on authenticated full page results. RazorPagesOptions
@@ -420,7 +430,7 @@ builder.Services
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.OnRejected = (context, cancellationToken) =>
+    options.OnRejected = async (context, cancellationToken) =>
     {
         context.HttpContext.Response.Headers.RetryAfter = "60";
         var rejectedPath = context.HttpContext.Request.Path;
@@ -437,11 +447,24 @@ builder.Services.AddRateLimiter(options =>
                     ? "principal_api_rate_limited"
                     : rejectedPath.StartsWithSegments("/Integrations/Glass/Callback")
                         ? "glass_callback_rate_limited"
+                    : PhotoCaptureSurface.IsPublicPath(rejectedPath)
+                        ? "capture_rate_limited"
                     : "authentication_rate_limited";
-        return new ValueTask(AppendRateLimitedSecurityEventAsync(
+        if (PhotoCaptureSurface.IsPublicPath(rejectedPath))
+        {
+            CaptureResponseHeaders.Apply(context.HttpContext.Response);
+        }
+
+        await AppendRateLimitedSecurityEventAsync(
             context.HttpContext,
             reasonCode,
-            cancellationToken));
+            cancellationToken);
+        // The capture app reads the API's refusals as problems; its pages get
+        // the status page's capture card.
+        if (rejectedPath.StartsWithSegments(PhotoCaptureSurface.ApiBasePath))
+        {
+            await CaptureEndpoints.WriteRateLimitedAsync(context.HttpContext);
+        }
     };
     options.AddPolicy(
         StaffSignInRateLimitPolicy,
@@ -494,6 +517,28 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
+    // The capture surface's per-IP limits (FRD-28). An IPv6 caller is
+    // partitioned on its /64, which one phone subscriber holds whole.
+    foreach (var (policy, permits, window) in new[]
+    {
+        (PhotoCaptureSurface.CapturePagePolicy, PhotoCaptureSurface.PageRequestsPerMinute, TimeSpan.FromMinutes(1)),
+        (PhotoCaptureSurface.CaptureReadPolicy, PhotoCaptureSurface.ReadsPerMinute, TimeSpan.FromMinutes(1)),
+        (PhotoCaptureSurface.CaptureUploadPolicy, PhotoCaptureSurface.UploadsPerMinute, TimeSpan.FromMinutes(1)),
+        (PhotoCaptureSurface.CaptureMintPolicy, PhotoCaptureSurface.MintsPerHour, TimeSpan.FromHours(1)),
+    })
+    {
+        options.AddPolicy(
+            policy,
+            context => RateLimitPartition.GetFixedWindowLimiter(
+                ClientPartition.Key(context),
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    AutoReplenishment = true,
+                    PermitLimit = permits,
+                    QueueLimit = 0,
+                    Window = window
+                }));
+    }
 });
 builder.Services.AddSingleton(_ => new FixedWindowRateLimiter(
     new FixedWindowRateLimiterOptions
@@ -931,6 +976,21 @@ if (principalApiEnabled)
 {
     builder.Services.AddPegasusPrincipalApi();
 }
+if (photoCaptureOptions is not null)
+{
+    builder.Services.AddSingleton(photoCaptureOptions);
+    // The staff pages read the same validated value through IOptions.
+    builder.Services.AddSingleton<Microsoft.Extensions.Options.IOptions<PhotoCaptureOptions>>(
+        Microsoft.Extensions.Options.Options.Create(photoCaptureOptions));
+    builder.Services.AddScoped<CaptureContextFactory>();
+    builder.Services.AddSingleton<CaptureAssets>();
+    builder.Services.AddSingleton<CaptureItemRateLimiter>();
+    if (applicationInsightsConfigured)
+    {
+        // A designed refusal on the capture surface is not a failed request.
+        builder.Services.AddSingleton<ITelemetryInitializer, PhotoCaptureTelemetryInitializer>();
+    }
+}
 
 startupTimeline.Mark("services composed");
 // Last, after every AddDataProtection: the framework's start-up load of the key
@@ -1059,9 +1119,14 @@ if (!app.Environment.IsDevelopment())
         // this header exists for is unchanged, because frame-ancestors still
         // refuses every other origin. Development does not set the header at
         // all, so this policy is tested through the Production profile.
-        context.Response.Headers.ContentSecurityPolicy =
-            "default-src 'self'; object-src 'none'; base-uri 'self'; " +
-            "img-src 'self' blob:; frame-src 'self' blob:; frame-ancestors 'self'";
+        // The capture surface sets its own, stricter policy on every response
+        // (CaptureResponseHeaders), in every environment; it is not set twice.
+        if (!PhotoCaptureSurface.IsPublicPath(context.Request.Path))
+        {
+            context.Response.Headers.ContentSecurityPolicy =
+                "default-src 'self'; object-src 'none'; base-uri 'self'; " +
+                "img-src 'self' blob:; frame-src 'self' blob:; frame-ancestors 'self'";
+        }
         context.Response.Headers.XContentTypeOptions = "nosniff";
         await next(context);
     });
@@ -1103,6 +1168,21 @@ if (!principalApiEnabled)
     app.Use(async (context, next) =>
     {
         if (context.Request.Path.StartsWithSegments(PrincipalApi.BasePath))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        await next(context);
+    });
+}
+
+// Guided photo capture joins the same absence gates, its staff pages included.
+if (!photoCaptureEnabled)
+{
+    app.Use(async (context, next) =>
+    {
+        if (PhotoCaptureSurface.IsGatedPath(context.Request.Path))
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
@@ -1301,6 +1381,10 @@ if (principalApiEnabled)
 {
     app.MapPegasusPrincipalApi();
 }
+if (photoCaptureEnabled)
+{
+    app.MapPegasusPhotoCapture();
+}
 
 startupTimeline.Mark("pipeline built, starting to listen");
 app.Lifetime.ApplicationStarted.Register(() =>
@@ -1324,7 +1408,8 @@ static bool IsMachineSurface(PathString path) =>
     || path.StartsWithSegments("/diagnostics")
     || path.StartsWithSegments(AutomationMcp.McpEndpointPath)
     || path.Equals(AutomationMcp.TokenEndpointPath, StringComparison.OrdinalIgnoreCase)
-    || path.StartsWithSegments(PrincipalApi.BasePath);
+    || path.StartsWithSegments(PrincipalApi.BasePath)
+    || path.StartsWithSegments("/capture/api");
 
 static async Task BootstrapProductionAdministratorAsync(IServiceProvider services)
 {

@@ -143,6 +143,11 @@ groups keep the stricter complete-candidate uniqueness rule, counted among
 the same candidates. Persisted
 expected membership, not the presence of a group identifier, tells the two
 apart. Registration itself has no known Principal, so it scopes nothing.
+A record a photo link made carries the accident date its sender typed, not
+the link's Principal: a Case whose incident date contradicts it is not a
+candidate, and a date missing on either side excludes nothing (operator,
+9 November 2026, [R791](../rulings.md);
+[FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)).
 
 The record's page lists every eligible Case for the registration, filtered
 by nothing, and names each one's Principal. Staff may link to any of them: a
@@ -212,7 +217,10 @@ draft for the image half; those exist only on a formal Case.
 Pairing completion is visible in three places: the derived `Associated with
 Case` label wherever the origin receipt's Case association is shown, the
 merge event on the resulting Case's timeline the moment it happens, and the
-Work Centre. There is no personal notification for pairing.
+Work Centre. There is no personal notification for pairing, except a photo
+link's capture: when its record reaches a Case the Engineer's bell rings
+once ([FRD-28](frd-28-guided-photo-capture.md#routing-and-filing);
+operator, 9 November 2026, [R804](../rulings.md)).
 
 When early images are paired with a pre-report Case, the Work Centre shows
 the Case as a **Vehicle images paired** Needs attention item, so staff see the
@@ -239,6 +247,28 @@ or an Unidentified outcome.
 
 The accepted image formats are JPEG and PNG (`.jpg`, `.jpeg`, `.png`)
 (operator ruling, 15 October 2026).
+
+A photo link's photos arrive on the Photo capture channel, one receipt per
+item ([FRD-28](frd-28-guided-photo-capture.md#routing-and-filing)), and this
+routing applies as it stands (operator, 9 November 2026,
+[R776](../rulings.md)). A capture keeps receiving after a group's
+membership would be fixed, so a capture with no Case is not a group until
+it settles; its receipts wait, processed, and are never Unidentified. When
+it settles it is matched again with the link's Principal and the typed
+accident date: one eligible Case takes the batch straight onto it, with no
+group and no record; none or several make its batch's photographs one
+submission group carrying the registration and the accident date the
+sender typed. The registration stands in for plate recognition, every
+member reads as it, and the group registers one Image-initiated Case
+without associating in the same pass; the record then pairs by the rules
+below and the typed date (operator, 9 November 2026,
+[R791](../rulings.md)). The capture's paperwork and video are not members:
+they wait with the capture and file as Other when its record reaches a Case
+([R803](../rulings.md)). Photos added after a settle are the next batch,
+matched again when it settles and, with no Case, a further Image-initiated
+Case for the same registration. A capture for a known Case, or one whose
+typed registration already matched one eligible Case, files each photo on
+that Case as it arrives and forms no group.
 
 For manual upload, staff confirmation replaces automatic attachment:
 matching supplies suggestions. A group with a usable registration that
@@ -406,10 +436,12 @@ page, where the review dialog applies
 
 **Image record page.** The Image-initiated record shows its image gallery
 with the preserved filenames and group evidence, its custody, and its
-chronological merge and closure history. It shows **Open Triage** when a
-Triage Case shares the same origin receipt. There is no "Open in Box"
-action, because this UI exposes no Box destination for Image-initiated
-material; that is a known limitation. Staff closure is a reasoned action.
+chronological merge and closure history. A record a photo link made shows
+its source as **Photo link**, with the details the sender typed and their
+note ([FRD-28](frd-28-guided-photo-capture.md#staff-pages)). It shows
+**Open Triage** when a Triage Case shares the same origin receipt. There is
+no "Open in Box" action, because this UI exposes no Box destination for
+Image-initiated material; that is a known limitation. Staff closure is a reasoned action.
 Terminal records are read-only. There is no generic Close control. Editing
 the record takes a record-scoped edit lease
 ([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)).

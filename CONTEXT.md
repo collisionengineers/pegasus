@@ -41,8 +41,24 @@ A reusable organisation with name, full address, and contacts that may relate to
 _Avoid_: Principal, image sender
 
 **Image Source**:
-The actual supplier of case images, whether a Principal, Intermediary, Repairer, or individual.
+The actual supplier of case images, whether a Principal, Intermediary, Repairer, or individual, including the person who sent them on a photo link ([FRD-28](docs/frd/frd-28-guided-photo-capture.md)).
 _Avoid_: Sender
+
+**Photo link**:
+A link Collision Engineers gives one person for photos of one vehicle. It opens the guided capture app on their phone with nothing to install, shows only the registration, is add-only until it expires after 3, 7 or 14 days, and its photos file on the Case or become a Vehicle images record. HQ sends one from a Case by e-mail or Copy link; a standing photo link starts one (operator, 9 November 2026, R773 to R785; [FRD-28](docs/frd/frd-28-guided-photo-capture.md)).
+_Avoid_: upload link, portal
+
+**Standing photo link**:
+The lasting link of a Principal, Claim Source or Repairer contact, kept on WhatsApp or printed as a QR code, or the one website link for private customers. It only starts photo links and never takes a photo itself; it may be paused or replaced ([FRD-28](docs/frd/frd-28-guided-photo-capture.md#standing-photo-links)).
+_Avoid_: profile, QR link
+
+**Photo capture**:
+The guided capture surface as a whole, and the staff page of that name in the rail, where captures Coming in and Links we sent are followed ([FRD-28](docs/frd/frd-28-guided-photo-capture.md#staff-pages)).
+_Avoid_: guided capture tool
+
+**Inspection images / Additional information**:
+The two baskets of a photo link's items. Inspection images (the overview, damage, number plate, VIN and dashboard) arrive In report; additional information (the accident scene, the other vehicle, paperwork and video) arrives not In report and never goes into the report by itself. A basket is the In report toggle, not a folder: the Case's Box folder stays flat ([FRD-28](docs/frd/frd-28-guided-photo-capture.md#baskets-and-names)).
+_Avoid_: folders
 
 **Third-party vehicle evidence**:
 Source evidence of a vehicle other than the Case vehicle, identified from reliable image detail and recorded by staff as the Third party image tag. It remains retained in the Case but is excluded from Case-vehicle selection and the Case export's images.

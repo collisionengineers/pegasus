@@ -1,3 +1,5 @@
+using Pegasus.Core.PhotoCapture;
+
 namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class WorkflowConfigurationEntity
@@ -12,6 +14,14 @@ internal sealed class WorkflowConfigurationEntity
     public int HeldTargetDays { get; set; } = 7;
     public int ReviewTargetDays { get; set; } = 1;
     public int AiDraftTargetDays { get; set; } = 1;
+
+    // What the photo link Send page starts with (R813) and which lifetimes it
+    // offers (R817); each defaults to the constant Send used before them.
+    public string PhotoLinkStartMode { get; set; } = AdministrationPolicyModelConfiguration.PhotoLinkStartModeDefault;
+    public bool PhotoLinkStartLiveCameraOnly { get; set; } = true;
+    public bool PhotoLinkStartOriginals { get; set; } = true;
+    public string PhotoLinkLifetimesOffered { get; set; } = AdministrationPolicyModelConfiguration.PhotoLinkLifetimesOfferedDefault;
+    public int PhotoLinkDefaultLifetimeDays { get; set; } = CaptureLimits.DefaultLifetimeDays;
 }
 
 internal sealed class ApprovedMailboxEntity

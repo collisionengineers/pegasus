@@ -1285,7 +1285,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_CaseDataFields_PolicyVersion", "[PolicyVersion] > 0");
 
-                            t.HasCheckConstraint("CK_CaseDataFields_SourceKind", "[SourceKind] IN ('intake_evidence', 'mail_route', 'case_acceptance', 'staff_correction', 'vehicle_lookup', 'principal_setting', 'principal_api')");
+                            t.HasCheckConstraint("CK_CaseDataFields_SourceKind", "[SourceKind] IN ('intake_evidence', 'mail_route', 'case_acceptance', 'staff_correction', 'vehicle_lookup', 'principal_setting', 'principal_api', 'photo_link')");
 
                             t.HasCheckConstraint("CK_CaseDataFields_ValueKind", "[ValueKind] IN ('fact', 'suggestion', 'confirmed')");
 
@@ -5529,6 +5529,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<DateOnly?>("DeclaredIncidentDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("DeclaredRegistration")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<string>("DiscardOperationKey")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -6010,6 +6017,353 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_AspNetUsers_DefaultSignOffEligibility", "[IsDefaultSignOffEngineer] = 0 OR [IsSignOffEngineer] = 1");
 
                             t.HasCheckConstraint("CK_AspNetUsers_Version", "[Version] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PhotoCaptureBatchEntity", b =>
+                {
+                    b.Property<Guid>("CaptureId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Batch")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("BellOwedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ClosedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("ReachedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("SubmissionGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("CaptureId", "Batch");
+
+                    b.HasIndex("BellOwedAtUtc")
+                        .HasFilter("[BellOwedAtUtc] IS NOT NULL");
+
+                    b.HasIndex("CaseId");
+
+                    b.HasIndex("SubmissionGroupId")
+                        .IsUnique()
+                        .HasFilter("[SubmissionGroupId] IS NOT NULL");
+
+                    b.ToTable("PhotoCaptureBatches", (string)null);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PhotoCaptureEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("AcceptedBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("AcceptedItemCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("CallLoggedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CaseReference")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CustomerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Destination")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("DetailsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DocumentCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("FirstItemAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("ImagesCompletedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateOnly?>("IncidentDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("IssuedByStaffId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("LastItemAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("LastRemindedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("LiveCameraOnly")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Mobile")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("NormalizedRegistration")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTimeOffset?>("OpenedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int>("OriginalCount")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("OriginalsInBackground")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("PhotoCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("QuickLinkFor")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int>("ReminderCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("RoutingReason")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset?>("SentAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("SettledAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("SettledBatches")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("StandingLinkId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("SubmissionGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("VideoCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.HasIndex("SubmissionGroupId");
+
+                    b.HasIndex("Origin", "CreatedAtUtc")
+                        .IsDescending(false, true);
+
+                    b.HasIndex("StandingLinkId", "CreatedAtUtc");
+
+                    b.HasIndex("SettledAtUtc", "SentAtUtc", "ExpiresAtUtc");
+
+                    b.ToTable("PhotoCaptures", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PhotoCaptures_Destination", "[Destination] IN ('undecided', 'case', 'vehicle_images')");
+
+                            t.HasCheckConstraint("CK_PhotoCaptures_Mode", "[Mode] IN ('guided', 'quick')");
+
+                            t.HasCheckConstraint("CK_PhotoCaptures_Origin", "[Origin] IN ('case_link', 'standing_staff', 'standing_forwarded', 'website')");
+                        });
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PhotoCaptureItemEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Area")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int>("Batch")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("CaptureId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ClientItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<long>("ContentLength")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("DeclaredCaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<bool>("InReportOnArrival")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("IntakeAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("IntakeReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool>("LiveCamera")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MediaType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("OriginalReceived")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("ReceivedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Stage")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid?>("StagedReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("StoryGroup")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StorySequence")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("TakenAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IntakeAssetId")
+                        .HasFilter("[IntakeAssetId] IS NOT NULL");
+
+                    b.HasIndex("StagedReceiptId");
+
+                    b.HasIndex("CaptureId", "ClientItemId")
+                        .IsUnique();
+
+                    b.HasIndex("CaptureId", "Batch", "Ordinal")
+                        .IsUnique();
+
+                    b.ToTable("PhotoCaptureItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PhotoCaptureItems_Kind", "[Kind] IN ('overview', 'damage', 'number_plate', 'vin', 'dashboard', 'scene', 'other_vehicle', 'paperwork', 'video')");
+
+                            t.HasCheckConstraint("CK_PhotoCaptureItems_Stage", "[Stage] IS NULL OR [Stage] IN ('overview', 'closer', 'close_up', 'extra')");
+                        });
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PhotoCaptureTokenEntity", b =>
+                {
+                    b.Property<string>("TokenDigest")
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("CaptureId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("IssuedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("IssuedByStaffId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset?>("RevokedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("TokenDigest");
+
+                    b.HasIndex("CaptureId");
+
+                    b.ToTable("PhotoCaptureTokens", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PhotoCaptureTokens_Purpose", "[Purpose] IN ('email', 'copy', 'handoff', 'session')");
                         });
                 });
 
@@ -6988,7 +7342,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("StaffNotifications", null, t =>
                         {
-                            t.HasCheckConstraint("CK_StaffNotifications_Cause", "[Cause] IN ('AiDraftReady', 'CaseAssigned', 'EditedByOther', 'EmailReceived', 'QueryReceived', 'CancellationReceived', 'QueryAssigned')");
+                            t.HasCheckConstraint("CK_StaffNotifications_Cause", "[Cause] IN ('AiDraftReady', 'CaseAssigned', 'EditedByOther', 'EmailReceived', 'QueryReceived', 'CancellationReceived', 'QueryAssigned', 'PhotosReceived')");
                         });
                 });
 
@@ -7057,6 +7411,114 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("StandaloneAuditEvidence", (string)null);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.StandingPhotoLinkAddressEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid>("StandingPhotoLinkId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StandingPhotoLinkId");
+
+                    b.ToTable("StandingPhotoLinkAddresses", (string)null);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.StandingPhotoLinkEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedByKind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("CreatedBySubjectId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ForwardedMode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("LinkLifetimeDays")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("LiveCameraOnly")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("OriginalsInBackground")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("PausedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("RetiredAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Kind")
+                        .IsUnique()
+                        .HasFilter("[Kind] = 'website' AND [RetiredAtUtc] IS NULL");
+
+                    b.HasIndex("OrganizationId")
+                        .IsUnique()
+                        .HasFilter("[OrganizationId] IS NOT NULL AND [RetiredAtUtc] IS NULL");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("StandingPhotoLinks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_StandingPhotoLinks_ForwardedMode", "[ForwardedMode] IN ('guided', 'quick')");
+
+                            t.HasCheckConstraint("CK_StandingPhotoLinks_Kind", "[Kind] IN ('contact', 'website')");
+
+                            t.HasCheckConstraint("CK_StandingPhotoLinks_Organization", "([Kind] = 'contact' AND [OrganizationId] IS NOT NULL) OR ([Kind] = 'website' AND [OrganizationId] IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.TriageEntity", b =>
@@ -7956,6 +8418,35 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("int")
                         .HasDefaultValue(7);
 
+                    b.Property<int>("PhotoLinkDefaultLifetimeDays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(7);
+
+                    b.Property<string>("PhotoLinkLifetimesOffered")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("3,7,14");
+
+                    b.Property<bool>("PhotoLinkStartLiveCameraOnly")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("PhotoLinkStartMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasDefaultValue("guided");
+
+                    b.Property<bool>("PhotoLinkStartOriginals")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<bool>("RequireImages")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -7991,6 +8482,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_WorkflowConfigurations_ChaseIntervalDays", "[ChaseIntervalDays] BETWEEN 1 AND 365");
 
+                            t.HasCheckConstraint("CK_WorkflowConfigurations_PhotoLinkDefaultLifetimeDays", "[PhotoLinkDefaultLifetimeDays] IN (3, 7, 14)");
+
+                            t.HasCheckConstraint("CK_WorkflowConfigurations_PhotoLinkStartMode", "[PhotoLinkStartMode] IN ('guided', 'quick')");
+
                             t.HasCheckConstraint("CK_WorkflowConfigurations_TargetDays", "[UnidentifiedTargetDays] BETWEEN 0 AND 365 AND [TriageTargetDays] BETWEEN 0 AND 365 AND [HeldTargetDays] BETWEEN 0 AND 365 AND [ReviewTargetDays] BETWEEN 0 AND 365 AND [AiDraftTargetDays] BETWEEN 0 AND 365");
                         });
 
@@ -8001,6 +8496,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                             AiDraftTargetDays = 1,
                             ChaseIntervalDays = 7,
                             HeldTargetDays = 7,
+                            PhotoLinkDefaultLifetimeDays = 7,
+                            PhotoLinkLifetimesOffered = "3,7,14",
+                            PhotoLinkStartLiveCameraOnly = true,
+                            PhotoLinkStartMode = "guided",
+                            PhotoLinkStartOriginals = true,
                             RequireImages = true,
                             RequireInstructions = true,
                             ReviewTargetDays = 1,
@@ -8984,6 +9484,56 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("StagedReceipt");
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PhotoCaptureBatchEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.PhotoCaptureEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CaptureId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PhotoCaptureEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.StandingPhotoLinkEntity", null)
+                        .WithMany()
+                        .HasForeignKey("StandingLinkId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PhotoCaptureItemEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.PhotoCaptureEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CaptureId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PhotoCaptureTokenEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.PhotoCaptureEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CaptureId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PrincipalApiCredentialEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.PrincipalEntity", "Principal")
@@ -9118,6 +9668,23 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("IntakeReceipt");
 
                     b.Navigation("OriginalReportAsset");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.StandingPhotoLinkAddressEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.StandingPhotoLinkEntity", null)
+                        .WithMany()
+                        .HasForeignKey("StandingPhotoLinkId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.StandingPhotoLinkEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.TriageEntity", b =>

@@ -1,0 +1,21 @@
+@model Pegasus.Web.Pages.Capture.CaptureDocumentView
+@* The capture app's document (FRD-28, ADR-0090). The context and the image
+   manifest are JSON data blocks; both are serialised with the default
+   encoder, which escapes "<", so typed text cannot close the block. The
+   link's token is never written here: the app reads it from its own address. *@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Collision Engineers – Vehicle photo capture</title>
+    <link rel="stylesheet" href="~/capture/capture.css" asp-append-version="true">
+</head>
+<body>
+    <partial name="/Pages/Capture/_CaptureShell.cshtml" />
+    <script type="application/json" id="capture-assets">@Html.Raw(Model.AssetsJson)</script>
+    <script type="application/json" id="capture-context">@Html.Raw(Model.ContextJson)</script>
+    <script src="~/capture/capture.js" asp-append-version="true" defer></script>
+</body>
+</html>

@@ -29,7 +29,10 @@ public enum StaffNotificationCause
     CancellationReceived,
 
     /// <summary>An open query was assigned to a staff member other than the actor.</summary>
-    QueryAssigned
+    QueryAssigned,
+
+    /// <summary>A photo link's photos are in on a Case the engineer is assigned to (FRD-28; operator, 9 November 2026).</summary>
+    PhotosReceived
 }
 
 /// <summary>
@@ -120,7 +123,8 @@ public static class StaffNotificationPolicy
             StaffNotificationCause.EditedByOther
                 or StaffNotificationCause.EmailReceived
                 or StaffNotificationCause.QueryReceived
-                or StaffNotificationCause.CancellationReceived => caseEngineerId,
+                or StaffNotificationCause.CancellationReceived
+                or StaffNotificationCause.PhotosReceived => caseEngineerId,
             // The assignee, and only when that is not the actor (a Take tells nobody).
             StaffNotificationCause.QueryAssigned => assigneeStaffId,
             _ => throw new ArgumentOutOfRangeException(nameof(cause), cause, null)

@@ -29,6 +29,22 @@ public sealed record IntakeSubmissionGroup(
     /// group at. Null on a group a write returned.
     /// </summary>
     public DateTimeOffset? ReadAtUtc { get; init; }
+
+    /// <summary>
+    /// The registration the submission declared for its images, which stands
+    /// in for plate recognition in the group's routing: a photo link's
+    /// capture carries the registration its sender typed (FRD-28). Null for
+    /// a submission whose images are read for their plates.
+    /// </summary>
+    public string? DeclaredRegistration { get; init; }
+
+    /// <summary>
+    /// The accident date a photo link's sender typed, which the record the
+    /// group registers carries so that it never pairs with a Case whose
+    /// incident date contradicts it (operator, 9 November 2026; R791). Null
+    /// when none was typed and for every other submission.
+    /// </summary>
+    public DateOnly? DeclaredIncidentDate { get; init; }
 }
 
 /// <summary>

@@ -206,6 +206,19 @@ if ($LASTEXITCODE -ne 0 -or $runFromPackage.Trim() -cne '1') {
     throw 'The Web App is not configured to run from the deployed package (WEBSITE_RUN_FROM_PACKAGE=1).'
 }
 
+# Guided photo capture (ADR-0090) is composition-gated; the smoke below checks
+# whichever state the deployed setting names, so it is read back, not assumed.
+$photoCaptureSetting = (& az webapp config appsettings list `
+    --subscription $SubscriptionId `
+    --resource-group $ResourceGroupName `
+    --name $webAppName `
+    --query "[?name == 'Features__PhotoCapture'].value | [0]" `
+    --output tsv) -join "`n"
+if ($LASTEXITCODE -ne 0) {
+    throw 'Unable to read the Web App Features__PhotoCapture setting.'
+}
+$photoCaptureEnabled = $photoCaptureSetting.Trim() -ieq 'true'
+
 # Deployment record (read-only ARM view of the Kudu deployment log). Status 4
 # is Kudu's Success. The record binds the site to the last zip deployment; it
 # does not carry the zip hash.
@@ -376,6 +389,57 @@ try {
         if ($csp -notlike "*$directive*") {
             throw "The deployed Content-Security-Policy is missing ""$directive"": $csp"
         }
+    }
+
+    # Guided photo capture's public surface, write-free (ADR-0090, FRD-28): a
+    # well-shaped random token reaches the store and finds nothing, so the
+    # page answers the one "no longer active" 404 with the capture headers and
+    # no cookie, and the API answers a problem 404. With the flag off, the
+    # gate answers 404 before routing.
+    $randomBytes = [byte[]]::new(32)
+    [Security.Cryptography.RandomNumberGenerator]::Fill($randomBytes)
+    $randomToken = [Convert]::ToBase64String($randomBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+    if ($photoCaptureEnabled) {
+        $capturePage = $client.GetAsync([uri]::new($BaseUri, "c/$randomToken")).GetAwaiter().GetResult()
+        if ($capturePage.StatusCode -ne [Net.HttpStatusCode]::NotFound) {
+            throw "An unknown photo link returned $([int]$capturePage.StatusCode), not 404."
+        }
+        if ($capturePage.Content.Headers.ContentType.MediaType -cne 'text/html') {
+            throw "An unknown photo link answered $($capturePage.Content.Headers.ContentType), not text/html."
+        }
+        $captureCsp = ($capturePage.Headers.GetValues('Content-Security-Policy') | Select-Object -First 1)
+        if ($captureCsp -notlike "*frame-ancestors 'none'*") {
+            throw "The capture page's Content-Security-Policy does not refuse framing: $captureCsp"
+        }
+        $referrerPolicy = ($capturePage.Headers.GetValues('Referrer-Policy') | Select-Object -First 1)
+        if ($referrerPolicy -cne 'no-referrer') {
+            throw "The capture page's Referrer-Policy is '$referrerPolicy', not no-referrer."
+        }
+        $permissionsPolicy = ($capturePage.Headers.GetValues('Permissions-Policy') | Select-Object -First 1)
+        if ($permissionsPolicy -notlike '*camera=(self)*') {
+            throw "The capture page's Permissions-Policy does not admit its own camera: $permissionsPolicy"
+        }
+        if ([string]$capturePage.Headers.CacheControl -cne 'no-store') {
+            throw "The capture page's Cache-Control is '$($capturePage.Headers.CacheControl)', not no-store."
+        }
+        if ($capturePage.Headers.Contains('Set-Cookie')) {
+            throw 'The capture page set a cookie.'
+        }
+        $contextRequest = [Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Get, [uri]::new($BaseUri, 'capture/api/v1/context'))
+        $contextRequest.Headers.Add('X-Capture-Link', "c.$randomToken")
+        $captureContext = $client.SendAsync($contextRequest).GetAwaiter().GetResult()
+        if ($captureContext.StatusCode -ne [Net.HttpStatusCode]::NotFound -or
+            $captureContext.Content.Headers.ContentType.MediaType -cne 'application/problem+json') {
+            throw "An unknown capture credential answered $([int]$captureContext.StatusCode) $($captureContext.Content.Headers.ContentType), not a 404 problem."
+        }
+        Write-Output 'Photo capture smoke passed (an unknown link answers the designed 404 with the capture headers).'
+    }
+    else {
+        $capturePage = $client.GetAsync([uri]::new($BaseUri, 'c/x')).GetAwaiter().GetResult()
+        if ($capturePage.StatusCode -ne [Net.HttpStatusCode]::NotFound) {
+            throw "With photo capture off, /c/x returned $([int]$capturePage.StatusCode), not 404."
+        }
+        Write-Output 'Photo capture smoke passed (off: the surface answers 404).'
     }
 
     Write-Output 'Production smoke passed.'

@@ -1134,6 +1134,11 @@
           "Microsoft.Extensions.Logging.Abstractions": "10.0.10"
         }
       },
+      "Net.Codecrete.QrCodeGenerator": {
+        "type": "Transitive",
+        "resolved": "2.0.6",
+        "contentHash": "2Go9wbHKqpNkU3E/RGMOLx0icLGjRxZklS/CHM2Zy+iGymK+lBEJnacxouhAGQrhesYa+NG1s0dnYbIIIYGlbQ=="
+      },
       "Newtonsoft.Json": {
         "type": "Transitive",
         "resolved": "13.0.3",
@@ -1576,6 +1581,7 @@
           "Azure.Identity": "[1.21.0, )",
           "Microsoft.ApplicationInsights.AspNetCore": "[2.23.0, )",
           "ModelContextProtocol.AspNetCore": "[2.2.0, )",
+          "Net.Codecrete.QrCodeGenerator": "[2.0.6, )",
           "OpenIddict.AspNetCore": "[7.6.0, )",
           "Pegasus.Core": "[0.0.0-dev, )",
           "Pegasus.Infrastructure": "[0.0.0-dev, )",

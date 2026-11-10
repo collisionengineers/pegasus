@@ -15,6 +15,24 @@ public enum ImageIntakeAutomationWithheld
     RegistrationAmbiguous
 }
 
+/// <summary>
+/// The incident date as an excluding rule, never a matching one (FRD-22): a
+/// Case whose incident date differs from the accident date a photo link's
+/// sender typed is not a candidate for its photos, at the routing, at the
+/// settle and at the record's later pairing; a date missing on either side
+/// excludes nothing (operator, 9 November 2026; R776, R791).
+/// </summary>
+public static class IncidentDateExclusion
+{
+    public static bool Admits(ImageIntakeCaseCandidate candidate, DateOnly? declaredIncidentDate)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        return declaredIncidentDate is null
+            || candidate.IncidentDate is null
+            || candidate.IncidentDate == declaredIncidentDate;
+    }
+}
+
 public sealed record ImageIntakePairingResult(
     int Candidates,
     int Merged,
@@ -71,15 +89,23 @@ public sealed class ImageIntakeCasePairing(
             : candidates.Where(candidate => candidate.PrincipalId == principalId).ToArray());
     }
 
+    /// <summary>
+    /// The Case a registered record pairs with by itself, or null. A record a
+    /// photo link made carries its sender's typed accident date
+    /// (<paramref name="declaredIncidentDate"/>), which excludes, after the
+    /// Principal scope, every Case whose date contradicts it
+    /// (<see cref="IncidentDateExclusion"/>).
+    /// </summary>
     public static ImageIntakeCaseCandidate? SelectRegisteredTarget(
         IReadOnlyList<ImageIntakeCaseCandidate> candidates,
         string registration,
         Guid? principalId,
         int groupExpectedMemberCount,
         IntakeSourceChannel sourceChannel,
-        DateTimeOffset registeredAtUtc)
+        DateTimeOffset registeredAtUtc,
+        DateOnly? declaredIncidentDate = null)
     {
-        var scoped = ScopeToPrincipal(candidates, principalId);
+        var scoped = ScopedAndAdmitted(candidates, principalId, declaredIncidentDate);
         // A registered identity is immutable: no near-miss completion here.
         // Preserve single-image exact precedence and the group's stricter
         // complete-candidate-count rule from its original routing decision.
@@ -104,14 +130,17 @@ public sealed class ImageIntakeCasePairing(
         IReadOnlyList<ImageIntakeCaseCandidate> candidates,
         string registration,
         Guid? principalId,
-        int groupExpectedMemberCount)
+        int groupExpectedMemberCount,
+        DateOnly? declaredIncidentDate = null)
     {
-        var scoped = ScopeToPrincipal(candidates, principalId);
+        var scoped = ScopedAndAdmitted(candidates, principalId, declaredIncidentDate);
         var exact = scoped.Count(candidate => candidate.ConfirmedRegistration == registration);
         if (exact == 0)
         {
+            // A Case the typed date excludes is no Principal's disagreement.
             return principalId is not null
-                && candidates.Any(candidate => candidate.ConfirmedRegistration == registration)
+                && candidates.Any(candidate => candidate.ConfirmedRegistration == registration
+                    && IncidentDateExclusion.Admits(candidate, declaredIncidentDate))
                     ? ImageIntakeAutomationWithheld.PrincipalDisagrees
                     : null;
         }
@@ -119,6 +148,18 @@ public sealed class ImageIntakeCasePairing(
         return exact > 1 || (groupExpectedMemberCount > 1 && scoped.Count != 1)
             ? ImageIntakeAutomationWithheld.RegistrationAmbiguous
             : null;
+    }
+
+    /// <summary>The Principal's scope, then the typed date's exclusion (R791).</summary>
+    private static IReadOnlyList<ImageIntakeCaseCandidate> ScopedAndAdmitted(
+        IReadOnlyList<ImageIntakeCaseCandidate> candidates,
+        Guid? principalId,
+        DateOnly? declaredIncidentDate)
+    {
+        var scoped = ScopeToPrincipal(candidates, principalId);
+        return declaredIncidentDate is null
+            ? scoped
+            : scoped.Where(candidate => IncidentDateExclusion.Admits(candidate, declaredIncidentDate)).ToArray();
     }
 
     /// <summary>
@@ -227,7 +268,8 @@ public sealed class ImageIntakeCasePairing(
                 var eligible = await caseCandidates.FindEligibleByRegistrationAsync(
                     detail.Record.NormalizedVehicleRegistration, cancellationToken);
                 linkTarget = SelectRegisteredTarget(eligible, detail.Record.NormalizedVehicleRegistration,
-                    detail.Record.PrincipalId, detail.GroupExpectedMemberCount, channel, detail.RegisteredAtUtc);
+                    detail.Record.PrincipalId, detail.GroupExpectedMemberCount, channel, detail.RegisteredAtUtc,
+                    detail.DeclaredIncidentDate);
                 if (linkTarget is null)
                 {
                     return new(1, 0, 0);
@@ -300,7 +342,8 @@ public sealed class ImageIntakeCasePairing(
                         var eligible = await caseCandidates.FindEligibleByRegistrationAsync(
                             detail.Record.NormalizedVehicleRegistration, cancellationToken);
                         linkTarget = SelectRegisteredTarget(eligible, detail.Record.NormalizedVehicleRegistration,
-                            detail.Record.PrincipalId, detail.GroupExpectedMemberCount, channel, detail.RegisteredAtUtc);
+                            detail.Record.PrincipalId, detail.GroupExpectedMemberCount, channel, detail.RegisteredAtUtc,
+                            detail.DeclaredIncidentDate);
                         if (linkTarget is null || linkTarget.CaseId != targetId)
                         {
                             throw new IntakeAssociationConflictException("The current image destination is no longer unique.");

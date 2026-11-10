@@ -50,16 +50,11 @@ internal sealed class PrincipalAttachmentAdmission(
     }
 
     /// <summary>Whether an image or a video starts as its type does; null for a document.</summary>
-    private static bool? HeaderMatches(PrincipalSubmissionFile file)
-    {
-        var bytes = file.Content.Span;
-        return file.MediaType switch
+    private static bool? HeaderMatches(PrincipalSubmissionFile file) =>
+        file.MediaType switch
         {
-            "image/jpeg" => bytes.StartsWith(new byte[] { 0xFF, 0xD8, 0xFF }),
-            "image/png" => bytes.StartsWith(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }),
-            IntakeUploadFilePolicy.Mp4MediaType or IntakeUploadFilePolicy.MovMediaType =>
-                IntakeUploadFilePolicy.IsAccepted(file.FileName, file.MediaType, bytes),
-            _ => null
+            // A PDF's signature is checked by the reader that opens it, as before.
+            "application/pdf" => null,
+            _ => IntakeUploadFilePolicy.HeaderMatches(file.FileName, file.MediaType, file.Content.Span)
         };
-    }
 }

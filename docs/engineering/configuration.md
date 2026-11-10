@@ -72,6 +72,22 @@ version and a configuration read-back, not a release. The selected repository
   submitted text and the captured diagnostic snapshot, including a server
   exception and stack when available. The report is also retained in Pegasus.
 
+## Photo capture
+
+Guided photo capture ([FRD-28](../frd/frd-28-guided-photo-capture.md),
+[ADR-0090](../adr/0090-public-photo-capture-surface.md)) has two settings.
+
+| Setting | Effect |
+| --- | --- |
+| `Features:PhotoCapture` | The composition gate. Off, nothing of photo capture is registered: `/c`, `/s`, `/capture` and `/PhotoCapture` answer 404 before routing, and the rail item, the Case ribbon's Send photo link, the contact's Photo links tab and Send a photo link's settings in Administration › Configuration are absent. Bicep sets it on Web and on the Worker, which settles captures. |
+| `PhotoCapture:PublicOrigin` | The absolute `https` origin printed in photo links and standing links. Required when the gate is on. Production's is `https://pegasus-prod-web-252ow37gij.azurewebsites.net/` (R779); the hosted test instance's is its `:8443` Funnel origin (R785). Bicep sets it on Web. |
+
+Neither is a secret, so there is no Key Vault change. The capture limits are
+constants in Core, not configuration. Send a photo link's starting values and
+the lifetimes it offers are Administration › Configuration settings an
+Administrator changes, not deployment settings
+([FRD-17](../frd/frd-17-administration-workspace.md#workflow-configuration)).
+
 ## Local opt-in features
 
 The `DevelopmentOffline` profile accepts five opt-ins that a hosted local test

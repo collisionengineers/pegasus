@@ -62,6 +62,12 @@
           "ModelContextProtocol": "[2.2.0]"
         }
       },
+      "Net.Codecrete.QrCodeGenerator": {
+        "type": "Direct",
+        "requested": "[2.0.6, )",
+        "resolved": "2.0.6",
+        "contentHash": "2Go9wbHKqpNkU3E/RGMOLx0icLGjRxZklS/CHM2Zy+iGymK+lBEJnacxouhAGQrhesYa+NG1s0dnYbIIIYGlbQ=="
+      },
       "OpenIddict.AspNetCore": {
         "type": "Direct",
         "requested": "[7.6.0, )",

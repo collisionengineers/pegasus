@@ -1277,6 +1277,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         IntakeSourceChannel.Mailbox => "mailbox",
         IntakeSourceChannel.Automation => "automation",
         IntakeSourceChannel.PrincipalApi => "principal_api",
+        IntakeSourceChannel.PhotoCapture => "photo_capture",
         _ => throw UnknownEnum(value)
     };
 
@@ -1291,6 +1292,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "mailbox" => IntakeSourceChannel.Mailbox,
         "automation" => IntakeSourceChannel.Automation,
         "principal_api" => IntakeSourceChannel.PrincipalApi,
+        "photo_capture" => IntakeSourceChannel.PhotoCapture,
         _ => throw UnknownCode("source channel", value)
     };
 

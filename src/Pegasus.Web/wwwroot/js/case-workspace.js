@@ -1796,10 +1796,14 @@
     // A tag or In report can move every image's place (operator, 7 October
     // 2026), so the whole grid is drawn again in the order and with the
     // places the server now holds; staged rotation and crop stay on the form.
+    // A Case with photo links draws its images as the links' story
+    // (FRD-28), one [data-image-story] block in place of the one grid; the
+    // whole block is drawn again, as the grid is.
     function redrawImageTile(parsed, id, focusInReport) {
         var current = document.querySelector('[data-image-tile="' + id + '"]');
-        var grid = current ? current.closest('[data-image-grid]') : null;
-        var nextGrid = parsed.querySelector('[data-image-grid]');
+        var story = current ? current.closest('[data-image-story]') : null;
+        var grid = story || (current ? current.closest('[data-image-grid]') : null);
+        var nextGrid = parsed.querySelector(story ? '[data-image-story]' : '[data-image-grid]');
         if (!grid || !nextGrid || !nextGrid.querySelector('[data-image-tile="' + id + '"]')) { return; }
         if (window.pegasusCasePreparation && window.pegasusCasePreparation.adopt) {
             Array.prototype.forEach.call(nextGrid.querySelectorAll('[data-preparation-card]'), function (tile) {
@@ -4352,15 +4356,21 @@
 // the Case Save cannot disagree. The Overview and the Close-up hold places 1
 // and 2 by their tags (operator, 7 October 2026): nothing moves them or lands
 // above them. A click on the image opens the viewer.
+// A Case with photo links draws its images in the links' story (FRD-28;
+// R774): one [data-image-story] block whose tiles stand in story order, not
+// report order. There a drop or a typed order changes the places the order
+// boxes hold, numbering the report's images again in the new sequence, and
+// no tile leaves its story group.
 (function () {
     'use strict';
 
     function bind(root) {
-        root.querySelectorAll('[data-image-grid]').forEach(function (grid) {
+        root.querySelectorAll('[data-image-grid], [data-image-story]').forEach(function (grid) {
             if (grid.dataset.imageGridBound === 'true') {
                 return;
             }
             grid.dataset.imageGridBound = 'true';
+            var story = grid.hasAttribute('data-image-story');
             var dragging = null;
 
             var renumbering = false;
@@ -4368,32 +4378,55 @@
             function tileOf(element) {
                 return element ? element.closest('[data-image-tile][data-preparation-card]') : null;
             }
-            function inReport() {
-                return Array.prototype.filter.call(
-                    grid.querySelectorAll('[data-image-tile][data-preparation-card]'),
-                    function (tile) { return tile.getAttribute('data-preparation-in-report') === 'true'; });
-            }
             function isFixed(tile) {
                 return tile.getAttribute('data-preparation-fixed') === 'true';
             }
+            function orderOf(tile) {
+                var order = tile.querySelector('[data-preparation-order]');
+                var value = order ? Math.floor(Number(order.value)) : 0;
+                return value > 0 ? value : Number.MAX_SAFE_INTEGER;
+            }
+            // The report's images in the order they print: the tiles' order
+            // in the grid, or, in a story, the places their order boxes hold,
+            // the fixed ones first.
+            function inReport() {
+                var tiles = Array.prototype.filter.call(
+                    grid.querySelectorAll('[data-image-tile][data-preparation-card]'),
+                    function (tile) { return tile.getAttribute('data-preparation-in-report') === 'true'; });
+                if (!story) { return tiles; }
+                return tiles
+                    .map(function (tile, index) { return { tile: tile, index: index }; })
+                    .sort(function (a, b) {
+                        return (isFixed(b.tile) - isFixed(a.tile))
+                            || (orderOf(a.tile) - orderOf(b.tile))
+                            || (a.index - b.index);
+                    })
+                    .map(function (entry) { return entry.tile; });
+            }
             // Puts a movable tile at a place among the images in the report,
-            // never above the fixed ones.
+            // never above the fixed ones. In a grid the tile moves; in a story
+            // the sequence the places are then numbered in is returned.
             function place(tile, at) {
                 var tiles = inReport();
-                var fixedCount = tiles.filter(isFixed).length;
+                var fixed = tiles.filter(isFixed);
                 var movable = tiles.filter(function (other) { return !isFixed(other) && other !== tile; });
-                var index = Math.min(Math.max(at - fixedCount - 1, 0), movable.length);
+                var index = Math.min(Math.max(at - fixed.length - 1, 0), movable.length);
+                if (story) {
+                    movable.splice(index, 0, tile);
+                    return fixed.concat(movable);
+                }
                 if (index < movable.length) {
                     grid.insertBefore(tile, movable[index]);
                 } else if (movable.length) {
                     movable[movable.length - 1].after(tile);
-                } else if (fixedCount) {
-                    tiles.filter(isFixed)[fixedCount - 1].after(tile);
+                } else if (fixed.length) {
+                    fixed[fixed.length - 1].after(tile);
                 }
+                return null;
             }
-            function renumber() {
+            function renumber(sequence) {
                 renumbering = true;
-                inReport().forEach(function (tile, index) {
+                (sequence || inReport()).forEach(function (tile, index) {
                     var order = tile.querySelector('[data-preparation-order]');
                     if (order && order.value !== String(index + 1)) {
                         order.value = String(index + 1);
@@ -4401,6 +4434,11 @@
                     }
                 });
                 renumbering = false;
+            }
+            // The place a dragged tile takes when dropped on another: above it.
+            function placeAbove(tile, over) {
+                var others = inReport().filter(function (other) { return other !== tile; });
+                return others.indexOf(over) + 1;
             }
 
             grid.addEventListener('dragstart', function (event) {
@@ -4426,12 +4464,15 @@
                 if (!dragging || !over || over === dragging) { return; }
                 event.preventDefault();
                 over.classList.remove('is-drop');
+                var sequence = null;
                 if (isFixed(over)) {
-                    place(dragging, 1);
+                    sequence = place(dragging, 1);
+                } else if (story) {
+                    sequence = place(dragging, placeAbove(dragging, over));
                 } else {
                     grid.insertBefore(dragging, over);
                 }
-                renumber();
+                renumber(sequence);
             });
             grid.addEventListener('dragend', function () {
                 if (dragging) { dragging.classList.remove('is-dragging'); }
@@ -4445,8 +4486,7 @@
                 var order = event.target.closest('[data-preparation-order]');
                 var tile = tileOf(order);
                 if (renumbering || !order || !tile || order.readOnly || order.value === '') { return; }
-                place(tile, Math.floor(Number(order.value)) || 1);
-                renumber();
+                renumber(place(tile, Math.floor(Number(order.value)) || 1));
             });
         });
     }

@@ -50,11 +50,16 @@ public sealed class AddCaseNote(ICaseNoteStore store, TimeProvider timeProvider)
         // instructing Principal (operator decision, 2026-08-28) notes the
         // instruction's own words on its own right, so no other Principal API
         // permission follows from it.
+        // A photo link's settle writes the sender's note as system work
+        // (FRD-28), the one note the system writes in a person's words.
         StaffAuthorization.Require(
             request.Actor,
-            request.Actor.Kind == ActorKind.Principal
-                ? StaffAccessRight.SubmitPrincipalInstruction
-                : StaffAccessRight.PerformCasework);
+            request.Actor.Kind switch
+            {
+                ActorKind.Principal => StaffAccessRight.SubmitPrincipalInstruction,
+                ActorKind.SystemWorker => StaffAccessRight.ExecuteSystemWork,
+                _ => StaffAccessRight.PerformCasework
+            });
 
         if (request.CaseId == Guid.Empty)
         {

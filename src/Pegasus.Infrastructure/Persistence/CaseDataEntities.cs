@@ -59,4 +59,5 @@ internal static class CaseDataCodes
     public const string VehicleLookup = "vehicle_lookup";
     public const string PrincipalSetting = "principal_setting";
     public const string PrincipalApi = "principal_api";
+    public const string PhotoLink = "photo_link";
 }

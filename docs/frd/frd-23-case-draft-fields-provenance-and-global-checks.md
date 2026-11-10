@@ -34,7 +34,8 @@ Each Case datum keeps its current provenance: staff entry, extraction, AI
 prefill or proposal, Principal API, or another external vehicle or estimate
 source, with its identity, version, and time. The UI shows provenance without
 treating it as confirmation: one word in a source tag beside the value
-(Extracted, AI, E-mail, Lookup, Principal, Automatic, Principal API), and no tag
+(Extracted, AI, E-mail, Lookup, Principal, Automatic, Principal API, Photo
+link), and no tag
 on a value staff typed or corrected. A derived value names its inputs and
 calculation rather than claiming a raw source. A standalone Audit's Original
 report cells are Extracted from the reading intake already recorded of that
@@ -44,7 +45,7 @@ report, and from a fresh read of it only when none was recorded (operator,
 
 Each datum also carries a value kind (Fact, Suggestion, or Confirmed) and a
 source kind (intake evidence, mail route, case acceptance, staff correction,
-vehicle lookup, Principal setting, or Principal API). `principal_code`
+vehicle lookup, Principal setting, Principal API, or Photo link). `principal_code`
 names the Principal for match indexing and the Case export. It is Confirmed with
 source kind case acceptance when staff acceptance names the Principal (see
 [Ways intake starts](frd-02-intake-and-source-identity.md#ways-intake-starts)),
@@ -53,6 +54,21 @@ replacement Case
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 A Confirmed value supersedes an earlier Fact or Suggestion for current use
 without erasing it from history.
+
+**Photo link details.** When a photo link's capture settles on a Case, the
+claimant name, contact number, accident date and mileage its sender typed
+fill the Case's empty fields as Facts with source kind Photo link, tagged
+**Photo link**. A value already on the Case is never overwritten, and the
+registration is never written. The typed inspection location is not
+written to the Case: it stays on the capture with the photos (operator,
+9 November 2026, [R811](../rulings.md), narrowing R783). The sender's views
+with no Case field (roadworthy, preferred outcome, in hire, airbags and
+steering) stay on the capture (operator, 9 November 2026,
+[R783](../rulings.md);
+[FRD-28](frd-28-guided-photo-capture.md#case-field-filling)). A Photo link
+mileage ranks in the mileage evidence below the instruction and above the
+DVSA estimate, and the report keeps the instructing principal's sentence
+for it whoever typed it (operator, 9 November 2026, [R810](../rulings.md)).
 
 The draft shows its section blockers, missing values and contradictions
 (operator rulings, 15 and 16 October 2026). The section blockers are the
@@ -81,10 +97,15 @@ applicable DVLA or MOT source. Mileage evidence ranks as:
    engineer report supplied with a Principal's instruction;
 3. Document Intelligence extraction from a scanned instruction, or future
    odometer-vision evidence;
-4. a DVSA-derived estimate.
+4. a mileage typed on a photo link's form
+   ([FRD-28](frd-28-guided-photo-capture.md#case-field-filling)), below
+   anything from the instruction (operator, 9 November 2026,
+   [R810](../rulings.md));
+5. a DVSA-derived estimate.
 
 DVSA runs for every Case. Its estimate fills the Case mileage only when no
-higher-tier value exists. The odometer-vision
+higher-tier value exists, so it never replaces a photo link's mileage
+(R810). The odometer-vision
 capability does not imply an activated AI caller before its own accepted
 evaluation and integration contract. The estimate method is owned by
 [FRD-06](frd-06-vehicle-and-engineering-evidence.md#conservative-mot-mileage-estimation).
@@ -135,8 +156,8 @@ print it.
 - A higher-tier mileage value exists: the DVSA estimate never overwrites
   it.
 - Mileage evidence is used in tier order: staff-entered, extracted from the
-  instruction, Document Intelligence or odometer vision, then the DVSA
-  estimate.
+  instruction, Document Intelligence or odometer vision, typed on a photo
+  link (R810), then the DVSA estimate.
 - A derived value names its inputs and calculation. It never claims a raw
   source.
 - The instruction's combined vehicle description is never split into make

@@ -225,6 +225,24 @@ public static class IntakeEvidenceSignals
 public static class IntakeActorIdentity
 {
     private const string StaffPrefix = "staff:";
+    private const string PhotoCapturePrefix = "photo-capture:";
+
+    /// <summary>The actor a photo link's receipts carry: the capture, not a person (FRD-28).</summary>
+    public static string PhotoCapture(Guid captureId) =>
+        PhotoCapturePrefix + captureId.ToString("N");
+
+    public static bool TryParsePhotoCapture(string? actor, out Guid captureId)
+    {
+        if (actor is not null
+            && actor.StartsWith(PhotoCapturePrefix, StringComparison.Ordinal)
+            && Guid.TryParseExact(actor[PhotoCapturePrefix.Length..], "N", out captureId))
+        {
+            return true;
+        }
+
+        captureId = Guid.Empty;
+        return false;
+    }
 
     public static string Staff(string subjectId)
     {
@@ -259,7 +277,14 @@ public enum IntakeSourceChannel
     ManualUpload,
     Mailbox,
     Automation,
-    PrincipalApi
+    PrincipalApi,
+
+    /// <summary>
+    /// A photo, document or video a photo link received from a customer's or
+    /// an AMC's or bodyshop's phone (FRD-28). Each item is its own receipt;
+    /// its capture decides where it files.
+    /// </summary>
+    PhotoCapture
 }
 
 public enum InstructionPolicyApplicability
@@ -1396,10 +1421,17 @@ public interface IIntakeMutationStore
         throw new NotSupportedException("Declared upload destinations are not supported by this store.");
 }
 
+/// <param name="Decider">
+/// Whose decision the declared destination is: the member of staff who chose
+/// the Case before uploading (FRD-18), the member of staff who issued a photo
+/// link for it, or the system worker that routed a standing photo link's
+/// capture to the one eligible Case (FRD-28). The association is recorded in
+/// that actor's name and kind.
+/// </param>
 public sealed record DeclaredDestinationLinkRequest(
     Guid ReceiptId,
     Guid CaseId,
-    string StaffSubjectId,
+    ActionActor Decider,
     string OperationKey,
     string Reason);
 

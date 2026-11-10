@@ -64,7 +64,8 @@ public sealed class ReconcileGroupedImageIntake(
             var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken);
             if (receipt is null
                 || receipt.Decision != IntakeDecision.NeedsSorting
-                || !ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt))
+                || !(ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt)
+                    || PhotoCapture.PhotoCaptureIntakeRules.RoutesWithItsGroup(receipt)))
             {
                 continue;
             }
@@ -86,15 +87,19 @@ public sealed class ReconcileGroupedImageIntake(
                 // the escape reads neither again.
                 var result = await processQueuedIntake.ProcessAsync(stagedReceiptId.Value, cancellationToken);
                 retried++;
+                // A photo link's group never escapes to Unidentified (FRD-28):
+                // past its window it is only re-driven, pass after pass.
                 if (result.PendingGroup is { GroupReading: { } reading } pending
                     && pending.Receipt.Decision == IntakeDecision.NeedsSorting
-                    && IntakeEscapeWindow.HasClosed(reading.Group))
-                {
-                    await unidentifiedGroups.ExecuteAsync(
+                    && IntakeEscapeWindow.HasClosed(reading.Group)
+                    && PhotoCapture.PhotoCaptureIntakeRules.BecomesUnidentified(reading.Group.Channel)
+                    && await unidentifiedGroups.ExecuteAsync(
+                        reading.Group.Channel,
                         ImageIntakeGroupRoutingPolicy.BuildUnidentifiedRegistrationRequest(
                             reading.Group, "group_processing_incomplete"),
                         await ReadMembersAsync(reading, pending.Receipt, cancellationToken),
-                        cancellationToken);
+                        cancellationToken))
+                {
                     escaped++;
                 }
             }

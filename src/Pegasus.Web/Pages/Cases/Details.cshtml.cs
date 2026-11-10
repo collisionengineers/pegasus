@@ -92,7 +92,9 @@ public sealed partial class DetailsModel(
     ILogger<DetailsModel> logger,
     IGetCaseKind getCaseKind,
     IValidateCaseRenderLease? validateCaseRenderLease = null,
-    IStaffMailSend? staffMailSend = null) : CaseMutationPageModel(logger)
+    IStaffMailSend? staffMailSend = null,
+    Pegasus.Core.PhotoCapture.IPhotoCaptureQueries? photoCaptureQueries = null,
+    IConfiguration? configuration = null) : CaseMutationPageModel(logger)
 {
     /// <summary>Inputs the Repair Spec grid binds to the Case form for each line (<c>_CaseEstimate.cshtml</c>).</summary>
     internal const int EstimateLineInputs = 9;
@@ -205,6 +207,39 @@ public sealed partial class DetailsModel(
     /// </summary>
     public IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> ImagesByIntake { get; private set; } =
         new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
+
+    /// <summary>
+    /// Every photo link whose items are on the Case, with the items, for the
+    /// Files → Images story (FRD-28, FRD-16): one read with the Files body,
+    /// none while photo capture is not composed.
+    /// </summary>
+    public IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory> PhotoCaptureStories { get; private set; } = [];
+
+    /// <summary>
+    /// Whether a photo link on the Case still takes photos, so its story
+    /// offers Cancel (R795) and, with nothing yet, Resend the link (R806). A
+    /// link on an archived Case is dead (R793).
+    /// </summary>
+    public bool IsPhotoLinkLive(Pegasus.Core.PhotoCapture.PhotoCapture capture) =>
+        Pegasus.Core.PhotoCapture.PhotoCaptureAccess.IsLive(capture, clock.GetUtcNow(), CurrentWorkflow?.Archive is not null);
+
+    /// <summary>
+    /// A photo link's derived status beside it on the Case (R806), the way
+    /// the Photo capture lists derive it: from its record and what it still
+    /// lacks, never stored.
+    /// </summary>
+    public Pegasus.Core.PhotoCapture.PhotoCaptureState PhotoLinkState(Pegasus.Core.PhotoCapture.CasePhotoCaptureStory story)
+    {
+        ArgumentNullException.ThrowIfNull(story);
+        var capture = story.Capture;
+        var missing = Pegasus.Core.PhotoCapture.PhotoCaptureRequiredItems.Evaluate(
+            capture,
+            story.Items,
+            Pegasus.Core.PhotoCapture.PhotoCaptureRequiredItems.VinRequired(capture, story.StandingLinkIsRepairer));
+        var photographs = story.Items.Count(item => Pegasus.Core.PhotoCapture.PhotoCaptureStory.IsPhotographKind(item.Kind));
+        return Pegasus.Core.PhotoCapture.PhotoCaptureStatus.Evaluate(
+            capture, missing, photographs, clock.GetUtcNow(), CurrentWorkflow?.Archive is not null);
+    }
 
     /// <summary>
     /// Every image occurrence's report preparation (B06), loaded with the
@@ -1888,7 +1923,8 @@ public sealed partial class DetailsModel(
     private sealed record FilesReads(
         IReadOnlyList<ImageIntakeSummary> ImageIntakes,
         IReadOnlyList<ImageTag> TagVocabulary,
-        IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> ImagesByIntake);
+        IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> ImagesByIntake,
+        IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory> PhotoCaptures);
 
     /// <summary>
     /// The Files body alone needs its image-intake and instruction-photo lists.
@@ -1907,8 +1943,15 @@ public sealed partial class DetailsModel(
             ? readImageTagVocabulary.ListAsync(cancellationToken)
             : Task.FromResult<IReadOnlyList<ImageTag>>([]);
         var intakesAndImages = ReadIntakesAndImagesAsync(caseId, cancellationToken);
-        await Task.WhenAll(vocabulary, intakesAndImages);
-        return new(intakesAndImages.Result.Intakes, vocabulary.Result, intakesAndImages.Result.Images);
+        // The photo links on the Case: one statement, with the Files body only
+        // (FRD-28), so its images can stand in story order.
+        var photoCaptures = photoCaptureQueries is not null
+            && configuration is not null
+            && Pegasus.Web.Presentation.ShellRail.PhotoCaptureEnabled(configuration)
+                ? photoCaptureQueries.ListForCaseAsync(caseId, cancellationToken)
+                : Task.FromResult<IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory>>([]);
+        await Task.WhenAll(vocabulary, intakesAndImages, photoCaptures);
+        return new(intakesAndImages.Result.Intakes, vocabulary.Result, intakesAndImages.Result.Images, photoCaptures.Result);
     }
 
     private async Task<(
@@ -1932,6 +1975,7 @@ public sealed partial class DetailsModel(
         ImageIntakes = files.ImageIntakes;
         TagVocabulary = files.TagVocabulary;
         ImagesByIntake = files.ImagesByIntake;
+        PhotoCaptureStories = files.PhotoCaptures;
     }
 
     private async Task LoadDirectSectionsAsync(

@@ -170,6 +170,34 @@ public sealed class ProcessIntakeTests
         Assert.False(ProcessIntake.IsUnidentifiedEligible(receipt));
     }
 
+    /// <summary>
+    /// A photo link's item with no Case yet waits for its capture to be sent:
+    /// nothing identifies it, and the Intake log gives the reason in the
+    /// operator's words (9 November 2026; R805), not a staff upload's.
+    /// </summary>
+    [Fact]
+    public async Task APhotoLinkItemWithNoCaseRecordsThatItWaitsForItsCapture()
+    {
+        var store = new RecordingStore();
+        var registerUnidentified = new RecordingRegisterUnidentified();
+        var sut = CreateSut(new StubReader(Readable()), store, registerUnidentified: registerUnidentified);
+        var source = CreateSource() with
+        {
+            SourceIdentity = new(IntakeSourceChannel.PhotoCapture, "55555555555555555555555555555555-1")
+        };
+
+        await sut.ExecuteRetainedAsync(source, "retained/photo.jpg");
+
+        var draft = Assert.Single(store.Drafts);
+        Assert.Equal(IntakeDecision.NeedsSorting, draft.Decision);
+        Assert.Equal(Pegasus.Core.PhotoCapture.PhotoCaptureIntakeRules.WaitingReason, draft.DecisionReason);
+        Assert.Contains(draft.Evidence, evidence =>
+            evidence.Signal == IntakeEvidenceSignals.DeclaredDestination
+            && evidence.Detail == Pegasus.Core.PhotoCapture.PhotoCaptureIntakeRules.WaitingReason);
+        Assert.DoesNotContain(draft.Evidence, evidence => evidence.Detail.Contains("declared by staff", StringComparison.Ordinal));
+        Assert.Empty(registerUnidentified.Requests);
+    }
+
     [Fact]
     public async Task DeclaredDestinationIsRefusedOnTheDirectPath()
     {

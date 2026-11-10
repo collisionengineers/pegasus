@@ -26,7 +26,14 @@ public enum CaseDataSourceKind
     /// names the Principal API as a field provenance in its own right, distinct
     /// from extraction and from staff entry.
     /// </summary>
-    PrincipalApi
+    PrincipalApi,
+
+    /// <summary>
+    /// Typed by the sender on a photo link and written into an empty field
+    /// when the capture settled (FRD-28; operator, 9 November 2026). Shown
+    /// with the source tag "Photo link"; never replaces a value already there.
+    /// </summary>
+    PhotoLink
 }
 
 public enum CaseInspectionMode

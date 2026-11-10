@@ -24,6 +24,9 @@ the instance has one host and its tooling refuses any other machine; it
 runs `dev` by default and a branch or pull request head when the operator
 names it; its data is not disposable, so a Reset needs the operator's word
 and no production extract is kept as a file.
+Amended 9 November 2026 (R779, R785): while `Features__PhotoCapture` is on
+there, Funnel on 8443 also exposes the photo capture paths `/c`, `/s` and
+`/capture`; see Decision.
 
 Accepted on the operator's rulings of 2 November 2026 (R623 to R628). It
 supersedes one clause of [ADR-0014](0014-local-to-production-deployment.md),
@@ -90,8 +93,11 @@ their Tailscale network, at no Azure cost (R623).
   both.
 - Change subscriptions are the instance's own, never production's: a Graph
   subscription is bound to the notification URL it was created with. Graph
-  reaches the instance only through Tailscale Funnel on port 8443 for the one
-  path `/hooks/microsoft-graph/mail` (R676); port 443 stays tailnet-only. The
+  reaches the instance only through Tailscale Funnel on port 8443 for the
+  path `/hooks/microsoft-graph/mail` (R676); while `Features__PhotoCapture`
+  is on there, Funnel on 8443 also exposes `/c`, `/s` and `/capture`, and
+  `PhotoCapture__PublicOrigin` is that Funnel origin (9 November 2026, R785);
+  port 443 stays tailnet-only. The
   Worker maintains subscriptions only when `Graph:ChangeNotificationUrl` and
   `Graph:ChangeNotificationClientState` are both set; without them the
   five-minute recovery poll carries mail.
@@ -133,11 +139,13 @@ their Tailscale network, at no Azure cost (R623).
   skill. Its tooling is the lifecycle's `-PublicOrigin` and Reset's
   `-Approve`, the host gate in `scripts/PegasusPlatform.ps1`, the
   `Features:LiveGraphMail` opt-in with the two webhook keys, Funnel on the
-  webhook path, and `scripts/Copy-ProductionDatabaseToRun.ps1`.
+  webhook path and the photo capture paths, and
+  `scripts/Copy-ProductionDatabaseToRun.ps1`.
 - The fences are no longer in the grant. They are the test mailbox being
   the instance's own, the operator enabling any production mailbox on the
   instance, the copy's deactivation and closures, the scope
-  that admits only the named mailboxes, and Funnel limited to one path. The
+  that admits only the named mailboxes, and Funnel limited to the webhook
+  path and, while photo capture is on there, its three paths (R785). The
   app registration, its scope, the permitted and denied checks and the Funnel
   origin are recorded in [operations](../operations.md) when they exist.
 
@@ -145,5 +153,6 @@ their Tailscale network, at no Azure cost (R623).
 
 - Superseded clause: [ADR-0014](0014-local-to-production-deployment.md).
 - Workstations: [ADR-0039](0039-windows-and-linux-release-workstations.md).
-- Rulings: R623 to R629, R675 to R680 and R693 to R696 in [rulings](../rulings.md).
+- Rulings: R623 to R629, R675 to R680, R693 to R696 and R785 in
+  [rulings](../rulings.md).
 - Procedure: [runbook, local live-integration run](../runbook.md#local-live-integration-run).
