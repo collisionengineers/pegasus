@@ -1,0 +1,58 @@
+/* Photo capture (FRD-28; R774): the list, the Send page, a link's page and
+   the standing link box. Linked from Pages/PhotoCapture/* and the Contacts
+   edit page's Photo links tab only. */
+
+.photo-capture-tabs { margin-bottom: 10px; }
+
+.photo-capture-queue { grid-template-columns: 185px minmax(0, 1fr); min-height: 0; }
+.photo-capture-queue > .pane { min-width: 0; }
+.photo-capture-list .pane-head .meta { font-size: 12px; color: var(--muted); }
+.photo-capture-filters { margin: 0 0 0 auto; }
+.photo-capture-filters .field { min-width: 0; }
+.photo-capture-filters select,
+.photo-capture-filters input { width: auto; min-height: 32px; font-size: 12px; }
+.photo-capture-filters input[type="search"] { width: 260px; }
+
+.photo-capture-table { overflow-x: auto; }
+.photo-capture-table .table td { overflow-wrap: anywhere; }
+.photo-capture-table .table td.nowrap { white-space: nowrap; overflow-wrap: normal; }
+.photo-capture-table .table-row-link { font-weight: 600; }
+.photo-capture-table form { display: inline; }
+.photo-capture-empty { padding: 18px 12px; font-size: 12px; color: var(--quiet); }
+.photo-capture-sub { display: block; }
+
+/* A link shown once to copy, and a standing link with its QR code. */
+.photo-link-panel { margin-top: 14px; }
+.photo-link-box { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.photo-link-url { padding: 6px 9px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); font-size: 12px; overflow-wrap: anywhere; user-select: all; }
+.photo-link-standing { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.photo-link-standing > .stack { flex: 1 1 280px; min-width: 0; }
+.photo-link-qr { flex: none; width: 152px; height: 152px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+.photo-link-qr svg { display: block; width: 100%; height: 100%; }
+.photo-link-standing .button-row form { display: inline; }
+
+/* Send a photo link: who it is for and how it goes beside the link's settings. */
+.photo-link-send { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 14px; align-items: start; }
+.photo-link-send-actions { justify-content: flex-end; }
+
+/* A link's page: facts and what they told us beside the photos and history. */
+.photo-link-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; margin-top: 14px; }
+.page-actions form.cluster select { width: auto; }
+
+/* The story groups on a link's page. */
+.photo-story-group + .photo-story-group { border-top: 1px solid var(--line); padding-top: 10px; }
+.photo-story-heading { font-size: 12px; font-weight: 700; margin: 0 0 6px; }
+.photo-story-stage { font-size: 11px; font-weight: 650; color: var(--quiet); margin: 6px 0 4px; }
+.photo-story-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 12px; }
+.photo-story-items li { display: flex; justify-content: space-between; gap: 10px; }
+
+@media (max-width: 1180px) {
+    .photo-link-send,
+    .photo-link-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 760px) {
+    .photo-capture-queue { grid-template-columns: minmax(0, 1fr); }
+    .photo-capture-queue > .pane:first-child { border-bottom: 1px solid var(--line); }
+    .photo-capture-filters input[type="search"] { width: 100%; }
+}

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.PhotoCapture;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -162,8 +164,8 @@ internal sealed class EfPreCaseImagePreparationStore(
     /// <summary>
     /// A pre-Case image becoming a Case document keeps what staff already made of
     /// it: the rotation and crop land on the occurrence's preparation columns and
-    /// each tag becomes an occurrence tag. Called inside the transaction that adds
-    /// the occurrence.
+    /// each tag becomes an occurrence tag; a photo link's image also arrives in
+    /// its basket. Called inside the transaction that adds the occurrence.
     /// </summary>
     internal static async Task CopyToOccurrenceAsync(
         PegasusDbContext context,
@@ -176,17 +178,19 @@ internal sealed class EfPreCaseImagePreparationStore(
         var tags = await context.Set<IntakeAssetTagEntity>().AsNoTracking()
             .Where(item => item.IntakeAssetId == intakeAssetId)
             .ToListAsync(cancellationToken);
-        ApplyToOccurrence(context, occurrence, preparation, tags);
+        var arrivals = await ReadArrivalsAsync(context, [intakeAssetId], cancellationToken);
+        ApplyToOccurrence(context, occurrence, preparation, tags, arrivals.GetValueOrDefault(intakeAssetId));
     }
 
     /// <summary>
-    /// The preparation and tags of several pre-Case images in two reads, for a
-    /// caller that copies each onto its own occurrence with
-    /// <see cref="ApplyToOccurrence"/>.
+    /// The preparation, tags and photo link arrival of several pre-Case images
+    /// in three reads, for a caller that copies each onto its own occurrence
+    /// with <see cref="ApplyToOccurrence"/>.
     /// </summary>
     internal static async Task<(
         IReadOnlyDictionary<Guid, IntakeAssetPreparationEntity> Preparations,
-        ILookup<Guid, IntakeAssetTagEntity> Tags)> LoadForAssetsAsync(
+        ILookup<Guid, IntakeAssetTagEntity> Tags,
+        IReadOnlyDictionary<Guid, PhotoCaptureArrival> Arrivals)> LoadForAssetsAsync(
         PegasusDbContext context,
         IReadOnlyCollection<Guid> intakeAssetIds,
         CancellationToken cancellationToken)
@@ -195,7 +199,8 @@ internal sealed class EfPreCaseImagePreparationStore(
         {
             return (
                 new Dictionary<Guid, IntakeAssetPreparationEntity>(),
-                Array.Empty<IntakeAssetTagEntity>().ToLookup(tag => tag.IntakeAssetId));
+                Array.Empty<IntakeAssetTagEntity>().ToLookup(tag => tag.IntakeAssetId),
+                new Dictionary<Guid, PhotoCaptureArrival>());
         }
 
         var preparations = await context.Set<IntakeAssetPreparationEntity>().AsNoTracking()
@@ -204,14 +209,41 @@ internal sealed class EfPreCaseImagePreparationStore(
         var tags = await context.Set<IntakeAssetTagEntity>().AsNoTracking()
             .Where(item => intakeAssetIds.Contains(item.IntakeAssetId))
             .ToListAsync(cancellationToken);
-        return (preparations, tags.ToLookup(tag => tag.IntakeAssetId));
+        var arrivals = await ReadArrivalsAsync(context, intakeAssetIds, cancellationToken);
+        return (preparations, tags.ToLookup(tag => tag.IntakeAssetId), arrivals);
+    }
+
+    /// <summary>
+    /// What a photo link's item arrives as on the Case (FRD-28; R775): its
+    /// kind, for the tag it arrives with, and whether it arrives In report.
+    /// </summary>
+    internal sealed record PhotoCaptureArrival(PhotoCaptureItemKind Kind, bool InReportOnArrival);
+
+    /// <summary>The photo link items the assets were received as, by asset; an asset no capture sent has none.</summary>
+    private static async Task<Dictionary<Guid, PhotoCaptureArrival>> ReadArrivalsAsync(
+        PegasusDbContext context,
+        IReadOnlyCollection<Guid> intakeAssetIds,
+        CancellationToken cancellationToken)
+    {
+        // The IS NOT NULL test lets the read seek the filtered asset index.
+        var ids = intakeAssetIds.Select(id => (Guid?)id).ToArray();
+        var rows = await context.PhotoCaptureItems.AsNoTracking()
+            .Where(item => item.IntakeAssetId != null && ids.Contains(item.IntakeAssetId))
+            .Select(item => new { item.IntakeAssetId, item.Kind, item.InReportOnArrival })
+            .ToListAsync(cancellationToken);
+        return rows
+            .DistinctBy(row => row.IntakeAssetId)
+            .ToDictionary(
+                row => row.IntakeAssetId!.Value,
+                row => new PhotoCaptureArrival(PhotoCaptureCodes.ParseItemKind(row.Kind), row.InReportOnArrival));
     }
 
     internal static void ApplyToOccurrence(
         PegasusDbContext context,
         DocumentOccurrenceEntity occurrence,
         IntakeAssetPreparationEntity? preparation,
-        IReadOnlyCollection<IntakeAssetTagEntity> tags)
+        IReadOnlyCollection<IntakeAssetTagEntity> tags,
+        PhotoCaptureArrival? arrival)
     {
         if (preparation is not null)
         {
@@ -236,9 +268,37 @@ internal sealed class EfPreCaseImagePreparationStore(
                 OperationKey = $"pre-case-tag:{occurrence.Id:N}:{tag.TagId:N}"
             });
         }
+
+        // A photo link's image arrives in its basket (FRD-28; R775): another
+        // vehicle's photo tagged Third party, as the routing's system work,
+        // beside any tag staff already gave it, and the additional
+        // information out of the report.
+        var capturedImage = arrival is not null && occurrence.SemanticRole == DocumentSemanticRole.Image
+            ? arrival
+            : null;
+        var arrivalTags = capturedImage is null
+            ? []
+            : PhotoCaptureStory.ArrivalTags(capturedImage.Kind)
+                .Where(tagId => tags.All(tag => tag.TagId != tagId))
+                .ToArray();
+        foreach (var tagId in arrivalTags)
+        {
+            context.Add(new DocumentOccurrenceTagEntity
+            {
+                OccurrenceId = occurrence.Id,
+                TagId = tagId,
+                AppliedByKind = nameof(ActorKind.SystemWorker),
+                AppliedBySubjectId = PhotoCaptureIntakeRules.RoutingActorId,
+                AppliedAtUtc = occurrence.RecordedAtUtc,
+                OperationKey = $"photo-capture-arrival:{occurrence.Id:N}:{tagId:N}"
+            });
+        }
+
         // An image arriving tagged Third party or Reflection starts out of
         // the report, as tagging it on the Case would leave it.
-        if (tags.Any(tag => ImageTagVocabulary.TakesImageOutOfReport(tag.TagId)))
+        if (tags.Any(tag => ImageTagVocabulary.TakesImageOutOfReport(tag.TagId))
+            || arrivalTags.Any(ImageTagVocabulary.TakesImageOutOfReport)
+            || capturedImage is { InReportOnArrival: false })
         {
             occurrence.InReport = false;
         }

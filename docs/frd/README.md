@@ -43,6 +43,7 @@ owner* column in [`capabilities.md`](../capabilities.md).
 | [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md) | Repair specifications, Glass's sessions, estimate sources, PDF estimate import | ENG, EXT |
 | [FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md) | Mailbox allowlist, activation, wipe, wake-up and recovery | MAIL, INT |
 | [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md) | Send to AI, reviewed proposals, the AI Job List, the Send to AI switch | AI, MCP |
+| [FRD-28](frd-28-guided-photo-capture.md) | Guided photo capture: photo links, standing links, the public capture app, capture intake and filing, the Photo capture workspace | EXT, INT, MAIL, UI |
 
 ## Template
 

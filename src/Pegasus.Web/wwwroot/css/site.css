@@ -916,6 +916,11 @@ textarea[data-notes-fit]{resize:vertical;overflow:hidden;line-height:1.5}
 .sub-panel{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px}
 .sub-panel>h3{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;display:flex;align-items:center;gap:8px}
 .sub-panel>h3 .rt{margin-left:auto;font-weight:400;text-transform:none;letter-spacing:0;font-size:11px}
+/* What a photo link's sender told us (Shared/_PhotoCaptureDetails, FRD-28): the
+   Case's Files, the link's page and the Vehicle images record. */
+.photo-capture-told{display:grid;gap:10px;min-width:0}
+.photo-capture-note{margin:0}
+.photo-capture-note blockquote{margin:0;padding:8px 10px;border-left:3px solid var(--amber);background:var(--amber-bg);border-radius:var(--radius);white-space:pre-line;overflow-wrap:anywhere}
 @media(max-width:1180px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.g2,.g3,.g4{grid-template-columns:minmax(0,1fr)}.fc.span2,.fc.span3,.fc.span4{grid-column:auto}}
 

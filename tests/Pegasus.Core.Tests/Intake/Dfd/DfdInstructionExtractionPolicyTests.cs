@@ -39,15 +39,85 @@ public sealed class DfdInstructionExtractionPolicyTests
         Assert.Null(draft.VatStatus);
     }
 
+    /// <summary>
+    /// The live template (receipts of 6 and 9 November 2026, R826): the accident
+    /// date is form field Text16, which version 1 read as Additional information
+    /// while looking for a Text7 the form no longer has.
+    /// </summary>
+    [Fact]
+    public void TheLiveFormsAccidentDateIsTheIncidentDate()
+    {
+        var result = ExtractLiveForm(("Text16", "5/11/26"), ("Text17", "6/11/26"));
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal(new DateOnly(2026, 11, 5), draft.DateOfIncident);
+        Assert.Equal("Text16", Assert.Single(Field(result, "Incident date").Candidates).Locator!.FormField);
+        Assert.DoesNotContain("Incident date", result.MissingFields);
+    }
+
+    [Fact]
+    public void TheDateInstructedIsNeitherAFieldNorAdditionalInformation()
+    {
+        var result = ExtractLiveForm(("Text16", "5/11/26"), ("Text17", "6/11/26"));
+
+        var additional = Field(result, "Additional information");
+        Assert.Null(additional.SuggestedValue);
+        Assert.Empty(additional.Candidates);
+        Assert.False(additional.HasConflict);
+        // The boundaries stop neighbouring values; they are not fields of the instruction.
+        Assert.Equal(
+            new DfdInstructionExtractionPolicy().FieldRoles.Keys.Order(StringComparer.Ordinal).ToArray(),
+            result.Fields.Select(field => field.Name).Order(StringComparer.Ordinal).ToArray());
+    }
+
+    [Fact]
+    public void AdditionalInformationReadsItsOwnBoxAlone()
+    {
+        var result = ExtractLiveForm(("Text15", "Keys are with the garage."), ("Text16", "5/11/26"), ("Text17", "6/11/26"));
+
+        var additional = Field(result, "Additional information");
+        Assert.Equal("Keys are with the garage.", additional.SuggestedValue);
+        Assert.False(additional.HasConflict);
+    }
+
+    /// <summary>
+    /// The form prints "(Below is optional)" under the contact field. With the
+    /// field blank, the page-text fallback must stop at that line rather than
+    /// read it as the claimant's contact.
+    /// </summary>
+    [Fact]
+    public void ABlankContactFieldDoesNotReadTheOptionalSectionNote()
+    {
+        var result = ExtractLiveForm(("Text16", "5/11/26"));
+
+        var contact = Field(result, "Claimant contact");
+        Assert.Null(contact.SuggestedValue);
+        Assert.Empty(contact.Candidates);
+    }
+
+    [Fact]
+    public void TheEarlierTemplatesText7StillReadsTheIncidentDate()
+    {
+        var result = ExtractLiveForm(("Text7", "28/04/2026"));
+
+        Assert.Equal(new DateOnly(2026, 4, 28), Assert.IsType<InstructionDraft>(result.InstructionDraft).DateOfIncident);
+    }
+
     private static InstructionExtractionResult Extract(params string[] values)
     {
-        string[] names = ["Text4", "Text6", "Text7", "Text8", "Text10", "Text11", "Text13"];
+        string[] names = ["Text4", "Text6", "Text16", "Text8", "Text10", "Text11", "Text13"];
         var fields = names.Zip(values, (name, value) => new IntakeContentFragment(
             IntakeEvidenceSource.PdfContent, $"DFD form field {name}", value, IntakeSourceLocator.ForFormField(name, 1))).ToArray();
         return new DfdInstructionExtractionPolicy().Extract(
             new(IntakeSourceReadStatus.Readable, fields, [], [], RequiresOcr: false),
             new(2026, 9, 6, 12, 0, 0, TimeSpan.Zero), new("DFD", DfdInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
     }
+
+    private static InstructionExtractionResult ExtractLiveForm(params (string Name, string Value)[] furtherFields) =>
+        new DfdInstructionExtractionPolicy().Extract(
+            new(IntakeSourceReadStatus.Readable, DfdLiveFormFixture.Content(furtherFields), [], [], RequiresOcr: false),
+            new(2026, 11, 9, 12, 0, 0, TimeSpan.Zero), new("DFD", DfdInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
+
     private static InstructionReviewField Field(InstructionExtractionResult result, string name) => Assert.Single(result.Fields, field => field.Name == name);
     private static string? Date(DateOnly? value) => value?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 }

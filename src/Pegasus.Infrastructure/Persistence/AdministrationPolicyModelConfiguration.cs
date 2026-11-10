@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.PhotoCapture;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -9,6 +10,12 @@ internal static class AdministrationPolicyModelConfiguration
     internal const string WorkflowPolicyKey = "case-workflow";
     internal static readonly Guid InitialInstructionsMailboxId =
         Guid.Parse("49f47eb9-c5b0-464f-b8f0-8c90ba061728");
+
+    /// <summary>The photo link Send page's starting mode before it was a setting: guided, as the capture tables write it.</summary>
+    internal static readonly string PhotoLinkStartModeDefault = PhotoCaptureCodes.ToCode(PhotoCaptureMode.Guided);
+
+    /// <summary>The lifetimes Send offered before they were a setting, in days, comma separated.</summary>
+    internal static readonly string PhotoLinkLifetimesOfferedDefault = string.Join(',', CaptureLimits.LifetimeDays);
 
     internal static void Configure(ModelBuilder builder)
     {
@@ -21,6 +28,14 @@ internal static class AdministrationPolicyModelConfiguration
                 table.HasCheckConstraint(
                     "CK_WorkflowConfigurations_TargetDays",
                     "[UnidentifiedTargetDays] BETWEEN 0 AND 365 AND [TriageTargetDays] BETWEEN 0 AND 365 AND [HeldTargetDays] BETWEEN 0 AND 365 AND [ReviewTargetDays] BETWEEN 0 AND 365 AND [AiDraftTargetDays] BETWEEN 0 AND 365");
+                // Send starts on one of the two modes, with one of the
+                // lifetimes a link may have: no new numbers (R813, R817).
+                table.HasCheckConstraint(
+                    "CK_WorkflowConfigurations_PhotoLinkStartMode",
+                    $"[PhotoLinkStartMode] IN ({PhotoCaptureCodes.SqlList(PhotoCaptureCodes.Modes)})");
+                table.HasCheckConstraint(
+                    "CK_WorkflowConfigurations_PhotoLinkDefaultLifetimeDays",
+                    $"[PhotoLinkDefaultLifetimeDays] IN ({string.Join(", ", CaptureLimits.LifetimeDays)})");
             });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Id).HasMaxLength(100);
@@ -33,6 +48,11 @@ internal static class AdministrationPolicyModelConfiguration
             entity.Property(item => item.HeldTargetDays).HasDefaultValue(7);
             entity.Property(item => item.ReviewTargetDays).HasDefaultValue(1);
             entity.Property(item => item.AiDraftTargetDays).HasDefaultValue(1);
+            entity.Property(item => item.PhotoLinkStartMode).HasMaxLength(10).HasDefaultValue(PhotoLinkStartModeDefault);
+            entity.Property(item => item.PhotoLinkStartLiveCameraOnly).HasDefaultValue(true);
+            entity.Property(item => item.PhotoLinkStartOriginals).HasDefaultValue(true);
+            entity.Property(item => item.PhotoLinkLifetimesOffered).HasMaxLength(20).HasDefaultValue(PhotoLinkLifetimesOfferedDefault);
+            entity.Property(item => item.PhotoLinkDefaultLifetimeDays).HasDefaultValue(CaptureLimits.DefaultLifetimeDays);
             entity.HasData(new WorkflowConfigurationEntity
             {
                 Id = WorkflowPolicyKey,

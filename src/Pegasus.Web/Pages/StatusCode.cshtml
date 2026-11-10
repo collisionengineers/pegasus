@@ -2,14 +2,23 @@
 @model Pegasus.Web.Pages.StatusCodeModel
 @{
     ViewData["Title"] = Model.Heading;
-    Layout = "Shared/_LayoutAuth";
+    Layout = Model.IsCaptureSurface ? null : "Shared/_LayoutAuth";
 }
 
 @* The designed answer to a status code. Before this page existed, an unknown
    record URL, an oversized staff upload and a rate-limited sign-in all returned
-   the browser's own error page. *@
-<h1>@Model.Heading</h1>
-<p>@Model.Explanation</p>
-<div class="button-row">
-    <a class="btn btn--primary" asp-page="/Index">Return to @OperatorLabels.Nav.WorkCentre</a>
-</div>
+   the browser's own error page. On the public capture surface the same
+   heading and line are the capture app's own card (FRD-28). *@
+@if (Model.IsCaptureSurface)
+{
+    <partial name="/Pages/Capture/_CaptureUnavailable.cshtml"
+             model="new Pegasus.Web.Pages.Capture.CaptureCardView(Model.Heading, Model.Explanation)" />
+}
+else
+{
+    <h1>@Model.Heading</h1>
+    <p>@Model.Explanation</p>
+    <div class="button-row">
+        <a class="btn btn--primary" asp-page="/Index">Return to @OperatorLabels.Nav.WorkCentre</a>
+    </div>
+}

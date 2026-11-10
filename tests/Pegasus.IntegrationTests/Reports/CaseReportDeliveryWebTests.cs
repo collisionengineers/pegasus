@@ -1156,6 +1156,13 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Contains("<input type=\"hidden\" name=\"attach\" value=\"AssessmentReport\" />", reportRow, StringComparison.Ordinal);
         Assert.Contains("data-document-preview", reportRow, StringComparison.Ordinal);
         Assert.Contains("data-rename-file", reportRow, StringComparison.Ordinal);
+        // The v48 copy (FRD-16, issue 1914): the eyebrow, the × name, the row's
+        // kind and size and Rename named for the file.
+        Assert.Matches("<p class=\"eyebrow\">Report · [^<]+</p>", dialog);
+        Assert.Contains("aria-label=\"Remove recipient\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("<small>Report · under 0.1 MB</small>", reportRow, StringComparison.Ordinal);
+        var reportName = Regex.Match(reportRow, "data-default-name=\"([^\"]+)\"").Groups[1].Value;
+        Assert.Contains($"aria-label=\"Rename {reportName}\"", reportRow, StringComparison.Ordinal);
         Assert.Contains("<input type=\"hidden\" name=\"fileName-AssessmentReport\" value=\"\" data-send-file-name />", reportRow, StringComparison.Ordinal);
         Assert.Contains("checked=\"checked\"", FileRow(dialog, CaseReportArtifactKind.FeeNote), StringComparison.Ordinal);
         Assert.Contains("name=\"fileName-FeeNote\"", FileRow(dialog, CaseReportArtifactKind.FeeNote), StringComparison.Ordinal);

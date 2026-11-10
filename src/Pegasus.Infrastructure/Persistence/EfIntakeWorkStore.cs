@@ -336,6 +336,10 @@ public sealed class EfIntakeWorkStore(
         item.ProcessedReceiptId = processedReceiptId;
         item.CompletedAtUtc = null;
         item.FailureCode = null;
+        // A photo link's item learns its receipt here, under the work item's
+        // lock, so its capture can settle without a second sweep (FRD-28).
+        await EfPhotoCaptureItemProcessing.RecordIfPhotoCaptureAsync(
+            context, stagedReceiptId, processedReceiptId, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(evaluation);

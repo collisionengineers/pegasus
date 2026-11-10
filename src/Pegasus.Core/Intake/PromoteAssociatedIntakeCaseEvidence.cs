@@ -89,7 +89,8 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
                 receipt.Id,
                 caseId,
                 assets.Select(asset => asset.Id).ToArray(),
-                selectedPhotographIds.Count != 0),
+                selectedPhotographIds.Count != 0,
+                PhotoCapture.PhotoCaptureIntakeRules.DefersCaseImageCompletion(receipt.SourceIdentity.Channel)),
             cancellationToken);
         if (preparation.Disposition != AutomaticCaseEvidencePromotionPreparationDisposition.Ready)
         {
@@ -119,10 +120,17 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
                     asset.ContentHash,
                     stream,
                     // A file a member of staff uploaded to a declared Case
-                    // takes the type they chose for it (FRD-18; R564, R565).
-                    receipt.HasDeclaredDestination && asset.Kind == IntakeAssetKind.Source
-                        ? IntakeCaseEvidenceRoles.ForDeclaredUpload(asset.MediaType, receipt.DeclaredDocumentType)
-                        : IntakeCaseEvidenceRoles.For(asset.Kind, asset.MediaType),
+                    // takes the type they chose for it (FRD-18; R564, R565);
+                    // a photo link's file the type its capture declared by its
+                    // kind, with or without a Case when it arrived (FRD-28;
+                    // operator, 9 November 2026, R803).
+                    asset.Kind != IntakeAssetKind.Source
+                        ? IntakeCaseEvidenceRoles.For(asset.Kind, asset.MediaType)
+                        : receipt.SourceIdentity.Channel == IntakeSourceChannel.PhotoCapture
+                            ? IntakeCaseEvidenceRoles.ForPhotoCapture(asset.MediaType, receipt.DeclaredDocumentType)
+                            : receipt.HasDeclaredDestination
+                                ? IntakeCaseEvidenceRoles.ForDeclaredUpload(asset.MediaType, receipt.DeclaredDocumentType)
+                                : IntakeCaseEvidenceRoles.For(asset.Kind, asset.MediaType),
                     DocumentSource.Intake,
                     preparation.ExpectedCaseVersion,
                     IsAutomaticIntakeEvidencePromotion: true,
@@ -194,15 +202,22 @@ public sealed record AutomaticCaseEvidencePromotionPreparation(
     Guid CaseId = default,
     long ExpectedCaseVersion = 0);
 
+/// <param name="DefersCaseImageCompletion">
+/// A photo link's photos complete the Case's images when the capture settles,
+/// not as each one files (FRD-28). False, the default, for every other receipt,
+/// and for every plan recorded before the flag existed.
+/// </param>
 public sealed record AutomaticCaseEvidencePromotionRequest(
     Guid IntakeReceiptId,
     Guid CaseId,
     IReadOnlyList<Guid> AssetIds,
-    bool HasSelectedPhotographs);
+    bool HasSelectedPhotographs,
+    bool DefersCaseImageCompletion = false);
 
 public sealed record AutomaticCaseEvidencePromotionPlan(
     IReadOnlyList<Guid> AssetIds,
-    bool HasSelectedPhotographs);
+    bool HasSelectedPhotographs,
+    bool DefersCaseImageCompletion = false);
 
 /// <summary>Durably establishes one Case-filing plan before content is handed to custody.</summary>
 public interface IAutomaticCaseEvidencePromotionStore
@@ -218,6 +233,42 @@ public static class AutomaticCaseEvidencePromotionOperationKey
         $"case-intake:{caseId:N}:{receiptId:N}:{assetId:N}";
 
     public static string Plan(Guid receiptId) => $"case-intake-promotion:{receiptId:N}";
+}
+
+/// <summary>
+/// The source-occurrence identity a received photograph takes on its Case,
+/// and its inverse. Filed by itself it is the intake asset's id
+/// (<see cref="PromoteAssociatedIntakeCaseEvidence"/>); folded in with a
+/// Vehicle images record it is the fold's own key for that photograph
+/// (FRD-19). The Case page reads the asset back from either, so a photo
+/// link's photographs keep their story on the Case however they came
+/// (FRD-28).
+/// </summary>
+public static class IntakeImageOccurrenceIdentity
+{
+    private const string FoldedPhotographSegment = ":photograph:";
+
+    public static string Folded(string foldOperationKey, Guid assetId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(foldOperationKey);
+        return $"{foldOperationKey}{FoldedPhotographSegment}{assetId:N}";
+    }
+
+    public static bool TryReadAssetId(string? occurrenceIdentity, out Guid assetId)
+    {
+        assetId = Guid.Empty;
+        if (string.IsNullOrWhiteSpace(occurrenceIdentity))
+        {
+            return false;
+        }
+
+        var identity = occurrenceIdentity.Trim();
+        var folded = identity.LastIndexOf(FoldedPhotographSegment, StringComparison.Ordinal);
+        return Guid.TryParseExact(
+            folded < 0 ? identity : identity[(folded + FoldedPhotographSegment.Length)..],
+            "N",
+            out assetId);
+    }
 }
 
 /// <summary>
@@ -243,4 +294,13 @@ public static class IntakeCaseEvidenceRoles
     public static DocumentSemanticRole ForDeclaredUpload(string mediaType, DocumentSemanticRole? chosen) =>
         InstructionEvidenceImages.IsImage(mediaType) ? DocumentSemanticRole.Image
         : chosen ?? DocumentTypePolicy.DefaultUploadType;
+
+    /// <summary>
+    /// The role a photo link's file takes: the type its capture declared for
+    /// it by its kind, Other for paperwork and video whatever their format;
+    /// a photograph declares none and is an Image (FRD-28; operator,
+    /// 9 November 2026, R803).
+    /// </summary>
+    public static DocumentSemanticRole ForPhotoCapture(string mediaType, DocumentSemanticRole? declared) =>
+        declared ?? ForDeclaredUpload(mediaType, chosen: null);
 }

@@ -2,12 +2,20 @@ using System.Text.RegularExpressions;
 
 namespace Pegasus.Core.Intake;
 
-/// <summary>Reads Blackstone Legal instructions by labels and a terminal validated vehicle registration.</summary>
+/// <summary>
+/// Blackstone Legal's instruction: the attached letter "Letter - instructing
+/// Collision engineers", read by its labels and a terminal validated vehicle
+/// registration. Version 2 reads the live letters as the engineers@ copies of
+/// 25 September to 15 October 2026 carry them: the "Our ref:" line follows the
+/// signature, where version 1 looked only above the salutation, and the vehicle
+/// line may omit the dash before the registration ("Make Model REG"), which
+/// version 1 required (operator, 9 November 2026, R833).
+/// </summary>
 public sealed partial class BlackInstructionExtractionPolicy
     : IInstructionExtractionPolicy, IInstructionDocumentProfile, IInstructionFieldRoles
 {
     public const string Key = "black_instruction";
-    public const int Version = 1;
+    public const int Version = 2;
     public const string SupportedPrincipalCode = "BLACK";
     public const string DocumentProfileKeyValue = "black_instruction_document";
     public const int DocumentProfileVersionValue = 1;
@@ -121,8 +129,9 @@ public sealed partial class BlackInstructionExtractionPolicy
             yield break;
         var header = text[..dearSirs.Index];
         var instruction = text[dearSirs.Index..signature.Index];
+        var footer = text[signature.Index..];
 
-        foreach (Match match in HeaderReferenceRegex().Matches(header))
+        foreach (Match match in ReferenceRegex().Matches(header).Concat(ReferenceRegex().Matches(footer)))
             yield return Labelled(fragment, "Our ref", match.Groups["value"].Value);
         foreach (Match match in ClaimantRegex().Matches(instruction))
             yield return Labelled(fragment, "Our client", match.Groups["value"].Value);
@@ -136,17 +145,11 @@ public sealed partial class BlackInstructionExtractionPolicy
         {
             var raw = Clean(match.Groups["value"].Value);
             yield return Labelled(fragment, "Raw vehicle", raw);
-            var terminal = TerminalRegistrationRegex().Match(raw);
-            if (!terminal.Success)
+            var split = SplitTerminalRegistration(raw);
+            if (split is null)
                 continue;
-            var registration = terminal.Groups["registration"].Value;
-            if (!InstructionFieldEngine.IsUkRegistration(registration))
-                continue;
-            var vehicle = Clean(terminal.Groups["vehicle"].Value);
-            if (!InstructionFieldEngine.IsPlausibleVehicleMakeModel(vehicle))
-                continue;
-            yield return Labelled(fragment, "Claimant vehicle", vehicle);
-            yield return Labelled(fragment, "Claimant registration", registration);
+            yield return Labelled(fragment, "Claimant vehicle", split.Value.Vehicle);
+            yield return Labelled(fragment, "Claimant registration", split.Value.Registration);
         }
         foreach (Match match in MileageRegex().Matches(instruction))
             yield return Labelled(fragment, "Mileage", match.Groups["value"].Value);
@@ -158,6 +161,30 @@ public sealed partial class BlackInstructionExtractionPolicy
             yield return Labelled(fragment, "VAT status", match.Groups["value"].Value);
         foreach (Match match in CircumstancesRegex().Matches(instruction))
             yield return Labelled(fragment, "Accident circumstances", match.Groups["value"].Value);
+    }
+
+    /// <summary>
+    /// The vehicle line is "Make Model - REG" in the recorded letters and, in the
+    /// live letter of 9 October 2026, "Make Model REG" with no dash. Without the
+    /// dash only a dated registration shape ends the description, so a model that
+    /// merely looks like a dateless plate ("320D") stays part of it.
+    /// </summary>
+    private static (string Vehicle, string Registration)? SplitTerminalRegistration(string raw)
+    {
+        var dashed = DashedTerminalRegistrationRegex().Match(raw);
+        if (dashed.Success)
+            return Accept(dashed, InstructionFieldEngine.IsUkRegistration);
+        var undashed = UndashedTerminalRegistrationRegex().Match(raw);
+        return undashed.Success ? Accept(undashed, InstructionFieldEngine.IsDatedUkRegistration) : null;
+
+        static (string Vehicle, string Registration)? Accept(Match match, Func<string, bool> isRegistration)
+        {
+            var registration = match.Groups["registration"].Value;
+            var vehicle = Clean(match.Groups["vehicle"].Value);
+            return isRegistration(registration) && InstructionFieldEngine.IsPlausibleVehicleMakeModel(vehicle)
+                ? (vehicle, registration)
+                : null;
+        }
     }
 
     private static IntakeContentFragment Labelled(IntakeContentFragment origin, string label, string value) =>
@@ -172,7 +199,7 @@ public sealed partial class BlackInstructionExtractionPolicy
     private static partial Regex SignatureRegex();
 
     [GeneratedRegex(@"(?im)^.*?Our\s+ref\s*:[ \t]*(?<value>\S+)", RegexOptions.CultureInvariant, 100)]
-    private static partial Regex HeaderReferenceRegex();
+    private static partial Regex ReferenceRegex();
 
     [GeneratedRegex(@"(?im)^\s*Our\s+client\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)]
     private static partial Regex ClaimantRegex();
@@ -190,7 +217,10 @@ public sealed partial class BlackInstructionExtractionPolicy
     private static partial Regex VehicleRegex();
 
     [GeneratedRegex(@"^(?<vehicle>.+?)[ \t]+-[ \t]+(?<registration>[A-Z0-9][A-Z0-9 -]{3,18})$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
-    private static partial Regex TerminalRegistrationRegex();
+    private static partial Regex DashedTerminalRegistrationRegex();
+
+    [GeneratedRegex(@"^(?<vehicle>.+?)[ \t]+(?<registration>[A-Z0-9]{2,4}(?:[ \t]?[A-Z0-9]{3,4})?)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
+    private static partial Regex UndashedTerminalRegistrationRegex();
 
     [GeneratedRegex(@"(?im)^\s*Mileage\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)]
     private static partial Regex MileageRegex();

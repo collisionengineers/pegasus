@@ -55,6 +55,11 @@ Case at the same route renders as the Triage Case page instead
   reads "Held · review on {date}" when the hold has a review date;
 - **Edit Case**, or while editing the Editing badge, its status word
   (Saving…, Saved {time}, or why the last change was not saved) and **Done**;
+- **Send photo link**, which opens `/PhotoCapture/Send/{caseId}` to send a
+  photo link for this Case, to the customer or, as a quick link, to a firm
+  (operator, 9 November 2026; R808), absent while `Features:PhotoCapture`
+  is off (operator, 9 November 2026; R773;
+  [FRD-28](frd-28-guided-photo-capture.md#photo-links));
 - the one **Actions** menu.
 
 When a colleague holds the lease the ribbon shows who, and offers **Ask to
@@ -859,7 +864,17 @@ record that is associated with the Case and not yet merged into it lists its
 photographs below the grid, under its Image reference. When the merge
 completes they are Case images and the record's group goes, so each
 photograph shows once
-([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)). Each
+([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)). A
+Case with photo link photos shows, for each capture, a **What they told us**
+card with the details the sender typed and their note, then its photos in
+story order under their story groups (the overview all the way round, each
+damaged area, the number plate, the VIN, the dashboard, then the additional
+information) (operator, 9 November 2026; R774;
+[FRD-28](frd-28-guided-photo-capture.md#baskets-and-names)). Beside each
+capture stand its status and photo count, **Cancel link** while it is live,
+and, while a live link has nothing yet, **No photos yet** and **Resend the
+link** (operator, 9 November 2026; R795, R806;
+[FRD-28](frd-28-guided-photo-capture.md#staff-pages)). Each
 tile shows:
 
 - a lazy-loaded thumbnail that expands to the full image, with the original
@@ -1154,7 +1169,8 @@ and under it an "Already sent on 3 Oct 2026 14:02 to a@x, b@y" line when a
 report of this work has already been sent, reading and editing alike; it
 repeats no delivery cells. The dialog is a composer in the Triage composer's
 shape, 880px wide: its head names the report ("Report · a.{Case/PO}" on the
-Audit view, "Report · {Case/PO}" otherwise), its body holds From, a choice of
+Audit view, "Report · {Case/PO}" otherwise; operator, 9 November 2026, R821),
+its body holds From, a choice of
 Outgoing mailbox starting on the mailbox the Case's instruction email arrived
 in, else on the Principal's Send from (operator, 12 October 2026; 4 November
 2026, R655;
@@ -1164,12 +1180,18 @@ the To and Cc boxes with the Case's known addresses offered on every one
 (R667), the covering message in an editable box pre-filled from the Case
 report delivery template, and **Files**, one row per document the send can
 carry, each with its include tick (v28 P22; Report and Fee note ticked), its
-name, its kind and size, and Rename; a row's name opens the document in the
+name, its kind and size ("Report · 1.2 MB", "Fee note · under 0.1 MB", and
+"Inspection · Report · 1.2 MB" for the other work's rows), and Rename, named
+"Rename {file name}" for the name the row currently shows, so a rename or
+Reset renames the button too; a row's name opens the document in the
 Case viewer over the dialog, and Escape closes the viewer first. Every To or
-Cc box after the first To has its × and can be removed; Add To recipient and
-Add Cc recipient add a removable box (R669). Its foot holds Cancel and the
-one Send report. A refused send returns to the page with the dialog open on
-its notice; an accepted send closes it as the page refreshes.
+Cc box after the first To has its ×, named "Remove recipient", and can be
+removed; Add To recipient and Add Cc recipient add a removable box (R669).
+Its foot holds Cancel and the one Send report. A refused send returns to the
+page with the dialog open on its notice; an accepted send closes it as the
+page refreshes. The dialog's quoted words are the v48 mockup's
+([`pegasus_v48.html`](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v48-send-dialog-original-report/v48_planning/pegasus_v48.html),
+R665; issue 1914, 9 November 2026).
 
 The dialog also shows what the Principal's report sending rules decided
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)):

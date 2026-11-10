@@ -6,6 +6,7 @@
     // disabled nav span: a permanently inert item says the product is broken
     // rather than that this deployment does not carry the feature.
     var inboxEnabled = Pegasus.Web.Presentation.ShellRail.InboxEnabled(Environment, Configuration);
+    var photoCaptureEnabled = Pegasus.Web.Presentation.ShellRail.PhotoCaptureEnabled(Environment, Configuration);
     var isAdministrator = User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator);
 
     // Marks the route the operator is on. aria-current is the accessible signal;
@@ -74,6 +75,13 @@
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-list-checks")" /></svg>
                     <span>@OperatorLabels.Nav.Cases</span>
                 </a>
+                @if (photoCaptureEnabled)
+                {
+                    <a class="nav-link" asp-page="/PhotoCapture/Index" aria-current="@CurrentWhen("/PhotoCapture")">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-camera")" /></svg>
+                        <span>@OperatorLabels.Nav.PhotoCapture</span>
+                    </a>
+                }
                 <a class="nav-link" asp-page="/Search/Index" aria-current="@CurrentWhen("/Search")">
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-search")" /></svg>
                     <span>@OperatorLabels.Nav.Search</span>

@@ -160,14 +160,16 @@ public sealed class IntakePersistenceIntegrationTests
               AND name = N'NormalizedRegistration'
               AND is_persisted = 1
             """));
-        // The keyset pagers, the Open-task read and the pending-custody sweep
-        // are answered by their own indexes. The check above reads keys and
+        // The keyset pagers, the Open-task read, the pending-custody sweep and
+        // the thumbnail sweep's live-entry probes (#2003) are answered by their
+        // own indexes. The check above reads keys and
         // includes only, so this one also reads each key's direction and the
         // filter. SQL Server stores the filter wrapped in parentheses, so
         // spaces and parentheses are stripped before comparing.
         Assert.Equal(
             "CaseTasks.IX_CaseTasks_State:State ASC||;"
             + "CaseWorkflowEvents.IX_CaseWorkflowEvents_CaseId_OccurredAtUtc_Id:CaseId ASC,OccurredAtUtc DESC,Id DESC||;"
+            + "DocumentContentCacheEntries.IX_DocumentContentCacheEntries_DocumentVersionId_Variant:DocumentVersionId ASC,Variant ASC|[DocumentVersionId]ISNOTNULL|ExpiresAtUtc;"
             + "DocumentOccurrences.IX_DocumentOccurrences_CaseId_RecordedAtUtc_Id:CaseId ASC,RecordedAtUtc DESC,Id DESC||;"
             + "DocumentVersions.IX_DocumentVersions_CustodyStatus:CustodyStatus ASC|[CustodyStatus]=N'Pending'|PendingContentStorageKey",
             await database.ScalarAsync<string>(
@@ -191,6 +193,7 @@ public sealed class IntakePersistenceIntegrationTests
                     WHERE i.name IN (
                         N'IX_CaseTasks_State',
                         N'IX_CaseWorkflowEvents_CaseId_OccurredAtUtc_Id',
+                        N'IX_DocumentContentCacheEntries_DocumentVersionId_Variant',
                         N'IX_DocumentOccurrences_CaseId_RecordedAtUtc_Id',
                         N'IX_DocumentVersions_CustodyStatus')
                 ) AS indexes

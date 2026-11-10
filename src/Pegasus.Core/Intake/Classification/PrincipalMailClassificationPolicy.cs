@@ -30,11 +30,16 @@ namespace Pegasus.Core.Intake;
 /// Version 5 reads a selected instruction's RE: subject as reply context only
 /// when the message carries In-Reply-To or References, or proves no work
 /// (operator, 5 November 2026, R713).
+///
+/// Version 6 accepts Baker & Coleman's letter sentence "prepare a desktop
+/// report" as their instruction tell, beside the DFD and FW template tells;
+/// their earlier letters ask to inspect the vehicle and pass the generic
+/// request (operator, 9 November 2026, R829).
 /// </summary>
 public sealed partial class PrincipalMailClassificationPolicy(string principalCode) : IMailClassificationPolicy
 {
     public const string Key = "principal_mail_classification";
-    public const int Version = 5;
+    public const int Version = 6;
 
     private const string TriagePhrase = "Triage Only Request";
     private const string TriageSubjectPrefix = "Engineer Triage";
@@ -277,10 +282,15 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
         var creditRepair = PrincipalCode == PchInstructionExtractionPolicy.SupportedPrincipalCode
             && texts.Any(text => text.Contains("CREDIT REPAIR", StringComparison.OrdinalIgnoreCase)
                 && text.Contains("Inspection Request", StringComparison.OrdinalIgnoreCase));
+        // DFD's tell is the title of its attached instruction form, "Engineer
+        // instruction request" (operator, 9 November 2026, R825); FW's is its
+        // template's "New INSTRUCTIONS:" heading.
         var inspection = creditRepair || (!audit && texts.Any(text =>
             ExplicitInspectionRequestRegex().IsMatch(text)
             || (PrincipalCode == "DFD" && text.Contains("Engineer instruction request", StringComparison.OrdinalIgnoreCase))
-            || (PrincipalCode == "FW" && text.Contains("New INSTRUCTIONS:", StringComparison.OrdinalIgnoreCase))));
+            || (PrincipalCode == "FW" && text.Contains("New INSTRUCTIONS:", StringComparison.OrdinalIgnoreCase))
+            || (PrincipalCode == BcInstructionExtractionPolicy.SupportedPrincipalCode
+                && text.Contains("prepare a desktop report", StringComparison.OrdinalIgnoreCase))));
         // In-Reply-To and References establish reply context and a RE: subject
         // is only the fallback (FRD-08). A RE: subject on a message that carries
         // neither header does not stop an instruction that proves its work:

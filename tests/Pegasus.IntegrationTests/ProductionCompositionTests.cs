@@ -486,7 +486,7 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
-    public void ProductionWebComposesGlassCallbackUrlSanitizationAndTheGuideValuationSources()
+    public void ProductionWebComposesSecretPathUrlSanitizationAndTheGuideValuationSources()
     {
         using var factory = new ConfiguredWebApplicationFactory(
             "Production",
@@ -498,7 +498,7 @@ public sealed class ProductionCompositionTests
 
         Assert.Contains(
             factory.Services.GetServices<ITelemetryInitializer>(),
-            initializer => initializer is GlassCallbackTelemetryInitializer);
+            initializer => initializer is SecretPathTelemetryInitializer);
         // The same host connects Glass's (ADR-0060), Cazana (ADR-0079) and
         // Brego (ADR-0084) as guide valuation sources, one provider each.
         Assert.Equal(

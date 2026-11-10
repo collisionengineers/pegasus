@@ -15,7 +15,8 @@
 - Logs has two tabs: Action logs (who did what) and Intake log (what
   happened to each received file).
 - Workflow configuration holds the completeness rules, the chase interval,
-  the five due targets and the labour-rate cards.
+  the five due targets, Send a photo link's starting values and lifetimes,
+  and the labour-rate cards.
 
 ## Purpose
 
@@ -118,7 +119,13 @@ generation, Report sending, Salvage matrix, Default inspection location and
 Principal API, each its own address (`?tab=`) so the tabs work without
 script, with Replace code in the head of the Contact tab
 ([v41 A3](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
-There is no Principal settings panel.
+There is no Principal settings panel. A Principal, Claim Source or Repairer
+contact's page also has a **Photo links** tab: the standing URL, its QR code,
+Copy, Pause or Resume, Replace link, Retire link (operator, 9 November
+2026; R796), its saved addresses (R806, R815) and the link's defaults
+(operator, 9 November 2026; R774;
+[FRD-28](frd-28-guided-photo-capture.md#standing-photo-links)). It is absent
+while `Features:PhotoCapture` is off.
 A panel's save returns to its tab with its notice inside the panel; a refused
 save shows its message at the top of that panel and keeps what was typed
 (operator, 13 October 2026). Principal-specific
@@ -172,6 +179,14 @@ the field and the server. The directory rules are owned by
   the workflow settings: while on, every newly minted Case/PO ends in `-p`
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity);
   operator, 4 November 2026, [R656](../rulings.md)). A change enters history;
+- while photo capture is on, **Send a photo link**'s starting values, saved
+  with the workflow settings: the mode it starts on, Guided or Quick, and
+  whether Live camera only and Full-size originals start on (operator,
+  9 November 2026; R813); and which of the 3, 7 and 14 day lifetimes Send
+  offers and the one it starts on, at least one offered and the starting
+  one among them. Extend and a contact's link defaults keep all three
+  (operator, 9 November 2026; R817;
+  [FRD-28](frd-28-guided-photo-capture.md#photo-links));
 - labour-rate-card administration: the two built-in global versioned cards,
   Standard and Prestige/Aluminium (operator, 13 October 2026), that every
   estimate version selects from. Their names are fixed and there are no other
@@ -202,7 +217,10 @@ and **Edit**. The templates are the Triage outcome reply
 Case report delivery
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)) and the
 Case chaser
-([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)), and
+the Photo link e-mail
+([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-e-mail); operator,
+9 November 2026; R773).
 
 **Edit** opens a dialog: the body, up to 5000 characters, a row of
 placeholder buttons that insert at the cursor, and Cancel and Save. The
@@ -218,8 +236,10 @@ Case's missing-material reason while it has due work), `{principal name}` and
 `{claimant}`; it has no Case/PO placeholder, since the reference is internal
 and means nothing to the party chased (operator, 5 October 2026). Its
 built-in body is the one sentence the due-chaser sweep writes, without the
-reference, and the sign-off. A body naming any other placeholder is refused,
-and the message names it. Save acts on the click with the rendered version. A
+reference, and the sign-off. The Photo link's are `{registration}`,
+`{claimant}`, `{photo link}`, `{link expiry}` and `{principal name}`; its
+built-in body is the one FRD-28 gives. A body naming any other placeholder
+is refused, and the message names it. Save acts on the click with the rendered version. A
 stale save is refused and asks the Administrator to reload.
 
 A placeholder with no value renders nothing. A line whose placeholders are

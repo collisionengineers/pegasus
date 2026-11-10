@@ -40,3 +40,16 @@ durable owner.
   was taken up on 30 October 2026 (R561: the Pre-Pegasus case mail category
   and the classifier agent's read-only old-system lookups). The date is
   2 November 2026 (R603).
+
+## Photo capture: a custom capture domain (deferred)
+
+- **Owner**: the operator.
+- **Affected contract**: [ADR-0090](adr/0090-public-photo-capture-surface.md)
+  (same origin now), `PhotoCapture:PublicOrigin`
+  ([configuration](engineering/configuration.md#photo-capture)) and the
+  links [FRD-28](frd/frd-28-guided-photo-capture.md#photo-links) prints.
+- **Decision needed**: whether photo links move to a Collision Engineers
+  domain. Links carry the Pegasus hostname for now, and a custom domain stays
+  a separate decision (operator, 9 November 2026, R779); EXT-19 stays
+  retired, so a custom domain would take a new capability identity. Links
+  already sent keep the hostname they were sent with until they expire.

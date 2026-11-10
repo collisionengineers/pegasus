@@ -1195,7 +1195,7 @@ function Get-PegasusDatabaseConnectionString {
 $script:PegasusLocalSettingsFileName = 'local.settings.env'
 
 $script:PegasusLocalSettingsHostPrefixes = @{
-    Web = @('Features__', 'Box__', 'Glass__', 'Cazana__', 'Brego__', 'Graph__', 'GitHub__', 'DevelopmentOffline__', 'AutomationMcp__')
+    Web = @('Features__', 'Box__', 'Glass__', 'Cazana__', 'Brego__', 'Graph__', 'GitHub__', 'DevelopmentOffline__', 'AutomationMcp__', 'PhotoCapture__')
     Worker = @('Features__', 'Box__', 'Dvla__', 'Dvsa__', 'Graph__')
 }
 

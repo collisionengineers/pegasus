@@ -282,6 +282,17 @@ source's contact name, telephone and e-mail for that Case alone. The override
 wins per field; changing or clearing the chosen source clears it. Repairer,
 Storage and Third Party Engineer contacts have no notes.
 
+A Principal, Claim Source or Repairer contact may have a **standing photo
+link** (operator, 9 November 2026; R774): its URL and QR code, Pause and
+Resume, Replace link, Retire link, which ends it for good (operator, 9
+November 2026; R796), its saved addresses, offered on its form as
+inspection locations (operator, 9 November 2026; R806, R815), and the
+defaults its captures take, which are the mode
+of a link sent on to a customer, Live camera only, the lifetime and whether
+originals follow. The link only starts captures, and none while the
+contact is inactive (operator, 9 November 2026; R796); its behaviour is
+[FRD-28](frd-28-guided-photo-capture.md#standing-photo-links).
+
 Every change is a permanent action-history event with actor, time, operation
 identity and before and after values. Routine settings changes need no
 reason. A reason is kept only where the action's rule requires one.

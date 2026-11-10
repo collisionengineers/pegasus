@@ -312,6 +312,7 @@ public sealed class EfCaseDataStore(
         CaseDataCodes.VehicleLookup => CaseDataSourceKind.VehicleLookup,
         CaseDataCodes.PrincipalSetting => CaseDataSourceKind.PrincipalSetting,
         CaseDataCodes.PrincipalApi => CaseDataSourceKind.PrincipalApi,
+        CaseDataCodes.PhotoLink => CaseDataSourceKind.PhotoLink,
         _ => throw new InvalidDataException(
             $"Unknown persisted case-data source kind '{value}'.")
     };

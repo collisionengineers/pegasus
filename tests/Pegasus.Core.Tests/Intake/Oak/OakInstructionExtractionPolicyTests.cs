@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Tests.Support;
 
@@ -121,6 +122,106 @@ public sealed partial class OakInstructionExtractionPolicyTests
 
         Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
         Assert.Equal("OAK", selection.Policy!.PrincipalCode);
+    }
+
+    [Fact]
+    public void TheLiveLetterSelectsExtractsAndClassifiesAnInspection()
+    {
+        // Invented values in the layout the reader gives Oakwood's
+        // "Engineer - Letter - Instructions.DOC" (RTF in a .DOC): the header
+        // table prints tab-separated in the body and its cells are emitted
+        // under the document's own label, so the aligned reference cell and
+        // the letter are one document for the selector (#1834).
+        const string label = "uploaded Oakwood Scotland Solicitors- Instructions.eml, attachment 1: Engineer - Letter - Instructions.DOC";
+        var read = new IntakeSourceReadResult(IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.DocumentContent, label, """
+                    Collision Engineers	
+                    	
+                    Our Ref:
+                    Your Ref:
+                    Date:
+                    	
+
+                    ABC/EXAMPLE/S500000.001
+                     
+                    09/11/26 	
+                    URGENT VEHICLE INSPECTION REQUIRED
+
+                    Dear Sirs
+
+                    Our Client:	Mr Ainsley Example
+                    Accident:	5th November 2026
+                    Client reg:	AB12 CDE
+                    Client model:	, 
+                    Source:	Example Accident Repair Centre 
+
+                    I act on behalf of the above named client in the recovery of damages resulting from an accident which occurred on the above date. 
+
+                    The circumstances of the accident are Client was stationary at traffic lights when the third party ran into the rear of the vehicle.
+
+                    Please arrange an inspection of my client’s vehicle as soon as possible and provide a report detailing the damage sustained, costs of repair or cost of replacement if beyond repair. 
+
+                    The introducer is called Example Accident Repair Centre. 
+
+                    I have advised my client of your instruction. Please make arrangements for the inspection with my client. Mr Ainsley Example is available at:
+
+                    Address:	1 Example Street 
+                    	Glasgow 
+                    	G1 1AA 
+                    	 
+                     
+                    Mobile Tel:	07000 000000  
+
+                    Finally having regard to your reasonable fees, I hereby confirm that this firm will be responsible for the same in accordance with our agreement. 
+
+                    Yours sincerely
+
+                    A Handler
+                    Oakwood Scotland Solicitors Limited
+                    """),
+                new(IntakeEvidenceSource.DocumentContent, $"{label}, table 1 row 1 column 1", "Collision Engineers",
+                    IntakeSourceLocator.ForCell(1, 1, 1)),
+                new(IntakeEvidenceSource.DocumentContent, $"{label}, table 1 row 1 column 2", "Our Ref:\nYour Ref:\nDate:",
+                    IntakeSourceLocator.ForCell(1, 1, 2)),
+                new(IntakeEvidenceSource.DocumentContent, $"{label}, table 1 row 1 column 3", "ABC/EXAMPLE/S500000.001\n \n09/11/26",
+                    IntakeSourceLocator.ForCell(1, 1, 3))
+            ],
+            [new(IntakeEvidenceSource.Sender, "handler@oakwoodsolicitors.co.uk"),
+             new(IntakeEvidenceSource.Subject, "Oakwood Scotland Solicitors- Instructions")],
+            [], RequiresOcr: false);
+        var policies = typeof(IInstructionExtractionPolicy).Assembly.GetTypes()
+            .Where(type => type is { IsClass: true, IsAbstract: false } && typeof(IInstructionExtractionPolicy).IsAssignableFrom(type))
+            .Select(type => (IInstructionExtractionPolicy)Activator.CreateInstance(type)!)
+            .ToArray();
+
+        var selection = new InstructionExtractionPolicySelector(policies).Select(read, InstructionDocumentSignature.InstructionRole);
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
+        Assert.Equal("OAK", selection.Policy!.PrincipalCode);
+
+        var result = selection.Policy.Extract(read with { Content = selection.InstructionContent },
+            new(2026, 11, 9, 12, 0, 0, TimeSpan.Zero),
+            new("OAK", OakInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
+        Assert.Equal(InstructionPolicyApplicability.Applicable, result.Applicability);
+        Assert.Empty(result.MissingFields);
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("ABC/EXAMPLE/S500000.001", draft.ClaimNumber);
+        Assert.Equal("T1R1C3", Assert.Single(Field(result, "Claim reference").Candidates).Locator!.Cell);
+        Assert.Equal("Mr Ainsley Example", draft.ClaimantName);
+        Assert.Equal("AB12CDE", draft.VehicleRegistration);
+        Assert.Null(draft.VehicleModel);
+        Assert.Equal(new DateOnly(2026, 11, 5), draft.DateOfIncident);
+        Assert.Equal("1 Example Street, Glasgow, G1 1AA", draft.InspectionAddress);
+        Assert.Equal(
+            "Client was stationary at traffic lights when the third party ran into the rear of the vehicle.",
+            draft.AccidentCircumstances);
+        Assert.Equal("Example Accident Repair Centre", Field(result, "Source").SuggestedValue);
+        Assert.Equal("Example Accident Repair Centre", Field(result, "Introducer").SuggestedValue);
+
+        var classification = new PrincipalMailClassificationPolicy("OAK").Classify(read, selection.InstructionContent);
+        Assert.Equal(MailClassificationOutcome.Classified, classification.Outcome);
+        Assert.Equal(MailCategory.NewInstruction, classification.Category);
+        Assert.Equal(CaseType.Inspection, classification.CaseType);
     }
 
     private static InstructionExtractionResult Extract(IntakeSourceReadResult read) =>

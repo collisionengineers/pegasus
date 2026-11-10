@@ -20,6 +20,7 @@ public sealed class CorpusTraitContractTests
     // below passing over nothing.
     private static readonly string[] ExpectedGates =
     [
+        "BcHoldingCorpusFactAttribute",
         "GenuineFormatCorpusFactAttribute",
         "GenuineQdosCorpusFactAttribute",
         "IncidentVehicleSourceFactAttribute",

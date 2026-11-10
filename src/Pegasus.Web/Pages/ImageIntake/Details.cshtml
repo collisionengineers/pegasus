@@ -191,6 +191,41 @@
                 </dl>
             </section>
 
+            @if (Model.PhotoCaptures.Count > 0)
+            {
+                @* The photos came by photo link (FRD-28): who sent them and what they told us. *@
+                <section class="panel" aria-labelledby="image-intake-photo-link-title" data-image-photo-link>
+                    <div class="panel-head"><h2 id="image-intake-photo-link-title">@OperatorLabels.PhotoCapture.PhotoLink</h2></div>
+                    <div class="panel-section stack">
+                        @foreach (var story in Model.PhotoCaptures)
+                        {
+                            var capture = story.Capture;
+                            <dl class="fact-grid image-record-facts">
+                                <div class="fact">
+                                    <dt>@OperatorLabels.PhotoCapture.From</dt>
+                                    <dd>@(story.OrganizationName ?? (capture.Origin == Pegasus.Core.PhotoCapture.PhotoCaptureOrigin.Website ? OperatorLabels.PhotoCapture.Website : null)) <small class="muted">@OperatorLabels.PhotoCapture.Source(capture.Origin)</small></dd>
+                                </div>
+                                <div class="fact"><dt>@OperatorLabels.PhotoCapture.Customer</dt><dd>@(capture.CustomerName ?? OperatorLabels.PhotoCapture.NotGiven)</dd></div>
+                                @if (capture.Mobile is { Length: > 0 } mobile)
+                                {
+                                    <div class="fact"><dt>@OperatorLabels.PhotoCapture.Mobile</dt><dd>@mobile</dd></div>
+                                }
+                                @if (capture.Email is { Length: > 0 } email)
+                                {
+                                    <div class="fact"><dt>@OperatorLabels.PhotoCapture.Email</dt><dd>@email</dd></div>
+                                }
+                                @if (capture.IncidentDate is { } incidentDate)
+                                {
+                                    <div class="fact"><dt>@OperatorLabels.PhotoCapture.AccidentDate</dt><dd>@incidentDate.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</dd></div>
+                                }
+                                <div class="fact"><dt>@OperatorLabels.PhotoCapture.Photos</dt><dd><a asp-page="/PhotoCapture/Details" asp-route-id="@capture.Id">@OperatorLabels.PhotoCapture.PhotoCount(capture.AcceptedItemCount, complete: true)</a></dd></div>
+                            </dl>
+                            <partial name="Shared/_PhotoCaptureDetails" model="capture" />
+                        }
+                    </div>
+                </section>
+            }
+
             <section class="panel" aria-labelledby="image-intake-principal-title">
                 <div class="panel-head"><h2 id="image-intake-principal-title">@OperatorLabels.Principal</h2></div>
                 <div class="panel-section">

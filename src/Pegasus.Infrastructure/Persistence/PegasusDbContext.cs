@@ -133,6 +133,13 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<IntakeCaseMatchDecisionEntity> IntakeCaseMatchDecisions =>
         Set<IntakeCaseMatchDecisionEntity>();
 
+    internal DbSet<PhotoCaptureEntity> PhotoCaptures => Set<PhotoCaptureEntity>();
+    internal DbSet<PhotoCaptureTokenEntity> PhotoCaptureTokens => Set<PhotoCaptureTokenEntity>();
+    internal DbSet<PhotoCaptureItemEntity> PhotoCaptureItems => Set<PhotoCaptureItemEntity>();
+    internal DbSet<PhotoCaptureBatchEntity> PhotoCaptureBatches => Set<PhotoCaptureBatchEntity>();
+    internal DbSet<StandingPhotoLinkEntity> StandingPhotoLinks => Set<StandingPhotoLinkEntity>();
+    internal DbSet<StandingPhotoLinkAddressEntity> StandingPhotoLinkAddresses => Set<StandingPhotoLinkAddressEntity>();
+
 
 
 
@@ -390,6 +397,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.DiscardOperationKey).HasMaxLength(100);
             entity.Property(item => item.DiscardRequestFingerprint).HasMaxLength(64).IsFixedLength();
             entity.Property(item => item.ImageMatchDeclinedByActorSubjectId).HasMaxLength(200);
+            entity.Property(item => item.DeclaredRegistration).HasMaxLength(20);
             entity.HasIndex(item => new { item.SourceChannel, item.SubmissionToken }).IsUnique();
             entity.HasIndex(item => item.ParentReceiptId)
                 .IsUnique()
@@ -1131,6 +1139,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         ProblemReportModelConfiguration.Configure(builder);
         EmailTemplateModelConfiguration.Configure(builder);
         WorkCentreDismissalModelConfiguration.Configure(builder);
+        PhotoCaptureModelConfiguration.Configure(builder);
     }
 }
 
@@ -1707,6 +1716,12 @@ internal sealed class IntakeSubmissionGroupEntity
     public string? DiscardRequestFingerprint { get; set; }
     public DateTimeOffset? ImageMatchDeclinedAtUtc { get; set; }
     public string? ImageMatchDeclinedByActorSubjectId { get; set; }
+
+    /// <summary>The registration a photo link's capture typed for its batch; null for a submission whose images are read for their plates.</summary>
+    public string? DeclaredRegistration { get; set; }
+
+    /// <summary>The accident date a photo link's capture typed for its batch, which excludes a Case it contradicts (R791); null otherwise.</summary>
+    public DateOnly? DeclaredIncidentDate { get; set; }
     public List<IntakeSubmissionGroupMemberEntity> Members { get; set; } = [];
     public List<IntakeSubmissionGroupHistoryEntity> History { get; set; } = [];
 }

@@ -135,8 +135,10 @@ internal static class V1FoundationModelConfiguration
         {
             e.ToTable("DocumentContentCacheEntries", t => t.HasCheckConstraint("CK_DocumentContentCacheEntries_Source", "([DocumentVersionId] IS NULL AND [IntakeAssetId] IS NOT NULL) OR ([DocumentVersionId] IS NOT NULL AND [IntakeAssetId] IS NULL)")); e.HasKey(x => x.Id);
             // One entry per source identity per kind: the content itself, and
-            // each derived rendering of it.
-            e.HasIndex(x => new { x.DocumentVersionId, x.Variant }).IsUnique(); e.HasIndex(x => new { x.IntakeAssetId, x.Variant }).IsUnique();
+            // each derived rendering of it. The version's index carries the
+            // expiry, so the thumbnail sweep's live-entry probes seek it
+            // instead of scanning the table once per image version (#2003, R818).
+            e.HasIndex(x => new { x.DocumentVersionId, x.Variant }).IsUnique().IncludeProperties(x => new { x.ExpiresAtUtc }); e.HasIndex(x => new { x.IntakeAssetId, x.Variant }).IsUnique();
             e.Property(x => x.Variant).HasMaxLength(64).IsRequired();
             e.Property(x => x.VerifiedSha256).HasMaxLength(64).IsFixedLength(); e.Property(x => x.Version).IsConcurrencyToken();
             e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();

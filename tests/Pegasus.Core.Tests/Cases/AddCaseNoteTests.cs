@@ -69,15 +69,22 @@ public sealed class AddCaseNoteTests
     }
 
     /// <summary>
-    /// A right is still required: the widening admits Provider on its own
-    /// permission, it does not stop asking for one.
+    /// A photo link's settle writes the sender's note as system work (FRD-28;
+    /// operator, 9 November 2026): the one note the system writes in a
+    /// person's words, recorded under the system worker that wrote it.
     /// </summary>
     [Fact]
-    public async Task AnActorWithNoCaseworkRightStillCannotWriteANote() =>
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            Command(new RecordingStore()).ExecuteAsync(
-                new(Guid.NewGuid(), ActionActor.SystemWorker("note-6"), "note-6", "A note."),
-                CancellationToken.None));
+    public async Task ASystemWorkerWritesAPhotoLinksNoteUnderSystemWork()
+    {
+        var store = new RecordingStore();
+
+        await Command(store).ExecuteAsync(
+            new(Guid.NewGuid(), ActionActor.SystemWorker("photo-capture-settle"), "note-6", "Customer's note (photo link): the boot does not close."),
+            CancellationToken.None);
+
+        Assert.Equal(ActorKind.SystemWorker, store.Last?.Actor.Kind);
+        Assert.Equal("photo-capture-settle", store.Last?.Actor.SubjectId);
+    }
 
     private static AddCaseNote Command(ICaseNoteStore store) => new(store, TimeProvider.System);
 

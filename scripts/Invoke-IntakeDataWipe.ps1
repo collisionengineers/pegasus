@@ -29,7 +29,8 @@ $preserve = @(
     'CaseSequences', 'ImageIntakeSequences', 'TriageSequences', 'UnidentifiedSequences',
     'ValuationPresets', 'EmailTemplates', 'CaseListPresets',
     'InspectionLocations', 'InspectionLocationPrincipalLinks',
-    'ReleaseNotes', 'ReleaseNoteAcknowledgements', 'UnroadworthyReasons'
+    'ReleaseNotes', 'ReleaseNoteAcknowledgements', 'UnroadworthyReasons',
+    'StandingPhotoLinks', 'StandingPhotoLinkAddresses'
 )
 # Every other table the schema holds is declared here. A table on neither list
 # refuses the run, so a new table is classified before any wipe deletes it.
@@ -54,6 +55,7 @@ $wipeTables = @(
     'IntakeReceiptEvents', 'IntakeReceipts', 'IntakeSearchDocuments', 'IntakeSourceCandidates',
     'IntakeStagedReceipts', 'IntakeSubmissionGroupHistory', 'IntakeSubmissionGroupMembers',
     'IntakeSubmissionGroups', 'IntakeWorkItems',
+    'PhotoCaptureBatches', 'PhotoCaptureItems', 'PhotoCaptures', 'PhotoCaptureTokens',
     'PrincipalSubmissions', 'ProblemReports',
     'RetainedInstructionAnalyses', 'RetainedMailboxAttachments', 'RetainedMailboxMessages',
     'SentEmailEvidence', 'StaffMailSendOperations', 'StaffNotifications', 'StandaloneAuditEvidence',

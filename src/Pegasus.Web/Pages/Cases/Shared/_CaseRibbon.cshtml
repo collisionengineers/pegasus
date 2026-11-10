@@ -6,6 +6,7 @@
     belongs to the page.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @using Pegasus.Core.Lifecycle
 @using Pegasus.Core.Reports
 @using Pegasus.Core.Workflow
@@ -48,6 +49,11 @@
     // Send chaser is offered on any open Case (operator, 5 October 2026). It
     // navigates to the composer, so it needs no lease.
     var canSendChaser = Model.StaffMailAvailable && !isClosed && workflow.Archive is null;
+    // Send photo link opens its own page (FRD-28; R773) on the same open
+    // Cases as Send chaser; Copy link needs no mailbox, and it is absent
+    // while photo capture is not composed.
+    var canSendPhotoLink = !isClosed && workflow.Archive is null
+        && ShellRail.PhotoCaptureEnabled(Configuration);
     // Review point 12: the adverse dispositions Core will accept for this
     // state, decided in the page model from Core's own closure rules.
     var closureOutcomes = Model.AvailableClosureOutcomes;
@@ -366,6 +372,13 @@
                     <a class="btn" asp-page="/Cases/Chaser" asp-route-id="@summary.CaseId" data-send-chaser>
                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
                         <span>@Frame.SendChaser</span>
+                    </a>
+                }
+                @if (canSendPhotoLink)
+                {
+                    <a class="btn" asp-page="/PhotoCapture/Send" asp-route-caseId="@summary.CaseId" data-send-photo-link>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-camera")" /></svg>
+                        <span>@OperatorLabels.PhotoCapture.SendPhotoLink</span>
                     </a>
                 }
                 @if (offersHoldGroup || offersCreateAudit)

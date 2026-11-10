@@ -222,12 +222,25 @@ profile matches.
 **Classification.** The one `PrincipalMailClassificationPolicy`
 implementation is bound to each extraction registration. QDOS keeps its
 generated Inspection, Audit, combined and Triage tells (below). Other
-profiles need the evidenced explicit inspect or examine request, or the
-DFD/FW instruction template. PCH's explicit Audit request beats its generic
+profiles need the evidenced explicit inspect or examine request, or a
+Principal's evidenced template tell: DFD's `Engineer instruction request`,
+FW's `New INSTRUCTIONS:`, and Baker & Coleman's letter sentence `prepare a
+desktop report` (operator, 9 November 2026, [R829](../rulings.md); their
+earlier letters ask to inspect the vehicle and pass the generic request).
+A DFD instruction is the attached form titled
+`Engineer instruction request`, sent from the `dfd-solicitors.co.uk` route;
+it classifies `new-instruction` for an Inspection (operator, 9 November
+2026, [R825](../rulings.md)). PCH's explicit Audit request beats its generic
 inspection footer; a separate credit-repair inspection request stays
 distinct. Replies, unknown work and competing work types cannot allocate a
 new Case. Missing ordinary fields do not withhold an otherwise definitive
-Case's reference.
+Case's reference. A Blackstone Legal instruction is the attached letter from
+the `blackstone-legal.co.uk` route, under either of its subjects ("Our ref:
+N / New instructions" or "Our Client - name / Our Reference - N"), whose
+body says "Please accept this correspondence as formal instructions to
+inspect our clients vehicle and prepare a report"; that explicit inspect
+request classifies `new-instruction` for an Inspection (operator, 9 November
+2026, [R832](../rulings.md)).
 
 **Case matching.** `PrincipalCaseMatchPolicy` is bound the same way. Its
 non-QDOS keys come from the profile's typed role-labelled fields and keep the

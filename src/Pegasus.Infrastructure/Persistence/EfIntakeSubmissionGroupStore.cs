@@ -21,12 +21,15 @@ public sealed class EfIntakeSubmissionGroupStore(
         var groupOrigin = nameof(UnidentifiedOriginKind.SubmissionGroup);
         var receiptOrigin = nameof(UnidentifiedOriginKind.Receipt);
         var manualChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload);
+        var photoCaptureChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.PhotoCapture);
         var eligible = from submissionGroup in context.IntakeSubmissionGroups
                        join member in context.IntakeSubmissionGroupMembers on submissionGroup.Id equals member.GroupId
                        join work in context.IntakeWorkItems on member.StagedReceiptId equals work.StagedReceiptId
                        join receipt in context.IntakeReceipts on work.ProcessedReceiptId equals (Guid?)receipt.Id
                        where submissionGroup.DiscardedAtUtc == null
-                           && (submissionGroup.ExpectedMemberCount > 1 || submissionGroup.SourceChannel == manualChannel)
+                           && (submissionGroup.ExpectedMemberCount > 1
+                               || submissionGroup.SourceChannel == manualChannel
+                               || submissionGroup.SourceChannel == photoCaptureChannel)
                            && work.State == "completed"
                            && receipt.Decision == "needs_sorting"
                            && receipt.InstructionDraft == null && receipt.FieldsJson == emptyFields
@@ -47,10 +50,13 @@ public sealed class EfIntakeSubmissionGroupStore(
                     .Where(receipt => receiptIds.Contains(receipt.Id))
                     .ToArrayAsync(cancellationToken))
                 .ToDictionary(receipt => receipt.Id);
+        // Any member of a photo link's batch drives its group
+        // (PhotoCaptureIntakeRules.RoutesWithItsGroup, which the sweep asks).
         return candidates
             .Where(candidate => receipts.TryGetValue(candidate.ReceiptId, out var receipt)
-                && ImageIntakeLifecycleRules.IsImageAutomationEligible(
-                    EfIntakeReceiptStore.Map(receipt, isDuplicate: false)))
+                && (receipt.SourceChannel == photoCaptureChannel
+                    || ImageIntakeLifecycleRules.IsImageAutomationEligible(
+                        EfIntakeReceiptStore.Map(receipt, isDuplicate: false))))
             .GroupBy(item => new { item.Id, item.ReceivedAtUtc })
             .OrderBy(group => group.Key.ReceivedAtUtc)
             .ThenBy(group => group.Key.Id)
@@ -124,29 +130,10 @@ public sealed class EfIntakeSubmissionGroupStore(
         DateTimeOffset receivedAtUtc,
         Guid? parentReceiptId,
         CancellationToken cancellationToken = default) =>
-        GetOrCreateWithRetryAsync(
-            groupId,
-            channel,
-            submissionToken,
-            expectedMemberCount,
-            actor,
-            receivedAtUtc,
-            parentReceiptId,
-            cancellationToken);
-
-    // Same concurrent-insert window as AddMemberWithRetryAsync below: two
-    // requests replaying the same (channel, token) can both read "no
-    // existing group" and race the unique (SourceChannel, SubmissionToken)
-    // index at commit.
-    private Task<IntakeSubmissionGroup> GetOrCreateWithRetryAsync(
-        Guid groupId,
-        IntakeSourceChannel channel,
-        string submissionToken,
-        int expectedMemberCount,
-        string actor,
-        DateTimeOffset receivedAtUtc,
-        Guid? parentReceiptId,
-        CancellationToken cancellationToken) =>
+        // Same concurrent-insert window as AddMemberWithRetryAsync below: two
+        // requests replaying the same (channel, token) can both read "no
+        // existing group" and race the unique (SourceChannel, SubmissionToken)
+        // index at commit.
         StoreConcurrencyRetry.ExecuteAsync(
             token => GetOrCreateCoreAsync(
                 groupId,
@@ -172,25 +159,63 @@ public sealed class EfIntakeSubmissionGroupStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        var group = await GetOrAddGroupAsync(
+            context,
+            groupId,
+            channel,
+            submissionToken,
+            expectedMemberCount,
+            actor,
+            receivedAtUtc,
+            parentReceiptId,
+            declaredRegistration: null,
+            declaredIncidentDate: null,
+            cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return await MapAsync(context, group, readAtUtc: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// The group a submission token names, added to the context when there is
+    /// none yet; a token already bound to a different expected count or parent
+    /// is refused. Saves nothing, so a caller writes the group in its own
+    /// transaction: a photo link's batch close writes it with the capture's
+    /// settle (<see cref="EfPhotoCaptureStore.CloseBatchAsync"/>).
+    /// </summary>
+    internal static async Task<IntakeSubmissionGroupEntity> GetOrAddGroupAsync(
+        PegasusDbContext context,
+        Guid groupId,
+        IntakeSourceChannel channel,
+        string submissionToken,
+        int expectedMemberCount,
+        string actor,
+        DateTimeOffset receivedAtUtc,
+        Guid? parentReceiptId,
+        string? declaredRegistration,
+        DateOnly? declaredIncidentDate,
+        CancellationToken cancellationToken)
+    {
+        var channelCode = EfIntakeReceiptStore.ToCode(channel);
         var existing = await context.IntakeSubmissionGroups
             .SingleOrDefaultAsync(
-                item => item.SourceChannel == EfIntakeReceiptStore.ToCode(channel)
-                    && item.SubmissionToken == submissionToken,
+                item => item.SourceChannel == channelCode && item.SubmissionToken == submissionToken,
                 cancellationToken);
         if (existing is null)
         {
             existing = new()
             {
                 Id = groupId,
-                SourceChannel = EfIntakeReceiptStore.ToCode(channel),
+                SourceChannel = channelCode,
                 SubmissionToken = submissionToken,
                 ExpectedMemberCount = expectedMemberCount,
                 Actor = actor,
                 ReceivedAtUtc = receivedAtUtc,
-                ParentReceiptId = parentReceiptId
+                ParentReceiptId = parentReceiptId,
+                DeclaredRegistration = declaredRegistration,
+                DeclaredIncidentDate = declaredIncidentDate
             };
             context.IntakeSubmissionGroups.Add(existing);
-            await context.SaveChangesAsync(cancellationToken);
         }
         else if (existing.ExpectedMemberCount != expectedMemberCount
             || existing.ParentReceiptId != parentReceiptId)
@@ -199,8 +224,7 @@ public sealed class EfIntakeSubmissionGroupStore(
                 "The submission token is already bound to different group provenance.");
         }
 
-        await transaction.CommitAsync(cancellationToken);
-        return await MapAsync(context, existing, readAtUtc: null, cancellationToken);
+        return existing;
     }
 
     public Task<IntakeSubmissionGroupMember> AddMemberAsync(
@@ -238,34 +262,59 @@ public sealed class EfIntakeSubmissionGroupStore(
             item => item.Id == groupId,
             cancellationToken)
             ?? throw new InvalidDataException("The submission group was not found.");
+        var (member, added) = await AddMemberEntityAsync(
+            context, group, ordinal, received.StagedReceiptId, cancellationToken);
+        if (!added)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return await MapMemberAsync(context, member, received.IsDuplicate, cancellationToken);
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(groupId, ordinal, member.StagedReceiptId, member.SourceFileName, member.SourceHash, received.IsDuplicate);
+    }
+
+    /// <summary>
+    /// Adds the staged receipt as the group's member at its ordinal, or finds
+    /// it there already (<c>Added</c> false); another receipt at that ordinal,
+    /// or a discarded group, is refused. Saves nothing, so a caller writes the
+    /// member in its own transaction (<see cref="GetOrAddGroupAsync"/>).
+    /// </summary>
+    internal static async Task<(IntakeSubmissionGroupMemberEntity Member, bool Added)> AddMemberEntityAsync(
+        PegasusDbContext context,
+        IntakeSubmissionGroupEntity group,
+        int ordinal,
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken)
+    {
         if (group.DiscardedAtUtc is not null)
         {
             throw new InvalidOperationException("The discarded submission cannot accept another file.");
         }
         var staged = await context.IntakeStagedReceipts
             .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == received.StagedReceiptId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.Id == stagedReceiptId, cancellationToken)
             ?? throw new InvalidDataException("The staged receipt for the group member was not found.");
         var existing = await context.IntakeSubmissionGroupMembers
             .AsNoTracking()
             .SingleOrDefaultAsync(
-                item => item.GroupId == groupId && item.Ordinal == ordinal,
+                item => item.GroupId == group.Id && item.Ordinal == ordinal,
                 cancellationToken);
         if (existing is not null)
         {
-            if (existing.StagedReceiptId != received.StagedReceiptId)
+            if (existing.StagedReceiptId != stagedReceiptId)
             {
                 throw new InvalidDataException("The group ordinal is already bound to another receipt.");
             }
 
-            await transaction.CommitAsync(cancellationToken);
-            return await MapMemberAsync(context, existing, received.IsDuplicate, cancellationToken);
+            return (existing, false);
         }
 
         var entity = new IntakeSubmissionGroupMemberEntity
         {
             Id = Guid.NewGuid(),
-            GroupId = groupId,
+            GroupId = group.Id,
             Ordinal = ordinal,
             StagedReceiptId = staged.Id,
             SourceFileName = staged.SourceFileName,
@@ -274,9 +323,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         };
         context.IntakeSubmissionGroupMembers.Add(entity);
         group.Version++;
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return new(groupId, ordinal, staged.Id, staged.SourceFileName, staged.SourceHash, received.IsDuplicate);
+        return (entity, true);
     }
 
     public async Task<DiscardIntakeSubmissionGroupResult> DiscardAsync(
@@ -486,7 +533,9 @@ public sealed class EfIntakeSubmissionGroupStore(
                 entity.ImageMatchDeclinedByActorSubjectId!,
                 entity.ImageMatchDeclinedAtUtc.Value))
         {
-            ReadAtUtc = readAtUtc
+            ReadAtUtc = readAtUtc,
+            DeclaredRegistration = entity.DeclaredRegistration,
+            DeclaredIncidentDate = entity.DeclaredIncidentDate
         };
     }
 

@@ -10,9 +10,12 @@
     var contactRole = Model.Contact!.Role;
     var isPrincipal = contactRole == ContactRole.Principal;
     var status = TempData["AdministrationStatus"] as string;
-    // An active Principal's page is tabs; every other contact is its one panel.
-    var tabbed = Model.Principal is { IsActive: true };
-    var tab = tabbed ? Model.CurrentTab : EditModel.ContactTab;
+    // An active Principal's page is tabs, as is a contact with a Photo links
+    // tab (R774); every other contact is its one panel.
+    var activePrincipal = Model.Principal is { IsActive: true };
+    var tabs = Model.Tabs;
+    var tabbed = tabs.Count > 0;
+    var tab = tabbed && tabs.Any(item => item.Key == Model.CurrentTab) ? Model.CurrentTab : EditModel.ContactTab;
     // A panel's notice and refusal show at the top of that panel (operator, 13 October 2026).
     async Task PanelMessages(bool allErrors)
     {
@@ -24,13 +27,13 @@
 <div class="admin-layout"><partial name="Shared/_AdminNav" /><div class="stack">
     @if (tabbed)
     {
-        <nav class="tabs" aria-label="@Model.Contact.Name">@foreach (var (key, label) in EditModel.PrincipalTabs) { <a class="tab" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@(key == EditModel.ContactTab ? null : key)" aria-current="@(key == tab ? "page" : null)">@label</a> }</nav>
+        <nav class="tabs" aria-label="@Model.Contact.Name">@foreach (var (key, label) in tabs) { <a class="tab" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@(key == EditModel.ContactTab ? null : key)" aria-current="@(key == tab ? "page" : null)">@label</a> }</nav>
     }
     @if (tab == EditModel.ContactTab)
     {
     <section class="panel" aria-labelledby="contact-title">
         <div class="panel-head"><div><h2 id="contact-title">@Model.Contact.Name</h2></div>
-            @if (tabbed)
+            @if (activePrincipal)
             {
                 <div class="cluster"><partial name="Shared/_StatusChip" model="@(Model.Contact.Active ? "Active" : "Disabled")" /><button class="btn btn--small btn--danger" type="button" data-dialog-open="replace-principal">@OperatorLabels.PrincipalAdministration.ReplaceCode</button></div>
             }
@@ -206,10 +209,179 @@
         {
             <section class="panel" aria-labelledby="principal-api-title"><div class="panel-head"><h2 id="principal-api-title">@OperatorLabels.PrincipalAdministration.PrincipalApi</h2></div><div class="panel-body stack contact-editor">@{ await PanelMessages(true); }<dl class="definition-list"><div class="definition"><dt>Submission endpoint</dt><dd><code>@Pegasus.Web.PrincipalApi.PrincipalApi.SubmissionsPath</code></dd></div><div class="definition"><dt>@OperatorLabels.PrincipalAdministration.State</dt><dd><partial name="Shared/_StatusChip" model="@(Model.Credential?.State.ToString() ?? "Not issued")" /></dd></div></dl>@if (Model.IssuedSecret is not null) { <div class="field"><label for="issued-api-key">API key (shown once)</label><input id="issued-api-key" value="@Model.IssuedSecret" readonly autocomplete="off" /></div> }<form method="post" asp-route-id="@Model.ContactId" class="stack"><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input asp-for="CredentialVersion" type="hidden" /><input asp-for="CredentialOperationKey" type="hidden" /><div class="button-row"><button type="submit" asp-page-handler="IssueCredential" class="btn btn--primary" data-busy-label="@(Model.Credential is null ? OperatorLabels.Busy.Generating : OperatorLabels.Busy.Resetting)">@(Model.Credential is null ? "Generate API key" : "Reset API key")</button>@if (Model.Credential?.State == PrincipalCredentialState.Active) { <button type="submit" asp-page-handler="PauseCredential" class="btn" data-busy-label="@OperatorLabels.Busy.Pausing">Pause</button> }@if (Model.Credential?.State == PrincipalCredentialState.Paused) { <button type="submit" asp-page-handler="ResumeCredential" class="btn" data-busy-label="@OperatorLabels.Busy.Resuming">Resume</button> }@if (Model.Credential is not null && Model.Credential.State != PrincipalCredentialState.Revoked) { <button type="submit" asp-page-handler="RevokeCredential" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Revoking">Revoke</button> }</div></form></div></section>
         }
+        if (tab == EditModel.PhotoLinksTab)
+        {
+            @* The contact's standing photo link (FRD-28; R774): the link and its
+               QR code, its saved addresses and the defaults the links it starts take. *@
+            var standing = Model.StandingLink;
+            <section class="panel" aria-labelledby="photo-link-standing-title">
+                <div class="panel-head">
+                    <h2 id="photo-link-standing-title">@OperatorLabels.PhotoCapture.TheirStandingLink</h2>
+                    @if (standing is not null)
+                    {
+                        <partial name="Shared/_StatusChip" model="@(standing.IsActive ? OperatorLabels.PhotoCapture.Active : OperatorLabels.PhotoCapture.Paused)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = standing.IsActive ? "green" : "amber" }' />
+                    }
+                </div>
+                <div class="panel-body stack">
+                    @{ await PanelMessages(true); }
+                    @if (standing is not null && Model.StandingLinkUrl is { } standingUrl)
+                    {
+                        <div class="photo-link-standing">
+                            <div class="photo-link-qr">@Html.Raw(Model.StandingLinkQrSvg)</div>
+                            <div class="stack">
+                                <code id="photo-link-standing-url" class="photo-link-url">@standingUrl</code>
+                                <div class="button-row">
+                                    <button type="button" class="btn btn--small" data-copy-target="photo-link-standing-url" hidden>
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-copy")" /></svg>
+                                        <span>@OperatorLabels.PhotoCapture.Copy</span>
+                                    </button>
+                                    <a class="btn btn--small" asp-page="Edit" asp-page-handler="PhotoLinkQr" asp-route-id="@Model.ContactId"
+                                       data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed">
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg>
+                                        <span>@OperatorLabels.PhotoCapture.DownloadQr</span>
+                                    </a>
+                                    <form method="post" asp-page-handler="@(standing.IsActive ? "PausePhotoLink" : "ResumePhotoLink")" asp-route-id="@Model.ContactId">
+                                        <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                        <button type="submit" class="btn btn--small" data-busy-label="@(standing.IsActive ? OperatorLabels.Busy.Pausing : OperatorLabels.Busy.Resuming)">
+                                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(standing.IsActive ? "icon-pause" : "icon-play")" /></svg>
+                                            <span>@(standing.IsActive ? OperatorLabels.PhotoCapture.PauseTheirLink : OperatorLabels.PhotoCapture.ResumeTheirLink)</span>
+                                        </button>
+                                    </form>
+                                    <form method="post" asp-page-handler="ReplacePhotoLink" asp-route-id="@Model.ContactId">
+                                        <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                        <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Replacing">
+                                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-cw")" /></svg>
+                                            <span>@OperatorLabels.PhotoCapture.ReplaceLink</span>
+                                        </button>
+                                    </form>
+                                    <button type="button" class="btn btn--small btn--danger" data-dialog-open="retire-photo-link">@OperatorLabels.PhotoCapture.RetireLink</button>
+                                </div>
+                            </div>
+                        </div>
+                        @* Retire ends the link for good (R796): confirmed, since it cannot be undone. *@
+                        <div class="dialog-backdrop" data-dialog="retire-photo-link" hidden>
+                            <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="retire-photo-link-title">
+                                <div class="dialog-head"><h2 id="retire-photo-link-title" tabindex="-1" data-dialog-initial-focus>@OperatorLabels.PhotoCapture.RetireLink</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button></div>
+                                <form method="post" asp-page-handler="RetirePhotoLink" asp-route-id="@Model.ContactId">
+                                    <div class="dialog-body"><p>@OperatorLabels.PhotoCapture.RetireLinkConfirmation</p></div>
+                                    <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                    <div class="dialog-foot"><button class="btn" type="button" data-dialog-close>Cancel</button><button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Working">@OperatorLabels.PhotoCapture.RetireLink</button></div>
+                                </form>
+                            </section>
+                        </div>
+                    }
+                    else
+                    {
+                        <form method="post" asp-page-handler="CreatePhotoLink" asp-route-id="@Model.ContactId">
+                            <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Creating">
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
+                                <span>@OperatorLabels.PhotoCapture.CreateTheirLink</span>
+                            </button>
+                        </form>
+                    }
+                </div>
+            </section>
+            @if (standing is not null)
+            {
+                @* Saved addresses (R806, R815): those taken from the contact stay
+                   read-only; the ones added here are the only ones edited or removed.
+                   A form is the tab's own address (?savedAddress=), so it works
+                   without script. *@
+                var book = Model.AddressBook;
+                <section class="panel" aria-labelledby="photo-link-addresses-title">
+                    <div class="panel-head">
+                        <h2 id="photo-link-addresses-title">@OperatorLabels.PhotoCapture.SavedAddresses</h2>
+                        @if (!Model.AddingSavedAddress)
+                        {
+                            <a class="btn btn--small" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.PhotoLinksTab" asp-route-savedAddress="@EditModel.NewSavedAddress">
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
+                                <span>@OperatorLabels.PhotoCapture.AddAddress</span>
+                            </a>
+                        }
+                    </div>
+                    <div class="panel-body stack">
+                        <p class="field-hint">@OperatorLabels.PhotoCapture.ShownAsInspectionLocation</p>
+                        @if (!book.IsEmpty)
+                        {
+                            <dl class="definition-list">
+                                @foreach (var fromContact in book.FromContact)
+                                {
+                                    <div class="definition"><dt>@fromContact.Name</dt><dd>@fromContact.Address</dd></div>
+                                }
+                                @foreach (var saved in book.Saved)
+                                {
+                                    @if (Model.EditingSavedAddressId == saved.Id)
+                                    {
+                                        <div class="definition">
+                                            <dt>@saved.Name</dt>
+                                            <dd>
+                                                <form method="post" asp-page-handler="ChangePhotoLinkAddress" asp-route-id="@Model.ContactId" asp-route-savedAddress="@saved.Id" class="stack contact-editor">
+                                                    <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                                    <input type="hidden" name="SavedAddressId" value="@saved.Id" />
+                                                    <div class="form-grid form-grid--2">
+                                                        <div class="field"><input name="SavedAddressName" value="@(Model.SavedAddressName ?? saved.Name)" aria-label="@OperatorLabels.PhotoCapture.AddressName" maxlength="@Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumNameLength" autocomplete="off" required /></div>
+                                                        <div class="field"><input name="SavedAddressText" value="@(Model.SavedAddressText ?? saved.Address)" aria-label="@OperatorLabels.PhotoCapture.AddressField" maxlength="@Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumAddressLength" autocomplete="off" required /></div>
+                                                    </div>
+                                                    <div class="button-row">
+                                                        <a class="btn" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.PhotoLinksTab">Cancel</a>
+                                                        <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button>
+                                                    </div>
+                                                </form>
+                                                <form method="post" asp-page-handler="RemovePhotoLinkAddress" asp-route-id="@Model.ContactId" asp-route-savedAddress="@saved.Id">
+                                                    <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                                    <input type="hidden" name="SavedAddressId" value="@saved.Id" />
+                                                    <button type="submit" class="btn btn--small btn--danger" data-busy-label="@OperatorLabels.Busy.Removing">@OperatorLabels.PhotoCapture.Remove</button>
+                                                </form>
+                                            </dd>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="definition">
+                                            <dt>@saved.Name</dt>
+                                            <dd class="cluster">
+                                                <span>@saved.Address</span>
+                                                <a class="btn btn--small" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.PhotoLinksTab" asp-route-savedAddress="@saved.Id">@OperatorLabels.PhotoCapture.Edit</a>
+                                            </dd>
+                                        </div>
+                                    }
+                                }
+                            </dl>
+                        }
+                        else if (!Model.AddingSavedAddress)
+                        {
+                            <p class="muted">@OperatorLabels.PhotoCapture.NoSavedAddresses</p>
+                        }
+                        @if (Model.AddingSavedAddress)
+                        {
+                            <form method="post" asp-page-handler="AddPhotoLinkAddress" asp-route-id="@Model.ContactId" asp-route-savedAddress="@EditModel.NewSavedAddress" class="stack contact-editor">
+                                <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                <div class="form-grid form-grid--2">
+                                    <div class="field"><input name="SavedAddressName" value="@Model.SavedAddressName" placeholder="@OperatorLabels.PhotoCapture.AddressNamePlaceholder" aria-label="@OperatorLabels.PhotoCapture.AddressName" maxlength="@Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumNameLength" autocomplete="off" required /></div>
+                                    <div class="field"><input name="SavedAddressText" value="@Model.SavedAddressText" placeholder="@OperatorLabels.PhotoCapture.FullAddressPlaceholder" aria-label="@OperatorLabels.PhotoCapture.AddressField" maxlength="@Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumAddressLength" autocomplete="off" required /></div>
+                                </div>
+                                <div class="button-row">
+                                    <a class="btn" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.PhotoLinksTab">Cancel</a>
+                                    <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button>
+                                </div>
+                            </form>
+                        }
+                    </div>
+                </section>
+                <section class="panel" aria-labelledby="photo-link-defaults-title">
+                    <div class="panel-head"><h2 id="photo-link-defaults-title">@OperatorLabels.PhotoCapture.DefaultsForTheirLinks</h2></div>
+                    <form method="post" asp-page-handler="UpdatePhotoLinkDefaults" asp-route-id="@Model.ContactId" class="panel-body stack contact-editor">
+                        <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                        <partial name="Shared/_PhotoLinkDefaults" model="@((standing, true))" />
+                        <div class="button-row"><a asp-page="Index" class="btn">Cancel</a><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
+                    </form>
+                </section>
+            }
+        }
         if (Model.ReplaceRefused) { <div asp-validation-summary="All" class="validation-summary" role="alert"></div> }
     }
 </div></div>
-@if (tabbed && tab == EditModel.ContactTab)
+@if (activePrincipal && tab == EditModel.ContactTab)
 {
     <div class="dialog-backdrop" data-dialog="replace-principal" hidden>
         <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="replace-principal-title">
@@ -224,6 +396,12 @@
             </form>
         </section>
     </div>
+}
+@section Styles {
+    @if (tab == EditModel.PhotoLinksTab)
+    {
+        <link rel="stylesheet" href="~/css/photo-capture.css" asp-append-version="true" />
+    }
 }
 @section Scripts {
     <script src="~/js/contacts-edit.js" asp-append-version="true"></script>

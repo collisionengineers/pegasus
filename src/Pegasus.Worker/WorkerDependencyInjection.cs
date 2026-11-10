@@ -106,6 +106,10 @@ public static class WorkerDependencyInjection
                     // the whole worker process whenever the platform handed over an
                     // unresolved Key Vault reference.
                     _ => CreateBoxCustodyOptions(configuration, approvedBoxRoot)));
+        // The photo link settle runs only where the capture surface is composed
+        // (Features:PhotoCapture, FRD-28); the gate is read here once, so the
+        // timer never reads configuration.
+        services.AddSingleton(new PhotoCaptureWorkerGate(configuration.GetValue<bool>("Features:PhotoCapture")));
         if (!composesLocalArtifactRoot)
         {
             // Box folders follow the Case/PO's temporary -p suffix (R656).
@@ -321,3 +325,6 @@ public static class WorkerDependencyInjection
         DvlaDvsaProductionOptions Vehicle);
 
 }
+
+/// <summary>Whether this Worker composes the photo capture settle (Features:PhotoCapture, FRD-28).</summary>
+public sealed record PhotoCaptureWorkerGate(bool Enabled);

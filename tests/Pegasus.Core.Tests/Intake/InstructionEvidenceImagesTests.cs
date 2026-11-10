@@ -44,6 +44,8 @@ public sealed class InstructionEvidenceImagesTests
     /// Operator, 26 October 2026: attached, inline and embedded images are
     /// judged by one rule, so a small attached logo is dropped and a phone
     /// photograph sent inline is kept. A document attachment is always kept.
+    /// An inline image meets the stricter bar of R819, so the same 540x302
+    /// advert is a photograph attached and signature art inline.
     /// </summary>
     [Theory]
     [InlineData("pdf", IntakeAssetKind.Attachment, "application/pdf", null, null, true)]
@@ -51,6 +53,14 @@ public sealed class InstructionEvidenceImagesTests
     [InlineData("attached logo", IntakeAssetKind.Attachment, "image/png", 20, 20, false)]
     [InlineData("inline photo", IntakeAssetKind.InlineImage, "image/jpeg", 4080, 3060, true)]
     [InlineData("inline logo", IntakeAssetKind.InlineImage, "image/png", 90, 63, false)]
+    [InlineData("inline phone photo", IntakeAssetKind.InlineImage, "image/jpeg", 1200, 1600, true)]
+    [InlineData("inline small photo", IntakeAssetKind.InlineImage, "image/jpeg", 480, 640, true)]
+    [InlineData("inline phone screenshot", IntakeAssetKind.InlineImage, "image/png", 1179, 2556, true)]
+    [InlineData("inline signature logo", IntakeAssetKind.InlineImage, "image/jpeg", 200, 200, false)]
+    [InlineData("inline signature banner", IntakeAssetKind.InlineImage, "image/jpeg", 400, 200, false)]
+    [InlineData("inline signature advert", IntakeAssetKind.InlineImage, "image/jpeg", 540, 302, false)]
+    [InlineData("inline wide banner", IntakeAssetKind.InlineImage, "image/jpeg", 3319, 1181, false)]
+    [InlineData("attached advert", IntakeAssetKind.Attachment, "image/jpeg", 540, 302, true)]
     [InlineData("inline document", IntakeAssetKind.InlineImage, "application/pdf", null, null, false)]
     [InlineData("embedded photo", IntakeAssetKind.EmbeddedImage, "image/jpeg", 547, 650, true)]
     [InlineData("embedded banner", IntakeAssetKind.EmbeddedImage, "image/png", 1990, 437, false)]
@@ -67,6 +77,54 @@ public sealed class InstructionEvidenceImagesTests
         var candidate = Candidate(kind, mediaType, 30_000, width, height);
 
         Assert.Equal(retained, InstructionEvidenceImages.IsRetentionCandidate(candidate));
+    }
+
+    /// <summary>
+    /// R819 (operator, 9 November 2026): an image inline in an e-mail body is
+    /// held to a stricter bar, because signature art is sent inline. U74's
+    /// body-shop banners measured 400x200 and 540x302, and the narrowest
+    /// genuine inline photograph on the test instance 480x640.
+    /// </summary>
+    [Fact]
+    public void AnInlineImageHasItsOwnBoundaries()
+    {
+        Assert.True(InstructionEvidenceImages.IsRetentionCandidate(
+            Candidate(IntakeAssetKind.InlineImage, "image/jpeg", 30_000, 400, 999)));
+        Assert.False(InstructionEvidenceImages.IsRetentionCandidate(
+            Candidate(IntakeAssetKind.InlineImage, "image/jpeg", 30_000, 399, 532)));
+        Assert.True(InstructionEvidenceImages.IsRetentionCandidate(
+            Candidate(IntakeAssetKind.InlineImage, "image/jpeg", 30_000, 1000, 2499)));
+        Assert.False(InstructionEvidenceImages.IsRetentionCandidate(
+            Candidate(IntakeAssetKind.InlineImage, "image/jpeg", 30_000, 1000, 2500)));
+        Assert.True(InstructionEvidenceImages.IsRetentionCandidate(
+            Candidate(IntakeAssetKind.InlineImage, "image/jpeg", 30_000, null, null)));
+    }
+
+    /// <summary>
+    /// U74 on the test instance, "M500ULD" (9 November 2026): a body shop's
+    /// chaser whose only images are its signature, sent inline at these
+    /// sizes. Retention keeps none, so the e-mail is not image material and
+    /// waits in No Case Found rather than becoming Unidentified (R819).
+    /// </summary>
+    [Fact]
+    public void ASignatureSentInlineRetainsNoPhotograph()
+    {
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [],
+            [],
+            [],
+            false,
+            Assets:
+            [
+                Candidate(IntakeAssetKind.InlineImage, "image/png", 9_542, 420, 174),
+                Candidate(IntakeAssetKind.InlineImage, "image/png", 10_806, 150, 78),
+                Candidate(IntakeAssetKind.InlineImage, "image/jpeg", 16_139, 540, 189),
+                Candidate(IntakeAssetKind.InlineImage, "image/jpeg", 32_903, 540, 302),
+                Candidate(IntakeAssetKind.InlineImage, "image/jpeg", 19_276, 400, 200)
+            ]);
+
+        Assert.Empty(RetentionCandidates(read));
     }
 
     [Fact]

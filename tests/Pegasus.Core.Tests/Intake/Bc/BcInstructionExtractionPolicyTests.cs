@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Tests.Support;
 
@@ -89,6 +90,131 @@ public sealed class BcInstructionExtractionPolicyTests
             new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "incomplete", text)], [], [], RequiresOcr: false, IsIncomplete: true),
             DateTimeOffset.UtcNow,
             new("BC", BcInstructionExtractionPolicy.DocumentProfileKeyValue, 1)));
+    }
+
+    private static readonly DateTimeOffset ReadAt = new(2026, 11, 9, 9, 0, 0, TimeSpan.Zero);
+
+    // Baker & Coleman's request sentences as their letters print them, around
+    // invented parties: the physical wording of the April 2026 letters and the
+    // desktop wording of the 6 November 2026 letter (R829).
+    private const string DesktopRequest = "Please would you prepare a desktop report of your findings.";
+    private const string PhysicalRequest = "Please arrange to inspect our client's vehicle and prepare a report of your findings.";
+
+    [Fact]
+    public void TheDesktopReportLetterSelectsExtractsAndClassifiesAnInspection()
+    {
+        var read = Read(Letter(DesktopRequest));
+
+        var (selection, result) = SelectAndExtract(read);
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+
+        Assert.Empty(result.MissingFields);
+        Assert.Equal("Mr A Example", draft.ClaimantName);
+        Assert.Equal("RTA900001.001/EX/Example Handler", draft.ClaimNumber);
+        Assert.Equal("AB12CDE", draft.VehicleRegistration);
+        Assert.Equal(new DateOnly(2026, 11, 1), draft.DateOfIncident);
+        Assert.Null(Assert.Single(result.Fields, field => field.Name == "Requested inspection method").SuggestedValue);
+        var classification = new PrincipalMailClassificationPolicy("BC").Classify(read, selection.InstructionContent);
+        Assert.Equal(MailClassificationOutcome.Classified, classification.Outcome);
+        Assert.Equal(MailCategory.NewInstruction, classification.Category);
+        Assert.Equal(CaseType.Inspection, classification.CaseType);
+    }
+
+    [Fact]
+    public void ThePhysicalInspectionLetterStillClassifiesAnInspection()
+    {
+        var read = Read(Letter(PhysicalRequest));
+
+        var (selection, result) = SelectAndExtract(read);
+
+        Assert.Equal(
+            "Physical vehicle inspection",
+            Assert.Single(result.Fields, field => field.Name == "Requested inspection method").SuggestedValue);
+        var classification = new PrincipalMailClassificationPolicy("BC").Classify(read, selection.InstructionContent);
+        Assert.Equal(MailClassificationOutcome.Classified, classification.Outcome);
+        Assert.Equal(MailCategory.NewInstruction, classification.Category);
+        Assert.Equal(CaseType.Inspection, classification.CaseType);
+    }
+
+    [Fact]
+    public void ALetterWithoutARequestSentenceFailsClosed()
+    {
+        var read = Read(Letter(request: null));
+
+        var (selection, _) = SelectAndExtract(read);
+        var classification = new PrincipalMailClassificationPolicy("BC").Classify(read, selection.InstructionContent);
+
+        Assert.Equal(MailClassificationOutcome.Unclassified, classification.Outcome);
+        Assert.False(Assert.Single(classification.Predicates, predicate => predicate.Key == "instruction.explicit-inspection").Matched);
+    }
+
+    [Fact]
+    public void AReplyCarryingTheDesktopReportLetterStaysReplyContext()
+    {
+        var read = Read(Letter(DesktopRequest)) with
+        {
+            TransportEvidence =
+            [
+                new(IntakeEvidenceSource.Sender, "handler@bakercoleman.co.uk"),
+                new(IntakeEvidenceSource.Subject, "RE: RTA900001.001  -  Mr A Example")
+            ]
+        };
+
+        var (selection, _) = SelectAndExtract(read);
+        var classification = new PrincipalMailClassificationPolicy("BC").Classify(read, selection.InstructionContent);
+
+        Assert.Equal(MailClassificationOutcome.Unclassified, classification.Outcome);
+        Assert.True(Assert.Single(classification.Predicates, predicate => predicate.Key == "subject.reply-context").Matched);
+    }
+
+    private static string Letter(string? request)
+    {
+        string?[] lines =
+        [
+            "RTA900001.001/EX/Example Handler",
+            "9th November 2026",
+            "Collision Engineers",
+            "Dear Sirs",
+            "Re:\tClient: Mr A Example",
+            "Accident:\t1st November 2026",
+            "Address:\t1 Example Street, Exampleton EX1 2MP",
+            "We act on behalf of the above named in connection with a road traffic accident which occurred on 1st November 2026.",
+            "Our client's vehicle, registered number AB12 CDE, was damaged in the accident.",
+            request,
+            "Please also request the engineer to comment on whether temporary repairs would be viable and if not the reasons why.",
+            "Yours faithfully",
+            "Baker & Coleman Solicitors Limited"
+        ];
+        return string.Join('\n', lines.Where(line => line is not null));
+    }
+
+    private static IntakeSourceReadResult Read(string letter) => new(
+        IntakeSourceReadStatus.Readable,
+        [
+            new(IntakeEvidenceSource.EmailBody, "bc.eml, message body", "Please find attached our letter of instructions."),
+            new(IntakeEvidenceSource.DocumentContent, "bc.eml, attachment 1: Engineer Ltr RTA Initial Instructions.DOC", letter)
+        ],
+        [
+            new(IntakeEvidenceSource.Sender, "handler@bakercoleman.co.uk"),
+            new(IntakeEvidenceSource.Subject, "RTA900001.001  -  Mr A Example")
+        ],
+        [],
+        RequiresOcr: false);
+
+    private static (InstructionPolicySelection Selection, InstructionExtractionResult Result) SelectAndExtract(IntakeSourceReadResult read)
+    {
+        var policies = typeof(IInstructionExtractionPolicy).Assembly.GetTypes()
+            .Where(type => type is { IsClass: true, IsAbstract: false } && typeof(IInstructionExtractionPolicy).IsAssignableFrom(type))
+            .Select(type => (IInstructionExtractionPolicy)Activator.CreateInstance(type)!)
+            .ToArray();
+        var selection = new InstructionExtractionPolicySelector(policies).Select(read, InstructionDocumentSignature.InstructionRole);
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
+        Assert.Equal("BC", selection.Policy!.PrincipalCode);
+
+        var result = selection.Policy.Extract(read with { Content = selection.InstructionContent }, ReadAt,
+            new("BC", BcInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
+        Assert.Equal(InstructionPolicyApplicability.Applicable, result.Applicability);
+        return (selection, result);
     }
 
     private static string ReadSource(string key) =>

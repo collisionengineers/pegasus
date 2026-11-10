@@ -11,6 +11,9 @@ public static class IntakeUploadFilePolicy
     public const string Mp4MediaType = "video/mp4";
     public const string MovMediaType = "video/quicktime";
 
+    private static readonly byte[] JpegSignature = [0xFF, 0xD8, 0xFF];
+    private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
     /// <summary>
     /// Every file type the intake reader opens, by extension, with the media
     /// type it is read as. The first extension of a media type is the one a
@@ -45,6 +48,30 @@ public static class IntakeUploadFilePolicy
             .FirstOrDefault(type => string.Equals(type.MediaType, mediaType, StringComparison.OrdinalIgnoreCase))
             .Extension
             ?? string.Empty;
+
+    /// <summary>
+    /// Whether the leading bytes are what the media type says they are: a
+    /// JPEG, PNG or PDF signature, or an ISO base media file for a video.
+    /// Null for a type with no signature to check. One owner for the
+    /// Principal API's attachments and the photo capture surface alike.
+    /// </summary>
+    public static bool? HeaderMatches(string? fileName, string? mediaType, ReadOnlySpan<byte> content)
+    {
+        switch (mediaType?.Trim().ToLowerInvariant())
+        {
+            case "image/jpeg":
+                return content.StartsWith(JpegSignature);
+            case "image/png":
+                return content.StartsWith(PngSignature);
+            case "application/pdf":
+                return content.StartsWith("%PDF-"u8);
+            case Mp4MediaType:
+            case MovMediaType:
+                return IsAccepted(fileName ?? ("video" + ExtensionFor(mediaType!)), mediaType, content);
+            default:
+                return null;
+        }
+    }
 
     public static bool IsAccepted(string? fileName, string? mediaType, ReadOnlySpan<byte> content)
     {

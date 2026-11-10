@@ -29,8 +29,9 @@ internal sealed class EfCaseArtifactCustody(
         CancellationToken cancellationToken)
     {
         Validate(request);
-        RequireRetainAuthorization(request);
-        await using var staged = new StagedArtifact(await StageVerifiedAsync(request, cancellationToken));
+        RequireRetainAuthorization(request.Actor);
+        await using var staged = new StagedArtifact(
+            await StageVerifiedAsync(request.Content, request.ContentLength, request.Sha256, cancellationToken));
         // The caller read these verified bytes from the intake store's own
         // content-addressed copy, so that copy is the pending copy: storing
         // and reading it back again would only find the same blob.
@@ -54,14 +55,56 @@ internal sealed class EfCaseArtifactCustody(
             : await RetainHoldingAsync(request, staged, cancellationToken);
     }
 
-    private static void RequireRetainAuthorization(CaseArtifactCustodyRequest request)
+    private static void RequireRetainAuthorization(ActionActor actor)
     {
-        if (request.Actor.Kind == ActorKind.SystemWorker)
+        if (actor.Kind == ActorKind.SystemWorker)
         {
-            StaffAuthorization.Require(request.Actor, StaffAccessRight.ExecuteSystemWork);
+            StaffAuthorization.Require(actor, StaffAccessRight.ExecuteSystemWork);
             return;
         }
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+    }
+
+    /// <summary>
+    /// Files the next version of a Case image that is already filed (FRD-28
+    /// Routing and filing). The occurrence keeps its identity and names the
+    /// new version, so its tags, report place and preparation carry on; the
+    /// bytes go into Box as the next version of the image's own file (R664);
+    /// a version left pending is filed by reconciliation, which finds it
+    /// through the occurrence like any other.
+    /// </summary>
+    public async Task<CaseArtifactCustodyResult> RetainNextVersionAsync(
+        CaseArtifactVersionRequest request,
+        CancellationToken cancellationToken)
+    {
+        Validate(request);
+        RequireRetainAuthorization(request.Actor);
+        await using var staged = new StagedArtifact(
+            await StageVerifiedAsync(request.Content, request.ContentLength, request.Sha256, cancellationToken));
+        staged.Content.Position = 0;
+        var retained = await quarantineArtifactStore.StoreStreamAsync(
+            staged.Content, request.ContentLength, cancellationToken);
+        if (retained.ContentLength != request.ContentLength
+            || !string.Equals(retained.ContentHash, NormalizeHash(request.Sha256), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("The retained artifact does not match the verified content.");
+        }
+        await quarantineArtifactStore.VerifyAsync(retained, cancellationToken);
+        var recorded = await StoreConcurrencyRetry.ExecuteAsync(
+            token => RecordPendingNextVersionAsync(request, retained.StorageKey, token),
+            cancellationToken,
+            StoreConcurrencyRetry.IsDeadlockOrKeyCollision);
+        if (recorded.ImmediateResult is { } immediateResult)
+        {
+            return immediateResult;
+        }
+        return await FileRecordedVersionAsync(
+            request.CaseId,
+            recorded,
+            staged,
+            retained.StorageKey,
+            new Filing(request.ContentLength, null, 0),
+            cancellationToken);
     }
 
     public async Task<CaseArtifactCustodyResult> GetAsync(
@@ -157,7 +200,6 @@ internal sealed class EfCaseArtifactCustody(
         string pendingContentStorageKey,
         CancellationToken cancellationToken)
     {
-        var content = staged.Content;
         var recorded = await StoreConcurrencyRetry.ExecuteAsync(
             token => RecordPendingCaseVersionAsync(caseId, request, pendingContentStorageKey, token),
             cancellationToken,
@@ -166,7 +208,40 @@ internal sealed class EfCaseArtifactCustody(
         {
             return immediateResult;
         }
+        return await FileRecordedVersionAsync(
+            caseId, recorded, staged, pendingContentStorageKey, Filing.Of(request), cancellationToken);
+    }
 
+    /// <summary>
+    /// What a filing needs of its request once its version is recorded: the
+    /// bytes' length and, for an automatic intake promotion, the receipt and
+    /// Case version the confirmation checks again.
+    /// </summary>
+    private sealed record Filing(long ContentLength, Guid? AutomaticPromotionReceiptId, long ExpectedCaseVersion)
+    {
+        public bool IsAutomaticPromotion => AutomaticPromotionReceiptId is not null;
+
+        public static Filing Of(CaseArtifactCustodyRequest request) => new(
+            request.ContentLength,
+            request.IsAutomaticIntakeEvidencePromotion ? request.IntakeReceiptId : null,
+            request.ExpectedCaseVersion ?? 0);
+    }
+
+    /// <summary>
+    /// Writes a recorded pending version's bytes to the document store,
+    /// confirms the version and publishes its cache copy: the tail every Case
+    /// filing shares, whether the version is a new document's first or an
+    /// image's next.
+    /// </summary>
+    private async Task<CaseArtifactCustodyResult> FileRecordedVersionAsync(
+        Guid caseId,
+        RecordedCaseVersion recorded,
+        StagedArtifact staged,
+        string pendingContentStorageKey,
+        Filing filing,
+        CancellationToken cancellationToken)
+    {
+        var content = staged.Content;
         var caseEntity = recorded.Case!;
         var document = recorded.Document!;
         var version = recorded.Version!;
@@ -207,11 +282,11 @@ internal sealed class EfCaseArtifactCustody(
             // so the Box store takes it as is instead of copying and hashing again.
             write = documentContentStore is BoxDocumentContentStore boxStore
                 ? await boxStore.StoreVerifiedStreamAsync(
-                    address, content, request.ContentLength, version.Sha256, cancellationToken)
+                    address, content, filing.ContentLength, version.Sha256, cancellationToken)
                 : await documentContentStore.StoreVersionAsync(
-                    address, content, request.ContentLength, version.Sha256, cancellationToken);
+                    address, content, filing.ContentLength, version.Sha256, cancellationToken);
         }
-        catch (HttpRequestException exception) when (request.IsAutomaticIntakeEvidencePromotion)
+        catch (HttpRequestException exception) when (filing.IsAutomaticPromotion)
         {
             // The version is already recorded Pending, so Core's bounded retry
             // and the pending-custody reconciliation both find it again.
@@ -235,7 +310,7 @@ internal sealed class EfCaseArtifactCustody(
         var (result, confirmed) = await StoreConcurrencyRetry.ExecuteAsync(
             token => ConfirmCaseVersionAsync(
                 caseId,
-                request,
+                filing,
                 version,
                 occurrence,
                 pendingContentStorageKey,
@@ -256,7 +331,7 @@ internal sealed class EfCaseArtifactCustody(
             DocumentContentCacheKey.ForVersion(version.Id),
             staged,
             version.Sha256,
-            request.ContentLength,
+            filing.ContentLength,
             cancellationToken);
         return result;
     }
@@ -391,13 +466,103 @@ internal sealed class EfCaseArtifactCustody(
     }
 
     /// <summary>
-    /// The Box file a document of a series is filed into as its next version:
-    /// that of the newest filed version of another document of the same
-    /// series in the same Case folder (operator, 4 November 2026). Null when
-    /// the document is in no series or none of it is filed yet, and null when
-    /// a newer version of the series, filed or still pending, was recorded
-    /// after this one, so a file filed late never becomes the current version
-    /// over a newer one (R765).
+    /// Records the next version of the image an occurrence names, Pending and
+    /// current, and points the occurrence at it, so its tags, report place and
+    /// preparation carry on and the pending-custody reconciliation finds the
+    /// version through the occurrence. The same bytes already filed as a
+    /// version of the image are a replay and answer that version; an
+    /// occurrence that no longer names the image's current version is
+    /// refused. The earlier version's Box file is the series file the new
+    /// version goes into.
+    /// </summary>
+    private async Task<RecordedCaseVersion> RecordPendingNextVersionAsync(
+        CaseArtifactVersionRequest request,
+        string pendingContentStorageKey,
+        CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginReadCommittedAsync(cancellationToken);
+        var occurrence = await db.Set<DocumentOccurrenceEntity>()
+            .SingleOrDefaultAsync(
+                value => value.Id == request.OccurrenceId && value.CaseId == request.CaseId,
+                cancellationToken)
+            ?? throw new FileNotFoundException("The Case image occurrence is unavailable.");
+        if (occurrence.SemanticRole != DocumentSemanticRole.Image)
+        {
+            throw new InvalidOperationException("Only a Case image takes a later version this way.");
+        }
+        // The document row is held so two originals for one image serialize.
+        await db.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [CaseDocuments] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {occurrence.DocumentId}",
+            cancellationToken);
+        var document = await db.Set<CaseDocumentEntity>()
+            .SingleAsync(value => value.Id == occurrence.DocumentId, cancellationToken);
+        var versions = await db.Set<DocumentVersionEntity>()
+            .Where(value => value.DocumentId == document.Id)
+            .OrderBy(value => value.Version)
+            .ToListAsync(cancellationToken);
+        var hash = NormalizeHash(request.Sha256);
+        var named = versions.Find(value => value.Id == occurrence.VersionId)
+            ?? throw new InvalidDataException("The Case image occurrence names no version.");
+        var same = versions.Find(value => !value.IsLogicallyRemoved
+            && value.ContentLength == request.ContentLength
+            && string.Equals(value.Sha256, hash, StringComparison.OrdinalIgnoreCase));
+        if (same is not null)
+        {
+            if (same.CustodyStatus == DocumentCustodyStatus.Confirmed)
+            {
+                RequireConfirmed(same, documentContentStore is BoxDocumentContentStore);
+            }
+            await transaction.CommitAsync(cancellationToken);
+            return new(null, null, null, null, Status(same, occurrence.Id));
+        }
+        if (!named.IsCurrent || versions.Exists(value => value.Version > named.Version && !value.IsLogicallyRemoved))
+        {
+            throw new InvalidOperationException("The occurrence no longer names the Case image's current version.");
+        }
+        if (named.CustodyStatus != DocumentCustodyStatus.Confirmed)
+        {
+            throw new InvalidOperationException("The Case image's current version is not filed yet.");
+        }
+        var authority = await CaseMutationGuard.LoadAsync(db, request.CaseId, cancellationToken)
+            ?? throw new InvalidOperationException("The artifact Case is unavailable.");
+        var version = new DocumentVersionEntity
+        {
+            Id = Guid.NewGuid(),
+            DocumentId = document.Id,
+            Version = checked(versions.Max(value => value.Version) + 1),
+            FileName = SafeName(request.FileName),
+            MediaType = request.MediaType.Trim(),
+            ContentLength = request.ContentLength,
+            Sha256 = hash,
+            PendingContentStorageKey = pendingContentStorageKey,
+            CustodyStatus = DocumentCustodyStatus.Pending,
+            CreatedAtUtc = timeProvider.GetUtcNow(),
+            CreatedBy = $"{request.Actor.Kind}:{request.Actor.SubjectId}",
+            IsCurrent = true
+        };
+        foreach (var earlier in versions)
+        {
+            earlier.IsCurrent = false;
+        }
+        occurrence.VersionId = version.Id;
+        db.Add(version);
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(authority.Case, document, version, occurrence, null, named.BoxFileId);
+    }
+
+    /// <summary>
+    /// The Box file a version is filed into as its next version. A later
+    /// version of the same document goes on the document's own file, the one
+    /// a confirmed earlier version of it was filed into (R664; a Case image's
+    /// full-size original, FRD-28). A document of a series goes on the newest
+    /// filed version of another document of the same series in the same Case
+    /// folder (operator, 4 November 2026). Null when the document is in no
+    /// series or none of it is filed yet, and null when a newer version of
+    /// the series, filed or still pending, was recorded after this one, so a
+    /// file filed late never becomes the current version over a newer one
+    /// (R765).
     /// </summary>
     internal static async Task<string?> SeriesBoxFileIdAsync(
         PegasusDbContext db,
@@ -405,6 +570,23 @@ internal sealed class EfCaseArtifactCustody(
         DocumentVersionEntity version,
         CancellationToken cancellationToken)
     {
+        if (version.Version > 1)
+        {
+            var own = await db.Set<DocumentVersionEntity>().AsNoTracking()
+                .Where(item => item.DocumentId == document.Id
+                    && item.Id != version.Id
+                    && item.Version < version.Version
+                    && item.CustodyStatus == DocumentCustodyStatus.Confirmed
+                    && item.BoxFileId != null
+                    && !item.IsLogicallyRemoved)
+                .OrderByDescending(item => item.Version)
+                .Select(item => item.BoxFileId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (own is not null)
+            {
+                return own;
+            }
+        }
         if (document.SeriesIdentity is null)
         {
             return null;
@@ -441,7 +623,7 @@ internal sealed class EfCaseArtifactCustody(
 
     private async Task<(CaseArtifactCustodyResult Result, bool Confirmed)> ConfirmCaseVersionAsync(
         Guid caseId,
-        CaseArtifactCustodyRequest request,
+        Filing filing,
         DocumentVersionEntity version,
         DocumentOccurrenceEntity occurrence,
         string pendingContentStorageKey,
@@ -461,9 +643,9 @@ internal sealed class EfCaseArtifactCustody(
         // Rechecked inside the serializable confirmation, so a Case that moved
         // while the bytes were being written is caught before the version is
         // confirmed against it.
-        var promotionTargetCurrent = !request.IsAutomaticIntakeEvidencePromotion
+        var promotionTargetCurrent = !filing.IsAutomaticPromotion
             || await IntakePromotionTarget.IsCurrentAsync(
-                db, caseId, request.IntakeReceiptId!.Value, cancellationToken);
+                db, caseId, filing.AutomaticPromotionReceiptId!.Value, cancellationToken);
         var changed = await db.Set<DocumentVersionEntity>()
             .Where(value => value.Id == version.Id
                 && value.CustodyStatus == DocumentCustodyStatus.Pending
@@ -498,14 +680,14 @@ internal sealed class EfCaseArtifactCustody(
         version.PendingContentStorageKey = null;
         await RecordConfirmedSourceChangeAsync(
             db, caseId, occurrence.OperationKey, timeProvider.GetUtcNow(), cancellationToken);
-        if (request.IsAutomaticIntakeEvidencePromotion)
+        if (filing.AutomaticPromotionReceiptId is { } promotionReceiptId)
         {
             await RecordFiledIntakeAssetAsync(
-                db, request.IntakeReceiptId!.Value, occurrence.SourceOccurrenceIdentity,
+                db, promotionReceiptId, occurrence.SourceOccurrenceIdentity,
                 write.RemoteId, write.BoxVersionId, capturedRoot, cancellationToken);
             await CompleteAutomaticPromotionIfReadyAsync(
-                db, caseId, request.IntakeReceiptId!.Value,
-                request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow(), cancellationToken);
+                db, caseId, promotionReceiptId,
+                filing.ExpectedCaseVersion, timeProvider.GetUtcNow(), cancellationToken);
         }
         await confirmation.CommitAsync(cancellationToken);
         return (Confirmed(version, occurrence.Id), true);
@@ -760,7 +942,7 @@ internal sealed class EfCaseArtifactCustody(
         var workflow = await db.CaseWorkflows
             .Include(item => item.Case)
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
-        if (!promotionPlan!.HasSelectedPhotographs || workflow is null)
+        if (!promotionPlan!.HasSelectedPhotographs || workflow is null || promotionPlan.DefersCaseImageCompletion)
         {
             // Nothing on the Case changes here, so the row records the version
             // the caller filed against (the plan's, inline), not a fresh read
@@ -776,7 +958,9 @@ internal sealed class EfCaseArtifactCustody(
                 ActorRolesJson = "[]",
                 Reason = workflow is null
                     ? "All planned retained receipt evidence has confirmed Case custody; a Triage Case records no image completeness."
-                    : "All planned retained receipt evidence has confirmed Case custody; no selected photographs were present.",
+                    : promotionPlan.DefersCaseImageCompletion
+                        ? "All planned retained receipt evidence has confirmed Case custody; a photo link's photos complete the images when the capture settles."
+                        : "All planned retained receipt evidence has confirmed Case custody; no selected photographs were present.",
                 OperationKey = completionKey,
                 RequestFingerprint = plan.RequestFingerprint,
                 OccurredAtUtc = nowUtc,
@@ -1083,10 +1267,12 @@ internal sealed class EfCaseArtifactCustody(
     }
 
     private static async Task<FileStream> StageVerifiedAsync(
-        CaseArtifactCustodyRequest request,
+        Stream content,
+        long contentLength,
+        string sha256,
         CancellationToken cancellationToken)
     {
-        if (request.ContentLength > MaximumArtifactContentLength)
+        if (contentLength > MaximumArtifactContentLength)
         {
             throw new InvalidDataException("The artifact exceeds the supported bounded custody size.");
         }
@@ -1105,13 +1291,13 @@ internal sealed class EfCaseArtifactCustody(
             long copied = 0;
             while (true)
             {
-                var read = await request.Content.ReadAsync(buffer.AsMemory(), cancellationToken);
+                var read = await content.ReadAsync(buffer.AsMemory(), cancellationToken);
                 if (read == 0)
                 {
                     break;
                 }
                 copied = checked(copied + read);
-                if (copied > request.ContentLength)
+                if (copied > contentLength)
                 {
                     throw new InvalidDataException("Artifact length verification failed.");
                 }
@@ -1119,8 +1305,8 @@ internal sealed class EfCaseArtifactCustody(
                 await staged.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
             }
             var actual = Convert.ToHexStringLower(hash.GetHashAndReset());
-            if (copied != request.ContentLength
-                || !string.Equals(actual, NormalizeHash(request.Sha256), StringComparison.Ordinal))
+            if (copied != contentLength
+                || !string.Equals(actual, NormalizeHash(sha256), StringComparison.Ordinal))
             {
                 throw new InvalidDataException("Artifact content verification failed.");
             }
@@ -1194,6 +1380,21 @@ internal sealed class EfCaseArtifactCustody(
             || !request.Content.CanRead)
         {
             throw new ArgumentException("A complete Case or holding artifact request is required.", nameof(request));
+        }
+        _ = NormalizeHash(request.Sha256);
+    }
+
+    private static void Validate(CaseArtifactVersionRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.CaseId == Guid.Empty
+            || request.OccurrenceId == Guid.Empty
+            || string.IsNullOrWhiteSpace(request.FileName)
+            || string.IsNullOrWhiteSpace(request.MediaType)
+            || request.ContentLength < 0
+            || !request.Content.CanRead)
+        {
+            throw new ArgumentException("A complete Case image version request is required.", nameof(request));
         }
         _ = NormalizeHash(request.Sha256);
     }
