@@ -1461,17 +1461,16 @@ public sealed class EfPhotoCaptureStore(
 
     private static async Task<IReadOnlyDictionary<Guid, IReadOnlyList<PhotoCaptureItem>>> ItemsByCaptureAsync(
         PegasusDbContext context,
-        IReadOnlyCollection<Guid> captureIds,
+        Guid[] ids,
         bool receivedOnly,
         CancellationToken cancellationToken)
     {
-        if (captureIds.Count == 0)
+        if (ids.Length == 0)
         {
             return new Dictionary<Guid, IReadOnlyList<PhotoCaptureItem>>();
         }
 
         // One JSON parameter, so no page of captures can reach the parameter limit.
-        var ids = captureIds.ToArray();
         var items = context.PhotoCaptureItems.AsNoTracking()
             .Where(item => EF.Parameter(ids).Contains(item.CaptureId));
         if (receivedOnly)
