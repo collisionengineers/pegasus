@@ -1,7 +1,8 @@
 /* Collision Engineers - vehicle photo capture.
    Converted from the v10.34 test build (handover of 5 November 2026); see README.md.
-   The first part is the prototype's <style> block unchanged; the last section holds
-   the classes that replace the prototype's inline style attributes (CSP: style-src 'self'). */
+   The first part is the prototype's <style> block, changed only where the layout
+   section at the end says (#2029); the last sections hold the classes that replace
+   the prototype's inline style attributes (CSP: style-src 'self'). */
 
 :root{
   --red:#db0816; --red-dark:#8f1422; --red-tint:rgba(219,8,22,.07);
@@ -37,7 +38,7 @@ header.bar .step{font-size:12px;color:var(--muted);letter-spacing:.02em;white-sp
 .progress i{display:block;height:100%;background:var(--red);width:0;transition:width .35s ease}
 @media (prefers-reduced-motion:reduce){.progress i{transition:none}}
 
-main{flex:1;padding:22px 20px 110px;overflow-y:auto}
+main{flex:1;padding:22px 20px;overflow-y:auto}
 footer.cta{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--border);padding:12px 20px calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:10px}
 
 /* ---------- Type ---------- */
@@ -158,7 +159,7 @@ strong{font-weight:600}
 .done-wrap .ref b{font-family:var(--brand);font-size:18px;letter-spacing:.04em}
 
 /* ---------- Toast / upload sim ---------- */
-.uplog{font-size:12px;color:var(--muted);margin-top:8px;display:flex;align-items:center;gap:6px}
+.uplog{font-size:12px;color:var(--muted);margin-top:8px;display:flex;align-items:center;gap:6px;position:sticky;bottom:0;background:var(--bg);padding:6px 0}
 .uplog .dot{width:8px;height:8px;border-radius:50%;background:var(--success)}
 .uplog .dot.busy{background:var(--red);animation:blink 1s infinite}
 @keyframes blink{50%{opacity:.3}}
@@ -360,3 +361,9 @@ ol.nextsteps li span{color:var(--muted);font-size:14px}
 /* ---------- Upload queue ---------- */
 /* a photo, or the walk-around video, the server refused */
 .thumb.failed,.strip img.failed,.xrow.failed{border:2px solid var(--red)}
+/* ---------- Layout (#2029) ---------- */
+/* main scrolls by itself above the bar, so the upload line (.uplog, above) sticks to
+   main's foot and main keeps no room for a bar that is not over it. The bar's
+   buttons start from their own width and wrap only when the row cannot hold them,
+   so "Add more" beside "Continue" stays on one line at 360 px. */
+footer.cta .btn{flex-basis:auto;padding-left:10px;padding-right:10px}

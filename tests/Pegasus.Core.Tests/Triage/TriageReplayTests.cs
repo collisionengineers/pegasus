@@ -450,6 +450,9 @@ public sealed class TriageReplayTests
                 : Task.FromResult<IReadOnlyList<TriageCaseLinkCandidate>>(PairingCandidates
                     .Where(item => (triageCaseId is null || item.CaseId == triageCaseId)
                         && (instructionCaseId is null || item.InstructionCaseId == instructionCaseId)).Take(maximumItems).ToArray());
+        public Task<bool> AddSystemNoteAsync(
+            Guid triageCaseId, ActionActor actor, string operationKey, string note, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
         public Task<bool> LinkAutomaticallyAsync(
             TriageCaseLinkCandidate candidate, ActionActor actor, CancellationToken cancellationToken)
         {

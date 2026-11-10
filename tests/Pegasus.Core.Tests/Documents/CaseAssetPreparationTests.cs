@@ -26,7 +26,8 @@ public sealed class CaseAssetPreparationTests
         bool fullPage = false,
         DateTimeOffset? recordedAtUtc = null,
         string fileName = "image.jpg",
-        bool canPrint = true) =>
+        bool canPrint = true,
+        CaseAssetStoryPlace? story = null) =>
         new(
             caseId ?? CaseId,
             occurrenceId ?? Guid.NewGuid(),
@@ -47,7 +48,8 @@ public sealed class CaseAssetPreparationTests
             TagIds = tags ?? [],
             SourceFileName = fileName,
             RecordedAtUtc = recordedAtUtc ?? Now,
-            CanPrint = canPrint
+            CanPrint = canPrint,
+            Story = story
         };
 
     private static DocumentVersion Confirmed(
@@ -402,6 +404,111 @@ public sealed class CaseAssetPreparationTests
             ],
             saved.OrderBy(item => item.Order).Select(item => item.OccurrenceId).ToArray());
     }
+
+    /// <summary>
+    /// A photo link's photos nobody has ordered follow its story (batch,
+    /// group, sequence, ordinal), whatever order their uploads arrived in
+    /// (operator, 10 November 2026; R854).
+    /// </summary>
+    [Fact]
+    public void AnUnorderedPhotoLinkFollowsItsStory()
+    {
+        var capture = Guid.NewGuid();
+        var dashboard = Item(inReport: true, recordedAtUtc: Now, story: Story(capture, group: 16, sequence: 1));
+        var secondOverview = Item(inReport: true, recordedAtUtc: Now.AddMinutes(1), story: Story(capture, group: 1, sequence: 2));
+        var laterBatch = Item(inReport: true, recordedAtUtc: Now.AddMinutes(2), story: Story(capture, group: 1, sequence: 1, batch: 2));
+        var firstOverview = Item(inReport: true, recordedAtUtc: Now.AddMinutes(3), story: Story(capture, group: 1, sequence: 1));
+
+        Assert.Equal(
+            [firstOverview.OccurrenceId, secondOverview.OccurrenceId, dashboard.OccurrenceId, laterBatch.OccurrenceId],
+            ReportOrder([dashboard, secondOverview, laterBatch, firstOverview]));
+    }
+
+    /// <summary>
+    /// An order an engineer set is never changed (R854): an ordered photo
+    /// keeps its place ahead of the unordered ones, and is not pulled into
+    /// its link's story block.
+    /// </summary>
+    [Fact]
+    public void AnEngineersOrderIsKeptAheadOfTheStory()
+    {
+        var capture = Guid.NewGuid();
+        var orderedLast = Item(inReport: true, order: 1, recordedAtUtc: Now, story: Story(capture, group: 16, sequence: 1));
+        var orderedFirst = Item(inReport: true, order: 2, recordedAtUtc: Now, story: Story(capture, group: 1, sequence: 1));
+        var unorderedPlate = Item(inReport: true, recordedAtUtc: Now.AddMinutes(1), story: Story(capture, group: 14, sequence: 1));
+        var unorderedOverview = Item(inReport: true, recordedAtUtc: Now.AddMinutes(2), story: Story(capture, group: 1, sequence: 2));
+
+        Assert.Equal(
+            [orderedLast.OccurrenceId, orderedFirst.OccurrenceId, unorderedOverview.OccurrenceId, unorderedPlate.OccurrenceId],
+            ReportOrder([unorderedPlate, orderedFirst, unorderedOverview, orderedLast]));
+    }
+
+    /// <summary>
+    /// Other channels keep arrival order (R854): the link's photos stand as
+    /// one block where its first photo arrived among them.
+    /// </summary>
+    [Fact]
+    public void OtherChannelsKeepArrivalOrderAroundTheStoryBlock()
+    {
+        var capture = Guid.NewGuid();
+        var firstMail = Item(inReport: true, recordedAtUtc: Now, fileName: "mail-1.jpg");
+        var secondStory = Item(inReport: true, recordedAtUtc: Now.AddMinutes(1), story: Story(capture, group: 1, sequence: 2));
+        var secondMail = Item(inReport: true, recordedAtUtc: Now.AddMinutes(2), fileName: "mail-2.jpg");
+        var firstStory = Item(inReport: true, recordedAtUtc: Now.AddMinutes(3), story: Story(capture, group: 1, sequence: 1));
+        var thirdMail = Item(inReport: true, recordedAtUtc: Now.AddMinutes(4), fileName: "mail-3.jpg");
+
+        Assert.Equal(
+            [firstMail.OccurrenceId, firstStory.OccurrenceId, secondStory.OccurrenceId, secondMail.OccurrenceId, thirdMail.OccurrenceId],
+            ReportOrder([thirdMail, firstStory, secondMail, secondStory, firstMail]));
+    }
+
+    /// <summary>Two photo links are two blocks, each where its own first photo arrived (R854).</summary>
+    [Fact]
+    public void TwoPhotoLinksAreTwoBlocks()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var firstLate = Item(inReport: true, recordedAtUtc: Now, story: Story(first, group: 1, sequence: 2));
+        var secondLate = Item(inReport: true, recordedAtUtc: Now.AddMinutes(1), story: Story(second, group: 1, sequence: 2));
+        var firstEarly = Item(inReport: true, recordedAtUtc: Now.AddMinutes(2), story: Story(first, group: 1, sequence: 1));
+        var secondEarly = Item(inReport: true, recordedAtUtc: Now.AddMinutes(3), story: Story(second, group: 1, sequence: 1));
+
+        Assert.Equal(
+            [firstEarly.OccurrenceId, firstLate.OccurrenceId, secondEarly.OccurrenceId, secondLate.OccurrenceId],
+            ReportOrder([secondEarly, firstEarly, secondLate, firstLate]));
+    }
+
+    /// <summary>
+    /// The tags still fix the first two places (operator, 7 October 2026):
+    /// a story photo tagged Overview prints first, and the rest of the story
+    /// follows in order.
+    /// </summary>
+    [Fact]
+    public void TheTaggedPlacesStandOverTheStory()
+    {
+        var capture = Guid.NewGuid();
+        var firstOverview = Item(inReport: true, recordedAtUtc: Now, story: Story(capture, group: 1, sequence: 1));
+        var plate = Item(inReport: true, recordedAtUtc: Now.AddMinutes(1), story: Story(capture, group: 14, sequence: 1));
+        var tagged = Item(
+            inReport: true, tags: [ImageTagVocabulary.OverviewId], recordedAtUtc: Now.AddMinutes(2),
+            story: Story(capture, group: 16, sequence: 1));
+
+        var report = CaseAssetPreparationPolicy.ForReport([plate, tagged, firstOverview]);
+
+        Assert.Equal(
+            [
+                (tagged.OccurrenceId, CaseAssetReportRole.Overview),
+                (firstOverview.OccurrenceId, CaseAssetReportRole.Supporting),
+                (plate.OccurrenceId, CaseAssetReportRole.Supporting),
+            ],
+            report.Select(item => (item.OccurrenceId, item.Role)).ToArray());
+    }
+
+    private static CaseAssetStoryPlace Story(Guid captureId, int group, int sequence, int batch = 1) =>
+        new(captureId, batch, group, sequence, Ordinal: sequence);
+
+    private static Guid[] ReportOrder(IReadOnlyList<CaseAssetPreparation> items) =>
+        [.. CaseAssetPreparationPolicy.ForReport(items).Select(image => image.OccurrenceId)];
 
     /// <summary>One image tagged both Overview and Close-up takes the Overview's place alone.</summary>
     [Fact]

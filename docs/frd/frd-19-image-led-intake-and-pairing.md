@@ -124,7 +124,10 @@ keeps the session
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). A replayed fold
 files nothing twice.
 
-Filing them completes the Case's images. A Not ready Case with nothing else
+Filing them completes the Case's images, except for a record of a photo
+link's capture that has already completed a Case's images
+([FRD-28](frd-28-guided-photo-capture.md#routing-and-filing); operator,
+10 November 2026, [R841](../rulings.md)). A Not ready Case with nothing else
 missing then moves to Review
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)). A
 Triage Case records no image completeness.

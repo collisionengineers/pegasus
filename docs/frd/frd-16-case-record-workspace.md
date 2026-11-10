@@ -59,7 +59,9 @@ Case at the same route renders as the Triage Case page instead
   photo link for this Case, to the customer or, as a quick link, to a firm
   (operator, 9 November 2026; R808), absent while `Features:PhotoCapture`
   is off (operator, 9 November 2026; R773;
-  [FRD-28](frd-28-guided-photo-capture.md#photo-links));
+  [FRD-28](frd-28-guided-photo-capture.md#photo-links)) and on a closed
+  Case, whose Send page refuses it (operator, 10 November 2026;
+  [R847](../rulings.md));
 - the one **Actions** menu.
 
 When a colleague holds the lease the ribbon shows who, and offers **Ask to

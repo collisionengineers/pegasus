@@ -219,8 +219,14 @@ optional and prints second (operator, 7 October 2026). The tags fix those
 two places: ordering moves only the other images. Where more than one carries a
 tag, the first in the order the operator set prints as it and the rest as
 supporting images, which follow in that order. Images nobody has ordered
-follow the order they arrived, then their file names. Only an image that can
-print counts: its stored version is confirmed, current and not removed. Any
+follow the order they arrived, then their file names, except a photo link's:
+those nobody has ordered follow the capture's story (the overview round the
+car, the damage area by area, the number plate, the VIN, the dashboard) as
+one block, placed where the capture's first photo arrived. An order an
+engineer sets by hand is never changed, and other channels keep arrival
+order (operator, 10 November 2026; [R854](../rulings.md);
+[FRD-28](frd-28-guided-photo-capture.md#baskets-and-names)). Only an image
+that can print counts: its stored version is confirmed, current and not removed. Any
 other image is not one of the report's images and raises no blocker. It joins
 the report when its storage confirms. Crop and order data are a normalised,
 versioned, attributed record under the same expected-version and edit-lease

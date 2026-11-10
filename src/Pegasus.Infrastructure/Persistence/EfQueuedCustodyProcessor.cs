@@ -6,6 +6,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.PhotoCapture;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 
@@ -1654,8 +1655,13 @@ internal sealed class EfQueuedCustodyProcessor(
             .SingleAsync(value => value.Id == imageIntakeId, cancellationToken);
         var alreadyMerged = string.Equals(intake.CustodyState, ImageCustodyStates.Merged, StringComparison.Ordinal);
         CaseMutationGuard? authority = null;
+        PhotoCaptureEntity? capture = null;
         if (folded && !alreadyMerged)
         {
+            // A record a photo link's batch made completes the Case's images
+            // only if its capture has not (R841): the capture is read under
+            // its lock, taken after the Case's, before the Case is read.
+            capture = await LockRecordCaptureAsync(context, intake.SubmissionGroupId, caseId, cancellationToken);
             // A Triage Case has no workflow: its Triage is the authority, and
             // the fold leaves its version alone. A staff link reaches a Case in
             // any lifecycle state (operator, 24 September 2026), so the fold
@@ -1702,11 +1708,26 @@ internal sealed class EfQueuedCustodyProcessor(
             // completion, under its version.
             var filed = await RecordFoldedFilesAsync(
                 context, intake, authority.Case, work.OperationKey, moved, now, cancellationToken, recorded);
-            if (filed > 0 && authority.Workflow is { } workflow && !authority.Case.ImagesComplete)
+            // A Triage Case has no workflow and records no image
+            // completeness; a Case in any lifecycle state takes the fold's.
+            if (filed > 0
+                && PhotoCaptureImages.Completes(
+                    capture?.ImagesCompletedAtUtc,
+                    authority.Case.ImagesComplete,
+                    takesSystemCompletion: authority.Workflow is not null))
             {
                 await CompleteCaseImagesAsync(
-                    context, workflow, work.OperationKey, beforeVersion, now, cancellationToken);
+                    context, authority.Workflow!, work.OperationKey, beforeVersion, now, cancellationToken);
             }
+
+            if (filed > 0 && capture is { ImagesCompletedAtUtc: null })
+            {
+                // The capture's one images-complete is spent with its photos
+                // on the Case, in the transaction that merged them (R792, R841).
+                capture.ImagesCompletedAtUtc = now;
+                capture.Version++;
+            }
+
             authority.CompleteSystemMutation();
             context.CaseHistory.Add(new()
             {
@@ -1725,6 +1746,43 @@ internal sealed class EfQueuedCustodyProcessor(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return recorded;
+    }
+
+    /// <summary>
+    /// The photo link's capture whose batch made the record, read under its
+    /// update lock, or null for a record no capture made. The Case's
+    /// workflow (or Triage) row is locked first, then the capture's: the order
+    /// the settle's own images completion takes
+    /// (<see cref="EfPhotoCaptureCaseWriter.CompleteImagesAsync"/>). The capture
+    /// store's writes (a batch's close, its reach) take the capture's lock and
+    /// never a Case's, and this fold writes nothing before it holds both, so
+    /// no two of them wait on each other in a cycle.
+    /// </summary>
+    private static async Task<PhotoCaptureEntity?> LockRecordCaptureAsync(
+        PegasusDbContext context,
+        Guid? submissionGroupId,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        if (submissionGroupId is not { } groupId)
+        {
+            return null;
+        }
+
+        var captureId = await context.PhotoCaptureBatches.AsNoTracking()
+            .Where(batch => batch.SubmissionGroupId == groupId)
+            .Select(batch => (Guid?)batch.CaptureId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (captureId is not { } id)
+        {
+            return null;
+        }
+
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, caseId, cancellationToken);
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [PhotoCaptures] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {id}",
+            cancellationToken);
+        return await context.PhotoCaptures.SingleAsync(item => item.Id == id, cancellationToken);
     }
 
     /// <summary>

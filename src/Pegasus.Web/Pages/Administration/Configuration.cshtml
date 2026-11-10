@@ -39,7 +39,9 @@
                     @* What Send a photo link starts with (R813) and which lifetimes it
                        offers, with the one it starts on (R817), in the Send page's words. *@
                     <fieldset class="stack fieldset-plain" data-photo-link-settings>
-                        <legend>@OperatorLabels.PhotoCapture.SendAPhotoLink</legend>
+                        @* The operator's words (R869): "Photo links" over the settings, "Lifetimes offered"
+                           over the ticked lifetimes, and "Link lasts", as on the Send page, over the starting one. *@
+                        <legend>@OperatorLabels.PhotoCapture.PhotoLinks</legend>
                         <fieldset class="field fieldset-plain">
                             <legend>@OperatorLabels.PhotoCapture.PhotoGuidance</legend>
                             <div class="cluster">
@@ -52,13 +54,15 @@
                         <label class="choice"><input type="checkbox" name="PhotoLinkStartLiveCameraOnly" value="true" checked="@Model.PhotoLinkStartLiveCameraOnly" /> <span>@OperatorLabels.PhotoCapture.LiveCameraOnly</span></label>
                         <label class="choice"><input type="checkbox" name="PhotoLinkStartOriginals" value="true" checked="@Model.PhotoLinkStartOriginals" /> <span>@OperatorLabels.PhotoCapture.FullSizeOriginals</span></label>
                         <fieldset class="field fieldset-plain">
-                            <legend>@OperatorLabels.PhotoCapture.LinksLast</legend>
+                            <legend>@OperatorLabels.PhotoCapture.LifetimesOffered</legend>
                             <div class="cluster">
                                 @foreach (var days in Pegasus.Core.PhotoCapture.CaptureLimits.LifetimeDays)
                                 {
                                     <label class="choice"><input type="checkbox" name="PhotoLinkLifetimesOffered" value="@days" checked="@Model.PhotoLinkLifetimesOffered.Contains(days)" /> <span>@OperatorLabels.PhotoCapture.Days(days)</span></label>
                                 }
                             </div>
+                            @* Each refused rule is said beside its own setting (R868). *@
+                            <span asp-validation-for="PhotoLinkLifetimesOffered" class="field-error"></span>
                         </fieldset>
                         <div class="field field--narrow">
                             <label for="PhotoLinkDefaultLifetimeDays">@OperatorLabels.PhotoCapture.LinkLasts</label>
@@ -68,6 +72,7 @@
                                     <option value="@days" selected="@(Model.PhotoLinkDefaultLifetimeDays == days)">@OperatorLabels.PhotoCapture.Days(days)</option>
                                 }
                             </select>
+                            <span asp-validation-for="PhotoLinkDefaultLifetimeDays" class="field-error"></span>
                         </div>
                     </fieldset>
                 }

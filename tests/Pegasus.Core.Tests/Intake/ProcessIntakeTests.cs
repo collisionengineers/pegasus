@@ -198,6 +198,57 @@ public sealed class ProcessIntakeTests
         Assert.Empty(registerUnidentified.Requests);
     }
 
+    /// <summary>
+    /// A photo link's item whose capture has its Case gives the Intake log
+    /// the sentence R805 fixed for whoever declared that Case: the link sent
+    /// from the Case, or the registration typed on the link; never a staff
+    /// upload's.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task APhotoLinkItemWithItsCaseRecordsWhoDeclaredIt(bool sentFromCase)
+    {
+        var capture = Pegasus.Core.Tests.PhotoCapture.PhotoCaptureTestData.Capture(
+            origin: sentFromCase
+                ? Pegasus.Core.PhotoCapture.PhotoCaptureOrigin.CaseLink
+                : Pegasus.Core.PhotoCapture.PhotoCaptureOrigin.StandingStaff) with
+        {
+            IssuedByStaffId = sentFromCase ? Guid.NewGuid() : null
+        };
+        var captures = Pegasus.Core.Tests.ImageIntake.AutomaticImageIntakeTests.Forwarder
+            .For<Pegasus.Core.PhotoCapture.IPhotoCaptureStore>(null);
+        captures.Overrides[nameof(Pegasus.Core.PhotoCapture.IPhotoCaptureStore.GetAsync)] = args =>
+            Task.FromResult((Guid)args[0]! == capture.Id ? capture : null);
+        var store = new RecordingStore();
+        var registerUnidentified = new RecordingRegisterUnidentified();
+        var sut = CreateSut(
+            new StubReader(Readable()),
+            store,
+            registerUnidentified: registerUnidentified,
+            photoCaptures: (Pegasus.Core.PhotoCapture.IPhotoCaptureStore)captures.Proxy);
+        var source = CreateSource() with
+        {
+            Actor = IntakeActorIdentity.PhotoCapture(capture.Id),
+            SourceIdentity = new(IntakeSourceChannel.PhotoCapture, "11111111111111111111111111111111-1"),
+            DeclaredCaseId = capture.CaseId
+        };
+
+        await sut.ExecuteRetainedAsync(source, "retained/photo.jpg");
+
+        var expected = sentFromCase
+            ? Pegasus.Core.PhotoCapture.PhotoCaptureIntakeRules.CaseLinkDestinationReason
+            : Pegasus.Core.PhotoCapture.PhotoCaptureIntakeRules.RoutedDestinationReason;
+        var draft = Assert.Single(store.Drafts);
+        Assert.Equal(IntakeDecision.NeedsSorting, draft.Decision);
+        Assert.Equal(expected, draft.DecisionReason);
+        Assert.Contains(draft.Evidence, evidence =>
+            evidence.Signal == IntakeEvidenceSignals.DeclaredDestination
+            && evidence.Detail == expected);
+        Assert.DoesNotContain(draft.Evidence, evidence => evidence.Detail.Contains("declared by staff", StringComparison.Ordinal));
+        Assert.Empty(registerUnidentified.Requests);
+    }
+
     [Fact]
     public async Task DeclaredDestinationIsRefusedOnTheDirectPath()
     {
@@ -2363,7 +2414,8 @@ public sealed class ProcessIntakeTests
         RetainIncomingArtifact? retainIncomingArtifact = null,
         IPrincipalSubmissionBindings? principalSubmissionBindings = null,
         RecordThirdPartyReportReading? recordThirdPartyReportReading = null,
-        IIntermediaryRegistry? intermediaryRegistry = null) =>
+        IIntermediaryRegistry? intermediaryRegistry = null,
+        Pegasus.Core.PhotoCapture.IPhotoCaptureStore? photoCaptures = null) =>
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
             new InstructionExtractionPolicySelector(
                 extractionPolicies ?? [extractionPolicy ?? new QdosInstructionExtractionPolicy()]),
@@ -2376,7 +2428,8 @@ public sealed class ProcessIntakeTests
             registerUnidentified,
             principalSubmissionBindings,
             recordThirdPartyReportReading,
-            retainIncomingArtifact: retainIncomingArtifact);
+            retainIncomingArtifact: retainIncomingArtifact,
+            photoCaptures: photoCaptures);
 
     private sealed class FixedIntermediaryRegistry(IntermediaryDomains intermediaries) : IIntermediaryRegistry
     {

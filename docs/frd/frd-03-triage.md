@@ -114,8 +114,11 @@ none of them is a finding or completion evidence.
 
 **History and notes.** `History` shows the record's events and notes in one
 chronological order. Staff and the Automation Actor add notes
-(`pegasus_triage_note_add`). Notes are append-only. Each carries its author,
-time and text. A correction is a new note; notes cannot be edited or deleted
+(`pegasus_triage_note_add`), and Pegasus adds the customer's note from a
+photo link whose photos reach the Triage Case
+([FRD-28](frd-28-guided-photo-capture.md#routing-and-filing); operator,
+10 November 2026, [R845](../rulings.md)). Notes are append-only. Each
+carries its author, time and text. A correction is a new note; notes cannot be edited or deleted
 on any screen or through any caller. A Triage Case keeps these notes; Case
 Notes do not apply to it.
 

@@ -125,10 +125,11 @@ public sealed record PhotoCaptureDetails(
 /// add-only until it expires, so the same link reopened adds to this record.
 /// <see cref="QuickLinkFor"/> is who a quick link sent from a Case is for
 /// (R808); null for every other link.
-/// <see cref="ImagesCompletedAtUtc"/> is when the capture's settle first
-/// completed, or found complete, its Case's images: once per capture, so a
-/// later batch never completes them again after staff marked them incomplete
-/// (operator, 9 November 2026; R792).
+/// <see cref="ImagesCompletedAtUtc"/> is when the capture's settle, or the
+/// merge of one of its records, first completed, or found complete, its
+/// Case's images: once per capture, so a later batch or record never
+/// completes them again after staff marked them incomplete (operator,
+/// 9 November 2026; R792; 10 November 2026; R841).
 /// </summary>
 public sealed record PhotoCapture(
     Guid Id,
@@ -388,7 +389,9 @@ public sealed record PhotoCaptureDeclaredGroup(string Registration, DateOnly? In
 /// <summary>
 /// The association a received item's receipt holds, if any: the Case, whether
 /// it is still active, whether Pegasus made it (system work files only on a
-/// Case open to it) and when it was made.
+/// Case open to it, and only within the replay window; a link that follows a
+/// record's merge files as a member of staff's does and is not counted as
+/// Pegasus's, R844) and when it was made.
 /// </summary>
 public sealed record PhotoCaptureItemLink(Guid CaseId, bool IsActive, bool BySystem, DateTimeOffset LinkedAtUtc);
 
@@ -548,7 +551,8 @@ public enum PhotoCapturePairing
 /// how many of its items are photographs, not paperwork or video: what the
 /// Photos column counts and what decides Opened or Photos coming in.
 /// <see cref="SentOnToCustomer"/> is whether a quick Case link's firm sent it
-/// on to their customer (R798), read only for the rows shown.
+/// on to their customer (R798), read with the tab because such a link asks no
+/// VIN (R874).
 /// </summary>
 public sealed record PhotoCaptureListRow(
     PhotoCapture Capture,
@@ -577,16 +581,44 @@ public static class PhotoLinkActs
 public sealed record PhotoLinkAct(string Kind, DateTimeOffset AtUtc, string? ActorName);
 
 /// <summary>
+/// The action history events a change to a standing link writes, as every
+/// other change to a contact writes one (FRD-04; operator, 10 November 2026;
+/// R846). The stored codes read as the operator's names on Administration ›
+/// Logs: "Photo link created", "Photo link paused" and so on.
+/// </summary>
+public static class StandingPhotoLinkActs
+{
+    public const string Created = "photo_link_created";
+    public const string Paused = "photo_link_paused";
+    public const string Resumed = "photo_link_resumed";
+    public const string Replaced = "photo_link_replaced";
+    public const string Retired = "photo_link_retired";
+    public const string DefaultsSaved = "photo_link_defaults_saved";
+    public const string AddressAdded = "photo_link_address_added";
+    public const string AddressChanged = "photo_link_address_changed";
+    public const string AddressRemoved = "photo_link_address_removed";
+}
+
+/// <summary>
+/// Who changed a standing link, under which operation key, and when: what the
+/// change's action history event records (R846). A key already recorded for
+/// the same change of the same link changes nothing.
+/// </summary>
+public sealed record StandingPhotoLinkChange(ActionActor Actor, string OperationKey, DateTimeOffset AtUtc);
+
+/// <summary>
 /// Where a capture's items sit on a Case, for the Files → Images story
-/// (FRD-16). <see cref="StandingLinkIsRepairer"/> is what the required items
-/// need to know (a repairer's own staff owe the VIN), so the Case page derives
-/// the link's status in the lists' own way.
+/// (FRD-16). <see cref="StandingLinkIsRepairer"/> and <see cref="HandedOn"/>
+/// are what the required items need to know (a repairer's own staff owe the
+/// VIN; a customer a quick link was handed on to does not, R874), so the Case
+/// page derives the link's status in the lists' own way.
 /// </summary>
 public sealed record CasePhotoCaptureStory(
     PhotoCapture Capture,
     IReadOnlyList<PhotoCaptureItem> Items,
     string? OrganizationName,
-    bool StandingLinkIsRepairer);
+    bool StandingLinkIsRepairer,
+    bool HandedOn);
 
 /// <summary>The capture store: writes are replay-safe by operation key where one is taken.</summary>
 public interface IPhotoCaptureStore
@@ -621,6 +653,12 @@ public interface IPhotoCaptureStore
         Guid? issuedByStaffId,
         DateTimeOffset issuedAtUtc,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether the capture was handed on to the firm's customer: a Handoff
+    /// token exists for it (R798). Such a link asks no VIN (R808, R874).
+    /// </summary>
+    Task<bool> IsHandedOnAsync(Guid captureId, CancellationToken cancellationToken);
 
     Task<PhotoCapture> RecordOpenedAsync(Guid captureId, DateTimeOffset openedAtUtc, CancellationToken cancellationToken);
 
@@ -785,9 +823,9 @@ public interface IPhotoCaptureStore
     /// <summary>
     /// Records that a batch's record reached the Case, in one transaction
     /// under the capture row's update lock: the batch's Case and reach, its
-    /// bell owed when asked, and, on a capture that has no Case yet, the Case
-    /// and the images marker (the record's merge completed the images). False,
-    /// writing nothing, when the batch's reach was recorded before.
+    /// bell owed when asked, and, on a capture that has no Case yet, the Case.
+    /// The images marker is not its: the record's merge wrote it (R841).
+    /// False, writing nothing, when the batch's reach was recorded before.
     /// </summary>
     Task<bool> RecordBatchReachedAsync(
         Guid captureId,
@@ -862,6 +900,13 @@ public interface IStandingPhotoLinkStore
 
     Task<StandingPhotoLink?> FindWebsiteAsync(CancellationToken cancellationToken);
 
+    // Each write below is one change of the link, saved with the one action
+    // history event it writes (StandingPhotoLinkActs; R846), its before and
+    // after holding the fields it changed. A change whose operation key is
+    // already recorded for the same change of the same link writes nothing
+    // and answers the link as it is; a create whose key is recorded is
+    // refused as AlreadyExists, the link being there already.
+
     Task<StandingPhotoLink> CreateAsync(
         StandingPhotoLinkKind kind,
         Guid? organizationId,
@@ -870,8 +915,7 @@ public interface IStandingPhotoLinkStore
         bool liveCameraOnly,
         int linkLifetimeDays,
         bool originalsInBackground,
-        ActionActor actor,
-        DateTimeOffset createdAtUtc,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken);
 
     Task<StandingPhotoLink> UpdateDefaultsAsync(
@@ -881,19 +925,21 @@ public interface IStandingPhotoLinkStore
         bool liveCameraOnly,
         int linkLifetimeDays,
         bool originalsInBackground,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken);
 
-    Task<StandingPhotoLink> SetPausedAsync(Guid id, long expectedVersion, DateTimeOffset? pausedAtUtc, CancellationToken cancellationToken);
+    /// <summary>Pauses the link from the change's time, or resumes it.</summary>
+    Task<StandingPhotoLink> SetPausedAsync(Guid id, long expectedVersion, bool paused, StandingPhotoLinkChange change, CancellationToken cancellationToken);
 
     /// <summary>Ends the link for good: its slug answers like an unknown one and the lookups skip it (R796).</summary>
-    Task<StandingPhotoLink> SetRetiredAsync(Guid id, long expectedVersion, DateTimeOffset retiredAtUtc, CancellationToken cancellationToken);
+    Task<StandingPhotoLink> SetRetiredAsync(Guid id, long expectedVersion, StandingPhotoLinkChange change, CancellationToken cancellationToken);
 
     /// <summary>
     /// Retires the slug and issues a new one; the old slug answers like an
     /// unknown one from then on. A slug another link holds is refused as
     /// <see cref="StandingPhotoLinkError.SlugTaken"/>.
     /// </summary>
-    Task<StandingPhotoLink> ReplaceSlugAsync(Guid id, long expectedVersion, string newSlug, DateTimeOffset replacedAtUtc, CancellationToken cancellationToken);
+    Task<StandingPhotoLink> ReplaceSlugAsync(Guid id, long expectedVersion, string newSlug, StandingPhotoLinkChange change, CancellationToken cancellationToken);
 
     /// <summary>
     /// The saved addresses the link offers on its form: the contact's own
@@ -914,7 +960,7 @@ public interface IStandingPhotoLinkStore
         long expectedVersion,
         string name,
         string address,
-        DateTimeOffset addedAtUtc,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken);
 
     Task<StandingPhotoLink> ChangeAddressAsync(
@@ -923,12 +969,14 @@ public interface IStandingPhotoLinkStore
         Guid addressId,
         string name,
         string address,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken);
 
     Task<StandingPhotoLink> RemoveAddressAsync(
         Guid id,
         long expectedVersion,
         Guid addressId,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken);
 
     /// <summary>How many captures the standing link started since <paramref name="sinceUtc"/>, for the daily mint cap.</summary>
@@ -955,7 +1003,8 @@ public interface IPhotoCaptureCaseWriter
     /// <summary>
     /// Fills each named Case field that holds neither an extracted fact nor a
     /// confirmed value, as a Fact with "Photo link" provenance; returns the
-    /// field names it filled. Nothing already on the Case is replaced.
+    /// field names it filled. Nothing already on the Case is replaced, except
+    /// a mileage that is the DVSA estimate (<see cref="PhotoCaptureCaseFields.Replaces"/>; R843).
     /// </summary>
     Task<IReadOnlyList<string>> FillEmptyFieldsAsync(
         Guid caseId,

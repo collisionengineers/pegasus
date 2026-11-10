@@ -143,6 +143,8 @@ public static partial class OperatorLabels
         public const string None = "None";
         public const string AwaitingInstruction = "Awaiting instruction";
         public const string MatchedAutomatically = "Matched automatically";
+        // A Case a member of staff chose with Match to a case (operator, 10 November 2026; R864).
+        public const string MatchedByStaff = "Matched by staff";
         public const string AlreadyInstructed = "Already instructed";
 
         /// <summary>"34 photos" once complete, "22 so far" while photos are still coming.</summary>
@@ -247,6 +249,9 @@ public static partial class OperatorLabels
         public const string TheirStandingLink = "Their standing link";
         public const string PauseTheirLink = "Pause their link";
         public const string ResumeTheirLink = "Resume their link";
+        // The Website link panel's own (operator, 10 November 2026; R867); a contact's panel keeps "their".
+        public const string PauseTheLink = "Pause the link";
+        public const string ResumeTheLink = "Resume the link";
         public const string ReplaceLink = "Replace link";
         // Retire (R796), in the words R805 lists.
         public const string RetireLink = "Retire link";
@@ -271,6 +276,24 @@ public static partial class OperatorLabels
         public const string Paused = "Paused";
         public const string Active = "Active";
         public const string Saved = "Saved";
+
+        // The operator's words of 10 November 2026: the chip on an inactive
+        // contact's link, which wins over Paused (R865); the website link's
+        // address box (R869); Administration › Configuration's photo link
+        // settings and the lifetimes they offer (R869).
+        public const string ContactInactive = "Contact inactive";
+        public const string WebsiteAddress = "Website address";
+        public const string PhotoLinks = "Photo links";
+        public const string LifetimesOffered = "Lifetimes offered";
+
+        // The six refusals, each shown beside its form (operator, 10 November 2026; R868).
+        public const string WebsiteAddressShape =
+            "A website address is 6 to 60 lower-case letters, numbers and hyphens, and cannot start or end with a hyphen.";
+        public const string WebsiteAddressInUse = "That website address is already in use.";
+        public const string OfferAtLeastOneLifetime = "Offer at least one lifetime.";
+        public const string StartingLifetimeNotOffered = "The lifetime links start on must be one of those offered.";
+        public const string SavedAddressNeedsNameAndAddress = "A saved address needs a name and an address.";
+        public const string ChooseAQuickLinkType = "Choose a Type for a Quick link.";
 
         // The Case's Files → Images story (FRD-16).
         public const string WhatTheyToldUs = "What they told us";

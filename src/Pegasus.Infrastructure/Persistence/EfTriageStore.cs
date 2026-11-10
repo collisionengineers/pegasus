@@ -853,6 +853,58 @@ public sealed class EfTriageStore(
             cancellationToken);
     }
 
+    /// <summary>
+    /// A note system work writes (<see cref="AddTriageNote.ExecuteForSystemAsync"/>;
+    /// R845): the same note entry <see cref="AddNoteAsync"/> appends, with no
+    /// edit scope, and at the Triage's current version, as an edit-scope
+    /// takeover's entry is, so a member of staff's open edit stands. The
+    /// Triage row is locked first, so a completion or cancellation committing
+    /// at the same moment is seen and the note is not written to it.
+    /// </summary>
+    public async Task<bool> AddSystemNoteAsync(
+        Guid triageCaseId,
+        ActionActor actor,
+        string operationKey,
+        string note,
+        CancellationToken cancellationToken)
+    {
+        TriageLifecycleRules.ValidateSystemNote(triageCaseId, actor, operationKey, note);
+        operationKey = operationKey.Trim();
+        var requestHash = Hash($"system-note|{triageCaseId:N}|{actor.Kind}|{actor.SubjectId}|{note}");
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [Triage] WITH (UPDLOCK, HOLDLOCK) WHERE [CaseId] = {triageCaseId}",
+            cancellationToken);
+        if (await FindReplayAsync(context, operationKey, cancellationToken) is { } replay)
+        {
+            EnsureReplay(replay, TriageNotes.EventType, requestHash, triageCaseId);
+            return false;
+        }
+
+        var triage = await context.Triage
+            .SingleOrDefaultAsync(item => item.CaseId == triageCaseId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Triage '{triageCaseId}' does not exist.");
+        if (!TriageLifecycleRules.ActiveStates.Contains(ParseState(triage.State)))
+        {
+            // A completed or cancelled Triage takes no note (R845).
+            return false;
+        }
+
+        AppendHistory(
+            context,
+            triage,
+            TriageNotes.EventType,
+            actor,
+            operationKey,
+            note,
+            requestHash,
+            beforeVersion: triage.Version);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
     private static string NoteRequestHash(AddTriageNoteRequest request) =>
         Hash($"note|{request.CaseId:N}|{request.ExpectedVersion}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Note.Trim()}");
 
