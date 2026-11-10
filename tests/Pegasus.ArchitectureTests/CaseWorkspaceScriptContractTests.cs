@@ -296,7 +296,21 @@ public sealed class CaseWorkspaceScriptContractTests
             RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
 
         var helper = FunctionBody(script, "function withoutUnchangedWording(form, body) {", "    ");
-        Assert.Contains("if (wording.changed()) { return { panel: panel, state: wording.state() }; }", helper, StringComparison.Ordinal);
+        Assert.Matches(
+            new Regex(@"if \(wording\.changed\(\)\) \{\s*asComposed\(panel, body\);\s*return \{ panel: panel, state: wording\.state\(\) \};"),
+            helper);
+        // #2042: a block still showing the sentence or heading it was drawn with travels
+        // blank, which the Save stores as no change, so a section kept on screen while the
+        // Case moved on stores nothing the Engineer did not write.
+        var asComposed = FunctionBody(script, "function asComposed(panel, body) {", "    ");
+        Assert.Contains(
+            "if (text && same(text.value, row.getAttribute('data-wording-composed'))) { body.set(text.name, ''); }",
+            asComposed,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "if (title && same(title.value, row.getAttribute('data-wording-heading'))) { body.set(title.name, ''); }",
+            asComposed,
+            StringComparison.Ordinal);
         Assert.Contains("if (name.indexOf('wordingEdits[') === 0) { body.delete(name); }", helper, StringComparison.Ordinal);
 
         var submit = FunctionBody(script, "function submitInPlace(form, submitter) {", "    ");
@@ -328,6 +342,7 @@ public sealed class CaseWorkspaceScriptContractTests
             "data-report-wording data-wording-refusal=\"@ReportWordingEdits.UnavailableOnPage\"",
             panel,
             StringComparison.Ordinal);
+        Assert.Contains("data-wording-composed=\"@composed\" data-wording-heading=\"@heading\">", panel, StringComparison.Ordinal);
     }
 
     private static string FunctionBody(string script, string signature, string indent = "        ")

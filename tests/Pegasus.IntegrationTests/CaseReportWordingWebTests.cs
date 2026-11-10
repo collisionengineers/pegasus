@@ -45,6 +45,12 @@ public sealed class CaseReportWordingWebTests
         Assert.DoesNotContain("data-wording-block=\"salvage\"", report, StringComparison.Ordinal);
         Assert.Contains(NatureSentence, report, StringComparison.Ordinal);
         Assert.Contains("wordingEdits[0].Key", report, StringComparison.Ordinal);
+        // Each row carries the sentence and the heading it was composed with, so the page
+        // can send a block it still shows as drawn as no change (#2042).
+        Assert.Matches(
+            "data-wording-block=\"nature\"\\s+data-wording-composed=\"" + Regex.Escape(NatureSentence)
+                + "\"\\s+data-wording-heading=\"Nature of Incident\"",
+            report);
 
         // Every control the panel posts belongs to the Case's one Save form.
         var controls = Regex.Matches(report, "<(?:input|textarea)[^>]*name=\"wordingEdits\\[[^\"]*\"[^>]*>");

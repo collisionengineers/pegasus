@@ -594,9 +594,10 @@
         var name = $"wordingEdits[{slot}]";
         var id = $"f-wording-{slot}";
         var composed = Model.ReportWordingComposed.GetValueOrDefault(block.Key, string.Empty);
+        var heading = Model.ReportWordingHeadings.GetValueOrDefault(block.Key, string.Empty);
         var commentary = block.Key == ReportWordingComposition.ValuationCommentary;
         <div class="wb" hidden="@(!block.Included)" data-wording-row data-wording-block="@block.Key"
-             data-wording-composed="@composed">
+             data-wording-composed="@composed" data-wording-heading="@heading">
             <input type="hidden" name="@(name).Key" value="@block.Key" form="case-edit-form" data-wording-key />
             <input type="hidden" name="@(name).Manual" value="@(block.Manual ? "true" : "false")" form="case-edit-form" />
             <input type="hidden" name="@(name).Order" value="@block.Order" form="case-edit-form" data-wording-order />
