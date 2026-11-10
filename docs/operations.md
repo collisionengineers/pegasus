@@ -19,8 +19,8 @@ Release 124 are one line each in [operations history](operations-history.md).
   sign-in is that check.
 - A `Start` without `-RunId` made a second run, `94d575fb`, with an empty
   database. It was stopped about a minute later, before any function ran or
-  any Graph subscription was made. It is kept, stopped, until the operator
-  rules on it.
+  any Graph subscription was made. On the operator's word ("remove the
+  94d575fb run") it was Reset with `-Approve` the same day.
 
 ## Inspection location register cleanup - 5 November 2026
 
