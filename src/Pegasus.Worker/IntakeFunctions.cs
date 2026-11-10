@@ -28,7 +28,7 @@ namespace Pegasus.Worker;
 /// own five-minute timers, so they use this timer's warm instance instead of
 /// starting a cold one: the due-work sweep, then the approved-inbox fallback
 /// poll (Graph subscription maintenance first), then the sent-report instruction
-/// tidy (ADR-0071) and the sent-mail correspondence tidy (ADR-0091), two jobs
+/// tidy and the sent-mail correspondence tidy (ADR-0071, R902), two jobs
 /// that were never on their own timers. On every other
 /// minute it runs one folded job, the pending-wake poll: each mailbox whose wake
 /// found it leased or not yet due is polled then, not at the next fallback poll.

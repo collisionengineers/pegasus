@@ -856,6 +856,54 @@ public sealed partial class AssessmentReportDraftWebTests
             request.Decisions!.OrderBy(decision => decision.RuleIndex).ToArray());
         Assert.Equal("Agreed by phone.", request.StopOverrideReason);
         Assert.Equal(["Authorise the garage.", "Check the WhatsApp group."], request.AcknowledgedHolds);
+        Assert.False(request.TidiesCaseCorrespondence);
+    }
+
+    /// <summary>
+    /// Delete case correspondence (operator, 9 November 2026; R902 to R905):
+    /// the dialog's tick reaches the send as posted, and a send posted
+    /// without it deletes nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SendReportCarriesTheDeleteCaseCorrespondenceTick(bool ticked)
+    {
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        var caseId = Guid.NewGuid();
+        var send = new RecordingSendReport(StaffMailState.Submitted);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            sendReport: send);
+        using var client = Client(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+        var fields = new List<(string Name, string Value)>
+        {
+            ("id", caseId.ToString("D")),
+            ("operationKey", Guid.NewGuid().ToString("N")),
+            ("editLeaseToken", "held-report-lease"),
+            ("expectedCaseVersion", "0"),
+            ("generationId", Guid.NewGuid().ToString("D")),
+            ("expectedGenerationVersion", "13"),
+            ("coveringMessage", "Report attached."),
+            ("toRecipients", "reviewed@recipient.example")
+        };
+        if (ticked)
+        {
+            fields.Add(("deleteCaseCorrespondence", "true"));
+        }
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SendReport&section=report",
+            Form(AntiforgeryValue(html), [.. fields]));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var request = Assert.Single(send.Requests);
+        Assert.Equal(ticked, request.TidiesCaseCorrespondence);
     }
 
     /// <summary>
@@ -1186,6 +1234,45 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.DoesNotContain("checked", InputTag(FileRow(dialog, CaseReportArtifactKind.RepairSpecification), "data-report-attach-choice=\"RepairSpecification\""), StringComparison.Ordinal);
         Assert.Contains("data-dialog-close", dialog, StringComparison.Ordinal);
         Assert.Single(Regex.Matches(html, "handler=SendReport"));
+    }
+
+    /// <summary>
+    /// Delete case correspondence (operator, 9 November 2026; R902 to R905):
+    /// the dialog's last row, after the holds and before the footer, is the
+    /// tick under its label, unticked on every open.
+    /// </summary>
+    [Fact]
+    public async Task TheSendReportDialogEndsWithAnUntickedDeleteCaseCorrespondence()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var facts = new ReportDispatchFacts(
+            "QDOS26001", "PK12TMZ", "Principal Ltd",
+            PrincipalReportSendingRules.Default with { Hold = "Authorise the garage." },
+            null);
+        using var factory = WithDispatchFacts(
+            baseFactory, caseId, new FakeCurrentGeneration(caseId), facts, CaseReportSendHistory.None);
+        using var client = Client(factory);
+
+        var html = WebUtility.HtmlDecode(await EnterEditModeAsync(client, caseId));
+
+        var dialog = SendDialog(html);
+        var tick = InputTag(dialog, "data-delete-case-correspondence");
+        Assert.Equal(
+            "<input type=\"checkbox\" name=\"deleteCaseCorrespondence\" value=\"true\" data-delete-case-correspondence />",
+            tick);
+        Assert.Single(Regex.Matches(dialog, "data-delete-case-correspondence"));
+        Assert.Contains(
+            $"<label class=\"choice\">{tick}<span>{Pegasus.Web.Presentation.OperatorLabels.StaffMail.DeleteCaseCorrespondence}</span></label>",
+            dialog,
+            StringComparison.Ordinal);
+        var tickAt = dialog.IndexOf(tick, StringComparison.Ordinal);
+        var holdAt = dialog.LastIndexOf("data-report-hold", StringComparison.Ordinal);
+        Assert.True(holdAt >= 0, "The Principal's hold is rendered with its tick.");
+        Assert.True(holdAt < tickAt, "The tick follows the holds.");
+        Assert.True(
+            tickAt < dialog.IndexOf("<footer class=\"mail-compose-footer\">", StringComparison.Ordinal),
+            "The tick precedes the footer.");
     }
 
     private static string FileRow(string dialog, CaseReportArtifactKind kind)

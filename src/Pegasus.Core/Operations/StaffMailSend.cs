@@ -74,7 +74,7 @@ public static class StaffMailCorrelationHeaders
 /// job. It is left out of the payload hash while absent, for the same reason.
 /// <paramref name="TidiesCaseCorrespondence"/> is the **Delete case
 /// correspondence** tick of Send report, a query reply and the Triage
-/// outcome reply (operator, 9 November 2026; R902 to R905, ADR-0091): once
+/// outcome reply (operator, 9 November 2026; R902 to R905, ADR-0071): once
 /// the Sent item is observed, the Worker moves the Case's received e-mails to
 /// Deleted Items. It is left out of the payload hash while false, for the
 /// same reason.

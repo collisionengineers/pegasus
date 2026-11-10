@@ -530,6 +530,86 @@ public sealed class StaffMailSendTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The Delete case correspondence tick (R904) rides only on a report send,
+    /// a reply or reply-all to Case correspondence and the Triage outcome
+    /// reply. Every pair sends without the tick, so a refusal is the tick's.
+    /// </summary>
+    [Theory]
+    [InlineData(StaffMailPurpose.CaseReport, StaffMailComposeMode.New, true)]
+    [InlineData(StaffMailPurpose.CaseReport, StaffMailComposeMode.Reply, true)]
+    [InlineData(StaffMailPurpose.CaseReport, StaffMailComposeMode.ReplyAll, true)]
+    [InlineData(StaffMailPurpose.CaseReport, StaffMailComposeMode.Forward, true)]
+    [InlineData(StaffMailPurpose.GeneralCorrespondence, StaffMailComposeMode.New, false)]
+    [InlineData(StaffMailPurpose.GeneralCorrespondence, StaffMailComposeMode.Reply, true)]
+    [InlineData(StaffMailPurpose.GeneralCorrespondence, StaffMailComposeMode.ReplyAll, true)]
+    [InlineData(StaffMailPurpose.GeneralCorrespondence, StaffMailComposeMode.Forward, false)]
+    [InlineData(StaffMailPurpose.TriageChaser, StaffMailComposeMode.New, false)]
+    [InlineData(StaffMailPurpose.TriageChaser, StaffMailComposeMode.Reply, false)]
+    [InlineData(StaffMailPurpose.TriageChaser, StaffMailComposeMode.ReplyAll, false)]
+    [InlineData(StaffMailPurpose.TriageChaser, StaffMailComposeMode.Forward, false)]
+    [InlineData(StaffMailPurpose.TriageOutcomeReply, StaffMailComposeMode.New, true)]
+    [InlineData(StaffMailPurpose.TriageOutcomeReply, StaffMailComposeMode.Reply, true)]
+    [InlineData(StaffMailPurpose.TriageOutcomeReply, StaffMailComposeMode.ReplyAll, true)]
+    [InlineData(StaffMailPurpose.TriageOutcomeReply, StaffMailComposeMode.Forward, true)]
+    [InlineData(StaffMailPurpose.CaseChaser, StaffMailComposeMode.New, false)]
+    [InlineData(StaffMailPurpose.CaseChaser, StaffMailComposeMode.Reply, false)]
+    [InlineData(StaffMailPurpose.CaseChaser, StaffMailComposeMode.ReplyAll, false)]
+    [InlineData(StaffMailPurpose.CaseChaser, StaffMailComposeMode.Forward, false)]
+    [InlineData(StaffMailPurpose.PhotoLink, StaffMailComposeMode.New, false)]
+    [InlineData(StaffMailPurpose.PhotoLink, StaffMailComposeMode.Reply, false)]
+    [InlineData(StaffMailPurpose.PhotoLink, StaffMailComposeMode.ReplyAll, false)]
+    [InlineData(StaffMailPurpose.PhotoLink, StaffMailComposeMode.Forward, false)]
+    public async Task OnlyAReportSendACorrespondenceReplyAndATriageOutcomeReplyCanDeleteCaseCorrespondence(
+        StaffMailPurpose purpose, StaffMailComposeMode mode, bool mayTidy)
+    {
+        var plain = Command(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])) with
+        {
+            Purpose = purpose,
+            ComposeMode = mode
+        };
+        // A forward leaves from the mailbox that holds the original; new mail names none.
+        plain = plain with
+        {
+            OriginalMessage = mode == StaffMailComposeMode.New
+                ? null
+                : new(Guid.NewGuid(), plain.ApprovedMailboxId, "immutable", null, null)
+        };
+        var ticked = plain with { TidiesCaseCorrespondence = true };
+
+        Assert.Equal(mayTidy, StaffMailSendCommand.MayTidyCaseCorrespondence(purpose, mode));
+        Assert.Equal(StaffMailState.Submitted, (await SendThroughItsBoundaryAsync(plain)).State);
+        if (mayTidy)
+        {
+            Assert.Equal(StaffMailState.Submitted, (await SendThroughItsBoundaryAsync(ticked)).State);
+        }
+        else
+        {
+            var refusal = await Assert.ThrowsAsync<ArgumentException>(() => SendThroughItsBoundaryAsync(ticked));
+            Assert.Contains("can delete case correspondence", refusal.Message, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// An unticked send serialises, and so hashes, as it did before the tick
+    /// existed; a ticked one carries it.
+    /// </summary>
+    [Fact]
+    public void AnUntickedSendLeavesTheTickOutOfItsPayload()
+    {
+        var command = Command(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]));
+
+        Assert.DoesNotContain(
+            "tidiesCaseCorrespondence",
+            System.Text.Json.JsonSerializer.Serialize(command, System.Text.Json.JsonSerializerOptions.Web),
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "\"tidiesCaseCorrespondence\":true",
+            System.Text.Json.JsonSerializer.Serialize(
+                command with { TidiesCaseCorrespondence = true }, System.Text.Json.JsonSerializerOptions.Web),
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ConcurrentLoserCannotMutateWinnerWhileExecutionLockIsHeld()
     {
@@ -647,6 +727,25 @@ public sealed class StaffMailSendTests
         "Body",
         [],
         "operation-key");
+
+    /// <summary>
+    /// Sends through the boundary its purpose takes: a report send through
+    /// <see cref="StaffReportSend"/> with a readiness that names the same
+    /// generation and no artifacts, any other through the generic send.
+    /// </summary>
+    private static Task<StaffMailOperation> SendThroughItsBoundaryAsync(StaffMailSendCommand command)
+    {
+        var send = new StaffMailSend(
+            new Store(),
+            new Mailboxes(command.ApprovedMailboxId, command.ExpectedMailboxGeneration),
+            null!, new Transport(), TimeProvider.System, new ExecutionLock(), NoJobs, NoConfirm);
+        return command.Purpose == StaffMailPurpose.CaseReport
+            ? new StaffReportSend(new Readiness(), send).SendAsync(
+                new(command, new ReportSendReadinessRequest(
+                    command.Actor, Guid.NewGuid(), command.ContextId, command.ExpectedContextVersion, [])),
+                CancellationToken.None)
+            : send.SendAsync(command, CancellationToken.None);
+    }
 
     private sealed class Mailboxes(Guid id, long generation) : IApprovedStaffSendMailboxQueries
     {

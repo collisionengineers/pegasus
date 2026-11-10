@@ -475,6 +475,168 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(fixture.TriageCaseId, command.ContextId);
         Assert.Equal(fixture.Version + 2, command.ExpectedContextVersion);
         Assert.Equal(expectedBody, command.Body);
+        Assert.False(command.TidiesCaseCorrespondence);
+    }
+
+    /// <summary>
+    /// Delete case correspondence (operator, 9 November 2026; R902 to R905):
+    /// Reply with finding offers the tick, unticked, and a ticked reply
+    /// carries it to the send.
+    /// </summary>
+    [Fact]
+    public async Task ReplyWithFindingOffersAndCarriesDeleteCaseCorrespondence()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        var fixture = await CompleteMailboxTriageAsync(factory, client);
+
+        using var pageResponse = await client.GetAsync($"/Cases/{fixture.TriageCaseId}");
+        var page = await pageResponse.Content.ReadAsStringAsync();
+        Assert.Contains("data-triage-correspondence=\"TriageOutcomeReply\"", page, StringComparison.Ordinal);
+        var tick = DeleteCaseCorrespondenceTick(page);
+        Assert.Contains("type=\"checkbox\"", tick, StringComparison.Ordinal);
+        Assert.Contains("name=\"deleteCaseCorrespondence\"", tick, StringComparison.Ordinal);
+        Assert.DoesNotContain("checked", tick, StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.StaffMail.DeleteCaseCorrespondence, page, StringComparison.Ordinal);
+
+        var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageCaseId}");
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["expectedVersion"] = (fixture.Version + 2).ToString(CultureInfo.InvariantCulture),
+            ["operationKey"] = operationKey,
+            ["to"] = "reply@example.invalid",
+            ["subject"] = "Re: Originating triage subject",
+            ["body"] = "Our finding.",
+            ["deleteCaseCorrespondence"] = "true"
+        });
+        using var response = await client.SendAsync(request);
+        var responseHtml = await response.Content.ReadAsStringAsync();
+        Assert.True(
+            response.StatusCode == HttpStatusCode.Redirect,
+            $"Expected redirect, received {(int)response.StatusCode}; validation: {ValidationFailure(responseHtml)}");
+
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(StaffMailPurpose.TriageOutcomeReply, command.Purpose);
+        Assert.True(command.TidiesCaseCorrespondence);
+    }
+
+    /// <summary>
+    /// A refused Reply with finding redisplays the Delete case correspondence
+    /// tick as it was posted.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedReplyWithFindingKeepsTheDeleteCaseCorrespondenceTick()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        var fixture = await CompleteMailboxTriageAsync(factory, client);
+        var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageCaseId}");
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["expectedVersion"] = (fixture.Version + 5).ToString(CultureInfo.InvariantCulture),
+            ["operationKey"] = operationKey,
+            ["to"] = "reply@example.invalid",
+            ["subject"] = "Re: Originating triage subject",
+            ["body"] = "Our finding.",
+            ["deleteCaseCorrespondence"] = "true"
+        });
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("The triage record changed while this was being prepared.", html, StringComparison.Ordinal);
+        Assert.Contains("checked=\"checked\"", DeleteCaseCorrespondenceTick(html), StringComparison.Ordinal);
+        Assert.Equal(0, send.SendCalls);
+    }
+
+    /// <summary>
+    /// The chaser never offers Delete case correspondence (R904), and a
+    /// chaser posted with the tick does not carry it to the send.
+    /// </summary>
+    [Fact]
+    public async Task TheChaserNeitherOffersNorCarriesDeleteCaseCorrespondence()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        var fixture = await SeedMailboxTriageAsync(factory);
+
+        using var pageResponse = await client.GetAsync($"/Cases/{fixture.TriageCaseId}");
+        var page = await pageResponse.Content.ReadAsStringAsync();
+        Assert.Contains("data-triage-correspondence=\"TriageChaser\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-delete-case-correspondence", page, StringComparison.Ordinal);
+
+        var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageCaseId}");
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["expectedVersion"] = fixture.Version.ToString(CultureInfo.InvariantCulture),
+            ["operationKey"] = operationKey,
+            ["to"] = "reply@example.invalid",
+            ["subject"] = "Re: Originating triage subject",
+            ["body"] = "Please supply the requested additional vehicle details.",
+            ["deleteCaseCorrespondence"] = "true"
+        });
+        using var response = await client.SendAsync(request);
+        var responseHtml = await response.Content.ReadAsStringAsync();
+        Assert.True(
+            response.StatusCode == HttpStatusCode.Redirect,
+            $"Expected redirect, received {(int)response.StatusCode}; validation: {ValidationFailure(responseHtml)}");
+
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(StaffMailPurpose.TriageChaser, command.Purpose);
+        Assert.False(command.TidiesCaseCorrespondence);
+    }
+
+    /// <summary>A mailbox Triage with its finding recorded and Completed, two versions on.</summary>
+    private static async Task<TriageMailboxFixture> CompleteMailboxTriageAsync(
+        WebApplicationFactory<Program> factory, HttpClient client)
+    {
+        var fixture = await SeedMailboxTriageAsync(factory);
+        var antiforgery = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        _ = await PostActionAsync(
+            client,
+            fixture.TriageCaseId,
+            antiforgery,
+            fixture.Version,
+            "record_finding",
+            "Reviewed the request images",
+            KeyValuePair.Create("roadworthiness", nameof(RoadworthinessFinding.Roadworthy)));
+        _ = await PostActionAsync(
+            client, fixture.TriageCaseId, antiforgery, fixture.Version + 1, "complete", reason: null);
+        return fixture;
+    }
+
+    /// <summary>The one Delete case correspondence input the page renders.</summary>
+    private static string DeleteCaseCorrespondenceTick(string html)
+    {
+        var tick = Regex.Matches(
+            html, "<input[^>]*data-delete-case-correspondence[^>]*>", RegexOptions.CultureInvariant);
+        return Assert.Single(tick).Value;
     }
 
     /// <summary>
@@ -1011,7 +1173,8 @@ public sealed partial class QdosTriageIntegrationTests
         return (operationKey, antiforgeryToken);
     }
 
-    private sealed record TriageMailboxFixture(
+    /// <summary>A mailbox Triage as intake opens one; the Automation send tests seed theirs here too.</summary>
+    internal sealed record TriageMailboxFixture(
         Guid TriageCaseId,
         long Version,
         Guid ReceiptId,
@@ -1019,7 +1182,7 @@ public sealed partial class QdosTriageIntegrationTests
         Guid MailboxId,
         string MailboxAddress);
 
-    private static async Task<TriageMailboxFixture> SeedMailboxTriageAsync(
+    internal static async Task<TriageMailboxFixture> SeedMailboxTriageAsync(
         WebApplicationFactory<Program> factory,
         string senderAddress = "sender@example.invalid",
         string? replyToAddress = "reply@example.invalid",

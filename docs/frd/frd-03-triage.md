@@ -170,7 +170,9 @@ and a mailbox may answer it
 R651). It opens the composer with the
 Triage outcome template from Administration
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)), which the
-user can edit. A sent reply is linked to the
+user can edit, and offers the **Delete case correspondence** tick, which the
+chaser does not (9 November 2026, R902, R904;
+[FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)). A sent reply is linked to the
 Triage through the normal email evidence rules, but neither composing nor
 sending is a gate. Once the outcome reply is sent it is no longer offered;
 Reopen and a fresh completion offer it again (operator, issue 1047,

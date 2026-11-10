@@ -28,7 +28,7 @@ public interface IReportSendReadiness
 /// <param name="AcknowledgedHolds">The hold texts staff ticked as done; every hold the plan sets must be among them.</param>
 /// <param name="Subject">The subject staff edited (v48 item C); null or blank sends the derived one.</param>
 /// <param name="AttachmentNames">The names staff gave this generation's documents for the send (v48 item E), by kind; a kind not named keeps its policy name.</param>
-/// <param name="TidiesCaseCorrespondence">The dialog's Delete case correspondence tick (R902 to R905, ADR-0091); no part of the dispatch fingerprint or record.</param>
+/// <param name="TidiesCaseCorrespondence">The dialog's Delete case correspondence tick (R902 to R905, ADR-0071); no part of the dispatch fingerprint or record.</param>
 public sealed record SendCaseReportRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
     Guid GenerationId, long ExpectedGenerationVersion, string OperationKey,

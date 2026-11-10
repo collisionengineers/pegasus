@@ -8,7 +8,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The send journal's record of the Delete case correspondence tidy after a
-/// ticked send is confirmed (ADR-0091). A row is due while its tidy state is
+/// ticked send is confirmed (ADR-0071, R902). A row is due while its tidy state is
 /// unset and it has had fewer than
 /// <see cref="TidySentCaseCorrespondence.MaximumAttempts"/> runs.
 /// </summary>

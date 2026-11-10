@@ -108,7 +108,7 @@ $pauseCredentialsStatement = "UPDATE dbo.PrincipalApiCredentials SET State = 'Pa
 # pending tidies are closed here; the instance then moves only the instructions
 # its own sends answered.
 $closeTidiesStatement = "UPDATE dbo.StaffMailSendOperations SET InstructionMoveState = 'Failed', InstructionMoveFailureCode = 'production_copy' WHERE InstructionMoveState IS NULL AND Purpose = 'CaseReport' AND State = 'Sent';"
-# R680, ADR-0091: the Delete case correspondence tidy does not check activation
+# R680, R902: the Delete case correspondence tidy does not check activation
 # either, so the copied ticked sends are closed too, whatever their state: a
 # copied Submitted send later seen as Sent must not move production mail. A
 # copy from before the column existed has none to close.
@@ -285,7 +285,7 @@ try {
     #    Administrator enables a mailbox on the instance. Then clear the copied
     #    subscriptions (R678), pause the copied Principal API keys (R679) and
     #    close the copied pending instruction and correspondence tidies (R680,
-    #    ADR-0091) and clear the copied
+    #    R902) and clear the copied
     #    external credentials production's key ring protects (R708).
     $deactivated = Invoke-RunSql -Query ($deactivateStatement + ' SELECT @@ROWCOUNT;')
     $subscriptionsCleared = Invoke-RunSql -Query ($clearSubscriptionsStatement + ' SELECT @@ROWCOUNT;')

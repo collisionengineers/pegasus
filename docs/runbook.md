@@ -431,7 +431,8 @@ rehearsal, `scripts/Copy-ProductionDatabaseToRun.ps1 -RunId <run-id>`
 replaces the Stopped run's database with a SqlPackage copy of production,
 deactivates every approved mailbox in the copy (R627), clears the copied
 subscription rows (R678), pauses the copied Principal API credentials (R679)
-closes the copied pending answered-instruction tidies (R680) and clears the
+closes the copied pending answered-instruction and Delete case
+correspondence tidies (R680, R902) and clears the
 copied per-user external credentials, which production's key ring protects
 (R708); without
 `-Approve` it prints the source, target and statements and stops, and with it

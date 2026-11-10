@@ -6,7 +6,7 @@ namespace Pegasus.Core.Workflow;
 
 /// <summary>
 /// A confirmed send that carried the Delete case correspondence tick and whose
-/// Case's received e-mails have not yet been tidied (ADR-0091).
+/// Case's received e-mails have not yet been tidied (ADR-0071, R902).
 /// <paramref name="PreparedAtUtc"/> is the cut-off: only mail Pegasus held
 /// when the send was prepared is moved.
 /// </summary>
@@ -78,7 +78,7 @@ public interface ISentCaseCorrespondenceTidyStore
 /// <summary>
 /// After a send that carried the Delete case correspondence tick is confirmed
 /// by its Sent item, moves the Case's received e-mails to Deleted Items,
-/// recoverably (ADR-0091). It never deletes permanently, never touches a
+/// recoverably (ADR-0071, R902). It never deletes permanently, never touches a
 /// message of another Case, and does nothing in a host that cannot reach the
 /// mailbox.
 /// </summary>

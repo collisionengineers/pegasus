@@ -904,6 +904,25 @@ public sealed class CaseReportDeliveryTests
     }
 
     /// <summary>
+    /// The dialog's Delete case correspondence tick (R902 to R905) reaches the
+    /// staff send as it was given; a request without it sends unticked.
+    /// </summary>
+    [Fact]
+    public async Task SendCarriesTheDeleteCaseCorrespondenceTick()
+    {
+        var unticked = new RecordingSend();
+        var ticked = new RecordingSend();
+
+        await Use(new FixedGenerations(Generation()), unticked).ExecuteAsync(Request(), CancellationToken.None);
+        await Use(new FixedGenerations(Generation()), ticked).ExecuteAsync(
+            Request() with { TidiesCaseCorrespondence = true },
+            CancellationToken.None);
+
+        Assert.False(Assert.Single(unticked.Commands).Mail.TidiesCaseCorrespondence);
+        Assert.True(Assert.Single(ticked.Commands).Mail.TidiesCaseCorrespondence);
+    }
+
+    /// <summary>
     /// Operator, 4 November 2026 (v48 item C): the Subject field prefills with
     /// the derived subject and staff may change it; what they submit is sent,
     /// a blank one falling back to the derived subject, and one past 500

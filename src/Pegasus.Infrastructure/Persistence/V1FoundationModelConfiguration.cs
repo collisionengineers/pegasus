@@ -32,7 +32,7 @@ internal static class V1FoundationModelConfiguration
             e.Property(x => x.InstructionMoveState).HasMaxLength(20);
             e.Property(x => x.InstructionMoveFailureCode).HasMaxLength(100);
             e.Property(x => x.InstructionMoveAttempts).HasDefaultValue(0);
-            // The Delete case correspondence tidy (ADR-0091) reads the ticked, confirmed sends
+            // The Delete case correspondence tidy (ADR-0071, R902) reads the ticked, confirmed sends
             // still due, oldest Sent item first. Named, so it never stands in for another index.
             e.HasIndex(x => new { x.State, x.ObservedSentAtUtc }, CorrespondenceTidyDueIndex)
                 .HasFilter("[TidiesCaseCorrespondence] = 1 AND [CorrespondenceMoveState] IS NULL");

@@ -257,8 +257,10 @@ associations and history. Dismiss is Pegasus data only: the Outlook item
 does not move and no Graph call is made
 ([ADR-0052](../adr/0052-dismiss-by-logical-folder.md),
 [ADR-0069](../adr/0069-one-flat-mail-category.md)). There is no flag and
-no delete control on any surface. The only Deleted Items move is the
-automatic one after a confirmed report send
+no delete control on any surface. The only Deleted Items moves are the
+automatic one after a confirmed report send and the Case's received e-mails
+after a confirmed send ticked **Delete case correspondence** (9 November
+2026, R902)
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 
 Both acts write only the message's dismissed-at and dismissed-by cells and one

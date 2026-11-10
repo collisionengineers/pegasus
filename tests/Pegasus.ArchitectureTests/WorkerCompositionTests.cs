@@ -68,6 +68,11 @@ public sealed class WorkerCompositionTests
             Assert.Equal(
                 "Pegasus.Infrastructure.Persistence.EfSentReportInstructionTidyStore",
                 scopedServices.GetRequiredService<ISentReportInstructionTidyStore>().GetType().FullName);
+            // The same mover tidies a ticked send's Case correspondence (R902).
+            Assert.NotNull(scopedServices.GetRequiredService<TidySentCaseCorrespondence>());
+            Assert.Equal(
+                "Pegasus.Infrastructure.Persistence.EfSentCaseCorrespondenceTidyStore",
+                scopedServices.GetRequiredService<ISentCaseCorrespondenceTidyStore>().GetType().FullName);
             Assert.NotNull(scopedServices.GetRequiredService<IGroupedIntakeSubmission>());
             Assert.NotNull(scopedServices.GetRequiredService<RetainIncomingArtifact>());
             Assert.Equal(
@@ -286,6 +291,10 @@ public sealed class WorkerCompositionTests
             Assert.IsType<UnavailableRetainedMessageMover>(
                 provider.GetRequiredService<IRetainedMessageMover>());
             Assert.NotNull(scopedServices.GetRequiredService<TidySentReportInstructions>());
+            Assert.NotNull(scopedServices.GetRequiredService<TidySentCaseCorrespondence>());
+            Assert.Equal(
+                "Pegasus.Infrastructure.Persistence.EfSentCaseCorrespondenceTidyStore",
+                scopedServices.GetRequiredService<ISentCaseCorrespondenceTidyStore>().GetType().FullName);
             Assert.NotNull(scopedServices.GetRequiredService<IProcessQueuedCustody>());
             Assert.Equal(
                 "Pegasus.Infrastructure.Vehicle.DvlaDvsaReplayAdapter",
