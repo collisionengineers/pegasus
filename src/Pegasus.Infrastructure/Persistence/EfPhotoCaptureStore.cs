@@ -154,6 +154,14 @@ public sealed class EfPhotoCaptureStore(
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<bool> IsHandedOnAsync(Guid captureId, CancellationToken cancellationToken)
+    {
+        var handoff = PhotoCaptureCodes.ToCode(PhotoLinkTokenPurpose.Handoff);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.PhotoCaptureTokens.AsNoTracking()
+            .AnyAsync(token => token.CaptureId == captureId && token.Purpose == handoff, cancellationToken);
+    }
+
     public Task<PhotoCapture> RecordOpenedAsync(Guid captureId, DateTimeOffset openedAtUtc, CancellationToken cancellationToken) =>
         UpdateAsync(captureId, expectedVersion: null, (_, entity, _) =>
         {

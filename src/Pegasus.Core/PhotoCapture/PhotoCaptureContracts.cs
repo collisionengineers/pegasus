@@ -548,7 +548,8 @@ public enum PhotoCapturePairing
 /// how many of its items are photographs, not paperwork or video: what the
 /// Photos column counts and what decides Opened or Photos coming in.
 /// <see cref="SentOnToCustomer"/> is whether a quick Case link's firm sent it
-/// on to their customer (R798), read only for the rows shown.
+/// on to their customer (R798), read with the tab because such a link asks no
+/// VIN (R874).
 /// </summary>
 public sealed record PhotoCaptureListRow(
     PhotoCapture Capture,
@@ -578,15 +579,17 @@ public sealed record PhotoLinkAct(string Kind, DateTimeOffset AtUtc, string? Act
 
 /// <summary>
 /// Where a capture's items sit on a Case, for the Files → Images story
-/// (FRD-16). <see cref="StandingLinkIsRepairer"/> is what the required items
-/// need to know (a repairer's own staff owe the VIN), so the Case page derives
-/// the link's status in the lists' own way.
+/// (FRD-16). <see cref="StandingLinkIsRepairer"/> and <see cref="HandedOn"/>
+/// are what the required items need to know (a repairer's own staff owe the
+/// VIN; a customer a quick link was handed on to does not, R874), so the Case
+/// page derives the link's status in the lists' own way.
 /// </summary>
 public sealed record CasePhotoCaptureStory(
     PhotoCapture Capture,
     IReadOnlyList<PhotoCaptureItem> Items,
     string? OrganizationName,
-    bool StandingLinkIsRepairer);
+    bool StandingLinkIsRepairer,
+    bool HandedOn);
 
 /// <summary>The capture store: writes are replay-safe by operation key where one is taken.</summary>
 public interface IPhotoCaptureStore
@@ -621,6 +624,12 @@ public interface IPhotoCaptureStore
         Guid? issuedByStaffId,
         DateTimeOffset issuedAtUtc,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether the capture was handed on to the firm's customer: a Handoff
+    /// token exists for it (R798). Such a link asks no VIN (R808, R874).
+    /// </summary>
+    Task<bool> IsHandedOnAsync(Guid captureId, CancellationToken cancellationToken);
 
     Task<PhotoCapture> RecordOpenedAsync(Guid captureId, DateTimeOffset openedAtUtc, CancellationToken cancellationToken);
 
@@ -955,7 +964,8 @@ public interface IPhotoCaptureCaseWriter
     /// <summary>
     /// Fills each named Case field that holds neither an extracted fact nor a
     /// confirmed value, as a Fact with "Photo link" provenance; returns the
-    /// field names it filled. Nothing already on the Case is replaced.
+    /// field names it filled. Nothing already on the Case is replaced, except
+    /// a mileage that is the DVSA estimate (<see cref="PhotoCaptureCaseFields.Replaces"/>; R843).
     /// </summary>
     Task<IReadOnlyList<string>> FillEmptyFieldsAsync(
         Guid caseId,

@@ -395,6 +395,8 @@ public sealed class PhotoCaptureSecurityTests
             DateTimeOffset issuedAtUtc,
             CancellationToken cancellationToken) => throw Outside();
 
+        public Task<bool> IsHandedOnAsync(Guid captureId, CancellationToken cancellationToken) => throw Outside();
+
         public Task<CaptureRecord> RecordOpenedAsync(Guid captureId, DateTimeOffset openedAtUtc, CancellationToken cancellationToken) =>
             throw Outside();
 

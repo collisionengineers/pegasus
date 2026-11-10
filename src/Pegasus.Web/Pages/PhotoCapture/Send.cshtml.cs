@@ -24,6 +24,8 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// Principal and the expiry filled in; <c>{photo link}</c> stays until the
 /// link exists. A message staff edited is sent as edited, and one they did
 /// not is composed again from what the form holds when it is sent (R806).
+/// An archived Case is not found; a closed one shows "The Case cannot take a
+/// photo link." and no form (operator, 10 November 2026; R847).
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -131,6 +133,12 @@ public sealed class SendModel(
             return NotFound();
         }
 
+        // A closed Case shows the refusal and no form (R847).
+        if (Facts!.IsClosed)
+        {
+            return Page();
+        }
+
         var facts = Facts!;
         // Send starts where the Administrators' settings say (R813, R817).
         Mode = _settings!.PhotoLinkStartMode;
@@ -164,6 +172,12 @@ public sealed class SendModel(
         if (!await LoadAsync(cancellationToken))
         {
             return NotFound();
+        }
+
+        // A closed Case issues nothing: the page answers with the refusal (R847).
+        if (Facts!.IsClosed)
+        {
+            return Page();
         }
 
         var byEmail = Submit == ByEmail;

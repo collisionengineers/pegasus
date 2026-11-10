@@ -48,13 +48,17 @@ public sealed record IssuedPhotoLink(PhotoCapture Capture, CaptureLinkSecret Tok
 /// <summary>
 /// HQ issues a link for a Case it already has (handover §6 "Send a photo
 /// link"): one capture per issue, with its first token. Casework is the
-/// right to do it; an archived Case takes no more evidence.
+/// right to do it; an archived Case takes no more evidence, and a closed one
+/// sends no photo link (operator, 10 November 2026; R847).
 /// </summary>
 public sealed class IssuePhotoLink(
     IPhotoCaptureStore captures,
     IPhotoCaptureCaseReader cases,
     TimeProvider timeProvider)
 {
+    /// <summary>The one sentence for a Case that cannot take a photo link (R847): Send, Extend, Resend and Remind say it.</summary>
+    public const string CaseCannotTakeALink = "The Case cannot take a photo link.";
+
     public async Task<IssuedPhotoLink> ExecuteAsync(IssuePhotoLinkRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -70,9 +74,9 @@ public sealed class IssuePhotoLink(
         }
 
         var facts = await cases.GetAsync(request.CaseId, cancellationToken);
-        if (facts is null || facts.IsArchived)
+        if (facts is null || facts.IsArchived || facts.IsClosed)
         {
-            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.CaseUnavailable, "The Case cannot take a photo link.");
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.CaseUnavailable, CaseCannotTakeALink);
         }
 
         var now = timeProvider.GetUtcNow();
@@ -623,10 +627,13 @@ public sealed class CompletePhotoCapture(
         var items = (await captures.ListItemsAsync(capture.Id, cancellationToken))
             .Where(item => item.StagedReceiptId is not null)
             .ToArray();
+        // Only a quick Case link can be handed on (R798), so only it asks.
+        var handedOn = HandOnCaseLink.IsQuickCaseLink(updated)
+            && await captures.IsHandedOnAsync(updated.Id, cancellationToken);
         var missing = PhotoCaptureRequiredItems.Evaluate(
             updated,
             items,
-            PhotoCaptureRequiredItems.VinRequired(updated, await IsRepairerLinkAsync(updated, cancellationToken)));
+            PhotoCaptureRequiredItems.VinRequired(updated, await IsRepairerLinkAsync(updated, cancellationToken), handedOn));
         return new(updated, missing);
     }
 
@@ -647,6 +654,12 @@ public sealed class PhotoLinkActions(
     IPhotoCaptureCaseReader cases,
     TimeProvider timeProvider)
 {
+    /// <summary>Resend or Remind on a cancelled link (R863).</summary>
+    public const string LinkCancelled = "The link was cancelled; send a new one from the Case.";
+
+    /// <summary>Resend or Remind on an expired link (R863).</summary>
+    public const string LinkExpired = "The link has expired; extend it first.";
+
     public async Task<PhotoCapture> RevokeAsync(
         ActionActor actor,
         Guid captureId,
@@ -695,9 +708,16 @@ public sealed class PhotoLinkActions(
             ?? throw new KeyNotFoundException("The photo link was not found.");
         await RequireCaseNotArchivedAsync(capture, cancellationToken);
         var now = timeProvider.GetUtcNow();
+        // A cancelled link cannot be extended, so it is told apart from an
+        // expired one (operator, 10 November 2026; R863).
+        if (capture.IsRevoked)
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.Unavailable, LinkCancelled);
+        }
+
         if (!PhotoCaptureAccess.IsLive(capture, now))
         {
-            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.Unavailable, "The link has expired or was cancelled; extend it first.");
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.Unavailable, LinkExpired);
         }
 
         var token = PhotoLinkToken.Create();
@@ -726,11 +746,15 @@ public sealed class PhotoLinkActions(
         return await captures.RecordCallAsync(captureId, actor, operationKey, timeProvider.GetUtcNow(), cancellationToken);
     }
 
+    /// <summary>
+    /// Archive only: a link sent before its Case closed keeps working, so it
+    /// is still extended and sent again (R847).
+    /// </summary>
     private async Task RequireCaseNotArchivedAsync(PhotoCapture capture, CancellationToken cancellationToken)
     {
         if (capture.CaseId is { } caseId && await cases.GetAsync(caseId, cancellationToken) is { IsArchived: true })
         {
-            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.CaseUnavailable, "The Case cannot take a photo link.");
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.CaseUnavailable, IssuePhotoLink.CaseCannotTakeALink);
         }
     }
 }
@@ -740,7 +764,7 @@ public static class PhotoCaptureMessages
 {
     public static string Handoff(string? customerName, string registration)
     {
-        var first = (customerName ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        var first = PhotoCaptureText.GreetingName(customerName);
         var greeting = first is null ? "Hi," : $"Hi {first},";
         return $"{greeting} Collision Engineers need a few photos of {PhotoCaptureText.DisplayRegistration(registration)} to assess the damage. "
             + "Please open this link on your phone – it takes about 3 minutes and there's nothing to download: ";
@@ -750,6 +774,34 @@ public static class PhotoCaptureMessages
 /// <summary>Trimming and bounding of what a sender types; a value past its bound is cut, not refused, because the sender cannot fix it later.</summary>
 public static class PhotoCaptureText
 {
+    private static readonly string[] Titles = ["Mr", "Mrs", "Miss", "Ms", "Mx", "Dr"];
+
+    /// <summary>
+    /// The name a link's message greets, the one owner of it (R855): none for
+    /// a blank name; a leading title (Mr, Mrs, Miss, Ms, Mx or Dr, with or
+    /// without its full stop, in any case) is passed over for the word after
+    /// it, so "Mr Leroy Ejiofor" is greeted "Leroy"; a title and a surname
+    /// alone ("Mr Ejiofor"), or a title alone, are greeted as typed; any
+    /// other name by its first word (operator, 10 November 2026).
+    /// </summary>
+    public static string? GreetingName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        var trimmed = name.Trim();
+        var words = trimmed.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        var first = words[0].TrimEnd('.');
+        if (!Titles.Contains(first, StringComparer.OrdinalIgnoreCase))
+        {
+            return words[0];
+        }
+
+        return words.Length > 2 ? words[1] : trimmed;
+    }
+
     public static string? Registration(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
