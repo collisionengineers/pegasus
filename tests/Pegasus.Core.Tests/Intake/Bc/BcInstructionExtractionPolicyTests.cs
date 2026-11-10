@@ -96,7 +96,7 @@ public sealed class BcInstructionExtractionPolicyTests
 
     // Baker & Coleman's request sentences as their letters print them, around
     // invented parties: the physical wording of the April 2026 letters and the
-    // desktop wording of the 6 November 2026 letter (R793).
+    // desktop wording of the 6 November 2026 letter (R829).
     private const string DesktopRequest = "Please would you prepare a desktop report of your findings.";
     private const string PhysicalRequest = "Please arrange to inspect our client's vehicle and prepare a report of your findings.";
 

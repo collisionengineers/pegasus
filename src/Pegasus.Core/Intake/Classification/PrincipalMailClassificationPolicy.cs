@@ -34,7 +34,7 @@ namespace Pegasus.Core.Intake;
 /// Version 6 accepts Baker & Coleman's letter sentence "prepare a desktop
 /// report" as their instruction tell, beside the DFD and FW template tells;
 /// their earlier letters ask to inspect the vehicle and pass the generic
-/// request (operator, 9 November 2026, R793).
+/// request (operator, 9 November 2026, R829).
 /// </summary>
 public sealed partial class PrincipalMailClassificationPolicy(string principalCode) : IMailClassificationPolicy
 {

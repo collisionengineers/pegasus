@@ -9,7 +9,7 @@ using Xunit.Abstractions;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The holdout for Baker &amp; Coleman's instruction tell (R793, R794): every
+/// The holdout for Baker &amp; Coleman's instruction tell (R829, R830): every
 /// e-mail from their domain held under <c>corpus/holding/</c> by the
 /// pegasus-corpus-holding skill goes through the real reader, the profile
 /// selector and the classification policy. A letter the BC profile selects
