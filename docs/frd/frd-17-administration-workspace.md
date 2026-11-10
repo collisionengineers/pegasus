@@ -4,19 +4,20 @@
 
 ## Short version
 
-- `/Administration` has twelve areas: Accounts, Contacts, Workflow
-  configuration, Mail settings, E-mail templates, Valuation presets, Service
-  health, Logs, Management Reports, Release notes, Problem reports and
-  Automation & AI, which holds the AI jobs list. Its Automation panels
-  appear only when composed.
+- `/Administration` has thirteen areas: Accounts, Contacts, Workflow
+  configuration, Photo links (while photo capture is on), Mail settings,
+  E-mail templates, Valuation presets, Service health, Logs, Management
+  Reports, Release notes, Problem reports and Automation & AI, which holds the
+  AI jobs list. Its Automation panels appear only when composed.
 - Administration buttons act on the click. There is no confirmation dialog,
   except Delete access
   ([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 - Logs has two tabs: Action logs (who did what) and Intake log (what
   happened to each received file).
-- Workflow configuration holds the completeness rules, the chase interval,
-  the five due targets, Send a photo link's starting values and lifetimes,
-  and the labour-rate cards.
+- Workflow configuration is one panel per concern, each with its own Save:
+  Required before Review, Case/PO, Chasing and due targets, and Labour-rate
+  cards. Photo links holds the website link and Send a photo link's starting
+  values and lifetimes.
 
 ## Purpose
 
@@ -37,8 +38,9 @@ estimates by
 ### Administration
 
 `/Administration` carries **Accounts**, **Contacts**, **Workflow
-configuration**, **Mail settings**, **E-mail templates**, **Valuation
-presets**, **Service
+configuration**, **Photo links** (while photo capture is on; operator, 10
+November 2026; [R911](../rulings.md)), **Mail settings**, **E-mail templates**,
+**Valuation presets**, **Service
 health**, **Logs**, **Management Reports**, **Release notes**, **Problem reports** and
 **Automation & AI**. Automation & AI is one page (operator, 28 October 2026;
 R467): the Automation panel and the AI settings panel, which carries the Send
@@ -164,48 +166,68 @@ the field and the server. The directory rules are owned by
 
 ### Workflow configuration
 
-**Workflow configuration** holds:
+**Workflow configuration** is one panel per concern, each saving only its own
+settings with a **Save** in its head, two columns from 1441px (operator, 10
+November 2026, approving the [v50 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v50-config-and-photo-capture/v50_planning) as drawn;
+[R910](../rulings.md)):
 
-- the versioned instruction- and image-completeness rules as required or
-  not-required items with exact blockers
-  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review));
-- the chase interval, one global whole-calendar-day value
-  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing));
-- the Work Centre due targets, each in whole calendar days from 0 to 365:
-  Unidentified target (default 0, due by the midnight after receipt), Triage
-  target (1), Held decision target (7), Review target (1) and AI draft
-  target (1);
-- the temporary switch **Add -p to new Case/PO**, on by default, saved with
-  the workflow settings: while on, every newly minted Case/PO ends in `-p`
+- **Required before Review**: the versioned instruction- and
+  image-completeness rules as required or not-required items with exact
+  blockers ([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review));
+- **Case/PO**: the temporary switch **Add -p to new Case/PO**, on by default:
+  while on, every newly minted Case/PO ends in `-p`
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity);
   operator, 4 November 2026, [R656](../rulings.md)). A change enters history;
-- while photo capture is on, under the heading **Photo links**, Send a
-  photo link's starting values, saved
-  with the workflow settings: the mode it starts on, Guided or Quick, and
-  whether Live camera only and Full-size originals start on (operator,
-  9 November 2026; R813); and which of the 3, 7 and 14 day lifetimes Send
-  offers, under **Lifetimes offered**, and the one it starts on, under
-  **Link lasts** (operator, 10 November 2026; [R869](../rulings.md)), at
-  least one offered and the starting
-  one among them. Extend and a contact's link defaults keep all three
-  (operator, 9 November 2026; R817;
+- **Chasing and due targets**: the chase interval, one global
+  whole-calendar-day value
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)),
+  then the Work Centre due targets, each in whole calendar days from 0 to 365:
+  Unidentified target (default 0, due by the midnight after receipt), Triage
+  target (1), Held decision target (7), Review target (1) and AI draft
+  target (1). Each is a narrow box with "days" after it;
+- **Labour-rate cards**: the two built-in global versioned cards, Standard
+  and Prestige/Aluminium (operator, 13 October 2026), that every estimate
+  version selects from. Their names are fixed and there are no other cards;
+  the Administrator changes only each panel-and-paint hourly rate. One Save
+  saves whichever card changed, each under its own version. A change never
+  alters the rate a repair spec recorded
+  ([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications)).
+
+Every setting is editable on load. Validation names the setting and allowed
+range when a value is refused. There are no staff instruction-review or
+image-review settings. A panel's Save posts its settings with the version the
+page was drawn with; the other panels' settings are saved as stored, and a
+save made after another Administrator's is refused and asks the Administrator
+to reload. Labour-rate cards stay inside this area; they are not an area of
+their own.
+
+### Photo links
+
+**Photo links** (`/Administration/PhotoLinks`), in the Configuration group
+after Workflow configuration, is shown, and answers, only while photo capture
+is on (operator, 10 November 2026; [R911](../rulings.md)). It holds two
+panels:
+
+- **Website link**: the one website link for private customers, managed as
+  [FRD-28](frd-28-guided-photo-capture.md#standing-photo-links) says. Its head
+  holds the Active or Paused chip, **Save** for its defaults (Links last, Live
+  camera only, Full-size originals) and a More menu with **Pause the link** or
+  **Resume the link**, **Replace link**, which opens a dialog holding the
+  **Website address** box, and **Retire link**, last;
+- **Send a photo link**: Send a photo link's starting values, the mode it
+  starts on, Guided or Quick, and whether Live camera only and Full-size
+  originals start on (operator, 9 November 2026; R813); and which of the 3, 7
+  and 14 day lifetimes Send offers, under **Lifetimes offered**, and the one it
+  starts on, under **Link lasts** (operator, 10 November 2026;
+  [R869](../rulings.md)), at least one offered and the starting one among
+  them. Extend and a contact's link defaults keep all three (operator, 9
+  November 2026; R817;
   [FRD-28](frd-28-guided-photo-capture.md#photo-links)). A save offering no
   lifetime is refused with "Offer at least one lifetime.", and one starting
   on a lifetime not offered with "The lifetime links start on must be one of
-  those offered.", each beside the form (operator, 10 November 2026;
-  [R868](../rulings.md));
-- labour-rate-card administration: the two built-in global versioned cards,
-  Standard and Prestige/Aluminium (operator, 13 October 2026), that every
-  estimate version selects from. Their names are fixed and there are no other
-  cards; the Administrator changes only each panel-and-paint hourly rate. A
-  change never alters the rate a repair spec recorded ([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications)).
-
-The six settings and labour-rate-card rows are editable on load. Validation
-names the setting and allowed range when a value is refused. There are no
-staff instruction-review or image-review settings. Save submits the workflow
-settings or one card with its rendered expected version; a stale save is
-refused and asks the Administrator to reload. Labour-rate cards stay inside
-this area; they are not an area of their own.
+  those offered.", each beside its setting (operator, 10 November 2026;
+  [R868](../rulings.md)). The workflow settings on Workflow configuration are
+  saved as stored.
 
 ### Mail settings
 

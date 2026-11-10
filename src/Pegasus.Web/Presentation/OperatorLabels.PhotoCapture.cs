@@ -160,7 +160,6 @@ public static partial class OperatorLabels
         public const string SendAPhotoLink = "Send a photo link";
         public const string SendPhotoLink = "Send photo link";
         public const string Resend = "Resend";
-        public const string Remind = "Remind";
         public const string LogCall = "Log call";
         public const string Extend = "Extend";
         public const string CancelLink = "Cancel link";

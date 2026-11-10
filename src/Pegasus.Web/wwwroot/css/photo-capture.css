@@ -50,9 +50,39 @@
 .photo-story-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 12px; }
 .photo-story-items li { display: flex; justify-content: space-between; gap: 10px; }
 
+/* One-line rows (v50 I to M; R912): a long name, firm or missing item ends in
+   an ellipsis with the full text on hover; narrower widths drop the columns
+   marked --wide, --medium and --narrow rather than scroll (#2029), and More
+   shrinks to its chevron. */
+.photo-capture-rows td { white-space: nowrap; vertical-align: middle; }
+.photo-capture-rows td, .photo-capture-rows th { padding-left: 8px; padding-right: 8px; }
+.photo-capture-rows td.row-actions { width: 1%; }
+.photo-capture-rows td.row-actions .cluster { flex-wrap: nowrap; justify-content: flex-end; }
+.photo-capture-rows .menu-body { min-width: 180px; }
+.photo-capture-clip { display: block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1480px) { .photo-capture-rows .photo-capture-col--wide { display: none; } }
+@media (max-width: 1300px) { .photo-capture-rows .photo-capture-col--medium { display: none; } }
+
+/* The link page (v50 N, O; R913): the status beside the registration; the
+   missing items, photos and history beside a 360px aside of the link's facts. */
+.photo-link-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.photo-link-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; align-items: start; margin-top: 14px; }
+.photo-link-layout .definition-list { grid-template-columns: minmax(0, 1fr); }
+.photo-link-missing { margin: 0; padding: 8px 14px 10px 30px; display: grid; gap: 4px; }
+.photo-link-missing li::marker { color: var(--amber); }
+.menu-body .menu-label { padding: 4px 8px 0; font-size: 10.5px; font-weight: 650; color: var(--quiet); text-transform: uppercase; letter-spacing: .08em; }
+
+/* Website link defaults on Administration › Photo links, under the link. */
+.photo-link-defaults { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+
 @media (max-width: 1180px) {
     .photo-link-send,
-    .photo-link-grid { grid-template-columns: minmax(0, 1fr); }
+    .photo-link-grid,
+    .photo-link-layout { grid-template-columns: minmax(0, 1fr); }
+    .photo-capture-rows .photo-capture-col--narrow { display: none; }
+    .photo-capture-clip { max-width: 100px; }
+    .photo-capture-rows td, .photo-capture-rows th { padding-left: 6px; padding-right: 6px; }
+    .photo-capture-rows .photo-capture-more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 }
 
 @media (max-width: 760px) {
