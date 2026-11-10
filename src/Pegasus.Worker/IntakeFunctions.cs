@@ -682,9 +682,10 @@ public sealed partial class StagedArtifactReconciliationFunction(
             var deferred = await retryDeferredOriginalReportRecognition.ExecuteAsync(50, cancellationToken);
             if (deferred.Candidates > 0)
             {
+                var deferredLevel = FailureLevel(deferred.Failures);
                 LogDeferredOriginalReportRecognition(
                     logger,
-                    FailureLevel(deferred.Failures),
+                    deferredLevel,
                     deferred.Candidates,
                     deferred.Settled,
                     deferred.Waiting,
