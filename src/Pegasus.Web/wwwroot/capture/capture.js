@@ -41,9 +41,11 @@ function setContext(ctx){
   if(!CTX.originals) JOBS.forEach(j=>{ if(j.original && j.state==='queued') dropOriginal(j); });
 }
 /* Which start screen and first form: replaces the prototype's #claimsco / #bodyshop / #client hash. */
-function mkSrc(kind, st){ return { kind, name:(st&&st.name)||'', addresses:(st&&Array.isArray(st.addresses))?st.addresses:[], lifetimeDays:(st&&st.lifetimeDays)||7 }; }
+function mkSrc(kind, st, preset){ return { kind, preset:!!preset, name:(st&&st.name)||'', addresses:(st&&Array.isArray(st.addresses))?st.addresses:[], lifetimeDays:(st&&st.lifetimeDays)||7 }; }
 function sourceFrom(ctx){
   const st = ctx.standing;
+  /* a quick link sent from a Case: the handover's "case link sent by HQ" start and form for that kind of firm, with the registration fixed (R798, R808) */
+  if(ctx.origin==='case' && ctx.quickLinkFor) return mkSrc(ctx.quickLinkFor==='bodyshop'?'bodyshop':'source', st, true);
   if(ctx.kind==='standing') return (st&&st.kind==='website') ? mkSrc('client',st) : mkSrc(st&&st.isRepairer?'bodyshop':'source', st);
   if(ctx.origin==='website') return mkSrc('client', st);
   if(ctx.origin==='staff') return mkSrc(st&&st.isRepairer?'bodyshop':'source', st);
@@ -740,9 +742,10 @@ const R = {
     }
     if(SRC && SRC.kind==='bodyshop'){
       main.innerHTML = `<div class="welcome">
-      <h1>Vehicle in for assessment at ${esc(SRC.name)}</h1>
+      <h1>${SRC.preset?`Photos needed for ${esc(regShown())}`:`Vehicle in for assessment at ${esc(SRC.name)}`}</h1>
       ${again}
-      <p class="lede">Use this link whenever a vehicle comes in that Collision Engineers will be assessing. Tell us the basics, then take the guided photos – about three minutes.</p>
+      ${SRC.preset?`<p class="lede">Collision Engineers have been instructed on this vehicle and are waiting for the photos.</p><span class="reg"><span>GB</span>${esc(regShown())}</span>`:''}
+      <p class="lede">${SRC.preset?'Confirm a few details, then take the guided photos – or send the customer a link if the car isn’t with you.':'Use this link whenever a vehicle comes in that Collision Engineers will be assessing. Tell us the basics, then take the guided photos – about three minutes.'}</p>
       <ul class="checklist">
         <li><span class="chip">${ICON.list}</span><div><b>The job</b><small>Reg, who’s handling the claim, your view on repair</small></div></li>
         <li><span class="chip">${ICON.car}</span><div><b>Mark where the accident damage is</b><small>Tap the areas on a diagram</small></div></li>
@@ -754,8 +757,9 @@ const R = {
     }
     if(SRC){
       main.innerHTML = `<div class="welcome">
-      <h1>New instruction from ${esc(SRC.name)}</h1>
+      <h1>${SRC.preset?`Photos needed for ${esc(regShown())}`:`New instruction from ${esc(SRC.name)}`}</h1>
       ${again}
+      ${SRC.preset?`<p class="lede">Thanks for the instruction – we’re waiting on the photos for this one.</p><span class="reg"><span>GB</span>${esc(regShown())}</span>`:''}
       <p class="lede">Use this link to send Collision Engineers a vehicle for assessment. Tell us about the claim, then take the guided photos – or send the customer a web link to upload the images themselves.</p>
       <ul class="checklist">
         <li><span class="chip">${ICON.list}</span><div><b>The claim</b><small>Customer, reg, where the car is, what you’re looking for</small></div></li>
@@ -792,13 +796,13 @@ const R = {
       const ad=$('#adddoc'); if(ad) ad.onclick=()=>fileDocs.click();
       main.querySelectorAll('[data-deldoc]').forEach(b=>b.onclick=()=>{ const d=S.docs[+b.dataset.deldoc]; if(canDel(d)){ S.docs.splice(+b.dataset.deldoc,1); cancelUpload(d); } render(); });
     };
-    /* A standing link starts the capture here; afterwards this form only edits its details. */
-    const bindStart=()=>{ const nb=$('#next'); if(nb && isStanding()) nb.onclick=()=>beginCapture(nb); const hb=$('#handoff'); if(hb) hb.onclick=()=>{ if(SRC.kind==='source' && !S.ins.locType) S.ins.locType='With the customer'; sendHandoff(hb); }; };
-    const handoffBtn=()=>isStanding()?`<button class="btn outline" id="handoff" ${handoffOK()?'':'disabled'}>Send customer a link</button>`:'';
+    /* A standing link starts the capture here; afterwards this form only edits its details. A quick Case link hands its own capture on, once: a second tap shows the link already made. */
+    const bindStart=()=>{ const nb=$('#next'); if(nb && isStanding()) nb.onclick=()=>beginCapture(nb); const hb=$('#handoff'); if(hb) hb.onclick=()=>{ if(SRC.preset && S.handoffRes){ S.handoff=true; go(STEPS.indexOf('handoff')); return; } if(SRC.kind==='source' && !S.ins.locType) S.ins.locType='With the customer'; sendHandoff(hb); }; };
+    const handoffBtn=()=>(isStanding()||SRC.preset)?`<button class="btn outline" id="handoff" ${handoffOK()?'':'disabled'}>Send customer a link</button>`:'';
     if(SRC.kind==='client'){
       main.innerHTML = `<h2>Your details</h2>
       <p class="lede">So we can match your photos to your claim and get back to you if we need anything.</p>
-      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${regLocked()?' readonly':''}></div>
+      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${SRC.preset||regLocked()?' readonly':''}></div>
       <div class="field"><label for="customer">Your name</label><input id="customer" type="text" data-ik="customer" value="${esc(I.customer)}" autocomplete="name"></div>
       <div class="field"><label for="phone">Mobile number</label><input id="phone" type="text" inputmode="tel" data-ik="phone" value="${esc(I.phone)}" autocomplete="tel"><span class="hint">We’ll only use this about your assessment</span></div>
       <div class="field"><label for="handler">Who is dealing with your claim? <span class="hint optl">(optional)</span></label><input id="handler" type="text" data-ik="handler" value="${esc(I.handler)}" placeholder="Solicitor or claims company" autocomplete="off"></div>
@@ -811,7 +815,7 @@ const R = {
     if(SRC.kind==='bodyshop'){
       main.innerHTML = `<h2>About this job</h2>
       <p class="lede">A few details so we can match your photos to the instruction when it arrives – or chase it if it doesn’t.</p>
-      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${regLocked()?' readonly':''}></div>
+      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${SRC.preset||regLocked()?' readonly':''}></div>
       <div class="field"><label for="customer">Customer name <span class="hint optl">(optional)</span></label><input id="customer" type="text" data-ik="customer" value="${esc(I.customer)}"></div>
       ${locField(I)}
       <div class="field"><label for="handler">Who is handling the claim?</label><input id="handler" type="text" list="handlers" data-ik="handler" value="${esc(I.handler)}" placeholder="Start typing, or choose from the list" autocomplete="off"><datalist id="handlers"><option value="Customer direct (no claims company)"><option value="Not sure yet"></datalist><span class="hint">The accident management company, credit hire firm or solicitor – or choose “Not sure yet”</span></div>
@@ -824,7 +828,7 @@ const R = {
     }
     main.innerHTML = `<h2>About this claim</h2>
       <p class="lede">The more our engineer knows up front, the more accurate the report will be.</p>
-      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${regLocked()?' readonly':''}></div>
+      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${SRC.preset||regLocked()?' readonly':''}></div>
       <div class="field"><label for="accident">Accident date <span class="hint optl">(optional)</span></label><input id="accident" type="date" data-ik="accident" value="${esc(I.accident||'')}" max="${today}" class="finput"><span class="hint">Helpful if the vehicle has had more than one claim</span></div>
       <div class="field"><label for="customer">Customer / client name <span class="hint optl">(optional)</span></label><input id="customer" type="text" data-ik="customer" value="${esc(I.customer)}"></div>
       ${locField(I)}
@@ -853,7 +857,7 @@ const R = {
       <p class="hint">The link expires in ${SRC.lifetimeDays} days. You’ll see on the HQ side when it’s been opened and when the photos arrive, and the customer’s photos go through the same steps (overview all the way round, the damage, number plate and dashboard).</p>`;
     $('#copy').onclick=async()=>{ try{ await navigator.clipboard.writeText(link); note('Link copied'); }catch(e){ note('Copy the link from the box above'); } };
     cta.innerHTML = `<button class="btn ghost" id="back" aria-label="Back">${ICON.back}</button><button class="btn primary" id="finish">I’ve sent it – finish</button>`;
-    $('#back').onclick=()=>{ S.handoff=false; S.handoffRes=null; go(STEPS.indexOf('instruction')); };
+    $('#back').onclick=()=>{ S.handoff=false; if(!SRC.preset) S.handoffRes=null; go(STEPS.indexOf('instruction')); };
     $('#finish').onclick=()=>{
       /* documents added on the form go onto the capture just made for the customer, under this phone's own session credential, which never marks the customer's link opened */
       if(H.session && JOBS.some(j=>j.state==='queued')){ LINK='c.'+H.session; detailsSig=JSON.stringify(detailsBody()); pump(); }
@@ -927,7 +931,7 @@ const R = {
     const nDmg=dmgTotal(), nScene=S.scene.length+rc('scene'), nOther=S.other.length+rc('other-vehicle'), live=allPhotos().filter(p=>!p.cancelled), up=live.filter(p=>p.uploaded);
     main.innerHTML = `<h2>Check and send</h2>
       <p class="lede">Have a quick look over everything before you send it to us.</p>
-      <div class="sec"><div class="h"><b>Vehicle</b></div><div class="kv"><span class="muted">Registration</span><span>${esc(regShown())}</span>${SRC&&SRC.kind!=='client'?`<span class="muted">${SRC.kind==='bodyshop'?'Repairer':'Instructed by'}</span><span>${esc(SRC.name)}</span>`:''}</div></div>
+      <div class="sec"><div class="h"><b>Vehicle</b></div><div class="kv"><span class="muted">Registration</span><span>${esc(regShown())}</span>${SRC&&SRC.kind!=='client'&&SRC.name?`<span class="muted">${SRC.kind==='bodyshop'?'Repairer':'Instructed by'}</span><span>${esc(SRC.name)}</span>`:''}</div></div>
       ${SRC&&SRC.kind==='client'?`<div class="sec"><div class="h"><b>Your details</b>${edit('instruction')}</div><div class="kv"><span class="muted">Name</span><span>${esc(S.ins.customer)}</span><span class="muted">Mobile</span><span>${esc(S.ins.phone)}</span><span class="muted">Claim handled by</span><span class="tr">${esc(S.ins.handler||'—')}</span><span class="muted">Accident date</span><span>${esc(fmtDate(S.ins.accident))}</span></div></div>`:''}
       ${SRC&&SRC.kind==='bodyshop'?`<div class="sec"><div class="h"><b>The job</b>${edit('instruction')}</div><div class="kv"><span class="muted">Customer</span><span>${esc(S.ins.customer||'—')}</span><span class="muted">Inspection location</span><span class="tr">${esc(locDisplay())}${S.ins.locOther?'<br><span class="muted">'+esc(S.ins.locOther)+'</span>':''}</span><span class="muted">Claim handled by</span><span class="tr">${esc(S.ins.handler)}</span><span class="muted">Your view</span><span>${esc(S.ins.view)}</span><span class="muted">Documents</span><span>${S.docs.length? esc(S.docs.map(d=>d.name).join(', ')) : '—'}</span></div></div>`:''}
       ${SRC&&SRC.kind==='source'?`<div class="sec"><div class="h"><b>The claim</b>${edit('instruction')}</div><div class="kv"><span class="muted">Accident date</span><span>${esc(fmtDate(S.ins.accident))}</span><span class="muted">Customer / client</span><span>${esc(S.ins.customer||'—')}</span><span class="muted">Inspection location</span><span class="tr">${esc(locDisplay())}${S.ins.locOther?'<br><span class="muted">'+esc(S.ins.locOther)+'</span>':''}</span><span class="muted">Roadworthy</span><span>${esc(S.ins.roadworthy)}</span><span class="muted">Preferred outcome</span><span>${esc(S.ins.outcome)}</span><span class="muted">In hire / going into hire</span><span>${esc(S.ins.hire)}</span><span class="muted">Documents</span><span>${S.docs.length? esc(S.docs.map(d=>d.name).join(', ')) : '—'}</span></div></div>`:''}
@@ -949,7 +953,7 @@ const R = {
       main.innerHTML = `<div class="done-wrap">
       <span class="tick">${ICON.check}</span>
       <h1>Instruction received</h1>
-      <p class="lede">We’ve logged ${esc((S.handoffRes&&S.handoffRes.registration)||regShown())}${S.ins.customer?' for '+esc(S.ins.customer):''} from ${esc(SRC.name)}. The job is now waiting for the customer’s photos – we’ll pick it up as soon as they arrive.</p>
+      <p class="lede">We’ve logged ${esc((S.handoffRes&&S.handoffRes.registration)||regShown())}${S.ins.customer?' for '+esc(S.ins.customer):''}${SRC.name?' from '+esc(SRC.name):''}. The job is now waiting for the customer’s photos – we’ll pick it up as soon as they arrive.</p>
       <p class="hint">Status: awaiting customer photos · link valid ${SRC.lifetimeDays} days</p>
       <p class="hint">${upBusy?(stalled()?retryHTML():'Still uploading the last photos…'):'You can close this page now.'}</p>
       </div>`;
@@ -971,7 +975,8 @@ const R = {
       setTimeout(tick,350);
       return;
     }
-    const who = SRC&&SRC.kind!=='client' ? `The report comes back to ${esc(SRC.name)}` : 'Your report goes to whoever is handling your claim';
+    /* a quick Case link for a Bodyshop names no firm, so it says nothing of where the report goes */
+    const who = SRC&&SRC.kind!=='client' ? (SRC.name ? `The report comes back to ${esc(SRC.name)}` : '') : 'Your report goes to whoever is handling your claim';
     /* started from a standing or website link by whoever holds the phone, where opening that link again starts a new capture (R809) */
     const startedHere = CTX.origin==='staff' || CTX.origin==='website';
     main.innerHTML = `<div class="done-wrap left">
@@ -979,7 +984,7 @@ const R = {
       <h1>Thanks, that’s everything</h1>
       <p class="lede">${regShown()?'The photos of '+esc(regShown()):'Your photos'} are with our engineering team.</p>
       <p class="m6-10"><strong>What happens next</strong></p>
-      <ol class="nextsteps"><li><b>An engineer reviews the photos</b><span>We check everything you’ve sent.</span></li><li><b>We’ll be in touch if we need anything else</b><span>Usually by text or email.</span></li><li><b>${who}</b></li></ol>
+      <ol class="nextsteps"><li><b>An engineer reviews the photos</b><span>We check everything you’ve sent.</span></li><li><b>We’ll be in touch if we need anything else</b><span>Usually by text or email.</span></li>${who?`<li><b>${who}</b></li>`:''}</ol>
       <div class="later">${ICON.camera}<span><b>Forgot something?</b> ${startedHere?'Open the link again and enter the same registration to send more photos for this vehicle.':'Open the same link again to send more photos for this vehicle.'}</span></div>
       <p class="hint mt14">${nPhotos(photosSent())} · ${new Date().toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'})}. You can close this page now.</p>
     </div>`;

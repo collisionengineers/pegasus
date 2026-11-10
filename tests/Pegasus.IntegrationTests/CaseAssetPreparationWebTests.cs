@@ -283,7 +283,7 @@ public sealed class CaseAssetPreparationWebTests
         var capture = new Pegasus.Core.PhotoCapture.PhotoCapture(
             Guid.NewGuid(), PhotoCaptureOrigin.CaseLink, null, null, store.CaseId, "Q26-0001", null,
             PhotoCaptureDestination.Case, null, "AB12CDE", null, "Sam Taylor", "07700 900123", null,
-            new PhotoCaptureDetails(DamageAreas: FrontDriverCorner), null, PhotoCaptureMode.Guided, true, true, null,
+            new PhotoCaptureDetails(DamageAreas: FrontDriverCorner), null, PhotoCaptureMode.Guided, null, true, true, null,
             now.AddHours(-1), now.AddDays(7), null, now.AddMinutes(-50), now.AddMinutes(-40), now.AddMinutes(-30),
             now.AddMinutes(-20), null, 0, 2, 2048, 0, null, null, 1);
         PhotoCaptureItem Item(Guid assetId, PhotoCaptureItemKind kind, string? area, PhotoCaptureStage? stage, int position, int ordinal)

@@ -204,7 +204,14 @@
                                         <a asp-page="/Cases/Details" asp-route-id="@caseId">@capture.CaseReference</a>
                                     }
                                 </td>
-                                <td>@row.Source.OrganizationName</td>
+                                <td>
+                                    <span>@row.Source.OrganizationName</span>
+                                    @if (row.Source.SentOnToCustomer)
+                                    {
+                                        @* A quick link its firm sent on to their customer (R798). *@
+                                        <small class="muted photo-capture-sub">@Labels.SentOnToTheirCustomer</small>
+                                    }
+                                </td>
                                 <td>@row.Source.IssuedByName</td>
                                 <td><partial name="Shared/_StatusChip" model="@Labels.State(row.State)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = Labels.StateTone(row.State) }' /></td>
                                 <td>

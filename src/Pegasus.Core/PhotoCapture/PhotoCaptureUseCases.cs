@@ -24,7 +24,11 @@ public static class PhotoCaptureRefusals
     public const string InvalidRequest = "invalid_request";
 }
 
-/// <summary>What a staff member asks for when they issue a photo link from a Case.</summary>
+/// <summary>
+/// What a staff member asks for when they issue a photo link from a Case.
+/// A quick link names who it is for (<see cref="QuickLinkFor"/>, R808); a
+/// guided link names nobody.
+/// </summary>
 public sealed record IssuePhotoLinkRequest(
     Guid CaseId,
     ActionActor Actor,
@@ -33,6 +37,7 @@ public sealed record IssuePhotoLinkRequest(
     string? Email,
     DateOnly? IncidentDate,
     PhotoCaptureMode Mode,
+    PhotoCaptureQuickLinkFor? QuickLinkFor,
     bool LiveCameraOnly,
     bool OriginalsInBackground,
     int LifetimeDays,
@@ -54,6 +59,11 @@ public sealed class IssuePhotoLink(
     {
         ArgumentNullException.ThrowIfNull(request);
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        if (request.Mode == PhotoCaptureMode.Quick && request.QuickLinkFor is null)
+        {
+            throw new ArgumentException("A quick link names who it is for.", nameof(request));
+        }
+
         if (!CaptureLimits.IsLifetime(request.LifetimeDays))
         {
             throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.InvalidRequest, "The link lifetime is not one of the offered ones.");
@@ -81,6 +91,7 @@ public sealed class IssuePhotoLink(
                 PhotoCaptureText.Mobile(request.Mobile) ?? facts.ClaimantContactNumber,
                 PhotoCaptureText.Email(request.Email),
                 request.Mode,
+                request.Mode == PhotoCaptureMode.Quick ? request.QuickLinkFor : null,
                 request.LiveCameraOnly,
                 request.OriginalsInBackground,
                 Guid.TryParse(request.Actor.SubjectId, out var staffId) ? staffId : null,
@@ -194,6 +205,7 @@ public sealed class MintFromStandingLink(
                 PhotoCaptureText.Mobile(form.Mobile),
                 PhotoCaptureText.Email(form.Email),
                 mode,
+                QuickLinkFor: null,
                 link.LiveCameraOnly,
                 link.OriginalsInBackground,
                 IssuedByStaffId: null,
@@ -208,6 +220,56 @@ public sealed class MintFromStandingLink(
         // photo already knows where it files.
         capture = await recordDetails.ExecuteAsync(capture, link, form, cancellationToken);
         return new(capture, token, PhotoCaptureMessages.Handoff(capture.CustomerName, registration), session);
+    }
+}
+
+/// <summary>
+/// "Send customer a link" on a quick link sent from a Case (R798): the firm's
+/// staff hand the same capture on to their customer, so the Case keeps one
+/// link and one row on Links we sent. What they typed is recorded, then the
+/// capture gains a Handoff token, the guided link the staff member's own
+/// phone carries to the customer, and a Session token the staff phone sends
+/// the form's paperwork under. Nothing stored is rewritten: the firm's
+/// Opened stands, and the customer's guided view and "Sent on to their
+/// customer" are read from the Handoff token.
+/// </summary>
+public sealed class HandOnCaseLink(
+    IPhotoCaptureStore captures,
+    RecordPhotoCaptureDetails recordDetails,
+    TimeProvider timeProvider)
+{
+    public async Task<MintedCapture> ExecuteAsync(
+        PhotoCapture capture,
+        StandingCaptureForm form,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        ArgumentNullException.ThrowIfNull(form);
+        var now = timeProvider.GetUtcNow();
+        if (!PhotoCaptureAccess.IsLive(capture, now) || !IsQuickCaseLink(capture))
+        {
+            throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.Unavailable, "The link is no longer active.");
+        }
+
+        var registration = capture.NormalizedRegistration
+            ?? throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.RegistrationRequired, "A vehicle registration is required.");
+        var recorded = await recordDetails.ExecuteAsync(capture, standingLink: null, form, cancellationToken);
+        var token = PhotoLinkToken.Create();
+        var session = PhotoLinkToken.Create();
+        // The Session token first: a Handoff token is what marks the link
+        // sent on, so it is written only once the staff phone has its own.
+        await captures.AddTokenAsync(capture.Id, PhotoLinkToken.Digest(session), PhotoLinkTokenPurpose.Session, issuedByStaffId: null, now, cancellationToken);
+        await captures.AddTokenAsync(capture.Id, PhotoLinkToken.Digest(token), PhotoLinkTokenPurpose.Handoff, issuedByStaffId: null, now, cancellationToken);
+        return new(recorded, token, PhotoCaptureMessages.Handoff(recorded.CustomerName, registration), session);
+    }
+
+    /// <summary>A quick link sent from a Case that names who it is for: the staff version (R798, R808).</summary>
+    public static bool IsQuickCaseLink(PhotoCapture capture)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        return capture.Origin == PhotoCaptureOrigin.CaseLink
+            && capture.Mode == PhotoCaptureMode.Quick
+            && capture.QuickLinkFor is not null;
     }
 }
 
@@ -563,7 +625,7 @@ public sealed class CompletePhotoCapture(
         var missing = PhotoCaptureRequiredItems.Evaluate(
             updated,
             items,
-            PhotoCaptureRequiredItems.VinRequired(updated.Origin, await IsRepairerLinkAsync(updated, cancellationToken)));
+            PhotoCaptureRequiredItems.VinRequired(updated, await IsRepairerLinkAsync(updated, cancellationToken)));
         return new(updated, missing);
     }
 

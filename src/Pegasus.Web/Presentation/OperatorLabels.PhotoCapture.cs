@@ -184,6 +184,18 @@ public static partial class OperatorLabels
         public const string Email = "Email";
         public const string LinkSettings = "Link settings";
         public const string PhotoGuidance = "Photo guidance";
+
+        // Who a quick link is for (R808): the prototype's own words.
+        public const string QuickLinkType = "Type";
+        public const string AccidentManagement = "Accident management";
+        public const string Bodyshop = "Bodyshop";
+
+        public static string QuickLinkFor(PhotoCaptureQuickLinkFor quickLinkFor) => quickLinkFor switch
+        {
+            PhotoCaptureQuickLinkFor.AccidentManagement => AccidentManagement,
+            PhotoCaptureQuickLinkFor.Bodyshop => Bodyshop,
+            _ => throw new InvalidOperationException($"Unknown quick link type '{(int)quickLinkFor}'.")
+        };
         public const string Guided = "Guided";
         public const string Quick = "Quick";
         public const string LiveCameraOnly = "Live camera only";

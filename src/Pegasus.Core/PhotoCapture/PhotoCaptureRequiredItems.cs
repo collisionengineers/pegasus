@@ -8,8 +8,9 @@ public sealed record MissingCaptureItem(string Code, string Label);
 /// steps (FRD-28). Eight overviews; for each damaged area an overview, a
 /// closer shot and at least one close-up; the number plate; the dashboard
 /// unless the sender said they have no keys (R799);
-/// the VIN only where a bodyshop's own staff took the photos, because the app
-/// asks them for it and marks it optional for everyone else. Extras, the
+/// the VIN only where a bodyshop's own staff took the photos, on their own
+/// standing link or a quick link sent from a Case for a Bodyshop (R808),
+/// because the app asks them for it and marks it optional for everyone else. Extras, the
 /// scene, the other vehicle, paperwork, video and the note are never required.
 /// </summary>
 public static class PhotoCaptureRequiredItems
@@ -80,7 +81,20 @@ public static class PhotoCaptureRequiredItems
         return missing;
     }
 
-    /// <summary>The VIN is asked of a bodyshop's own staff; the capture carries whether its standing link is a repairer's.</summary>
-    public static bool VinRequired(PhotoCaptureOrigin origin, bool standingLinkIsRepairer) =>
-        origin == PhotoCaptureOrigin.StandingStaff && standingLinkIsRepairer;
+    /// <summary>
+    /// The VIN is asked of a bodyshop's own staff: on their standing link
+    /// (whether it is a repairer's is read with the capture), or on a quick
+    /// link sent from a Case for a Bodyshop (R808).
+    /// </summary>
+    public static bool VinRequired(PhotoCapture capture, bool standingLinkIsRepairer)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        return capture.Origin switch
+        {
+            PhotoCaptureOrigin.StandingStaff => standingLinkIsRepairer,
+            PhotoCaptureOrigin.CaseLink => capture.Mode == PhotoCaptureMode.Quick
+                && capture.QuickLinkFor == PhotoCaptureQuickLinkFor.Bodyshop,
+            _ => false
+        };
+    }
 }

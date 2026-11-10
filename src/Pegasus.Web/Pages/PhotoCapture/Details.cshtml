@@ -165,7 +165,7 @@
                 </div>
                 @if (from is not null)
                 {
-                    <div class="definition"><dt>@Labels.From</dt><dd>@from @if (!Model.IsCaseLink) { <small class="muted photo-capture-sub">@Labels.Source(capture.Origin)</small> }</dd></div>
+                    <div class="definition"><dt>@Labels.From</dt><dd>@from @if (!Model.IsCaseLink) { <small class="muted photo-capture-sub">@Labels.Source(capture.Origin)</small> } else if (Model.Row.SentOnToCustomer) { <small class="muted photo-capture-sub">@Labels.SentOnToTheirCustomer</small> }</dd></div>
                 }
                 @if (Model.Row.IssuedByName is { Length: > 0 } issuedBy)
                 {

@@ -7,13 +7,13 @@ namespace Pegasus.Web.PhotoCapture;
 /// <summary>Which credential a capture API route admits.</summary>
 public enum CaptureCredentialKind
 {
-    /// <summary>A photo link's token or a standing link's slug.</summary>
+    /// <summary>A photo link's token or a standing link's slug: the context read, and handing a capture on.</summary>
     Any,
 
     /// <summary>A photo link's token only: everything that adds to a capture.</summary>
     Capture,
 
-    /// <summary>A standing link's slug only: starting a capture or handing one on.</summary>
+    /// <summary>A standing link's slug only: starting a capture.</summary>
     Standing
 }
 

@@ -39,6 +39,17 @@ public enum PhotoCaptureMode
     Quick
 }
 
+/// <summary>
+/// Who a quick link sent from a Case is for (R808): the instructing firm's
+/// staff, or a bodyshop's. Each opens the handover app's own start page and
+/// form for that kind of firm; a guided link has none.
+/// </summary>
+public enum PhotoCaptureQuickLinkFor
+{
+    AccidentManagement,
+    Bodyshop
+}
+
 /// <summary>The kind of thing one item is, which decides its story group, its name and whether it starts In report.</summary>
 public enum PhotoCaptureItemKind
 {
@@ -112,6 +123,8 @@ public sealed record PhotoCaptureDetails(
 /// <summary>
 /// One vehicle's photo link and everything it received: the capture. It is
 /// add-only until it expires, so the same link reopened adds to this record.
+/// <see cref="QuickLinkFor"/> is who a quick link sent from a Case is for
+/// (R808); null for every other link.
 /// </summary>
 public sealed record PhotoCapture(
     Guid Id,
@@ -131,6 +144,7 @@ public sealed record PhotoCapture(
     PhotoCaptureDetails Details,
     string? Note,
     PhotoCaptureMode Mode,
+    PhotoCaptureQuickLinkFor? QuickLinkFor,
     bool LiveCameraOnly,
     bool OriginalsInBackground,
     Guid? IssuedByStaffId,
@@ -291,6 +305,7 @@ public sealed record NewPhotoCapture(
     string? Mobile,
     string? Email,
     PhotoCaptureMode Mode,
+    PhotoCaptureQuickLinkFor? QuickLinkFor,
     bool LiveCameraOnly,
     bool OriginalsInBackground,
     Guid? IssuedByStaffId,
@@ -374,6 +389,8 @@ public enum PhotoCapturePairing
 /// link is then dead and reads Expired (R793). <see cref="Photographs"/> is
 /// how many of its items are photographs, not paperwork or video: what the
 /// Photos column counts and what decides Opened or Photos coming in.
+/// <see cref="SentOnToCustomer"/> is whether a quick Case link's firm sent it
+/// on to their customer (R798), read only for the rows shown.
 /// </summary>
 public sealed record PhotoCaptureListRow(
     PhotoCapture Capture,
@@ -384,7 +401,8 @@ public sealed record PhotoCaptureListRow(
     string? IssuedByName,
     PhotoCapturePairing Pairing,
     bool CaseArchived,
-    int Photographs);
+    int Photographs,
+    bool SentOnToCustomer);
 
 public sealed record PhotoCaptureListPage(IReadOnlyList<PhotoCaptureListRow> Rows, int TotalCount);
 

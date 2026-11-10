@@ -147,6 +147,20 @@ internal static class PhotoCaptureCodes
         _ => throw UnknownCode("photo link token purpose", value)
     };
 
+    public static string ToCode(PhotoCaptureQuickLinkFor value) => value switch
+    {
+        PhotoCaptureQuickLinkFor.AccidentManagement => "accident_management",
+        PhotoCaptureQuickLinkFor.Bodyshop => "bodyshop",
+        _ => throw UnknownEnum(value)
+    };
+
+    public static PhotoCaptureQuickLinkFor ParseQuickLinkFor(string value) => value switch
+    {
+        "accident_management" => PhotoCaptureQuickLinkFor.AccidentManagement,
+        "bodyshop" => PhotoCaptureQuickLinkFor.Bodyshop,
+        _ => throw UnknownCode("photo capture quick link type", value)
+    };
+
     /// <summary>The SQL list of a check constraint: <c>'a', 'b'</c>.</summary>
     public static string SqlList(IEnumerable<string> codes) =>
         string.Join(", ", codes.Select(code => $"'{code}'"));

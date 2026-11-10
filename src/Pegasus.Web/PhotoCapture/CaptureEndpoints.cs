@@ -71,9 +71,11 @@ public static class CaptureEndpoints
         group.MapPost("/start", StartAsync)
             .RequireRateLimiting(PhotoCaptureSurface.CaptureMintPolicy)
             .WithMetadata(new CaptureRoute(CaptureCredentialKind.Standing, CaptureLimits.DetailsBytes));
+        // A standing link's staff hand a new capture on; a quick link sent
+        // from a Case hands its own capture on (R798).
         group.MapPost("/handoff", HandoffAsync)
             .RequireRateLimiting(PhotoCaptureSurface.CaptureMintPolicy)
-            .WithMetadata(new CaptureRoute(CaptureCredentialKind.Standing, CaptureLimits.DetailsBytes));
+            .WithMetadata(new CaptureRoute(CaptureCredentialKind.Any, CaptureLimits.DetailsBytes));
         group.MapPost("/details", DetailsAsync)
             .RequireRateLimiting(PhotoCaptureSurface.CaptureUploadPolicy)
             .WithMetadata(new CaptureRoute(CaptureCredentialKind.Capture, CaptureLimits.DetailsBytes));
@@ -105,7 +107,7 @@ public static class CaptureEndpoints
     {
         var access = CaptureLinkAdmission.Access(context);
         var view = access.Capture is { } capture
-            ? await contexts.ForCaptureAsync(capture, cancellationToken)
+            ? await contexts.ForCaptureAsync(capture, access.TokenPurpose, cancellationToken)
             : await contexts.ForStandingAsync(access.StandingLink!, cancellationToken);
         return Results.Json(view, CaptureContextFactory.JsonOptions);
     }
@@ -120,7 +122,7 @@ public static class CaptureEndpoints
         var link = CaptureLinkAdmission.Access(context).StandingLink!;
         var form = await ReadJsonAsync<CaptureFormBody>(context.Request, allowEmpty: false, cancellationToken);
         var minted = await mint.StartAsync(link, form!.ToForm(), cancellationToken);
-        var view = await contexts.ForCaptureAsync(minted.Capture, cancellationToken);
+        var view = await contexts.ForCaptureAsync(minted.Capture, PhotoLinkTokenPurpose.Session, cancellationToken);
         return Results.Json(
             new CaptureStartResponse(minted.Token.Value, view.LinkKey, view),
             CaptureContextFactory.JsonOptions,
@@ -130,13 +132,16 @@ public static class CaptureEndpoints
     private static async Task<IResult> HandoffAsync(
         HttpContext context,
         [FromServices] MintFromStandingLink mint,
+        [FromServices] HandOnCaseLink handOn,
         [FromServices] PhotoCaptureOptions options,
         CancellationToken cancellationToken)
     {
         DoNotCompress(context);
-        var link = CaptureLinkAdmission.Access(context).StandingLink!;
+        var access = CaptureLinkAdmission.Access(context);
         var form = await ReadJsonAsync<CaptureFormBody>(context.Request, allowEmpty: false, cancellationToken);
-        var minted = await mint.HandoffAsync(link, form!.ToForm(), cancellationToken);
+        var minted = access.Capture is { } capture
+            ? await handOn.ExecuteAsync(capture, form!.ToForm(), cancellationToken)
+            : await mint.HandoffAsync(access.StandingLink!, form!.ToForm(), cancellationToken);
         return Results.Json(
             new CaptureHandoffResponse(
                 PhotoLinkUrls.CaptureUrl(options.PublicOrigin, minted.Token),
@@ -161,7 +166,9 @@ public static class CaptureEndpoints
             ? await standingLinks.GetAsync(linkId, cancellationToken)
             : null;
         var updated = await recordDetails.ExecuteAsync(capture, link, form!.ToForm(), cancellationToken);
-        return Results.Json(await contexts.ForCaptureAsync(updated, cancellationToken), CaptureContextFactory.JsonOptions);
+        return Results.Json(
+            await contexts.ForCaptureAsync(updated, CaptureLinkAdmission.Access(context).TokenPurpose, cancellationToken),
+            CaptureContextFactory.JsonOptions);
     }
 
     private static async Task<IResult> PutItemAsync(
