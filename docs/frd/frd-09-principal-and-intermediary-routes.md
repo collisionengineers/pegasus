@@ -226,7 +226,7 @@ profiles need the evidenced explicit inspect or examine request, or the
 FW instruction template. A DFD instruction is the attached form titled
 `Engineer instruction request`, sent from the `dfd-solicitors.co.uk` route;
 it classifies `new-instruction` for an Inspection (operator, 9 November
-2026, [R773](../rulings.md)). PCH's explicit Audit request beats its generic
+2026, [R825](../rulings.md)). PCH's explicit Audit request beats its generic
 inspection footer; a separate credit-repair inspection request stays
 distinct. Replies, unknown work and competing work types cannot allocate a
 new Case. Missing ordinary fields do not withhold an otherwise definitive

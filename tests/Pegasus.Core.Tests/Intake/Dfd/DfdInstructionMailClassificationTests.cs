@@ -5,7 +5,7 @@ using Pegasus.Core.Tests.Support;
 namespace Pegasus.Core.Tests.Intake.Dfd;
 
 /// <summary>
-/// R773: an e-mail from the DFD route whose attached form is titled "Engineer
+/// R825: an e-mail from the DFD route whose attached form is titled "Engineer
 /// instruction request" is a new instruction for an Inspection. The shape is
 /// the live receipts' (6 and 9 November 2026): a signature-only body and the
 /// form, selected from the document alone; the subject plays no part except

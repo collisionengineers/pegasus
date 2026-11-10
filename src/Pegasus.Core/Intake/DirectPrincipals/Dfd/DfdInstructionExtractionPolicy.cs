@@ -8,7 +8,7 @@ namespace Pegasus.Core.Intake;
 /// <c>Text17</c>, which version 1 gave to Additional information while
 /// reading the incident date from a <c>Text7</c> the form no longer has; and
 /// the printed line "(Below is optional)" beneath the blank contact field is
-/// a boundary, not the claimant's contact (operator, 9 November 2026, R774).
+/// a boundary, not the claimant's contact (operator, 9 November 2026, R826).
 /// <c>Text7</c> stays for the earlier template the original mapping described.
 /// </summary>
 public sealed class DfdInstructionExtractionPolicy

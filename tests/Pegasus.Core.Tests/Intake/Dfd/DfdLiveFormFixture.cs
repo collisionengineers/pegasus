@@ -4,7 +4,7 @@ namespace Pegasus.Core.Tests.Intake.Dfd;
 
 /// <summary>
 /// The live DFD instruction form as the reader presents it (the receipts of
-/// 6 and 9 November 2026 behind R773 and R774): the printed labels as one page
+/// 6 and 9 November 2026 behind R825 and R826): the printed labels as one page
 /// fragment and each filled field as its own form-field fragment. The labels
 /// and field names are the form's; every value is synthetic. The contact field
 /// <c>Text9</c> is blank on the form and so, like any whitespace-only field,

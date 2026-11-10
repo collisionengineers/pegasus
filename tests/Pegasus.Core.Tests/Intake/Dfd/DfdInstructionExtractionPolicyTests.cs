@@ -40,7 +40,7 @@ public sealed class DfdInstructionExtractionPolicyTests
     }
 
     /// <summary>
-    /// The live template (receipts of 6 and 9 November 2026, R774): the accident
+    /// The live template (receipts of 6 and 9 November 2026, R826): the accident
     /// date is form field Text16, which version 1 read as Additional information
     /// while looking for a Text7 the form no longer has.
     /// </summary>

@@ -278,7 +278,7 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
             && texts.Any(text => text.Contains("CREDIT REPAIR", StringComparison.OrdinalIgnoreCase)
                 && text.Contains("Inspection Request", StringComparison.OrdinalIgnoreCase));
         // DFD's tell is the title of its attached instruction form, "Engineer
-        // instruction request" (operator, 9 November 2026, R773); FW's is its
+        // instruction request" (operator, 9 November 2026, R825); FW's is its
         // template's "New INSTRUCTIONS:" heading.
         var inspection = creditRepair || (!audit && texts.Any(text =>
             ExplicitInspectionRequestRegex().IsMatch(text)
