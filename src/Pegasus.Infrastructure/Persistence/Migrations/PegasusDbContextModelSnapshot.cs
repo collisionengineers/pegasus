@@ -5529,6 +5529,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<DateOnly?>("DeclaredIncidentDate")
+                        .HasColumnType("date");
+
                     b.Property<string>("DeclaredRegistration")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -6068,6 +6071,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("FirstItemAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<DateTimeOffset?>("ImagesCompletedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<DateOnly?>("IncidentDate")
                         .HasColumnType("date");
 
@@ -6119,6 +6125,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("PhotoCount")
                         .HasColumnType("int");
+
+                    b.Property<string>("QuickLinkFor")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<int>("ReminderCount")
                         .HasColumnType("int");
@@ -6205,6 +6215,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<long>("ContentLength")
                         .HasColumnType("bigint");
+
+                    b.Property<Guid?>("DeclaredCaseId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("FileName")
                         .IsRequired()
@@ -7363,6 +7376,35 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("StandaloneAuditEvidence", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.StandingPhotoLinkAddressEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid>("StandingPhotoLinkId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StandingPhotoLinkId");
+
+                    b.ToTable("StandingPhotoLinkAddresses", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.StandingPhotoLinkEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8339,6 +8381,35 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("int")
                         .HasDefaultValue(7);
 
+                    b.Property<int>("PhotoLinkDefaultLifetimeDays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(7);
+
+                    b.Property<string>("PhotoLinkLifetimesOffered")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("3,7,14");
+
+                    b.Property<bool>("PhotoLinkStartLiveCameraOnly")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("PhotoLinkStartMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasDefaultValue("guided");
+
+                    b.Property<bool>("PhotoLinkStartOriginals")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<bool>("RequireImages")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -8374,6 +8445,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_WorkflowConfigurations_ChaseIntervalDays", "[ChaseIntervalDays] BETWEEN 1 AND 365");
 
+                            t.HasCheckConstraint("CK_WorkflowConfigurations_PhotoLinkDefaultLifetimeDays", "[PhotoLinkDefaultLifetimeDays] IN (3, 7, 14)");
+
+                            t.HasCheckConstraint("CK_WorkflowConfigurations_PhotoLinkStartMode", "[PhotoLinkStartMode] IN ('guided', 'quick')");
+
                             t.HasCheckConstraint("CK_WorkflowConfigurations_TargetDays", "[UnidentifiedTargetDays] BETWEEN 0 AND 365 AND [TriageTargetDays] BETWEEN 0 AND 365 AND [HeldTargetDays] BETWEEN 0 AND 365 AND [ReviewTargetDays] BETWEEN 0 AND 365 AND [AiDraftTargetDays] BETWEEN 0 AND 365");
                         });
 
@@ -8384,6 +8459,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                             AiDraftTargetDays = 1,
                             ChaseIntervalDays = 7,
                             HeldTargetDays = 7,
+                            PhotoLinkDefaultLifetimeDays = 7,
+                            PhotoLinkLifetimesOffered = "3,7,14",
+                            PhotoLinkStartLiveCameraOnly = true,
+                            PhotoLinkStartMode = "guided",
+                            PhotoLinkStartOriginals = true,
                             RequireImages = true,
                             RequireInstructions = true,
                             ReviewTargetDays = 1,
@@ -9537,6 +9617,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("IntakeReceipt");
 
                     b.Navigation("OriginalReportAsset");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.StandingPhotoLinkAddressEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.StandingPhotoLinkEntity", null)
+                        .WithMany()
+                        .HasForeignKey("StandingPhotoLinkId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.StandingPhotoLinkEntity", b =>
