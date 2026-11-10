@@ -31,18 +31,12 @@ const wordingRefusal = /const string Unavailable =\s*"([^"]+)";/.exec(wordingOwn
     + /const string UnavailableOnPage = Unavailable \+ "([^"]+)";/.exec(wordingOwner)[1];
 
 // The page as the Case page draws it, as far as the frame's script reads it: the sticky block and its
-<<<<<<< HEAD
-// section row, the sections in their order with the deferred ones as placeholders (Vehicle and Valuation
-// while reading; Files and Notes always), the aside's blocker links and, while editing, the Save form
-// and the Report section's wording panel with one block. The page scrolls smoothly, as site.css has it.
-// ?editing=1 edits, ?section= addresses a section, ?short=a,b gives those sections a short body.
-=======
 // section row (standing 19px lower at the top of the page than once it has stuck, as under the real
-// page's padding), the sections in their order with the deferred ones as placeholders (Vehicle and Valuation
-// while reading; Files and Notes always), the aside's blocker links and, while editing, the Save form.
-// The page scrolls smoothly, as site.css has it. ?editing=1 edits, ?section= addresses a section,
-// ?short=a,b gives those sections a short body.
->>>>>>> task/case-section-jump-settle
+// page's padding), the sections in their order with the deferred ones as placeholders (Vehicle and
+// Valuation while reading; Files and Notes always), the aside's blocker links and, while editing, the
+// Save form and the Report section's wording panel with one block. The page scrolls smoothly, as
+// site.css has it. ?editing=1 edits, ?section= addresses a section, ?short=a,b gives those sections a
+// short body.
 function fixture() {
     return `<!doctype html><html><head><meta charset="utf-8"><title>Case page fixture</title>
     <style>
