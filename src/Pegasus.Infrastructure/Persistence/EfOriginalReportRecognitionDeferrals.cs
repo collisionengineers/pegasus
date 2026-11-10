@@ -51,14 +51,18 @@ internal sealed class EfOriginalReportRecognitionDeferrals(
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var history = context.IntakeMutationHistory.AsNoTracking();
-        // A wait is open while its deferred row has no settled row under the
-        // matching key; both are read through the unique operation key index.
+        // A wait is open while no settlement for its pair was recorded at or
+        // after it: a pair has at most one open wait, and its settlement
+        // follows it. The waits are found through the unique operation key
+        // index, their settlements through the receipt's history index.
         var waiting = await history
             .Where(row => row.OperationKey.StartsWith(DeferredKeyPrefix)
                 && row.EventType == DeferredEventType
                 && row.CaseId != null
-                && !history.Any(settled => settled.OperationKey
-                    == SettledKeyPrefix + row.OperationKey.Substring(DeferredKeyPrefix.Length)))
+                && !history.Any(settled => settled.IntakeReceiptId == row.IntakeReceiptId
+                    && settled.CaseId == row.CaseId
+                    && settled.EventType == SettledEventType
+                    && settled.OccurredAtUtc >= row.OccurredAtUtc))
             .OrderBy(row => row.OccurredAtUtc)
             .ThenBy(row => row.IntakeReceiptId)
             .Take(maximumItems)
