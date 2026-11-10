@@ -327,6 +327,12 @@ public sealed class CaseWorkspaceScriptContractTests
             StringComparison.Ordinal);
         Assert.Contains("landed: function (sent) { landed = sent; refused = null; },", script, StringComparison.Ordinal);
         Assert.Contains("refused: function (sent) { refused = sent; }", script, StringComparison.Ordinal);
+        // #2043 (R894): the page offers refused wording again itself, once for each refused
+        // wording, when a catch up shows the Case drawing its wording blocks again.
+        Assert.Contains(
+            "if (refused === null || refused !== state() || refused === offered) { return false; }",
+            script,
+            StringComparison.Ordinal);
 
         var swap = FunctionBody(script, "function swap(html, command, preferred, options) {", "    ");
         Assert.Matches(
@@ -335,6 +341,10 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.Matches(
             new Regex(@"command\.sent = sendingState\(form\)\.filter\(function \(state\) \{\s*return wordingSent \|\| \(state\.control\.name \|\| ''\)\.indexOf\('wordingEdits\['\) !== 0;"),
             submit);
+
+        Assert.Matches(
+            new Regex(@"if \(keptWording && keptWording\.pegasusWording\s*&& parsed\.querySelector\('\[data-report-wording\] \[data-wording-row\]'\)\s*&& keptWording\.pegasusWording\.offerAgain\(\)\) \{\s*commitPending = true;"),
+            swap);
 
         var panel = File.ReadAllText(Path.Combine(
             RepositoryRoot.Find(), "src", "Pegasus.Web", "Pages", "Cases", "Shared", "_CaseReport.cshtml"));

@@ -144,9 +144,11 @@ screen (operator, 30 October 2026; R572). The refusal reads "The report is not
 ready, so its wording cannot be saved yet. Nothing in this save was stored.",
 and on the Case page it adds "Your wording is still on the page." Wording the
 Case has refused this way is not sent again as it stands, so the saves that
-follow land, the one that makes the report ready among them; it is offered
-again once the Engineer changes it further, and otherwise goes when the Case
-is reloaded (operator, 10 November 2026; R891 to R893).
+follow land, the one that makes the report ready among them. It is offered
+again once the Engineer changes it further, and by the page itself, once,
+when the Case as it then stands can compose the report again; refused a
+second time, it waits for the Engineer (operator, 10 November 2026; R891 to
+R894).
 
 Report wording comes from two sources only (operator, 27 September 2026):
 the supplied template, `reference/rendererref1`, and the old manager's case

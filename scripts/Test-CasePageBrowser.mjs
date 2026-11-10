@@ -1,5 +1,6 @@
 // Browser evidence for the Case page's own script: section jumps across lazy sections (issues 1496 and
-// 1497), report wording the Case refused (issue 1814) and wording blocks left as drawn (issue 2042). Runs the production case-workspace.js against
+// 1497), report wording the Case refused (issues 1814 and 2043) and wording blocks left as drawn (issue
+// 2042). Runs the production case-workspace.js against
 // a fixture Case page and scripted local answers in an isolated headless Chrome, Chromium or Edge
 // profile. On demand, not in CI; it makes no request beyond its own local server.
 // Usage: node scripts/Test-CasePageBrowser.mjs [absolute-path-to-browser]
@@ -57,8 +58,10 @@ function fixture() {
     var lazy = editing ? { files: 1, notes: 1 } : { vehicle: 1, valuation: 1, files: 1, notes: 1 };
     window.trace = []; window.holding = {}; window.held = {}; window.failing = {};
     window.state = { version: 1, lease: editing ? 'lease-1' : '', reference: 'CL-1', wording: 'Composed.', heading: 'Nature of Incident' };
-    // While false the Case's report cannot be put together, and a save carrying wording is refused.
-    window.reportReady = true;
+    // While false the Case's report cannot be put together: a save carrying wording is refused, and the
+    // page as the Case then stands draws the wording panel without its blocks. pageDrawsBlocks makes the
+    // page draw them all the same, for a page and a Save that disagree.
+    window.reportReady = true; window.pageDrawsBlocks = false;
     var wordingRefusal = ${JSON.stringify(wordingRefusal)};
     // The addressed section and its parent draw with the page, as SectionIsDeferred has it.
     function deferred(key) {
@@ -87,9 +90,12 @@ function fixture() {
         if (key === 'settlement') { inside = '<a id="to-valuation" href="/case?section=valuation" data-section-jump="valuation">Valuation</a>'; }
         if (key === 'report' && editing) {
             inside = '<div class="sub-panel wording" data-report-wording data-wording-refusal="' + wordingRefusal + '"><div data-wording-settings></div>'
-                + '<div data-wording-list>' + wordingRow(0, 'nature', 'Nature of Incident', state.heading, 'Composed.', state.wording)
-                + wordingRow(1, 'settlement', 'Repair settlement', 'Repair settlement', 'Composed settlement.', 'Composed settlement.')
-                + '</div></div>';
+                + (reportReady || pageDrawsBlocks
+                    ? '<div data-wording-list>' + wordingRow(0, 'nature', 'Nature of Incident', state.heading, 'Composed.', state.wording)
+                        + wordingRow(1, 'settlement', 'Repair settlement', 'Repair settlement', 'Composed settlement.', 'Composed settlement.')
+                        + '</div>'
+                    : '')
+                + '</div>';
         }
         return '<section class="record-section panel' + (shortOnes.indexOf(key) >= 0 ? ' is-short' : '') + '"' + attributes(key) + '>'
             + '<h2>' + key + '</h2>' + inside + '</section>';
@@ -254,7 +260,7 @@ const evidence = [], errors = [];
 let failures = 0;
 try {
     let port;
-    for (let i = 0; i < 100 && !port; i++) {
+    for (let i = 0; i < 300 && !port; i++) {
         await delay(100);
         try { port = Number((await readFile(join(output, 'profile/DevToolsActivePort'), 'utf8')).split('\n')[0]); } catch { /* Starting. */ }
     }
@@ -508,6 +514,30 @@ try {
         assert.equal(stored.saves[3], 'with wording, landed');
         assert.equal(stored.wording, 'My final words.');
         return { refused, landed, again, stored };
+    });
+
+    await scenario('Refused wording is offered again by the page once the report is ready, and once only (2043, R894)', async () => {
+        const saved = count => waitFor(`trace.filter(function (entry) { return entry.save; }).length === ${count}`);
+        await open('editing=1');
+        await evaluate("reportReady = false; type('My own words.')");
+        await saved(1); await delay(600);
+        // The save that makes the report ready: the catch up after it draws the wording blocks again.
+        await evaluate("reportReady = true; edit('CL-2')");
+        await saved(3); await delay(800);
+        const stored = await evaluate('at()');
+        assert.deepEqual(stored.saves, ['with wording, refused', 'without wording, landed', 'with wording, landed']);
+        assert.deepEqual(stored.sent[2], { natureTitle: '', natureText: 'My own words.', settlementTitle: '', settlementText: '' },
+            'It carries what the Engineer wrote and nothing the page merely still showed');
+        assert.equal(stored.wording, 'My own words.');
+        assert.match(stored.status, /^Saved/);
+        // A page that draws the blocks while the Save still refuses: offered once, then left to the Engineer.
+        await open('editing=1');
+        await evaluate("reportReady = false; pageDrawsBlocks = true; type('My own words.')");
+        await saved(2); await delay(1500);
+        const waiting = await evaluate('at()');
+        assert.deepEqual(waiting.saves, ['with wording, refused', 'with wording, refused'], 'Refused again, it is not offered a third time');
+        assert.equal(waiting.wording, 'My own words.');
+        return { stored, waiting };
     });
 
     await scenario('A block left as the page drew it is sent as no change; what the Engineer wrote is sent (2042)', async () => {
