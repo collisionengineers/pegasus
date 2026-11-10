@@ -663,9 +663,10 @@ public sealed partial class StagedArtifactReconciliationFunction(
             var siblings = await associateThreadSiblings.ExecuteAsync(50, cancellationToken);
             if (siblings.Candidates > 0)
             {
+                var siblingsLevel = FailureLevel(siblings.Failures);
                 LogThreadSiblingAssociation(
                     logger,
-                    FailureLevel(siblings.Failures),
+                    siblingsLevel,
                     siblings.Candidates,
                     siblings.Associated,
                     siblings.Failures);
