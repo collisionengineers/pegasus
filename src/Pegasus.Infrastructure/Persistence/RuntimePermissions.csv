@@ -120,6 +120,7 @@ pegasus_web_runtime_role,G,DELETE,GlassRepairEstimateSessions
 pegasus_web_runtime_role,G,DELETE,IntakeAllocationAttempts
 pegasus_web_runtime_role,G,DELETE,IntakeAssetTags
 pegasus_web_runtime_role,G,DELETE,StaffNotifications
+pegasus_web_runtime_role,G,DELETE,StandingPhotoLinkAddresses
 pegasus_web_runtime_role,G,DELETE,TriageResponseEvidenceLinks
 pegasus_web_runtime_role,G,DELETE,UserExternalCredentials
 pegasus_web_runtime_role,G,INSERT,ActionHistory
@@ -206,6 +207,7 @@ pegasus_web_runtime_role,G,INSERT,SendToAiControl
 pegasus_web_runtime_role,G,INSERT,StaffMailSendOperations
 pegasus_web_runtime_role,G,INSERT,StaffNotifications
 pegasus_web_runtime_role,G,INSERT,StandaloneAuditEvidence
+pegasus_web_runtime_role,G,INSERT,StandingPhotoLinkAddresses
 pegasus_web_runtime_role,G,INSERT,StandingPhotoLinks
 pegasus_web_runtime_role,G,INSERT,Triage
 pegasus_web_runtime_role,G,INSERT,TriageFindings
@@ -324,6 +326,7 @@ pegasus_web_runtime_role,G,SELECT,SentEmailEvidence
 pegasus_web_runtime_role,G,SELECT,StaffMailSendOperations
 pegasus_web_runtime_role,G,SELECT,StaffNotifications
 pegasus_web_runtime_role,G,SELECT,StandaloneAuditEvidence
+pegasus_web_runtime_role,G,SELECT,StandingPhotoLinkAddresses
 pegasus_web_runtime_role,G,SELECT,StandingPhotoLinks
 pegasus_web_runtime_role,G,SELECT,Triage
 pegasus_web_runtime_role,G,SELECT,TriageFindings
@@ -397,6 +400,7 @@ pegasus_web_runtime_role,G,UPDATE,RetainedMailboxMessages
 pegasus_web_runtime_role,G,UPDATE,SendToAiControl
 pegasus_web_runtime_role,G,UPDATE,StaffMailSendOperations
 pegasus_web_runtime_role,G,UPDATE,StaffNotifications
+pegasus_web_runtime_role,G,UPDATE,StandingPhotoLinkAddresses
 pegasus_web_runtime_role,G,UPDATE,StandingPhotoLinks
 pegasus_web_runtime_role,G,UPDATE,Triage
 pegasus_web_runtime_role,G,UPDATE,UnidentifiedItems
@@ -496,6 +500,7 @@ pegasus_worker_runtime_role,D,DELETE,SendToAiControl
 pegasus_worker_runtime_role,D,DELETE,SentEmailEvidence
 pegasus_worker_runtime_role,D,DELETE,StaffMailSendOperations
 pegasus_worker_runtime_role,D,DELETE,StandaloneAuditEvidence
+pegasus_worker_runtime_role,D,DELETE,StandingPhotoLinkAddresses
 pegasus_worker_runtime_role,D,DELETE,StandingPhotoLinks
 pegasus_worker_runtime_role,D,DELETE,Triage
 pegasus_worker_runtime_role,D,DELETE,TriageFindings

@@ -40,6 +40,12 @@ internal sealed class PhotoCaptureEntity
     public DateTimeOffset? LastItemAtUtc { get; set; }
     public DateTimeOffset? SentAtUtc { get; set; }
     public DateTimeOffset? SettledAtUtc { get; set; }
+
+    /// <summary>When the capture completed its Case's images: once per capture, whatever its batches (R792).</summary>
+    public DateTimeOffset? ImagesCompletedAtUtc { get; set; }
+
+    /// <summary>For a quick link sent from a Case, which kind of firm it was sent for (R808); null otherwise.</summary>
+    public string? QuickLinkFor { get; set; }
     public int SettledBatches { get; set; }
     public int AcceptedItemCount { get; set; }
     public long AcceptedBytes { get; set; }
@@ -95,6 +101,12 @@ internal sealed class PhotoCaptureItemEntity
     public Guid? IntakeAssetId { get; set; }
     public bool OriginalReceived { get; set; }
     public DateTimeOffset ReceivedAtUtc { get; set; }
+
+    /// <summary>
+    /// The Case the item declares to intake, decided with its batch under the
+    /// capture's lock, so a retried upload declares what its first attempt did.
+    /// </summary>
+    public Guid? DeclaredCaseId { get; set; }
 }
 
 /// <summary>
@@ -117,4 +129,20 @@ internal sealed class StandingPhotoLinkEntity
     public required string CreatedByKind { get; set; }
     public required string CreatedBySubjectId { get; set; }
     public long Version { get; set; }
+}
+
+/// <summary>
+/// An inspection address a standing link offers on its form, added on the
+/// contact's Photo links tab (R806). These are the only addresses that can be
+/// edited or removed there; the automatic ones (the contact's own address, a
+/// Principal's inspection locations) stay beside them (R815). A removed
+/// address is a deleted row.
+/// </summary>
+internal sealed class StandingPhotoLinkAddressEntity
+{
+    public Guid Id { get; set; }
+    public Guid StandingPhotoLinkId { get; set; }
+    public required string Name { get; set; }
+    public required string Address { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
 }

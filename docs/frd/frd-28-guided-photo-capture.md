@@ -349,7 +349,9 @@ name" (operator, 9 November 2026; R805). A live link on a Case also offers
 **Cancel link** beside it in the Case's Files → Images. Cancel is the same
 act wherever it is offered, with the same refusal, and a repeated click
 cancels once (operator, 9 November 2026; R795). The Vehicle images record
-page shows the source **Photo link** with the details and the note.
+page shows the source **Photo link** with the details and the note, on the
+record of every batch the capture made, not only its latest; and the Case
+shows the capture's story once any of those records has reached it.
 
 ### Limits
 
@@ -403,8 +405,11 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
 - **Caps.** A request past a rate limit, a size, a per-link count or a
   standing link's daily cap is refused; nothing past the cap is kept.
 - **Replays.** An item carries the id the phone gave it, so a retried upload
-  is the same item. A retried settle creates no second group and files
-  nothing twice.
+  is the same item, and it declares the Case its first attempt declared. An
+  item joins the batch open when Pegasus takes it, never one already
+  settled; a retried upload that never reached intake before its batch
+  settled joins the open batch. A retried settle creates no second group and
+  files nothing twice.
 - **Never Unidentified.** A capture's receipt never becomes Unidentified
   and is never held in Box holding: a file the surface could not take was
   refused at the door, and a receipt that waits does so for its capture.

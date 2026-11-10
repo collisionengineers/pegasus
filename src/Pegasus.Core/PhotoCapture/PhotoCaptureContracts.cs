@@ -171,12 +171,22 @@ public sealed record PhotoCapture(
     /// </summary>
     public bool TakesOriginals =>
         OriginalsInBackground && Destination == PhotoCaptureDestination.Case && SubmissionGroupId is null;
+
+    /// <summary>
+    /// The Case an item received now declares to intake: the capture's Case
+    /// while its photos file there as they arrive, else none. The store
+    /// decides it with the item's batch, under the capture's lock, and the
+    /// item keeps it for every retry of its upload.
+    /// </summary>
+    public Guid? DeclaredCaseId => Destination == PhotoCaptureDestination.Case ? CaseId : null;
 }
 
 /// <summary>
 /// One photo, document or video a capture received. <see cref="ClientItemId"/>
 /// is the id the phone minted when it took the picture, so a retry of the same
-/// upload is the same item.
+/// upload is the same item. <see cref="DeclaredCaseId"/> is the Case it
+/// declares to intake (<see cref="PhotoCapture.DeclaredCaseId"/> when it
+/// joined its batch).
 /// </summary>
 public sealed record PhotoCaptureItem(
     Guid Id,
@@ -201,7 +211,8 @@ public sealed record PhotoCaptureItem(
     Guid? IntakeReceiptId,
     Guid? IntakeAssetId,
     bool OriginalReceived,
-    DateTimeOffset ReceivedAtUtc);
+    DateTimeOffset ReceivedAtUtc,
+    Guid? DeclaredCaseId = null);
 
 /// <summary>
 /// A standing link: the URL an AMC or bodyshop keeps on WhatsApp or prints as
@@ -270,6 +281,11 @@ public sealed record NewPhotoCapture(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset ExpiresAtUtc);
 
+/// <summary>
+/// An item to insert. Its batch, its ordinal in the batch and the Case it
+/// declares are not the caller's: the store decides them from the capture as
+/// it is under its lock (<see cref="IPhotoCaptureStore.AddItemAsync"/>).
+/// </summary>
 public sealed record NewPhotoCaptureItem(
     Guid Id,
     Guid CaptureId,
@@ -278,8 +294,6 @@ public sealed record NewPhotoCaptureItem(
     string? Area,
     PhotoCaptureStage? Stage,
     int Position,
-    int Batch,
-    int Ordinal,
     int StoryGroup,
     int StorySequence,
     string FileName,
@@ -422,7 +436,12 @@ public interface IPhotoCaptureStore
     /// Inserts the item inside the capture's caps: the item count, the bytes
     /// and the per-kind totals <see cref="CaptureLimits"/> names. The same
     /// client id with the same hash is a replay; with a different hash a
-    /// conflict. Also stamps the capture's first and last item times.
+    /// conflict. Under the capture row's lock it is the one owner of an
+    /// item's batch, its ordinal and the Case it declares, all taken from the
+    /// capture as it is then (<see cref="PhotoCapture.CurrentBatch"/>,
+    /// <see cref="PhotoCapture.DeclaredCaseId"/>). A replayed item that never
+    /// staged a receipt, whose batch has settled since, joins the open batch
+    /// with the capture's Case as it is now.
     /// </summary>
     Task<PhotoCaptureItemWriteResult> AddItemAsync(
         NewPhotoCaptureItem item,

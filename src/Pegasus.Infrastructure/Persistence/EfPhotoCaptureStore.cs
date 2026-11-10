@@ -267,17 +267,41 @@ public sealed class EfPhotoCaptureStore(
         var capture = await context.PhotoCaptures
             .SingleOrDefaultAsync(value => value.Id == item.CaptureId, cancellationToken)
             ?? throw new KeyNotFoundException("The photo link was not found.");
+        // The batch an item joins, and the Case it declares, are the capture's
+        // as it is under this lock, never as the request read it (F-R6a,
+        // F-R10): an item cannot land in a batch already settled.
+        var current = Map(capture);
+        var openBatch = current.CurrentBatch;
 
-        var existing = await context.PhotoCaptureItems.AsNoTracking()
+        var existing = await context.PhotoCaptureItems
             .SingleOrDefaultAsync(
                 value => value.CaptureId == item.CaptureId && value.ClientItemId == item.ClientItemId,
                 cancellationToken);
         if (existing is not null)
         {
+            if (!string.Equals(existing.ContentHash, item.ContentHash, StringComparison.OrdinalIgnoreCase))
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return new(PhotoCaptureItemWrite.Conflict, null);
+            }
+
+            if (existing.StagedReceiptId is null
+                && existing.Batch < openBatch
+                && !await StagedUnderOwnTokenAsync(context, existing, cancellationToken))
+            {
+                // A retry of an upload that never reached intake, whose batch
+                // has settled since: it joins the open batch, declaring the
+                // capture's Case as it is now. One that did reach intake keeps
+                // its batch, so its retry finds the receipt it staged.
+                existing.Batch = openBatch;
+                existing.Ordinal = await NextOrdinalAsync(context, item.CaptureId, openBatch, cancellationToken);
+                existing.DeclaredCaseId = current.DeclaredCaseId;
+                capture.Version++;
+                await context.SaveChangesAsync(cancellationToken);
+            }
+
             await transaction.CommitAsync(cancellationToken);
-            return string.Equals(existing.ContentHash, item.ContentHash, StringComparison.OrdinalIgnoreCase)
-                ? new(PhotoCaptureItemWrite.Replayed, Map(existing))
-                : new(PhotoCaptureItemWrite.Conflict, null);
+            return new(PhotoCaptureItemWrite.Replayed, Map(existing));
         }
 
         if (!WithinCaps(capture, item))
@@ -286,8 +310,7 @@ public sealed class EfPhotoCaptureStore(
             return new(PhotoCaptureItemWrite.CapReached, null);
         }
 
-        var ordinal = await context.PhotoCaptureItems
-            .CountAsync(value => value.CaptureId == item.CaptureId && value.Batch == item.Batch, cancellationToken);
+        var ordinal = await NextOrdinalAsync(context, item.CaptureId, openBatch, cancellationToken);
         var entity = new PhotoCaptureItemEntity
         {
             Id = item.Id,
@@ -297,7 +320,7 @@ public sealed class EfPhotoCaptureStore(
             Area = item.Area,
             Stage = PhotoCaptureCodes.ToCode(item.Stage),
             Position = item.Position,
-            Batch = item.Batch,
+            Batch = openBatch,
             Ordinal = ordinal,
             StoryGroup = item.StoryGroup,
             StorySequence = item.StorySequence,
@@ -308,7 +331,8 @@ public sealed class EfPhotoCaptureStore(
             InReportOnArrival = item.InReportOnArrival,
             ContentHash = item.ContentHash.ToLowerInvariant(),
             ContentLength = item.ContentLength,
-            ReceivedAtUtc = item.ReceivedAtUtc
+            ReceivedAtUtc = item.ReceivedAtUtc,
+            DeclaredCaseId = current.DeclaredCaseId
         };
         context.PhotoCaptureItems.Add(entity);
         // The row counts bound what a link may add; what it has received
@@ -332,6 +356,29 @@ public sealed class EfPhotoCaptureStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(PhotoCaptureItemWrite.Created, Map(entity));
+    }
+
+    /// <summary>The next ordinal in a batch: the batch's rows are only ever added to while it is open.</summary>
+    private static Task<int> NextOrdinalAsync(
+        PegasusDbContext context,
+        Guid captureId,
+        int batch,
+        CancellationToken cancellationToken) =>
+        context.PhotoCaptureItems.CountAsync(
+            value => value.CaptureId == captureId && value.Batch == batch,
+            cancellationToken);
+
+    /// <summary>Whether intake staged a receipt under the item's own member token, whether or not the item recorded it.</summary>
+    private static Task<bool> StagedUnderOwnTokenAsync(
+        PegasusDbContext context,
+        PhotoCaptureItemEntity item,
+        CancellationToken cancellationToken)
+    {
+        var channel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.PhotoCapture);
+        var token = PhotoCaptureIntakeRules.MemberToken(item.CaptureId, item.Batch, item.Ordinal);
+        return context.IntakeStagedReceipts.AsNoTracking().AnyAsync(
+            receipt => receipt.SourceChannel == channel && receipt.ExternalReceiptToken == token,
+            cancellationToken);
     }
 
     private enum ItemCap
@@ -960,7 +1007,8 @@ public sealed class EfPhotoCaptureStore(
         entity.IntakeReceiptId,
         entity.IntakeAssetId,
         entity.OriginalReceived,
-        entity.ReceivedAtUtc);
+        entity.ReceivedAtUtc,
+        entity.DeclaredCaseId);
 }
 
 /// <summary>

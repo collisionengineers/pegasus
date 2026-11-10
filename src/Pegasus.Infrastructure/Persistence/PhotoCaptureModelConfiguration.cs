@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Cases;
 using Pegasus.Core.PhotoCapture;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -75,6 +76,7 @@ internal static class PhotoCaptureModelConfiguration
             entity.Property(item => item.DetailsJson).HasColumnType("nvarchar(max)").IsRequired();
             entity.Property(item => item.Note).HasMaxLength(CaptureLimits.NoteLength);
             entity.Property(item => item.Mode).HasMaxLength(10).IsRequired();
+            entity.Property(item => item.QuickLinkFor).HasMaxLength(30);
             entity.Property(item => item.Version).IsConcurrencyToken();
             // The two HQ lists read one origin group newest first.
             entity.HasIndex(item => new { item.Origin, item.CreatedAtUtc }).IsDescending(false, true);
@@ -138,6 +140,19 @@ internal static class PhotoCaptureModelConfiguration
             entity.HasOne<PhotoCaptureEntity>()
                 .WithMany()
                 .HasForeignKey(item => item.CaptureId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<StandingPhotoLinkAddressEntity>(entity =>
+        {
+            entity.ToTable("StandingPhotoLinkAddresses");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Name).HasMaxLength(ContactDirectoryPolicy.MaximumNameLength).IsRequired();
+            entity.Property(item => item.Address).HasMaxLength(ContactDirectoryPolicy.MaximumAddressLength).IsRequired();
+            entity.HasIndex(item => item.StandingPhotoLinkId);
+            entity.HasOne<StandingPhotoLinkEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.StandingPhotoLinkId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }
