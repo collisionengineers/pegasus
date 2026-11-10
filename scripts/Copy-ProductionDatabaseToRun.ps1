@@ -108,10 +108,12 @@ $pauseCredentialsStatement = "UPDATE dbo.PrincipalApiCredentials SET State = 'Pa
 # pending tidies are closed here; the instance then moves only the instructions
 # its own sends answered.
 $closeTidiesStatement = "UPDATE dbo.StaffMailSendOperations SET InstructionMoveState = 'Failed', InstructionMoveFailureCode = 'production_copy' WHERE InstructionMoveState IS NULL AND Purpose = 'CaseReport' AND State = 'Sent';"
-# R680, R902: the Delete case correspondence tidy does not check activation
-# either, so the copied ticked sends are closed too, whatever their state: a
-# copied Submitted send later seen as Sent must not move production mail. A
-# copy from before the column existed has none to close.
+# R680, R902: the Delete case correspondence tidy moves only in an activated
+# mailbox (R916), but a copied ticked send would move production mail as soon
+# as the operator enabled that mailbox on the instance, so the copied ticked
+# sends are closed too, whatever their state: a copied Submitted send later
+# seen as Sent must not move production mail. A copy from before the column
+# existed has none to close.
 $closeCorrespondenceTidiesStatement = "IF COL_LENGTH('dbo.StaffMailSendOperations', 'CorrespondenceMoveState') IS NOT NULL EXEC('UPDATE dbo.StaffMailSendOperations SET CorrespondenceMoveState = ''Failed'', CorrespondenceMoveFailureCode = ''production_copy'' WHERE TidiesCaseCorrespondence = 1 AND CorrespondenceMoveState IS NULL;');"
 # R708: per-user external credentials (Glass's logins) are protected under
 # production's key ring, which stays in production; the copied rows are cleared

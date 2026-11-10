@@ -24,7 +24,8 @@ approved-mailbox identity and the Sent-item evidence rule stand under
 
 Amended 9 November 2026 (R902 to R905): clauses 2 and 5 and the clause 4
 record are edited in place for the **Delete case correspondence** tick.
-Clauses 1 and 3 stand as written.
+Clauses 1 and 3 stand as written. Amended 10 November 2026 (R916, R917):
+clause 5 names the activated mailbox and a staff forward's original.
 
 ## Context
 
@@ -69,9 +70,13 @@ Pegasus would leave every answered instruction in the Inbox.
    instruction the report send answered, matched by the send's recorded
    original message. A ticked send's candidates are the Case's received
    e-mails: the Inbox-scope retained messages currently linked to the Case,
-   in a mailbox that is still Approved, that Pegasus held when the send was
-   prepared. Pegasus's own Sent items, uploaded files, mail that arrives
-   after the send and every other message, folder and mailbox are left
+   in a mailbox that is still Approved and activated (10 November 2026,
+   R916), that Pegasus held when the send was prepared. With a Collision
+   Engineers staff forward held in instructions@ goes the original its reply
+   headers name in the mailbox that forwarded it, linked to the Case or not,
+   unless it stands linked to another Case (10 November 2026, R917).
+   Pegasus's own Sent items, uploaded files, mail that arrives after the
+   send and every other message, folder and mailbox are left
    (9 November 2026, R903).
 
 ## Consequences

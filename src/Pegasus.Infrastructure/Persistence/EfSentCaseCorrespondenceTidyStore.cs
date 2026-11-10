@@ -72,12 +72,10 @@ internal sealed class EfSentCaseCorrespondenceTidyStore(
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
         var mailboxChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
         var inbox = EfRetainedMailboxMessageStore.ToCode(MailFolderScope.Inbox);
-        // A mailbox an Administrator has withdrawn is never written to.
-        var approvedState = ApprovedMailboxState.Approved.ToString();
         var linked = CurrentIntakeAssociations.ReceiptIdsLinkedTo(db, caseId);
         // A Triage Case's request e-mail is linked by the Triage itself, not by an
         // association row, as the Correspondence tab reads it.
-        var rows = await db.IntakeReceipts.AsNoTracking()
+        var received = await db.IntakeReceipts.AsNoTracking()
             .Where(receipt => receipt.SourceChannel == mailboxChannel
                 && (linked.Contains(receipt.Id)
                     || db.Triage.Any(triage => triage.CaseId == caseId && triage.OriginReceiptId == receipt.Id)))
@@ -93,23 +91,137 @@ internal sealed class EfSentCaseCorrespondenceTidyStore(
                 db.ApprovedMailboxes.AsNoTracking(),
                 message => message.MailboxId!.Value,
                 mailbox => mailbox.Id,
-                (message, mailbox) => new
-                {
+                (message, mailbox) => new MessageRow(
                     message.Id,
                     message.ImmutableMessageId,
                     message.ReceivedAtUtc,
+                    message.ExternalReceiptToken,
+                    message.SenderAddress,
+                    message.InReplyToIdentitiesJson,
+                    message.CanonicalInternetMessageIdentity,
+                    mailbox.Address,
                     mailbox.MailboxIdentity,
-                    mailbox.State
-                })
-            .Where(row => row.MailboxIdentity != null && row.State == approvedState)
+                    mailbox.State,
+                    mailbox.ActivatedAtUtc))
             .ToArrayAsync(cancellationToken);
-        return rows
+        var originals = await ListForwardOriginalsAsync(
+            db, caseId, received, retainedAtOrBeforeUtc, cancellationToken);
+        return received
+            .Where(IsWritable)
+            .Concat(originals)
             .DistinctBy(row => row.Id)
             .OrderBy(row => row.ReceivedAtUtc)
             .ThenBy(row => row.Id)
             .Select(row => new CaseCorrespondenceMessage(row.Id, row.MailboxIdentity!, row.ImmutableMessageId))
             .ToArray();
     }
+
+    /// <summary>
+    /// The original each Collision Engineers staff forward among
+    /// <paramref name="received"/> was made from (operator, 10 November 2026;
+    /// R917): the forward is held in instructions@ (R586, R651), an approved
+    /// mailbox sent it, and its In-Reply-To and References name that
+    /// mailbox's own Inbox message. The original goes with the forward
+    /// whether or not it is linked to the Case; one that holds another Case
+    /// is left, since the tidy never touches another Case's message.
+    /// </summary>
+    private static async Task<List<MessageRow>> ListForwardOriginalsAsync(
+        PegasusDbContext db,
+        Guid caseId,
+        MessageRow[] received,
+        DateTimeOffset retainedAtOrBeforeUtc,
+        CancellationToken cancellationToken)
+    {
+        var forwards = received
+            .Where(row => SameAddress(row.MailboxAddress, PrincipalMailRoutePolicy.StaffForwardMailboxAddress)
+                && !string.IsNullOrWhiteSpace(row.SenderAddress))
+            .Select(row => new
+            {
+                ForwardingAddress = row.SenderAddress!,
+                Named = EfIntakeMutationStore.ReplyIdentityLookup(
+                    EfIntakeMutationStore.DeserializeReplyIdentities(row.InReplyToIdentitiesJson))
+            })
+            .Where(forward => forward.Named.Length > 0)
+            .ToArray();
+        if (forwards.Length == 0)
+        {
+            return [];
+        }
+
+        var mailboxChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
+        var inbox = EfRetainedMailboxMessageStore.ToCode(MailFolderScope.Inbox);
+        var named = forwards.SelectMany(forward => forward.Named).Distinct(StringComparer.Ordinal).ToArray();
+        var candidates = await db.RetainedMailboxMessages.AsNoTracking()
+            .Where(message => message.FolderScope == inbox
+                && message.MailboxId != null
+                && message.CanonicalInternetMessageIdentity != null
+                && named.Contains(message.CanonicalInternetMessageIdentity)
+                && message.RetainedAtUtc <= retainedAtOrBeforeUtc)
+            .Join(
+                db.ApprovedMailboxes.AsNoTracking(),
+                message => message.MailboxId!.Value,
+                mailbox => mailbox.Id,
+                (message, mailbox) => new MessageRow(
+                    message.Id,
+                    message.ImmutableMessageId,
+                    message.ReceivedAtUtc,
+                    message.ExternalReceiptToken,
+                    message.SenderAddress,
+                    message.InReplyToIdentitiesJson,
+                    message.CanonicalInternetMessageIdentity,
+                    mailbox.Address,
+                    mailbox.MailboxIdentity,
+                    mailbox.State,
+                    mailbox.ActivatedAtUtc))
+            .ToArrayAsync(cancellationToken);
+        var originals = new List<MessageRow>();
+        // The original sits in the mailbox that forwarded it, never another one
+        // that happens to hold a message the forward names.
+        foreach (var candidate in candidates.Where(row => IsWritable(row)
+            && forwards.Any(forward => SameAddress(row.MailboxAddress, forward.ForwardingAddress)
+                && forward.Named.Contains(row.CanonicalInternetMessageIdentity!, StringComparer.Ordinal))))
+        {
+            var held = await CurrentIntakeAssociations.HeldCaseIdsAsync(
+                db,
+                db.IntakeReceipts.Where(receipt => receipt.SourceChannel == mailboxChannel
+                    && receipt.ExternalReceiptToken == candidate.ExternalReceiptToken),
+                cancellationToken);
+            if (held.All(heldCaseId => heldCaseId == caseId))
+            {
+                originals.Add(candidate);
+            }
+        }
+
+        return originals;
+    }
+
+    /// <summary>
+    /// A mailbox Pegasus may move a message in: Approved, identified and
+    /// activated. One an Administrator has withdrawn is never written to, nor
+    /// is one that is not enabled, as a production copy leaves every mailbox
+    /// on the test instance (operator, 10 November 2026; R916, R627).
+    /// </summary>
+    private static bool IsWritable(MessageRow row) =>
+        row.MailboxIdentity is not null
+        && row.MailboxActivatedAtUtc is not null
+        && string.Equals(row.MailboxState, ApprovedMailboxState.Approved.ToString(), StringComparison.Ordinal);
+
+    private static bool SameAddress(string? left, string? right) =>
+        string.Equals(left?.Trim(), right?.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>One Inbox-scope retained message with the approved mailbox it sits in.</summary>
+    private sealed record MessageRow(
+        Guid Id,
+        string ImmutableMessageId,
+        DateTimeOffset ReceivedAtUtc,
+        string ExternalReceiptToken,
+        string? SenderAddress,
+        string? InReplyToIdentitiesJson,
+        string? CanonicalInternetMessageIdentity,
+        string MailboxAddress,
+        string? MailboxIdentity,
+        string MailboxState,
+        DateTimeOffset? MailboxActivatedAtUtc);
 
     public async Task<bool> RecordAsync(
         Guid operationId,

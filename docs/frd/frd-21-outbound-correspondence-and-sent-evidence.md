@@ -106,7 +106,9 @@ without the Worker's mailbox access leaves the instruction where it is
 **Delete case correspondence.** Send report, a reply that answers a query and
 the Triage Case's Reply with finding each carry one optional tick, **Delete
 case correspondence**, unticked each time the form opens (operator,
-9 November 2026; R902 to R905). The reply composer offers it exactly where it
+9 November 2026; R902 to R905): a tick left on a dialog that was closed
+without sending is cleared when the dialog next opens (10 November 2026,
+R916). The reply composer offers it exactly where it
 offers Mark query done: on a Reply or Reply all to a message that holds an
 open query on the Case (R904). Forward, Send chaser and the Triage chaser
 never offer it, and a send of any other kind that names it is refused. The
@@ -115,10 +117,15 @@ the Case's received e-mails to the Deleted Items folder of the mailbox each
 sits in (R902), within about five minutes, in the same recovery run as the
 instruction tidy and after it. The received e-mails are the Inbox-scope
 retained messages linked to the Case now, with the request e-mail a Triage
-Case was opened from, that sit in a mailbox still Approved and that Pegasus
-held when the send was prepared; a message dismissed in Pegasus is among
-them. Pegasus's own Sent items, uploaded `.eml` files and mail that arrives
-after the send are left (R903). The move is recoverable and changes nothing
+Case was opened from, that sit in a mailbox still Approved and activated
+(10 November 2026, R916) and that Pegasus held when the send was prepared; a
+message dismissed in Pegasus is among them. Where one of them is a Collision
+Engineers staff forward held in instructions@ (R586, R651), the original it
+was made from goes too, whether or not that original is linked to the Case: the Inbox message
+of the mailbox that sent the forward which the forward's In-Reply-To and
+References name. An original that stands linked to another Case is left
+(10 November 2026, R917). Pegasus's own Sent items, uploaded `.eml` files and
+mail that arrives after the send are left (R903). The move is recoverable and changes nothing
 in Pegasus: the retained copies, their links, the Case, its state and its
 correspondence view stay as they are. A send that is not confirmed Sent
 moves nothing. The send records each run. A run with no failure ends the
@@ -422,6 +429,12 @@ document never moves a Case by itself.
   tidy ends and writes no history.
 - An e-mail that arrives on the Case after a ticked send was prepared: it
   stays in the Inbox.
+- A staff forward whose original Pegasus never retained, because it arrived
+  before its mailbox was activated or the forward names none: the forward is
+  moved alone.
+- A Case e-mail in a mailbox that is Approved but not activated, as every
+  mailbox is on the test instance after a production copy: it is left and
+  counted nowhere.
 
 ## Acceptance evidence
 

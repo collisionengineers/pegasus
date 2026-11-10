@@ -1643,20 +1643,7 @@ internal sealed class EfIntakeMutationStore(
             return [];
         }
 
-        // A reply header carries the Message-ID without its angle brackets
-        // (MimeKit strips them), while a Graph item, a Sent poll outcome and
-        // report-sent evidence retain the transport value with them. Each
-        // identity is offered in both forms and compared by plain equality: the
-        // identity columns' case-insensitive collation is what every other
-        // identity comparison in this store already relies on.
-        var lookup = replyIdentities
-            .SelectMany(identity => identity.Length > 1
-                && identity[0] == '<'
-                && identity[^1] == '>'
-                    ? new[] { identity, identity[1..^1] }
-                    : new[] { identity, $"<{identity}>" })
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        var lookup = ReplyIdentityLookup(replyIdentities);
 
         var caseIds = new List<Guid>();
 
@@ -1730,12 +1717,31 @@ internal sealed class EfIntakeMutationStore(
             .ToArrayAsync(cancellationToken);
     }
 
-    private static string[] DeserializeReplyIdentities(string? json) =>
+    internal static string[] DeserializeReplyIdentities(string? json) =>
         string.IsNullOrWhiteSpace(json)
             ? []
             : JsonSerializer.Deserialize<string[]>(json)
                 ?? throw new InvalidDataException(
                     "A retained message has no exact reply-chain identities.");
+
+    /// <summary>
+    /// The values a retained identity column is compared with for the given
+    /// reply identities. A reply header carries the Message-ID without its
+    /// angle brackets (MimeKit strips them), while a Graph item, a Sent poll
+    /// outcome and report-sent evidence retain the transport value with them.
+    /// Each identity is offered in both forms and compared by plain equality:
+    /// the identity columns' case-insensitive collation is what every other
+    /// identity comparison in this store already relies on.
+    /// </summary>
+    internal static string[] ReplyIdentityLookup(IEnumerable<string> replyIdentities) =>
+        replyIdentities
+            .SelectMany(identity => identity.Length > 1
+                && identity[0] == '<'
+                && identity[^1] == '>'
+                    ? new[] { identity, identity[1..^1] }
+                    : new[] { identity, $"<{identity}>" })
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
 
     private static string RequestHash(string eventType, ResolveIntakeRequest request) =>
         Hash(JsonSerializer.Serialize(new

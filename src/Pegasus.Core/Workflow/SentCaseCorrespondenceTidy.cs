@@ -17,7 +17,10 @@ public sealed record SentCaseCorrespondenceCandidate(
     DateTimeOffset PreparedAtUtc,
     int Attempts);
 
-/// <summary>One received e-mail of the Case, in the approved mailbox it sits in.</summary>
+/// <summary>
+/// One received e-mail of the Case, or the original a staff forward among them
+/// was made from (R917), in the approved mailbox it sits in.
+/// </summary>
 public sealed record CaseCorrespondenceMessage(
     Guid RetainedMessageId,
     string MailboxIdentity,
@@ -51,9 +54,12 @@ public interface ISentCaseCorrespondenceTidyStore
 
     /// <summary>
     /// The Case's received e-mails as they stand linked now: Inbox-scope
-    /// retained mail in an approved mailbox, retained at or before
-    /// <paramref name="retainedAtOrBeforeUtc"/>. Pegasus's own Sent items and
-    /// uploaded files are never among them (R903).
+    /// retained mail in an Approved, activated mailbox (R916), retained at or
+    /// before <paramref name="retainedAtOrBeforeUtc"/>. Pegasus's own Sent
+    /// items and uploaded files are never among them (R903). With a
+    /// Collision Engineers staff forward held in instructions@ comes the
+    /// original its reply headers name in the mailbox that forwarded it,
+    /// linked to the Case or not, unless it holds another Case (R917).
     /// </summary>
     Task<IReadOnlyList<CaseCorrespondenceMessage>> ListMessagesAsync(
         Guid caseId,

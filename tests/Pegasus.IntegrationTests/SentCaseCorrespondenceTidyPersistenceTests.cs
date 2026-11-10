@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
@@ -9,9 +11,10 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// ADR-0071, R902. The send journal lists a confirmed send that carried the Delete
 /// case correspondence tick, names the Case's received e-mails as they stand
-/// linked now (Inbox scope, approved mailboxes, held when the send was
-/// prepared), records each run under the operation's version guard, and
-/// stops listing after three failed runs.
+/// linked now (Inbox scope, Approved and activated mailboxes, held when the
+/// send was prepared) with the original of a staff forward held in
+/// instructions@ (R916, R917), records each run under the operation's version
+/// guard, and stops listing after three failed runs.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class SentCaseCorrespondenceTidyPersistenceTests
@@ -22,12 +25,18 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
     private const string SentScope = "sent";
     private const string UploadScope = "upload";
     private const string Actor = "sent-mail-correspondence-tidy";
+    private const string EngineersAddress = "engineers@example.invalid";
+    private const string DeactivatedAddress = "deactivated@example.invalid";
     private static readonly DateTimeOffset SentAtUtc = new(2026, 11, 10, 8, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset PreparedAtUtc = SentAtUtc.AddMinutes(-5);
     private static readonly DateTimeOffset NowUtc = new(2026, 11, 10, 9, 0, 0, TimeSpan.Zero);
+    private static readonly Guid InstructionsMailboxId =
+        AdministrationPolicyModelConfiguration.InitialInstructionsMailboxId;
 
     private enum Linking
     {
+        // Received and never linked to a Case.
+        None,
         AcceptedLink,
         ActiveAssociation,
         // Accepted, then unlinked by a member of staff: the association row is inactive.
@@ -149,15 +158,18 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
 
     /// <summary>
     /// A mailbox an Administrator has withdrawn is never written to, nor is
-    /// one whose Graph identity has not been supplied.
+    /// one whose Graph identity has not been supplied, nor one that is not
+    /// activated, as a production copy leaves every mailbox on the test
+    /// instance (R916).
     /// </summary>
     [Fact]
-    public async Task AMessageInAMailboxThatIsNotApprovedAndIdentifiedIsNotNamed()
+    public async Task AMessageInAMailboxThatIsNotApprovedIdentifiedAndActivatedIsNotNamed()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var estate = await SeedEstateAsync(database);
         var approved = await ReceiveAsync(database, estate.CaseId, Linking.AcceptedLink, estate.MailboxId);
         await ReceiveAsync(database, estate.CaseId, Linking.AcceptedLink, estate.WithdrawnMailboxId);
+        await ReceiveAsync(database, estate.CaseId, Linking.AcceptedLink, estate.DeactivatedMailboxId);
         await ReceiveAsync(
             database,
             estate.CaseId,
@@ -167,6 +179,69 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         var messages = await Store(database).ListMessagesAsync(estate.CaseId, PreparedAtUtc, CancellationToken.None);
 
         Assert.Equal(approved, Assert.Single(messages).RetainedMessageId);
+    }
+
+    /// <summary>
+    /// R917: a staff forward held in instructions@ takes its original with it,
+    /// from the mailbox that forwarded it, though the forward is the only
+    /// e-mail linked to the Case. An original that is linked too is named once.
+    /// </summary>
+    [Fact]
+    public async Task TheOriginalOfAStaffForwardHeldInInstructionsIsNamedThoughItHoldsNoCase()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var estate = await SeedEstateAsync(database);
+        await EnableInstructionsMailboxAsync(database);
+        var unlinked = await ReceiveOriginalAsync(
+            database, estate.CaseId, Linking.None, estate.MailboxId, PreparedAtUtc.AddHours(-6));
+        var linked = await ReceiveOriginalAsync(
+            database, estate.CaseId, Linking.AcceptedLink, estate.MailboxId, PreparedAtUtc.AddHours(-5));
+        var forward = await ReceiveForwardAsync(
+            database, estate.CaseId, InstructionsMailboxId, "Engineers@Example.invalid", unlinked, PreparedAtUtc.AddHours(-4));
+        var second = await ReceiveForwardAsync(
+            database, estate.CaseId, InstructionsMailboxId, EngineersAddress, linked, PreparedAtUtc.AddHours(-3));
+
+        var messages = await Store(database).ListMessagesAsync(estate.CaseId, PreparedAtUtc, CancellationToken.None);
+
+        Assert.Equal([unlinked, linked, forward, second], messages.Select(item => item.RetainedMessageId));
+        Assert.Equal(
+            ["engineers-mailbox", "engineers-mailbox", "instructions-mailbox", "instructions-mailbox"],
+            messages.Select(item => item.MailboxIdentity));
+        Assert.Equal(ImmutableId(unlinked), messages[0].ImmutableMessageId);
+    }
+
+    /// <summary>
+    /// R917's bounds: an original that holds another Case is left, as is one in
+    /// a mailbox that is not activated or that did not send the forward, and
+    /// only a forward held in instructions@ names an original at all.
+    /// </summary>
+    [Fact]
+    public async Task AnOriginalThatHoldsAnotherCaseOrSitsOutsideTheForwardingMailboxIsLeft()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var estate = await SeedEstateAsync(database);
+        await EnableInstructionsMailboxAsync(database);
+        var heldElsewhere = await ReceiveOriginalAsync(
+            database, estate.OtherCaseId, Linking.AcceptedLink, estate.MailboxId, PreparedAtUtc.AddHours(-9));
+        var notActivated = await ReceiveOriginalAsync(
+            database, estate.CaseId, Linking.None, estate.DeactivatedMailboxId, PreparedAtUtc.AddHours(-9));
+        var notTheForwarder = await ReceiveOriginalAsync(
+            database, estate.CaseId, Linking.None, estate.MailboxId, PreparedAtUtc.AddHours(-9));
+        var notInstructions = await ReceiveOriginalAsync(
+            database, estate.CaseId, Linking.None, estate.MailboxId, PreparedAtUtc.AddHours(-9));
+        var first = await ReceiveForwardAsync(
+            database, estate.CaseId, InstructionsMailboxId, EngineersAddress, heldElsewhere, PreparedAtUtc.AddHours(-4));
+        var second = await ReceiveForwardAsync(
+            database, estate.CaseId, InstructionsMailboxId, DeactivatedAddress, notActivated, PreparedAtUtc.AddHours(-3));
+        var third = await ReceiveForwardAsync(
+            database, estate.CaseId, InstructionsMailboxId, DeactivatedAddress, notTheForwarder, PreparedAtUtc.AddHours(-2));
+        // Held in engineers@, not instructions@: a forward there names no original (R652).
+        var fourth = await ReceiveForwardAsync(
+            database, estate.CaseId, estate.MailboxId, EngineersAddress, notInstructions, PreparedAtUtc.AddHours(-1));
+
+        var messages = await Store(database).ListMessagesAsync(estate.CaseId, PreparedAtUtc, CancellationToken.None);
+
+        Assert.Equal([first, second, third, fourth], messages.Select(item => item.RetainedMessageId));
     }
 
     [Fact]
@@ -498,6 +573,56 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
 
     private static string ImmutableId(Guid retainedMessageId) => $"immutable-{retainedMessageId:N}";
 
+    /// <summary>The seeded instructions@ row with its Graph identities saved and activated.</summary>
+    private static async Task EnableInstructionsMailboxAsync(LocalDbTestDatabase database)
+    {
+        await using var db = await database.CreateContextAsync();
+        var mailbox = await db.ApprovedMailboxes.SingleAsync(item => item.Id == InstructionsMailboxId);
+        mailbox.MailboxIdentity = "instructions-mailbox";
+        mailbox.InboxFolderIdentity = "inbox";
+        mailbox.SentFolderIdentity = "sent";
+        mailbox.ActivatedAtUtc = SentAtUtc.AddDays(-1);
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// A received e-mail whose Message-ID is retained in its comparison form,
+    /// as the Inbox poll retains it, so a forward can name it.
+    /// </summary>
+    private static Task<Guid> ReceiveOriginalAsync(
+        LocalDbTestDatabase database,
+        Guid caseId,
+        Linking linking,
+        Guid mailboxId,
+        DateTimeOffset receivedAtUtc) =>
+        ReceiveAsync(
+            database, caseId, linking, mailboxId, receivedAtUtc: receivedAtUtc,
+            shape: message => message.CanonicalInternetMessageIdentity =
+                MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(message.InternetMessageIdentity!));
+
+    /// <summary>
+    /// A message linked to the Case that <paramref name="forwardedFrom"/> sent
+    /// and whose In-Reply-To names <paramref name="original"/>, without angle
+    /// brackets, as the MIME reader retains a reply identity.
+    /// </summary>
+    private static Task<Guid> ReceiveForwardAsync(
+        LocalDbTestDatabase database,
+        Guid caseId,
+        Guid holdingMailboxId,
+        string forwardedFrom,
+        Guid original,
+        DateTimeOffset receivedAtUtc) =>
+        ReceiveAsync(
+            database, caseId, Linking.AcceptedLink, holdingMailboxId, receivedAtUtc: receivedAtUtc,
+            shape: message =>
+            {
+                message.SenderAddress = forwardedFrom;
+                message.InReplyToIdentitiesJson = JsonSerializer.Serialize(new[]
+                {
+                    MailboxMessageIdentity.CanonicalizeInternetMessageIdentity($"{original:N}@example.invalid")
+                });
+            });
+
     /// <summary>A ticked send, prepared five minutes before its Sent item was seen.</summary>
     private static StaffMailSendOperationEntity Operation(
         Estate estate,
@@ -549,7 +674,8 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         string channel = MailboxChannel,
         DateTimeOffset? receivedAtUtc = null,
         DateTimeOffset? retainedAtUtc = null,
-        DateTimeOffset? dismissedAtUtc = null)
+        DateTimeOffset? dismissedAtUtc = null,
+        Action<RetainedMailboxMessageEntity>? shape = null)
     {
         var receiptId = Guid.NewGuid();
         var messageId = Guid.NewGuid();
@@ -557,8 +683,10 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         var receivedAt = receivedAtUtc ?? PreparedAtUtc.AddHours(-2);
         await using var db = await database.CreateContextAsync();
         db.IntakeReceipts.Add(Receipt(receiptId, channel, token, receivedAt));
-        db.RetainedMailboxMessages.Add(
-            Message(messageId, mailboxId, folderScope, token, receivedAt, retainedAtUtc ?? receivedAt, dismissedAtUtc));
+        var message = Message(
+            messageId, mailboxId, folderScope, token, receivedAt, retainedAtUtc ?? receivedAt, dismissedAtUtc);
+        shape?.Invoke(message);
+        db.RetainedMailboxMessages.Add(message);
         switch (linking)
         {
             case Linking.AcceptedLink:
@@ -667,7 +795,7 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
     {
         Id = id,
         MailboxId = mailboxId,
-        MailboxAddress = mailboxId is null ? "upload" : "engineers@example.invalid",
+        MailboxAddress = mailboxId is null ? "upload" : EngineersAddress,
         FolderScope = folderScope,
         FolderIdentity = folderScope,
         ImmutableMessageId = ImmutableId(id),
@@ -742,7 +870,8 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         Guid OtherCaseId,
         Guid GenerationId,
         Guid MailboxId,
-        Guid WithdrawnMailboxId);
+        Guid WithdrawnMailboxId,
+        Guid DeactivatedMailboxId);
 
     private static async Task<Estate> SeedEstateAsync(LocalDbTestDatabase database)
     {
@@ -754,6 +883,7 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         var generationId = Guid.NewGuid();
         var mailboxId = Guid.NewGuid();
         var withdrawnMailboxId = Guid.NewGuid();
+        var deactivatedMailboxId = Guid.NewGuid();
         await using var db = await database.CreateContextAsync();
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"Correspondence tidy test organization"}, {0L})");
@@ -782,7 +912,7 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
             new ApprovedMailboxEntity
             {
                 Id = mailboxId,
-                Address = "engineers@example.invalid",
+                Address = EngineersAddress,
                 AllowIncoming = true,
                 AllowOutgoing = true,
                 MailboxGeneration = 1,
@@ -806,8 +936,26 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
                 SentFolderIdentity = "sent",
                 ActivatedAtUtc = SentAtUtc.AddDays(-1),
                 Version = 1
+            },
+            // Approved and identified, but not enabled: what a production copy
+            // leaves on the test instance (R627).
+            new ApprovedMailboxEntity
+            {
+                Id = deactivatedMailboxId,
+                Address = DeactivatedAddress,
+                AllowIncoming = true,
+                AllowOutgoing = true,
+                MailboxGeneration = 1,
+                State = "Approved",
+                MailboxIdentity = "deactivated-mailbox",
+                InboxFolderIdentity = "inbox",
+                SentFolderIdentity = "sent",
+                ActivatedAtUtc = null,
+                Version = 1
             });
         await db.SaveChangesAsync();
-        return new(principalId, lineageId, caseId, otherCaseId, generationId, mailboxId, withdrawnMailboxId);
+        return new(
+            principalId, lineageId, caseId, otherCaseId, generationId, mailboxId, withdrawnMailboxId,
+            deactivatedMailboxId);
     }
 }
