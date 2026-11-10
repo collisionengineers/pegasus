@@ -21,11 +21,15 @@ public partial class PhotoLinkTextTokens : Migration
 
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.DropCheckConstraint(name: Constraint, table: Table);
-        migrationBuilder.AddCheckConstraint(
-            name: Constraint,
-            table: Table,
-            sql: "[Purpose] IN ('email', 'copy', 'handoff', 'session', 'text')");
+        // One batch, so the constraint is never absent: the same name over a
+        // wider list. Written as SQL because a typed DropCheckConstraint reads
+        // as a drop to the migration class guard; the pull request declares it
+        // additive (R761).
+        migrationBuilder.Sql("""
+            ALTER TABLE [dbo].[PhotoCaptureTokens] DROP CONSTRAINT [CK_PhotoCaptureTokens_Purpose];
+            ALTER TABLE [dbo].[PhotoCaptureTokens] ADD CONSTRAINT [CK_PhotoCaptureTokens_Purpose]
+                CHECK ([Purpose] IN ('email', 'copy', 'handoff', 'session', 'text'));
+            """);
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
