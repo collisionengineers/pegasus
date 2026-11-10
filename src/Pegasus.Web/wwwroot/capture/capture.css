@@ -362,8 +362,17 @@ ol.nextsteps li span{color:var(--muted);font-size:14px}
 /* a photo, or the walk-around video, the server refused */
 .thumb.failed,.strip img.failed,.xrow.failed{border:2px solid var(--red)}
 /* ---------- Layout (#2029) ---------- */
-/* main scrolls by itself above the bar, so the upload line (.uplog, above) sticks to
-   main's foot and main keeps no room for a bar that is not over it. The bar's
-   buttons start from their own width and wrap only when the row cannot hold them,
-   so "Add more" beside "Continue" stays on one line at 360 px. */
+/* Below 560 px the app grows with its content and the page scrolls under the bar,
+   which sticks to the window's foot: main is no scroll box there, so the upload line
+   (.uplog, above) sticks just above the bar, whose height capture.js keeps in --cta-h.
+   From 560 px the app has a fixed height and main scrolls by itself above the bar, so
+   the line sticks to main's foot. Either way main keeps no room for a bar that is not
+   over it. The bar's buttons start from their own width and wrap only when the row
+   cannot hold them, so "Add more" beside "Continue" stays on one line at 360 px. */
+main{overflow-y:visible}
+.uplog{bottom:var(--cta-h,0px)}
+@media (min-width:560px){
+  main{overflow-y:auto}
+  .uplog{bottom:0}
+}
 footer.cta .btn{flex-basis:auto;padding-left:10px;padding-right:10px}

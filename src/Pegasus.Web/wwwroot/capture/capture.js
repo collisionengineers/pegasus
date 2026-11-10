@@ -1116,7 +1116,10 @@ function render(){
   if(next && !next.onclick) next.onclick=()=>{ if(returnTo){ const r=returnTo; returnTo=null; go(STEPS.indexOf(r)); } else go(skip(S.step+1,1)); };
   if(back && !back.onclick) back.onclick=()=>{ if(returnTo){ const r=returnTo; returnTo=null; go(STEPS.indexOf(r)); } else go(skip(S.step-1,-1)); };
   if(lastStep!==k){ main.scrollTop=0; window.scrollTo(0,0); lastStep=k; }
+  ctaHeight();
 }
+/* The bar's height as --cta-h on the root (CSSOM, not a style attribute: CSP), so the upload line sticks just above the bar where the page scrolls (#2029). */
+function ctaHeight(){ if(cta) document.documentElement.style.setProperty('--cta-h', cta.getBoundingClientRect().height+'px'); }
 function go(i){ S.step=Math.max(0,Math.min(STEPS.length-1,i)); save(); syncDetails(); render(); }
 
 /* ---------- boot ---------- */
@@ -1143,6 +1146,8 @@ function boot(){
   main=$('#main'); cta=$('#cta'); fileMulti=$('#fileMulti'); fileSingle=$('#fileSingle'); fileDocs=$('#fileDocs'); fileVideo=$('#fileVideo');
   const logo=document.querySelector('header img'); if(logo && !logo.getAttribute('src') && assetUrl('logo')) logo.src=assetUrl('logo');
   fileMulti.addEventListener('change', onMulti); fileSingle.addEventListener('change', onSingle); fileDocs.addEventListener('change', onDocs); fileVideo.addEventListener('change', onVideo);
+  /* every change of the bar's height: a step's own redraw of its buttons, a wrap at a new width */
+  if(window.ResizeObserver) new ResizeObserver(ctaHeight).observe(cta); else window.addEventListener('resize', ctaHeight);
   if(!LINK){ gone(); return; }
   const inline=readJson('capture-context');
   if(inline) startWith(inline);

@@ -24,9 +24,12 @@ starts with the customer's name and accident date from the Send page (R853).
   ids `capture.js` needs and the placeholders the page fills.
 - `capture.css`: the prototype's stylesheet, then one class for each former
   inline `style` attribute, the outline of a photo the server refused and the
-  layout fixes of #2029: the upload line sticks to the foot of `main`, `main`
-  keeps no dead room for the bar, and the bar's buttons start from their own
-  width so a short pair stays on one line.
+  layout fixes of #2029: the upload line stays in view just above the bar,
+  `main` keeps no dead room for the bar, and the bar's buttons start from their
+  own width so a short pair stays on one line. Below 560 px the page scrolls,
+  `main` is no scroll box and the line sticks above the bar by the bar's height,
+  which `capture.js` keeps in `--cta-h`; from 560 px `main` scrolls by itself
+  and the line sticks to its foot.
 - `capture.js`: the prototype's script as one strict-mode classic script (ES2020,
   no modules), still built round the `S` state and the `R` renderer per step.
 - `img/`: the images the app shows.
