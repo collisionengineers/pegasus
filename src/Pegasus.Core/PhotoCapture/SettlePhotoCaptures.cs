@@ -5,6 +5,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Notifications;
+using Pegasus.Core.Triage;
 
 namespace Pegasus.Core.PhotoCapture;
 
@@ -49,6 +50,7 @@ public sealed class SettlePhotoCaptures(
     IProcessQueuedIntake processQueuedIntake,
     IPhotoCaptureCaseWriter caseWriter,
     IAddCaseNote addCaseNote,
+    AddTriageNote addTriageNote,
     ICaseStaffNotifier notifier,
     TimeProvider timeProvider)
 {
@@ -59,8 +61,15 @@ public sealed class SettlePhotoCaptures(
     /// </summary>
     public static readonly TimeSpan UploadInFlightGrace = TimeSpan.FromMinutes(5);
 
+    /// <summary>The Case history's reason for images a photo link completed (operator, 10 November 2026; R871).</summary>
     private const string ImagesReason =
-        "The photo link's photos are in: the sender pressed Send, or the link ran out with photos on it.";
+        "The photo link's photos are in: the sender pressed Send, or the link ran out or was cancelled with photos on it.";
+
+    /// <summary>The words the sender's note is written with, on a Case and on a Triage Case alike (R845).</summary>
+    private const string CustomerNotePrefix = "Customer's note (photo link): ";
+
+    /// <summary>A Triage Case takes the note as at most this many Triage notes (operator, 10 November 2026; R845).</summary>
+    private const int MaximumTriageNotes = 4;
 
     private static readonly ActionActor SettleActor = ActionActor.SystemWorker(PhotoCaptureIntakeRules.SettleActorId);
 
@@ -71,12 +80,19 @@ public sealed class SettlePhotoCaptures(
         var cutoff = IntakeEscapeWindow.LatestClosedStart(now);
 
         // The bells earlier runs owed and the reaches first, each bounded on
-        // its own, then the walk; the walk's closes owe bells this run rings
-        // at its end.
+        // its own, then the walk; the reaches and the walk's closes owe bells
+        // this run rings at its end. A run that settled and reached nothing
+        // owes none, so it does not read them again: the settle runs every
+        // minute, and an idle run is three small reads (R838).
         var failures = await RingOwedAsync(maximumItems, cancellationToken);
         var (reached, reachFailures) = await ReachAsync(maximumItems, now, cutoff, cancellationToken);
         var (examined, settled, walkFailures) = await WalkAsync(maximumItems, now, cutoff, cancellationToken);
-        failures += reachFailures + walkFailures + await RingOwedAsync(maximumItems, cancellationToken);
+        failures += reachFailures + walkFailures;
+        if (settled > 0 || reached > 0)
+        {
+            failures += await RingOwedAsync(maximumItems, cancellationToken);
+        }
+
         return new(examined, settled, reached, failures);
     }
 
@@ -338,12 +354,15 @@ public sealed class SettlePhotoCaptures(
 
     /// <summary>
     /// A batch whose record merged into a Case: its own kept paperwork and
-    /// video are linked as the decision that took the record there (the
-    /// member of staff who chose the Case, or Pegasus's pairing) and
-    /// re-driven so they file as Other (R803); once each has a receipt and is
-    /// linked, the note and the fill run, and the reach is recorded with its
-    /// bell owed (R804). The record's merge completed the images. An archived
-    /// Case is recorded and nothing is written to it.
+    /// video are linked to that Case, as the member of staff who chose it or,
+    /// when Pegasus paired the record, as the work that follows the record's
+    /// merge, which files them wherever the photos went, a Triage Case or a
+    /// report-sent Case included (R803, R844); they are re-driven so they file
+    /// as Other. Once each has filed or its filing has ended for good, the
+    /// note and the fill run, and the reach is recorded with its bell owed
+    /// (R804). The record's merge completed the images unless the capture
+    /// already had (R841). An archived Case is recorded and nothing is
+    /// written to it.
     /// </summary>
     private async Task<bool> ReachCaseAsync(
         PhotoCaptureBatchReach reach,
@@ -356,7 +375,7 @@ public sealed class SettlePhotoCaptures(
         {
             var decider = reach.RecordLinkedByStaffId is { } staffId
                 ? ActionActor.Staff(staffId, [StaffRole.User])
-                : ActionActor.SystemWorker(PhotoCaptureIntakeRules.RoutingActorId);
+                : ActionActor.SystemWorker(PhotoCaptureIntakeRules.ReachActorId);
             var reason = reach.RecordLinkedByStaffId is not null && !string.IsNullOrWhiteSpace(reach.RecordLinkReason)
                 ? reach.RecordLinkReason
                 : PhotoCaptureIntakeRules.RoutedDestinationReason;
@@ -370,9 +389,9 @@ public sealed class SettlePhotoCaptures(
                     .ToArray();
             }
 
-            if (!PhotoCaptureFiling.Settled(kept, reach.CaseId, cutoff))
+            if (!PhotoCaptureFiling.KeptFilesSettled(kept, reach.CaseId, cutoff))
             {
-                // A kept file has no receipt yet, or is not yet linked.
+                // A kept file has no receipt yet, or has not filed yet.
                 return false;
             }
 
@@ -442,7 +461,8 @@ public sealed class SettlePhotoCaptures(
     /// The Case-side effects of a capture's photos being on its Case, each
     /// keyed so a repeat writes nothing twice: the images once per capture
     /// (R792), the note once per wording, and the fill of empty fields only.
-    /// A Triage Case keeps no Notes, so it takes no note.
+    /// A Triage Case keeps no Case Notes, so it takes the same words as its
+    /// own Triage notes (operator, 10 November 2026; R845).
     /// </summary>
     private async Task CaseSideAsync(
         PhotoCapture capture,
@@ -461,16 +481,21 @@ public sealed class SettlePhotoCaptures(
                 cancellationToken);
         }
 
-        if (!caseIsTriage && !string.IsNullOrWhiteSpace(capture.Note))
+        if (!string.IsNullOrWhiteSpace(capture.Note))
         {
-            var note = "Customer's note (photo link): " + capture.Note;
-            await addCaseNote.ExecuteAsync(
-                new AddCaseNoteRequest(
-                    caseId,
-                    SettleActor,
-                    NoteOperationKey(capture.Id, capture.Note),
-                    note.Length <= AddCaseNote.MaximumLength ? note : note[..AddCaseNote.MaximumLength]),
-                cancellationToken);
+            var note = CustomerNotePrefix + capture.Note;
+            note = note.Length <= AddCaseNote.MaximumLength ? note : note[..AddCaseNote.MaximumLength];
+            var operationKey = NoteOperationKey(capture.Id, capture.Note);
+            if (caseIsTriage)
+            {
+                await AddTriageNotesAsync(caseId, operationKey, note, cancellationToken);
+            }
+            else
+            {
+                await addCaseNote.ExecuteAsync(
+                    new AddCaseNoteRequest(caseId, SettleActor, operationKey, note),
+                    cancellationToken);
+            }
         }
 
         var values = PhotoCaptureCaseFields.Values(capture);
@@ -481,6 +506,35 @@ public sealed class SettlePhotoCaptures(
                 values,
                 capture.Id,
                 PhotoCaptureCaseFields.SourceLabel(capture),
+                cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// The note on a Triage Case (R845): a Triage note holds
+    /// <see cref="TriageNotes.MaximumLength"/> characters, so a longer note
+    /// is written as up to four Triage notes, in order, the words starting
+    /// the first. Each part has its own key, the note's key and its place,
+    /// so a repeat replays each part and a changed note is appended whole. A
+    /// completed or cancelled Triage Case takes none; the whole note stays on
+    /// the photo link's page.
+    /// </summary>
+    private async Task AddTriageNotesAsync(Guid caseId, string noteOperationKey, string note, CancellationToken cancellationToken)
+    {
+        var parts = note.Chunk(TriageNotes.MaximumLength).Take(MaximumTriageNotes).ToArray();
+        for (var index = 0; index < parts.Length; index++)
+        {
+            var part = new string(parts[index]);
+            if (string.IsNullOrWhiteSpace(part))
+            {
+                continue;
+            }
+
+            await addTriageNote.ExecuteForSystemAsync(
+                caseId,
+                SettleActor,
+                string.Create(CultureInfo.InvariantCulture, $"{noteOperationKey}:{index + 1}"),
+                part,
                 cancellationToken);
         }
     }
@@ -513,10 +567,13 @@ public sealed class SettlePhotoCaptures(
 /// (<see cref="IntakeEscapeWindow"/>) has closed, after which nothing files
 /// it. A filing that has started holds the batch until it files or its replay
 /// is exhausted, whatever the link's age: the pending custody is confirmed
-/// with no window. This is the lead's reading of R792 for a photo that can
-/// never file, pending the operator. Paperwork and video in a batch on a Case hold
+/// with no window. This is the operator's rule for a photo that can never
+/// file (operator, 10 November 2026; R840). Paperwork and video in a batch on a Case hold
 /// it only until each has a receipt and is linked; a Vehicle images batch
-/// waits only for its photos' evaluation.
+/// waits only for its photos' evaluation. A batch whose record merged into a
+/// Case records its reach once each of its kept files has filed there or
+/// its filing has ended, as a photograph holds its batch
+/// (<see cref="KeptFilesSettled"/>; R844).
 /// </summary>
 public static class PhotoCaptureFiling
 {
@@ -578,11 +635,21 @@ public static class PhotoCaptureFiling
     /// <summary>Whether an item in this state holds its batch open.</summary>
     public static bool Holds(PhotoCaptureFilingState state, PhotoCaptureItemKind kind, bool onCase) =>
         PhotoCaptureStory.IsPhotographKind(kind)
-            ? state is PhotoCaptureFilingState.Pending
-                or PhotoCaptureFilingState.Unlinked
-                or PhotoCaptureFilingState.Linked
-                or PhotoCaptureFilingState.Filing
+            ? HoldsUntilFiled(state)
             : onCase && state is PhotoCaptureFilingState.Pending or PhotoCaptureFilingState.Unlinked;
+
+    /// <summary>
+    /// Whether no kept file (paperwork, video) of a batch whose record
+    /// reached <paramref name="caseId"/> still holds the reach: each has filed
+    /// there, or its filing has ended for good, as a photograph holds its
+    /// batch (operator, 10 November 2026; R844).
+    /// </summary>
+    public static bool KeptFilesSettled(IEnumerable<PhotoCaptureItemFiling> filings, Guid caseId, DateTimeOffset systemFilingCutoff)
+    {
+        ArgumentNullException.ThrowIfNull(filings);
+        return !filings.Any(filing => !PhotoCaptureStory.IsPhotographKind(filing.Item.Kind)
+            && HoldsUntilFiled(StateOf(filing, caseId, systemFilingCutoff)));
+    }
 
     /// <summary>Whether no received item holds the batch open.</summary>
     public static bool Settled(IEnumerable<PhotoCaptureItemFiling> filings, Guid? caseId, DateTimeOffset systemFilingCutoff)
@@ -591,6 +658,13 @@ public static class PhotoCaptureFiling
         return !filings.Any(filing =>
             Holds(StateOf(filing, caseId, systemFilingCutoff), filing.Item.Kind, caseId is not null));
     }
+
+    /// <summary>The states that hold until the item files or its filing ends for good.</summary>
+    private static bool HoldsUntilFiled(PhotoCaptureFilingState state) =>
+        state is PhotoCaptureFilingState.Pending
+            or PhotoCaptureFilingState.Unlinked
+            or PhotoCaptureFilingState.Linked
+            or PhotoCaptureFilingState.Filing;
 
     /// <summary>Whether at least one photograph of the batch has filed on the Case.</summary>
     public static bool AnyPhotographFiled(IEnumerable<PhotoCaptureItemFiling> filings, Guid caseId, DateTimeOffset systemFilingCutoff)
@@ -641,6 +715,21 @@ public static class PhotoCaptureCaseFields
 
         return values;
     }
+
+    /// <summary>
+    /// Whether a typed value is written to <paramref name="fieldName"/>: never
+    /// over a confirmed value; where the field holds no fact; and, for the
+    /// mileage and its unit only, over a fact that is the DVSA estimate
+    /// (<see cref="CaseVehicleMileageSourcePolicy.IsEstimated"/>), which it
+    /// replaces. A value from the instruction, one staff entered and an exact
+    /// MOT reading are never replaced (operator, 10 November 2026; R843,
+    /// following R810).
+    /// </summary>
+    public static bool Replaces(string fieldName, CaseDataSource? existingFact, bool hasConfirmed) =>
+        !hasConfirmed
+        && (existingFact is null
+            || (fieldName is CaseDataFieldNames.VehicleMileage or CaseDataFieldNames.VehicleMileageUnit
+                && CaseVehicleMileageSourcePolicy.IsEstimated(existingFact)));
 
     public static string SourceLabel(PhotoCapture capture)
     {

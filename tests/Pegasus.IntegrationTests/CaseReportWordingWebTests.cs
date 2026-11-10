@@ -45,6 +45,12 @@ public sealed class CaseReportWordingWebTests
         Assert.DoesNotContain("data-wording-block=\"salvage\"", report, StringComparison.Ordinal);
         Assert.Contains(NatureSentence, report, StringComparison.Ordinal);
         Assert.Contains("wordingEdits[0].Key", report, StringComparison.Ordinal);
+        // Each row carries the sentence and the heading it was composed with, so the page
+        // can send a block it still shows as drawn as no change (#2042).
+        Assert.Matches(
+            "data-wording-block=\"nature\"\\s+data-wording-composed=\"" + Regex.Escape(NatureSentence)
+                + "\"\\s+data-wording-heading=\"Nature of Incident\"",
+            report);
 
         // Every control the panel posts belongs to the Case's one Save form.
         var controls = Regex.Matches(report, "<(?:input|textarea)[^>]*name=\"wordingEdits\\[[^\"]*\"[^>]*>");
@@ -162,6 +168,9 @@ public sealed class CaseReportWordingWebTests
     /// report, so a Total loss's salvage category lands while the report cannot
     /// yet be projected. Wording the Engineer changed meanwhile is refused, with
     /// no composed sentence to compare it with, and nothing else in that save lands.
+    /// #1814 (R891, R892): the page says so in the operator's sentence, the wording
+    /// panel carries that sentence so the page's script knows the refusal and leaves
+    /// the refused wording out of the saves that follow, and such a save lands.
     /// </summary>
     [Fact]
     public async Task OnlyChangedWordingIsRefusedWhileTheReportCannotBeProjected()
@@ -195,10 +204,19 @@ public sealed class CaseReportWordingWebTests
 
         AssertPrg(refused, store.CaseId);
         Assert.Single(store.Saves);
-        Assert.Contains(
-            Pegasus.Web.Presentation.ReportWordingEdits.Unavailable,
-            await workspace.GetWorkspaceAsync(),
-            StringComparison.Ordinal);
+        // The operator's sentence (R892), in the refusal and on the wording panel.
+        const string sentence =
+            "The report is not ready, so its wording cannot be saved yet. Nothing in this save was stored. Your wording is still on the page.";
+        var page = await workspace.GetWorkspaceAsync();
+        var marker = $"data-wording-refusal=\"{sentence}\"";
+        Assert.Contains("data-report-wording " + marker, SectionHtml(page, "report"), StringComparison.Ordinal);
+        Assert.Contains(sentence, page.Replace(marker, string.Empty, StringComparison.Ordinal), StringComparison.Ordinal);
+
+        using var after = await SaveAsync(workspace, (category, "N"));
+
+        AssertPrg(after, store.CaseId);
+        Assert.Equal(2, store.Saves.Count);
+        Assert.Null(store.Saves[1].ReportWording);
     }
 
     private static RecordingCaseDetailsStore ReadyStore() => new()

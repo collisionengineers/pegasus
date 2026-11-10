@@ -162,7 +162,8 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
             || !mailbox.AllowIncoming
             || mailbox.ActivatedAtUtc is null
             || mailbox.MailboxGeneration != expectedGeneration
-            || entity?.Generation != expectedGeneration
+            || entity is null
+            || entity.Generation > expectedGeneration
             || !string.Equals(
                 entity.SubscriptionId,
                 expectedSubscriptionId,
@@ -170,6 +171,9 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
         {
             throw new ApprovedMailboxSubscriptionMaintenanceLostException();
         }
+        // A row from an older generation is the one this generation's attempt
+        // was replacing, so its failure is recorded there and stays visible for
+        // the mailbox (FRD-26); the row keeps its generation and stays due.
         entity.LastMaintainedAtUtc = attemptedAtUtc;
         entity.LastMaintenanceFailureCode = failureCode;
         await context.SaveChangesAsync(cancellationToken);

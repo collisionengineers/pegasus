@@ -34,16 +34,16 @@ public sealed class DeclineImageMatchTests
     [Fact]
     public async Task ADiscardedOrNonManualGroupIsLeftAlone()
     {
-        var mailbox = new Harness(IntakeSourceChannel.Mailbox);
+        var photoLink = new Harness(IntakeSourceChannel.PhotoCapture, declaredRegistration: "AB12CDE");
         var discarded = new Harness(
             IntakeSourceChannel.ManualUpload,
             new("Staff", "staff-1", DateTimeOffset.UtcNow, "op", "fingerprint"));
 
-        await mailbox.Command.ExecuteAsync(mailbox.Group.Id, mailbox.Staff);
+        await photoLink.Command.ExecuteAsync(photoLink.Group.Id, photoLink.Staff);
         await discarded.Command.ExecuteAsync(discarded.Group.Id, discarded.Staff);
 
-        Assert.Empty(mailbox.Groups.Declines);
-        Assert.Empty(mailbox.Enqueuer.Enqueued);
+        Assert.Empty(photoLink.Groups.Declines);
+        Assert.Empty(photoLink.Enqueuer.Enqueued);
         Assert.Empty(discarded.Groups.Declines);
     }
 
@@ -60,7 +60,10 @@ public sealed class DeclineImageMatchTests
 
     private sealed class Harness
     {
-        public Harness(IntakeSourceChannel channel, IntakeSubmissionGroupDiscard? discard = null)
+        public Harness(
+            IntakeSourceChannel channel,
+            IntakeSubmissionGroupDiscard? discard = null,
+            string? declaredRegistration = null)
         {
             var groupId = Guid.NewGuid();
             Group = new IntakeSubmissionGroup(
@@ -74,7 +77,10 @@ public sealed class DeclineImageMatchTests
                     new(groupId, 0, Guid.NewGuid(), "a.jpg", "AA", false),
                     new(groupId, 1, Guid.NewGuid(), "b.jpg", "BB", false)
                 ],
-                Discard: discard);
+                Discard: discard)
+            {
+                DeclaredRegistration = declaredRegistration
+            };
             Groups = new RecordingGroupStore(Group);
             Command = new DeclineImageMatch(Groups, Enqueuer, TimeProvider.System);
         }

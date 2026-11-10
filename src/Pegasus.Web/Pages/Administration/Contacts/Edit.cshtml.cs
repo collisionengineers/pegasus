@@ -102,6 +102,11 @@ public sealed class EditModel(
         : null;
     public string? StandingLinkQrSvg => StandingLinkUrl is { } url ? PhotoLinkQr.Svg(url) : null;
     [BindProperty] public long StandingLinkVersion { get; set; }
+    // Each standing link form's operation key: its history event's
+    // correlation, so a form sent twice acts once (R846).
+    [BindProperty] public string? PhotoLinkOperationKey { get; set; } = NewOperationKey();
+    // A saved address with no name or no address shows its sentence beside its form, not in the panel (R868).
+    public bool SavedAddressRefused { get; private set; }
     [BindProperty] public PhotoCaptureMode LinkForwardedMode { get; set; } = PhotoCaptureMode.Guided;
     [BindProperty] public bool LinkLiveCameraOnly { get; set; } = true;
     [BindProperty] public int LinkLifetimeDays { get; set; } = CaptureLimits.DefaultLifetimeDays;
@@ -205,42 +210,54 @@ public sealed class EditModel(
     }
 
     // One handler per tab, as the other tabs: each change to the contact's
-    // standing link is Core's (StandingPhotoLinkAdministration) and comes
-    // back to the Photo links tab. A change made over a stale read is shown
-    // as the tab's refusal, as the other tabs show theirs.
+    // standing link is Core's (StandingPhotoLinkAdministration), writes its
+    // history event under the form's operation key (R846) and comes back to
+    // the Photo links tab. A change made over a stale read is shown as the
+    // tab's refusal, as the other tabs show theirs; a saved address with no
+    // name or no address, beside its form (R868).
     private async Task<IActionResult> ChangePhotoLinkAsync(Guid id, string action, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
         if (id == Guid.Empty) return BadRequest();
         ContactId = id;
         Tab = PhotoLinksTab;
+        // The tab's forms post none of the contact's own fields, so only its own refusals are shown.
+        ClearModelStatePreservingErrors();
         Contact = await contacts.GetAsync(actor, id, cancellationToken);
         if (Contact is null || !OffersPhotoLinks) return NotFound();
         var administration = standingLinkAdministration!;
         var link = await standingLinks!.FindForOrganizationAsync(id, cancellationToken);
         if (action != "create" && link is null) return BadRequest();
+        if (!IsOperationKeyValid(PhotoLinkOperationKey))
+        {
+            ModelState.AddModelError(string.Empty, OperatorLabels.Contacts.EditFormExpired);
+            return await PhotoLinksPageAsync(actor, cancellationToken);
+        }
+
+        var operationKey = PhotoLinkOperationKey!;
         try
         {
             switch (action)
             {
                 case "create":
-                    await administration.CreateForContactAsync(actor, id, cancellationToken);
+                    await administration.CreateForContactAsync(actor, operationKey, id, cancellationToken);
                     break;
                 case "pause":
-                    await administration.PauseAsync(actor, link!.Id, StandingLinkVersion, cancellationToken);
+                    await administration.PauseAsync(actor, operationKey, link!.Id, StandingLinkVersion, cancellationToken);
                     break;
                 case "resume":
-                    await administration.ResumeAsync(actor, link!.Id, StandingLinkVersion, cancellationToken);
+                    await administration.ResumeAsync(actor, operationKey, link!.Id, StandingLinkVersion, cancellationToken);
                     break;
                 case "replace":
-                    await administration.ReplaceAsync(actor, link!.Id, StandingLinkVersion, typedSlug: null, cancellationToken);
+                    await administration.ReplaceAsync(actor, operationKey, link!.Id, StandingLinkVersion, typedSlug: null, cancellationToken);
                     break;
                 case "retire":
-                    await administration.RetireAsync(actor, link!.Id, StandingLinkVersion, cancellationToken);
+                    await administration.RetireAsync(actor, operationKey, link!.Id, StandingLinkVersion, cancellationToken);
                     break;
                 case "defaults":
                     await administration.UpdateDefaultsAsync(
                         actor,
+                        operationKey,
                         link!.Id,
                         StandingLinkVersion,
                         LinkForwardedMode,
@@ -253,14 +270,15 @@ public sealed class EditModel(
                 // The tab's own saved addresses (R806); those taken from the
                 // contact are not the tab's to change (R815).
                 case "add-address":
-                    await administration.AddAddressAsync(actor, link!.Id, StandingLinkVersion, SavedAddressName, SavedAddressText, cancellationToken);
+                    await administration.AddAddressAsync(
+                        actor, operationKey, link!.Id, StandingLinkVersion, SavedAddressName, SavedAddressText, cancellationToken);
                     break;
                 case "change-address":
                     await administration.ChangeAddressAsync(
-                        actor, link!.Id, StandingLinkVersion, SavedAddressId, SavedAddressName, SavedAddressText, cancellationToken);
+                        actor, operationKey, link!.Id, StandingLinkVersion, SavedAddressId, SavedAddressName, SavedAddressText, cancellationToken);
                     break;
                 case "remove-address":
-                    await administration.RemoveAddressAsync(actor, link!.Id, StandingLinkVersion, SavedAddressId, cancellationToken);
+                    await administration.RemoveAddressAsync(actor, operationKey, link!.Id, StandingLinkVersion, SavedAddressId, cancellationToken);
                     break;
                 default:
                     return BadRequest();
@@ -278,7 +296,18 @@ public sealed class EditModel(
         catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.NotFound
             && !action.EndsWith("-address", StringComparison.Ordinal)) { return NotFound(); }
         catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.InvalidDefaults) { return BadRequest(); }
+        catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.InvalidAddress)
+        {
+            SavedAddressRefused = true;
+            ModelState.AddModelError(nameof(SavedAddressName), OperatorLabels.PhotoCapture.SavedAddressNeedsNameAndAddress);
+        }
         catch (StandingPhotoLinkException) { ModelState.AddModelError(string.Empty, OperatorLabels.ActionNotApplied); }
+        return await PhotoLinksPageAsync(actor, cancellationToken);
+    }
+
+    // The Photo links tab drawn again with its refusal.
+    private async Task<IActionResult> PhotoLinksPageAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
         await PopulateAsync(actor, cancellationToken);
         await LoadPhotoLinkAsync(cancellationToken);
         return Page();

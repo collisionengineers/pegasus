@@ -860,10 +860,13 @@ public sealed partial class AssessmentReportDraftWebTests
 
     /// <summary>
     /// When Core refuses the send, the refusal it states is shown on the
-    /// Case, so staff read why the report was not sent.
+    /// Case, so staff read why the report was not sent: a changed dispatch,
+    /// a subject staff made too long and a name past custody's bound (#1912,
+    /// R895, R897), never "Retry the operation".
     /// </summary>
-    [Fact]
-    public async Task ARefusedSendStatesWhyOnTheCase()
+    [Theory]
+    [MemberData(nameof(Refusals))]
+    public async Task ARefusedSendStatesWhyOnTheCase(string refusal)
     {
         using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
@@ -873,7 +876,7 @@ public sealed partial class AssessmentReportDraftWebTests
             FullAssessmentProjection(caseId),
             new FakeProjectionSource(ReadyInput(caseId)),
             new FakeRenderer([1]),
-            sendReport: new RefusingSendReport(CaseReportDeliveryPolicy.DispatchChanged));
+            sendReport: new RefusingSendReport(refusal));
         using var client = Client(factory);
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
 
@@ -896,8 +899,16 @@ public sealed partial class AssessmentReportDraftWebTests
         // to open on its notice (v48 item N).
         Assert.Contains("dialog=send-report", response.Headers.Location!.OriginalString, StringComparison.Ordinal);
         var reloaded = WebUtility.HtmlDecode(await GetHtmlAsync(client, response.Headers.Location!.OriginalString!));
-        Assert.Contains(CaseReportDeliveryPolicy.DispatchChanged, reloaded, StringComparison.Ordinal);
+        Assert.Contains(refusal, reloaded, StringComparison.Ordinal);
+        Assert.DoesNotContain("Retry the operation", reloaded, StringComparison.Ordinal);
     }
+
+    public static TheoryData<string> Refusals => new()
+    {
+        CaseReportDeliveryPolicy.DispatchChanged,
+        CaseReportDeliveryPolicy.SubjectTooLong,
+        CaseReportDeliveryNaming.FileNameTooLong,
+    };
 
     /// <summary>
     /// The delivery form follows the Principal's rules as one plan: it says
@@ -1164,6 +1175,12 @@ public sealed partial class AssessmentReportDraftWebTests
         var reportName = Regex.Match(reportRow, "data-default-name=\"([^\"]+)\"").Groups[1].Value;
         Assert.Contains($"aria-label=\"Rename {reportName}\"", reportRow, StringComparison.Ordinal);
         Assert.Contains("<input type=\"hidden\" name=\"fileName-AssessmentReport\" value=\"\" data-send-file-name />", reportRow, StringComparison.Ordinal);
+        // A name is at most custody's 120 characters, .pdf included (R895),
+        // and its box owns its Escape so the dialog stays open (#1911).
+        Assert.Contains(
+            $"maxlength=\"{CaseReportDeliveryNaming.MaximumFileNameLength - CaseReportDeliveryNaming.Extension.Length}\" aria-label=\"{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.FileName}\" data-send-file-stem data-own-escape />",
+            reportRow,
+            StringComparison.Ordinal);
         Assert.Contains("checked=\"checked\"", FileRow(dialog, CaseReportArtifactKind.FeeNote), StringComparison.Ordinal);
         Assert.Contains("name=\"fileName-FeeNote\"", FileRow(dialog, CaseReportArtifactKind.FeeNote), StringComparison.Ordinal);
         Assert.DoesNotContain("checked", InputTag(FileRow(dialog, CaseReportArtifactKind.RepairSpecification), "data-report-attach-choice=\"RepairSpecification\""), StringComparison.Ordinal);

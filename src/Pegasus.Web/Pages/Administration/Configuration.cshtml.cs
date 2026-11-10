@@ -151,11 +151,27 @@ public sealed class ConfigurationModel(
             {
                 ModelState.AddModelError(string.Empty, "This workflow settings form was already used. Reload the page before trying again.");
             }
-            catch (PhotoLinkSendSettingsRefusedException)
+            catch (PhotoLinkSendSettingsRefusedException exception)
             {
-                // No lifetime offered, or a starting lifetime not offered: the
-                // refusal has no words of its own yet.
-                ModelState.AddModelError(string.Empty, Pegasus.Web.Presentation.OperatorLabels.ActionNotApplied);
+                // No lifetime offered, or a starting lifetime not offered, is
+                // said beside the setting it concerns (operator, 10 November
+                // 2026; R868); anything else Core refuses has no words of its own.
+                switch (exception.Rule)
+                {
+                    case PhotoLinkSendSettingsRule.NoLifetimeOffered:
+                        ModelState.AddModelError(
+                            nameof(PhotoLinkLifetimesOffered),
+                            Pegasus.Web.Presentation.OperatorLabels.PhotoCapture.OfferAtLeastOneLifetime);
+                        break;
+                    case PhotoLinkSendSettingsRule.StartingLifetimeNotOffered:
+                        ModelState.AddModelError(
+                            nameof(PhotoLinkDefaultLifetimeDays),
+                            Pegasus.Web.Presentation.OperatorLabels.PhotoCapture.StartingLifetimeNotOffered);
+                        break;
+                    default:
+                        ModelState.AddModelError(string.Empty, Pegasus.Web.Presentation.OperatorLabels.ActionNotApplied);
+                        break;
+                }
             }
             catch (ArgumentException exception)
             {

@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.IntegrationTests;
@@ -67,6 +69,59 @@ public sealed class GraphMailWebhookTests
         Assert.Equal((mailboxId, subscriptionId, 3L, MailboxWakeKind.Created, "message-id"), Assert.Single(enqueuer.Messages));
     }
 
+    [Fact]
+    public async Task AMailboxSubscribedByAddressQueuesTheNotificationGraphNamesByUserId()
+    {
+        // Graph names the mailbox by its user id in a notification even when the
+        // subscription was made by address; the subscription id, client state
+        // and tenant identify the mailbox (#1826, R883).
+        var mailboxId = Guid.NewGuid();
+        var subscriptionId = Guid.NewGuid();
+        var enqueuer = new RecordingEnqueuer();
+        var store = new SubscriptionStore(new(mailboxId, subscriptionId.ToString("D"),
+            "users/desk%40collisionengineers.co.uk/mailFolders/inbox-id/messages",
+            DateTimeOffset.UtcNow.AddDays(1),
+            ApprovedMailboxSubscriptionLifecycleState.Active, null, null, 6));
+
+        await HandleDirectlyAsync(Notification(
+            subscriptionId,
+            resource: "Users/0b0e4f4e-21c5-4a0e-9f0f-6c1d2e3f4a5b/Messages/AAMkAGI2THVSAAA%3D"),
+            store, enqueuer, NullLoggerFactory.Instance);
+
+        Assert.Equal((mailboxId, subscriptionId, 6L, MailboxWakeKind.Created, "AAMkAGI2THVSAAA="),
+            Assert.Single(enqueuer.Messages));
+    }
+
+    [Fact]
+    public async Task ASkippedNotificationWritesOneLineNamingItsSubscriptionAndReason()
+    {
+        var unknownId = Guid.NewGuid();
+        var enqueuer = new RecordingEnqueuer();
+        var store = new SubscriptionStore(new(Guid.NewGuid(), Guid.NewGuid().ToString("D"),
+            "users/mailbox-id/mailFolders/inbox-id/messages", DateTimeOffset.UtcNow.AddDays(1),
+            ApprovedMailboxSubscriptionLifecycleState.Active, null, null, 3));
+        var logs = new RecordingLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(logs));
+
+        await HandleDirectlyAsync(Notification(unknownId), store, enqueuer, loggerFactory);
+        await HandleDirectlyAsync(Notification(unknownId, clientState: "wrong-secret"), store, enqueuer, loggerFactory);
+
+        Assert.Empty(enqueuer.Messages);
+        Assert.Collection(
+            logs.Messages,
+            line =>
+            {
+                Assert.Contains(unknownId.ToString("D"), line, StringComparison.Ordinal);
+                Assert.Contains("no active subscription", line, StringComparison.Ordinal);
+            },
+            line =>
+            {
+                Assert.Contains(unknownId.ToString("D"), line, StringComparison.Ordinal);
+                Assert.Contains("client state", line, StringComparison.Ordinal);
+                Assert.DoesNotContain("wrong-secret", line, StringComparison.Ordinal);
+            });
+    }
+
     [Theory]
     [InlineData("missed", MailboxWakeKind.Missed)]
     [InlineData("subscriptionRemoved", MailboxWakeKind.SubscriptionRemoved)]
@@ -93,7 +148,6 @@ public sealed class GraphMailWebhookTests
     [Theory]
     [InlineData("wrong-secret", "858cf5b3-aa0a-47a6-9b40-4851fd0afa94", "users/mailbox-id/messages/message-id", "created", null)]
     [InlineData("integration-client-state", "wrong-tenant", "users/mailbox-id/messages/message-id", "created", null)]
-    [InlineData("integration-client-state", "858cf5b3-aa0a-47a6-9b40-4851fd0afa94", "users/other/messages/message-id", "created", null)]
     [InlineData("integration-client-state", "858cf5b3-aa0a-47a6-9b40-4851fd0afa94", "users/mailbox-id/messages/message-id", "updated", null)]
     [InlineData("integration-client-state", "858cf5b3-aa0a-47a6-9b40-4851fd0afa94", "users/mailbox-id/messages/message-id", null, "unknown")]
     public async Task InvalidNotificationIsAcknowledgedWithoutQueueingOrDisclosure(
@@ -186,6 +240,7 @@ public sealed class GraphMailWebhookTests
             enqueuer,
             configuration,
             TimeProvider.System,
+            NullLoggerFactory.Instance,
             hangUp.Token);
         await enqueuer.Entered.WaitAsync(TimeSpan.FromMinutes(1));
         await hangUp.CancelAsync();
@@ -225,7 +280,8 @@ public sealed class GraphMailWebhookTests
         }).Build();
 
         await Pegasus.Web.GraphMailWebhook.HandleAsync(
-            context.Request, store, enqueuer, configuration, TimeProvider.System, CancellationToken.None);
+            context.Request, store, enqueuer, configuration, TimeProvider.System,
+            NullLoggerFactory.Instance, CancellationToken.None);
 
         Assert.Equal(2, store.ActiveLookups);
         Assert.Equal(2, enqueuer.Messages.Count);
@@ -276,6 +332,47 @@ public sealed class GraphMailWebhookTests
             changeType,
             lifecycleEvent
         };
+
+    private static async Task HandleDirectlyAsync(
+        object body,
+        IApprovedMailboxSubscriptionStore store,
+        IMailboxWakeEnqueuer enqueuer,
+        ILoggerFactory loggerFactory)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.ContentType = "application/json";
+        context.Request.Body = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(body, JsonSerializerOptions.Web));
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Graph:ChangeNotificationClientState"] = "integration-client-state",
+            ["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94"
+        }).Build();
+        await Pegasus.Web.GraphMailWebhook.HandleAsync(
+            context.Request, store, enqueuer, configuration, TimeProvider.System,
+            loggerFactory, CancellationToken.None);
+    }
+
+    private sealed class RecordingLoggerProvider : ILoggerProvider
+    {
+        public List<string> Messages { get; } = [];
+
+        public ILogger CreateLogger(string categoryName) => new Logger(Messages);
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class Logger(List<string> messages) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+                Exception? exception, Func<TState, Exception?, string> formatter) =>
+                messages.Add(formatter(state, exception));
+        }
+    }
 
     private sealed class RecordingEnqueuer : IMailboxWakeEnqueuer
     {

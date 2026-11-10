@@ -618,6 +618,19 @@ SQL traits included in that run are not separately omitted evidence. Record
 unavailable or excluded environments explicitly; corpus, cloud, recovery and
 operator acceptance are separate only when not exercised by the selected run.
 
+### Case page browser check
+
+`node scripts/Test-CasePageBrowser.mjs` runs the production `site.js` and
+`case-workspace.js` against a fixture Case page and scripted local answers in
+an isolated headless Chrome, Chromium or Edge profile (pass the executable's
+absolute path as its first argument, or set `CHROME`). It shows what the
+script-contract tests cannot: where a section jump lands, which lazy sections
+it reads and which section link it leaves current, and that report wording
+the Case refused is left out of the saves that follow. Run it after changing
+the frame's jump, lazy-mount, scroll-spy or commit code; it is on demand and
+not in CI (R889), makes no request beyond its own local server, and records
+JSON under `artifacts/case-page/browser/`.
+
 ### Imported source workspaces
 
 No live source workspace currently exists; both imported snapshots were

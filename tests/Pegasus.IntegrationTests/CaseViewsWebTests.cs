@@ -1250,9 +1250,10 @@ public sealed class CaseViewsWebTests
     /// on the Audit view of an Inspection + Audit Case, after Figures, the
     /// Inspection report as generated: its printed repair cost, its salvage
     /// value as it was a Total loss, and its Engineer's Value with the guide
-    /// its basis card came from, money as Figures draws it. The card reads
-    /// the primary work's applied valuations and cards once each, and the
-    /// Inspection view draws no card.
+    /// its basis card came from, money as Figures draws it. The guide is the
+    /// one the snapshot froze (R666, R898): a card re-applied since names
+    /// another guide, and the card still reads the frozen one and no
+    /// valuation. The Inspection view draws no card.
     /// </summary>
     [Fact]
     public async Task TheAuditViewDrawsTheInspectionReportsFiguresAsTheOriginalReportCard()
@@ -1268,6 +1269,7 @@ public sealed class CaseViewsWebTests
             {
                 EngineerValue = 5000m,
                 AppliedValuationId = appliedId,
+                EngineerValueGuide = Pegasus.Core.Assessment.ValuationSource.Cazana,
                 Report = inspection.Snapshot.Report with
                 {
                     Outcome = AssessmentReportOutcome.TotalLoss,
@@ -1277,7 +1279,8 @@ public sealed class CaseViewsWebTests
                 }
             }
         };
-        var valuations = new ValuationLists(store.CaseId, appliedId, guideId, Pegasus.Core.Assessment.ValuationSource.Cazana);
+        // The live rows now name Glass's: the Engineer re-applied another card.
+        var valuations = new ValuationLists(store.CaseId, appliedId, guideId, Pegasus.Core.Assessment.ValuationSource.Glasses);
         using var host = new ReadingHost(store, services =>
         {
             Substitute<ICaseReportGenerationStore>(services, reports);
@@ -1301,13 +1304,62 @@ public sealed class CaseViewsWebTests
             card.IndexOf("data-original-engineers-value", StringComparison.Ordinal)
                 < card.IndexOf("data-original-settlement", StringComparison.Ordinal),
             "Settlement follows the Engineer's Value.");
-        Assert.Equal([CaseWorkSelector.Primary], valuations.AppliedReads);
-        Assert.Equal([CaseWorkSelector.Primary], valuations.CardReads);
+        Assert.DoesNotContain(CaseWorkSelector.Primary, valuations.AppliedReads);
+        Assert.DoesNotContain(CaseWorkSelector.Primary, valuations.CardReads);
         Assert.DoesNotContain("id=\"section-original-report\"", html, StringComparison.Ordinal);
 
         var inspectionHtml = await host.ReadAsync($"/Cases/{store.CaseId:D}?view=inspection");
         Assert.DoesNotContain("data-original-report", inspectionHtml, StringComparison.Ordinal);
-        Assert.Equal([CaseWorkSelector.Primary], valuations.AppliedReads);
+    }
+
+    private static readonly ReportGuideSources CazanaOnly = new([Pegasus.Core.Assessment.ValuationSource.Cazana]);
+
+    private static readonly ReportGuideSources CazanaAndGlasses =
+        new([Pegasus.Core.Assessment.ValuationSource.Cazana, Pegasus.Core.Assessment.ValuationSource.Glasses]);
+
+    /// <summary>
+    /// A snapshot frozen before the guide was kept (R898) names its guide
+    /// only when its report was taken from a single guide; with two, the
+    /// Engineer's Value is drawn without brackets.
+    /// </summary>
+    [Fact]
+    public async Task AnOlderSnapshotNamesItsGuideOnlyWhenItHeldOne()
+    {
+        var store = AuditedCase();
+        var reports = new ReportsPerWork(store.CaseId);
+        var inspection = reports.Inspection!;
+        var snapshot = inspection.Snapshot with
+        {
+            EngineerValue = 5000m,
+            AppliedValuationId = Guid.NewGuid(),
+            EngineerValueGuide = null,
+        };
+        var valuations = new ValuationLists(store.CaseId, Guid.NewGuid(), Guid.NewGuid(), Pegasus.Core.Assessment.ValuationSource.Glasses);
+        using var host = new ReadingHost(store, services =>
+        {
+            Substitute<ICaseReportGenerationStore>(services, reports);
+            Substitute<Pegasus.Core.Assessment.IListAppliedValuations>(services, valuations);
+            Substitute<Pegasus.Core.Assessment.IListCaseValuations>(services, valuations);
+        });
+
+        reports.Inspection = inspection with
+        {
+            Snapshot = snapshot with { Guides = CazanaOnly }
+        };
+        Assert.Contains(
+            "data-original-engineers-value>£5,000.00 (Cazana)</dd>",
+            await host.ReadAsync($"/Cases/{store.CaseId:D}"),
+            StringComparison.Ordinal);
+
+        reports.Inspection = inspection with
+        {
+            Snapshot = snapshot with { Guides = CazanaAndGlasses }
+        };
+        Assert.Contains(
+            "data-original-engineers-value>£5,000.00</dd>",
+            await host.ReadAsync($"/Cases/{store.CaseId:D}"),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkSelector.Primary, valuations.AppliedReads);
     }
 
     /// <summary>
@@ -1340,8 +1392,8 @@ public sealed class CaseViewsWebTests
             Assert.DoesNotContain("data-original-salvage-value", card, StringComparison.Ordinal);
             Assert.DoesNotContain("data-original-settlement", card, StringComparison.Ordinal);
             Assert.Contains("data-original-engineers-value>£4,200.00</dd>", card, StringComparison.Ordinal);
-            // A typed value names no calculation row, so nothing is read for it.
-            Assert.Empty(valuations.AppliedReads);
+            // A typed value names no calculation row, so it names no guide.
+            Assert.DoesNotContain(CaseWorkSelector.Primary, valuations.AppliedReads);
 
             reports.Inspection = null;
             var without = await host.ReadAsync($"/Cases/{store.CaseId:D}");

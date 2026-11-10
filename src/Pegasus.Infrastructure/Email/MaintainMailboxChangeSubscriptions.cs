@@ -62,6 +62,7 @@ public sealed partial class MaintainMailboxChangeSubscriptions(
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
+                LogSubscriptionMaintenanceFailed(logger, exception, candidate.ApprovedMailboxId, candidate.Generation);
                 try
                 {
                     await subscriptions.RecordMaintenanceFailureAsync(
@@ -85,4 +86,10 @@ public sealed partial class MaintainMailboxChangeSubscriptions(
         Message = "Deferred obsolete subscription maintenance for mailbox {MailboxId}, generation {Generation}.")]
     private static partial void LogSubscriptionMaintenanceDeferred(
         ILogger logger, Guid mailboxId, long generation);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Graph subscription maintenance failed for mailbox {MailboxId}, generation {Generation}.")]
+    private static partial void LogSubscriptionMaintenanceFailed(
+        ILogger logger, Exception exception, Guid mailboxId, long generation);
 }

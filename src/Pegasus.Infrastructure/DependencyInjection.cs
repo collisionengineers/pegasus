@@ -100,6 +100,7 @@ public static class DependencyInjection
         services.AddScoped<IIntakeSubmissionGroupStore>(provider =>
             provider.GetRequiredService<EfIntakeSubmissionGroupStore>());
         services.AddScoped<ICaseFilingReplayStore, EfCaseFilingReplayStore>();
+        services.AddScoped<IThreadSiblingAssociationCandidates, EfThreadSiblingAssociationCandidates>();
         services.AddScoped<IQueuedIntakeStatusQueries, EfQueuedIntakeStatusQueries>();
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
@@ -168,6 +169,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfIntakeMutationStore>());
         services.AddScoped<AssociateRetainedMailWithCase>();
         services.AddScoped<PromoteAssociatedIntakeCaseEvidence>();
+        services.AddScoped<IOriginalReportRecognitionDeferrals, EfOriginalReportRecognitionDeferrals>();
         services.AddScoped<ResolveIntake>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
         services.AddScoped<IRetryIntakeOcr, RetryIntakeOcr>();
@@ -216,6 +218,7 @@ public static class DependencyInjection
             provider.GetRequiredService<IProcessQueuedIntake>(),
             provider.GetRequiredService<IPhotoCaptureCaseWriter>(),
             provider.GetRequiredService<IAddCaseNote>(),
+            provider.GetRequiredService<AddTriageNote>(),
             provider.GetRequiredService<ICaseStaffNotifier>(),
             provider.GetRequiredService<TimeProvider>()));
         services.AddScoped<EfUnidentifiedStore>();

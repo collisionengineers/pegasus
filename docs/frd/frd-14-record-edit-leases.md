@@ -113,11 +113,10 @@ edits the Audit
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#create-audit)).
 
 **System work keeps the session.** Automatic processing that changes the
-Case (custody confirmed or failed, an original report recognised, a vehicle
-lookup filling empty fields, a mail correction or association raising a
-query, a flagged reply resolving one, an automatic link) advances
-the Case version and leaves the editor's lease standing (operator, 6 October
-2026). The holder's next change, sent with the version they loaded, lands. The
+Case (custody confirmed or failed, filing, a vehicle lookup filling empty
+fields, a mail correction or association raising a query, a flagged reply
+resolving one, an automatic mail link) advances the Case version and leaves the
+editor's lease standing (operator, 6 October 2026; filing, R727, R728). The holder's next change, sent with the version they loaded, lands. The
 one exception is a value the system filled: the Case save sends every field
 the page shows, so a field still showing what it held before a lookup filled
 it keeps the lookup's value, and a different value typed over it is refused
@@ -125,8 +124,10 @@ until the page has caught up. The heartbeat answers the Case's version, and
 the page redraws each section that holds nothing unsent as the Case now
 stands ([FRD-16](frd-16-case-record-workspace.md#case-workspace)).
 System work on a Case either yields to a held lease (an image merge or an
-automatic link waits while a member of staff edits) or advances the version
-under it, and never ends it; system work on a Triage Case never yields to its
+image-initiated automatic link waits while a member of staff edits, and
+recording an original report recognised in filed material waits for the editor
+and is retried once the lease ends; operator, 6 November 2026, R728) or
+advances the version under it, and never ends it; system work on a Triage Case never yields to its
 Triage scope and leaves the Triage version alone. The two stay different
 (R522, 29 October 2026).
 

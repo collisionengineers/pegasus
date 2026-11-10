@@ -5,16 +5,16 @@ using Pegasus.Core.Intake.Unidentified;
 namespace Pegasus.Core.ImageIntake;
 
 /// <summary>
-/// The one decision table used when a manual upload contains more than one
-/// image. Recognition is evaluated across the whole group, so a close-up that
+/// The one decision table for an image submission group: a manual upload of
+/// more than one image, or a photo link's batch that settled with no Case
+/// (R791). Recognition is evaluated across the whole group, so a close-up that
 /// has no plate cannot detach itself from an overview that identifies the
-/// vehicle.
+/// vehicle. No group associates a Case while it routes (R880).
 /// </summary>
 public enum ImageIntakeGroupRoutingDecision
 {
     WaitingForMembers,
     WaitingForRecognition,
-    AssociateExistingCase,
     HandOffToImageIntake,
     RouteToUnidentified,
     TechnicalFailure
@@ -58,8 +58,7 @@ public static class ImageIntakeGroupRoutingPolicy
 
     public static ImageIntakeGroupRoutingResult Evaluate(
         IReadOnlyList<ImageIntakeGroupMemberRecognition> members,
-        int expectedMemberCount,
-        int eligibleCaseCount)
+        int expectedMemberCount)
     {
         ArgumentNullException.ThrowIfNull(members);
         ArgumentOutOfRangeException.ThrowIfLessThan(expectedMemberCount, 1);
@@ -102,19 +101,12 @@ public static class ImageIntakeGroupRoutingPolicy
 
         var registrations = VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(readable);
 
-        if (registrations.Length == 1 && eligibleCaseCount == 1)
-        {
-            return new(
-                ImageIntakeGroupRoutingDecision.AssociateExistingCase,
-                registrations[0],
-                "group_single_vrm_single_eligible_case");
-        }
-
+        // One accepted registration hands the group to Image intake whatever
+        // Cases carry it: no group associates while it routes (R880).
         var reason = registrations.Length switch
         {
             0 => "group_no_accepted_vrm",
-            1 when eligibleCaseCount == 0 => "group_vrm_no_eligible_case",
-            1 => "group_vrm_eligible_case_ambiguous",
+            1 => "group_single_vrm",
             _ => "conflicting_vrms"
         };
         var decision = registrations.Length == 1

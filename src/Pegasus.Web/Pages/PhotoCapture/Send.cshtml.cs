@@ -24,6 +24,8 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// Principal and the expiry filled in; <c>{photo link}</c> stays until the
 /// link exists. A message staff edited is sent as edited, and one they did
 /// not is composed again from what the form holds when it is sent (R806).
+/// An archived Case is not found; a closed one shows "The Case cannot take a
+/// photo link." and no form (operator, 10 November 2026; R847).
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -131,6 +133,12 @@ public sealed class SendModel(
             return NotFound();
         }
 
+        // A closed Case shows the refusal and no form (R847).
+        if (Facts!.IsClosed)
+        {
+            return Page();
+        }
+
         var facts = Facts!;
         // Send starts where the Administrators' settings say (R813, R817).
         Mode = _settings!.PhotoLinkStartMode;
@@ -166,6 +174,12 @@ public sealed class SendModel(
             return NotFound();
         }
 
+        // A closed Case issues nothing: the page answers with the refusal (R847).
+        if (Facts!.IsClosed)
+        {
+            return Page();
+        }
+
         var byEmail = Submit == ByEmail;
         if (Submit is not (ByEmail or ToCopy or StandardWording)
             || !LifetimesOffered.Contains(Days)
@@ -195,12 +209,18 @@ public sealed class SendModel(
             return Page();
         }
 
-        // The browser asks for the Type before a quick link is sent; a post
-        // without one is not the page's own.
-        if ((Mode == PhotoCaptureMode.Quick && QuickLinkFor is null)
-            || (QuickLinkFor is { } posted && !Enum.IsDefined(posted)))
+        // A Type that is not one of the page's own is not the page's post; a
+        // Quick link sent without one is refused beside the Type (operator,
+        // 10 November 2026; R868), as the browser also asks for it first.
+        if ((QuickLinkFor is { } posted && !Enum.IsDefined(posted))
+            || ModelState.GetFieldValidationState(nameof(QuickLinkFor)) == Microsoft.AspNetCore.Mvc.ModelBinding.ModelValidationState.Invalid)
         {
             return BadRequest();
+        }
+
+        if (Mode == PhotoCaptureMode.Quick && QuickLinkFor is null)
+        {
+            ModelState.AddModelError(nameof(QuickLinkFor), Labels.ChooseAQuickLinkType);
         }
 
         var edited = BodyEdited;

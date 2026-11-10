@@ -1035,6 +1035,11 @@
                     return;
                 }
                 if (event.key === 'Escape') {
+                    // A field that owns its Escape (a Files row's Rename box,
+                    // which puts the name back) handles it; the dialog stays.
+                    if (event.target instanceof Element && event.target.closest('[data-own-escape]')) {
+                        return;
+                    }
                     event.preventDefault();
                     if (cancel()) {
                         return;

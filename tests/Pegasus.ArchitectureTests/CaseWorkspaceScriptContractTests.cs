@@ -135,7 +135,7 @@ public sealed class CaseWorkspaceScriptContractTests
             script,
             StringComparison.Ordinal);
         Assert.Contains("markSent(command.sent);", script, StringComparison.Ordinal);
-        Assert.Contains("command.sent = sendingState(form);", script, StringComparison.Ordinal);
+        Assert.Contains("command.sent = sendingState(form).filter(function (state) {", script, StringComparison.Ordinal);
         Assert.Contains("if (catchUpWanted) { catchUp(); return; }", script, StringComparison.Ordinal);
     }
 
@@ -284,7 +284,10 @@ public sealed class CaseWorkspaceScriptContractTests
     /// otherwise make the Save re-read a report that cannot be projected and refuse a
     /// commit that never touched the wording. A commit and the closing tab's beacon
     /// both drop unchanged rows, and a landed commit makes what it sent the panel's
-    /// baseline.
+    /// baseline. #1814 (R891): wording the Case refused because its report is not
+    /// ready, known by the sentence the panel carries, does not travel again as it
+    /// stands, so the saves after it land; and wording a commit left out is not
+    /// marked sent when that commit lands, so its section keeps it on screen.
     /// </summary>
     [Fact]
     public void TheWordingBlocksTravelWithACommitOnlyWhenTheyChanged()
@@ -293,7 +296,21 @@ public sealed class CaseWorkspaceScriptContractTests
             RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
 
         var helper = FunctionBody(script, "function withoutUnchangedWording(form, body) {", "    ");
-        Assert.Contains("if (wording.changed()) { return { panel: panel, state: wording.state() }; }", helper, StringComparison.Ordinal);
+        Assert.Matches(
+            new Regex(@"if \(wording\.changed\(\)\) \{\s*asComposed\(panel, body\);\s*return \{ panel: panel, state: wording\.state\(\) \};"),
+            helper);
+        // #2042: a block still showing the sentence or heading it was drawn with travels
+        // blank, which the Save stores as no change, so a section kept on screen while the
+        // Case moved on stores nothing the Engineer did not write.
+        var asComposed = FunctionBody(script, "function asComposed(panel, body) {", "    ");
+        Assert.Contains(
+            "if (text && same(text.value, row.getAttribute('data-wording-composed'))) { body.set(text.name, ''); }",
+            asComposed,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "if (title && same(title.value, row.getAttribute('data-wording-heading'))) { body.set(title.name, ''); }",
+            asComposed,
+            StringComparison.Ordinal);
         Assert.Contains("if (name.indexOf('wordingEdits[') === 0) { body.delete(name); }", helper, StringComparison.Ordinal);
 
         var submit = FunctionBody(script, "function submitInPlace(form, submitter) {", "    ");
@@ -304,7 +321,38 @@ public sealed class CaseWorkspaceScriptContractTests
             script);
 
         Assert.Contains("command.wording.panel.pegasusWording.landed(command.wording.state);", script, StringComparison.Ordinal);
-        Assert.Contains("changed: function () { return state() !== landed; },", script, StringComparison.Ordinal);
+        Assert.Contains(
+            "changed: function () { var now = state(); return now !== landed && now !== refused; },",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains("landed: function (sent) { landed = sent; refused = null; },", script, StringComparison.Ordinal);
+        Assert.Contains("refused: function (sent) { refused = sent; }", script, StringComparison.Ordinal);
+        // #2043 (R894): the page offers refused wording again itself, once for each refused
+        // wording, when a catch up shows the Case drawing its wording blocks again.
+        Assert.Contains(
+            "if (refused === null || refused !== state() || refused === offered) { return false; }",
+            script,
+            StringComparison.Ordinal);
+
+        var swap = FunctionBody(script, "function swap(html, command, preferred, options) {", "    ");
+        Assert.Matches(
+            new Regex(@"var wordingRefusal = command\.wording \? command\.wording\.panel\.getAttribute\('data-wording-refusal'\) : null;\s*if \(wordingRefusal && refusal && refusal\.textContent\.indexOf\(wordingRefusal\) >= 0\) \{\s*command\.wording\.panel\.pegasusWording\.refused\(command\.wording\.state\);"),
+            swap);
+        Assert.Matches(
+            new Regex(@"command\.sent = sendingState\(form\)\.filter\(function \(state\) \{\s*return wordingSent \|\| \(state\.control\.name \|\| ''\)\.indexOf\('wordingEdits\['\) !== 0;"),
+            submit);
+
+        Assert.Matches(
+            new Regex(@"if \(keptWording && keptWording\.pegasusWording\s*&& parsed\.querySelector\('\[data-report-wording\] \[data-wording-row\]'\)\s*&& keptWording\.pegasusWording\.offerAgain\(\)\) \{\s*commitPending = true;"),
+            swap);
+
+        var panel = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "Pages", "Cases", "Shared", "_CaseReport.cshtml"));
+        Assert.Contains(
+            "data-report-wording data-wording-refusal=\"@ReportWordingEdits.UnavailableOnPage\"",
+            panel,
+            StringComparison.Ordinal);
+        Assert.Contains("data-wording-composed=\"@composed\" data-wording-heading=\"@heading\">", panel, StringComparison.Ordinal);
     }
 
     private static string FunctionBody(string script, string signature, string indent = "        ")
@@ -397,10 +445,16 @@ public sealed class CaseWorkspaceScriptContractTests
     }
 
     /// <summary>
-    /// Issue 1463 (FRD-16): clicking a section link mounts any preceding lazy
-    /// placeholders, re-scrolls the target as preceding or bottom-clamping lazy
-    /// sections finish loading, and holds the jumped link current only while
-    /// that settle is pending or the page is clamped at its bottom.
+    /// Issues 1463, 1496 and 1497 (FRD-16, R888): a jump lands in one scroll made at
+    /// once, the section under the section row or its marked field centred when the
+    /// field lies deeper, and never by <c>scrollIntoView</c>, which would glide and
+    /// back the page up into the section before. It settles again as each section
+    /// mounts, in one pass over the placeholders: those before the target are read and
+    /// waited on, those after it only while the document is too short to land. A read
+    /// the Case moved on under is made again, or settles the jump when its placeholder
+    /// has gone. The clicked link stays current only while the jump is pending or the
+    /// page stands at its bottom. What the page then does is
+    /// <c>scripts/Test-CasePageBrowser.mjs</c>'s to show; this pins the shape.
     /// </summary>
     [Fact]
     public void JumpingToASectionSettlesAcrossLazyMountsAndKeepsTheClickedLinkCurrent()
@@ -409,31 +463,60 @@ public sealed class CaseWorkspaceScriptContractTests
             RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
 
         var mount = FunctionBody(script, "function mount(placeholder, then) {", "    ");
-        var waiting = mount.IndexOf("waiting.splice(0, waiting.length)", StringComparison.Ordinal);
-        var settleInMount = mount.IndexOf("settlePendingAnchor();", StringComparison.Ordinal);
-        var spyInMount = mount.IndexOf("spy();", StringComparison.Ordinal);
+        var mounted = mount[mount.IndexOf("placeholder.replaceWith(host);", StringComparison.Ordinal)..];
+        var waiting = mounted.IndexOf("waiting.splice(0, waiting.length)", StringComparison.Ordinal);
+        var settleInMount = mounted.IndexOf("settlePendingAnchor();", StringComparison.Ordinal);
+        var spyInMount = mounted.IndexOf("spy();", StringComparison.Ordinal);
         Assert.True(waiting >= 0 && waiting < settleInMount && settleInMount < spyInMount);
 
-        var pendingLazy = FunctionBody(script, "function pendingLazyFor(target) {", "    ");
-        Assert.Contains("lazyBefore(target)", pendingLazy, StringComparison.Ordinal);
-        Assert.Contains("lazyAfter(target)", pendingLazy, StringComparison.Ordinal);
+        var thrownAway = FunctionBody(mount, "function thrownAway() {");
+        var readAgain = thrownAway.IndexOf("mount(placeholder);", StringComparison.Ordinal);
+        var settledInstead = thrownAway.IndexOf("settlePendingAnchor();", StringComparison.Ordinal);
+        Assert.Contains("if (placeholder.isConnected && main.contains(placeholder)) {", thrownAway, StringComparison.Ordinal);
+        Assert.True(
+            readAgain >= 0 && settledInstead > readAgain,
+            "A read thrown away is made again while its placeholder stands, and settles the jump otherwise.");
+        Assert.Equal(2, Regex.Count(mount, @"if \(!stillCurrent\(\)\) \{\s*thrownAway\(\);\s*return;"));
+
+        // Worked out from the reading line the block holds once stuck, or a jump from the
+        // top of the page stops short by the page's padding.
+        var land = FunctionBody(script, "function land(host) {", "    ");
+        Assert.Contains("var line = stuckLine();", land, StringComparison.Ordinal);
         Assert.Contains(
-            "|| window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40;",
-            pendingLazy,
+            "return isNaN(top) ? readingLine() : Math.min(readingLine(), top + block.offsetHeight);",
+            FunctionBody(script, "function stuckLine() {", "    "),
             StringComparison.Ordinal);
+        Assert.Contains("top = Math.max(top, ", land, StringComparison.Ordinal);
+        Assert.Contains("window.scrollTo({ top: top, behavior: 'instant' });", land, StringComparison.Ordinal);
+        Assert.Contains("return window.scrollY < top - 1;", land, StringComparison.Ordinal);
 
         var settle = FunctionBody(script, "function settlePendingAnchor() {", "    ");
-        Assert.Contains("if (target.hasAttribute('data-lazy')) {", settle, StringComparison.Ordinal);
-        Assert.Contains("scrollSectionIntoView(target);", settle, StringComparison.Ordinal);
-        Assert.Contains("var remaining = pendingLazyFor(target);", settle, StringComparison.Ordinal);
-        Assert.Contains("remaining.forEach(function (placeholder) { mount(placeholder); });", settle, StringComparison.Ordinal);
-        Assert.Contains("if (!remaining.length) {", settle, StringComparison.Ordinal);
+        Assert.Equal(1, Regex.Count(settle, @"querySelectorAll\('\[data-lazy\]'\)"));
+        var beforeTarget = settle.IndexOf("Node.DOCUMENT_POSITION_FOLLOWING) !== 0) {", StringComparison.Ordinal);
+        var readBefore = settle.IndexOf("mount(placeholder);", StringComparison.Ordinal);
+        var keptAfter = settle.IndexOf("after.push(placeholder);", StringComparison.Ordinal);
+        Assert.True(
+            beforeTarget >= 0 && readBefore > beforeTarget && keptAfter > readBefore,
+            "A placeholder the target follows is read; one after it is kept for the landing to weigh.");
+        Assert.Matches(new Regex(@"if \(target\.hasAttribute\('data-lazy'\)\) \{\s*mount\(target\);\s*return;"), settle);
+        Assert.Contains("var short = land(target);", settle, StringComparison.Ordinal);
+        Assert.Contains("var reached = after.filter(approaching);", settle, StringComparison.Ordinal);
+        Assert.Contains("if (!before && !(short && reached.length)) {", settle, StringComparison.Ordinal);
 
         var jumpTo = FunctionBody(script, "function jumpTo(key, focus, tab, field) {", "    ");
         Assert.Contains("jumpedKey = ownerKey(key);", jumpTo, StringComparison.Ordinal);
         Assert.Contains("pendingAnchor = { key: key };", jumpTo, StringComparison.Ordinal);
-        Assert.Contains("lazyBefore(target).forEach(function (placeholder) { mount(placeholder); });", jumpTo, StringComparison.Ordinal);
-        Assert.Contains("settlePendingAnchor();", jumpTo, StringComparison.Ordinal);
+        Assert.Contains("mount(target, arrive);", jumpTo, StringComparison.Ordinal);
+        Assert.EndsWith("settlePendingAnchor();\n        spy();", jumpTo.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+
+        // The landing is the jump's one scroll.
+        var markField = FunctionBody(script, "function markField(host, field) {", "    ");
+        foreach (var body in new[] { settle, jumpTo, markField })
+        {
+            Assert.DoesNotContain("scrollIntoView", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("scrollTo(", body, StringComparison.Ordinal);
+        }
+        Assert.DoesNotContain("function pendingLazyFor(", script, StringComparison.Ordinal);
 
         var spy = FunctionBody(script, "function spy() {", "    ");
         Assert.Contains(
@@ -450,6 +533,10 @@ public sealed class CaseWorkspaceScriptContractTests
             "window.addEventListener(name, function () { pendingAnchor = null; jumpedKey = null; navigationVersion += 1; }, { passive: true });",
             script,
             StringComparison.Ordinal);
+        // A resize lands a jump still settling again and lets go only a link held at the bottom.
+        Assert.Matches(
+            new Regex(@"window\.addEventListener\('resize', function \(\) \{\s*if \(!pendingAnchor\) \{\s*jumpedKey = null;\s*\}\s*measure\(\);\s*settlePendingAnchor\(\);\s*spy\(\);"),
+            script);
     }
 
     /// <summary>

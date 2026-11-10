@@ -60,8 +60,9 @@ describe("recordOutcomes (#1915)", () => {
     const detail = mail();
     const store = new MemoryReviewedStore();
     const run = harness([candidate(detail)]);
-    await run.call("search_mailboxes", { query: "QDOS26001" });
-    await run.call("leave_email", { messageId: detail.summary.id, reason: "The mailboxes could not be searched." });
+    await run.call("search_mailboxes", { messageId: detail.summary.id, query: "QDOS26001" });
+    await run.call("search_old_system_folders", { messageId: detail.summary.id, query: "QDOS26001" });
+    await run.call("leave_email", { messageId: detail.summary.id, reason: "Neither lookup could be read." });
     await recordOutcomes(run.batch, run.outcomes, true, store, run.pegasus, quiet);
     assert.equal(await store.get(detail.summary.id), undefined);
   });

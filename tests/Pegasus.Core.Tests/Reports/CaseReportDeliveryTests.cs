@@ -923,10 +923,30 @@ public sealed class CaseReportDeliveryTests
             ["Our report on PK12 TMZ", "Re: New instruction DVR-31001"],
             send.Commands.Select(command => command.Mail.Subject).ToArray());
 
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => sendReport.ExecuteAsync(
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => sendReport.ExecuteAsync(
             Request() with { Subject = new string('s', CaseReportDeliveryPolicy.MaximumSubjectLength + 1) },
             CancellationToken.None));
+        Assert.Equal(CaseReportDeliveryPolicy.SubjectTooLong, refused.Message);
         Assert.Equal(2, send.Commands.Count);
+    }
+
+    /// <summary>
+    /// #1912 (operator, 10 November 2026; R670, R897): an instruction subject
+    /// long enough to take "Re:" and it past 500 characters still sends, left
+    /// blank or as prefilled, since the bound is on a subject staff changed.
+    /// </summary>
+    [Fact]
+    public async Task ADerivedSubjectPastTheStaffBoundIsSent()
+    {
+        var send = new RecordingSend();
+        var instruction = InstructionEmail(MailboxId) with { Subject = new string('i', 600) };
+        var sendReport = Use(new FixedGenerations(Generation()), send, Senders(instruction, Mailbox()));
+        var derived = "Re: " + instruction.Subject;
+
+        await sendReport.ExecuteAsync(Request() with { Subject = null }, CancellationToken.None);
+        await sendReport.ExecuteAsync(Request() with { Subject = derived }, CancellationToken.None);
+
+        Assert.Equal([derived, derived], send.Commands.Select(command => command.Mail.Subject).ToArray());
     }
 
     /// <summary>
@@ -1117,6 +1137,45 @@ public sealed class CaseReportDeliveryTests
         Assert.Equal(
             [ReportAttachment with { FileName = "DVR-31001 PK12 TMZ Repairable report.pdf" }, FeeAttachment, AudatexEstimate],
             command.Mail.Attachments);
+    }
+
+    /// <summary>
+    /// #1910 (operator, 10 November 2026; R896): no two attachments of one
+    /// send share a name. A document staff named as the filed estimate is
+    /// numbered, since the estimate keeps its filed name (R671), and a later
+    /// document named as an earlier one is numbered after it.
+    /// </summary>
+    [Fact]
+    public async Task SendNumbersADocumentWhoseNameAnotherAttachmentCarries()
+    {
+        var stem = AudatexEstimate.FileName[..^".pdf".Length];
+        var generation = Generation(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote);
+        var send = new RecordingSend();
+        var facts = Facts(PrincipalReportSendingRules.Default with
+        {
+            Attach = ReportSendingAttachments.Default with { Audatex = true }
+        }) with
+        {
+            FiledEstimates = [new(AudatexEstimate, "Audatex")]
+        };
+
+        await Use(new FixedGenerations(generation), send, facts: facts).ExecuteAsync(
+            Request(facts) with
+            {
+                AttachmentNames = new Dictionary<CaseReportArtifactKind, string>
+                {
+                    [CaseReportArtifactKind.AssessmentReport] = AudatexEstimate.FileName,
+                    [CaseReportArtifactKind.FeeNote] = stem.ToUpperInvariant() + ".pdf",
+                }
+            },
+            CancellationToken.None);
+
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(
+            [stem + " (2).pdf", stem.ToUpperInvariant() + " (3).pdf", AudatexEstimate.FileName],
+            command.Mail.Attachments.Select(attachment => attachment.FileName).ToArray());
+        Assert.Equal(AudatexEstimate, command.Mail.Attachments[2]);
+        Assert.Equal([ReportAttachment, FeeAttachment, AudatexEstimate], command.Report.Artifacts);
     }
 
     /// <summary>

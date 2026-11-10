@@ -205,7 +205,11 @@ an e-mail that already has a type keeps it unless another clearly fits its
 fresh text (operator, 6 November 2026, R739). An Unclassified e-mail the
 agent cannot decide because both lookups are unavailable is left unchanged
 and looked at again on the next run, with no attempt counted (operator,
-6 November 2026, R738). For a Triage request with no Case, the agent opens
+6 November 2026, R738). Both means both of that e-mail's own lookups: when
+its mailbox search is unavailable the agent searches the old-system folders
+with the reference or registration the e-mail names, and one unavailable
+lookup, or another e-mail's, defers nothing (operator, 10 November 2026,
+R885). For a Triage request with no Case, the agent opens
 the Triage as staff **Open the Triage** does (`pegasus_intake_action`
 `open_triage`) with the registration written in its subject, body or an
 attachment's extracted text, or the one Pegasus's plate reader agreed on in
@@ -285,6 +289,14 @@ qualify from the exact thread, from the message it answers, or from the claim
 reference it names. The system-worker association is append-only and
 idempotent, follows the ordinary current-association and staff-reversal
 precedence, and never changes the mailbox.
+
+Two messages of one conversation can be processed together, so one may read
+its thread before the other's Case is recorded. A message that ends in No Case
+Found is therefore decided again, on the same signals, when another message of
+its exact mailbox-and-conversation thread comes to stand linked to a Case or to
+open a Triage within two hours of its own processing; after that it stays No
+Case Found for a person. A message with any association row, a staff unlink's
+included, is never decided again this way (operator, 10 November 2026; R884).
 
 ### Mail identity and repeated receipts
 

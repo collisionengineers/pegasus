@@ -16,8 +16,8 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// Photo capture (FRD-28 Staff pages; R774): <b>Coming in</b>, the captures
 /// standing and website links started, and <b>Links we sent</b>, the links
 /// HQ sent from a Case. The left pane is the tab's headline states with their
-/// queried counts, as the Cases list's scopes are; the list is one query
-/// (<see cref="IPhotoCaptureQueries.ListAsync"/>), newest first. Below the
+/// queried counts, as the Cases list's scopes are; the list and those counts
+/// are one query (<see cref="IPhotoCaptureQueries.ListAsync"/>), newest first. Below the
 /// list an Administrator manages the one website link (R797).
 /// </summary>
 [Authorize(
@@ -62,6 +62,10 @@ public sealed class IndexModel(
     [BindProperty]
     public long ExpectedVersion { get; set; }
 
+    /// <summary>The website link form's operation key: its history event's correlation, so a form sent twice acts once (R846).</summary>
+    [BindProperty]
+    public string? OperationKey { get; set; } = NewOperationKey();
+
     /// <summary>The website link's address as the Administrator typed it, on Create and Replace (R797).</summary>
     [BindProperty]
     public string? WebsiteSlug { get; set; }
@@ -82,6 +86,14 @@ public sealed class IndexModel(
     /// <summary>A refused website link change, shown above the page once.</summary>
     [TempData]
     public string? Refusal { get; set; }
+
+    /// <summary>
+    /// A typed website address refused for its shape or because a link holds
+    /// it, shown once beside the box it was typed in (operator, 10 November
+    /// 2026; R868).
+    /// </summary>
+    [TempData]
+    public string? WebsiteAddressRefusal { get; set; }
 
     public bool SentByUs => Tab == Labels.LinksWeSentKey;
 
@@ -149,15 +161,14 @@ public sealed class IndexModel(
             var page = queries.ListAsync(
                 new(SentByUs, Query, State, Origin, NoCaseYet, PageSize, CurrentPage),
                 cancellationToken);
-            var counts = queries.CountByStateAsync(SentByUs, cancellationToken);
             var tabCounts = queries.CountByTabAsync(cancellationToken);
             var website = IsAdministrator && StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ManageOrganizationsAndPrincipals)
                 ? standingLinks.FindWebsiteAsync(cancellationToken)
                 : Task.FromResult<StandingPhotoLink?>(null);
-            await Task.WhenAll(page, counts, tabCounts, website);
+            await Task.WhenAll(page, tabCounts, website);
             TotalCount = page.Result.TotalCount;
             Rows = [.. page.Result.Rows.Select(row => Derive(row, Now))];
-            Counts = counts.Result;
+            Counts = page.Result.CountsByState;
             TabCounts = tabCounts.Result;
             WebsiteLink = website.Result;
             LoadedAtUtc = Now;
@@ -223,9 +234,10 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// How a Coming in capture reached its Case: it was already instructed, or
-    /// it was matched when the instruction came. A Case a member of staff
-    /// chose has no words of its own, so it shows none.
+    /// How a Coming in capture reached its Case: it was already instructed,
+    /// it was matched when the instruction came, or a member of staff chose
+    /// it with Match to a case (operator, 10 November 2026; R864). A capture
+    /// with no Case shows none.
     /// </summary>
     public static string? CaseHow(PhotoCaptureListRow row)
     {
@@ -234,6 +246,7 @@ public sealed class IndexModel(
         {
             PhotoCapturePairing.FiledAsItArrived => Labels.AlreadyInstructed,
             PhotoCapturePairing.MatchedAutomatically => Labels.MatchedAutomatically,
+            PhotoCapturePairing.ChosenByStaff => Labels.MatchedByStaff,
             _ => null
         };
     }
@@ -280,7 +293,8 @@ public sealed class IndexModel(
     }
 
     // The change is Core's (StandingPhotoLinkAdministration); a change made
-    // over a stale read comes back as the page's refusal notice.
+    // over a stale read comes back as the page's refusal notice, and a typed
+    // address refused comes back beside its box (R868).
     private async Task<IActionResult> ChangeWebsiteLinkAsync(string action, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor) || !MayManageLinks(actor))
@@ -288,6 +302,13 @@ public sealed class IndexModel(
             return Forbid();
         }
 
+        // The form's own key is a fresh GUID (R846); anything else is not the page's post.
+        if (!Guid.TryParseExact(OperationKey, "N", out var operationId) || operationId == Guid.Empty)
+        {
+            return BadRequest();
+        }
+
+        var operationKey = OperationKey!;
         var link = await standingLinks.FindWebsiteAsync(cancellationToken);
         if (action != "create" && link is null)
         {
@@ -299,23 +320,24 @@ public sealed class IndexModel(
             switch (action)
             {
                 case "create":
-                    await administration.CreateWebsiteAsync(actor, WebsiteSlug, cancellationToken);
+                    await administration.CreateWebsiteAsync(actor, operationKey, WebsiteSlug, cancellationToken);
                     break;
                 case "pause":
-                    await administration.PauseAsync(actor, link!.Id, ExpectedVersion, cancellationToken);
+                    await administration.PauseAsync(actor, operationKey, link!.Id, ExpectedVersion, cancellationToken);
                     break;
                 case "resume":
-                    await administration.ResumeAsync(actor, link!.Id, ExpectedVersion, cancellationToken);
+                    await administration.ResumeAsync(actor, operationKey, link!.Id, ExpectedVersion, cancellationToken);
                     break;
                 case "replace":
-                    await administration.ReplaceAsync(actor, link!.Id, ExpectedVersion, WebsiteSlug, cancellationToken);
+                    await administration.ReplaceAsync(actor, operationKey, link!.Id, ExpectedVersion, WebsiteSlug, cancellationToken);
                     break;
                 case "retire":
-                    await administration.RetireAsync(actor, link!.Id, ExpectedVersion, cancellationToken);
+                    await administration.RetireAsync(actor, operationKey, link!.Id, ExpectedVersion, cancellationToken);
                     break;
                 case "defaults":
                     await administration.UpdateDefaultsAsync(
                         actor,
+                        operationKey,
                         link!.Id,
                         ExpectedVersion,
                         link.ForwardedMode,
@@ -341,10 +363,17 @@ public sealed class IndexModel(
         {
             return NotFound();
         }
+        catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.InvalidSlug)
+        {
+            WebsiteAddressRefusal = Labels.WebsiteAddressShape;
+        }
+        catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.SlugTaken)
+        {
+            WebsiteAddressRefusal = Labels.WebsiteAddressInUse;
+        }
         catch (StandingPhotoLinkException)
         {
-            // A stale read, and a typed address of the wrong shape or already
-            // in use, which have no words of their own yet.
+            // A stale read, which has no words of its own.
             Refusal = OperatorLabels.ActionNotApplied;
         }
 

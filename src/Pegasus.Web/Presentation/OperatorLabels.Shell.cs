@@ -200,6 +200,8 @@ public static partial class OperatorLabels
         public const string Resetting = "Resetting…";
         public const string Restoring = "Restoring…";
         public const string Resuming = "Resuming…";
+        // A standing photo link's Retire while it works (operator, 10 November 2026; R869).
+        public const string Retiring = "Retiring…";
         public const string Retrying = "Retrying…";
         public const string Returning = "Returning…";
         public const string Revoking = "Revoking…";

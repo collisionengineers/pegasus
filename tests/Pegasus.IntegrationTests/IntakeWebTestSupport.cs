@@ -347,7 +347,10 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         public Task<Pegasus.Core.PhotoCapture.PhotoCaptureListPage> ListAsync(
             Pegasus.Core.PhotoCapture.PhotoCaptureListFilter filter,
             CancellationToken cancellationToken) =>
-            Task.FromResult(new Pegasus.Core.PhotoCapture.PhotoCaptureListPage([], 0));
+            Task.FromResult(new Pegasus.Core.PhotoCapture.PhotoCaptureListPage(
+                [],
+                0,
+                new Dictionary<Pegasus.Core.PhotoCapture.PhotoCaptureState, int>()));
 
         public Task<Pegasus.Core.PhotoCapture.PhotoCaptureListRow?> GetRowAsync(Guid captureId, CancellationToken cancellationToken) =>
             Task.FromResult<Pegasus.Core.PhotoCapture.PhotoCaptureListRow?>(null);
@@ -357,10 +360,6 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
 
         public Task<IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory>> ListForImageIntakeAsync(Guid imageIntakeId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<Pegasus.Core.PhotoCapture.CasePhotoCaptureStory>>([]);
-
-        public Task<IReadOnlyDictionary<Pegasus.Core.PhotoCapture.PhotoCaptureState, int>> CountByStateAsync(bool sentByUs, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyDictionary<Pegasus.Core.PhotoCapture.PhotoCaptureState, int>>(
-                new Dictionary<Pegasus.Core.PhotoCapture.PhotoCaptureState, int>());
 
         public Task<IReadOnlyList<Pegasus.Core.PhotoCapture.PhotoLinkAct>> ListHistoryAsync(Guid captureId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<Pegasus.Core.PhotoCapture.PhotoLinkAct>>([]);
@@ -386,22 +385,23 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> CreateAsync(
             Pegasus.Core.PhotoCapture.StandingPhotoLinkKind kind, Guid? organizationId, string slug,
             Pegasus.Core.PhotoCapture.PhotoCaptureMode forwardedMode, bool liveCameraOnly, int linkLifetimeDays,
-            bool originalsInBackground, Pegasus.Core.Identity.ActionActor actor, DateTimeOffset createdAtUtc,
+            bool originalsInBackground, Pegasus.Core.PhotoCapture.StandingPhotoLinkChange change,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("A database-less host creates no standing link.");
 
         public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> UpdateDefaultsAsync(
             Guid id, long expectedVersion, Pegasus.Core.PhotoCapture.PhotoCaptureMode forwardedMode,
-            bool liveCameraOnly, int linkLifetimeDays, bool originalsInBackground, CancellationToken cancellationToken) =>
+            bool liveCameraOnly, int linkLifetimeDays, bool originalsInBackground,
+            Pegasus.Core.PhotoCapture.StandingPhotoLinkChange change, CancellationToken cancellationToken) =>
             throw new NotSupportedException("A database-less host holds no standing link.");
 
-        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> SetPausedAsync(Guid id, long expectedVersion, DateTimeOffset? pausedAtUtc, CancellationToken cancellationToken) =>
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> SetPausedAsync(Guid id, long expectedVersion, bool paused, Pegasus.Core.PhotoCapture.StandingPhotoLinkChange change, CancellationToken cancellationToken) =>
             throw new NotSupportedException("A database-less host holds no standing link.");
 
-        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> SetRetiredAsync(Guid id, long expectedVersion, DateTimeOffset retiredAtUtc, CancellationToken cancellationToken) =>
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> SetRetiredAsync(Guid id, long expectedVersion, Pegasus.Core.PhotoCapture.StandingPhotoLinkChange change, CancellationToken cancellationToken) =>
             throw new NotSupportedException("A database-less host holds no standing link.");
 
-        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> ReplaceSlugAsync(Guid id, long expectedVersion, string newSlug, DateTimeOffset replacedAtUtc, CancellationToken cancellationToken) =>
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> ReplaceSlugAsync(Guid id, long expectedVersion, string newSlug, Pegasus.Core.PhotoCapture.StandingPhotoLinkChange change, CancellationToken cancellationToken) =>
             throw new NotSupportedException("A database-less host holds no standing link.");
 
         public Task<IReadOnlyList<Pegasus.Core.PhotoCapture.StandingPhotoLinkAddress>> ListAddressesAsync(Guid standingLinkId, CancellationToken cancellationToken) =>
@@ -410,13 +410,13 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         public Task<Pegasus.Core.PhotoCapture.StandingPhotoLinkAddressBook> GetAddressBookAsync(Guid standingLinkId, CancellationToken cancellationToken) =>
             Task.FromResult(new Pegasus.Core.PhotoCapture.StandingPhotoLinkAddressBook([], []));
 
-        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> AddAddressAsync(Guid id, long expectedVersion, string name, string address, DateTimeOffset addedAtUtc, CancellationToken cancellationToken) =>
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> AddAddressAsync(Guid id, long expectedVersion, string name, string address, Pegasus.Core.PhotoCapture.StandingPhotoLinkChange change, CancellationToken cancellationToken) =>
             throw new NotSupportedException("A database-less host holds no standing link.");
 
-        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> ChangeAddressAsync(Guid id, long expectedVersion, Guid addressId, string name, string address, CancellationToken cancellationToken) =>
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> ChangeAddressAsync(Guid id, long expectedVersion, Guid addressId, string name, string address, Pegasus.Core.PhotoCapture.StandingPhotoLinkChange change, CancellationToken cancellationToken) =>
             throw new NotSupportedException("A database-less host holds no standing link.");
 
-        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> RemoveAddressAsync(Guid id, long expectedVersion, Guid addressId, CancellationToken cancellationToken) =>
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> RemoveAddressAsync(Guid id, long expectedVersion, Guid addressId, Pegasus.Core.PhotoCapture.StandingPhotoLinkChange change, CancellationToken cancellationToken) =>
             throw new NotSupportedException("A database-less host holds no standing link.");
 
         public Task<int> CountMintedSinceAsync(Guid standingLinkId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) =>

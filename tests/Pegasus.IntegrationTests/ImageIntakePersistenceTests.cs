@@ -240,38 +240,47 @@ public sealed class ImageIntakePersistenceTests
             true,
             recognitionEngine: new FakeVrmRecognitionEngine());
         using var client = IntakeWebDriver.CreateClient(factory);
-        var submissionToken = $"mailbox-image-group:{Guid.NewGuid():N}";
+        var captureActor = IntakeActorIdentity.PhotoCapture(Guid.NewGuid());
+        var submissionToken = $"photo-capture-group:{Guid.NewGuid():N}";
         Guid groupId;
         await using (var submissionScope = factory.Services.CreateAsyncScope())
         {
             var submissionServices = submissionScope.ServiceProvider;
             var receivedAtUtc = submissionServices.GetRequiredService<TimeProvider>().GetUtcNow();
-            // A Mailbox-channel group is seeded straight through the group store
-            // and the per-file submission: the grouped-submission use case now
-            // serves manual upload only.
+            // A photo link's batch group, with the registration its sender
+            // typed, is seeded the way its settle writes it (FRD-28): the one
+            // non-manual group production makes (R880).
             var groupStore = submissionServices.GetRequiredService<IIntakeSubmissionGroupStore>();
             var submission = submissionServices.GetRequiredService<IIntakeSubmission>();
-            var submittedGroup = await groupStore.GetOrCreateAsync(
-                Guid.NewGuid(),
-                IntakeSourceChannel.Mailbox,
-                submissionToken,
-                2,
-                "system-worker:approved-inbox-poller",
-                receivedAtUtc,
-                null,
-                CancellationToken.None);
+            var groupContextFactory = submissionServices.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using (var groupContext = await groupContextFactory.CreateDbContextAsync())
+            {
+                var submittedGroup = await EfIntakeSubmissionGroupStore.GetOrAddGroupAsync(
+                    groupContext,
+                    Guid.NewGuid(),
+                    IntakeSourceChannel.PhotoCapture,
+                    submissionToken,
+                    2,
+                    captureActor,
+                    receivedAtUtc,
+                    parentReceiptId: null,
+                    declaredRegistration: "AB12CDE",
+                    declaredIncidentDate: null,
+                    CancellationToken.None);
+                await groupContext.SaveChangesAsync();
+                groupId = submittedGroup.Id;
+            }
+
             foreach (var (ordinal, fileName) in new[] { (0, "overview.png"), (1, "close-up.png") })
             {
                 var received = await submission.ExecuteAsync(
                     new(fileName, "image/png", Convert.FromBase64String(TinyPngBase64),
-                        receivedAtUtc, "system-worker:approved-inbox-poller",
-                        new(IntakeSourceChannel.Mailbox, GroupedIntakeMemberToken.Create(submissionToken, ordinal))),
-                    $"mailbox-image:{submissionToken}:{ordinal}",
+                        receivedAtUtc, captureActor,
+                        new(IntakeSourceChannel.PhotoCapture, GroupedIntakeMemberToken.Create(submissionToken, ordinal))),
+                    $"photo-capture:{submissionToken}:{ordinal}",
                     CancellationToken.None);
-                await groupStore.AddMemberAsync(submittedGroup.Id, ordinal, received, CancellationToken.None);
+                await groupStore.AddMemberAsync(groupId, ordinal, received, CancellationToken.None);
             }
-
-            groupId = submittedGroup.Id;
         }
 
         Guid[] stagedReceiptIds;
@@ -299,18 +308,14 @@ public sealed class ImageIntakePersistenceTests
         var services = scope.ServiceProvider;
         var resolver = services.GetRequiredService<IImageIntakeOriginResolver>();
         var register = services.GetRequiredService<IRegisterImageIntake>();
-        var origin = await resolver.ResolveOriginAsync(memberReceiptIds[0], CancellationToken.None);
-        var record = await register.ExecuteAsync(
-            new(
-                origin!,
-                "AB12CDE",
-                StaffActor(),
-                $"image-intake-register:group:{groupId:N}",
-                "Staff registered the whole submission group.",
-                SubmissionGroupId: groupId),
-            CancellationToken.None);
+        var queries = services.GetRequiredService<IImageIntakeQueries>();
+        // Processing the batch's last member registered the whole group once,
+        // from its lowest-ordinal member, with the typed registration; it
+        // associated nothing in that pass (R880).
+        var record = (await queries.GetByOriginReceiptAsync(memberReceiptIds[0], CancellationToken.None))!.Record;
         Assert.Equal("AB12CDE-01", record.ImageIntakeReference);
         Assert.Equal(groupId, record.SubmissionGroupId);
+        Assert.Equal(memberReceiptIds[0], record.Origin.ReceiptId);
 
         // Every member receipt moved to the registered decision against the
         // ONE reference, in the registration transaction itself.
@@ -324,7 +329,6 @@ public sealed class ImageIntakePersistenceTests
 
         // The group-aware lookup reaches the one registration from a
         // non-origin member's receipt.
-        var queries = services.GetRequiredService<IImageIntakeQueries>();
         var fromSibling = await queries.GetByOriginReceiptAsync(
             memberReceiptIds[1],
             CancellationToken.None);

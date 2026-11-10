@@ -197,8 +197,10 @@ public static class WorkerDependencyInjection
             serviceProvider.GetRequiredService<ProcessQueuedIntake>());
         services.AddScoped<ReconcilePoisonedIntakeWork>();
         services.AddScoped<ReconcileStagedArtifacts>();
+        services.AddScoped<Pegasus.Core.Documents.RetryDeferredOriginalReportRecognition>();
         services.AddScoped<Pegasus.Core.Documents.SweepAbandonedDocumentUploads>();
         services.AddScoped<ReconcileGroupedImageIntake>();
+        services.AddScoped<AssociateThreadSiblings>();
         services.AddScoped<ReplayCaseFilings>();
         services.AddSingleton<IExternalWorkEnqueuer>(serviceProvider =>
         {

@@ -17,7 +17,20 @@ namespace Pegasus.Web.Presentation;
 /// </summary>
 public static class ReportWordingEdits
 {
-    public const string Unavailable = "The report wording is unavailable. Refresh the Case and retry.";
+    /// <summary>
+    /// What a wording save is refused with while the report cannot be
+    /// projected (operator, 10 November 2026; R892, R893). The Automation
+    /// wording tools show this.
+    /// </summary>
+    public const string Unavailable =
+        "The report is not ready, so its wording cannot be saved yet. Nothing in this save was stored.";
+
+    /// <summary>
+    /// The same refusal on the Case page, where the typed wording stays on
+    /// screen (R572, R892). The page's script knows the refusal by this
+    /// sentence, which the wording panel carries.
+    /// </summary>
+    public const string UnavailableOnPage = Unavailable + " Your wording is still on the page.";
 
     /// <summary>
     /// The work's wording state: the snapshot the blocks compose from and
@@ -39,9 +52,10 @@ public static class ReportWordingEdits
     }
 
     /// <summary>
-    /// Reads the work's wording state for a save, refusing when the report
-    /// cannot be projected, since there is then no composed sentence to
-    /// compare a submitted one with.
+    /// Reads the work's wording state for a save, refusing with the caller's
+    /// sentence (<see cref="Unavailable"/> or <see cref="UnavailableOnPage"/>)
+    /// when the report cannot be projected, since there is then no composed
+    /// sentence to compare a submitted one with.
     /// </summary>
     public static async Task<ReportWordingState> ReadAsync(
         ICaseReportSnapshotSource source,
@@ -49,14 +63,15 @@ public static class ReportWordingEdits
         ActionActor actor,
         CaseWorkSelector work,
         DateTimeOffset now,
+        string refusal,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(source);
         var inputs = await source.GetAsync(caseId, actor, work, reuse: null, cancellationToken)
-            ?? throw new InvalidOperationException(Unavailable);
+            ?? throw new InvalidOperationException(refusal);
         var (snapshot, offered) = Offered(inputs.Projection, now);
         return snapshot is null
-            ? throw new InvalidOperationException(Unavailable)
+            ? throw new InvalidOperationException(refusal)
             : new(snapshot, snapshot.Presentation(), offered);
     }
 

@@ -364,8 +364,9 @@
            (v45 E). The Statement of truth closes the panel read-only, the
            guide sentence in its print place (v45 D, I). While the report
            cannot be projected the settings hold the five switches alone
-           (v45 B). *@
-        <div class="sub-panel wording" data-report-wording>
+           (v45 B). The panel carries the sentence a wording change is refused
+           with meanwhile, so the page's script knows that refusal (R891). *@
+        <div class="sub-panel wording" data-report-wording data-wording-refusal="@ReportWordingEdits.UnavailableOnPage">
             <h3>@WordingLabels.PanelTitle<span class="rt">@WordingLabels.InPrintOrder</span></h3>
             <div class="wording-settings" data-wording-settings>
                 @if (Model.ReportWording.Count > 0)
@@ -593,9 +594,10 @@
         var name = $"wordingEdits[{slot}]";
         var id = $"f-wording-{slot}";
         var composed = Model.ReportWordingComposed.GetValueOrDefault(block.Key, string.Empty);
+        var heading = Model.ReportWordingHeadings.GetValueOrDefault(block.Key, string.Empty);
         var commentary = block.Key == ReportWordingComposition.ValuationCommentary;
         <div class="wb" hidden="@(!block.Included)" data-wording-row data-wording-block="@block.Key"
-             data-wording-composed="@composed">
+             data-wording-composed="@composed" data-wording-heading="@heading">
             <input type="hidden" name="@(name).Key" value="@block.Key" form="case-edit-form" data-wording-key />
             <input type="hidden" name="@(name).Manual" value="@(block.Manual ? "true" : "false")" form="case-edit-form" />
             <input type="hidden" name="@(name).Order" value="@block.Order" form="case-edit-form" data-wording-order />
