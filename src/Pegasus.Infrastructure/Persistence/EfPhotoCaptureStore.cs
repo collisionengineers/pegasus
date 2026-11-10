@@ -935,10 +935,10 @@ public sealed class EfPhotoCaptureStore(
         // A capture whose receipts reached more than one Case is ambiguous and waits for staff.
         foreach (var group in viaAssociation.Concat(viaLink).GroupBy(row => row.CaptureId))
         {
-            var cases = group.Select(row => row.CaseId).Distinct().ToArray();
-            if (cases.Length == 1)
+            var caseIds = group.Select(row => row.CaseId).Distinct().ToArray();
+            if (caseIds.Length == 1)
             {
-                reached.TryAdd(group.Key, cases[0]);
+                reached.TryAdd(group.Key, caseIds[0]);
             }
         }
 
