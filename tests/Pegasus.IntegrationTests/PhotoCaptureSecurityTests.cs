@@ -439,8 +439,7 @@ public sealed class PhotoCaptureSecurityTests
         public Task<PhotoCaptureBatchClosed> CloseBatchAsync(
             Guid captureId,
             int batch,
-            DateTimeOffset nowUtc,
-            PhotoCaptureDeclaredGroup? group,
+            PhotoCaptureBatchCloseRequest request,
             CancellationToken cancellationToken) => throw Outside();
 
         public Task<CaptureRecord> RevokeAsync(
@@ -483,19 +482,35 @@ public sealed class PhotoCaptureSecurityTests
         public Task<PhotoCaptureItem?> FindItemAsync(Guid captureId, Guid clientItemId, CancellationToken cancellationToken) =>
             throw Outside();
 
-        public Task<IReadOnlyList<PhotoCaptureSettleCandidate>> ListSettledReachingCaseAsync(
+        public Task<IReadOnlyList<PhotoCaptureBatchReach>> ListBatchesReachingCaseAsync(
             int maximumItems,
+            CancellationToken cancellationToken) => throw Outside();
+
+        public Task<bool> RecordBatchReachedAsync(
+            Guid captureId,
+            int batch,
+            Guid caseId,
+            bool bellOwed,
+            DateTimeOffset nowUtc,
             CancellationToken cancellationToken) => throw Outside();
 
         public Task<PhotoCaptureCaseRecorded> RecordCaseAsync(
             Guid captureId,
+            int batch,
             Guid caseId,
-            string? routingReason,
-            DateTimeOffset? imagesCompletedAtUtc,
+            string routingReason,
             CancellationToken cancellationToken) => throw Outside();
 
-        public Task<bool> AllItemsSettledAsync(Guid captureId, int batch, Guid? caseId, CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<PhotoCaptureItemFiling>> ListBatchFilingsAsync(
+            Guid captureId,
+            int batch,
+            Guid? caseId,
+            CancellationToken cancellationToken) => throw Outside();
+
+        public Task<IReadOnlyList<PhotoCaptureBellOwed>> ListBellsOwedAsync(int maximumItems, CancellationToken cancellationToken) =>
             throw Outside();
+
+        public Task ClearBellAsync(Guid captureId, int batch, CancellationToken cancellationToken) => throw Outside();
     }
 
     /// <summary>The standing links a test lists by their slug; a slug it did not list names nothing.</summary>

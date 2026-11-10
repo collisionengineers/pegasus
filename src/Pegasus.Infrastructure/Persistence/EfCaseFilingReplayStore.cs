@@ -21,7 +21,7 @@ internal sealed class EfCaseFilingReplayStore(
 {
     internal const string ReplayFailedEventType = "replay_failed";
     internal const string ReplayExhaustedEventType = "replay_exhausted";
-    private const string PromotionStartedEventType = "intake_case_evidence_promotion_started";
+    internal const string PromotionStartedEventType = "intake_case_evidence_promotion_started";
     internal const string PromotionCompletedEventType = "intake_case_evidence_promotion_completed";
     private const string SystemWorkerKind = nameof(ActorKind.SystemWorker);
 

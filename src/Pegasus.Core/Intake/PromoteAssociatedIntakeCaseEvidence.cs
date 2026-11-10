@@ -120,15 +120,17 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
                     asset.ContentHash,
                     stream,
                     // A file a member of staff uploaded to a declared Case
-                    // takes the type they chose for it (FRD-18; R564, R565).
-                    // A photo link's paperwork and video file as Other,
-                    // including those kept until their capture reached a Case
-                    // (FRD-28; operator, 9 November 2026, R803).
-                    (receipt.HasDeclaredDestination
-                        || receipt.SourceIdentity.Channel == IntakeSourceChannel.PhotoCapture)
-                    && asset.Kind == IntakeAssetKind.Source
-                        ? IntakeCaseEvidenceRoles.ForDeclaredUpload(asset.MediaType, receipt.DeclaredDocumentType)
-                        : IntakeCaseEvidenceRoles.For(asset.Kind, asset.MediaType),
+                    // takes the type they chose for it (FRD-18; R564, R565);
+                    // a photo link's file the type its capture declared by its
+                    // kind, with or without a Case when it arrived (FRD-28;
+                    // operator, 9 November 2026, R803).
+                    asset.Kind != IntakeAssetKind.Source
+                        ? IntakeCaseEvidenceRoles.For(asset.Kind, asset.MediaType)
+                        : receipt.SourceIdentity.Channel == IntakeSourceChannel.PhotoCapture
+                            ? IntakeCaseEvidenceRoles.ForPhotoCapture(asset.MediaType, receipt.DeclaredDocumentType)
+                            : receipt.HasDeclaredDestination
+                                ? IntakeCaseEvidenceRoles.ForDeclaredUpload(asset.MediaType, receipt.DeclaredDocumentType)
+                                : IntakeCaseEvidenceRoles.For(asset.Kind, asset.MediaType),
                     DocumentSource.Intake,
                     preparation.ExpectedCaseVersion,
                     IsAutomaticIntakeEvidencePromotion: true,
@@ -292,4 +294,13 @@ public static class IntakeCaseEvidenceRoles
     public static DocumentSemanticRole ForDeclaredUpload(string mediaType, DocumentSemanticRole? chosen) =>
         InstructionEvidenceImages.IsImage(mediaType) ? DocumentSemanticRole.Image
         : chosen ?? DocumentTypePolicy.DefaultUploadType;
+
+    /// <summary>
+    /// The role a photo link's file takes: the type its capture declared for
+    /// it by its kind, Other for paperwork and video whatever their format;
+    /// a photograph declares none and is an Image (FRD-28; operator,
+    /// 9 November 2026, R803).
+    /// </summary>
+    public static DocumentSemanticRole ForPhotoCapture(string mediaType, DocumentSemanticRole? declared) =>
+        declared ?? ForDeclaredUpload(mediaType, chosen: null);
 }

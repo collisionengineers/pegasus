@@ -71,6 +71,7 @@ pegasus_web_runtime_role,D,DELETE,OpenIddictScopes
 pegasus_web_runtime_role,D,DELETE,OpenIddictTokens
 pegasus_web_runtime_role,D,DELETE,OrganizationAdministrationOperations
 pegasus_web_runtime_role,D,DELETE,Organizations
+pegasus_web_runtime_role,D,DELETE,PhotoCaptureBatches
 pegasus_web_runtime_role,D,DELETE,PhotoCaptureItems
 pegasus_web_runtime_role,D,DELETE,PhotoCaptureTokens
 pegasus_web_runtime_role,D,DELETE,PhotoCaptures
@@ -486,6 +487,7 @@ pegasus_worker_runtime_role,D,DELETE,OpenIddictScopes
 pegasus_worker_runtime_role,D,DELETE,OpenIddictTokens
 pegasus_worker_runtime_role,D,DELETE,OrganizationAdministrationOperations
 pegasus_worker_runtime_role,D,DELETE,Organizations
+pegasus_worker_runtime_role,D,DELETE,PhotoCaptureBatches
 pegasus_worker_runtime_role,D,DELETE,PhotoCaptureItems
 pegasus_worker_runtime_role,D,DELETE,PhotoCaptureTokens
 pegasus_worker_runtime_role,D,DELETE,PhotoCaptures
@@ -580,6 +582,7 @@ pegasus_worker_runtime_role,G,INSERT,IntakeStagedReceipts
 pegasus_worker_runtime_role,G,INSERT,IntakeSubmissionGroupMembers
 pegasus_worker_runtime_role,G,INSERT,IntakeSubmissionGroups
 pegasus_worker_runtime_role,G,INSERT,IntakeWorkItems
+pegasus_worker_runtime_role,G,INSERT,PhotoCaptureBatches
 pegasus_worker_runtime_role,G,INSERT,PrincipalSequenceLineages
 pegasus_worker_runtime_role,G,INSERT,RetainedInstructionAnalyses
 pegasus_worker_runtime_role,G,INSERT,RetainedMailboxAttachments
@@ -659,6 +662,7 @@ pegasus_worker_runtime_role,G,SELECT,IntakeSubmissionGroupMembers
 pegasus_worker_runtime_role,G,SELECT,IntakeSubmissionGroups
 pegasus_worker_runtime_role,G,SELECT,IntakeWorkItems
 pegasus_worker_runtime_role,G,SELECT,Organizations
+pegasus_worker_runtime_role,G,SELECT,PhotoCaptureBatches
 pegasus_worker_runtime_role,G,SELECT,PhotoCaptureItems
 pegasus_worker_runtime_role,G,SELECT,PhotoCaptureTokens
 pegasus_worker_runtime_role,G,SELECT,PhotoCaptures
@@ -719,6 +723,7 @@ pegasus_worker_runtime_role,G,UPDATE,IntakeOcrOperations
 pegasus_worker_runtime_role,G,UPDATE,IntakeReceipts
 pegasus_worker_runtime_role,G,UPDATE,IntakeStagedReceipts
 pegasus_worker_runtime_role,G,UPDATE,IntakeWorkItems
+pegasus_worker_runtime_role,G,UPDATE,PhotoCaptureBatches
 pegasus_worker_runtime_role,G,UPDATE,PhotoCaptureItems
 pegasus_worker_runtime_role,G,UPDATE,PhotoCaptures
 pegasus_worker_runtime_role,G,UPDATE,Principals

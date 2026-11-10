@@ -364,10 +364,9 @@ public sealed record PhotoCaptureWithItems(PhotoCapture Capture, IReadOnlyList<P
 public sealed record PhotoCaptureSettleCursor(DateTimeOffset CreatedAtUtc, Guid Id);
 
 /// <summary>
-/// One capture the settle works on, with its items in story order and the
-/// Case it works against: the capture's own Case, or for a capture whose
-/// Vehicle images record has reached a Case, that Case.
-/// <see cref="CaseArchived"/> is whether that Case is archived (R793);
+/// One capture the settle works on, with its items in story order and its
+/// own Case, when it has one. <see cref="CaseArchived"/> is whether that
+/// Case is archived (R793);
 /// <see cref="CaseIsTriage"/> whether it is a Triage Case, which keeps no
 /// Notes.
 /// </summary>
@@ -387,9 +386,84 @@ public sealed record PhotoCaptureSettleCandidate(
 public sealed record PhotoCaptureDeclaredGroup(string Registration, DateOnly? IncidentDate);
 
 /// <summary>
-/// What closing a batch did: the batch had closed already, an upload into it
-/// was still in flight (<see cref="SettlePhotoCaptures.UploadInFlightGrace"/>),
-/// or it closed now with the items it holds.
+/// The association a received item's receipt holds, if any: the Case, whether
+/// it is still active, whether Pegasus made it (system work files only on a
+/// Case open to it) and when it was made.
+/// </summary>
+public sealed record PhotoCaptureItemLink(Guid CaseId, bool IsActive, bool BySystem, DateTimeOffset LinkedAtUtc);
+
+/// <summary>
+/// What the settle reads of one received item of a batch, against the Case
+/// the batch settles on or reaches when there is one: whether its work failed
+/// for good, its receipt's association, and whether its filing on that Case
+/// has started, completed, or been given up (the last replay's exhaustion).
+/// <see cref="PhotoCaptureFiling"/> reads these as one state.
+/// </summary>
+public sealed record PhotoCaptureItemFiling(
+    PhotoCaptureItem Item,
+    bool WorkFailed,
+    PhotoCaptureItemLink? Link,
+    bool FilingStarted,
+    bool Filed,
+    DateTimeOffset? FilingExhaustedAtUtc);
+
+/// <summary>Where one received item of a batch stands (<see cref="PhotoCaptureFiling.StateOf"/>).</summary>
+public enum PhotoCaptureFilingState
+{
+    /// <summary>Received, its receipt not yet evaluated.</summary>
+    Pending,
+
+    /// <summary>Its work failed for good: it will never file.</summary>
+    Failed,
+
+    /// <summary>Evaluated, with no Case asked about.</summary>
+    Evaluated,
+
+    /// <summary>Evaluated and linked to no Case.</summary>
+    Unlinked,
+
+    /// <summary>Linked to the Case, its filing not yet started.</summary>
+    Linked,
+
+    /// <summary>Linked to the Case, its filing under way.</summary>
+    Filing,
+
+    /// <summary>Filed on the Case.</summary>
+    Filed,
+
+    /// <summary>Linked to the Case, its filing ended for good without filing.</summary>
+    Ended,
+
+    /// <summary>Its association was withdrawn or is to another Case.</summary>
+    Elsewhere
+}
+
+/// <summary>
+/// What a settle asks the close to record (<see cref="IPhotoCaptureStore.CloseBatchAsync"/>).
+/// <see cref="CaseId"/> is the Case a Case batch settles on, whose filing the
+/// close checks again under its lock; a Vehicle images batch, or one whose
+/// Case is archived, names none and is checked for evaluation only.
+/// <see cref="Group"/> is the group a Vehicle images batch becomes.
+/// <see cref="BellOwed"/> records the Engineer's bell as owed for the batch in
+/// the close's own transaction; <see cref="CaseSideNote"/> is the note the
+/// Case side worked from, and a capture whose note has changed since waits so
+/// the next run writes it (R792: a changed note is appended).
+/// <see cref="SystemFilingCutoff"/> is the latest Pegasus association whose
+/// filing replay has given up (<see cref="Intake.IntakeEscapeWindow.LatestClosedStart"/>).
+/// </summary>
+public sealed record PhotoCaptureBatchCloseRequest(
+    DateTimeOffset NowUtc,
+    DateTimeOffset SystemFilingCutoff,
+    Guid? CaseId,
+    PhotoCaptureDeclaredGroup? Group,
+    bool BellOwed,
+    string? CaseSideNote);
+
+/// <summary>
+/// What closing a batch did: the batch had closed already; it was not ready
+/// (an upload into it still in flight, <see cref="SettlePhotoCaptures.UploadInFlightGrace"/>,
+/// a photo not yet settled, the capture's note or Case changed since the
+/// settle read it); or it closed now.
 /// </summary>
 public enum PhotoCaptureBatchClose
 {
@@ -399,17 +473,41 @@ public enum PhotoCaptureBatchClose
 }
 
 /// <summary>
-/// The close's outcome, the capture as the close left it and, when it
-/// <see cref="PhotoCaptureBatchClose.Closed"/>, the batch's received items in
-/// story order: nothing joins the batch after it.
+/// The close's outcome, the capture as the close left it and, for a batch
+/// that became a group, its members in ordinal order.
 /// </summary>
 public sealed record PhotoCaptureBatchClosed(
     PhotoCaptureBatchClose Outcome,
     PhotoCapture Capture,
-    IReadOnlyList<PhotoCaptureItem> Items);
+    IReadOnlyList<PhotoCaptureItem> Members);
 
 /// <summary>The capture after <see cref="IPhotoCaptureStore.RecordCaseAsync"/>, and whether it recorded the Case now.</summary>
 public sealed record PhotoCaptureCaseRecorded(PhotoCapture Capture, bool Changed);
+
+/// <summary>
+/// A settled batch whose Vehicle images record has merged into a Case and
+/// whose reach is not yet finished. <see cref="RecordLinkedByStaffId"/> and
+/// <see cref="RecordLinkReason"/> are the decision that took the record to
+/// the Case, as its origin receipt's association holds it: the member of
+/// staff who chose the Case on the record's page, or none when Pegasus
+/// paired it.
+/// </summary>
+public sealed record PhotoCaptureBatchReach(
+    PhotoCapture Capture,
+    int Batch,
+    Guid CaseId,
+    bool CaseArchived,
+    bool CaseIsTriage,
+    Guid? RecordLinkedByStaffId,
+    string? RecordLinkReason);
+
+/// <summary>A Photos received bell owed for a batch, recorded by the close or the reach that owed it.</summary>
+public sealed record PhotoCaptureBellOwed(
+    Guid CaptureId,
+    int Batch,
+    Guid CaseId,
+    string? Registration,
+    bool CaseArchived);
 
 /// <summary>
 /// One list's filter. <see cref="NoCaseYet"/> keeps only the captures with no
@@ -598,23 +696,30 @@ public interface IPhotoCaptureStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Closes the capture's open batch <paramref name="batch"/>, under the
-    /// capture row's lock, the one an item add takes, so no item joins it
-    /// after: <see cref="PhotoCaptureBatchClose.AlreadyClosed"/> when a settle
-    /// closed it before; <see cref="PhotoCaptureBatchClose.Waiting"/>, writing
-    /// nothing, while an item in it has no receipt yet and arrived within
-    /// <see cref="SettlePhotoCaptures.UploadInFlightGrace"/>; otherwise
-    /// <see cref="PhotoCaptureBatchClose.Closed"/>, recording the settle. With
-    /// <paramref name="group"/> the batch's received photographs, and only
-    /// they, become one submission group in the same transaction, its
-    /// expected count the number of them; paperwork and video wait outside it
+    /// Closes the capture's open batch <paramref name="batch"/> in one
+    /// transaction under the capture row's update lock, the lock an item add,
+    /// a receipt, the details and <see cref="RecordCaseAsync"/> take, so no
+    /// item joins the batch after and nothing changes it between the check
+    /// and the write. <see cref="PhotoCaptureBatchClose.AlreadyClosed"/> when
+    /// a settle closed it before. <see cref="PhotoCaptureBatchClose.Waiting"/>,
+    /// writing nothing, while an item in it has no receipt yet and arrived
+    /// within <see cref="SettlePhotoCaptures.UploadInFlightGrace"/>, while a
+    /// received item still holds it open (<see cref="PhotoCaptureFiling.Settled"/>,
+    /// read again here against <see cref="PhotoCaptureBatchCloseRequest.CaseId"/>),
+    /// when a group is asked of a capture that has a Case since, or when the
+    /// capture's note is no longer <see cref="PhotoCaptureBatchCloseRequest.CaseSideNote"/>
+    /// for a batch whose Case side ran. Otherwise
+    /// <see cref="PhotoCaptureBatchClose.Closed"/>: the settle is recorded on
+    /// the capture and the batch's row is written, with the bell owed when
+    /// asked. With a group, the batch's evaluated photographs, and only they,
+    /// become one submission group in the same transaction, its expected
+    /// count the number of them; paperwork and video wait outside it
     /// (operator, 9 November 2026; R803).
     /// </summary>
     Task<PhotoCaptureBatchClosed> CloseBatchAsync(
         Guid captureId,
         int batch,
-        DateTimeOffset nowUtc,
-        PhotoCaptureDeclaredGroup? group,
+        PhotoCaptureBatchCloseRequest request,
         CancellationToken cancellationToken);
 
     // The four staff acts each record who did it (PhotoLinkActs) in the same
@@ -667,37 +772,62 @@ public interface IPhotoCaptureStore
     Task<PhotoCaptureItem?> FindItemAsync(Guid captureId, Guid clientItemId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Settled standing captures with no Case that have since reached one:
-    /// their Vehicle images record merged into one, or their group's members
-    /// were filed on one. Each carries the Case it reached as
-    /// <see cref="PhotoCaptureSettleCandidate.CaseId"/>; the sweep finishes
-    /// the Case-side work and then records the Case on the capture.
+    /// One page, oldest settle first, of the batches whose group's Vehicle
+    /// images record has merged into a Case (its <c>MergedIntoCaseId</c>,
+    /// never the pairing's per-member links) and whose reach is not yet
+    /// recorded, each with that Case and the decision that took the record
+    /// there. A read, in no transaction.
     /// </summary>
-    Task<IReadOnlyList<PhotoCaptureSettleCandidate>> ListSettledReachingCaseAsync(
+    Task<IReadOnlyList<PhotoCaptureBatchReach>> ListBatchesReachingCaseAsync(
         int maximumItems,
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Records the Case on a capture that has none, reading its reference,
-    /// with the routing reason when one is given and
-    /// <paramref name="imagesCompletedAtUtc"/> as its images marker when it
-    /// has none. A capture that already has a Case is left as it is and
+    /// Records that a batch's record reached the Case, in one transaction
+    /// under the capture row's update lock: the batch's Case and reach, its
+    /// bell owed when asked, and, on a capture that has no Case yet, the Case
+    /// and the images marker (the record's merge completed the images). False,
+    /// writing nothing, when the batch's reach was recorded before.
+    /// </summary>
+    Task<bool> RecordBatchReachedAsync(
+        Guid captureId,
+        int batch,
+        Guid caseId,
+        bool bellOwed,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Records the Case the settle matched for a capture's open batch, with
+    /// the routing reason, in one transaction under the capture row's update
+    /// lock, the one the close takes: a capture that has a Case already, or
+    /// whose batch has closed since, is left as it is and
     /// <see cref="PhotoCaptureCaseRecorded.Changed"/> is false.
     /// </summary>
     Task<PhotoCaptureCaseRecorded> RecordCaseAsync(
         Guid captureId,
+        int batch,
         Guid caseId,
-        string? routingReason,
-        DateTimeOffset? imagesCompletedAtUtc,
+        string routingReason,
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Whether every received photograph in the batch has settled: its
-    /// receipt evaluated, or its work failed for good (F-R12); and with
-    /// <paramref name="caseId"/>, also filed on that Case or its association
-    /// since moved elsewhere. Paperwork and video are not waited for.
+    /// The batch's received items, each with what its filing on
+    /// <paramref name="caseId"/> stands at (<see cref="PhotoCaptureItemFiling"/>);
+    /// with no Case, only whether each was evaluated or failed. A read, in no
+    /// transaction; the close reads the same again under its lock.
     /// </summary>
-    Task<bool> AllItemsSettledAsync(Guid captureId, int batch, Guid? caseId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<PhotoCaptureItemFiling>> ListBatchFilingsAsync(
+        Guid captureId,
+        int batch,
+        Guid? caseId,
+        CancellationToken cancellationToken);
+
+    /// <summary>The bells still owed, oldest first. A read, in no transaction.</summary>
+    Task<IReadOnlyList<PhotoCaptureBellOwed>> ListBellsOwedAsync(int maximumItems, CancellationToken cancellationToken);
+
+    /// <summary>Clears a batch's owed bell once it has rung: one statement on the batch's row.</summary>
+    Task ClearBellAsync(Guid captureId, int batch, CancellationToken cancellationToken);
 }
 
 /// <summary>Reads for the staff surfaces.</summary>

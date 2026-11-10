@@ -257,7 +257,13 @@ A batch **settles** once it holds a photo and the sender has pressed
 **Send**, or the link has expired, or staff cancelled it: a cancelled
 link's photos still settle as normal (operator, 9 November 2026; R794). A
 Send with no photos settles nothing. A batch on a Case settles when every
-photo in it has filed in Box (R792); then, on the Case:
+photo in it has filed in Box (R792). A photo whose filing has ended for good
+without filing no longer holds its batch open: its work failed, its link
+was withdrawn or moved to another Case, its filing's replay gave up, or
+Pegasus linked it and the replay window closed. The batch then settles on
+the photos that did file; this is the lead's reading of R792 for a photo
+that can never file (9 November 2026), pending the operator. When at least
+one photo of the batch filed on the Case:
 
 - the Case's images complete (R781;
   [FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)),
@@ -265,18 +271,29 @@ photo in it has filed in Box (R792); then, on the Case:
   photos, and never after staff marked them incomplete (R792);
 - the sender's note is written into the Case's Notes as
   "Customer's note (photo link): …", once; a changed note is appended
-  (R792);
+  (R792), a note sent while the batch settles included;
 - empty Case fields fill from the typed details
   ([Case field filling](#case-field-filling));
 - the Case Engineer's bell rings, **Photos received**, once for each batch
-  that brought photos (R792).
+  that brought photos (R792). The bell is owed in the same step that
+  settles the batch and is cleared once it has rung, so a settle stopped
+  in between rings it on its next run.
 
-A batch whose Case is archived settles with none of these: the photos
-already filed stay (R793). A capture that settled with no Case writes the
-note, fills the fields and files its kept paperwork and video when its
-Vehicle images record reaches a Case, and the Engineer's bell rings once
-then (operator, 9 November 2026; R803, R804); the record's merge completes
-the images ([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)).
+A batch with no photo filed on the Case, and a batch whose Case is
+archived, settles with none of these: the photos already filed stay
+(R793). Each batch of a capture that settled with no Case finishes on its
+own when its Vehicle images record merges into a Case: the note is written,
+the fields fill, that batch's own kept paperwork and video file as Other,
+and the Engineer's bell rings once (operator, 9 November 2026; R803,
+R804); the record's merge completes the images
+([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)). A
+record is taken to reach its Case only by its merge, not by the pairing's
+links before it. The kept files follow the decision that took the record
+there: a member of staff's choice on the record's page files them as that
+member of staff, with the reason their link carries, so they file on any
+Case that is not archived (R790); Pegasus's pairing files them as the
+routing's system work. The batch's reach is recorded once each kept file
+has a receipt and is linked.
 Photos added after a settle form the next batch, matched again when it
 settles; with no Case, it becomes a further Vehicle images record for the
 same registration. A full-size original files as the next version of the same
@@ -309,7 +326,8 @@ other vehicle, paperwork and video) arrives not In report, and the other
 vehicle arrives tagged Third party
 ([FRD-05](frd-05-documents-extraction-and-custody.md#image-tags)). Moving an
 item between the baskets is the In report toggle. Paperwork and video file
-as documents of type Other.
+as documents of type Other, decided by the item's kind: paperwork sent as a
+JPEG or PNG is Other too (operator, 9 November 2026; R803).
 
 On the Case, Files → Images shows a **What they told us** card and the note,
 then the photos in story groups

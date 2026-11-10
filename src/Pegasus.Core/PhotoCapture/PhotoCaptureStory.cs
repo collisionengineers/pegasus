@@ -227,9 +227,14 @@ public static class PhotoCaptureStory
     public static IReadOnlyList<Guid> ArrivalTags(PhotoCaptureItemKind kind) =>
         kind == PhotoCaptureItemKind.OtherVehicle ? [ImageTagVocabulary.ThirdPartyId] : [];
 
-    /// <summary>What a non-image item files as on the Case: paperwork and video are documents of type Other.</summary>
-    public static DocumentSemanticRole? DeclaredDocumentType(PhotoCaptureItemKind kind, string mediaType) =>
-        InstructionEvidenceImagesMediaTypes.IsImage(mediaType) ? null : DocumentSemanticRole.Other;
+    /// <summary>
+    /// What an item files as on the Case, by its kind: paperwork and video are
+    /// documents of type Other, paperwork sent as a JPEG or PNG included; a
+    /// photograph declares none and files as an image (FRD-28; operator,
+    /// 9 November 2026, R803).
+    /// </summary>
+    public static DocumentSemanticRole? DeclaredDocumentType(PhotoCaptureItemKind kind) =>
+        IsPhotographKind(kind) ? null : DocumentSemanticRole.Other;
 
     public static bool IsPhotographKind(PhotoCaptureItemKind kind) => kind is not (PhotoCaptureItemKind.Paperwork or PhotoCaptureItemKind.Video);
 
@@ -264,12 +269,4 @@ public static class PhotoCaptureStory
         var original = Path.GetExtension(originalFileName ?? string.Empty);
         return original.Length is > 0 and <= 5 ? original.ToLowerInvariant() : string.Empty;
     }
-}
-
-/// <summary>The media types a photograph has, the one place the capture asks the question.</summary>
-internal static class InstructionEvidenceImagesMediaTypes
-{
-    public static bool IsImage(string mediaType) =>
-        string.Equals(mediaType, "image/jpeg", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(mediaType, "image/png", StringComparison.OrdinalIgnoreCase);
 }

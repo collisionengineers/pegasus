@@ -498,10 +498,9 @@ public sealed class ReceivePhotoCaptureItem(
         {
             // The item's batch and declared Case are the store's, taken under
             // the capture's lock, not the capture as this request read it, so
-            // a retry declares what its first attempt did. A document type is
-            // declared only with the Case it files on: intake refuses one
-            // without the other, and a capture with no Case has none to
-            // declare (FRD-28).
+            // a retry declares what its first attempt did. Its document type
+            // is its kind's, with or without a Case: paperwork and video file
+            // as Other whenever they reach one (FRD-28; R803).
             var declaredCaseId = item.DeclaredCaseId;
             var receivedIntake = await intake.ReceiveStreamedAsync(
                 new Intake.StreamedIntakeSource(
@@ -513,7 +512,7 @@ public sealed class ReceivePhotoCaptureItem(
                     Intake.IntakeActorIdentity.PhotoCapture(capture.Id),
                     new(Intake.IntakeSourceChannel.PhotoCapture, PhotoCaptureIntakeRules.MemberToken(capture.Id, item.Batch, item.Ordinal)),
                     declaredCaseId,
-                    declaredCaseId is null ? null : PhotoCaptureStory.DeclaredDocumentType(request.Kind, request.MediaType)),
+                    PhotoCaptureStory.DeclaredDocumentType(item.Kind)),
                 $"photo-capture-item:{item.Id:N}",
                 cancellationToken);
             await captures.RecordItemReceiptAsync(item.Id, receivedIntake.StagedReceiptId, cancellationToken);

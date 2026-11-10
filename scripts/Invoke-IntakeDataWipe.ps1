@@ -55,7 +55,7 @@ $wipeTables = @(
     'IntakeReceiptEvents', 'IntakeReceipts', 'IntakeSearchDocuments', 'IntakeSourceCandidates',
     'IntakeStagedReceipts', 'IntakeSubmissionGroupHistory', 'IntakeSubmissionGroupMembers',
     'IntakeSubmissionGroups', 'IntakeWorkItems',
-    'PhotoCaptureItems', 'PhotoCaptures', 'PhotoCaptureTokens',
+    'PhotoCaptureBatches', 'PhotoCaptureItems', 'PhotoCaptures', 'PhotoCaptureTokens',
     'PrincipalSubmissions', 'ProblemReports',
     'RetainedInstructionAnalyses', 'RetainedMailboxAttachments', 'RetainedMailboxMessages',
     'SentEmailEvidence', 'StaffMailSendOperations', 'StaffNotifications', 'StandaloneAuditEvidence',

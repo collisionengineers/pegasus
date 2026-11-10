@@ -143,6 +143,26 @@ internal static class PhotoCaptureModelConfiguration
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        builder.Entity<PhotoCaptureBatchEntity>(entity =>
+        {
+            entity.ToTable("PhotoCaptureBatches");
+            entity.HasKey(item => new { item.CaptureId, item.Batch });
+            // The reach finds a batch by its group's record; a bell still owed
+            // is read on every run, so only those rows are indexed.
+            entity.HasIndex(item => item.SubmissionGroupId)
+                .IsUnique()
+                .HasFilter("[SubmissionGroupId] IS NOT NULL");
+            entity.HasIndex(item => item.BellOwedAtUtc).HasFilter("[BellOwedAtUtc] IS NOT NULL");
+            entity.HasOne<PhotoCaptureEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.CaptureId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CaseEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         builder.Entity<StandingPhotoLinkAddressEntity>(entity =>
         {
             entity.ToTable("StandingPhotoLinkAddresses");
