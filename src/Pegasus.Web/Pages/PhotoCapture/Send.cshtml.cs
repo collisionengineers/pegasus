@@ -195,12 +195,18 @@ public sealed class SendModel(
             return Page();
         }
 
-        // The browser asks for the Type before a quick link is sent; a post
-        // without one is not the page's own.
-        if ((Mode == PhotoCaptureMode.Quick && QuickLinkFor is null)
-            || (QuickLinkFor is { } posted && !Enum.IsDefined(posted)))
+        // A Type that is not one of the page's own is not the page's post; a
+        // Quick link sent without one is refused beside the Type (operator,
+        // 10 November 2026; R868), as the browser also asks for it first.
+        if ((QuickLinkFor is { } posted && !Enum.IsDefined(posted))
+            || ModelState.GetFieldValidationState(nameof(QuickLinkFor)) == Microsoft.AspNetCore.Mvc.ModelBinding.ModelValidationState.Invalid)
         {
             return BadRequest();
+        }
+
+        if (Mode == PhotoCaptureMode.Quick && QuickLinkFor is null)
+        {
+            ModelState.AddModelError(nameof(QuickLinkFor), Labels.ChooseAQuickLinkType);
         }
 
         var edited = BodyEdited;

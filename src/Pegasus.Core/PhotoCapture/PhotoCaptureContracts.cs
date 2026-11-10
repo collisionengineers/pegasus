@@ -577,6 +577,32 @@ public static class PhotoLinkActs
 public sealed record PhotoLinkAct(string Kind, DateTimeOffset AtUtc, string? ActorName);
 
 /// <summary>
+/// The action history events a change to a standing link writes, as every
+/// other change to a contact writes one (FRD-04; operator, 10 November 2026;
+/// R846). The stored codes read as the operator's names on Administration ›
+/// Logs: "Photo link created", "Photo link paused" and so on.
+/// </summary>
+public static class StandingPhotoLinkActs
+{
+    public const string Created = "photo_link_created";
+    public const string Paused = "photo_link_paused";
+    public const string Resumed = "photo_link_resumed";
+    public const string Replaced = "photo_link_replaced";
+    public const string Retired = "photo_link_retired";
+    public const string DefaultsSaved = "photo_link_defaults_saved";
+    public const string AddressAdded = "photo_link_address_added";
+    public const string AddressChanged = "photo_link_address_changed";
+    public const string AddressRemoved = "photo_link_address_removed";
+}
+
+/// <summary>
+/// Who changed a standing link, under which operation key, and when: what the
+/// change's action history event records (R846). A key already recorded for
+/// the same change of the same link changes nothing.
+/// </summary>
+public sealed record StandingPhotoLinkChange(ActionActor Actor, string OperationKey, DateTimeOffset AtUtc);
+
+/// <summary>
 /// Where a capture's items sit on a Case, for the Files → Images story
 /// (FRD-16). <see cref="StandingLinkIsRepairer"/> is what the required items
 /// need to know (a repairer's own staff owe the VIN), so the Case page derives
@@ -862,6 +888,13 @@ public interface IStandingPhotoLinkStore
 
     Task<StandingPhotoLink?> FindWebsiteAsync(CancellationToken cancellationToken);
 
+    // Each write below is one change of the link, saved with the one action
+    // history event it writes (StandingPhotoLinkActs; R846), its before and
+    // after holding the fields it changed. A change whose operation key is
+    // already recorded for the same change of the same link writes nothing
+    // and answers the link as it is; a create whose key is recorded is
+    // refused as AlreadyExists, the link being there already.
+
     Task<StandingPhotoLink> CreateAsync(
         StandingPhotoLinkKind kind,
         Guid? organizationId,
@@ -870,8 +903,7 @@ public interface IStandingPhotoLinkStore
         bool liveCameraOnly,
         int linkLifetimeDays,
         bool originalsInBackground,
-        ActionActor actor,
-        DateTimeOffset createdAtUtc,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken);
 
     Task<StandingPhotoLink> UpdateDefaultsAsync(
@@ -881,19 +913,21 @@ public interface IStandingPhotoLinkStore
         bool liveCameraOnly,
         int linkLifetimeDays,
         bool originalsInBackground,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken);
 
-    Task<StandingPhotoLink> SetPausedAsync(Guid id, long expectedVersion, DateTimeOffset? pausedAtUtc, CancellationToken cancellationToken);
+    /// <summary>Pauses the link from the change's time, or resumes it.</summary>
+    Task<StandingPhotoLink> SetPausedAsync(Guid id, long expectedVersion, bool paused, StandingPhotoLinkChange change, CancellationToken cancellationToken);
 
     /// <summary>Ends the link for good: its slug answers like an unknown one and the lookups skip it (R796).</summary>
-    Task<StandingPhotoLink> SetRetiredAsync(Guid id, long expectedVersion, DateTimeOffset retiredAtUtc, CancellationToken cancellationToken);
+    Task<StandingPhotoLink> SetRetiredAsync(Guid id, long expectedVersion, StandingPhotoLinkChange change, CancellationToken cancellationToken);
 
     /// <summary>
     /// Retires the slug and issues a new one; the old slug answers like an
     /// unknown one from then on. A slug another link holds is refused as
     /// <see cref="StandingPhotoLinkError.SlugTaken"/>.
     /// </summary>
-    Task<StandingPhotoLink> ReplaceSlugAsync(Guid id, long expectedVersion, string newSlug, DateTimeOffset replacedAtUtc, CancellationToken cancellationToken);
+    Task<StandingPhotoLink> ReplaceSlugAsync(Guid id, long expectedVersion, string newSlug, StandingPhotoLinkChange change, CancellationToken cancellationToken);
 
     /// <summary>
     /// The saved addresses the link offers on its form: the contact's own
@@ -914,7 +948,7 @@ public interface IStandingPhotoLinkStore
         long expectedVersion,
         string name,
         string address,
-        DateTimeOffset addedAtUtc,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken);
 
     Task<StandingPhotoLink> ChangeAddressAsync(
@@ -923,12 +957,14 @@ public interface IStandingPhotoLinkStore
         Guid addressId,
         string name,
         string address,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken);
 
     Task<StandingPhotoLink> RemoveAddressAsync(
         Guid id,
         long expectedVersion,
         Guid addressId,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken);
 
     /// <summary>How many captures the standing link started since <paramref name="sinceUtc"/>, for the daily mint cap.</summary>

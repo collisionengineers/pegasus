@@ -535,8 +535,7 @@ public sealed class PhotoCaptureSecurityTests
             bool liveCameraOnly,
             int linkLifetimeDays,
             bool originalsInBackground,
-            ActionActor actor,
-            DateTimeOffset createdAtUtc,
+            StandingPhotoLinkChange change,
             CancellationToken cancellationToken) => throw Outside();
 
         public Task<StandingPhotoLink> UpdateDefaultsAsync(
@@ -546,25 +545,27 @@ public sealed class PhotoCaptureSecurityTests
             bool liveCameraOnly,
             int linkLifetimeDays,
             bool originalsInBackground,
+            StandingPhotoLinkChange change,
             CancellationToken cancellationToken) => throw Outside();
 
         public Task<StandingPhotoLink> SetPausedAsync(
             Guid id,
             long expectedVersion,
-            DateTimeOffset? pausedAtUtc,
+            bool paused,
+            StandingPhotoLinkChange change,
             CancellationToken cancellationToken) => throw Outside();
 
         public Task<StandingPhotoLink> SetRetiredAsync(
             Guid id,
             long expectedVersion,
-            DateTimeOffset retiredAtUtc,
+            StandingPhotoLinkChange change,
             CancellationToken cancellationToken) => throw Outside();
 
         public Task<StandingPhotoLink> ReplaceSlugAsync(
             Guid id,
             long expectedVersion,
             string newSlug,
-            DateTimeOffset replacedAtUtc,
+            StandingPhotoLinkChange change,
             CancellationToken cancellationToken) => throw Outside();
 
         public Task<IReadOnlyList<StandingPhotoLinkAddress>> ListAddressesAsync(Guid standingLinkId, CancellationToken cancellationToken) =>
@@ -578,7 +579,7 @@ public sealed class PhotoCaptureSecurityTests
             long expectedVersion,
             string name,
             string address,
-            DateTimeOffset addedAtUtc,
+            StandingPhotoLinkChange change,
             CancellationToken cancellationToken) => throw Outside();
 
         public Task<StandingPhotoLink> ChangeAddressAsync(
@@ -587,12 +588,14 @@ public sealed class PhotoCaptureSecurityTests
             Guid addressId,
             string name,
             string address,
+            StandingPhotoLinkChange change,
             CancellationToken cancellationToken) => throw Outside();
 
         public Task<StandingPhotoLink> RemoveAddressAsync(
             Guid id,
             long expectedVersion,
             Guid addressId,
+            StandingPhotoLinkChange change,
             CancellationToken cancellationToken) => throw Outside();
 
         public Task<int> CountMintedSinceAsync(Guid standingLinkId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) =>
