@@ -309,9 +309,18 @@ public sealed class EfStandingPhotoLinkStore(
 
     private static void Add(List<StandingPhotoLinkAddress> addresses, string name, string? address, string? postcode)
     {
-        var parts = new[] { address, postcode }
+        // An address that already ends with its postcode is not given it twice.
+        var street = address?.Trim();
+        var code = postcode?.Trim();
+        if (!string.IsNullOrEmpty(street) && !string.IsNullOrEmpty(code)
+            && street.EndsWith(code, StringComparison.OrdinalIgnoreCase))
+        {
+            code = null;
+        }
+
+        var parts = new[] { street, code }
             .Where(part => !string.IsNullOrWhiteSpace(part))
-            .Select(part => part!.Trim())
+            .Select(part => part!)
             .ToArray();
         if (parts.Length == 0)
         {
