@@ -26,7 +26,7 @@
 
 This document owns Pegasus's own guided capture, the product idea of issue
 #1683, built under new capability identities (operator, 9 November 2026;
-R773 to R785). It serves the PRD outcomes for image-led work and complete
+R773 to R817). It serves the PRD outcomes for image-led work and complete
 images before Review, while keeping its exclusions: no SMS integration
 (BND-04), no persistent customer portal (BND-06), no automatic outbound
 message (MAIL-19) and no customer account (ACC-12)
@@ -317,7 +317,10 @@ again after 48; when it was started but not finished after 4 quiet hours;
 when something is missing once it was sent; and when it is about to expire,
 within one day. Pegasus never sends a reminder (R773; MAIL-19 stands):
 **Links we sent** shows what is due, and **Remind** or **Resend** is one
-click by a member of staff. **Log call** records a phone call.
+click by a member of staff. **Log call** records a phone call. On **Coming
+in**, **Ask for it** is the same click for a capture not sent from a Case: it
+makes a fresh link and counts as a reminder (operator, 9 November 2026;
+R806, R816).
 
 ### The photo link e-mail
 
@@ -388,8 +391,10 @@ with no count (R774;
 - **Links we sent**: Case links, with Vehicle, Customer and mobile, Case,
   From, Sent by, Status, Photos and Next reminder, and the actions Resend,
   Remind, Log call and View photos, with **Cancel link** on each live row.
-  From is the Case's Principal (operator, 9 November 2026; R805). Remind is
-  offered only while the link is live.
+  From is the Case's Principal (operator, 9 November 2026; R805), with
+  **Sent on to their customer** under it once a quick link's firm has
+  handed it on (operator, 9 November 2026; R798). Remind is offered only
+  while the link is live.
 
 Each tab shows how many captures it holds (operator, 9 November 2026;
 R806).
@@ -489,26 +494,55 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
   stands. A link sent from a Case keeps its Case's registration, which it
   shows read-only ([Photo links](#photo-links)), and a typed one is ignored.
 - **Feature off.** With `Features:PhotoCapture` off, `/c`, `/s`, `/capture`
-  and `/PhotoCapture` answer 404, and the rail item, Send photo link and the
-  Photo links tab are absent
+  and `/PhotoCapture` answer 404, and the rail item, Send photo link, the
+  Photo links tab and Send a photo link's settings in Administration ›
+  Configuration are absent
   ([configuration](../engineering/configuration.md#photo-capture)).
 
 ## Acceptance evidence
 
-Core tests cover the token and slug shapes, the required items, the derived
-statuses and due reminders, the story order and names, routing and the
-settle. Integration tests cover the public routes' one unavailable answer,
-the security headers and limits, filing on a Case and the Vehicle images
-record a settled capture becomes. The staff pages are signed off on the
-pull request's screenshots (R778). Deployment and live acceptance are
-separate evidence tiers
+Core tests in `tests/Pegasus.Core.Tests/PhotoCapture/` cover the token and
+slug shapes, the damage areas, the required items, the derived statuses, due
+reminders and pairing, the story order and names, the intake rules,
+the Case fields a capture offers, which tokens record Opened, receiving an
+item, recording the details and routing, minting from a standing link, a
+quick link's Type, the hand-on of a quick Case link, standing link
+administration (retiring, the typed website address, saved addresses and an
+inactive contact) and the settle; Send's two settings are covered with the
+workflow configuration in `tests/Pegasus.Core.Tests/Identity/AdministrationPolicyTests.cs`.
+Integration tests hold the rest:
+
+- `PhotoCaptureSecurityTests`: the one unavailable answer, byte for byte,
+  for an unknown, expired, revoked, paused, archived, retired or
+  inactive-contact link, with the capture headers and no cookie; a dead
+  link's oversized upload; the page rate limit; and the feature switch;
+- `PhotoCaptureWebTests`: a Case link's photos filing on the Case (story
+  name, baskets, the issuer's decision, a report-sent Case, images not
+  completed by the first photo, the loose damage photo, originals and their
+  bytes, the ignored typed registration, one link's token not reaching
+  another's items), an archived Case's dead link, and the staff pages (From,
+  Remind and Cancel on live rows, who acted, Retire, the website link's
+  typed address and defaults, the tab counts, No case yet, Ask for it, the
+  Case page's status and Resend, a kept file opening);
+- `StandingCaptureWebTests`: a standing capture opened as it starts, waiting
+  with no Case and never Unidentified, taking paperwork with no Case, routed
+  until its first photo, taking no originals with no Case, filing on the one
+  Case its registration matches, the hand-off's session token, and an item
+  joining the open batch.
+
+`tests/Pegasus.ArchitectureTests/CaptureAssetContractTests.cs` holds the
+app's assets to the security policy (no inline style, handler or script
+address), its upload bounds to the API's, its unavailable and done-page
+sentences, and its file inputs. Nothing beyond these is claimed as tested.
+The staff pages are signed off on the pull request's screenshots (R778).
+Deployment and live acceptance are separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 
 - Capabilities: `EXT-21`, `INT-34`, `MAIL-27`, `UI-20` in
   [capabilities](../capabilities.md).
-- Rulings: R773 to R785 in [rulings](../rulings.md).
+- Rulings: R773 to R817 in [rulings](../rulings.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration),
   [FRD-05](frd-05-documents-extraction-and-custody.md),

@@ -79,11 +79,14 @@ Guided photo capture ([FRD-28](../frd/frd-28-guided-photo-capture.md),
 
 | Setting | Effect |
 | --- | --- |
-| `Features:PhotoCapture` | The composition gate. Off, nothing of photo capture is registered: `/c`, `/s`, `/capture` and `/PhotoCapture` answer 404 before routing, and the rail item, the Case ribbon's Send photo link and the contact's Photo links tab are absent. Bicep sets it on Web and on the Worker, which settles captures. |
+| `Features:PhotoCapture` | The composition gate. Off, nothing of photo capture is registered: `/c`, `/s`, `/capture` and `/PhotoCapture` answer 404 before routing, and the rail item, the Case ribbon's Send photo link, the contact's Photo links tab and Send a photo link's settings in Administration › Configuration are absent. Bicep sets it on Web and on the Worker, which settles captures. |
 | `PhotoCapture:PublicOrigin` | The absolute `https` origin printed in photo links and standing links. Required when the gate is on. Production's is `https://pegasus-prod-web-252ow37gij.azurewebsites.net/` (R779); the hosted test instance's is its `:8443` Funnel origin (R785). Bicep sets it on Web. |
 
 Neither is a secret, so there is no Key Vault change. The capture limits are
-constants in Core, not configuration.
+constants in Core, not configuration. Send a photo link's starting values and
+the lifetimes it offers are Administration › Configuration settings an
+Administrator changes, not deployment settings
+([FRD-17](../frd/frd-17-administration-workspace.md#workflow-configuration)).
 
 ## Local opt-in features
 

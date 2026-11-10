@@ -55,8 +55,9 @@ Case at the same route renders as the Triage Case page instead
   reads "Held · review on {date}" when the hold has a review date;
 - **Edit Case**, or while editing the Editing badge, its status word
   (Saving…, Saved {time}, or why the last change was not saved) and **Done**;
-- **Send photo link**, which opens `/PhotoCapture/Send/{caseId}` to send the
-  customer a photo link for this Case, absent while `Features:PhotoCapture`
+- **Send photo link**, which opens `/PhotoCapture/Send/{caseId}` to send a
+  photo link for this Case, to the customer or, as a quick link, to a firm
+  (operator, 9 November 2026; R808), absent while `Features:PhotoCapture`
   is off (operator, 9 November 2026; R773;
   [FRD-28](frd-28-guided-photo-capture.md#photo-links));
 - the one **Actions** menu.

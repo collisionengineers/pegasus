@@ -289,7 +289,8 @@ November 2026; R796), its saved addresses, offered on its form as
 inspection locations (operator, 9 November 2026; R806, R815), and the
 defaults its captures take, which are the mode
 of a link sent on to a customer, Live camera only, the lifetime and whether
-originals follow. The link only starts captures; its behaviour is
+originals follow. The link only starts captures, and none while the
+contact is inactive (operator, 9 November 2026; R796); its behaviour is
 [FRD-28](frd-28-guided-photo-capture.md#standing-photo-links).
 
 Every change is a permanent action-history event with actor, time, operation
