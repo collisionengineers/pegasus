@@ -31,6 +31,9 @@ namespace Pegasus.Worker;
 /// tidy (ADR-0071), a third job that was never on its own timer. On every other
 /// minute it runs one folded job, the pending-wake poll: each mailbox whose wake
 /// found it leased or not yet due is polled then, not at the next fallback poll.
+/// When guided photo capture is on, every minute first runs the photo capture
+/// settle, straight after the dispatch, so a Case moves within about a minute
+/// of Send (operator, 10 November 2026; R838).
 /// </summary>
 /// <remarks>
 /// The dispatch runs first and nothing below delays it. Each folded job
@@ -94,16 +97,18 @@ public sealed partial class PendingWorkRecoveryFunction(
         var foldedFailures = new List<ExceptionDispatchInfo>();
         try
         {
+            if (photoCaptureGate is { Enabled: true } && settlePhotoCaptures is not null)
+            {
+                // A photo link's capture settles here on every minute (FRD-28):
+                // once the sender has pressed Send, or the link ran out or was
+                // cancelled with photos, and every photo has filed, the Case
+                // moves within about a minute (operator, 10 November 2026; R838).
+                await RunFoldedJobAsync("photo-capture settle", RunPhotoCaptureSettleAsync, foldedFailures, cancellationToken);
+            }
+
             if (runFoldedJobs)
             {
                 await RunFoldedJobAsync("due-work sweep", RunDueWorkSweepAsync, foldedFailures, cancellationToken);
-                if (photoCaptureGate is { Enabled: true } && settlePhotoCaptures is not null)
-                {
-                    // A photo link's capture settles here (FRD-28): once the
-                    // sender has pressed Send, or the link ran out or was
-                    // cancelled with photos, and every photo has filed.
-                    await RunFoldedJobAsync("photo-capture settle", RunPhotoCaptureSettleAsync, foldedFailures, cancellationToken);
-                }
                 await RunFoldedJobAsync("approved-inbox recovery", RunInboxRecoveryAsync, foldedFailures, cancellationToken);
                 await RunFoldedJobAsync("sent-report instruction tidy", RunInstructionTidyAsync, foldedFailures, cancellationToken);
             }

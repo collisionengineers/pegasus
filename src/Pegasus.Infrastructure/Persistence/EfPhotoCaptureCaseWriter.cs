@@ -56,23 +56,27 @@ public sealed partial class EfPhotoCaptureCaseWriter(
         var capture = await context.PhotoCaptures
             .SingleOrDefaultAsync(item => item.Id == captureId, cancellationToken)
             ?? throw new KeyNotFoundException("The photo link was not found.");
-        if (capture.ImagesCompletedAtUtc is not null)
-        {
-            return;
-        }
-
         var now = timeProvider.GetUtcNow();
-        capture.ImagesCompletedAtUtc = now;
-        capture.Version++;
         var workflow = await context.CaseWorkflows
             .Include(item => item.Case)
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
-        // A Triage Case has no workflow and records no image completeness.
-        if (workflow is null
-            || workflow.ArchivedAtUtc is not null
-            || !Enum.TryParse<CaseLifecycleState>(workflow.State, ignoreCase: false, out var state)
-            || CaseLifecycleRules.IsTerminal(state)
-            || workflow.Case.ImagesComplete
+        // A Triage Case has no workflow and records no image completeness,
+        // and a closed or archived Case takes no system completion; the
+        // capture's marker is recorded all the same (R792, R841).
+        var completes = PhotoCaptureImages.Completes(
+            capture.ImagesCompletedAtUtc,
+            workflow?.Case.ImagesComplete ?? false,
+            takesSystemCompletion: workflow is { ArchivedAtUtc: null }
+                && Enum.TryParse<CaseLifecycleState>(workflow.State, ignoreCase: false, out var state)
+                && !CaseLifecycleRules.IsTerminal(state));
+        if (capture.ImagesCompletedAtUtc is null)
+        {
+            capture.ImagesCompletedAtUtc = now;
+            capture.Version++;
+        }
+
+        if (!completes
+            || workflow is null
             || await context.CaseWorkflowEvents.AsNoTracking()
                 .AnyAsync(item => item.CaseId == caseId && item.OperationKey == operationKey, cancellationToken))
         {

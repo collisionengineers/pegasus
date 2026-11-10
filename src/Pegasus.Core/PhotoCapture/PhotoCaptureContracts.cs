@@ -125,10 +125,11 @@ public sealed record PhotoCaptureDetails(
 /// add-only until it expires, so the same link reopened adds to this record.
 /// <see cref="QuickLinkFor"/> is who a quick link sent from a Case is for
 /// (R808); null for every other link.
-/// <see cref="ImagesCompletedAtUtc"/> is when the capture's settle first
-/// completed, or found complete, its Case's images: once per capture, so a
-/// later batch never completes them again after staff marked them incomplete
-/// (operator, 9 November 2026; R792).
+/// <see cref="ImagesCompletedAtUtc"/> is when the capture's settle, or the
+/// merge of one of its records, first completed, or found complete, its
+/// Case's images: once per capture, so a later batch or record never
+/// completes them again after staff marked them incomplete (operator,
+/// 9 November 2026; R792; 10 November 2026; R841).
 /// </summary>
 public sealed record PhotoCapture(
     Guid Id,
@@ -388,7 +389,9 @@ public sealed record PhotoCaptureDeclaredGroup(string Registration, DateOnly? In
 /// <summary>
 /// The association a received item's receipt holds, if any: the Case, whether
 /// it is still active, whether Pegasus made it (system work files only on a
-/// Case open to it) and when it was made.
+/// Case open to it, and only within the replay window; a link that follows a
+/// record's merge files as a member of staff's does and is not counted as
+/// Pegasus's, R844) and when it was made.
 /// </summary>
 public sealed record PhotoCaptureItemLink(Guid CaseId, bool IsActive, bool BySystem, DateTimeOffset LinkedAtUtc);
 
@@ -785,9 +788,9 @@ public interface IPhotoCaptureStore
     /// <summary>
     /// Records that a batch's record reached the Case, in one transaction
     /// under the capture row's update lock: the batch's Case and reach, its
-    /// bell owed when asked, and, on a capture that has no Case yet, the Case
-    /// and the images marker (the record's merge completed the images). False,
-    /// writing nothing, when the batch's reach was recorded before.
+    /// bell owed when asked, and, on a capture that has no Case yet, the Case.
+    /// The images marker is not its: the record's merge wrote it (R841).
+    /// False, writing nothing, when the batch's reach was recorded before.
     /// </summary>
     Task<bool> RecordBatchReachedAsync(
         Guid captureId,

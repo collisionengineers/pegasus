@@ -100,6 +100,9 @@ public sealed class AddTriageNoteTests
         public Task<bool> LinkAutomaticallyAsync(
             TriageCaseLinkCandidate candidate, ActionActor actor, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+        public Task<bool> AddSystemNoteAsync(
+            Guid triageCaseId, ActionActor actor, string operationKey, string note, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public TriageOperationReplay? Replay { get; init; }
 

@@ -26,7 +26,7 @@ namespace Pegasus.IntegrationTests;
 /// Worker. The settle tests run the Worker's settle in process as well.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class StandingCaptureWebTests
+public sealed partial class StandingCaptureWebTests
 {
     private const string Api = StandingCaptureDriver.Api;
     private const string UnheldRegistration = "ZZ99 QQQ";
@@ -841,11 +841,12 @@ public sealed class StandingCaptureWebTests
 
     /// <summary>
     /// A record Pegasus paired with a Case takes its batch's kept paperwork as
-    /// the routing's system work, not as any member of staff's decision; on an
-    /// open Case it files as Other and the bell rings once.
+    /// the system work that follows the record's merge, not as any member of
+    /// staff's decision, so it files wherever the photos went (operator,
+    /// 10 November 2026; R844); it files as Other and the bell rings once.
     /// </summary>
     [Fact]
-    public async Task APegasusPairingFilesTheKeptPaperworkAsTheRoutingsWork()
+    public async Task APegasusPairingFilesTheKeptPaperworkAsTheWorkThatFollowsTheMerge()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -877,7 +878,7 @@ public sealed class StandingCaptureWebTests
         var association = await StandingCaptureDriver.AssociationAsync(factory, paperworkReceipt);
         Assert.Equal(caseId, association.CaseId);
         Assert.Equal(nameof(Pegasus.Core.Identity.ActorKind.SystemWorker), association.ActorKind);
-        Assert.Equal(PhotoCaptureIntakeRules.RoutingActorId, association.ActorSubjectId);
+        Assert.Equal(PhotoCaptureIntakeRules.ReachActorId, association.ActorSubjectId);
         Assert.True(await StandingCaptureDriver.FiledOnAsync(factory, paperworkReceipt, caseId));
         Assert.Equal(DocumentSemanticRole.Other, await KeptFileRoleAsync(factory, caseId, paperwork.FileName));
         Assert.Equal(1, await StandingCaptureDriver.PhotosReceivedCountAsync(factory, caseId));
