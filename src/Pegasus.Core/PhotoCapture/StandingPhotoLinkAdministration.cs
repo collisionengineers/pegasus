@@ -14,7 +14,9 @@ public enum StandingPhotoLinkError
     /// <summary>A typed website address that is not 6 to 60 lowercase letters, digits and hyphens.</summary>
     InvalidSlug,
     /// <summary>A typed website address a link already holds, a retired one included.</summary>
-    SlugTaken
+    SlugTaken,
+    /// <summary>A saved address with no name or no address, or one longer than a contact's.</summary>
+    InvalidAddress
 }
 
 public sealed class StandingPhotoLinkException(StandingPhotoLinkError error)
@@ -120,6 +122,56 @@ public sealed class StandingPhotoLinkAdministration(
         return standingLinks.SetRetiredAsync(id, expectedVersion, timeProvider.GetUtcNow(), cancellationToken);
     }
 
+    /// <summary>
+    /// Saves an address on a contact's link (R806): shown as an inspection
+    /// location on its form after the ones taken from the contact (R815).
+    /// The website link has no contact and keeps no addresses.
+    /// </summary>
+    public async Task<StandingPhotoLink> AddAddressAsync(
+        ActionActor actor,
+        Guid id,
+        long expectedVersion,
+        string? name,
+        string? address,
+        CancellationToken cancellationToken)
+    {
+        Require(actor);
+        var (savedName, savedAddress) = SavedAddress(name, address);
+        await RequireContactLinkAsync(id, cancellationToken);
+        return await standingLinks.AddAddressAsync(
+            id, expectedVersion, savedName, savedAddress, timeProvider.GetUtcNow(), cancellationToken);
+    }
+
+    /// <summary>Changes an address saved on the tab; the ones taken from the contact are not the tab's to change (R815).</summary>
+    public async Task<StandingPhotoLink> ChangeAddressAsync(
+        ActionActor actor,
+        Guid id,
+        long expectedVersion,
+        Guid addressId,
+        string? name,
+        string? address,
+        CancellationToken cancellationToken)
+    {
+        Require(actor);
+        var (savedName, savedAddress) = SavedAddress(name, address);
+        await RequireContactLinkAsync(id, cancellationToken);
+        return await standingLinks.ChangeAddressAsync(
+            id, expectedVersion, addressId, savedName, savedAddress, cancellationToken);
+    }
+
+    /// <summary>Removes an address saved on the tab (R815).</summary>
+    public async Task<StandingPhotoLink> RemoveAddressAsync(
+        ActionActor actor,
+        Guid id,
+        long expectedVersion,
+        Guid addressId,
+        CancellationToken cancellationToken)
+    {
+        Require(actor);
+        await RequireContactLinkAsync(id, cancellationToken);
+        return await standingLinks.RemoveAddressAsync(id, expectedVersion, addressId, cancellationToken);
+    }
+
     public Task<StandingPhotoLink> UpdateDefaultsAsync(
         ActionActor actor,
         Guid id,
@@ -138,6 +190,31 @@ public sealed class StandingPhotoLinkAdministration(
 
         return standingLinks.UpdateDefaultsAsync(
             id, expectedVersion, forwardedMode, liveCameraOnly, linkLifetimeDays, originalsInBackground, cancellationToken);
+    }
+
+    /// <summary>A saved address as stored: both parts trimmed and present, within a contact's own limits.</summary>
+    private static (string Name, string Address) SavedAddress(string? name, string? address)
+    {
+        var trimmedName = name?.Trim();
+        var trimmedAddress = address?.Trim();
+        if (string.IsNullOrEmpty(trimmedName)
+            || string.IsNullOrEmpty(trimmedAddress)
+            || trimmedName.Length > Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumNameLength
+            || trimmedAddress.Length > Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumAddressLength)
+        {
+            throw new StandingPhotoLinkException(StandingPhotoLinkError.InvalidAddress);
+        }
+
+        return (trimmedName, trimmedAddress);
+    }
+
+    private async Task RequireContactLinkAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var link = await standingLinks.GetAsync(id, cancellationToken);
+        if (link is not { Kind: StandingPhotoLinkKind.Contact })
+        {
+            throw new StandingPhotoLinkException(StandingPhotoLinkError.NotFound);
+        }
     }
 
     /// <summary>

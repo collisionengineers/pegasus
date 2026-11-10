@@ -55,8 +55,12 @@ The customer's name, accident date and mobile start from the Case and may
 be changed; the e-mail is typed, because a Case holds no customer e-mail.
 Staff choose the mode, **guided** (a page per step, for a customer) or
 **quick** (guidance inside the camera, for a firm's staff), **Live camera
-only**, the lifetime, 3, 7 (the default) or 14 days, and whether full-size
-originals follow in the background. Live camera only covers the vehicle
+only**, the lifetime, 3, 7 or 14 days, and whether full-size originals
+follow in the background. Send starts on the mode, the Live camera only and
+originals choices and the lifetime an Administrator sets in Administration ›
+Configuration, and offers only the lifetimes set there: guided, both on and
+7 days of all three until they are changed (operator, 9 November 2026; R813,
+R817). Live camera only covers the vehicle
 photos: the scene and other-vehicle photos, paperwork and the walk-around
 video can always come from the camera roll, as in the handover's app (R778;
 9 November 2026). The link goes by e-mail, by Copy link, or both (R773):
@@ -95,6 +99,12 @@ takes, Live camera only, the lifetime and the originals choice. The one
 website link, for private customers, is managed by Administrators from the
 Photo capture page with the same controls and defaults, less the mode,
 because its captures are guided (operator, 9 November 2026; R797).
+
+The tab's **Saved addresses** are offered on the firm's form as its
+inspection locations: first those taken from the contact, its own address or
+a Principal's inspection locations, which stay read-only, then any added on
+the tab, the only ones that can be edited or removed (operator, 9 November
+2026; R806, R815). The website link has no contact and keeps none.
 
 A standing link is `/s/{slug}`. A contact's slug is 12 Crockford base32
 characters. The website's is the readable one the Administrator types: 6 to
@@ -403,7 +413,10 @@ of those records has reached it.
 | Lifetime | 3, 7 (default) or 14 days |
 
 Photos are JPEG or PNG; paperwork is PDF, JPEG or PNG; video is MP4 or MOV.
-The limits are constants, not configuration.
+The limits are constants, not configuration, except which of the three
+lifetimes Send offers and the one it starts on, which an Administrator sets
+in Administration › Configuration; Extend and a contact's link defaults keep
+all three (operator, 9 November 2026; R813, R817).
 
 ## States and transitions
 

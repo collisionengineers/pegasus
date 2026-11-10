@@ -104,6 +104,27 @@ public sealed record CaseWorkflowConfiguration(
     /// <summary>An AI job in Draft ready is due this many days after the draft was written.</summary>
     public int AiDraftTargetDays { get; init; } = 1;
 
+    /// <summary>The mode Send a photo link starts on (operator, 9 November 2026; R813).</summary>
+    public Pegasus.Core.PhotoCapture.PhotoCaptureMode PhotoLinkStartMode { get; init; } =
+        Pegasus.Core.PhotoCapture.PhotoCaptureMode.Guided;
+
+    /// <summary>Whether Send starts with Live camera only on (R813).</summary>
+    public bool PhotoLinkStartLiveCameraOnly { get; init; } = true;
+
+    /// <summary>Whether Send starts with full-size originals on (R813).</summary>
+    public bool PhotoLinkStartOriginals { get; init; } = true;
+
+    /// <summary>
+    /// The lifetimes Send offers, in days, from 3, 7 and 14 (R817); Extend and
+    /// a contact's link defaults keep all three.
+    /// </summary>
+    public IReadOnlyList<int> PhotoLinkLifetimesOffered { get; init; } =
+        Pegasus.Core.PhotoCapture.CaptureLimits.LifetimeDays;
+
+    /// <summary>The offered lifetime Send starts selected (R817).</summary>
+    public int PhotoLinkDefaultLifetimeDays { get; init; } =
+        Pegasus.Core.PhotoCapture.CaptureLimits.DefaultLifetimeDays;
+
     /// <summary>
     /// The Case requirement a Case with no mileage names on its way into
     /// Review, on every route (operator, 8 November 2026; R759).

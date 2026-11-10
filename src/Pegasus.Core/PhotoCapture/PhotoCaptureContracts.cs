@@ -253,6 +253,22 @@ public sealed record StandingPhotoLink(
 /// <summary>A saved address a standing link offers as an inspection location on its form.</summary>
 public sealed record StandingPhotoLinkAddress(string Name, string Address);
 
+/// <summary>One address staff saved on a standing link's Photo links tab, which they may edit or remove (R806).</summary>
+public sealed record SavedStandingPhotoLinkAddress(Guid Id, string Name, string Address);
+
+/// <summary>
+/// A standing link's saved addresses as its Photo links tab shows them: the
+/// ones Pegasus takes from the contact (its own address, or a Principal's
+/// inspection locations), read-only, and the ones staff saved on the tab
+/// (operator, 9 November 2026; R806, R815).
+/// </summary>
+public sealed record StandingPhotoLinkAddressBook(
+    IReadOnlyList<StandingPhotoLinkAddress> FromContact,
+    IReadOnlyList<SavedStandingPhotoLinkAddress> Saved)
+{
+    public bool IsEmpty => FromContact.Count == 0 && Saved.Count == 0;
+}
+
 /// <summary>One token issued for a capture: the link in one message, one copy, one hand-off or one phone session.</summary>
 public enum PhotoLinkTokenPurpose
 {
@@ -633,8 +649,41 @@ public interface IStandingPhotoLinkStore
     /// </summary>
     Task<StandingPhotoLink> ReplaceSlugAsync(Guid id, long expectedVersion, string newSlug, DateTimeOffset replacedAtUtc, CancellationToken cancellationToken);
 
-    /// <summary>The saved addresses the link offers on its form: the contact's inspection locations.</summary>
+    /// <summary>
+    /// The saved addresses the link offers on its form: the contact's own
+    /// address or a Principal's inspection locations first, then the ones
+    /// saved on its Photo links tab (R815).
+    /// </summary>
     Task<IReadOnlyList<StandingPhotoLinkAddress>> ListAddressesAsync(Guid standingLinkId, CancellationToken cancellationToken);
+
+    /// <summary>The same addresses split as the Photo links tab shows them, the saved ones with their ids.</summary>
+    Task<StandingPhotoLinkAddressBook> GetAddressBookAsync(Guid standingLinkId, CancellationToken cancellationToken);
+
+    // A saved address is added, changed and removed under the link's version,
+    // which each of them moves on, so a change over a stale read is refused as
+    // StaleVersion, as the link's other changes are.
+
+    Task<StandingPhotoLink> AddAddressAsync(
+        Guid id,
+        long expectedVersion,
+        string name,
+        string address,
+        DateTimeOffset addedAtUtc,
+        CancellationToken cancellationToken);
+
+    Task<StandingPhotoLink> ChangeAddressAsync(
+        Guid id,
+        long expectedVersion,
+        Guid addressId,
+        string name,
+        string address,
+        CancellationToken cancellationToken);
+
+    Task<StandingPhotoLink> RemoveAddressAsync(
+        Guid id,
+        long expectedVersion,
+        Guid addressId,
+        CancellationToken cancellationToken);
 
     /// <summary>How many captures the standing link started since <paramref name="sinceUtc"/>, for the daily mint cap.</summary>
     Task<int> CountMintedSinceAsync(Guid standingLinkId, DateTimeOffset sinceUtc, CancellationToken cancellationToken);

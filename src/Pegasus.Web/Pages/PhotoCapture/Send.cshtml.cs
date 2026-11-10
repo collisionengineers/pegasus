@@ -36,6 +36,7 @@ public sealed class SendModel(
     RenderEmailTemplate renderTemplate,
     IOptions<PhotoCaptureOptions> options,
     TimeProvider timeProvider,
+    Pegasus.Core.Workflow.ICaseWorkflowConfiguration workflowConfiguration,
     ILogger<SendModel> logger) : PhotoCapturePageModel
 {
     public const string ByEmail = "email";
@@ -43,6 +44,12 @@ public sealed class SendModel(
     public const string StandardWording = "standard";
 
     private readonly PhotoLinkMail _mail = new(staffMailSend, getCaseHeader, senders, renderTemplate, options);
+
+    /// <summary>The Administrators' settings Send starts from (R813) and the lifetimes it offers (R817).</summary>
+    private Pegasus.Core.Workflow.CaseWorkflowConfiguration? _settings;
+
+    /// <summary>The lifetimes Send offers, from Administration › Configuration (R817).</summary>
+    public IReadOnlyList<int> LifetimesOffered => _settings?.PhotoLinkLifetimesOffered ?? CaptureLimits.LifetimeDays;
 
     [BindProperty(SupportsGet = true)]
     public Guid CaseId { get; set; }
@@ -121,6 +128,11 @@ public sealed class SendModel(
         }
 
         var facts = Facts!;
+        // Send starts where the Administrators' settings say (R813, R817).
+        Mode = _settings!.PhotoLinkStartMode;
+        LiveCameraOnly = _settings.PhotoLinkStartLiveCameraOnly;
+        OriginalsInBackground = _settings.PhotoLinkStartOriginals;
+        Days = _settings.PhotoLinkDefaultLifetimeDays;
         CustomerName = facts.ClaimantName;
         Mobile = facts.ClaimantContactNumber;
         AccidentDate = facts.IncidentDate;
@@ -152,7 +164,7 @@ public sealed class SendModel(
 
         var byEmail = Submit == ByEmail;
         if (Submit is not (ByEmail or ToCopy or StandardWording)
-            || !CaptureLimits.IsLifetime(Days)
+            || !LifetimesOffered.Contains(Days)
             || !Enum.IsDefined(Mode))
         {
             return BadRequest();
@@ -333,7 +345,11 @@ public sealed class SendModel(
             return false;
         }
 
-        Senders = await _mail.SendersAsync(CaseId, cancellationToken);
+        var senderOptions = _mail.SendersAsync(CaseId, cancellationToken);
+        var settings = workflowConfiguration.GetCurrentAsync(cancellationToken);
+        await Task.WhenAll(senderOptions, settings);
+        Senders = senderOptions.Result;
+        _settings = settings.Result;
         return true;
     }
 }

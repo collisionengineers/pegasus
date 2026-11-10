@@ -559,6 +559,31 @@ public sealed class PhotoCaptureSecurityTests
         public Task<IReadOnlyList<StandingPhotoLinkAddress>> ListAddressesAsync(Guid standingLinkId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<StandingPhotoLinkAddress>>([]);
 
+        public Task<StandingPhotoLinkAddressBook> GetAddressBookAsync(Guid standingLinkId, CancellationToken cancellationToken) =>
+            Task.FromResult(new StandingPhotoLinkAddressBook([], []));
+
+        public Task<StandingPhotoLink> AddAddressAsync(
+            Guid id,
+            long expectedVersion,
+            string name,
+            string address,
+            DateTimeOffset addedAtUtc,
+            CancellationToken cancellationToken) => throw Outside();
+
+        public Task<StandingPhotoLink> ChangeAddressAsync(
+            Guid id,
+            long expectedVersion,
+            Guid addressId,
+            string name,
+            string address,
+            CancellationToken cancellationToken) => throw Outside();
+
+        public Task<StandingPhotoLink> RemoveAddressAsync(
+            Guid id,
+            long expectedVersion,
+            Guid addressId,
+            CancellationToken cancellationToken) => throw Outside();
+
         public Task<int> CountMintedSinceAsync(Guid standingLinkId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) =>
             throw Outside();
     }

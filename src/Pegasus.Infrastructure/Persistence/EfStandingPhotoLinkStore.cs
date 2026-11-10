@@ -143,7 +143,108 @@ public sealed class EfStandingPhotoLinkStore(
         Guid standingLinkId,
         CancellationToken cancellationToken)
     {
+        // The form offers the contact's addresses first, then the tab's own,
+        // each address once (R815).
+        var book = await GetAddressBookAsync(standingLinkId, cancellationToken);
+        var addresses = new List<StandingPhotoLinkAddress>(book.FromContact);
+        foreach (var saved in book.Saved)
+        {
+            Add(addresses, saved.Name, saved.Address, postcode: null);
+        }
+
+        return addresses;
+    }
+
+    public async Task<StandingPhotoLinkAddressBook> GetAddressBookAsync(
+        Guid standingLinkId,
+        CancellationToken cancellationToken)
+    {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var fromContact = await FromContactAsync(context, standingLinkId, cancellationToken);
+        IReadOnlyList<SavedStandingPhotoLinkAddress> saved = fromContact is null
+            ? []
+            : await context.StandingPhotoLinkAddresses.AsNoTracking()
+                .Where(item => item.StandingPhotoLinkId == standingLinkId)
+                .OrderBy(item => item.CreatedAtUtc)
+                .ThenBy(item => item.Id)
+                .Select(item => new SavedStandingPhotoLinkAddress(item.Id, item.Name, item.Address))
+                .ToListAsync(cancellationToken);
+        return new(fromContact ?? [], saved);
+    }
+
+    public Task<StandingPhotoLink> AddAddressAsync(
+        Guid id,
+        long expectedVersion,
+        string name,
+        string address,
+        DateTimeOffset addedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        return UpdateAsync(id, expectedVersion, (context, _, _) =>
+        {
+            context.StandingPhotoLinkAddresses.Add(new StandingPhotoLinkAddressEntity
+            {
+                Id = Guid.NewGuid(),
+                StandingPhotoLinkId = id,
+                Name = name,
+                Address = address,
+                CreatedAtUtc = addedAtUtc
+            });
+            return Task.CompletedTask;
+        }, cancellationToken);
+    }
+
+    public Task<StandingPhotoLink> ChangeAddressAsync(
+        Guid id,
+        long expectedVersion,
+        Guid addressId,
+        string name,
+        string address,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        return UpdateAsync(id, expectedVersion, async (context, _, token) =>
+        {
+            var saved = await SavedAddressAsync(context, id, addressId, token);
+            saved.Name = name;
+            saved.Address = address;
+        }, cancellationToken);
+    }
+
+    public Task<StandingPhotoLink> RemoveAddressAsync(
+        Guid id,
+        long expectedVersion,
+        Guid addressId,
+        CancellationToken cancellationToken) =>
+        UpdateAsync(id, expectedVersion, async (context, _, token) =>
+        {
+            context.StandingPhotoLinkAddresses.Remove(await SavedAddressAsync(context, id, addressId, token));
+        }, cancellationToken);
+
+    // An address of this link saved on its tab; one taken from the contact,
+    // or another link's, is not found.
+    private static async Task<StandingPhotoLinkAddressEntity> SavedAddressAsync(
+        PegasusDbContext context,
+        Guid standingLinkId,
+        Guid addressId,
+        CancellationToken cancellationToken) =>
+        await context.StandingPhotoLinkAddresses
+            .SingleOrDefaultAsync(item => item.Id == addressId && item.StandingPhotoLinkId == standingLinkId, cancellationToken)
+        ?? throw new StandingPhotoLinkException(StandingPhotoLinkError.NotFound);
+
+    /// <summary>
+    /// The addresses taken from the link's contact: its own, or a Principal's
+    /// inspection locations. Null for the website link, or an unknown one,
+    /// which has no contact and keeps no addresses.
+    /// </summary>
+    private static async Task<List<StandingPhotoLinkAddress>?> FromContactAsync(
+        PegasusDbContext context,
+        Guid standingLinkId,
+        CancellationToken cancellationToken)
+    {
         var organization = await (
             from link in context.StandingPhotoLinks.AsNoTracking()
             join contact in context.Organizations.AsNoTracking() on link.OrganizationId equals (Guid?)contact.Id
@@ -152,8 +253,7 @@ public sealed class EfStandingPhotoLinkStore(
             .SingleOrDefaultAsync(cancellationToken);
         if (organization is null)
         {
-            // The website link, or an unknown one: no saved addresses.
-            return [];
+            return null;
         }
 
         var addresses = new List<StandingPhotoLinkAddress>();
@@ -284,6 +384,25 @@ public sealed class EfStandingPhotoLinkStore(
         long expectedVersion,
         Action<StandingPhotoLinkEntity> change,
         CancellationToken cancellationToken) =>
+        UpdateAsync(
+            id,
+            expectedVersion,
+            (_, entity, _) =>
+            {
+                change(entity);
+                return Task.CompletedTask;
+            },
+            cancellationToken);
+
+    /// <summary>
+    /// One versioned write of the link row, and of any rows of its own the
+    /// change makes in the same save (its saved addresses).
+    /// </summary>
+    private Task<StandingPhotoLink> UpdateAsync(
+        Guid id,
+        long expectedVersion,
+        Func<PegasusDbContext, StandingPhotoLinkEntity, CancellationToken, Task> change,
+        CancellationToken cancellationToken) =>
         StoreConcurrencyRetry.ExecuteAsync(
             async token =>
             {
@@ -296,7 +415,7 @@ public sealed class EfStandingPhotoLinkStore(
                     throw new StandingPhotoLinkException(StandingPhotoLinkError.StaleVersion);
                 }
 
-                change(entity);
+                await change(context, entity, token);
                 entity.Version++;
                 try
                 {

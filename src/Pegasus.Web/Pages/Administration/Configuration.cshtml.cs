@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.PhotoCapture;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Administration;
@@ -34,6 +35,18 @@ public sealed class ConfigurationModel(
     [BindProperty] public int? HeldTargetDays { get; set; }
     [BindProperty] public int? ReviewTargetDays { get; set; }
     [BindProperty] public int? AiDraftTargetDays { get; set; }
+
+    // Send a photo link's starting values (R813) and the lifetimes it offers
+    // (R817), saved with the workflow settings they belong to.
+    [BindProperty] public PhotoCaptureMode PhotoLinkStartMode { get; set; } = PhotoCaptureMode.Guided;
+    [BindProperty] public bool PhotoLinkStartLiveCameraOnly { get; set; }
+    [BindProperty] public bool PhotoLinkStartOriginals { get; set; }
+    [BindProperty] public int[] PhotoLinkLifetimesOffered { get; set; } = [];
+    [BindProperty] public int PhotoLinkDefaultLifetimeDays { get; set; } = CaptureLimits.DefaultLifetimeDays;
+
+    /// <summary>Whether the photo link settings are drawn: only while photo capture is composed (FRD-28 Feature off).</summary>
+    public bool ShowsPhotoLinkSettings => Pegasus.Web.Presentation.ShellRail.PhotoCaptureEnabled(
+        HttpContext.RequestServices.GetRequiredService<IConfiguration>());
 
     [BindProperty] public Guid CardId { get; set; }
     [BindProperty] public long CardExpectedVersion { get; set; }
@@ -90,6 +103,12 @@ public sealed class ConfigurationModel(
         if (!IsOperationKeyValid(WorkflowOperationKey))
             ModelState.AddModelError(string.Empty, "The form has expired. Reload and try again.");
         ValidateWorkflowRanges();
+        // A form that does not draw the photo link settings (photo capture
+        // off) keeps them as stored rather than clearing them.
+        if (!(Request.HasFormContentType && Request.Form.ContainsKey(nameof(PhotoLinkDefaultLifetimeDays))))
+        {
+            CopyPhotoLinkSettings();
+        }
 
         if (ModelState.IsValid)
         {
@@ -106,7 +125,12 @@ public sealed class ConfigurationModel(
                         TriageTargetDays = TriageTargetDays!.Value,
                         HeldTargetDays = HeldTargetDays!.Value,
                         ReviewTargetDays = ReviewTargetDays!.Value,
-                        AiDraftTargetDays = AiDraftTargetDays!.Value
+                        AiDraftTargetDays = AiDraftTargetDays!.Value,
+                        PhotoLinkStartMode = PhotoLinkStartMode,
+                        PhotoLinkStartLiveCameraOnly = PhotoLinkStartLiveCameraOnly,
+                        PhotoLinkStartOriginals = PhotoLinkStartOriginals,
+                        PhotoLinkLifetimesOffered = PhotoLinkLifetimesOffered,
+                        PhotoLinkDefaultLifetimeDays = PhotoLinkDefaultLifetimeDays
                     },
                     cancellationToken);
                 // The suffix switch saves with the workflow settings, and only
@@ -126,6 +150,12 @@ public sealed class ConfigurationModel(
             catch (WorkflowConfigurationOperationConflictException)
             {
                 ModelState.AddModelError(string.Empty, "This workflow settings form was already used. Reload the page before trying again.");
+            }
+            catch (PhotoLinkSendSettingsRefusedException)
+            {
+                // No lifetime offered, or a starting lifetime not offered: the
+                // refusal has no words of its own yet.
+                ModelState.AddModelError(string.Empty, Pegasus.Web.Presentation.OperatorLabels.ActionNotApplied);
             }
             catch (ArgumentException exception)
             {
@@ -204,5 +234,15 @@ public sealed class ConfigurationModel(
         HeldTargetDays = Configuration.HeldTargetDays;
         ReviewTargetDays = Configuration.ReviewTargetDays;
         AiDraftTargetDays = Configuration.AiDraftTargetDays;
+        CopyPhotoLinkSettings();
+    }
+
+    private void CopyPhotoLinkSettings()
+    {
+        PhotoLinkStartMode = Configuration.PhotoLinkStartMode;
+        PhotoLinkStartLiveCameraOnly = Configuration.PhotoLinkStartLiveCameraOnly;
+        PhotoLinkStartOriginals = Configuration.PhotoLinkStartOriginals;
+        PhotoLinkLifetimesOffered = [.. Configuration.PhotoLinkLifetimesOffered];
+        PhotoLinkDefaultLifetimeDays = Configuration.PhotoLinkDefaultLifetimeDays;
     }
 }
