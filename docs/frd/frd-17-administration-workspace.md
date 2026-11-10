@@ -179,14 +179,21 @@ the field and the server. The directory rules are owned by
   the workflow settings: while on, every newly minted Case/PO ends in `-p`
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity);
   operator, 4 November 2026, [R656](../rulings.md)). A change enters history;
-- while photo capture is on, **Send a photo link**'s starting values, saved
+- while photo capture is on, under the heading **Photo links**, Send a
+  photo link's starting values, saved
   with the workflow settings: the mode it starts on, Guided or Quick, and
   whether Live camera only and Full-size originals start on (operator,
   9 November 2026; R813); and which of the 3, 7 and 14 day lifetimes Send
-  offers and the one it starts on, at least one offered and the starting
+  offers, under **Lifetimes offered**, and the one it starts on, under
+  **Link lasts** (operator, 10 November 2026; [R869](../rulings.md)), at
+  least one offered and the starting
   one among them. Extend and a contact's link defaults keep all three
   (operator, 9 November 2026; R817;
-  [FRD-28](frd-28-guided-photo-capture.md#photo-links));
+  [FRD-28](frd-28-guided-photo-capture.md#photo-links)). A save offering no
+  lifetime is refused with "Offer at least one lifetime.", and one starting
+  on a lifetime not offered with "The lifetime links start on must be one of
+  those offered.", each beside the form (operator, 10 November 2026;
+  [R868](../rulings.md));
 - labour-rate-card administration: the two built-in global versioned cards,
   Standard and Prestige/Aluminium (operator, 13 October 2026), that every
   estimate version selects from. Their names are fixed and there are no other

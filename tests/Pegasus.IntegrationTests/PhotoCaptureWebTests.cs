@@ -25,7 +25,7 @@ namespace Pegasus.IntegrationTests;
 /// in-process drain stands in for the Worker.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class PhotoCaptureWebTests
+public sealed partial class PhotoCaptureWebTests
 {
     private const string Api = PhotoCaptureSurface.ApiBasePath;
 
@@ -695,13 +695,13 @@ public sealed class PhotoCaptureWebTests
         var organizationId = await QdosOrganizationIdAsync(factory);
         await using var scope = factory.Services.CreateAsyncScope();
         var administration = scope.ServiceProvider.GetRequiredService<StandingPhotoLinkAdministration>();
-        var first = await administration.CreateForContactAsync(Issuer, organizationId, CancellationToken.None);
+        var first = await administration.CreateForContactAsync(Issuer, NewOperationKey(), organizationId, CancellationToken.None);
 
-        await administration.RetireAsync(Issuer, first.Id, first.Version, CancellationToken.None);
+        await administration.RetireAsync(Issuer, NewOperationKey(), first.Id, first.Version, CancellationToken.None);
 
         var unknown = await NotFoundBytesAsync(client, $"/s/{PhotoLinkToken.CreateSlug()}");
         Assert.Equal(unknown, await NotFoundBytesAsync(client, $"/s/{first.Slug}"));
-        var second = await administration.CreateForContactAsync(Issuer, organizationId, CancellationToken.None);
+        var second = await administration.CreateForContactAsync(Issuer, NewOperationKey(), organizationId, CancellationToken.None);
         Assert.NotEqual(first.Id, second.Id);
         Assert.NotEqual(first.Slug, second.Slug);
         var current = await scope.ServiceProvider.GetRequiredService<IStandingPhotoLinkStore>()
@@ -726,7 +726,7 @@ public sealed class PhotoCaptureWebTests
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             contactLink = await scope.ServiceProvider.GetRequiredService<StandingPhotoLinkAdministration>()
-                .CreateForContactAsync(Issuer, organizationId, CancellationToken.None);
+                .CreateForContactAsync(Issuer, NewOperationKey(), organizationId, CancellationToken.None);
         }
 
         var linksBefore = await StandingLinkCountAsync(factory);
@@ -953,8 +953,8 @@ public sealed class PhotoCaptureWebTests
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var administration = scope.ServiceProvider.GetRequiredService<StandingPhotoLinkAdministration>();
-            first = await administration.CreateForContactAsync(Issuer, endsWithPostcode, CancellationToken.None);
-            second = await administration.CreateForContactAsync(Issuer, withoutPostcode, CancellationToken.None);
+            first = await administration.CreateForContactAsync(Issuer, NewOperationKey(), endsWithPostcode, CancellationToken.None);
+            second = await administration.CreateForContactAsync(Issuer, NewOperationKey(), withoutPostcode, CancellationToken.None);
         }
 
         Assert.Equal(
@@ -1047,10 +1047,10 @@ public sealed class PhotoCaptureWebTests
         _ = factory.Services;
         await using var scope = factory.Services.CreateAsyncScope();
         var administration = scope.ServiceProvider.GetRequiredService<StandingPhotoLinkAdministration>();
-        var website = await administration.CreateWebsiteAsync(Issuer, "ce-vehicle-photos", CancellationToken.None);
+        var website = await administration.CreateWebsiteAsync(Issuer, NewOperationKey(), "ce-vehicle-photos", CancellationToken.None);
 
         var refused = await Assert.ThrowsAsync<StandingPhotoLinkException>(() => administration.AddAddressAsync(
-            Issuer, website.Id, website.Version, "Back yard", "1 Example Street, Exampleton", CancellationToken.None));
+            Issuer, NewOperationKey(), website.Id, website.Version, "Back yard", "1 Example Street, Exampleton", CancellationToken.None));
 
         Assert.Equal(StandingPhotoLinkError.NotFound, refused.Error);
         Assert.True((await AddressBookAsync(factory, website.Id)).IsEmpty);
@@ -1059,8 +1059,9 @@ public sealed class PhotoCaptureWebTests
 
     /// <summary>
     /// Send with Quick stores who the link is for (R808); with Guided it
-    /// stores no one even when a Type is posted; Quick without a Type is not
-    /// the page's own post and issues nothing.
+    /// stores no one even when a Type is posted; Quick without a Type is
+    /// refused beside the Type with the operator's sentence (R868) and issues
+    /// nothing, and a Type that is not one of the page's own is not its post.
     /// </summary>
     [Fact]
     public async Task SendStoresAQuickLinksTypeAndOnlyAQuickLinks()
@@ -1085,7 +1086,26 @@ public sealed class PhotoCaptureWebTests
             ["Submit"] = Pegasus.Web.Pages.PhotoCapture.SendModel.ToCopy
         }))
         {
-            Assert.Equal(HttpStatusCode.BadRequest, untyped.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, untyped.StatusCode);
+            var html = await untyped.Content.ReadAsStringAsync();
+            var typeField = html[html.IndexOf("data-photo-link-type", StringComparison.Ordinal)..];
+            typeField = typeField[..typeField.IndexOf("</fieldset>", StringComparison.Ordinal)];
+            Assert.Contains(
+                HtmlEncoder.Default.Encode(OperatorLabels.PhotoCapture.ChooseAQuickLinkType),
+                typeField,
+                StringComparison.Ordinal);
+        }
+
+        using (var unknownType = await PostStaffFormAsync(client, send, new Dictionary<string, string>
+        {
+            ["OperationKey"] = NewOperationKey(),
+            ["Mode"] = nameof(PhotoCaptureMode.Quick),
+            ["QuickLinkFor"] = "99",
+            ["Days"] = "7",
+            ["Submit"] = Pegasus.Web.Pages.PhotoCapture.SendModel.ToCopy
+        }))
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, unknownType.StatusCode);
         }
 
         Assert.Equal(before, await CaptureIdsAsync(factory, caseId));
@@ -1400,6 +1420,14 @@ public sealed class PhotoCaptureWebTests
             Assert.Equal("2031-04-30", Assert.Single(filled, value => value.FieldName == Pegasus.Core.Cases.CaseDataFieldNames.IncidentDate).Value);
             Assert.False(await db.CaseDataFields.AnyAsync(value =>
                 value.WorkId == caseId && value.FieldName == Pegasus.Core.Cases.CaseDataFieldNames.InspectionAddress));
+
+            // A fill into empty fields replaced nothing, so its history has
+            // no before value (R843).
+            var aggregateId = caseId.ToString("D");
+            var history = Assert.Single(await db.ActionHistory.AsNoTracking()
+                .Where(item => item.AggregateId == aggregateId && item.EventKind == EfPhotoCaptureCaseWriter.FilledEventType)
+                .ToListAsync());
+            Assert.Null(history.BeforeJson);
         }
 
         var page = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture/{link.Capture.Id:D}");

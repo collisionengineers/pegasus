@@ -115,12 +115,12 @@ public sealed class UpdateWorkflowConfiguration(IWorkflowConfigurationStore stor
                 throw new ArgumentException(setting.RangeMessage);
         }
 
-        if (!PhotoLinkSendSettings.Accepts(
+        if (PhotoLinkSendSettings.Refusal(
                 request.PhotoLinkStartMode,
                 request.PhotoLinkLifetimesOffered,
-                request.PhotoLinkDefaultLifetimeDays))
+                request.PhotoLinkDefaultLifetimeDays) is { } refusal)
         {
-            throw new PhotoLinkSendSettingsRefusedException();
+            throw new PhotoLinkSendSettingsRefusedException(refusal);
         }
 
         if (request.ExpectedVersion < 1)
@@ -162,24 +162,57 @@ public sealed class UpdateWorkflowConfiguration(IWorkflowConfigurationStore stor
 /// <summary>
 /// The Send page's settings (operator, 9 November 2026; R813, R817): a mode
 /// it has, and lifetimes from 3, 7 and 14 days with at least one offered and
-/// the starting one among them. No new numbers.
+/// the starting one among them. No new numbers. A refusal names which rule
+/// failed, so the page can say it beside the setting (operator, 10 November
+/// 2026; R868).
 /// </summary>
 public static class PhotoLinkSendSettings
 {
-    public static bool Accepts(PhotoCaptureMode startMode, IReadOnlyCollection<int>? offered, int defaultDays) =>
-        Enum.IsDefined(startMode)
-        && offered is { Count: > 0 }
-        && offered.All(CaptureLimits.IsLifetime)
-        && offered.Distinct().Count() == offered.Count
-        && offered.Contains(defaultDays);
+    /// <summary>
+    /// Which rule the settings break, or null when they break none: no
+    /// lifetime offered, then a starting lifetime not among those offered;
+    /// an unknown mode, an unknown lifetime or one offered twice is
+    /// <see cref="PhotoLinkSendSettingsRule.NotAllowed"/>.
+    /// </summary>
+    public static PhotoLinkSendSettingsRule? Refusal(PhotoCaptureMode startMode, IReadOnlyCollection<int>? offered, int defaultDays)
+    {
+        if (!Enum.IsDefined(startMode))
+        {
+            return PhotoLinkSendSettingsRule.NotAllowed;
+        }
+
+        if (offered is not { Count: > 0 })
+        {
+            return PhotoLinkSendSettingsRule.NoLifetimeOffered;
+        }
+
+        if (!offered.All(CaptureLimits.IsLifetime) || offered.Distinct().Count() != offered.Count)
+        {
+            return PhotoLinkSendSettingsRule.NotAllowed;
+        }
+
+        return offered.Contains(defaultDays) ? null : PhotoLinkSendSettingsRule.StartingLifetimeNotOffered;
+    }
 
     /// <summary>The offered lifetimes in the order Send lists them, shortest first.</summary>
     public static IReadOnlyList<int> InOrder(IEnumerable<int> offered) => [.. offered.Order()];
 }
 
-/// <summary>Send a photo link's settings offer no lifetime, an unknown one, or start on one they do not offer.</summary>
-public sealed class PhotoLinkSendSettingsRefusedException()
-    : InvalidOperationException("The photo link settings must offer a lifetime of 3, 7 or 14 days and start on one they offer.");
+/// <summary>Which of the photo link settings' rules a refused save broke (R868).</summary>
+public enum PhotoLinkSendSettingsRule
+{
+    /// <summary>An unknown mode, or a lifetime that is not 3, 7 or 14 days or is offered twice.</summary>
+    NotAllowed,
+    NoLifetimeOffered,
+    StartingLifetimeNotOffered
+}
+
+/// <summary>Send a photo link's settings offer no lifetime, an unknown one, or start on one they do not offer; <see cref="Rule"/> says which.</summary>
+public sealed class PhotoLinkSendSettingsRefusedException(PhotoLinkSendSettingsRule rule)
+    : InvalidOperationException("The photo link settings must offer a lifetime of 3, 7 or 14 days and start on one they offer.")
+{
+    public PhotoLinkSendSettingsRule Rule { get; } = rule;
+}
 
 public sealed class WorkflowConfigurationVersionConflictException()
     : InvalidOperationException("The workflow configuration changed before this request was saved.");

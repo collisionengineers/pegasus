@@ -25,6 +25,9 @@ internal sealed class EfCaseFilingReplayStore(
     internal const string PromotionCompletedEventType = "intake_case_evidence_promotion_completed";
     private const string SystemWorkerKind = nameof(ActorKind.SystemWorker);
 
+    /// <summary>The system work whose association files as a member of staff's does (R844).</summary>
+    private const string ReachActorId = Pegasus.Core.PhotoCapture.PhotoCaptureIntakeRules.ReachActorId;
+
     public async Task<IReadOnlyList<CaseFilingReplayCandidate>> ListDueAsync(
         CaseFilingReplayCursor? after,
         DateTimeOffset systemAssociationCutoff,
@@ -47,25 +50,31 @@ internal sealed class EfCaseFilingReplayStore(
                 && work.State == "completed"
                 && receipt.Decision != "image_intake_registered"
                 // R189, R377: a pipeline association files within two hours
-                // of being made; a member of staff's has no window. Each
-                // disjunct names its ActorKind, so both are ranges on the
-                // association index's leading column.
+                // of being made; a member of staff's has no window, nor has
+                // one that follows a record's merge (R844). Each disjunct
+                // names its ActorKind, so both are ranges on the association
+                // index's leading column.
                 && ((association.ActorKind == SystemWorkerKind
-                        && association.LinkedAtUtc > systemAssociationCutoff)
+                        && (association.LinkedAtUtc > systemAssociationCutoff
+                            || association.ActorSubjectId == ReachActorId))
                     || association.ActorKind != SystemWorkerKind)
                 // CaseFilingTargetRule: not the Case's own origin receipt; a
                 // workflow Case that is not archived and in a state the
                 // association files into, whether or not it is being edited
-                // (R727, R728); or a Triage Case a member of staff linked.
+                // (R727, R728); or a Triage Case a member of staff linked. A
+                // link that follows a record's merge files as a member of
+                // staff's does (FollowsRecordMerge; R844).
                 && !context.Cases.Any(caseRow => caseRow.Id == association.CaseId
                     && caseRow.OriginIntakeReceiptId == receipt.Id)
                 && ((workflow != null
                         && workflow.ArchivedAtUtc == null
                         && (association.ActorKind != SystemWorkerKind
+                            || association.ActorSubjectId == ReachActorId
                             || (automaticStates.Contains(workflow.State)
                                 && workflow.ReportSentEvidenceId == null)))
                     || (workflow == null
-                        && association.ActorKind != SystemWorkerKind
+                        && (association.ActorKind != SystemWorkerKind
+                            || association.ActorSubjectId == ReachActorId)
                         && context.Triage.Any(triage => triage.CaseId == association.CaseId)))
                 // A source the filer selects (PromoteAssociatedIntakeCaseEvidence's
                 // SelectAssets), so a listed pair never has nothing to file.

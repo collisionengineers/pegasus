@@ -14,6 +14,24 @@ public static class PhotoCaptureIntakeRules
     public const string SettleActorId = "photo-capture-settle";
     public const string RoutingActorId = "photo-capture-routing";
 
+    /// <summary>
+    /// The system work that links a batch's kept paperwork and video to the
+    /// Case its Vehicle images record merged into, when no member of staff
+    /// chose that Case. It follows the record's merge, so the kept files file
+    /// wherever the photos went, a Triage Case or a report-sent Case
+    /// included, as a member of staff's association does (operator,
+    /// 10 November 2026; R844; <see cref="CaseFilingTargetFacts.FollowsRecordMerge"/>).
+    /// </summary>
+    public const string ReachActorId = "photo-capture-reach";
+
+    /// <summary>
+    /// Whether a stored association (its actor kind and subject) is
+    /// <see cref="ReachActorId"/>'s, which files as a member of staff's does.
+    /// </summary>
+    public static bool FollowsRecordMerge(string actorKind, string actorSubjectId) =>
+        string.Equals(actorKind, nameof(ActorKind.SystemWorker), StringComparison.Ordinal)
+        && string.Equals(actorSubjectId, ReachActorId, StringComparison.Ordinal);
+
     /// <summary>The Intake log's reason for a photo filed on the Case its link was sent from (operator, 9 November 2026; R805).</summary>
     public const string CaseLinkDestinationReason = "Destination declared by the photo link sent from this Case.";
 

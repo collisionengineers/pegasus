@@ -66,5 +66,29 @@ public sealed class PhotoCaptureTextTests
     {
         Assert.StartsWith("Hi Sam, Collision Engineers need a few photos of RY65 OFG", PhotoCaptureMessages.Handoff("Sam Taylor", "RY65OFG"), StringComparison.Ordinal);
         Assert.StartsWith("Hi, Collision Engineers need", PhotoCaptureMessages.Handoff(null, "RY65OFG"), StringComparison.Ordinal);
+        Assert.StartsWith("Hi Leroy, Collision Engineers need", PhotoCaptureMessages.Handoff("Mr Leroy Ejiofor", "RY65OFG"), StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// The greeting skips a leading title: "Mr Leroy Ejiofor" is greeted
+    /// "Leroy", and a title with a surname alone is greeted as typed
+    /// (operator, 10 November 2026; R855).
+    /// </summary>
+    [Theory]
+    [InlineData("Mr Leroy Ejiofor", "Leroy")]
+    [InlineData("dr. Leroy Smith", "Leroy")]
+    [InlineData("MRS Ann Jones", "Ann")]
+    [InlineData("Mx Sam Taylor", "Sam")]
+    [InlineData("Mr J Smith", "J")]
+    [InlineData("Mr Ejiofor", "Mr Ejiofor")]
+    [InlineData("  Miss Jones ", "Miss Jones")]
+    [InlineData("Dr", "Dr")]
+    [InlineData("Sam Taylor", "Sam")]
+    [InlineData("Mrsmith Jones", "Mrsmith")]
+    [InlineData("Leroy", "Leroy")]
+    [InlineData("", null)]
+    [InlineData("   ", null)]
+    [InlineData(null, null)]
+    public void TheGreetingSkipsALeadingTitle(string? name, string? greeted) =>
+        Assert.Equal(greeted, PhotoCaptureText.GreetingName(name));
 }

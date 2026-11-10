@@ -172,6 +172,26 @@ public sealed class AddTriageNote(ITriageStore store)
         TriageLifecycleRules.RequireMutable(current, "note");
         return await _store.AddNoteAsync(request, cancellationToken);
     }
+
+    /// <summary>
+    /// A note system work writes, a photo link's customer note on a Triage
+    /// Case (FRD-28; operator, 10 November 2026; R845): no member of staff
+    /// holds an edit scope for it, so the store appends the same note entry
+    /// without one and leaves the Triage's version alone, as a system
+    /// completion does, so a member of staff's open edit is never disturbed.
+    /// The operation key replays. A completed or cancelled Triage takes no
+    /// note. Answers whether the note was written now.
+    /// </summary>
+    public Task<bool> ExecuteForSystemAsync(
+        Guid caseId,
+        ActionActor actor,
+        string operationKey,
+        string note,
+        CancellationToken cancellationToken = default)
+    {
+        TriageLifecycleRules.ValidateSystemNote(caseId, actor, operationKey, note);
+        return _store.AddSystemNoteAsync(caseId, actor, operationKey.Trim(), note, cancellationToken);
+    }
 }
 
 public sealed class UnassignTriage(ITriageStore store)
@@ -590,6 +610,27 @@ public static class TriageLifecycleRules
             "A note is required.",
             TriageNotes.MaximumLength,
             nameof(request));
+    }
+
+    /// <summary>
+    /// A note system work writes (<see cref="AddTriageNote.ExecuteForSystemAsync"/>):
+    /// only the system worker writes one, bounded as any note is.
+    /// </summary>
+    public static void ValidateSystemNote(Guid caseId, ActionActor actor, string operationKey, string note)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (caseId == Guid.Empty)
+        {
+            throw new ArgumentException("A triage identifier is required.", nameof(caseId));
+        }
+
+        if (actor.Kind != ActorKind.SystemWorker)
+        {
+            throw new UnauthorizedAccessException("Only system work writes a Triage note without an edit scope.");
+        }
+
+        ValidateActorAndOperation(actor, operationKey, allowSystemWorker: true);
+        RequireText(note, "A note is required.", TriageNotes.MaximumLength, nameof(note));
     }
 
     public static void ValidateAssign(AssignTriageRequest request)

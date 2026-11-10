@@ -129,13 +129,11 @@ public sealed class DetailsModel(
                 Add(Labels.LastPhoto, capture.LastItemAtUtc);
             }
             Add(Labels.Sent, capture.SentAtUtc);
-            Add(
-                Labels.Reminded,
-                capture.LastRemindedAtUtc,
-                capture.ReminderCount > 1 ? capture.ReminderCount.ToString(System.Globalization.CultureInfo.InvariantCulture) : null);
             Add(Labels.Filed, capture.SettledAtUtc);
-            // Cancel, Extend and Log call name who acted: "Cancelled · name",
-            // "Link extended · name", "Call logged · name" (R805).
+            // Cancel, Extend, Log call and each reminder, Ask for it's
+            // included (R842), name who acted: "Cancelled · name", "Link
+            // extended · name", "Call logged · name" (R805) and one
+            // "Reminded · name" per reminder (operator, 10 November 2026; R870).
             foreach (var act in Acts)
             {
                 var label = act.Kind switch
@@ -143,6 +141,7 @@ public sealed class DetailsModel(
                     PhotoLinkActs.Cancelled => Labels.Cancelled,
                     PhotoLinkActs.Extended => Labels.LinkExtended,
                     PhotoLinkActs.CallLogged => Labels.CallLoggedAt,
+                    PhotoLinkActs.Reminded => Labels.Reminded,
                     _ => null
                 };
                 if (label is not null)

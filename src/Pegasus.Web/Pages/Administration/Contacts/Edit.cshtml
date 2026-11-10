@@ -20,7 +20,7 @@
     async Task PanelMessages(bool allErrors)
     {
         if (status is not null) { <div class="notice notice--success" role="status"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg><span>@status</span></div> }
-        if (!Model.ReplaceRefused) { <div asp-validation-summary="@(allErrors ? ValidationSummary.All : ValidationSummary.ModelOnly)" class="validation-summary" role="alert"></div> }
+        if (!Model.ReplaceRefused && !Model.SavedAddressRefused) { <div asp-validation-summary="@(allErrors ? ValidationSummary.All : ValidationSummary.ModelOnly)" class="validation-summary" role="alert"></div> }
     }
 }
 <partial name="Shared/_PageHeader" />
@@ -219,7 +219,11 @@
                     <h2 id="photo-link-standing-title">@OperatorLabels.PhotoCapture.TheirStandingLink</h2>
                     @if (standing is not null)
                     {
-                        <partial name="Shared/_StatusChip" model="@(standing.IsActive ? OperatorLabels.PhotoCapture.Active : OperatorLabels.PhotoCapture.Paused)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = standing.IsActive ? "green" : "amber" }' />
+                        @* An inactive contact's link starts nothing, so its chip says why, paused or not (R865). *@
+                        var chip = !standing.ContactActive
+                            ? OperatorLabels.PhotoCapture.ContactInactive
+                            : standing.IsActive ? OperatorLabels.PhotoCapture.Active : OperatorLabels.PhotoCapture.Paused;
+                        <partial name="Shared/_StatusChip" model="@chip" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = standing.StartsCaptures ? "green" : "amber" }' />
                     }
                 </div>
                 <div class="panel-body stack">
@@ -242,6 +246,7 @@
                                     </a>
                                     <form method="post" asp-page-handler="@(standing.IsActive ? "PausePhotoLink" : "ResumePhotoLink")" asp-route-id="@Model.ContactId">
                                         <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                        <input type="hidden" name="PhotoLinkOperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                                         <button type="submit" class="btn btn--small" data-busy-label="@(standing.IsActive ? OperatorLabels.Busy.Pausing : OperatorLabels.Busy.Resuming)">
                                             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(standing.IsActive ? "icon-pause" : "icon-play")" /></svg>
                                             <span>@(standing.IsActive ? OperatorLabels.PhotoCapture.PauseTheirLink : OperatorLabels.PhotoCapture.ResumeTheirLink)</span>
@@ -249,6 +254,7 @@
                                     </form>
                                     <form method="post" asp-page-handler="ReplacePhotoLink" asp-route-id="@Model.ContactId">
                                         <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                        <input type="hidden" name="PhotoLinkOperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                                         <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Replacing">
                                             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-cw")" /></svg>
                                             <span>@OperatorLabels.PhotoCapture.ReplaceLink</span>
@@ -265,7 +271,8 @@
                                 <form method="post" asp-page-handler="RetirePhotoLink" asp-route-id="@Model.ContactId">
                                     <div class="dialog-body"><p>@OperatorLabels.PhotoCapture.RetireLinkConfirmation</p></div>
                                     <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
-                                    <div class="dialog-foot"><button class="btn" type="button" data-dialog-close>Cancel</button><button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Working">@OperatorLabels.PhotoCapture.RetireLink</button></div>
+                                    <input type="hidden" name="PhotoLinkOperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                    <div class="dialog-foot"><button class="btn" type="button" data-dialog-close>Cancel</button><button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Retiring">@OperatorLabels.PhotoCapture.RetireLink</button></div>
                                 </form>
                             </section>
                         </div>
@@ -273,6 +280,7 @@
                     else
                     {
                         <form method="post" asp-page-handler="CreatePhotoLink" asp-route-id="@Model.ContactId">
+                            <input type="hidden" name="PhotoLinkOperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                             <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Creating">
                                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
                                 <span>@OperatorLabels.PhotoCapture.CreateTheirLink</span>
@@ -317,11 +325,13 @@
                                             <dd>
                                                 <form method="post" asp-page-handler="ChangePhotoLinkAddress" asp-route-id="@Model.ContactId" asp-route-savedAddress="@saved.Id" class="stack contact-editor">
                                                     <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                                    <input type="hidden" name="PhotoLinkOperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                                                     <input type="hidden" name="SavedAddressId" value="@saved.Id" />
                                                     <div class="form-grid form-grid--2">
                                                         <div class="field"><input name="SavedAddressName" value="@(Model.SavedAddressName ?? saved.Name)" aria-label="@OperatorLabels.PhotoCapture.AddressName" maxlength="@Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumNameLength" autocomplete="off" required /></div>
                                                         <div class="field"><input name="SavedAddressText" value="@(Model.SavedAddressText ?? saved.Address)" aria-label="@OperatorLabels.PhotoCapture.AddressField" maxlength="@Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumAddressLength" autocomplete="off" required /></div>
                                                     </div>
+                                                    <span asp-validation-for="SavedAddressName" class="field-error"></span>
                                                     <div class="button-row">
                                                         <a class="btn" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.PhotoLinksTab">Cancel</a>
                                                         <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button>
@@ -329,6 +339,7 @@
                                                 </form>
                                                 <form method="post" asp-page-handler="RemovePhotoLinkAddress" asp-route-id="@Model.ContactId" asp-route-savedAddress="@saved.Id">
                                                     <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                                    <input type="hidden" name="PhotoLinkOperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                                                     <input type="hidden" name="SavedAddressId" value="@saved.Id" />
                                                     <button type="submit" class="btn btn--small btn--danger" data-busy-label="@OperatorLabels.Busy.Removing">@OperatorLabels.PhotoCapture.Remove</button>
                                                 </form>
@@ -356,10 +367,13 @@
                         {
                             <form method="post" asp-page-handler="AddPhotoLinkAddress" asp-route-id="@Model.ContactId" asp-route-savedAddress="@EditModel.NewSavedAddress" class="stack contact-editor">
                                 <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                <input type="hidden" name="PhotoLinkOperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                                 <div class="form-grid form-grid--2">
                                     <div class="field"><input name="SavedAddressName" value="@Model.SavedAddressName" placeholder="@OperatorLabels.PhotoCapture.AddressNamePlaceholder" aria-label="@OperatorLabels.PhotoCapture.AddressName" maxlength="@Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumNameLength" autocomplete="off" required /></div>
                                     <div class="field"><input name="SavedAddressText" value="@Model.SavedAddressText" placeholder="@OperatorLabels.PhotoCapture.FullAddressPlaceholder" aria-label="@OperatorLabels.PhotoCapture.AddressField" maxlength="@Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumAddressLength" autocomplete="off" required /></div>
                                 </div>
+                                @* A saved address with no name or no address is refused beside its form (R868). *@
+                                <span asp-validation-for="SavedAddressName" class="field-error"></span>
                                 <div class="button-row">
                                     <a class="btn" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.PhotoLinksTab">Cancel</a>
                                     <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button>
@@ -372,6 +386,7 @@
                     <div class="panel-head"><h2 id="photo-link-defaults-title">@OperatorLabels.PhotoCapture.DefaultsForTheirLinks</h2></div>
                     <form method="post" asp-page-handler="UpdatePhotoLinkDefaults" asp-route-id="@Model.ContactId" class="panel-body stack contact-editor">
                         <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                        <input type="hidden" name="PhotoLinkOperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                         <partial name="Shared/_PhotoLinkDefaults" model="@((standing, true))" />
                         <div class="button-row"><a asp-page="Index" class="btn">Cancel</a><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
                     </form>

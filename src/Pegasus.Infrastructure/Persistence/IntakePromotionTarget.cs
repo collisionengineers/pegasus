@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.PhotoCapture;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -39,7 +40,7 @@ internal static class IntakePromotionTarget
         ArgumentNullException.ThrowIfNull(db);
         var association = await db.IntakeManualAssociations.AsNoTracking()
             .Where(item => item.IntakeReceiptId == receiptId && item.CaseId == caseId && item.IsActive)
-            .Select(item => new { item.ActorKind })
+            .Select(item => new { item.ActorKind, item.ActorSubjectId })
             .SingleOrDefaultAsync(cancellationToken);
         if (association is null)
         {
@@ -48,6 +49,10 @@ internal static class IntakePromotionTarget
 
         var isStaffDecision = !string.Equals(
             association.ActorKind, nameof(ActorKind.SystemWorker), StringComparison.Ordinal);
+        // A photo link's kept files linked where its record merged file as a
+        // staff association does (R844).
+        var followsRecordMerge = PhotoCaptureIntakeRules.FollowsRecordMerge(
+            association.ActorKind, association.ActorSubjectId);
         var caseRow = await db.Cases.AsNoTracking()
             .Where(item => item.Id == caseId)
             .Select(item => new
@@ -72,9 +77,10 @@ internal static class IntakePromotionTarget
 
         var isOriginReceipt = caseRow.OriginIntakeReceiptId == receiptId;
         var workflow = caseRow.Workflow;
-        // Only a member of staff links material to a Triage Case, so only
-        // then is its Triage version read.
-        var triageVersion = workflow is null && isStaffDecision && !isOriginReceipt
+        // Only a member of staff's link, or one that follows a record's
+        // merge, files material on a Triage Case, so only then is its Triage
+        // version read.
+        var triageVersion = workflow is null && (isStaffDecision || followsRecordMerge) && !isOriginReceipt
             ? await db.Triage.AsNoTracking()
                 .Where(item => item.CaseId == caseId)
                 .Select(item => (long?)item.Version)
@@ -90,7 +96,8 @@ internal static class IntakePromotionTarget
                         workflow.ArchivedAtUtc is not null,
                         Enum.TryParse<CaseLifecycleState>(workflow.State, out var state) ? state : null,
                         workflow.ReportSentEvidenceId is not null),
-                triageVersion is not null));
+                triageVersion is not null,
+                followsRecordMerge));
         return new(disposition, workflow?.Version ?? triageVersion ?? 0, isStaffDecision);
     }
 
