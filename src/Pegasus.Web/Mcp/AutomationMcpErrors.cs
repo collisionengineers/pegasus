@@ -52,7 +52,9 @@ internal static class AutomationMcpErrors
             throw new McpException(
                 "Refused: case edit authority is already held. The case is at version "
                 + $"{exception.CaseVersion}; if this caller holds it from pegasus_edit_begin, present "
-                + "that editLeaseToken, otherwise reload and reacquire rather than retrying.");
+                + "that editLeaseToken; if a member of staff is editing the Case, ask them to hand it "
+                + "over with pegasus_edit_begin and takeOver true, which waits up to 45 seconds for "
+                + "their answer; otherwise reload and reacquire rather than retrying.");
         }
         catch (CaseVersionConflictException exception)
         {

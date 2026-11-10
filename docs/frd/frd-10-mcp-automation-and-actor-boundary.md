@@ -155,7 +155,10 @@ multi-step work, named by `recordKind`, under that record's own scope
 inside the call up to 45 seconds, returning the lease if they accept and a
 refusal naming declined, no answer or already asked otherwise; the Automation
 Actor never forces a hand-over (R554, 30 October 2026;
-[FRD-14](frd-14-record-edit-leases.md#take-over)). On a Triage Case `takeOver`
+[FRD-14](frd-14-record-edit-leases.md#take-over)). A Case's lease-conflict refusal names
+that request, and the tool, its `takeOver` parameter and the server's
+instructions describe it as the way to get a Case a member of staff holds
+(operator, 10 November 2026; R901). On a Triage Case `takeOver`
 still takes over a staff scope at once (R556, 30 October 2026), and the
 takeover goes into the record's history. Staff take over an Automation Case
 lease or Triage scope at once, and only staff may: the Automation Actor never

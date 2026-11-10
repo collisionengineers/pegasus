@@ -58,13 +58,14 @@ public static class AutomationMcp
 
     // The cross-tool rules FRD-10 states, as the server's instructions restate
     // them (ADR-0080 decision 2, carried by ADR-0087): agent-facing copy the
-    // operator approved as built (R526).
+    // operator approved as built (R526); the take-over clause added 10 November 2026 (R901).
     private const string Paging = "Lists page by cursor, 50 by default and 100 at most.";
     private const string OneCommandLease =
         "A write takes expectedVersion and operationKey and accepts an editLeaseToken from "
         + "pegasus_edit_begin; without one it holds the record's edit lease for that one command.";
     private const string ExplicitLease =
-        "pegasus_edit_begin, pegasus_edit_renew and pegasus_edit_end hold a record for multi-step work.";
+        "pegasus_edit_begin, pegasus_edit_renew and pegasus_edit_end hold a record for multi-step work; "
+        + "pegasus_edit_begin with takeOver asks the member of staff editing a Case to hand it over.";
     private const string NativeContent =
         "A download returns the file as content: an image as an image, a PDF as its page text, "
         + "a small text file as text, and anything else as metadata and an authenticated URL for "
