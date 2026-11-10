@@ -658,10 +658,10 @@ public sealed class EfPhotoCaptureStore(
             return new(PhotoCaptureBatchClose.Waiting, Map(capture), []);
         }
 
-        // Only the photographs whose work produced a receipt become members:
-        // a failed one could never complete the group, and the group would
-        // never register; paperwork and video wait outside it for the Case
-        // (R803).
+        // The photographs that have a receipt become members, whatever their
+        // work did after its evaluation; one with none could never complete
+        // the group, which would never register. Paperwork and video wait
+        // outside it for the Case (R803).
         PhotoCaptureItem[] members = request.Group is null
             ? []
             : filings

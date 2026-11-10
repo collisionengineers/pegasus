@@ -258,11 +258,13 @@ A batch **settles** once it holds a photo and the sender has pressed
 link's photos still settle as normal (operator, 9 November 2026; R794). A
 Send with no photos settles nothing. A batch on a Case settles when every
 photo in it has filed in Box (R792). A photo whose filing has ended for good
-without filing no longer holds its batch open: its work failed, its link
-was withdrawn or moved to another Case, its filing's replay gave up, or
-Pegasus linked it and the replay window closed. The batch then settles on
-the photos that did file; this is the lead's reading of R792 for a photo
-that can never file (9 November 2026), pending the operator. When at least
+without filing no longer holds its batch open: its work failed before its
+filing started, its link was withdrawn or moved to another Case, its
+filing's replay gave up, or Pegasus linked it and the replay window closed
+with its filing never started. A filing that has started holds the batch
+until it files or its replay gives up, however old its link. The batch then
+settles on the photos that did file; this is the lead's reading of R792 for
+a photo that can never file (9 November 2026), pending the operator. When at least
 one photo of the batch filed on the Case:
 
 - the Case's images complete (R781;
