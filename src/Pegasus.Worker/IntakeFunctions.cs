@@ -492,6 +492,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     DocumentUploadSweepSchedule documentUploadSweepSchedule,
     PrepareDocumentThumbnails prepareDocumentThumbnails,
     RecogniseFiledEstimates recogniseFiledEstimates,
+    RetryDeferredOriginalReportRecognition retryDeferredOriginalReportRecognition,
     ILogger<StagedArtifactReconciliationFunction> logger)
 {
     /// <summary>
@@ -671,6 +672,23 @@ public sealed partial class StagedArtifactReconciliationFunction(
                     caseFilings.Filed,
                     caseFilings.Failures,
                     caseFilings.Exhausted);
+            }
+        }, failures, cancellationToken);
+
+        // Records an original report recognised while an editor held its
+        // Case, once the lease has ended (R728, #1981).
+        await RunStepAsync("original report recordings", async () =>
+        {
+            var deferred = await retryDeferredOriginalReportRecognition.ExecuteAsync(50, cancellationToken);
+            if (deferred.Candidates > 0)
+            {
+                LogDeferredOriginalReportRecognition(
+                    logger,
+                    FailureLevel(deferred.Failures),
+                    deferred.Candidates,
+                    deferred.Settled,
+                    deferred.Waiting,
+                    deferred.Failures);
             }
         }, failures, cancellationToken);
 
@@ -998,6 +1016,16 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int candidates,
         int retried,
         int escaped,
+        int failures);
+
+    [LoggerMessage(
+        Message = "Deferred original report recordings: {Candidates} candidates, {Settled} settled, {Waiting} still waiting for the editor, {Failures} failures.")]
+    private static partial void LogDeferredOriginalReportRecognition(
+        ILogger logger,
+        LogLevel level,
+        int candidates,
+        int settled,
+        int waiting,
         int failures);
 
     [LoggerMessage(

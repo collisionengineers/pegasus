@@ -256,7 +256,8 @@ association and files the material in the same pass. Filed on an open Audit
 awaiting its original report, the material is read for that report, however
 it was associated ([FRD-16](frd-16-case-record-workspace.md#original-report));
 while the Case is being edited, recording that report waits for the editor
-and retries (R728).
+and retries once the lease ends, without failing or holding back the filing
+or the rest of the receipt's processing (R728).
 Automatic Image-initiated
 association checks the current Case version and yields to an active staff
 lease; the later image merge also yields to a live lease and rechecks the

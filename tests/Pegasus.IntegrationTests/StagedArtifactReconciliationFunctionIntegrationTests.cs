@@ -86,6 +86,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new DocumentUploadSweepSchedule(TimeProvider.System),
             new PrepareDocumentThumbnails(thumbnailCandidates, new UnreachableDocumentThumbnails()),
             new RecogniseFiledEstimates(estimateCandidates, new UnreachableDocumentReads(), []),
+            NoDeferredOriginalReports(),
             logger);
 
         await function.RunAsync(null!, CancellationToken.None);
@@ -416,6 +417,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 thumbnailCandidates ?? new NoDocumentThumbnailCandidates(), new UnreachableDocumentThumbnails()),
             new RecogniseFiledEstimates(
                 estimateCandidates ?? new RecordingEstimateCandidates(), new UnreachableDocumentReads(), []),
+            NoDeferredOriginalReports(),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
         return function.RunAsync(null!, cancellationToken);
     }
@@ -423,6 +425,22 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
     /// <summary>A Case-filing replay over an empty page: the filer is never reached.</summary>
     private static ReplayCaseFilings CaseFilingReplay(ICaseFilingReplayStore store) =>
         new(store, new EmptyIntakeReceiptQueries(), new PromoteAssociatedIntakeCaseEvidence(null!, null!, null!), TimeProvider.System);
+
+    private static RetryDeferredOriginalReportRecognition NoDeferredOriginalReports() =>
+        new(new NoOriginalReportRecognitionDeferrals(), new EmptyIntakeReceiptQueries());
+
+    private sealed class NoOriginalReportRecognitionDeferrals : IOriginalReportRecognitionDeferrals
+    {
+        public Task RecordAsync(Guid caseId, Guid receiptId, long intakeVersion, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task<IReadOnlyList<OriginalReportRecognitionDeferral>> ListAsync(
+            int maximumItems, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<OriginalReportRecognitionDeferral>>([]);
+
+        public Task SettleAsync(OriginalReportRecognitionDeferral deferral, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+    }
 
     private sealed class EmptyCaseFilingReplayStore : ICaseFilingReplayStore
     {

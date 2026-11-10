@@ -503,7 +503,7 @@ word "intake" appears only on the Administrator's Intake log tab
 - Manual upload with a Case that existed and a later Case both matching:
   waits for staff.
 - A manual group staff have started: gains no automatic link.
-- Merge meets a live Case edit lease: yields and retries.
+- Merge meets a live Case edit lease: yields and retries (R728).
 - The fold meets a live Case edit lease: advances the Case version and
   leaves the editor's lease standing
   ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)).

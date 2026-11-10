@@ -12,11 +12,16 @@ namespace Pegasus.Core.Documents;
 /// matching a catalogued report signature is recorded as the original report
 /// and fills the Original report cells, as a staff Mark does. None, two or
 /// more, or a file that could not be read leave the requirement for staff to
-/// mark (operator, 28 September 2026).
+/// mark (operator, 28 September 2026). While the Case is being edited,
+/// recording waits for the editor and retries (R728): the recording is
+/// deferred (<see cref="IOriginalReportRecognitionDeferrals"/>) and
+/// <see cref="RetryDeferredOriginalReportRecognition"/> tries it again, so the
+/// filing that found the report neither fails nor waits (#1981).
 /// </summary>
 public sealed class RecogniseFiledOriginalReport(
     IRecogniseOriginalReportStore store,
-    IReadOriginalReport originalReport)
+    IReadOriginalReport originalReport,
+    IOriginalReportRecognitionDeferrals? deferrals = null)
 {
     private static readonly ActionActor SystemWorkerActor =
         ActionActor.SystemWorker("intake-processing");
@@ -89,16 +94,27 @@ public sealed class RecogniseFiledOriginalReport(
         }
 
         var (report, reportReading) = recognised[0];
-        var recorded = await store.RecordRecognisedAsync(
-            new(
-                caseId,
-                receipt.Id,
-                report.DocumentOccurrenceId,
-                report.DocumentVersionId,
-                SystemWorkerActor,
-                OriginalReportRecognitionOperationKey.For(receipt.Id)),
-            reportReading,
-            cancellationToken);
+        OriginalReportRecorded? recorded;
+        try
+        {
+            recorded = await store.RecordRecognisedAsync(
+                new(
+                    caseId,
+                    receipt.Id,
+                    report.DocumentOccurrenceId,
+                    report.DocumentVersionId,
+                    SystemWorkerActor,
+                    OriginalReportRecognitionOperationKey.For(receipt.Id)),
+                reportReading,
+                cancellationToken);
+        }
+        catch (IntakeDependencyUnavailableException) when (deferrals is not null)
+        {
+            // An editor holds the Case, or it changed under the write.
+            await deferrals.RecordAsync(caseId, receipt.Id, receipt.Version, cancellationToken);
+            return Result(OriginalReportRecognitionResult.WaitingForEditor);
+        }
+
         return Result(recorded is null
             ? OriginalReportRecognitionResult.NotApplicable
             : OriginalReportRecognitionResult.Recorded);
@@ -120,7 +136,93 @@ public enum OriginalReportRecognitionResult
 
     /// <summary>The Case awaits its report, but none of the receipt's documents is filed on it yet.</summary>
     AwaitingFiling,
-    Recorded
+    Recorded,
+
+    /// <summary>One report was recognised while an editor held the Case; recording it is deferred and retried (R728).</summary>
+    WaitingForEditor
+}
+
+/// <summary>A receipt whose recognised original report waits to be recorded on its Case.</summary>
+public sealed record OriginalReportRecognitionDeferral(Guid CaseId, Guid ReceiptId);
+
+/// <summary>
+/// The recordings of a recognised original report that waited for a Case
+/// editor, kept until a later attempt decides them.
+/// </summary>
+public interface IOriginalReportRecognitionDeferrals
+{
+    /// <summary>Records that the receipt's report waits for the editor; one already waiting counts as recorded.</summary>
+    Task RecordAsync(Guid caseId, Guid receiptId, long intakeVersion, CancellationToken cancellationToken);
+
+    /// <summary>The waiting recordings, oldest first, at most <paramref name="maximumItems"/>.</summary>
+    Task<IReadOnlyList<OriginalReportRecognitionDeferral>> ListAsync(
+        int maximumItems,
+        CancellationToken cancellationToken);
+
+    /// <summary>Ends the wait: a later attempt recorded the report or found it no longer awaited.</summary>
+    Task SettleAsync(OriginalReportRecognitionDeferral deferral, CancellationToken cancellationToken);
+}
+
+public sealed record RetryDeferredOriginalReportRecognitionResult(int Candidates, int Settled, int Waiting, int Failures);
+
+/// <summary>
+/// Tries again each original report recording that waited for a Case editor
+/// (R728, #1981), on the Worker's one-minute timer. A wait ends when the report
+/// is recorded, or when the Case no longer awaits it, or when the receipt is
+/// gone. An editor still holding the Case leaves it waiting. A fault that
+/// retrying cannot clear ends it too, and the report is left for staff to mark,
+/// as an unreadable file is.
+/// </summary>
+public sealed class RetryDeferredOriginalReportRecognition(
+    IOriginalReportRecognitionDeferrals deferrals,
+    IIntakeReceiptQueries receiptQueries,
+    RecogniseFiledOriginalReport? recogniser = null)
+{
+    public async Task<RetryDeferredOriginalReportRecognitionResult> ExecuteAsync(
+        int maximumItems,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
+        if (recogniser is null)
+        {
+            return new(0, 0, 0, 0);
+        }
+
+        var due = await deferrals.ListAsync(maximumItems, cancellationToken);
+        var settled = 0;
+        var waiting = 0;
+        var failures = 0;
+        foreach (var deferral in due)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                var receipt = await receiptQueries.GetAsync(deferral.ReceiptId, cancellationToken);
+                var result = receipt is null
+                    ? OriginalReportRecognitionResult.NotApplicable
+                    : await recogniser.ExecuteAsync(deferral.CaseId, receipt, cancellationToken);
+                if (result == OriginalReportRecognitionResult.WaitingForEditor)
+                {
+                    waiting++;
+                    continue;
+                }
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsTransientFailure(exception))
+            {
+                failures++;
+                continue;
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                failures++;
+            }
+
+            await deferrals.SettleAsync(deferral, cancellationToken);
+            settled++;
+        }
+
+        return new(due.Count, settled, waiting, failures);
+    }
 }
 
 public static class OriginalReportRecognitionOperationKey
