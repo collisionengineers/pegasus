@@ -599,6 +599,30 @@ public sealed class ApprovedMailboxEstateIntegrationTests
     }
 
     [Fact]
+    public async Task AFailedRecreationIsRecordedOnTheOlderGenerationRowItReplaces()
+    {
+        // #1826: a row a generation behind its mailbox is due for a new
+        // subscription; when that write fails the failure stays visible on it.
+        await using var database = await CreateInitialSubscriptionDatabaseAsync();
+        await database.ExecuteAsync(
+            $"UPDATE ApprovedMailboxes SET MailboxGeneration = 2 WHERE Id = '{TestMailboxId.From("instructions"):D}';");
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IApprovedMailboxSubscriptionStore>();
+
+        await store.RecordMaintenanceFailureAsync(
+            TestMailboxId.From("instructions"),
+            2,
+            "old-subscription",
+            "graph_subscription_maintenance_failed",
+            new DateTimeOffset(2026, 9, 6, 12, 0, 0, TimeSpan.Zero),
+            CancellationToken.None);
+
+        Assert.Equal("old-subscription", await CurrentSubscriptionIdAsync(database));
+        Assert.Equal(1L, await CurrentSubscriptionGenerationAsync(database));
+        Assert.Equal("graph_subscription_maintenance_failed", await CurrentSubscriptionFailureAsync(database));
+    }
+
+    [Fact]
     public async Task SameGenerationRecreationReplacesTheExpectedPriorSubscription()
     {
         await using var database = await CreateInitialSubscriptionDatabaseAsync();
