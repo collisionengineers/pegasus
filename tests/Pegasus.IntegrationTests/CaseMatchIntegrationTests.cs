@@ -537,6 +537,78 @@ public sealed class CaseMatchIntegrationTests
     }
 
     /// <summary>
+    /// #1831: two messages of one conversation arrive together. The sibling's
+    /// own pass reads the thread before the other's Case commits and links
+    /// nothing; the sweep links it once the thread holds the Case, within two
+    /// hours of its processing (R884), and a later pass changes nothing.
+    /// </summary>
+    [Fact]
+    public async Task ASiblingProcessedBeforeItsThreadCaseCommitsIsLinkedByTheSweep()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("thread-sibling-accept")).Identity.CaseId;
+        var creating = await harness.SeedRetainedMailReceiptAsync("thread-sibling-creating", null, "thread-s");
+        var sibling = await harness.SeedRetainedMailReceiptAsync("thread-sibling-early", null, "thread-s");
+        await harness.CompleteWorkAsync(sibling, "thread-sibling-early", StartUtc);
+        var store = new EfIntakeMutationStore(harness.Factory);
+        var clock = new FixedClock(StartUtc.AddMinutes(10));
+        var association = new AssociateRetainedMailWithCase(store, store, clock);
+        var sweep = new AssociateThreadSiblings(
+            new EfThreadSiblingAssociationCandidates(harness.Factory),
+            new EfIntakeReceiptStore(harness.Factory),
+            association,
+            clock);
+
+        Assert.Null(await association.ExecuteAsync(sibling));
+        Assert.Equal(new AssociateThreadSiblingsResult(0, 0, 0), await sweep.ExecuteAsync(50));
+
+        // The Case-creating message's link commits after the sibling's pass.
+        await AssociateAsync(store, creating, caseId);
+
+        Assert.Equal(new AssociateThreadSiblingsResult(1, 1, 0), await sweep.ExecuteAsync(50));
+        Assert.Equal(new AssociateThreadSiblingsResult(0, 0, 0), await sweep.ExecuteAsync(50));
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var linked = await context.IntakeManualAssociations
+            .AsNoTracking()
+            .SingleAsync(item => item.IntakeReceiptId == sibling);
+        Assert.True(linked.IsActive);
+        Assert.Equal(caseId, linked.CaseId);
+        Assert.Equal(AssociateRetainedMailWithCase.PolicyKey, linked.MatchPolicyKey);
+        Assert.Equal($"mail-case-association:{sibling:N}", linked.LastOperationKey);
+    }
+
+    [Fact]
+    public async Task TheSweepLeavesASiblingPastTheWindowOrUnlinkedByStaff()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("thread-sibling-bounds-accept")).Identity.CaseId;
+        var creating = await harness.SeedRetainedMailReceiptAsync("thread-sibling-bounds-creating", null, "thread-b");
+        var late = await harness.SeedRetainedMailReceiptAsync("thread-sibling-late", null, "thread-b");
+        var unlinked = await harness.SeedRetainedMailReceiptAsync("thread-sibling-unlinked", null, "thread-b");
+        var clock = new FixedClock(StartUtc.AddHours(3));
+        await harness.CompleteWorkAsync(late, "thread-sibling-late", StartUtc);
+        await harness.CompleteWorkAsync(unlinked, "thread-sibling-unlinked", StartUtc.AddHours(2));
+        var store = new EfIntakeMutationStore(harness.Factory);
+        await AssociateAsync(store, unlinked, caseId);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE IntakeManualAssociations SET IsActive = 0, UnlinkedAtUtc = {StartUtc.AddHours(2)} WHERE IntakeReceiptId = {unlinked}");
+        }
+        await AssociateAsync(store, creating, caseId);
+        var sweep = new AssociateThreadSiblings(
+            new EfThreadSiblingAssociationCandidates(harness.Factory),
+            new EfIntakeReceiptStore(harness.Factory),
+            new AssociateRetainedMailWithCase(store, store, clock),
+            clock);
+
+        Assert.Equal(new AssociateThreadSiblingsResult(0, 0, 0), await sweep.ExecuteAsync(50));
+        await using var read = await harness.Factory.CreateDbContextAsync();
+        Assert.False(await read.IntakeManualAssociations.AnyAsync(item => item.IntakeReceiptId == late));
+        Assert.False((await read.IntakeManualAssociations.SingleAsync(item => item.IntakeReceiptId == unlinked)).IsActive);
+    }
+
+    /// <summary>
     /// A reply answers the message it quotes: its In-Reply-To and References
     /// headers reach the Case of the retained message they point at (D13). The
     /// header value carries no angle brackets, while the retained identity was
@@ -1056,6 +1128,26 @@ public sealed class CaseMatchIntegrationTests
             workflow.State = state.ToString();
             await context.SaveChangesAsync();
         }
+        public async Task CompleteWorkAsync(Guid receiptId, string externalToken, DateTimeOffset completedAtUtc)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var stagedId = Guid.NewGuid();
+            context.IntakeStagedReceipts.Add(new IntakeStagedReceiptEntity
+            {
+                Id = stagedId, SourceFileName = "chaser.eml", MediaType = "message/rfc822", SourceLength = 50,
+                SourceHash = new string('c', 64), SourceChannel = "mailbox", ExternalReceiptToken = externalToken,
+                ReceivedAtUtc = completedAtUtc, Actor = "system-worker:test", StorageKey = $"staged/{externalToken}",
+                StagedAtUtc = completedAtUtc
+            });
+            context.IntakeWorkItems.Add(new IntakeWorkItemEntity
+            {
+                Id = Guid.NewGuid(), StagedReceiptId = stagedId, OperationKey = $"intake-work:{externalToken}",
+                State = "completed", AttemptCount = 1, DueAtUtc = completedAtUtc,
+                ProcessedReceiptId = receiptId, CompletedAtUtc = completedAtUtc
+            });
+            await context.SaveChangesAsync();
+        }
+
         public async Task<Guid> SeedRetainedMailReceiptAsync(
             string externalToken,
             string? registration,
@@ -1278,6 +1370,11 @@ public sealed class CaseMatchIntegrationTests
                 null),
             StartUtc,
             CancellationToken.None);
+
+    private sealed class FixedClock(DateTimeOffset nowUtc) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => nowUtc;
+    }
 
     private sealed class FixedConfiguration : ICaseWorkflowConfiguration
     {
