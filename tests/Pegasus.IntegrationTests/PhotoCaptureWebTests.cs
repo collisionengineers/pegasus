@@ -29,6 +29,9 @@ public sealed partial class PhotoCaptureWebTests
 {
     private const string Api = PhotoCaptureSurface.ApiBasePath;
 
+    /// <summary>Where the website link is managed (v50 F; R911).</summary>
+    private const string WebsiteLinkPage = "/Administration/PhotoLinks";
+
     /// <summary>The query the app builds for its first "closer" shot of the front driver corner (capture.js itemQuery).</summary>
     private const string FrontDriverCornerCloser =
         "kind=damage&area=fd&stage=closer&position=1&takenAt=2031-05-06T10%3A20%3A00.000Z&live=true&original=false";
@@ -390,18 +393,24 @@ public sealed partial class PhotoCaptureWebTests
         var encoded = HtmlEncoder.Default.Encode(principalName);
 
         var list = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}");
-        Assert.Contains($"<span>{encoded}</span>", ListRow(list, link.Capture.Id), StringComparison.Ordinal);
+        // A long name ends in an ellipsis with the full name on hover (v50 I).
+        Assert.Contains(
+            $"<span class=\"photo-capture-clip\" title=\"{encoded}\">{encoded}</span>",
+            ListRow(list, link.Capture.Id),
+            StringComparison.Ordinal);
         var details = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture/{link.Capture.Id:D}");
         Assert.Contains($"<dt>{OperatorLabels.PhotoCapture.From}</dt><dd>{encoded}", details, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// Remind is offered only on a live link that is due one: a live
-    /// link not opened after two days offers it; an expired link that was
-    /// sent with something missing does not, though a reminder is due.
+    /// Resend, which took in Remind (R914), is offered only on a live link: a
+    /// live link not opened after two days leads with it, opening the
+    /// composer (R915) back to the list; an expired link that was sent with
+    /// something missing does not, though a reminder is due. Neither row
+    /// offers Remind.
     /// </summary>
     [Fact]
-    public async Task LinksWeSentOffersRemindOnlyOnALiveLink()
+    public async Task LinksWeSentOffersResendOnlyOnALiveLink()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -421,15 +430,22 @@ public sealed partial class PhotoCaptureWebTests
 
         var list = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}");
 
-        Assert.Contains("handler=Remind", ListRow(list, live.Capture.Id), StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=Remind", ListRow(list, expired.Capture.Id), StringComparison.Ordinal);
+        var liveRow = ListRow(list, live.Capture.Id);
+        var expiredRow = ListRow(list, expired.Capture.Id);
+        Assert.Contains(
+            $"href=\"/PhotoCapture/{live.Capture.Id:D}/Resend?returnUrl=%2FPhotoCapture%3Ftab%3D{OperatorLabels.PhotoCapture.LinksWeSentKey}\">{OperatorLabels.PhotoCapture.Resend}</a>",
+            liveRow,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("/Resend", expiredRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Remind", list, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Remind<", list, StringComparison.Ordinal);
     }
 
     /// <summary>
     /// Once its Case is archived a link is dead (R793): its page is the
     /// unknown token's, an upload is refused as unavailable, the photos it
     /// already filed stay on the Case, Links we sent reads it Expired with no
-    /// Remind or Resend, and it is neither sent again nor extended.
+    /// Resend, and it is neither sent again nor extended.
     /// </summary>
     [Fact]
     public async Task ALinkWhoseCaseIsArchivedIsDead()
@@ -457,14 +473,14 @@ public sealed partial class PhotoCaptureWebTests
             $">{OperatorLabels.PhotoCapture.State(PhotoCaptureState.Expired)}</span>",
             row,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=Remind", row, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Resend", row, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=Resend", row, StringComparison.Ordinal);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var actions = scope.ServiceProvider.GetRequiredService<PhotoLinkActions>();
-        var reissue = await Assert.ThrowsAsync<PhotoCaptureRefusalException>(() => actions.ReissueAsync(
-            Issuer, link.Capture.Id, PhotoLinkTokenPurpose.Copy, isReminder: false, NewOperationKey(), CancellationToken.None));
-        Assert.Equal(PhotoCaptureRefusals.CaseUnavailable, reissue.Code);
+        var resend = await Assert.ThrowsAsync<PhotoCaptureRefusalException>(() => actions.ResendAsync(
+            Issuer, link.Capture.Id, PhotoLinkTokenPurpose.Copy, NewOperationKey(), CancellationToken.None));
+        Assert.Equal(PhotoCaptureRefusals.CaseUnavailable, resend.Code);
         var extend = await Assert.ThrowsAsync<PhotoCaptureRefusalException>(() => actions.ExtendAsync(
             Issuer, link.Capture.Id, CaptureLimits.DefaultLifetimeDays, NewOperationKey(), CancellationToken.None));
         Assert.Equal(PhotoCaptureRefusals.CaseUnavailable, extend.Code);
@@ -711,9 +727,10 @@ public sealed partial class PhotoCaptureWebTests
 
     /// <summary>
     /// The website link is created at the address the Administrator typed
-    /// (R797): an address of the wrong shape, and one a link already holds,
-    /// are each refused and write nothing; its defaults save, and its mode
-    /// stays guided whatever is posted.
+    /// (R797), on Administration › Photo links (v50 F; R911): an address of
+    /// the wrong shape, and one a link already holds, are each refused and
+    /// write nothing; its defaults save, and its mode stays guided whatever is
+    /// posted.
     /// </summary>
     [Fact]
     public async Task TheWebsiteLinkIsCreatedAtTheTypedAddressAndItsDefaultsSave()
@@ -731,13 +748,13 @@ public sealed partial class PhotoCaptureWebTests
 
         var linksBefore = await StandingLinkCountAsync(factory);
         using (var wrongShape = await PostStaffFormAsync(
-            client, "/PhotoCapture?handler=CreateWebsiteLink", NewOperationKey(), "WebsiteSlug", "Not a slug!"))
+            client, WebsiteLinkPage + "?handler=CreateWebsiteLink", NewOperationKey(), "WebsiteSlug", "Not a slug!"))
         {
             Assert.Equal(HttpStatusCode.Redirect, wrongShape.StatusCode);
         }
 
         using (var inUse = await PostStaffFormAsync(
-            client, "/PhotoCapture?handler=CreateWebsiteLink", NewOperationKey(), "WebsiteSlug", contactLink.Slug))
+            client, WebsiteLinkPage + "?handler=CreateWebsiteLink", NewOperationKey(), "WebsiteSlug", contactLink.Slug))
         {
             Assert.Equal(HttpStatusCode.Redirect, inUse.StatusCode);
         }
@@ -746,7 +763,7 @@ public sealed partial class PhotoCaptureWebTests
         Assert.Null(await WebsiteLinkAsync(factory));
 
         using (var created = await PostStaffFormAsync(
-            client, "/PhotoCapture?handler=CreateWebsiteLink", NewOperationKey(), "WebsiteSlug", typedSlug))
+            client, WebsiteLinkPage + "?handler=CreateWebsiteLink", NewOperationKey(), "WebsiteSlug", typedSlug))
         {
             Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
         }
@@ -764,7 +781,7 @@ public sealed partial class PhotoCaptureWebTests
             ["LinkOriginalsInBackground"] = "false",
             ["LinkForwardedMode"] = nameof(PhotoCaptureMode.Quick)
         };
-        using (var saved = await PostStaffFormAsync(client, "/PhotoCapture?handler=UpdateWebsiteLinkDefaults", defaults))
+        using (var saved = await PostStaffFormAsync(client, WebsiteLinkPage + "?handler=UpdateWebsiteLinkDefaults", defaults))
         {
             Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
         }
@@ -825,25 +842,35 @@ public sealed partial class PhotoCaptureWebTests
 
     /// <summary>
     /// Ask for it is on a live Coming in row whose status is Something
-    /// missing, and not on a dead one (R806, R816).
+    /// missing, and not on a dead one (R806, R816). With no Case or no
+    /// address it makes a link to copy on the link's page; on a Case with an
+    /// address it opens the composer, since no button sends an e-mail on its
+    /// own (R915).
     /// </summary>
     [Fact]
     public async Task ComingInOffersAskForItOnlyOnALiveRowWithSomethingMissing()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await StandingCaptureDriver.SetCaseRegistrationAsync(factory, caseId, "XY99ZZZ");
         var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
         var live = await StandingCaptureDriver.StartAsync(factory, client, link, "ZZ99 QQQ");
         var dead = await StandingCaptureDriver.StartAsync(factory, client, link, "ZZ88 HHH");
+        var onCase = await StandingCaptureDriver.StartAsync(factory, client, link, "XY99 ZZZ");
+        Assert.Equal(caseId, onCase.Capture.CaseId);
         var now = IntakeWebApplicationFactory.FixedUtcNow;
         await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
         {
-            // Both were sent with nothing in them; the second link has since expired.
+            // All were sent with nothing in them; the second link has since expired.
             await db.PhotoCaptures.Where(value => value.Id == live.Capture.Id).ExecuteUpdateAsync(update => update
                 .SetProperty(value => value.SentAtUtc, (DateTimeOffset?)now.AddHours(-1)));
             await db.PhotoCaptures.Where(value => value.Id == dead.Capture.Id).ExecuteUpdateAsync(update => update
                 .SetProperty(value => value.SentAtUtc, (DateTimeOffset?)now.AddDays(-2))
                 .SetProperty(value => value.ExpiresAtUtc, now.AddDays(-1)));
+            await db.PhotoCaptures.Where(value => value.Id == onCase.Capture.Id).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.SentAtUtc, (DateTimeOffset?)now.AddHours(-1))
+                .SetProperty(value => value.Email, "sam.taylor@example.com"));
         }
 
         var list = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture");
@@ -855,7 +882,14 @@ public sealed partial class PhotoCaptureWebTests
             liveRow,
             StringComparison.Ordinal);
         Assert.Contains(askForIt, liveRow, StringComparison.Ordinal);
+        Assert.Contains($"/PhotoCapture/{live.Capture.Id:D}?handler=Resend", liveRow, StringComparison.Ordinal);
         Assert.DoesNotContain(askForIt, StandingCaptureDriver.ListRow(list, dead.Capture.Id), StringComparison.Ordinal);
+        var onCaseRow = StandingCaptureDriver.ListRow(list, onCase.Capture.Id);
+        Assert.Contains(
+            $"href=\"/PhotoCapture/{onCase.Capture.Id:D}/Resend?returnUrl=%2FPhotoCapture\">{OperatorLabels.PhotoCapture.AskForIt}</a>",
+            onCaseRow,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Resend", onCaseRow, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -888,6 +922,13 @@ public sealed partial class PhotoCaptureWebTests
             StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.PhotoCapture.NoPhotosYet, emptyStory, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.PhotoCapture.ResendTheLink, emptyStory, StringComparison.Ordinal);
+        // Resend the link opens the composer, back to the Case's files (R915); it posts nothing itself.
+        Assert.Contains(
+            $"href=\"/PhotoCapture/{empty.Capture.Id:D}/Resend?returnUrl=",
+            emptyStory,
+            StringComparison.Ordinal);
+        Assert.Contains("data-photo-link-resend", emptyStory, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Resend", emptyStory, StringComparison.Ordinal);
     }
 
     /// <summary>

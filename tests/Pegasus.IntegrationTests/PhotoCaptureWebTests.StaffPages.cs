@@ -19,7 +19,11 @@ namespace Pegasus.IntegrationTests;
 /// "Matched by staff" (R864), the "Contact inactive" chip (R865), the Website
 /// link panel's own pause words (R867), the four labels (R869), one
 /// "Reminded · name" line per reminder (R870), and the refusal sentences
-/// shown beside their forms (R868).
+/// shown beside their forms (R868); and after the v50 design round: the
+/// website link on Administration › Photo links (R911), the rows' acts and
+/// More (R912), the link page's header (R913), Resend as the one act that
+/// sends a link again (R914) and the composer every photo-link e-mail goes
+/// through (R915).
 /// </summary>
 public sealed partial class PhotoCaptureWebTests
 {
@@ -166,14 +170,14 @@ public sealed partial class PhotoCaptureWebTests
         for (var attempt = 0; attempt < 2; attempt++)
         {
             using var created = await PostStaffFormAsync(
-                client, "/PhotoCapture?handler=CreateWebsiteLink", createKey, "WebsiteSlug", "ce-vehicle-photos");
+                client, WebsiteLinkPage + "?handler=CreateWebsiteLink", createKey, "WebsiteSlug", "ce-vehicle-photos");
             Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
         }
 
         var website = await WebsiteLinkAsync(factory)
             ?? throw new InvalidOperationException("The website link was not created.");
         var pauseKey = NewOperationKey();
-        using (var paused = await PostStaffFormAsync(client, "/PhotoCapture?handler=PauseWebsiteLink", new Dictionary<string, string>
+        using (var paused = await PostStaffFormAsync(client, WebsiteLinkPage + "?handler=PauseWebsiteLink", new Dictionary<string, string>
         {
             ["OperationKey"] = pauseKey,
             ["ExpectedVersion"] = website.Version.ToString(CultureInfo.InvariantCulture)
@@ -267,17 +271,17 @@ public sealed partial class PhotoCaptureWebTests
         const string addressLabel = "<label for=\"website-address\">Website address</label>";
         var retiring = $"data-busy-label=\"{HtmlEncoder.Default.Encode("Retiring…")}\"";
 
-        var empty = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture");
+        var empty = await IntakeWebDriver.GetHtmlAsync(client, WebsiteLinkPage);
         Assert.Contains(addressLabel, empty, StringComparison.Ordinal);
         Assert.Contains("id=\"website-address\" name=\"WebsiteSlug\"", empty, StringComparison.Ordinal);
 
         using (var created = await PostStaffFormAsync(
-            client, "/PhotoCapture?handler=CreateWebsiteLink", NewOperationKey(), "WebsiteSlug", "ce-vehicle-photos"))
+            client, WebsiteLinkPage + "?handler=CreateWebsiteLink", NewOperationKey(), "WebsiteSlug", "ce-vehicle-photos"))
         {
             Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
         }
 
-        var active = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture");
+        var active = await IntakeWebDriver.GetHtmlAsync(client, WebsiteLinkPage);
         Assert.Contains("Pause the link", active, StringComparison.Ordinal);
         Assert.DoesNotContain("Pause their link", active, StringComparison.Ordinal);
         Assert.Contains(addressLabel, active, StringComparison.Ordinal);
@@ -285,7 +289,7 @@ public sealed partial class PhotoCaptureWebTests
 
         var website = await WebsiteLinkAsync(factory)
             ?? throw new InvalidOperationException("The website link was not created.");
-        using (var paused = await PostStaffFormAsync(client, "/PhotoCapture?handler=PauseWebsiteLink", new Dictionary<string, string>
+        using (var paused = await PostStaffFormAsync(client, WebsiteLinkPage + "?handler=PauseWebsiteLink", new Dictionary<string, string>
         {
             ["OperationKey"] = NewOperationKey(),
             ["ExpectedVersion"] = website.Version.ToString(CultureInfo.InvariantCulture)
@@ -294,7 +298,7 @@ public sealed partial class PhotoCaptureWebTests
             Assert.Equal(HttpStatusCode.Redirect, paused.StatusCode);
         }
 
-        var pausedPage = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture");
+        var pausedPage = await IntakeWebDriver.GetHtmlAsync(client, WebsiteLinkPage);
         Assert.Contains("Resume the link", pausedPage, StringComparison.Ordinal);
         Assert.DoesNotContain("Resume their link", pausedPage, StringComparison.Ordinal);
 
@@ -307,26 +311,297 @@ public sealed partial class PhotoCaptureWebTests
         Assert.Contains(retiring, contactTab, StringComparison.Ordinal);
     }
 
-    /// <summary>A link's History shows one "Reminded · name" line for each reminder (R870).</summary>
+    /// <summary>
+    /// A link's History shows one "Reminded · name" line for each reminder
+    /// (R870). Ask for it on a Coming in capture, here the link page's Resend
+    /// that makes a link to copy, always counts as one (R842, R914).
+    /// </summary>
     [Fact]
     public async Task EachReminderIsItsOwnHistoryLineWithItsSender()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
-        var link = await IssueLinkAsync(factory, caseId);
-        var page = $"/PhotoCapture/{link.Capture.Id:D}";
+        var standing = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var started = await StandingCaptureDriver.StartAsync(factory, client, standing, "ZZ99 QQQ");
+        var page = $"/PhotoCapture/{started.Capture.Id:D}";
 
         for (var reminder = 0; reminder < 2; reminder++)
         {
-            using var reminded = await PostStaffFormAsync(client, $"{page}?handler=Remind", NewOperationKey());
-            Assert.Equal(HttpStatusCode.OK, reminded.StatusCode);
+            using var resent = await PostStaffFormAsync(client, $"{page}?handler=Resend", NewOperationKey());
+            Assert.Equal(HttpStatusCode.OK, resent.StatusCode);
+            Assert.Contains("data-photo-link-issued", await resent.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         }
 
+        Assert.Equal(2, (await StandingCaptureDriver.CaptureAsync(factory, started.Capture.Id)).ReminderCount);
         var name = await StaffNameAsync(factory, DevelopmentOfflineIdentity.AdministratorId);
         var details = await IntakeWebDriver.GetHtmlAsync(client, page);
         var line = HtmlEncoder.Default.Encode($"Reminded · {name}");
         Assert.Equal(2, Regex.Count(details, Regex.Escape(line)));
+    }
+
+    /// <summary>
+    /// Remind is gone as an act of its own (R914): neither the link's page nor
+    /// Links we sent offers it. A link due a reminder leads its page with
+    /// Resend, which opens the composer and returns to the page (R913, R915).
+    /// </summary>
+    [Fact]
+    public async Task NeitherTheLinksPageNorTheListOffersRemind()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var link = await IssueLinkAsync(factory, caseId);
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            await db.PhotoCaptures.Where(value => value.Id == link.Capture.Id).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.CreatedAtUtc, IntakeWebApplicationFactory.FixedUtcNow.AddDays(-2)));
+        }
+
+        var details = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture/{link.Capture.Id:D}");
+        var list = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}");
+
+        foreach (var html in new[] { details, list })
+        {
+            Assert.DoesNotContain("handler=Remind", html, StringComparison.Ordinal);
+            Assert.DoesNotContain(">Remind<", html, StringComparison.Ordinal);
+        }
+
+        Assert.Contains(
+            $"<a class=\"btn btn--primary\" href=\"/PhotoCapture/{link.Capture.Id:D}/Resend?returnUrl=%2FPhotoCapture%2F{link.Capture.Id:D}\">",
+            details,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The composer (R915) opened from Links we sent draws From, the link's
+    /// address in To, the subject and the standard Photo link wording with
+    /// the link still a placeholder (R806). Send by e-mail makes the link,
+    /// sends the message as staff and returns to the list with "Link sent to
+    /// … by e-mail"; a fresh link with no reminder due is not counted as one
+    /// (R914).
+    /// </summary>
+    [Fact]
+    public async Task TheComposerSendsByEmailAndReturnsWithTheNotice()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(baseFactory);
+        await SeedCaseRegistrationAsync(baseFactory, caseId, "AB12 CDE");
+        await SeedSendableMailboxAsync(baseFactory);
+        var link = await IssueLinkToAsync(baseFactory, caseId, "Sam Taylor", "sam.taylor@example.com");
+        var mail = new SentStaffMailSend();
+        using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            CaseWebTestSupport.Substitute<Pegasus.Core.Operations.IStaffMailSend>(services, mail)));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var listPath = $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}";
+        var composer = $"/PhotoCapture/{link.Capture.Id:D}/Resend";
+
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"{composer}?returnUrl={Uri.EscapeDataString(listPath)}");
+
+        Assert.Contains($">{OperatorLabels.PhotoCapture.Resend}</h1>", html, StringComparison.Ordinal);
+        var from = Regex.Match(html, "<option value=\"(?<id>[^\"]+)\"[^>]*>photo-link-sender@collisionengineers.co.uk</option>");
+        Assert.True(from.Success, "From does not offer the sending mailbox.");
+        Assert.Matches("<input id=\"photo-link-to\" type=\"text\" value=\"sam.taylor@example.com\" readonly", html);
+        var subject = InputValue(html, "Subject");
+        Assert.Equal("Photos of AB12 CDE for Collision Engineers", subject);
+        var body = TextareaValue(html, "Body");
+        Assert.Contains("Collision Engineers need a few photos of AB12 CDE to assess the damage.", body, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.PhotoCapture.PhotoLinkPlaceholder, body, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.PhotoCapture.CreateLinkToCopy, html, StringComparison.Ordinal);
+        Assert.Contains(HtmlEncoder.Default.Encode(OperatorLabels.PhotoCapture.SendByEmail), html, StringComparison.Ordinal);
+        Assert.Empty(mail.Commands);
+
+        using (var sent = await PostStaffFormAsync(client, composer, new Dictionary<string, string>
+        {
+            ["OperationKey"] = InputValue(html, "OperationKey"),
+            ["ReturnUrl"] = listPath,
+            ["FromMailboxId"] = from.Groups["id"].Value,
+            ["Subject"] = subject,
+            ["Body"] = body,
+            ["StandardBody"] = body,
+            ["Submit"] = Pegasus.Web.Pages.PhotoCapture.ResendModel.ByEmail
+        }))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
+            Assert.Equal(listPath, sent.Headers.Location?.OriginalString);
+        }
+
+        var command = Assert.Single(mail.Commands);
+        Assert.Equal("sam.taylor@example.com", Assert.Single(command.To).Address);
+        Assert.Equal(subject, command.Subject);
+        Assert.Equal(caseId, command.ContextId);
+        Assert.DoesNotContain(OperatorLabels.PhotoCapture.PhotoLinkPlaceholder, command.Body, StringComparison.Ordinal);
+        Assert.Contains("/c/", command.Body, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<span>{OperatorLabels.PhotoCapture.LinkSentTo("Sam Taylor")}</span>",
+            await IntakeWebDriver.GetHtmlAsync(client, listPath),
+            StringComparison.Ordinal);
+        Assert.Equal(0, (await StandingCaptureDriver.CaptureAsync(baseFactory, link.Capture.Id)).ReminderCount);
+    }
+
+    /// <summary>
+    /// Create link to copy on the composer makes a fresh link and shows it
+    /// once, sending nothing; with no staff send composed the composer offers
+    /// no Send by e-mail. A Case link with no reminder due is not counted as
+    /// one (R914).
+    /// </summary>
+    [Fact]
+    public async Task TheComposerMakesALinkToCopy()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var link = await IssueLinkAsync(factory, caseId);
+        var composer = $"/PhotoCapture/{link.Capture.Id:D}/Resend";
+
+        var html = await IntakeWebDriver.GetHtmlAsync(client, composer);
+        Assert.Contains(OperatorLabels.PhotoCapture.CreateLinkToCopy, html, StringComparison.Ordinal);
+        Assert.DoesNotContain(HtmlEncoder.Default.Encode(OperatorLabels.PhotoCapture.SendByEmail), html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-photo-link-issued", html, StringComparison.Ordinal);
+
+        using var copied = await PostStaffFormAsync(client, composer, new Dictionary<string, string>
+        {
+            ["OperationKey"] = NewOperationKey(),
+            ["Submit"] = Pegasus.Web.Pages.PhotoCapture.ResendModel.ToCopy
+        });
+
+        Assert.Equal(HttpStatusCode.OK, copied.StatusCode);
+        var page = await copied.Content.ReadAsStringAsync();
+        Assert.Contains("data-photo-link-issued", page, StringComparison.Ordinal);
+        Assert.Matches("<code id=\"photo-link-issued-url\" class=\"photo-link-url\">[^<]*/c/[^<]+</code>", page);
+        Assert.Equal(0, (await StandingCaptureDriver.CaptureAsync(factory, link.Capture.Id)).ReminderCount);
+    }
+
+    /// <summary>
+    /// Log call on a Links we sent row that needs a phone call returns to the
+    /// list it was asked from with its notice (v50 P; R912).
+    /// </summary>
+    [Fact]
+    public async Task LogCallFromTheListReturnsToTheList()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var link = await IssueLinkAsync(factory, caseId);
+        var now = IntakeWebApplicationFactory.FixedUtcNow;
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            await db.PhotoCaptures.Where(value => value.Id == link.Capture.Id).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.CreatedAtUtc, now.AddDays(-3))
+                .SetProperty(value => value.ReminderCount, PhotoCaptureStatus.RemindersBeforeCall)
+                .SetProperty(value => value.LastRemindedAtUtc, (DateTimeOffset?)now.AddHours(-1)));
+        }
+        var listPath = $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}";
+
+        var row = ListRow(await IntakeWebDriver.GetHtmlAsync(client, listPath), link.Capture.Id);
+        Assert.Contains(
+            $">{OperatorLabels.PhotoCapture.State(PhotoCaptureState.NeedsCall)}</span>",
+            row,
+            StringComparison.Ordinal);
+        Assert.Contains("handler=LogCall", row, StringComparison.Ordinal);
+        Assert.Contains($"name=\"returnUrl\" value=\"{listPath}\"", row, StringComparison.Ordinal);
+
+        using (var logged = await PostStaffFormAsync(
+            client, $"/PhotoCapture/{link.Capture.Id:D}?handler=LogCall", NewOperationKey(), "returnUrl", listPath))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, logged.StatusCode);
+            Assert.Equal(listPath, logged.Headers.Location?.OriginalString);
+        }
+
+        var after = await IntakeWebDriver.GetHtmlAsync(client, listPath);
+        Assert.Contains($"<span>{OperatorLabels.PhotoCapture.CallLogged}</span>", after, StringComparison.Ordinal);
+        Assert.NotNull((await StandingCaptureDriver.CaptureAsync(factory, link.Capture.Id)).CallLoggedAtUtc);
+    }
+
+    /// <summary>
+    /// A Links we sent row leads with the act its state calls for and then
+    /// one other act as its own button; More appears only for two or more,
+    /// with Cancel link last (R912). An unopened link reads Resend and Cancel
+    /// link; an opened one with photos reads Resend and More holding View
+    /// photos and Cancel link. Next reminder is blank when nothing is due, and
+    /// the list has no Sent by column.
+    /// </summary>
+    [Fact]
+    public async Task AMoreMenuOnLinksWeSentNeverHoldsASingleAct()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var unopened = await IssueLinkAsync(factory, caseId);
+        var withPhotos = await IssueLinkAsync(factory, caseId);
+        var now = IntakeWebApplicationFactory.FixedUtcNow;
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            await db.PhotoCaptures.Where(value => value.Id == withPhotos.Capture.Id).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.OpenedAtUtc, (DateTimeOffset?)now.AddHours(-5))
+                .SetProperty(value => value.AcceptedItemCount, 1));
+        }
+
+        var list = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}");
+
+        Assert.DoesNotContain($">{OperatorLabels.PhotoCapture.SentBy}</th>", list, StringComparison.Ordinal);
+        var plain = ListRow(list, unopened.Capture.Id);
+        Assert.Contains($">{OperatorLabels.PhotoCapture.Resend}</a>", plain, StringComparison.Ordinal);
+        Assert.Contains("handler=Cancel", plain, StringComparison.Ordinal);
+        Assert.DoesNotContain("<details", plain, StringComparison.Ordinal);
+        Assert.Contains("<td class=\"photo-capture-col--wide\"></td>", plain, StringComparison.Ordinal);
+
+        var menu = ListRow(list, withPhotos.Capture.Id);
+        Assert.Contains($">{OperatorLabels.PhotoCapture.Resend}</a>", menu, StringComparison.Ordinal);
+        var body = MenuBody(menu);
+        var viewPhotos = body.IndexOf(OperatorLabels.PhotoCapture.ViewPhotos, StringComparison.Ordinal);
+        var cancel = body.IndexOf(OperatorLabels.PhotoCapture.CancelLink, StringComparison.Ordinal);
+        Assert.True(viewPhotos >= 0 && cancel > viewPhotos, "More holds View photos, then Cancel link last.");
+
+        var rows = Regex.Match(list, "<table class=\"table photo-capture-rows\">[\\s\\S]*?</table>");
+        Assert.True(rows.Success, "Links we sent draws no rows.");
+        foreach (Match details in Regex.Matches(rows.Value, "<details class=\"menu\"[\\s\\S]*?</details>"))
+        {
+            Assert.True(
+                Regex.Count(MenuBody(details.Value), "class=\"btn[ \"]") >= 2,
+                "A More menu holds a single act: " + details.Value);
+        }
+    }
+
+    /// <summary>
+    /// Replace link's address box is in its dialog on Photo links; a refused
+    /// address reopens the dialog on load with the sentence beside the box
+    /// (R868; v50 H) and the link keeps its address.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedReplaceAddressReopensItsDialog()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        StandingPhotoLink website;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            website = await scope.ServiceProvider.GetRequiredService<StandingPhotoLinkAdministration>()
+                .CreateWebsiteAsync(Issuer, NewOperationKey(), "ce-vehicle-photos", CancellationToken.None);
+        }
+
+        Assert.Contains(
+            "data-dialog=\"replace-website-link\" hidden",
+            await IntakeWebDriver.GetHtmlAsync(client, WebsiteLinkPage),
+            StringComparison.Ordinal);
+
+        using (var refused = await PostStaffFormAsync(client, WebsiteLinkPage + "?handler=ReplaceWebsiteLink", new Dictionary<string, string>
+        {
+            ["OperationKey"] = NewOperationKey(),
+            ["ExpectedVersion"] = website.Version.ToString(CultureInfo.InvariantCulture),
+            ["WebsiteSlug"] = "Not a slug!"
+        }))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode);
+            Assert.Equal(WebsiteLinkPage, refused.Headers.Location?.OriginalString);
+        }
+
+        var html = await IntakeWebDriver.GetHtmlAsync(client, WebsiteLinkPage);
+        Assert.Contains("data-dialog=\"replace-website-link\" data-dialog-open-on-load=\"true\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            HtmlEncoder.Default.Encode("A website address is 6 to 60 lower-case letters, numbers and hyphens, and cannot start or end with a hyphen."),
+            FormFor(html, "handler=ReplaceWebsiteLink"),
+            StringComparison.Ordinal);
+        Assert.Equal("ce-vehicle-photos", (await WebsiteLinkAsync(factory))?.Slug);
     }
 
     /// <summary>
@@ -348,12 +623,12 @@ public sealed partial class PhotoCaptureWebTests
                  })
         {
             using (var refused = await PostStaffFormAsync(
-                client, "/PhotoCapture?handler=CreateWebsiteLink", NewOperationKey(), "WebsiteSlug", typed))
+                client, WebsiteLinkPage + "?handler=CreateWebsiteLink", NewOperationKey(), "WebsiteSlug", typed))
             {
                 Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode);
             }
 
-            var html = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture");
+            var html = await IntakeWebDriver.GetHtmlAsync(client, WebsiteLinkPage);
             var form = FormFor(html, "handler=CreateWebsiteLink");
             Assert.Contains(HtmlEncoder.Default.Encode(sentence), form, StringComparison.Ordinal);
             Assert.DoesNotContain(HtmlEncoder.Default.Encode(OperatorLabels.ActionNotApplied), html, StringComparison.Ordinal);
@@ -512,6 +787,47 @@ public sealed partial class PhotoCaptureWebTests
         return row.Value;
     }
 
+    /// <summary>Issues a Case link to a named customer at an e-mail address, as Send does with both filled in.</summary>
+    private static async Task<IssuedPhotoLink> IssueLinkToAsync(
+        IntakeWebApplicationFactory factory,
+        Guid caseId,
+        string customerName,
+        string email)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IssuePhotoLink>().ExecuteAsync(
+            new IssuePhotoLinkRequest(
+                caseId,
+                Issuer,
+                customerName,
+                Mobile: null,
+                email,
+                IncidentDate: null,
+                PhotoCaptureMode.Guided,
+                QuickLinkFor: null,
+                LiveCameraOnly: false,
+                OriginalsInBackground: false,
+                CaptureLimits.DefaultLifetimeDays,
+                PhotoLinkTokenPurpose.Copy),
+            CancellationToken.None);
+    }
+
+    /// <summary>An input's value as the page drew it.</summary>
+    private static string InputValue(string html, string name)
+    {
+        var tag = Regex.Match(html, "<input[^>]*name=\"" + Regex.Escape(name) + "\"[^>]*>");
+        Assert.True(tag.Success, $"The page draws no {name} box.");
+        return WebUtility.HtmlDecode(Regex.Match(tag.Value, "value=\"([^\"]*)\"").Groups[1].Value);
+    }
+
+    /// <summary>A More menu's items, after its summary.</summary>
+    private static string MenuBody(string html)
+    {
+        var start = html.IndexOf("<div class=\"menu-body\">", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The row has no More menu.");
+        return html[start..];
+    }
+
     /// <summary>The form whose action carries the marker, from its tag to its end.</summary>
     private static string FormFor(string html, string actionMarker)
     {
@@ -521,5 +837,72 @@ public sealed partial class PhotoCaptureWebTests
         var end = html.IndexOf("</form>", marker, StringComparison.Ordinal);
         Assert.True(start >= 0 && end > start, $"The form for {actionMarker} does not end.");
         return html[start..end];
+    }
+
+    /// <summary>A staff send that records each message and reports it sent at once.</summary>
+    private sealed class SentStaffMailSend : Pegasus.Core.Operations.IStaffMailSend
+    {
+        private readonly List<Pegasus.Core.Operations.StaffMailSendCommand> commands = [];
+
+        public IReadOnlyList<Pegasus.Core.Operations.StaffMailSendCommand> Commands
+        {
+            get
+            {
+                lock (commands)
+                {
+                    return [.. commands];
+                }
+            }
+        }
+
+        public Task<Pegasus.Core.Operations.StaffMailOperation> SendAsync(
+            Pegasus.Core.Operations.StaffMailSendCommand command,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            lock (commands)
+            {
+                commands.Add(command);
+            }
+
+            var now = IntakeWebApplicationFactory.FixedUtcNow;
+            return Task.FromResult(new Pegasus.Core.Operations.StaffMailOperation(
+                Guid.NewGuid(),
+                Pegasus.Core.Operations.StaffMailState.Sent,
+                Pegasus.Core.Operations.StaffMailAttemptStage.ObserveSent,
+                1,
+                now,
+                now,
+                now,
+                null,
+                command.ApprovedMailboxId,
+                command.ExpectedMailboxGeneration,
+                new string('A', 64),
+                now,
+                null,
+                command.Purpose,
+                command.ContextId,
+                command.ExpectedContextVersion,
+                null));
+        }
+
+        public Task<Pegasus.Core.Operations.StaffMailOperation?> GetAsync(
+            ActionActor actor,
+            Guid operationId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<Pegasus.Core.Operations.StaffMailOperation?>(null);
+
+        public Task<Pegasus.Core.Operations.StaffMailOperation?> GetLatestForOriginalAsync(
+            ActionActor actor,
+            Guid retainedMessageId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<Pegasus.Core.Operations.StaffMailOperation?>(null);
+
+        public Task<Pegasus.Core.Operations.StaffMailOperation> CancelAsync(
+            ActionActor actor,
+            Guid operationId,
+            long expectedVersion,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The composer cancels nothing.");
     }
 }

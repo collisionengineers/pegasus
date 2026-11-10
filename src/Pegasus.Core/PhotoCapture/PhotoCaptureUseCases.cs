@@ -56,7 +56,7 @@ public sealed class IssuePhotoLink(
     IPhotoCaptureCaseReader cases,
     TimeProvider timeProvider)
 {
-    /// <summary>The one sentence for a Case that cannot take a photo link (R847): Send, Extend, Resend and Remind say it.</summary>
+    /// <summary>The one sentence for a Case that cannot take a photo link (R847): Send, Extend and Resend say it.</summary>
     public const string CaseCannotTakeALink = "The Case cannot take a photo link.";
 
     public async Task<IssuedPhotoLink> ExecuteAsync(IssuePhotoLinkRequest request, CancellationToken cancellationToken)
@@ -652,12 +652,13 @@ public sealed class CompletePhotoCapture(
 public sealed class PhotoLinkActions(
     IPhotoCaptureStore captures,
     IPhotoCaptureCaseReader cases,
+    IPhotoCaptureQueries queries,
     TimeProvider timeProvider)
 {
-    /// <summary>Resend or Remind on a cancelled link (R863).</summary>
+    /// <summary>Resend on a cancelled link (R863).</summary>
     public const string LinkCancelled = "The link was cancelled; send a new one from the Case.";
 
-    /// <summary>Resend or Remind on an expired link (R863).</summary>
+    /// <summary>Resend on an expired link (R863).</summary>
     public const string LinkExpired = "The link has expired; extend it first.";
 
     public async Task<PhotoCapture> RevokeAsync(
@@ -691,9 +692,33 @@ public sealed class PhotoLinkActions(
     }
 
     /// <summary>
-    /// A fresh token for the same capture, for a resend or a reminder: the
-    /// earlier message keeps working, and the new one is counted as a
-    /// reminder when <paramref name="isReminder"/>.
+    /// Resend: the one staff act that sends a link again, from Links we sent,
+    /// the link's page, the Case or, as Ask for it, Coming in. Resend and
+    /// Remind sent the same message, so they are one act (operator, 10
+    /// November 2026; R914): a Case link's resend counts as a reminder only
+    /// when one was due, and Ask for it on a capture not sent from a Case
+    /// always counts (R842).
+    /// </summary>
+    public async Task<IssuedPhotoLink> ResendAsync(
+        ActionActor actor,
+        Guid captureId,
+        PhotoLinkTokenPurpose purpose,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        var row = await queries.GetRowAsync(captureId, cancellationToken)
+            ?? throw new KeyNotFoundException("The photo link was not found.");
+        var countsAsReminder = row.Capture.Origin != PhotoCaptureOrigin.CaseLink
+            || PhotoCaptureStatus.DueReminder(row, timeProvider.GetUtcNow()) is not null;
+        return await ReissueAsync(actor, captureId, purpose, countsAsReminder, operationKey, cancellationToken);
+    }
+
+    /// <summary>
+    /// A fresh token for the same capture: the earlier message keeps working,
+    /// and the new one is counted as a reminder when
+    /// <paramref name="isReminder"/>. Staff reach it through
+    /// <see cref="ResendAsync"/>, which decides that.
     /// </summary>
     public async Task<IssuedPhotoLink> ReissueAsync(
         ActionActor actor,

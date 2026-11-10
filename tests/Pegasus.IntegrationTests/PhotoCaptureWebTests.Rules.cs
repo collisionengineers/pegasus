@@ -122,8 +122,8 @@ public sealed partial class PhotoCaptureWebTests
         }
 
         await using var scope = factory.Services.CreateAsyncScope();
-        var reissued = await scope.ServiceProvider.GetRequiredService<PhotoLinkActions>().ReissueAsync(
-            Issuer, link.Capture.Id, PhotoLinkTokenPurpose.Copy, isReminder: false, NewOperationKey(), CancellationToken.None);
+        var reissued = await scope.ServiceProvider.GetRequiredService<PhotoLinkActions>().ResendAsync(
+            Issuer, link.Capture.Id, PhotoLinkTokenPurpose.Copy, NewOperationKey(), CancellationToken.None);
         Assert.Equal(link.Capture.Id, reissued.Capture.Id);
     }
 

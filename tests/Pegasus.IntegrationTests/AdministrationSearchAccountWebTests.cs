@@ -187,6 +187,7 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.Equal(StaffRoleNames.Administrator, typeof(LogsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
         Assert.Equal(StaffRoleNames.Administrator, typeof(AiJobsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
         Assert.Equal(StaffRoleNames.Administrator, typeof(ReportsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
+        Assert.Equal(StaffRoleNames.Administrator, typeof(PhotoLinksModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
     }
 
     [Theory]
@@ -195,6 +196,7 @@ public sealed class AdministrationSearchAccountWebTests
     [InlineData("/Administration/Logs?tab=intake")]
     [InlineData("/Administration/AiJobs")]
     [InlineData("/Administration/Reports")]
+    [InlineData("/Administration/PhotoLinks")]
     public async Task NewAdministrationRoutesForbidNonAdministrators(string route)
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);

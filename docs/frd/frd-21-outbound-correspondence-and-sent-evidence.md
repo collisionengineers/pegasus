@@ -270,13 +270,16 @@ and on a Not ready Case it records the chase
 with purpose `PhotoLink`: a new message to the customer's e-mail from an
 Outgoing approved mailbox, its Message the Photo link template rendered for
 the link ([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-e-mail)).
-It is recorded like any other send. Remind and Resend are each one click by
-a member of staff; Pegasus never sends either by itself, and text and
-WhatsApp are Copy link and the staff member's own phone (operator,
-9 November 2026, [R773](../rulings.md)). **Ask for it**, on a capture that
-came in on a standing or website link, sends the same e-mail when the
-capture is on a Case and holds an e-mail address, and otherwise shows the
-link to copy (operator, 9 November 2026; R816).
+It is recorded like any other send. **Resend**, one act since the former
+Remind sent the same message ([R914](../rulings.md)), opens the composer and
+sends only on **Send by e-mail**; no button sends an e-mail on its own
+(operator, 10 November 2026; [R915](../rulings.md)). Pegasus never sends a
+photo link by itself, and text and WhatsApp are Copy link and the staff
+member's own phone (operator, 9 November 2026, [R773](../rulings.md)).
+**Ask for it**, on a capture that came in on a standing or website link,
+opens the same composer when the capture is on a Case and holds an e-mail
+address, and otherwise shows the link to copy (operator, 9 November 2026;
+R816).
 
 **Reply targets.** Pegasus keeps the structured MIME Reply-To addresses in
 their original order and uses the From addresses only when Reply-To is

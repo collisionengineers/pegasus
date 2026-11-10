@@ -84,9 +84,9 @@ Guided photo capture ([FRD-28](../frd/frd-28-guided-photo-capture.md),
 
 Neither is a secret, so there is no Key Vault change. The capture limits are
 constants in Core, not configuration. Send a photo link's starting values and
-the lifetimes it offers are Administration › Configuration settings an
+the lifetimes it offers are Administration › Photo links settings an
 Administrator changes, not deployment settings
-([FRD-17](../frd/frd-17-administration-workspace.md#workflow-configuration)).
+([FRD-17](../frd/frd-17-administration-workspace.md#photo-links)).
 
 ## Local opt-in features
 

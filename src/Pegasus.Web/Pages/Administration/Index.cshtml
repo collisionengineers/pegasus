@@ -1,5 +1,6 @@
 @page
 @model Pegasus.Web.Pages.Administration.IndexModel
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @{
     ViewData["Title"] = OperatorLabels.Nav.Administration;
 }
@@ -32,6 +33,13 @@
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-settings")" /></svg>
                     <h3>@OperatorLabels.Admin.Configuration</h3>
                 </a>
+                @if (Pegasus.Web.Presentation.ShellRail.PhotoCaptureEnabled(Configuration))
+                {
+                    <a class="admin-card" asp-page="/Administration/PhotoLinks">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-camera")" /></svg>
+                        <h3>@OperatorLabels.Admin.PhotoLinks</h3>
+                    </a>
+                }
                 <a class="admin-card" asp-page="/Administration/Mailboxes">
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-mail")" /></svg>
                     <h3>@OperatorLabels.Admin.Mail</h3>
