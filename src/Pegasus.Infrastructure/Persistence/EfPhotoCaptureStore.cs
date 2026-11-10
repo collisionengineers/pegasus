@@ -161,9 +161,15 @@ public sealed class EfPhotoCaptureStore(
             return Task.CompletedTask;
         }, cancellationToken);
 
+    /// <summary>
+    /// Writes the typed details on the row as it is now, under the capture
+    /// row's lock, the one an item add, a receipt and an original's
+    /// reservation each take: none of them can write between this read and
+    /// this save, any that ran before is in what is read, and the save sets
+    /// only these columns and the version, so no count is carried back stale.
+    /// </summary>
     public Task<PhotoCapture> RecordDetailsAsync(
         Guid captureId,
-        long expectedVersion,
         string? normalizedRegistration,
         DateOnly? incidentDate,
         string? customerName,
@@ -173,16 +179,30 @@ public sealed class EfPhotoCaptureStore(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(details);
-        return UpdateAsync(captureId, expectedVersion, (_, entity, _) =>
-        {
-            entity.NormalizedRegistration = normalizedRegistration;
-            entity.IncidentDate = incidentDate;
-            entity.CustomerName = customerName;
-            entity.Mobile = mobile;
-            entity.Email = email;
-            entity.DetailsJson = SerializeDetails(details);
-            return Task.CompletedTask;
-        }, cancellationToken);
+        return StoreConcurrencyRetry.ExecuteAsync(
+            async token =>
+            {
+                await using var context = await contextFactory.CreateDbContextAsync(token);
+                await using var transaction = await context.Database.BeginReadCommittedAsync(token);
+                await context.Database.ExecuteSqlAsync(
+                    $"SELECT 1 FROM [PhotoCaptures] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {captureId}",
+                    token);
+                var entity = await context.PhotoCaptures
+                    .SingleOrDefaultAsync(item => item.Id == captureId, token)
+                    ?? throw new KeyNotFoundException("The photo link was not found.");
+                entity.NormalizedRegistration = normalizedRegistration;
+                entity.IncidentDate = incidentDate;
+                entity.CustomerName = customerName;
+                entity.Mobile = mobile;
+                entity.Email = email;
+                entity.DetailsJson = SerializeDetails(details);
+                entity.Version++;
+                await context.SaveChangesAsync(token);
+                await transaction.CommitAsync(token);
+                return Map(entity);
+            },
+            cancellationToken,
+            StoreConcurrencyRetry.IsDeadlockOrKeyCollision);
     }
 
     public Task<PhotoCapture> RecordRoutingAsync(

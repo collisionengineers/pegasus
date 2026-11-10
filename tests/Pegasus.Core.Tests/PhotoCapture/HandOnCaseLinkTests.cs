@@ -84,7 +84,7 @@ public sealed class HandOnCaseLinkTests
             };
             captures.Overrides[nameof(IPhotoCaptureStore.RecordDetailsAsync)] = args =>
             {
-                Details.Add((string?)args[2]);
+                Details.Add((string?)args[1]);
                 return Task.FromResult(capture with { Version = capture.Version + 1 });
             };
         }

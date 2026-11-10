@@ -174,11 +174,12 @@ function uuid(){
 /* ---------- API ---------- */
 async function api(method, path, o){
   o=o||{};
-  const headers={ 'X-Capture-Link':LINK, 'Accept':'application/json' }; let body=o.body;
+  const headers={ 'X-Capture-Link':o.link||LINK, 'Accept':'application/json' }; let body=o.body;
   if(o.json!==undefined){ headers['Content-Type']='application/json'; body=JSON.stringify(o.json); }
   else if(o.type) headers['Content-Type']=o.type;
-  /* a request that hangs is given up as if the network failed (status 0): 2 minutes for a file or a commit of its parts, 30 seconds otherwise */
-  const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(), o.body!==undefined||o.slow ? 120000 : 30000);
+  /* a request that hangs is given up as if the network failed (status 0): a file, or the commit of one sent in parts, gets 2 minutes or its size at about 8 KB a second if that is longer; anything else 30 seconds */
+  const bytes=o.body!==undefined ? o.body.size : o.bytes;
+  const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(), bytes!==undefined ? Math.max(120000, bytes/8) : 30000);
   let r, data=null;
   try{
     r=await fetch(API+path+(o.query?'?'+o.query:''), { method, headers, body, credentials:'omit', cache:'no-store', signal:ctl.signal });
@@ -190,7 +191,7 @@ async function api(method, path, o){
 }
 function gone(){
   if(GONE) return; GONE=true;
-  document.querySelectorAll('.cam,.sheetwrap').forEach(x=>x.remove());
+  document.querySelectorAll('.cam,.sheetwrap').forEach(x=>{ if(x._close) x._close(); else x.remove(); });
   if(camStream){ camStream.getTracks().forEach(tr=>tr.stop()); camStream=null; }
   document.documentElement.style.overflow=''; document.body.style.overflow='';
   $('#stepLabel').textContent=''; const pg=$('#prog'); if(pg) pg.style.width='0%';
@@ -202,10 +203,15 @@ function gone(){
 const ONE=4194304, MAXUP=2;
 /* an original over CaptureLimits.OriginalBytes is not sent; about 100 MB of originals wait to go at most, and one past that is not sent */
 const ORIGMAX=25000000, ORIGPENDING=100000000;
+/* the largest photo, document and video the server takes (CaptureLimits): a larger file is refused here at once, before it is read into memory to be hashed */
+const PHOTOMAX=10000000;
+const DOCMAX=25000000;
+const VIDEOMAX=100000000;
+function maxBytes(p){ return p.kind==='video' ? VIDEOMAX : p.kind==='paperwork' ? DOCMAX : PHOTOMAX; }
 const KINDAPI={overview:'overview', damage:'damage', plate:'plate', vin:'vin', dash:'dashboard', scene:'scene', other:'other-vehicle', docs:'paperwork', video:'video'};
 const JOBS=[]; let active=0, pumpT=null;
 const TAKEN={};
-function ovTaken(){ const s=new Set(PRIOR.overviewPositions||[]); S.overview.forEach(p=>s.add(p.position)); return s; }
+function ovTaken(){ const s=new Set(PRIOR.overviewPositions||[]); S.overview.forEach(p=>{ if(!p.failed && !p.cancelled) s.add(p.position); }); return s; }
 function ovNextPos(){ const s=ovTaken(); for(let k=1;k<=8;k++) if(!s.has(k)) return k; let m=8; s.forEach(v=>{ if(v>m) m=v; }); return m+1; }
 /* A photo, document or video has been taken: give it its id and position, keep it, queue it. */
 function addPhoto(kind, p){
@@ -214,10 +220,12 @@ function addPhoto(kind, p){
   else { if(kind==='damage' && p.stage) p.apiStage=STAGEAPI[p.stage];
     const k=[p.kind,p.zone||'',p.apiStage||''].join(':'); TAKEN[k]=(TAKEN[k]||0)+1;
     p.position=(kind==='damage' ? (p.zone ? rcDmg(p.zone,p.apiStage) : rc('damage')) : rc(p.kind)) + TAKEN[k]; }
-  if(Array.isArray(S[kind])) S[kind].push(p); else S[kind]=p;
+  if(Array.isArray(S[kind])) S[kind].push(p); else { if(canDel(S[kind])) cancelUpload(S[kind]); S[kind]=p; }  /* a retaken plate, VIN, dashboard or video: the earlier one is dropped if it has not started to go */
   enqueue(p,false);
 }
-function enqueue(p, original){ const job={p, original, tries:0, at:0, partsDone:0, sha:null, state:'queued'}; if(!original) p.job=job; JOBS.push(job); upChanged(); pump(); }
+function enqueue(p, original){ const job={p, original, tries:0, at:0, partsDone:0, sha:null, state:'queued'}; if(!original) p.job=job;
+  if(!original && p.blob.size>maxBytes(p)){ job.state='failed'; p.failed=true; }
+  JOBS.push(job); upChanged(); pump(); }
 function itemQuery(p, original){
   const q=new URLSearchParams(); q.set('kind',p.kind);
   if(p.zone) q.set('area',p.zone); if(p.apiStage) q.set('stage',p.apiStage);
@@ -227,11 +235,12 @@ function itemQuery(p, original){
   return q.toString();
 }
 function pump(){
-  if(GONE || LINK.indexOf('c.')!==0) return;
+  if(GONE) return;
   const now=Date.now(); let wait=Infinity;
   while(active<MAXUP){
-    let job=null;
-    for(const j of JOBS){ if(j.state!=='queued') continue; if(j.at>now){ wait=Math.min(wait,j.at-now); continue; } if(!job || (job.original && !j.original)) job=j; }
+    /* one original at a time, so a slot is always free for a photo taken meanwhile */
+    let job=null; const origBusy=JOBS.some(j=>j.original && j.state==='busy');
+    for(const j of JOBS){ if(j.state!=='queued' || (j.link||LINK).indexOf('c.')!==0 || (j.original && origBusy)) continue; if(j.at>now){ wait=Math.min(wait,j.at-now); continue; } if(!job || (job.original && !j.original)) job=j; }
     if(!job) break;
     run(job);
   }
@@ -266,15 +275,15 @@ function dropOriginal(job){ job.state='dropped'; job.p.file=null; }
 function origPending(){ return JOBS.some(j=>j.original && (j.state==='queued'||j.state==='busy')); }
 async function sendJob(job){
   const p=job.p, blob=job.original?p.file:p.blob, type=(job.original?p.file.type:p.type)||'application/octet-stream', q=itemQuery(p, job.original);
-  if(blob.size<=ONE) return api('PUT','items/'+p.cid,{query:q, body:blob, type});
+  if(blob.size<=ONE) return api('PUT','items/'+p.cid,{query:q, body:blob, type, link:job.link});
   const total=blob.size, parts=Math.ceil(total/ONE), qt=q+'&totalBytes='+total;
   if(!job.sha) job.sha=await sha256(blob);
   for(let n=job.partsDone+1;n<=parts;n++){
-    const r=await api('PUT','items/'+p.cid+'/parts/'+n,{query:qt, body:blob.slice((n-1)*ONE, Math.min(total,n*ONE)), type});
+    const r=await api('PUT','items/'+p.cid+'/parts/'+n,{query:qt, body:blob.slice((n-1)*ONE, Math.min(total,n*ONE)), type, link:job.link});
     if(!r.ok) return r;
     job.partsDone=n; job.tries=0;
   }
-  const r=await api('POST','items/'+p.cid+'/commit',{query:qt, json:{totalBytes:total, sha256:job.sha}, slow:true});
+  const r=await api('POST','items/'+p.cid+'/commit',{query:qt, json:{totalBytes:total, sha256:job.sha}, bytes:total, link:job.link});
   /* an original's commit that is not ready keeps its parts (the photo is still being filed); every fifth time running they go again, in case they were lost */
   const keep=job.original && r.status===409 && r.data && r.data.code==='not_ready' && (job.tries+1)%5!==0;
   if(!r.ok && r.status>=400 && r.status<500 && r.status!==404 && r.status!==429 && !keep) job.partsDone=0;
@@ -283,8 +292,9 @@ async function sendJob(job){
 async function sha256(blob){ const d=await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()); return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
 function cancelUpload(p){ if(!p) return; p.cancelled=true; p.file=null; if(p.job && p.job.state==='queued') p.job.state='cancelled'; if(p.url) URL.revokeObjectURL(p.url); upChanged(); }
 /* Upload state changed: refresh the "uploading / uploaded" lines in place (a full render would steal focus from a field being typed in); the review page re-renders for its Send button. */
+let preparing=0;  /* gallery files still being made ready to go */
 function upChanged(){
-  upBusy=JOBS.filter(j=>!j.original && (j.state==='queued'||j.state==='busy')).length;
+  upBusy=preparing+JOBS.filter(j=>!j.original && (j.state==='queued'||j.state==='busy')).length;
   if(GONE || !STEPS.length) return;
   if(STEPS[S.step]==='summary' || (STEPS[S.step]==='done' && S.handoff)) return render();
   document.querySelectorAll('.uplog[data-ul]').forEach(el=>{ const l=UPL[+el.dataset.ul]; if(l) el.innerHTML=uplogInner(l); });
@@ -300,15 +310,28 @@ document.addEventListener('click', e=>{ if(e.target.closest && e.target.closest(
 window.addEventListener('beforeunload', e=>{ if(upBusy && !GONE){ e.preventDefault(); e.returnValue=''; } });
 
 /* ---------- details, start, hand-off, complete ---------- */
-let detailsSig='';
-async function syncDetails(){
-  if(GONE || LINK.indexOf('c.')!==0) return;
-  const body=detailsBody(), sg=JSON.stringify(body); if(sg===detailsSig) return; detailsSig=sg;
-  try{ const r=await api('POST','details',{json:body}); if(r.status===200 && r.data) setContext(r.data);
-    /* the registration is locked once something has been received: put the capture's own back and send the rest again */
-    else if(r.status===409 && r.data && r.data.code==='registration_locked' && SRC && CTX.registration && S.ins.reg!==String(CTX.registration)){
-      S.ins.reg=String(CTX.registration); save(); detailsSig=''; if(STEPS[S.step]!=='done') render(); return syncDetails(); }
-    else if(r.status!==404) detailsSig=''; }catch(e){ detailsSig=''; }
+/* The typed details go one request at a time, in order; DETAILSP is the last one, which Send waits for. */
+let detailsSig='', DETAILSP=Promise.resolve();
+function syncDetails(){
+  if(GONE || LINK.indexOf('c.')!==0) return DETAILSP;
+  const body=detailsBody(), sg=JSON.stringify(body); if(sg===detailsSig) return DETAILSP; detailsSig=sg;
+  DETAILSP=DETAILSP.then(()=>postDetails(body, sg));
+  return DETAILSP;
+}
+async function postDetails(body, sg){
+  if(GONE) return;
+  const r=await api('POST','details',{json:body});
+  if(r.status===200 && r.data){ setContext(r.data); return; }
+  /* the registration is locked once something has been received: put the capture's own back and send the rest again */
+  if(r.status===409 && r.data && r.data.code==='registration_locked' && SRC && CTX.registration && S.ins.reg!==String(CTX.registration)){
+    S.ins.reg=String(CTX.registration); save(); detailsSig=''; if(STEPS[S.step]!=='done') render(); syncDetails(); return; }
+  /* not recorded: unmarked, so the next change of step, or Send, sends it again */
+  if(r.status!==404 && detailsSig===sg) detailsSig='';
+}
+/* Send waits for every details request still going, and sends the details once more if the last one was not recorded. */
+async function settleDetails(){
+  syncDetails(); let p; do{ p=DETAILSP; await p; } while(p!==DETAILSP);
+  if(detailsSig!==JSON.stringify(detailsBody())){ syncDetails(); do{ p=DETAILSP; await p; } while(p!==DETAILSP); }
 }
 /* A standing link's "Take photos now" (or the website form's Continue) starts the capture; from then on the page is /c/<token>. */
 async function beginCapture(btn){
@@ -331,27 +354,31 @@ async function sendHandoff(btn){
   btn.disabled=true; let r;
   try{ r=await api('POST','handoff',{json:detailsBody()}); }catch(e){ r={status:0}; }
   if(GONE) return;
-  if(r.status===201 && r.data && r.data.url){ S.handoffRes={url:String(r.data.url), message:String(r.data.message||''), registration:String(r.data.registration||''), session:String(r.data.sessionToken||'')}; S.handoff=true; go(STEPS.indexOf('handoff')); return; }
+  if(r.status===201 && r.data && r.data.url){ S.handoffRes={url:String(r.data.url), message:String(r.data.message||''), registration:String(r.data.registration||''), session:String(r.data.sessionToken||'')}; S.handoff=true;
+    /* documents added on a standing link's form go at once onto the capture just made for the customer, under this phone's own session credential, which never marks the customer's link opened */
+    if(isStanding() && S.handoffRes.session){ JOBS.forEach(j=>{ if(!j.link && j.state==='queued') j.link='c.'+S.handoffRes.session; }); pump(); }
+    go(STEPS.indexOf('handoff')); return; }
   btn.disabled=false; if(r.status!==404) problemNote(r.data);
 }
 async function completeCapture(){
-  await syncDetails();
+  await settleDetails();
   /* a note emptied here is sent empty, so it replaces the earlier one; a note never touched on this visit is not sent */
   try{ return await api('POST','complete',{json:{note:(S.notes||S.notesEdited)?S.notes:null}}); }catch(e){ return {status:0}; }
 }
 
+/* a gallery file counts as still to go from the moment it is picked, while it is made ready */
 const onMulti = async e=>{
   const files=[...e.target.files]; e.target.value='';
-  const kd=(pending&&pending.kind)||'damage';
-  for(const f of files){ const p=await compress(f); if(kd==='damage'&&DTAG) DTAG(p); addPhoto(kd,p); }
-  DTAG=null;
-  pending=null;
-  render();
+  const kd=(pending&&pending.kind)||'damage', tag=DTAG;
+  DTAG=null; pending=null; preparing+=files.length; upChanged();
+  for(const f of files){ const p=await compress(f); if(kd==='damage'&&tag) tag(p); preparing--; addPhoto(kd,p); }
+  if(STEPS[S.step]!=='done') render();
 };
 const onSingle = async e=>{
   const f=e.target.files[0]; e.target.value=''; if(!f||!pending) return;
-  const p=await compress(f);
-  addPhoto(pending.kind,p); pending=null; render();
+  const kd=pending.kind; pending=null; preparing++; upChanged();
+  const p=await compress(f); preparing--;
+  addPhoto(kd,p); if(STEPS[S.step]!=='done') render();
 };
 function shoot(kind){ openCam2(kind); }
 /* Rapid camera: in-page viewfinder, tap-tap-tap. */
@@ -369,13 +396,16 @@ async function openCam2(kind){
   const fit=()=>{ const vv=window.visualViewport; if(vv){ ov.style.height=vv.height+'px'; ov.style.top=vv.offsetTop+'px'; } else { ov.style.height=window.innerHeight+'px'; } };
   fit(); if(window.visualViewport){ window.visualViewport.addEventListener('resize',fit); window.visualViewport.addEventListener('scroll',fit); } window.addEventListener('resize',fit);
   let taken=0;
-  const close=()=>{ if(camStream){ camStream.getTracks().forEach(tr=>tr.stop()); camStream=null; } if(window.visualViewport){ window.visualViewport.removeEventListener('resize',fit); window.visualViewport.removeEventListener('scroll',fit); } window.removeEventListener('resize',fit); document.documentElement.style.overflow=''; document.body.style.overflow=''; if(ov._stopL) ov._stopL(); ov.remove(); render(); };
-  ov.querySelector('.done').onclick=close;
+  /* every listener and timer the overlay added goes with it: on Done, when the camera fails, and when the link dies */
+  const off=()=>{ if(window.visualViewport){ window.visualViewport.removeEventListener('resize',fit); window.visualViewport.removeEventListener('scroll',fit); } window.removeEventListener('resize',fit); if(ov._unplace) ov._unplace(); if(ov._stopL) ov._stopL(); document.documentElement.style.overflow=''; document.body.style.overflow=''; ov.remove(); };
+  const close=()=>{ if(camStream){ camStream.getTracks().forEach(tr=>tr.stop()); camStream=null; } off(); render(); };
+  ov._close=close; ov.querySelector('.done').onclick=close;
   try{
     camStream=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:'environment'}, width:{ideal:2560}, height:{ideal:1920} }, audio:false });
+    if(GONE){ close(); return; }
     video.srcObject=camStream; await video.play(); ov._stopL=lightMeter(ov,video); fit();
   }catch(e){
-    ov.remove(); document.documentElement.style.overflow=''; document.body.style.overflow=''; note('Rapid camera blocked here ('+(e&&e.name?e.name:'no camera access')+') – using the phone camera'); return pick(kind);
+    off(); note('Rapid camera blocked here ('+(e&&e.name?e.name:'no camera access')+') – using the phone camera'); return pick(kind);
   }
   ov.querySelector('.shutter').onclick=()=>{
     if(!shotFromVideo(video, p=>{
@@ -388,17 +418,23 @@ async function openCam2(kind){
 }
 /* One shutter for both cameras: the photo is the frame at most 1600px on its long edge (JPEG 0.85). When the camera gives more and the capture takes originals,
    the full-resolution frame (JPEG 0.92) is kept as the photo's original and follows once the photo itself is uploaded. */
+/* Each canvas is released (width 0) once its picture is made; while one full frame is still encoding the next shot keeps none, and a canvas the phone cannot give leaves the 1600px photo to be taken alone. */
+let FULLBUSY=false;
 function shotFromVideo(video, take){
   const w=video.videoWidth, h=video.videoHeight; if(!w) return false;
-  const sc=Math.min(1,1600/Math.max(w,h)), c=document.createElement('canvas'); c.width=Math.round(w*sc); c.height=Math.round(h*sc);
-  c.getContext('2d').drawImage(video,0,0,c.width,c.height);
-  let full=null; if(sc<1 && CTX.originals){ full=document.createElement('canvas'); full.width=w; full.height=h; full.getContext('2d').drawImage(video,0,0,w,h); }
+  const sc=Math.min(1,1600/Math.max(w,h)), c=document.createElement('canvas'), cw=Math.round(w*sc), ch=Math.round(h*sc); c.width=cw; c.height=ch;
+  const cx=c.getContext('2d'); if(!cx){ c.width=0; return false; }
+  cx.drawImage(video,0,0,cw,ch);
+  let full=null;
+  if(sc<1 && CTX.originals && !FULLBUSY){ full=document.createElement('canvas'); full.width=w; full.height=h; const fx=full.getContext('2d');
+    if(fx){ fx.drawImage(video,0,0,w,h); FULLBUSY=true; } else { full.width=0; full=null; } }
   const t=Date.now();
   c.toBlob(b=>{
-    if(!b){ if(full) full.width=0; return; }
-    const p={url:URL.createObjectURL(b), blob:b, type:'image/jpeg', file:null, bytes:b.size, orig:b.size, w:c.width, h:c.height, t, live:true};
+    c.width=0;
+    if(!b){ if(full){ full.width=0; FULLBUSY=false; } return; }
+    const p={url:URL.createObjectURL(b), blob:b, type:'image/jpeg', file:null, bytes:b.size, orig:b.size, w:cw, h:ch, t, live:true};
     take(p);
-    if(full) full.toBlob(o=>{ full.width=0; if(o && !p.cancelled){ p.file=o; if(p.uploaded) queueOriginal(p); } },'image/jpeg',0.92);
+    if(full) full.toBlob(o=>{ full.width=0; FULLBUSY=false; if(o && !p.cancelled){ p.file=o; if(p.uploaded) queueOriginal(p); } },'image/jpeg',0.92);
   },'image/jpeg',0.85);
   return true;
 }
@@ -407,17 +443,20 @@ function pick(kind,id){ pending={kind,id}; const el=(kind==='damage'||kind==='sc
 function liveNote(){ return LIVE ? `<p class="hint livenote"><span class="livenote-ico">${ICON.shield}</span><span>For this job, photos must be taken live on this device. Choosing from your gallery is switched off.</span></p>` : ''; }
 const onDocs = e=>{ for(const f of e.target.files){ addPhoto('docs',{name:f.name, bytes:f.size, orig:f.size, blob:f, type:f.type||'application/octet-stream', file:null, t:f.lastModified||Date.now()}); } e.target.value=''; render(); };
 function pickVideo(){ fileVideo.click(); }
-const onVideo = e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; if(S.video) S.video=null; addPhoto('video',{name:f.name, bytes:f.size, orig:f.size, blob:f, type:f.type||'application/octet-stream', file:null, t:f.lastModified||Date.now()}); render(); };
+const onVideo = e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; addPhoto('video',{name:f.name, bytes:f.size, orig:f.size, blob:f, type:f.type||'application/octet-stream', file:null, t:f.lastModified||Date.now()}); render(); };
 
 /* ---------- v10 touches: light meter, framed camera, blur check, nudge ---------- */
 function camHint(kind){ return kind==='overview' ? 'Tap the button for each photo. Try to get the whole vehicle in shot – our engineer needs to see around the whole vehicle.' : kind==='damage' ? 'Tap the button for each photo. Start well back, then slowly move closer, taking lots from different angles.' : 'Tap the button for each photo. Different distances and angles all help.'; }
 const OVSEQ=[{l:'Front',x:100,y:-74},{l:'Front driver corner',x:240,y:-50},{l:'Driver side',x:262,y:146},{l:'Rear driver corner',x:240,y:342},{l:'Rear',x:100,y:366},{l:'Rear passenger corner',x:-40,y:342},{l:'Passenger side',x:-62,y:146},{l:'Front passenger corner',x:-40,y:-50}];
+/* a guide's layout follows the screen while its camera is open; the camera's close removes the listeners */
+function listenPlace(ov, place){ const vv=window.visualViewport; window.addEventListener('resize',place); if(vv) vv.addEventListener('resize',place);
+  ov._unplace=()=>{ window.removeEventListener('resize',place); if(vv) vv.removeEventListener('resize',place); }; }
 function ovGuide(ov){
   const g=document.createElement('div'); g.className='ovguide'; g.setAttribute('aria-live','polite'); ov.appendChild(g);
   const ex=document.createElement('div'); ex.className='ovex'; ex.innerHTML='<img alt="">'; ov.appendChild(ex); const exi=ex.firstChild;
   for(let k=1;k<=OVSEQ.length;k++){ const pre=new Image(); pre.src=assetUrl(String(k)); }
   const place=()=>{ const land=matchMedia('(orientation:landscape) and (max-height:520px)').matches; ex.style.bottom=land?(g.offsetHeight+22)+'px':'calc(35px + env(safe-area-inset-bottom,0px))'; };
-  window.addEventListener('resize',place); if(window.visualViewport) window.visualViewport.addEventListener('resize',place);
+  listenPlace(ov,place);
   /* the next angle is the first of the eight not yet taken, here or on an earlier visit */
   const show=()=>{ const i=ovNextPos()-1; requestAnimationFrame(place);
     if(i<OVSEQ.length){ exi.src=assetUrl(String(i+1)); ex.style.display='block'; } else ex.style.display='none';
@@ -503,7 +542,7 @@ function dmgGuide(ov){
   areas.forEach(a=>{ for(let si=0;si<4;si++) for(let j=0;j<(si===3?a.extras.length:3);j++){ const im=new Image(); im.src=dexSrc(a,si,j).replace(/&amp;/g,'&'); } });
   let tt=null; const say=m=>{ toast.textContent=m; toast.classList.add('on'); clearTimeout(tt); tt=setTimeout(()=>toast.classList.remove('on'),1800); };
   const place=()=>{ const land=matchMedia('(orientation:landscape) and (max-height:520px)').matches; ex.style.bottom=land?(g.offsetHeight+22)+'px':'calc(35px + env(safe-area-inset-bottom,0px))'; if(hint) hint.style.marginBottom=land?'':Math.max(12,g.offsetHeight-60)+'px'; };
-  window.addEventListener('resize',place); if(window.visualViewport) window.visualViewport.addEventListener('resize',place);
+  listenPlace(ov,place);
   const nextArea=()=>{ const a=areas[S.dmgAi]; S.dmgDone=Object.assign({},S.dmgDone,{[a.label]:1}); const more=S.dmgAi<areas.length-1;
     if(more){ S.dmgAi++; S.dmgSt=0; S.dmgXi=0; } else S.dmgFin=1;
     if(run.scope!=='all'||!more){ finish(); return; }
@@ -626,8 +665,8 @@ async function frameCam(key){
   document.body.appendChild(ov); document.documentElement.style.overflow='hidden'; document.body.style.overflow='hidden';
   const video=ov.querySelector('video'), flash=ov.querySelector('.flash'); let stopL=null;
   const close=()=>{ if(stopL) stopL(); if(camStream){ camStream.getTracks().forEach(tr=>tr.stop()); camStream=null; } document.documentElement.style.overflow=''; document.body.style.overflow=''; ov.remove(); render(); };
-  ov.querySelector('.xbtn').onclick=close;
-  try{ camStream=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:'environment'}, width:{ideal:2560}, height:{ideal:1920} }, audio:false }); video.srcObject=camStream; await video.play(); stopL=lightMeter(ov,video); }
+  ov._close=close; ov.querySelector('.xbtn').onclick=close;
+  try{ camStream=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:'environment'}, width:{ideal:2560}, height:{ideal:1920} }, audio:false }); if(GONE){ close(); return; } video.srcObject=camStream; await video.play(); stopL=lightMeter(ov,video); }
   catch(e){ ov.remove(); document.documentElement.style.overflow=''; document.body.style.overflow=''; note('Camera blocked here – using the phone camera'); return pick(key); }
   ov.querySelector('.shutter').onclick=()=>{ if(!shotFromVideo(video, p=>{ addPhoto(key,p); close(); })) return;
     flash.classList.add('on'); setTimeout(()=>flash.classList.remove('on'),60); if(navigator.vibrate) navigator.vibrate(25); };
@@ -858,10 +897,7 @@ const R = {
     $('#copy').onclick=async()=>{ try{ await navigator.clipboard.writeText(link); note('Link copied'); }catch(e){ note('Copy the link from the box above'); } };
     cta.innerHTML = `<button class="btn ghost" id="back" aria-label="Back">${ICON.back}</button><button class="btn primary" id="finish">I’ve sent it – finish</button>`;
     $('#back').onclick=()=>{ S.handoff=false; if(!SRC.preset) S.handoffRes=null; go(STEPS.indexOf('instruction')); };
-    $('#finish').onclick=()=>{
-      /* documents added on the form go onto the capture just made for the customer, under this phone's own session credential, which never marks the customer's link opened */
-      if(H.session && JOBS.some(j=>j.state==='queued')){ LINK='c.'+H.session; detailsSig=JSON.stringify(detailsBody()); pump(); }
-      go(STEPS.indexOf('done')); };
+    $('#finish').onclick=()=>go(STEPS.indexOf('done'));
   },
   location(){
     main.innerHTML = `<h2>Where is the damage?</h2>
@@ -906,8 +942,9 @@ const R = {
   plate(){ singleShot('plate', 'Number plate', 'A clear photo of the registration plate confirms we’re looking at the right vehicle.', EX.plate(), 'Line the plate up inside the red corners and make sure it’s readable.'); },
   dash(){  singleShot('dash', 'Dashboard', 'Start the car and take a photo of the instrument cluster so we can see the mileage and any warning lights.', EX.dash, 'If the car won’t start, turn the ignition to the “on” position instead.'); },
   extras(){
-    const nd=S.docs.length+rc('paperwork'), ns=S.scene.length+rc('scene'), no=S.other.length+rc('other-vehicle'), hasVideo=!!S.video||rc('video')>0;
-    const row=(id,title,sub,done,btn)=>`<div class="xrow ${done?'done':''}"><div class="xt"><b>${title}</b><small>${sub}</small></div><button class="xadd" data-x="${id}">${done?ICON.check+(btn||'Added'):ICON.plus+'Add'}</button></div>`;
+    /* a video the server refused is not added: its row is outlined and offers Add again */
+    const nd=S.docs.length+rc('paperwork'), ns=S.scene.length+rc('scene'), no=S.other.length+rc('other-vehicle'), vidRefused=!!S.video&&!!S.video.failed, hasVideo=(!!S.video&&!S.video.failed)||rc('video')>0;
+    const row=(id,title,sub,done,btn)=>`<div class="xrow ${done?'done':''}${id==='video'&&vidRefused&&!done?' failed':''}"><div class="xt"><b>${title}</b><small>${sub}</small></div><button class="xadd" data-x="${id}">${done?ICON.check+(btn||'Added'):ICON.plus+'Add'}</button></div>`;
     main.innerHTML = `<h2>Extras</h2>
       <p class="lede">Optional, but they help our engineer get the full picture. Add whatever you have, then carry on.</p>
       <div class="xlist">
@@ -939,7 +976,7 @@ const R = {
       <div class="sec"><div class="h"><b>Overview shots</b>${edit('corners')}</div><div class="strip">${S.overview.map(simg).join('')}</div></div>
       <div class="sec"><div class="h"><b>Plate, VIN and dashboard</b>${edit('plate')}</div><div class="strip">${[S.plate,S.vin,S.dash].filter(Boolean).map(simg).join('')}</div></div>
       <div class="sec"><div class="h"><b>Damage photos (${nDmg})</b>${edit('damage')}</div>${reviewDamage()}</div>
-      <div class="sec"><div class="h"><b>Walk-around video</b>${edit('extras')}</div><div class="kv"><span class="muted">${S.video?`Added · ${fmt(S.video.bytes)}`:rc('video')?'Added':'Not added'}</span><span></span></div></div>
+      <div class="sec"><div class="h"><b>Walk-around video</b>${edit('extras')}</div><div class="kv"><span class="muted">${S.video&&!S.video.failed?`Added · ${fmt(S.video.bytes)}`:rc('video')?'Added':'Not added'}</span><span></span></div></div>
       ${(!S.dash&&S.noKeys)?`<div class="sec"><div class="h"><b>Dashboard</b>${edit('dash')}</div><span class="hint">Skipped – no keys available</span></div>`:''}
       <div class="sec"><div class="h"><b>Accident scene images (${nScene})</b>${edit('extras')}</div>${S.scene.length?`<div class="strip">${S.scene.map(simg).join('')}</div>`:(nScene?'':'<span class="hint">None added</span>')}</div>
       <div class="sec"><div class="h"><b>Other vehicle images (${nOther})</b>${edit('extras')}</div>${S.other.length?`<div class="strip">${S.other.map(simg).join('')}</div>`:(nOther?'':'<span class="hint">None added</span>')}</div>
@@ -962,7 +999,7 @@ const R = {
     }
     if(!S._sent){
       $('#stepLabel').textContent='Sending';
-      const rows=[`${nPhotos(photosSent())}${S.video||rc('video')?' and a video':''} received`,'Your details saved',...(origPending()?['Full-quality originals carrying on in the background']:[]),'Sent to our engineering team'];
+      const rows=[`${nPhotos(photosSent())}${(S.video&&S.video.uploaded)||rc('video')?' and a video':''} received`,'Your details saved',...(origPending()?['Full-quality originals carrying on in the background']:[]),'Sent to our engineering team'];
       main.innerHTML=`<div class="sendwrap"><h2>Sending your photos</h2><p class="lede">Keep this page open for a moment.</p><ul class="stages">${rows.map(r=>`<li><span class="dot"></span>${r}</li>`).join('')}</ul></div>`;
       cta.innerHTML='';
       if(!S._sending){ S._sending=true; S._result=null; completeCapture().then(r=>{ S._result=r; }); }
@@ -1042,7 +1079,8 @@ function regOK(){ return /^[A-Z0-9]{2,10}$/.test(S.ins.reg||''); }
 /* once anything has been received, or this visit has sent something, the capture's registration is fixed */
 function regLocked(){ return LINK.indexOf('c.')===0 && ((CTX.counts.total||0)>0 || JOBS.some(j=>!j.original && j.state!=='cancelled')); }
 function handoffOK(){ const I=S.ins; if(!regOK()) return false; if(SRC&&SRC.kind==='bodyshop') return !!I.handler.trim(); return true; }
-function insOK(){ const I=S.ins; if(SRC&&SRC.kind==='client') return regOK() && I.customer.trim() && I.phone.replace(/\D/g,'').length>=10 && I.accident; if(SRC&&SRC.kind==='bodyshop') return regOK() && I.locType && I.handler.trim() && I.view; return regOK() && I.locType && I.roadworthy && I.outcome && I.hire; }
+/* a quick Case link's registration is the Case's, which may be none: its photos still go to the Case, but it cannot be handed on without one */
+function insOK(){ const I=S.ins, reg=(SRC&&SRC.preset)||regOK(); if(SRC&&SRC.kind==='client') return reg && I.customer.trim() && I.phone.replace(/\D/g,'').length>=10 && I.accident; if(SRC&&SRC.kind==='bodyshop') return reg && I.locType && I.handler.trim() && I.view; return reg && I.locType && I.roadworthy && I.outcome && I.hire; }
 /* the server's spaced form ("RY65 OFG") once it holds the registration being shown */
 function regShown(){ const typed=SRC ? (S.ins.reg||'').toUpperCase().trim() : CASE.reg; return CTX.registrationDisplay && typed===CTX.registration ? String(CTX.registrationDisplay) : typed; }
 
@@ -1097,8 +1135,9 @@ function boot(){
   const inline=readJson('capture-context');
   if(inline) startWith(inline);
   /* GET context marks the link opened and refreshes the counts already received */
+  const asked=LINK;
   api('GET','context').then(r=>{
-    if(GONE) return;
+    if(GONE || LINK!==asked) return;  /* a capture started meanwhile has its own context */
     if(r.status===200 && r.data){ if(!STEPS.length) startWith(r.data); else { setContext(r.data); applyServer(r.data); if(STEPS[S.step]!=='done') render(); } }
     else if(!STEPS.length) main.textContent=COPY.offline;
   }).catch(()=>{ if(!STEPS.length) main.textContent=COPY.offline; });

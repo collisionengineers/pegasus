@@ -526,9 +526,15 @@ public interface IPhotoCaptureStore
 
     Task<PhotoCapture> RecordOpenedAsync(Guid captureId, DateTimeOffset openedAtUtc, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Writes what the sender typed onto the capture as it is now, whatever
+    /// else has changed on it since it was read: an upload landing meanwhile
+    /// changes other columns, and the latest typed details win. Whether the
+    /// registration may change is decided before, by
+    /// <see cref="RecordRoutingAsync"/> under the capture row's lock.
+    /// </summary>
     Task<PhotoCapture> RecordDetailsAsync(
         Guid captureId,
-        long expectedVersion,
         string? normalizedRegistration,
         DateOnly? incidentDate,
         string? customerName,

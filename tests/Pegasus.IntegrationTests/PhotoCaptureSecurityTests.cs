@@ -400,7 +400,6 @@ public sealed class PhotoCaptureSecurityTests
 
         public Task<CaptureRecord> RecordDetailsAsync(
             Guid captureId,
-            long expectedVersion,
             string? normalizedRegistration,
             DateOnly? incidentDate,
             string? customerName,

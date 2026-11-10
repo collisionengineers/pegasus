@@ -321,9 +321,11 @@ public sealed class RecordPhotoCaptureDetails(
                 cancellationToken);
         }
 
+        // Written on the capture as it is now: an upload landing since the
+        // request read it must not turn the sender's details away, and the
+        // registration's lock was decided above and by the routing's own.
         return await captures.RecordDetailsAsync(
             current.Id,
-            current.Version,
             registration,
             incidentDate,
             PhotoCaptureText.Name(form.CustomerName) ?? capture.CustomerName,
