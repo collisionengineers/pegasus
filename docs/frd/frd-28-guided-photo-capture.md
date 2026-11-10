@@ -447,9 +447,9 @@ placeholders are `{registration}`, `{claimant}`, `{photo link}`,
 `{link expiry}` and `{principal name}`. `{claimant}` is the first word of
 the customer's name, passing over a first word of Mr, Mrs, Miss, Ms, Mx or
 Dr: "Mr Leroy Ejiofor" is greeted "Hi Leroy,", and a name that is only a
-title and a surname, "Mr Ejiofor", "Hi Mr Ejiofor,"; the app and the
-hand-on message greet the customer the same way (operator, 10 November
-2026; R855). Its built-in body:
+title and a surname, "Mr Ejiofor", "Hi Mr Ejiofor,"; the hand-on
+message greets the customer the same way (operator, 10 November 2026;
+R855). Its built-in body:
 
 ```text
 Hi {claimant},
@@ -678,15 +678,14 @@ Integration tests hold the rest:
   page, the refusal sentences beside their forms, Matched by staff,
   Contact inactive, Reminded · name, and a standing link's changes written
   to the action history);
-- `ImageCaseCustodyIntegrationTests`: a later record of the same capture
-  not completing the images again, and kept paperwork filing on the Case
-  its record reached;
 - `WorkflowConfigurationWebTests`: the Photo links settings' refusals;
 - `StandingCaptureWebTests`: a standing capture opened as it starts, waiting
   with no Case and never Unidentified, taking paperwork with no Case, routed
   until its first photo, taking no originals with no Case, filing on the one
-  Case its registration matches, the hand-off's session token, and an item
-  joining the open batch.
+  Case its registration matches, the hand-off's session token, an item
+  joining the open batch, a later record of the same capture not completing
+  the images again, and kept paperwork filing on the Case its record
+  reached, a Triage Case and a report-sent Case included.
 
 `tests/Pegasus.ArchitectureTests/CaptureAssetContractTests.cs` holds the
 app's assets to the security policy (no inline style, handler or script
