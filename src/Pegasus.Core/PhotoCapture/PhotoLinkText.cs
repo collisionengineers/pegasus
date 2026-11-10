@@ -13,8 +13,8 @@ public interface IPhotoLinkTextSend
     /// <summary>Whether a text can be sent in this deployment at all.</summary>
     bool Available { get; }
 
-    /// <summary>Hands one text to the provider. <paramref name="to"/> is E.164 (<see cref="UkMobile.ToE164"/>).</summary>
-    Task<PhotoLinkTextOutcome> SendAsync(string to, string message, CancellationToken cancellationToken);
+    /// <summary>Hands one text to the provider. <paramref name="recipient"/> is E.164 (<see cref="UkMobile.ToE164"/>).</summary>
+    Task<PhotoLinkTextOutcome> SendAsync(string recipient, string message, CancellationToken cancellationToken);
 }
 
 /// <summary>

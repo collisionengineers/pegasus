@@ -263,11 +263,11 @@ public sealed partial class PhotoCaptureWebTests
             }
         }
 
-        public Task<PhotoLinkTextOutcome> SendAsync(string to, string message, CancellationToken cancellationToken)
+        public Task<PhotoLinkTextOutcome> SendAsync(string recipient, string message, CancellationToken cancellationToken)
         {
             lock (texts)
             {
-                texts.Add(new(to, message));
+                texts.Add(new(recipient, message));
                 return Task.FromResult(PhotoLinkTextOutcome.Sent($"message-{texts.Count}"));
             }
         }

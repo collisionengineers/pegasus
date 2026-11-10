@@ -197,9 +197,9 @@ public sealed class SendPhotoLinkTextTests
 
         public List<SentText> Sent { get; } = [];
 
-        public Task<PhotoLinkTextOutcome> SendAsync(string to, string message, CancellationToken cancellationToken)
+        public Task<PhotoLinkTextOutcome> SendAsync(string recipient, string message, CancellationToken cancellationToken)
         {
-            Sent.Add(new(to, message, recordsWritten()));
+            Sent.Add(new(recipient, message, recordsWritten()));
             return Task.FromResult(outcome);
         }
     }

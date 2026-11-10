@@ -28,7 +28,7 @@ public sealed class UnavailablePhotoLinkTextSend : IPhotoLinkTextSend
 {
     public bool Available => false;
 
-    public Task<PhotoLinkTextOutcome> SendAsync(string to, string message, CancellationToken cancellationToken) =>
+    public Task<PhotoLinkTextOutcome> SendAsync(string recipient, string message, CancellationToken cancellationToken) =>
         throw new InvalidOperationException("No text provider is configured.");
 }
 
@@ -52,9 +52,9 @@ public sealed partial class AcsPhotoLinkTextSend(
 
     public bool Available => options.Configured;
 
-    public async Task<PhotoLinkTextOutcome> SendAsync(string to, string message, CancellationToken cancellationToken)
+    public async Task<PhotoLinkTextOutcome> SendAsync(string recipient, string message, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(to);
+        ArgumentException.ThrowIfNullOrWhiteSpace(recipient);
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
         if (!options.Configured)
         {
@@ -70,7 +70,7 @@ public sealed partial class AcsPhotoLinkTextSend(
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
             request.Content = JsonContent.Create(new SendRequest(
                 options.From!.Trim(),
-                [new Recipient(to)],
+                [new Recipient(recipient)],
                 message,
                 new SendOptions(EnableDeliveryReport: false)));
             using var response = await httpClient.SendAsync(request, cancellationToken);
