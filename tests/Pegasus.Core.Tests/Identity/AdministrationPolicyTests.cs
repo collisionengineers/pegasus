@@ -1,11 +1,19 @@
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.PhotoCapture;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Identity;
 
 public sealed class AdministrationPolicyTests
 {
+    private static readonly int[] NoLifetime = [];
+    private static readonly int[] ThreeDaysOnly = [3];
+    private static readonly int[] FiveDays = [5];
+    private static readonly int[] SevenDaysTwice = [7, 7];
+    private static readonly int[] FourteenAndThree = [14, 3];
+    private static readonly int[] ThreeAndFourteen = [3, 14];
+
     [Theory]
     [InlineData(0)]
     [InlineData(366)]
@@ -80,6 +88,71 @@ public sealed class AdministrationPolicyTests
         Assert.Equal(7, configuration.HeldTargetDays);
         Assert.Equal(1, configuration.ReviewTargetDays);
         Assert.Equal(1, configuration.AiDraftTargetDays);
+    }
+
+    [Fact]
+    public void SendAPhotoLinkStartsAsItDidBeforeItsSettingsExisted()
+    {
+        var configuration = new CaseWorkflowConfiguration("case-workflow", 1);
+
+        Assert.Equal(PhotoCaptureMode.Guided, configuration.PhotoLinkStartMode);
+        Assert.True(configuration.PhotoLinkStartLiveCameraOnly);
+        Assert.True(configuration.PhotoLinkStartOriginals);
+        Assert.Equal(CaptureLimits.LifetimeDays, configuration.PhotoLinkLifetimesOffered);
+        Assert.Equal(CaptureLimits.DefaultLifetimeDays, configuration.PhotoLinkDefaultLifetimeDays);
+    }
+
+    [Fact]
+    public async Task PhotoLinkSettingsOfferALifetimeAndStartOnOneTheyOfferOrNothingIsSaved()
+    {
+        var store = new WorkflowStore();
+        var command = new UpdateWorkflowConfiguration(store);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+
+        foreach (var (offered, startsOn) in new (int[] Offered, int StartsOn)[]
+        {
+            (NoLifetime, 7),
+            (ThreeDaysOnly, 7),
+            (FiveDays, 5),
+            (SevenDaysTwice, 7)
+        })
+        {
+            await Assert.ThrowsAsync<PhotoLinkSendSettingsRefusedException>(() => command.ExecuteAsync(
+                new(1, actor, "photo-link-settings")
+                {
+                    PhotoLinkLifetimesOffered = offered,
+                    PhotoLinkDefaultLifetimeDays = startsOn
+                },
+                default));
+        }
+
+        Assert.Null(store.UpdateRequest);
+    }
+
+    [Fact]
+    public async Task PhotoLinkSettingsAreSavedWithTheLifetimesShortestFirst()
+    {
+        var store = new WorkflowStore();
+        var command = new UpdateWorkflowConfiguration(store);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+
+        await command.ExecuteAsync(
+            new(1, actor, "photo-link-settings")
+            {
+                PhotoLinkStartMode = PhotoCaptureMode.Quick,
+                PhotoLinkStartLiveCameraOnly = false,
+                PhotoLinkStartOriginals = false,
+                PhotoLinkLifetimesOffered = FourteenAndThree,
+                PhotoLinkDefaultLifetimeDays = 3
+            },
+            default);
+
+        var request = Assert.IsType<UpdateWorkflowConfigurationRequest>(store.UpdateRequest);
+        Assert.Equal(PhotoCaptureMode.Quick, request.PhotoLinkStartMode);
+        Assert.False(request.PhotoLinkStartLiveCameraOnly);
+        Assert.False(request.PhotoLinkStartOriginals);
+        Assert.Equal(ThreeAndFourteen, request.PhotoLinkLifetimesOffered);
+        Assert.Equal(3, request.PhotoLinkDefaultLifetimeDays);
     }
 
     [Fact]

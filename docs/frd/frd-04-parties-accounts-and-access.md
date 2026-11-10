@@ -285,7 +285,9 @@ Storage and Third Party Engineer contacts have no notes.
 A Principal, Claim Source or Repairer contact may have a **standing photo
 link** (operator, 9 November 2026; R774): its URL and QR code, Pause and
 Resume, Replace link, Retire link, which ends it for good (operator, 9
-November 2026; R796), and the defaults its captures take, which are the mode
+November 2026; R796), its saved addresses, offered on its form as
+inspection locations (operator, 9 November 2026; R806, R815), and the
+defaults its captures take, which are the mode
 of a link sent on to a customer, Live camera only, the lifetime and whether
 originals follow. The link only starts captures; its behaviour is
 [FRD-28](frd-28-guided-photo-capture.md#standing-photo-links).

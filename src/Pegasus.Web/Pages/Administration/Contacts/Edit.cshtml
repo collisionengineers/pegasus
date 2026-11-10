@@ -283,18 +283,91 @@
             </section>
             @if (standing is not null)
             {
-                @if (Model.StandingLinkAddresses.Count > 0)
-                {
-                    <section class="panel" aria-labelledby="photo-link-addresses-title">
-                        <div class="panel-head"><h2 id="photo-link-addresses-title">@OperatorLabels.PhotoCapture.SavedAddresses</h2></div>
-                        <dl class="definition-list">
-                            @foreach (var saved in Model.StandingLinkAddresses)
-                            {
-                                <div class="definition"><dt>@saved.Name</dt><dd>@saved.Address</dd></div>
-                            }
-                        </dl>
-                    </section>
-                }
+                @* Saved addresses (R806, R815): those taken from the contact stay
+                   read-only; the ones added here are the only ones edited or removed.
+                   A form is the tab's own address (?savedAddress=), so it works
+                   without script. *@
+                var book = Model.AddressBook;
+                <section class="panel" aria-labelledby="photo-link-addresses-title">
+                    <div class="panel-head">
+                        <h2 id="photo-link-addresses-title">@OperatorLabels.PhotoCapture.SavedAddresses</h2>
+                        @if (!Model.AddingSavedAddress)
+                        {
+                            <a class="btn btn--small" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.PhotoLinksTab" asp-route-savedAddress="@EditModel.NewSavedAddress">
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
+                                <span>@OperatorLabels.PhotoCapture.AddAddress</span>
+                            </a>
+                        }
+                    </div>
+                    <div class="panel-body stack">
+                        <p class="field-hint">@OperatorLabels.PhotoCapture.ShownAsInspectionLocation</p>
+                        @if (!book.IsEmpty)
+                        {
+                            <dl class="definition-list">
+                                @foreach (var fromContact in book.FromContact)
+                                {
+                                    <div class="definition"><dt>@fromContact.Name</dt><dd>@fromContact.Address</dd></div>
+                                }
+                                @foreach (var saved in book.Saved)
+                                {
+                                    @if (Model.EditingSavedAddressId == saved.Id)
+                                    {
+                                        <div class="definition">
+                                            <dt>@saved.Name</dt>
+                                            <dd>
+                                                <form method="post" asp-page-handler="ChangePhotoLinkAddress" asp-route-id="@Model.ContactId" asp-route-savedAddress="@saved.Id" class="stack contact-editor">
+                                                    <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                                    <input type="hidden" name="SavedAddressId" value="@saved.Id" />
+                                                    <div class="form-grid form-grid--2">
+                                                        <div class="field"><input name="SavedAddressName" value="@(Model.SavedAddressName ?? saved.Name)" aria-label="@OperatorLabels.PhotoCapture.AddressName" maxlength="@Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumNameLength" autocomplete="off" required /></div>
+                                                        <div class="field"><input name="SavedAddressText" value="@(Model.SavedAddressText ?? saved.Address)" aria-label="@OperatorLabels.PhotoCapture.AddressField" maxlength="@Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumAddressLength" autocomplete="off" required /></div>
+                                                    </div>
+                                                    <div class="button-row">
+                                                        <a class="btn" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.PhotoLinksTab">Cancel</a>
+                                                        <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button>
+                                                    </div>
+                                                </form>
+                                                <form method="post" asp-page-handler="RemovePhotoLinkAddress" asp-route-id="@Model.ContactId" asp-route-savedAddress="@saved.Id">
+                                                    <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                                    <input type="hidden" name="SavedAddressId" value="@saved.Id" />
+                                                    <button type="submit" class="btn btn--small btn--danger" data-busy-label="@OperatorLabels.Busy.Removing">@OperatorLabels.PhotoCapture.Remove</button>
+                                                </form>
+                                            </dd>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="definition">
+                                            <dt>@saved.Name</dt>
+                                            <dd class="cluster">
+                                                <span>@saved.Address</span>
+                                                <a class="btn btn--small" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.PhotoLinksTab" asp-route-savedAddress="@saved.Id">@OperatorLabels.PhotoCapture.Edit</a>
+                                            </dd>
+                                        </div>
+                                    }
+                                }
+                            </dl>
+                        }
+                        else if (!Model.AddingSavedAddress)
+                        {
+                            <p class="muted">@OperatorLabels.PhotoCapture.NoSavedAddresses</p>
+                        }
+                        @if (Model.AddingSavedAddress)
+                        {
+                            <form method="post" asp-page-handler="AddPhotoLinkAddress" asp-route-id="@Model.ContactId" asp-route-savedAddress="@EditModel.NewSavedAddress" class="stack contact-editor">
+                                <input type="hidden" name="StandingLinkVersion" value="@standing.Version" />
+                                <div class="form-grid form-grid--2">
+                                    <div class="field"><input name="SavedAddressName" value="@Model.SavedAddressName" placeholder="@OperatorLabels.PhotoCapture.AddressNamePlaceholder" aria-label="@OperatorLabels.PhotoCapture.AddressName" maxlength="@Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumNameLength" autocomplete="off" required /></div>
+                                    <div class="field"><input name="SavedAddressText" value="@Model.SavedAddressText" placeholder="@OperatorLabels.PhotoCapture.FullAddressPlaceholder" aria-label="@OperatorLabels.PhotoCapture.AddressField" maxlength="@Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumAddressLength" autocomplete="off" required /></div>
+                                </div>
+                                <div class="button-row">
+                                    <a class="btn" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.PhotoLinksTab">Cancel</a>
+                                    <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button>
+                                </div>
+                            </form>
+                        }
+                    </div>
+                </section>
                 <section class="panel" aria-labelledby="photo-link-defaults-title">
                     <div class="panel-head"><h2 id="photo-link-defaults-title">@OperatorLabels.PhotoCapture.DefaultsForTheirLinks</h2></div>
                     <form method="post" asp-page-handler="UpdatePhotoLinkDefaults" asp-route-id="@Model.ContactId" class="panel-body stack contact-editor">

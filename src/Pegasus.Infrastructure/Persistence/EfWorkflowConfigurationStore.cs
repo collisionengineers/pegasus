@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.Identity;
+using Pegasus.Core.PhotoCapture;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -94,6 +95,11 @@ public sealed class EfWorkflowConfigurationStore(
         entity.HeldTargetDays = request.HeldTargetDays;
         entity.ReviewTargetDays = request.ReviewTargetDays;
         entity.AiDraftTargetDays = request.AiDraftTargetDays;
+        entity.PhotoLinkStartMode = PhotoCaptureCodes.ToCode(request.PhotoLinkStartMode);
+        entity.PhotoLinkStartLiveCameraOnly = request.PhotoLinkStartLiveCameraOnly;
+        entity.PhotoLinkStartOriginals = request.PhotoLinkStartOriginals;
+        entity.PhotoLinkLifetimesOffered = FormatLifetimes(request.PhotoLinkLifetimesOffered);
+        entity.PhotoLinkDefaultLifetimeDays = request.PhotoLinkDefaultLifetimeDays;
         entity.Version = checked(entity.Version + 1);
         var after = Snapshot(entity);
 
@@ -145,7 +151,14 @@ public sealed class EfWorkflowConfigurationStore(
             || snapshot.TriageTargetDays != request.TriageTargetDays
             || snapshot.HeldTargetDays != request.HeldTargetDays
             || snapshot.ReviewTargetDays != request.ReviewTargetDays
-            || snapshot.AiDraftTargetDays != request.AiDraftTargetDays)
+            || snapshot.AiDraftTargetDays != request.AiDraftTargetDays
+            || (snapshot.PhotoLinkStartMode ?? AdministrationPolicyModelConfiguration.PhotoLinkStartModeDefault)
+                != PhotoCaptureCodes.ToCode(request.PhotoLinkStartMode)
+            || snapshot.PhotoLinkStartLiveCameraOnly != request.PhotoLinkStartLiveCameraOnly
+            || snapshot.PhotoLinkStartOriginals != request.PhotoLinkStartOriginals
+            || (snapshot.PhotoLinkLifetimesOffered ?? AdministrationPolicyModelConfiguration.PhotoLinkLifetimesOfferedDefault)
+                != FormatLifetimes(request.PhotoLinkLifetimesOffered)
+            || snapshot.PhotoLinkDefaultLifetimeDays != request.PhotoLinkDefaultLifetimeDays)
         {
             throw new WorkflowConfigurationOperationConflictException();
         }
@@ -163,7 +176,12 @@ public sealed class EfWorkflowConfigurationStore(
         entity.TriageTargetDays,
         entity.HeldTargetDays,
         entity.ReviewTargetDays,
-        entity.AiDraftTargetDays);
+        entity.AiDraftTargetDays,
+        entity.PhotoLinkStartMode,
+        entity.PhotoLinkStartLiveCameraOnly,
+        entity.PhotoLinkStartOriginals,
+        entity.PhotoLinkLifetimesOffered,
+        entity.PhotoLinkDefaultLifetimeDays);
 
     internal static CaseWorkflowConfiguration Map(WorkflowConfigurationEntity entity) =>
         Map(Snapshot(entity));
@@ -179,8 +197,23 @@ public sealed class EfWorkflowConfigurationStore(
         TriageTargetDays = snapshot.TriageTargetDays,
         HeldTargetDays = snapshot.HeldTargetDays,
         ReviewTargetDays = snapshot.ReviewTargetDays,
-        AiDraftTargetDays = snapshot.AiDraftTargetDays
+        AiDraftTargetDays = snapshot.AiDraftTargetDays,
+        PhotoLinkStartMode = PhotoCaptureCodes.ParseMode(
+            snapshot.PhotoLinkStartMode ?? AdministrationPolicyModelConfiguration.PhotoLinkStartModeDefault),
+        PhotoLinkStartLiveCameraOnly = snapshot.PhotoLinkStartLiveCameraOnly,
+        PhotoLinkStartOriginals = snapshot.PhotoLinkStartOriginals,
+        PhotoLinkLifetimesOffered = ParseLifetimes(
+            snapshot.PhotoLinkLifetimesOffered ?? AdministrationPolicyModelConfiguration.PhotoLinkLifetimesOfferedDefault),
+        PhotoLinkDefaultLifetimeDays = snapshot.PhotoLinkDefaultLifetimeDays
     };
+
+    // The offered lifetimes are stored as the days, comma separated ("3,7,14").
+    private static string FormatLifetimes(IEnumerable<int> days) =>
+        string.Join(',', days.Select(day => day.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+
+    private static IReadOnlyList<int> ParseLifetimes(string stored) =>
+        [.. stored.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(day => int.Parse(day, System.Globalization.CultureInfo.InvariantCulture))];
 
     private sealed record WorkflowConfigurationSnapshot(
         string PolicyKey,
@@ -192,5 +225,12 @@ public sealed class EfWorkflowConfigurationStore(
         int TriageTargetDays = 1,
         int HeldTargetDays = 7,
         int ReviewTargetDays = 1,
-        int AiDraftTargetDays = 1);
+        int AiDraftTargetDays = 1,
+        // History written before the photo link settings existed carries
+        // none; the defaults are what Send used then.
+        string? PhotoLinkStartMode = null,
+        bool PhotoLinkStartLiveCameraOnly = true,
+        bool PhotoLinkStartOriginals = true,
+        string? PhotoLinkLifetimesOffered = null,
+        int PhotoLinkDefaultLifetimeDays = CaptureLimits.DefaultLifetimeDays);
 }

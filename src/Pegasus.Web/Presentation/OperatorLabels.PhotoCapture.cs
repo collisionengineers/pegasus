@@ -241,6 +241,17 @@ public static partial class OperatorLabels
         public const string RetireLinkConfirmation = "Retire this link? Its address stops working for good and cannot be resumed.";
         public const string DownloadQr = "Download QR";
         public const string SavedAddresses = "Saved addresses";
+
+        // The saved addresses card, in the prototype's words (R806).
+        public const string AddAddress = "Add address";
+        public const string ShownAsInspectionLocation = "Shown as “Inspection location” on their form.";
+        public const string NoSavedAddresses = "No addresses yet. Their staff will type one each time until you add some.";
+        public const string AddressNamePlaceholder = "Name, e.g. Back yard";
+        public const string FullAddressPlaceholder = "Full address";
+        public const string AddressName = "Address name";
+        public const string AddressField = "Address";
+        public const string Edit = "Edit";
+        public const string Remove = "Remove";
         public const string DefaultsForTheirLinks = "Defaults for their links";
         public const string CreateTheirLink = "Create their link";
         public const string WebsiteLink = "Website link";

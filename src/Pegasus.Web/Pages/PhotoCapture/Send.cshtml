@@ -142,7 +142,7 @@ else
                     <div class="field field--narrow">
                         <label asp-for="Days">@Labels.LinkLasts</label>
                         <select asp-for="Days">
-                            @foreach (var days in CaptureLimits.LifetimeDays)
+                            @foreach (var days in Model.LifetimesOffered)
                             {
                                 <option value="@days" selected="@(Model.Days == days)">@Labels.Days(days)</option>
                             }

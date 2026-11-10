@@ -218,6 +218,58 @@ public sealed class StandingPhotoLinkAdministrationTests
     }
 
     [Fact]
+    public async Task ASavedAddressIsAddedChangedAndRemovedUnderTheLinksVersion()
+    {
+        var store = new FakeStandingLinks();
+        var administration = new StandingPhotoLinkAdministration(store, new FixedClock(Now));
+        var link = await administration.CreateForContactAsync(Administrator, Bodyshop, CancellationToken.None);
+
+        var added = await administration.AddAddressAsync(
+            Administrator, link.Id, link.Version, " Back yard ", " 1 High Street, Leeds ", CancellationToken.None);
+        var saved = Assert.Single((await store.GetAddressBookAsync(link.Id, CancellationToken.None)).Saved);
+        Assert.Equal("Back yard", saved.Name);
+        Assert.Equal("1 High Street, Leeds", saved.Address);
+        Assert.Equal(link.Version + 1, added.Version);
+
+        var changed = await administration.ChangeAddressAsync(
+            Administrator, link.Id, added.Version, saved.Id, "Front yard", "2 High Street, Leeds", CancellationToken.None);
+        Assert.Equal("Front yard", Assert.Single((await store.GetAddressBookAsync(link.Id, CancellationToken.None)).Saved).Name);
+
+        var stale = await Assert.ThrowsAsync<StandingPhotoLinkException>(
+            () => administration.RemoveAddressAsync(Administrator, link.Id, added.Version, saved.Id, CancellationToken.None));
+        Assert.Equal(StandingPhotoLinkError.StaleVersion, stale.Error);
+        Assert.Single((await store.GetAddressBookAsync(link.Id, CancellationToken.None)).Saved);
+
+        await administration.RemoveAddressAsync(Administrator, link.Id, changed.Version, saved.Id, CancellationToken.None);
+        Assert.True((await store.GetAddressBookAsync(link.Id, CancellationToken.None)).IsEmpty);
+    }
+
+    [Fact]
+    public async Task ASavedAddressNeedsANameAnAddressAContactsLinkAndTheContactsRight()
+    {
+        var store = new FakeStandingLinks();
+        var administration = new StandingPhotoLinkAdministration(store, new FixedClock(Now));
+        var link = await administration.CreateForContactAsync(Administrator, Bodyshop, CancellationToken.None);
+        var website = await administration.CreateWebsiteAsync(Administrator, WebsiteSlug, CancellationToken.None);
+        var writes = store.Writes;
+
+        var noName = await Assert.ThrowsAsync<StandingPhotoLinkException>(
+            () => administration.AddAddressAsync(Administrator, link.Id, link.Version, "  ", "1 High Street", CancellationToken.None));
+        var noAddress = await Assert.ThrowsAsync<StandingPhotoLinkException>(
+            () => administration.AddAddressAsync(Administrator, link.Id, link.Version, "Back yard", null, CancellationToken.None));
+        var onTheWebsite = await Assert.ThrowsAsync<StandingPhotoLinkException>(
+            () => administration.AddAddressAsync(Administrator, website.Id, website.Version, "Back yard", "1 High Street", CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(
+            () => administration.AddAddressAsync(Engineer, link.Id, link.Version, "Back yard", "1 High Street", CancellationToken.None));
+
+        Assert.Equal(StandingPhotoLinkError.InvalidAddress, noName.Error);
+        Assert.Equal(StandingPhotoLinkError.InvalidAddress, noAddress.Error);
+        Assert.Equal(StandingPhotoLinkError.NotFound, onTheWebsite.Error);
+        Assert.Equal(writes, store.Writes);
+        Assert.Empty(store.Addresses);
+    }
+
+    [Fact]
     public async Task AnInactiveContactsLinkStartsNoCaptures()
     {
         var store = new FakeStandingLinks();
@@ -316,8 +368,59 @@ public sealed class StandingPhotoLinkAdministrationTests
         public Task<StandingPhotoLink> ReplaceSlugAsync(Guid id, long expectedVersion, string newSlug, DateTimeOffset replacedAtUtc, CancellationToken cancellationToken) =>
             Update(id, expectedVersion, link => link with { Slug = newSlug });
 
+        public List<(Guid LinkId, SavedStandingPhotoLinkAddress Address)> Addresses { get; } = [];
+
         public Task<IReadOnlyList<StandingPhotoLinkAddress>> ListAddressesAsync(Guid standingLinkId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<StandingPhotoLinkAddress>>([]);
+            Task.FromResult<IReadOnlyList<StandingPhotoLinkAddress>>(
+                [.. Addresses.Where(item => item.LinkId == standingLinkId).Select(item => new StandingPhotoLinkAddress(item.Address.Name, item.Address.Address))]);
+
+        public Task<StandingPhotoLinkAddressBook> GetAddressBookAsync(Guid standingLinkId, CancellationToken cancellationToken) =>
+            Task.FromResult(new StandingPhotoLinkAddressBook(
+                [],
+                [.. Addresses.Where(item => item.LinkId == standingLinkId).Select(item => item.Address)]));
+
+        public Task<StandingPhotoLink> AddAddressAsync(
+            Guid id,
+            long expectedVersion,
+            string name,
+            string address,
+            DateTimeOffset addedAtUtc,
+            CancellationToken cancellationToken) =>
+            Update(id, expectedVersion, link =>
+            {
+                Addresses.Add((id, new SavedStandingPhotoLinkAddress(Guid.NewGuid(), name, address)));
+                return link;
+            });
+
+        public Task<StandingPhotoLink> ChangeAddressAsync(
+            Guid id,
+            long expectedVersion,
+            Guid addressId,
+            string name,
+            string address,
+            CancellationToken cancellationToken) =>
+            Update(id, expectedVersion, link =>
+            {
+                Addresses[SavedIndex(id, addressId)] = (id, new SavedStandingPhotoLinkAddress(addressId, name, address));
+                return link;
+            });
+
+        public Task<StandingPhotoLink> RemoveAddressAsync(
+            Guid id,
+            long expectedVersion,
+            Guid addressId,
+            CancellationToken cancellationToken) =>
+            Update(id, expectedVersion, link =>
+            {
+                Addresses.RemoveAt(SavedIndex(id, addressId));
+                return link;
+            });
+
+        private int SavedIndex(Guid linkId, Guid addressId)
+        {
+            var index = Addresses.FindIndex(item => item.LinkId == linkId && item.Address.Id == addressId);
+            return index >= 0 ? index : throw new StandingPhotoLinkException(StandingPhotoLinkError.NotFound);
+        }
 
         public Task<int> CountMintedSinceAsync(Guid standingLinkId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) =>
             Task.FromResult(0);

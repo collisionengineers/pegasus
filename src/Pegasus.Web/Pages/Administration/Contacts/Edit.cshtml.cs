@@ -86,7 +86,17 @@ public sealed class EditModel(
     }
 
     public StandingPhotoLink? StandingLink { get; private set; }
-    public IReadOnlyList<StandingPhotoLinkAddress> StandingLinkAddresses { get; private set; } = [];
+    /// <summary>The link's saved addresses: those taken from the contact, read-only, then the tab's own (R806, R815).</summary>
+    public StandingPhotoLinkAddressBook AddressBook { get; private set; } = new([], []);
+
+    /// <summary>Which saved address the tab draws as a form: <see cref="NewSavedAddress"/> for Add address, or a saved one's id.</summary>
+    [BindProperty(SupportsGet = true, Name = "savedAddress")] public string? SavedAddressForm { get; set; }
+    public const string NewSavedAddress = "new";
+    public bool AddingSavedAddress => SavedAddressForm == NewSavedAddress;
+    public Guid? EditingSavedAddressId => Guid.TryParse(SavedAddressForm, out var savedId) ? savedId : null;
+    [BindProperty] public Guid SavedAddressId { get; set; }
+    [BindProperty] public string? SavedAddressName { get; set; }
+    [BindProperty] public string? SavedAddressText { get; set; }
     public string? StandingLinkUrl => StandingLink is { } link && photoCaptureOptions is not null
         ? Pegasus.Web.Pages.PhotoCapture.PhotoLinkMail.StandingUrl(photoCaptureOptions.Value, link.Slug)
         : null;
@@ -176,6 +186,9 @@ public sealed class EditModel(
     public Task<IActionResult> OnPostReplacePhotoLinkAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "replace", cancellationToken);
     public Task<IActionResult> OnPostRetirePhotoLinkAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "retire", cancellationToken);
     public Task<IActionResult> OnPostUpdatePhotoLinkDefaultsAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "defaults", cancellationToken);
+    public Task<IActionResult> OnPostAddPhotoLinkAddressAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "add-address", cancellationToken);
+    public Task<IActionResult> OnPostChangePhotoLinkAddressAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "change-address", cancellationToken);
+    public Task<IActionResult> OnPostRemovePhotoLinkAddressAsync(Guid id, CancellationToken cancellationToken) => ChangePhotoLinkAsync(id, "remove-address", cancellationToken);
 
     /// <summary>The standing link's QR code as a file to print (Download QR).</summary>
     public async Task<IActionResult> OnGetPhotoLinkQrAsync(Guid id, CancellationToken cancellationToken)
@@ -237,6 +250,18 @@ public sealed class EditModel(
                         cancellationToken);
                     TempData["AdministrationStatus"] = OperatorLabels.PhotoCapture.Saved;
                     break;
+                // The tab's own saved addresses (R806); those taken from the
+                // contact are not the tab's to change (R815).
+                case "add-address":
+                    await administration.AddAddressAsync(actor, link!.Id, StandingLinkVersion, SavedAddressName, SavedAddressText, cancellationToken);
+                    break;
+                case "change-address":
+                    await administration.ChangeAddressAsync(
+                        actor, link!.Id, StandingLinkVersion, SavedAddressId, SavedAddressName, SavedAddressText, cancellationToken);
+                    break;
+                case "remove-address":
+                    await administration.RemoveAddressAsync(actor, link!.Id, StandingLinkVersion, SavedAddressId, cancellationToken);
+                    break;
                 default:
                     return BadRequest();
             }
@@ -249,7 +274,9 @@ public sealed class EditModel(
             // The link is there, whoever made it: the tab shows it.
             return RedirectToPage(new { id = ContactId, tab = Tab });
         }
-        catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.NotFound) { return NotFound(); }
+        // A saved address someone else removed meanwhile is a stale read, not a missing page.
+        catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.NotFound
+            && !action.EndsWith("-address", StringComparison.Ordinal)) { return NotFound(); }
         catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.InvalidDefaults) { return BadRequest(); }
         catch (StandingPhotoLinkException) { ModelState.AddModelError(string.Empty, OperatorLabels.ActionNotApplied); }
         await PopulateAsync(actor, cancellationToken);
@@ -264,7 +291,7 @@ public sealed class EditModel(
         if (CurrentTab != PhotoLinksTab || !OffersPhotoLinks) return;
         StandingLink = await standingLinks!.FindForOrganizationAsync(ContactId, cancellationToken);
         if (StandingLink is not { } link) return;
-        StandingLinkAddresses = await standingLinks.ListAddressesAsync(link.Id, cancellationToken);
+        AddressBook = await standingLinks.GetAddressBookAsync(link.Id, cancellationToken);
         StandingLinkVersion = link.Version;
         LinkForwardedMode = link.ForwardedMode;
         LinkLiveCameraOnly = link.LiveCameraOnly;

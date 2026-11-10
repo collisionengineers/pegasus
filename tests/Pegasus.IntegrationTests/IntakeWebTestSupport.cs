@@ -407,6 +407,18 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         public Task<IReadOnlyList<Pegasus.Core.PhotoCapture.StandingPhotoLinkAddress>> ListAddressesAsync(Guid standingLinkId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<Pegasus.Core.PhotoCapture.StandingPhotoLinkAddress>>([]);
 
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLinkAddressBook> GetAddressBookAsync(Guid standingLinkId, CancellationToken cancellationToken) =>
+            Task.FromResult(new Pegasus.Core.PhotoCapture.StandingPhotoLinkAddressBook([], []));
+
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> AddAddressAsync(Guid id, long expectedVersion, string name, string address, DateTimeOffset addedAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("A database-less host holds no standing link.");
+
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> ChangeAddressAsync(Guid id, long expectedVersion, Guid addressId, string name, string address, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("A database-less host holds no standing link.");
+
+        public Task<Pegasus.Core.PhotoCapture.StandingPhotoLink> RemoveAddressAsync(Guid id, long expectedVersion, Guid addressId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("A database-less host holds no standing link.");
+
         public Task<int> CountMintedSinceAsync(Guid standingLinkId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) =>
             Task.FromResult(0);
     }
