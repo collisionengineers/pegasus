@@ -294,6 +294,6 @@ public sealed class PhotoLinksModel(
         PhotoLinkDefaultLifetimeDays = Configuration.PhotoLinkDefaultLifetimeDays;
     }
 
-    private bool MayManageLinks(ActionActor actor) =>
+    private static bool MayManageLinks(ActionActor actor) =>
         StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ManageOrganizationsAndPrincipals);
 }
