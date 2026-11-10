@@ -373,7 +373,7 @@ public sealed class PhotoCaptureWebTests
         var encoded = HtmlEncoder.Default.Encode(principalName);
 
         var list = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}");
-        Assert.Contains($"<td>{encoded}</td>", ListRow(list, link.Capture.Id), StringComparison.Ordinal);
+        Assert.Contains($"<span>{encoded}</span>", ListRow(list, link.Capture.Id), StringComparison.Ordinal);
         var details = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture/{link.Capture.Id:D}");
         Assert.Contains($"<dt>{OperatorLabels.PhotoCapture.From}</dt><dd>{encoded}", details, StringComparison.Ordinal);
     }
@@ -1017,6 +1017,7 @@ public sealed class PhotoCaptureWebTests
         var before = await CaptureIdsAsync(factory, caseId);
         using (var untyped = await PostStaffFormAsync(client, send, new Dictionary<string, string>
         {
+            ["OperationKey"] = NewOperationKey(),
             ["Mode"] = nameof(PhotoCaptureMode.Quick),
             ["Days"] = "7",
             ["Submit"] = Pegasus.Web.Pages.PhotoCapture.SendModel.ToCopy
@@ -1594,6 +1595,7 @@ public sealed class PhotoCaptureWebTests
         var before = await CaptureIdsAsync(factory, caseId);
         using (var posted = await PostStaffFormAsync(client, send, new Dictionary<string, string>
         {
+            ["OperationKey"] = NewOperationKey(),
             ["Mode"] = mode,
             ["QuickLinkFor"] = quickLinkFor,
             ["Days"] = "7",
