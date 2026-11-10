@@ -33,7 +33,8 @@ public sealed partial class PhotoCaptureWebTests
     /// A mileage typed on a photo link replaces the DVSA estimate in its own
     /// row, and the estimate's unit with it, so the Case holds one mileage
     /// fact; a later lookup, which fills only a field with no fact, leaves it
-    /// (operator, 10 November 2026; R843).
+    /// (operator, 10 November 2026; R843). The fill's history keeps the
+    /// estimate it replaced.
     /// </summary>
     [Fact]
     public async Task ATypedMileageReplacesTheDvsaEstimateAndALaterLookupLeavesIt()
@@ -62,6 +63,7 @@ public sealed partial class PhotoCaptureWebTests
         await StandingCaptureDriver.SettleAsync(factory);
 
         await AssertTypedMileageAsync(factory, caseId);
+        await AssertReplacedEstimateRecordedAsync(factory, caseId, "145137");
 
         await RecordDvsaLookupAsync(factory, caseId, "RY65OFG", miles: 52_000);
 
@@ -235,6 +237,31 @@ public sealed partial class PhotoCaptureWebTests
         var unit = Assert.Single(facts, value => value.FieldName == CaseDataFieldNames.VehicleMileageUnit);
         Assert.Equal(nameof(VehicleMileageUnit.Miles), unit.Value);
         Assert.Equal(CaseDataCodes.PhotoLink, unit.SourceKind);
+    }
+
+    /// <summary>
+    /// The photo link's one fill event records, as its before value, the
+    /// estimate's mileage and unit it replaced with their source and key.
+    /// </summary>
+    private static async Task AssertReplacedEstimateRecordedAsync(IntakeWebApplicationFactory factory, Guid caseId, string miles)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        var aggregateId = caseId.ToString("D");
+        var history = Assert.Single(await db.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateId == aggregateId && item.EventKind == EfPhotoCaptureCaseWriter.FilledEventType)
+            .ToListAsync());
+        Assert.NotNull(history.BeforeJson);
+        using var before = JsonDocument.Parse(history.BeforeJson);
+        var replaced = before.RootElement.GetProperty("facts").EnumerateArray()
+            .ToDictionary(fact => fact.GetProperty("fieldName").GetString()!, fact => fact);
+        Assert.Equal(2, replaced.Count);
+        var mileage = replaced[CaseDataFieldNames.VehicleMileage];
+        Assert.Equal(miles, mileage.GetProperty("value").GetString());
+        Assert.Equal(CaseDataCodes.VehicleLookup, mileage.GetProperty("sourceKind").GetString());
+        Assert.Equal(MotMileageEstimationPolicy.MethodKey, mileage.GetProperty("policyKey").GetString());
+        var unit = replaced[CaseDataFieldNames.VehicleMileageUnit];
+        Assert.Equal(nameof(VehicleMileageUnit.Miles), unit.GetProperty("value").GetString());
+        Assert.Equal(CaseDataCodes.VehicleLookup, unit.GetProperty("sourceKind").GetString());
     }
 
     /// <summary>

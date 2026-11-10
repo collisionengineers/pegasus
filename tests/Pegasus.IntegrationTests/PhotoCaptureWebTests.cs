@@ -1420,6 +1420,14 @@ public sealed partial class PhotoCaptureWebTests
             Assert.Equal("2031-04-30", Assert.Single(filled, value => value.FieldName == Pegasus.Core.Cases.CaseDataFieldNames.IncidentDate).Value);
             Assert.False(await db.CaseDataFields.AnyAsync(value =>
                 value.WorkId == caseId && value.FieldName == Pegasus.Core.Cases.CaseDataFieldNames.InspectionAddress));
+
+            // A fill into empty fields replaced nothing, so its history has
+            // no before value (R843).
+            var aggregateId = caseId.ToString("D");
+            var history = Assert.Single(await db.ActionHistory.AsNoTracking()
+                .Where(item => item.AggregateId == aggregateId && item.EventKind == EfPhotoCaptureCaseWriter.FilledEventType)
+                .ToListAsync());
+            Assert.Null(history.BeforeJson);
         }
 
         var page = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture/{link.Capture.Id:D}");

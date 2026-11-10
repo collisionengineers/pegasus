@@ -142,7 +142,7 @@ public sealed partial class EfPhotoCaptureCaseWriter(
             var caseDataFields = await context.CaseDataFields
                 .Where(item => item.WorkId == workId)
                 .ToListAsync(cancellationToken);
-            var filled = FillCaseData(context, caseDataFields, workId, values, captureId, sourceLabel);
+            var (filled, replaced) = FillCaseData(context, caseDataFields, workId, values, captureId, sourceLabel);
             if (filled.Count == 0)
             {
                 return [];
@@ -151,6 +151,9 @@ public sealed partial class EfPhotoCaptureCaseWriter(
             var beforeVersion = workflow.Version;
             CaseMutationGuard.Advance(workflow);
             var resultJson = JsonSerializer.Serialize(new { Facts = filled }, JsonOptions);
+            // A replaced DVSA estimate keeps its value in the history (R843);
+            // a fill into empty fields replaced nothing.
+            var beforeJson = replaced.Count == 0 ? null : JsonSerializer.Serialize(new { Facts = replaced }, JsonOptions);
             const string reason = "The photo link's details filled the Case's empty fields.";
             var operationKey = $"photo-link-fill:{captureId:N}:{caseId:N}";
             context.CaseWorkflowEvents.Add(new()
@@ -183,7 +186,7 @@ public sealed partial class EfPhotoCaptureCaseWriter(
                 Outcome = "Succeeded",
                 CorrelationId = operationKey,
                 Reason = reason,
-                BeforeJson = null,
+                BeforeJson = beforeJson,
                 AfterJson = resultJson,
                 PolicyVersion = $"{PhotoCaptureCaseFields.PolicyKey}/v{PhotoCaptureCaseFields.PolicyVersion}"
             });
@@ -223,14 +226,18 @@ public sealed partial class EfPhotoCaptureCaseWriter(
             .SingleOrDefaultAsync(cancellationToken);
     }
 
+    /// <summary>A fact a fill replaced, as the Case held it before.</summary>
+    private sealed record ReplacedFact(string FieldName, string Value, string SourceKind, string PolicyKey);
+
     /// <summary>
-    /// The fields filled, by name. A field fills where the Case holds neither
+    /// The fields filled, by name, and the facts among them that were
+    /// replaced rather than filled into an empty field. A field fills where the Case holds neither
     /// an extracted fact nor a confirmed value; a filled mileage brings its
     /// unit, as a looked-up one does. A typed mileage replaces the DVSA
     /// estimate, and only that, in its own fact row and its unit's
     /// (<see cref="PhotoCaptureCaseFields.Replaces"/>; R843).
     /// </summary>
-    private static List<string> FillCaseData(
+    private static (List<string> Filled, List<ReplacedFact> Replaced) FillCaseData(
         PegasusDbContext context,
         List<CaseDataFieldEntity> caseDataFields,
         Guid workId,
@@ -239,6 +246,7 @@ public sealed partial class EfPhotoCaptureCaseWriter(
         string sourceLabel)
     {
         var filled = new List<string>();
+        var replaced = new List<ReplacedFact>();
 
         void Fill(string fieldName, string valueType, string value)
         {
@@ -256,6 +264,7 @@ public sealed partial class EfPhotoCaptureCaseWriter(
             {
                 // The DVSA estimate's own row takes the typed reading, so the
                 // Case holds one mileage fact (R843).
+                replaced.Add(new ReplacedFact(fact.FieldName, fact.Value, fact.SourceKind, fact.PolicyKey));
                 fact.ValueType = valueType;
                 fact.Value = value.Trim();
                 fact.SourceKind = CaseDataCodes.PhotoLink;
@@ -300,7 +309,7 @@ public sealed partial class EfPhotoCaptureCaseWriter(
             Fill(CaseDataFieldNames.VehicleMileageUnit, CaseDataCodes.Text, VehicleMileageUnit.Miles.ToString());
         }
 
-        return filled;
+        return (filled, replaced);
     }
 
     [LoggerMessage(
