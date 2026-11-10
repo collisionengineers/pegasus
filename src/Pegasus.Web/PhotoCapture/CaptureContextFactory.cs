@@ -15,6 +15,9 @@ namespace Pegasus.Web.PhotoCapture;
 /// a plate shows it, the way the hand-off message spaces it.
 /// <see cref="QuickLinkFor"/> names the firm a quick link sent from a Case
 /// is for, when the app shows that firm's staff start and form (R798, R808).
+/// <see cref="CustomerName"/> and <see cref="IncidentDate"/> are what staff
+/// typed on the Send page for a link sent from a Case, which the firm's form
+/// starts with (operator, 10 November 2026; R853); a standing link has neither.
 /// </summary>
 public sealed record CaptureContext(
     string Kind,
@@ -25,7 +28,8 @@ public sealed record CaptureContext(
     string? QuickLinkFor,
     string? Registration,
     string? RegistrationDisplay,
-    string? CustomerFirstName,
+    string? CustomerName,
+    DateOnly? IncidentDate,
     DateTimeOffset? ExpiresAtUtc,
     bool Sent,
     string LinkKey,
@@ -180,6 +184,7 @@ public sealed class CaptureContextFactory(
         var link = capture.StandingLinkId is { } linkId
             ? await standingLinks.GetAsync(linkId, cancellationToken)
             : null;
+        var caseLink = capture.Origin == PhotoCaptureOrigin.CaseLink;
         var quickCaseLink = HandOnCaseLink.IsQuickCaseLink(capture);
         var customerOfHandOn = quickCaseLink && tokenPurpose == PhotoLinkTokenPurpose.Handoff;
         var staffFor = quickCaseLink && !customerOfHandOn ? capture.QuickLinkFor : null;
@@ -200,7 +205,8 @@ public sealed class CaptureContextFactory(
             staffFor is { } staffQuickLinkFor ? CaptureCodes.QuickLinkFor(staffQuickLinkFor) : null,
             capture.NormalizedRegistration,
             capture.NormalizedRegistration is { } registration ? PhotoCaptureText.DisplayRegistration(registration) : null,
-            FirstName(capture.CustomerName),
+            caseLink ? capture.CustomerName : null,
+            caseLink ? capture.IncidentDate : null,
             capture.ExpiresAtUtc,
             capture.SentAtUtc is not null,
             LinkKey(capture.Id),
@@ -223,7 +229,8 @@ public sealed class CaptureContextFactory(
             QuickLinkFor: null,
             Registration: null,
             RegistrationDisplay: null,
-            CustomerFirstName: null,
+            CustomerName: null,
+            IncidentDate: null,
             ExpiresAtUtc: null,
             Sent: false,
             link.Slug,
@@ -287,9 +294,6 @@ public sealed class CaptureContextFactory(
             capture.LiveCameraOnly,
             Math.Max(1, daysLeft));
     }
-
-    private static string? FirstName(string? customerName) =>
-        (customerName ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
 
     private static CaptureDetailsView? Details(PhotoCaptureDetails? details) =>
         details is null

@@ -25,7 +25,7 @@ namespace Pegasus.IntegrationTests;
 /// in-process drain stands in for the Worker.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class PhotoCaptureWebTests
+public sealed partial class PhotoCaptureWebTests
 {
     private const string Api = PhotoCaptureSurface.ApiBasePath;
 
