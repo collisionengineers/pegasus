@@ -270,7 +270,7 @@ promotion beside the source in `Evidence/Original instruction`).
 Selection rule: one photograph rule for attached, inline (cid) and embedded
 (PDF- or Word-extracted) images alike — JPEG or PNG, shortest side at least
 200 px (`MinimumPhotographSidePixels`), sides under 3:1 (an inline image at
-least 400 px and under 2.5:1, R787), not placed on every
+least 400 px and under 2.5:1, R819), not placed on every
 page of the PDF, and not one of the recurring graphics in
 `src/Pegasus.Core/Intake/KnownGraphics.cs` (among them the MGAA logo every QDOS
 instruction letter carries and the QDOS Assistance signature logo). File size is not a test: QDOS images PDFs carry

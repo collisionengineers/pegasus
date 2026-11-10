@@ -44,7 +44,7 @@ public sealed class InstructionEvidenceImagesTests
     /// Operator, 26 October 2026: attached, inline and embedded images are
     /// judged by one rule, so a small attached logo is dropped and a phone
     /// photograph sent inline is kept. A document attachment is always kept.
-    /// An inline image meets the stricter bar of R787, so the same 540x302
+    /// An inline image meets the stricter bar of R819, so the same 540x302
     /// advert is a photograph attached and signature art inline.
     /// </summary>
     [Theory]
@@ -80,7 +80,7 @@ public sealed class InstructionEvidenceImagesTests
     }
 
     /// <summary>
-    /// R787 (operator, 9 November 2026): an image inline in an e-mail body is
+    /// R819 (operator, 9 November 2026): an image inline in an e-mail body is
     /// held to a stricter bar, because signature art is sent inline. U74's
     /// body-shop banners measured 400x200 and 540x302, and the narrowest
     /// genuine inline photograph on the test instance 480x640.
@@ -104,7 +104,7 @@ public sealed class InstructionEvidenceImagesTests
     /// U74 on the test instance, "M500ULD" (9 November 2026): a body shop's
     /// chaser whose only images are its signature, sent inline at these
     /// sizes. Retention keeps none, so the e-mail is not image material and
-    /// waits in No Case Found rather than becoming Unidentified (R787).
+    /// waits in No Case Found rather than becoming Unidentified (R819).
     /// </summary>
     [Fact]
     public void ASignatureSentInlineRetainsNoPhotograph()

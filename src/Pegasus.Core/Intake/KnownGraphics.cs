@@ -104,7 +104,7 @@ public static class KnownGraphics
         // Signature graphics measured on 9 November 2026 with the reader's own
         // fingerprint over the hosted test instance's retained mail (370
         // distinct images in 251 e-mails); none has another image of its size
-        // there (operator, R787).
+        // there (operator, R819).
         // 4 QDOS EREF e-mails, one encoding; nearest other image 19.
         new("QDOS Assistance logo", 0x92452b2975255592UL, 4, 200, 200),
         // Touch Ups Glasgow's signature, U74 "M500ULD"; nearest other image 11.

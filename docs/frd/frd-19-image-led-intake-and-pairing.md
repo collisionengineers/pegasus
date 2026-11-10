@@ -337,7 +337,7 @@ complete membership, and fail-closed source-identity rules apply to both.
   side ratio is below 3. An image inline in an e-mail body is held to a
   stricter bar, because signature art is sent inline: its shortest side is
   at least 400 pixels and its ratio below 2.5 (operator, 9 November 2026,
-  R787). File size plays no part: the 40 KB floor this
+  R819). File size plays no part: the 40 KB floor this
   replaces dropped real photographs saved small. An image whose size cannot
   be read is kept. These are image heuristics, not a logo classifier. An
   image object that appears on every page of a multi-page PDF is letterhead
@@ -354,8 +354,8 @@ complete membership, and fail-closed source-identity rules apply to both.
   art stays only inside its retained original. Because inline photographs
   count, an e-mail whose only content is photographs in its body is image
   material; one whose only images are its signature is not, and with no
-  Case it waits in No Case Found (R787). Signature graphics already filed as
-  Case images stay until staff remove them (R788).
+  Case it waits in No Case Found (R819). Signature graphics already filed as
+  Case images stay until staff remove them (R820).
 - **Membership and completeness.** A group's member count is fixed at
   submission and never inferred from how many members happen to be stored.
   Routing runs only once every declared member is present and every present

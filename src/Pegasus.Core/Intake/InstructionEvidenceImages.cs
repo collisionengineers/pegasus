@@ -47,7 +47,7 @@ public static class InstructionEvidenceImages
 
     /// <summary>
     /// The shortest side, in pixels, an image placed inline in an e-mail body
-    /// must reach to be a photograph (operator, 9 November 2026, R787).
+    /// must reach to be a photograph (operator, 9 November 2026, R819).
     /// Signature art is sent inline, and the general floor let it through:
     /// U74's body-shop banners at 400x200 and 540x302 and the QDOS
     /// Assistance logo at 200x200. Over the hosted test instance's 251
@@ -59,7 +59,7 @@ public static class InstructionEvidenceImages
     public const int MinimumInlinePhotographSidePixels = 400;
 
     /// <summary>
-    /// The side ratio an inline image must stay under (R787). The same
+    /// The side ratio an inline image must stay under (R819). The same
     /// census's widest genuine inline photograph was a 1179x2556 phone
     /// screenshot at 2.17, and the Sutton Car Repairs signature banner
     /// measured 3319x1181, 2.81, under the general 3.0.
@@ -184,7 +184,7 @@ public static class InstructionEvidenceImages
     /// in a ratio under <see cref="MaximumPhotographSideRatio"/>, and not one
     /// of the <see cref="KnownGraphics"/>. An image inline in an e-mail body
     /// is held to the stricter <see cref="MinimumInlinePhotographSidePixels"/>
-    /// and <see cref="MaximumInlinePhotographSideRatio"/> (R787).
+    /// and <see cref="MaximumInlinePhotographSideRatio"/> (R819).
     /// </summary>
     public static bool IsRetentionCandidate(IntakeAssetCandidate candidate)
     {
