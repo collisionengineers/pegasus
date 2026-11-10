@@ -537,6 +537,7 @@ public sealed class StandingCaptureWebTests
         var record = await StandingCaptureDriver.RecordForGroupAsync(
             factory, settled.SubmissionGroupId ?? throw new InvalidOperationException("The settle formed no submission group."));
         var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await CreateCaseCustodyRootAsync(factory, caseId);
         await StandingCaptureDriver.AssignEngineerAsync(factory, caseId);
         await ImageIntakeTestData.ProcessImageCaseCustodyAsync(factory);
         await MergeRecordIntoCaseAsync(factory, record.Id, photographReceipts, caseId);
@@ -734,6 +735,24 @@ public sealed class StandingCaptureWebTests
         var page = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{recordId:D}");
         Assert.Contains("id=\"image-intake-photo-link-title\"", page, StringComparison.Ordinal);
         Assert.Contains($"/PhotoCapture/{captureId:D}", page, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Creates the seeded Case's evidence folder in the test custody and
+    /// records it on the Case, as <c>ImageCaseCustodyIntegrationTests</c>'
+    /// <c>SeedCaseWithFolderAsync</c> does: the merge's fold moves the
+    /// record's photographs into a folder that must already exist.
+    /// </summary>
+    private static async Task CreateCaseCustodyRootAsync(IntakeWebApplicationFactory factory, Guid caseId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        var reference = await db.Cases.Where(value => value.Id == caseId).Select(value => value.Reference).SingleAsync();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var root = await scope.ServiceProvider.GetRequiredService<Pegasus.Core.Custody.ICaseCustody>().CreateCaseRootAsync(
+            caseId, reference, $"photo-capture-case-root:{caseId:N}", CancellationToken.None);
+        Assert.Equal(1, await db.Cases.Where(value => value.Id == caseId).ExecuteUpdateAsync(update => update
+            .SetProperty(value => value.CustodyRootRemoteId, root.RemoteId)
+            .SetProperty(value => value.CustodyState, "confirmed")));
     }
 
     /// <summary>
