@@ -548,7 +548,7 @@ Narrower windows drop columns rather than scroll: from 1480px down Next
 reminder and Received, from 1300px Links we sent's From and Coming
 in's Customer, and from 1180px Coming in's From, the mobile and the missing
 item, every one of them still on the link's page (operator, 10 November 2026,
-approving the [v50 round]({V50}) as drawn; [R912](../rulings.md)).
+approving the [v50 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v50-config-and-photo-capture/v50_planning) as drawn; [R912](../rulings.md)).
 
 `/PhotoCapture/Send/{caseId}` sends a link ([Photo links](#photo-links)).
 `/PhotoCapture/{id}` is a link's detail: its facts, the typed details, the
