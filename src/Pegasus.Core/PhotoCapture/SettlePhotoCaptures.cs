@@ -507,11 +507,14 @@ public sealed class SettlePhotoCaptures(
 /// photo in it has filed in Box (operator, 9 November 2026; R792). A photo
 /// whose filing has ended for good without filing no longer holds its batch
 /// open, and the batch settles on the photos that did file: its work failed
-/// for good, its association was withdrawn or moved to another Case, its last
-/// filing replay was exhausted, or Pegasus made its link and the replay
-/// window (<see cref="IntakeEscapeWindow"/>) has closed, after which nothing
-/// files it. This is the lead's reading of R792 for a photo that can never
-/// file, pending the operator. Paperwork and video in a batch on a Case hold
+/// for good before its filing started, its association was withdrawn or moved
+/// to another Case, its last filing replay was exhausted, or Pegasus made its
+/// link, its filing never started and the replay window
+/// (<see cref="IntakeEscapeWindow"/>) has closed, after which nothing files
+/// it. A filing that has started holds the batch until it files or its replay
+/// is exhausted, whatever the link's age: the pending custody is confirmed
+/// with no window. This is the lead's reading of R792 for a photo that can
+/// never file, pending the operator. Paperwork and video in a batch on a Case hold
 /// it only until each has a receipt and is linked; a Vehicle images batch
 /// waits only for its photos' evaluation.
 /// </summary>
@@ -525,9 +528,11 @@ public static class PhotoCaptureFiling
             return filing.WorkFailed ? PhotoCaptureFilingState.Failed : PhotoCaptureFilingState.Pending;
         }
 
+        // With no Case, a receipt is all a group member needs, whatever its
+        // work did after the evaluation.
         if (caseId is not { } onCase)
         {
-            return filing.WorkFailed ? PhotoCaptureFilingState.Failed : PhotoCaptureFilingState.Evaluated;
+            return PhotoCaptureFilingState.Evaluated;
         }
 
         if (filing.Filed)
@@ -535,28 +540,39 @@ public static class PhotoCaptureFiling
             return PhotoCaptureFilingState.Filed;
         }
 
+        var linkedHere = filing.Link is { IsActive: true } && filing.Link.CaseId == onCase;
+        var exhausted = linkedHere && filing.FilingExhaustedAtUtc > filing.Link!.LinkedAtUtc;
+        // A filing under way can still be confirmed by the pending-custody
+        // reconciliation, which has no window, so it holds the batch until it
+        // files or its replay is exhausted, whatever the work or the link's age.
+        if (linkedHere && filing.FilingStarted && !exhausted)
+        {
+            return PhotoCaptureFilingState.Filing;
+        }
+
         if (filing.WorkFailed)
         {
             return PhotoCaptureFilingState.Failed;
         }
 
-        if (filing.Link is not { } link)
+        if (filing.Link is null)
         {
             return PhotoCaptureFilingState.Unlinked;
         }
 
-        if (!link.IsActive || link.CaseId != onCase)
+        if (!linkedHere)
         {
             return PhotoCaptureFilingState.Elsewhere;
         }
 
-        if (filing.FilingExhaustedAtUtc > link.LinkedAtUtc
-            || (link.BySystem && link.LinkedAtUtc <= systemFilingCutoff))
+        // Only a link whose filing never started ends with the replay window.
+        if (exhausted
+            || (!filing.FilingStarted && filing.Link.BySystem && filing.Link.LinkedAtUtc <= systemFilingCutoff))
         {
             return PhotoCaptureFilingState.Ended;
         }
 
-        return filing.FilingStarted ? PhotoCaptureFilingState.Filing : PhotoCaptureFilingState.Linked;
+        return PhotoCaptureFilingState.Linked;
     }
 
     /// <summary>Whether an item in this state holds its batch open.</summary>

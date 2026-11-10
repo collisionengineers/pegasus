@@ -306,9 +306,10 @@ public sealed class SettlePhotoCapturesTests
 
     /// <summary>
     /// A photo whose filing ended for good without filing (its replay
-    /// exhausted, or Pegasus's link past its replay window) no longer holds
-    /// the batch, which settles on the photos that did file: the lead's
-    /// reading of R792, pending the operator.
+    /// exhausted after its filing started, or Pegasus's link three hours old
+    /// with its filing never started) no longer holds the batch, which
+    /// settles on the photos that did file: the lead's reading of R792,
+    /// pending the operator.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -322,7 +323,7 @@ public sealed class SettlePhotoCapturesTests
         harness.Store.AddItems(Capture().Id, ended);
         harness.Store.Facts(ended).Link = new PhotoCaptureItemLink(
             CaseId, true, BySystem: !exhausted, exhausted ? Now.AddMinutes(-30) : Now.AddHours(-3));
-        harness.Store.Facts(ended).StartedOn = CaseId;
+        harness.Store.Facts(ended).StartedOn = exhausted ? CaseId : null;
         harness.Store.Facts(ended).ExhaustedAtUtc = exhausted ? Now.AddMinutes(-1) : null;
 
         var result = await harness.Settle().ExecuteAsync(50, CancellationToken.None);
@@ -330,6 +331,36 @@ public sealed class SettlePhotoCapturesTests
         Assert.Equal(1, result.Settled);
         Assert.Single(harness.CaseWriter.ImagesCompleted);
         Assert.Single(harness.Notifier.Raised);
+        Assert.Empty(harness.Processor.Redriven);
+    }
+
+    /// <summary>
+    /// A filing that has started can still be confirmed by the pending
+    /// custody, which has no window: Pegasus's link three hours old does not
+    /// end it, nor does its work failing after it started, so the batch waits
+    /// with nothing written on the Case.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AStartedFilingStillHoldsTheBatchPastTheReplayWindow(bool workFailed)
+    {
+        var harness = new Harness();
+        var filed = OnCase(PhotoCaptureItemKind.Overview, 0);
+        var pending = OnCase(PhotoCaptureItemKind.Damage, 1);
+        harness.Store.AddFiled(Capture(sentAtUtc: Now), CaseId, filed);
+        harness.Store.AddItems(Capture().Id, pending);
+        harness.Store.Facts(pending).Link = new PhotoCaptureItemLink(CaseId, true, BySystem: true, Now.AddHours(-3));
+        harness.Store.Facts(pending).StartedOn = CaseId;
+        harness.Store.Facts(pending).WorkFailed = workFailed;
+
+        var result = await harness.Settle().ExecuteAsync(50, CancellationToken.None);
+
+        Assert.Equal(0, result.Settled);
+        Assert.Empty(harness.Store.Closes);
+        Assert.Empty(harness.CaseWriter.ImagesCompleted);
+        Assert.Empty(harness.Notes.Written);
+        Assert.Empty(harness.Notifier.Raised);
         Assert.Empty(harness.Processor.Redriven);
     }
 
@@ -423,6 +454,26 @@ public sealed class SettlePhotoCapturesTests
     /// member: it could never complete the group, which would never register.
     /// The first evaluated photograph is the one re-driven.
     /// </summary>
+    /// <summary>
+    /// A photograph whose work failed after its receipt was evaluated has its
+    /// receipt, and so is a group member like any other: left out, it would
+    /// be filed nowhere.
+    /// </summary>
+    [Fact]
+    public async Task APhotographWhoseWorkFailedAfterItsEvaluationIsAGroupMember()
+    {
+        var harness = new Harness();
+        var failedLate = Item(PhotoCaptureItemKind.Overview, ordinal: 0, intakeReceiptId: Guid.NewGuid());
+        var evaluated = Item(PhotoCaptureItemKind.Overview, 2, ordinal: 1, intakeReceiptId: Guid.NewGuid());
+        harness.Store.Add(Standing(sentAtUtc: Now, incidentDate: TypedDate), failedLate, evaluated);
+        harness.Store.Facts(failedLate).WorkFailed = true;
+
+        await harness.Settle().ExecuteAsync(50, CancellationToken.None);
+
+        Assert.Equal([failedLate.Id, evaluated.Id], Assert.Single(harness.Store.Closes).Members.Select(member => member.Id));
+        Assert.Equal(failedLate.StagedReceiptId, Assert.Single(harness.Processor.Redriven));
+    }
+
     [Fact]
     public async Task AFailedPhotographIsNotAGroupMember()
     {
