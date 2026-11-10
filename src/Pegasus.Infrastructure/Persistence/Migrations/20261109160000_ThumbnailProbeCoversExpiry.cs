@@ -10,7 +10,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// the last 30 days, whether it has a live cache entry of a variant. The
 /// unique index on <c>(DocumentVersionId, Variant)</c> did not carry
 /// <c>ExpiresAtUtc</c>, so SQL scanned the whole table once per version
-/// (#2003; operator, 9 November 2026, R786). The index is rebuilt with the
+/// (#2003; operator, 9 November 2026, R818). The index is rebuilt with the
 /// expiry included. Additive: the same keys, filter and uniqueness, and no
 /// row changes (the DropIndex and CreateIndex pair, as in R432).
 /// </summary>
