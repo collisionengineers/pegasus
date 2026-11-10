@@ -16,8 +16,8 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// Photo capture (FRD-28 Staff pages; R774): <b>Coming in</b>, the captures
 /// standing and website links started, and <b>Links we sent</b>, the links
 /// HQ sent from a Case. The left pane is the tab's headline states with their
-/// queried counts, as the Cases list's scopes are; the list is one query
-/// (<see cref="IPhotoCaptureQueries.ListAsync"/>), newest first. Below the
+/// queried counts, as the Cases list's scopes are; the list and those counts
+/// are one query (<see cref="IPhotoCaptureQueries.ListAsync"/>), newest first. Below the
 /// list an Administrator manages the one website link (R797).
 /// </summary>
 [Authorize(
@@ -161,15 +161,14 @@ public sealed class IndexModel(
             var page = queries.ListAsync(
                 new(SentByUs, Query, State, Origin, NoCaseYet, PageSize, CurrentPage),
                 cancellationToken);
-            var counts = queries.CountByStateAsync(SentByUs, cancellationToken);
             var tabCounts = queries.CountByTabAsync(cancellationToken);
             var website = IsAdministrator && StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ManageOrganizationsAndPrincipals)
                 ? standingLinks.FindWebsiteAsync(cancellationToken)
                 : Task.FromResult<StandingPhotoLink?>(null);
-            await Task.WhenAll(page, counts, tabCounts, website);
+            await Task.WhenAll(page, tabCounts, website);
             TotalCount = page.Result.TotalCount;
             Rows = [.. page.Result.Rows.Select(row => Derive(row, Now))];
-            Counts = counts.Result;
+            Counts = page.Result.CountsByState;
             TabCounts = tabCounts.Result;
             WebsiteLink = website.Result;
             LoadedAtUtc = Now;

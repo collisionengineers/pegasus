@@ -338,7 +338,7 @@ public sealed class CaseAssetPreparationWebTests
     private sealed class StoryOnly(CasePhotoCaptureStory story) : IPhotoCaptureQueries
     {
         public Task<PhotoCaptureListPage> ListAsync(PhotoCaptureListFilter filter, CancellationToken cancellationToken) =>
-            Task.FromResult(new PhotoCaptureListPage([], 0));
+            Task.FromResult(new PhotoCaptureListPage([], 0, new Dictionary<PhotoCaptureState, int>()));
 
         public Task<PhotoCaptureListRow?> GetRowAsync(Guid captureId, CancellationToken cancellationToken) =>
             Task.FromResult<PhotoCaptureListRow?>(null);
@@ -348,9 +348,6 @@ public sealed class CaseAssetPreparationWebTests
 
         public Task<IReadOnlyList<CasePhotoCaptureStory>> ListForImageIntakeAsync(Guid imageIntakeId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CasePhotoCaptureStory>>([]);
-
-        public Task<IReadOnlyDictionary<PhotoCaptureState, int>> CountByStateAsync(bool sentByUs, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyDictionary<PhotoCaptureState, int>>(new Dictionary<PhotoCaptureState, int>());
 
         public Task<IReadOnlyList<PhotoLinkAct>> ListHistoryAsync(Guid captureId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PhotoLinkAct>>([]);

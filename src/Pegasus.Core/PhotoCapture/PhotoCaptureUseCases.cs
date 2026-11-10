@@ -632,7 +632,7 @@ public sealed class CompletePhotoCapture(
             && await captures.IsHandedOnAsync(updated.Id, cancellationToken);
         var missing = PhotoCaptureRequiredItems.Evaluate(
             updated,
-            items,
+            PhotoCaptureItemPresence.Of(items),
             PhotoCaptureRequiredItems.VinRequired(updated, await IsRepairerLinkAsync(updated, cancellationToken), handedOn));
         return new(updated, missing);
     }

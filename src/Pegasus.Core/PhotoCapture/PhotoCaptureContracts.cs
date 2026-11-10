@@ -566,7 +566,16 @@ public sealed record PhotoCaptureListRow(
     int Photographs,
     bool SentOnToCustomer);
 
-public sealed record PhotoCaptureListPage(IReadOnlyList<PhotoCaptureListRow> Rows, int TotalCount);
+/// <summary>
+/// One page of a list. <see cref="CountsByState"/> is how many of the tab's
+/// captures each state holds, a state with none left out, before the state,
+/// search, From and "No case yet" filters: the left pane's counts, from the
+/// same evaluation of the tab as the page's rows (#2020).
+/// </summary>
+public sealed record PhotoCaptureListPage(
+    IReadOnlyList<PhotoCaptureListRow> Rows,
+    int TotalCount,
+    IReadOnlyDictionary<PhotoCaptureState, int> CountsByState);
 
 /// <summary>The staff acts on a link that name who did them in its history (FRD-28 Staff pages; R805).</summary>
 public static class PhotoLinkActs
@@ -879,9 +888,6 @@ public interface IPhotoCaptureQueries
     Task<IReadOnlyList<CasePhotoCaptureStory>> ListForCaseAsync(Guid caseId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<CasePhotoCaptureStory>> ListForImageIntakeAsync(Guid imageIntakeId, CancellationToken cancellationToken);
-
-    /// <summary>How many captures each of the five Links we sent and Coming in headline states holds.</summary>
-    Task<IReadOnlyDictionary<PhotoCaptureState, int>> CountByStateAsync(bool sentByUs, CancellationToken cancellationToken);
 
     /// <summary>How many captures Coming in and Links we sent each hold, from one count by origin.</summary>
     Task<PhotoCaptureTabCounts> CountByTabAsync(CancellationToken cancellationToken);
