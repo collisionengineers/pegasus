@@ -7,13 +7,26 @@ wording of 5 November 2026 is kept verbatim, with the sentences the operator
 added or settled on 9 November 2026: no connection (R786), the after-Send
 nudge (R787), the unavailable screen (R789), the other vehicle row (R800),
 the wordings listed in R805 and the standing link's done-page sentence (R809).
+The operator settled these on 10 November 2026: "Plus N sent earlier" under a
+review strip that has photos from an earlier visit (R862); "Accident scene
+photos", "Other vehicle photos" and the step label "Number plate" (R866); "We’ve
+created a link for …" on the hand-on screen (R872); "Sent to the customer" over
+the hand-on done screen of a link sent from a Case (R873); the Bodyshop's "A
+clear shot of the VIN plate or chassis number." (R874); and "The file is larger
+than this link accepts." when the app refuses a file for its size (R878). The
+damage step's "Could you add a few more?" opens only when a damaged area has
+fewer than 3 photos (R875), and the firm's form on a link sent from a Case
+starts with the customer's name and accident date from the Send page (R853).
 
 ## Files
 
 - `shell.html`: the markup the Razor page emits inside `<body>`, with the element
   ids `capture.js` needs and the placeholders the page fills.
-- `capture.css`: the prototype's stylesheet unchanged, then one class for each
-  former inline `style` attribute, then the outline of a photo the server refused.
+- `capture.css`: the prototype's stylesheet, then one class for each former
+  inline `style` attribute, the outline of a photo the server refused and the
+  layout fixes of #2029: the upload line sticks to the foot of `main`, `main`
+  keeps no dead room for the bar, and the bar's buttons start from their own
+  width so a short pair stays on one line.
 - `capture.js`: the prototype's script as one strict-mode classic script (ES2020,
   no modules), still built round the `S` state and the `R` renderer per step.
 - `img/`: the images the app shows.

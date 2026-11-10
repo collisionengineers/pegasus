@@ -24,8 +24,9 @@ const PATHM = /\/(c|s)\/([^/?#]+)\/?$/.exec(location.pathname);
 let LINK = PATHM ? PATHM[1]+'.'+PATHM[2] : '';
 const isStanding = () => LINK.indexOf('s.')===0;
 
-/* The one sentence the prototype never needed because it had no network (operator, 9 November 2026; R786). */
-const COPY = { offline: 'We couldn’t reach Collision Engineers. Check your signal and try again.' };
+/* The sentences the prototype never needed because it had no network (operator, 9 November 2026; R786),
+   and the server's own sentence for a file over the link's size, shown when the app refuses one (operator, 10 November 2026; R878). */
+const COPY = { offline: 'We couldn’t reach Collision Engineers. Check your signal and try again.', tooLarge: 'The file is larger than this link accepts.' };
 
 let CTX = null, PRIOR = null, LIVE = false, GUIDED = true, GONE = false;
 let SRC = null, CASE = { reg:'' }, STEPS = [], SEQ = [], TITLES = {}, KEY = '';
@@ -117,6 +118,9 @@ function save(){
 /* Server copy of the typed details wins over localStorage. */
 function applyServer(ctx){
   if(SRC && ctx.registration) S.ins.reg=String(ctx.registration).toUpperCase().replace(/[^A-Z0-9]/g,'');
+  /* the firm's form starts with the customer's name and accident date typed on the Send page, still editable; a field already filled is left alone, and the Bodyshop form has no accident date (operator, 10 November 2026; R853) */
+  if(SRC){ if(ctx.customerName && !S.ins.customer) S.ins.customer=String(ctx.customerName);
+    if(ctx.incidentDate && !S.ins.accident && SRC.kind!=='bodyshop') S.ins.accident=String(ctx.incidentDate); }
   const d=ctx.details; if(!d) return;
   const I=S.ins, put=(k,v)=>{ if(v!=null && v!=='') I[k]=String(v); };
   put('handler',d.handler); put('roadworthy',d.roadworthy); put('outcome',d.outcome); put('hire',d.inHire); put('view',d.repairView); put('vehicleRole',d.vehicleRole);
@@ -224,7 +228,7 @@ function addPhoto(kind, p){
   enqueue(p,false);
 }
 function enqueue(p, original){ const job={p, original, tries:0, at:0, partsDone:0, sha:null, state:'queued'}; if(!original) p.job=job;
-  if(!original && p.blob.size>maxBytes(p)){ job.state='failed'; p.failed=true; }
+  if(!original && p.blob.size>maxBytes(p)){ job.state='failed'; p.failed=true; note(COPY.tooLarge); }
   JOBS.push(job); upChanged(); pump(); }
 function itemQuery(p, original){
   const q=new URLSearchParams(); q.set('kind',p.kind);
@@ -587,7 +591,7 @@ function dmgGroups(areas){
 function reviewDamage(){
   const areas=dmgAreas(), strip=ps=>ps.length?`<div class="strip">${ps.map(simg).join('')}</div>`:'';
   const head=(label,n)=>`<p class="dgh"><b>${esc(label)}</b><span>${n} photo${n===1?'':'s'}</span></p>`;
-  const groups=areas.map(a=>{ const ps=S.damage.filter(p=>p.area===a.label), n=ps.length+rcDmg(a.key); return n?head(a.label,n)+strip(ps):''; }).join('');
+  const groups=areas.map(a=>{ const ps=S.damage.filter(p=>p.area===a.label), e=rcDmg(a.key), n=ps.length+e; return n?head(a.label,n)+strip(ps)+(ps.length?sentEarlier(e):''):''; }).join('');
   const other=S.damage.filter(p=>!areas.some(a=>a.label===p.area));
   return groups+(other.length?head(areas.length?'Other photos':'Photos',other.length)+strip(other):'');
 }
@@ -680,7 +684,7 @@ function sheet(inner){
 }
 function nudge(n){
   const sh=sheet(`<h2 id="shh">Could you add a few more?</h2>
-    <p class="lede">${(()=>{ const w=weakAreas(); return w.length ? (w.length===1 ? (dmgCount(w[0]) ? `You’ve only taken ${dmgCount(w[0])} of the ${w[0].label.toLowerCase()}.` : `You haven’t taken any of the ${w[0].label.toLowerCase()} yet.`) : `Some areas need more photos: ${w.map(a=>{ const c=dmgCount(a); return a.label.toLowerCase()+' ('+(c?c+' so far':'none yet')+')'; }).join(', ')}.`) : `You’ve taken ${n}.`; })()} Our engineer can only assess what they can see. Most people send at least 3 of each damaged area, and with plenty of photos we’re less likely to need to come back to you.</p>
+    <p class="lede">${(()=>{ const w=weakAreas(); return (w.length===1 ? (dmgCount(w[0]) ? `You’ve only taken ${dmgCount(w[0])} of the ${w[0].label.toLowerCase()}.` : `You haven’t taken any of the ${w[0].label.toLowerCase()} yet.`) : `Some areas need more photos: ${w.map(a=>{ const c=dmgCount(a); return a.label.toLowerCase()+' ('+(c?c+' so far':'none yet')+')'; }).join(', ')}.`); })()} Our engineer can only assess what they can see. Most people send at least 3 of each damaged area, and with plenty of photos we’re less likely to need to come back to you.</p>
     <button class="btn primary" id="nmore">${ICON.camera}Add more photos</button><button class="btn plain" id="nanyway">Continue with ${n}</button>`);
   const close=sh._close;
   sh.onclick=e=>{ if(e.target===sh) close(); };
@@ -723,6 +727,8 @@ const EX = {
 function canDel(p){ return !!p && !p.uploaded && !(p.job && p.job.state==='busy'); }
 /* a review-strip picture; one the server refused is outlined */
 function simg(p){ return `<img src="${p.url}" alt=""${p.failed?' class="failed"':''}>`; }
+/* a review strip shows this visit's pictures only: under it, how many of its count an earlier visit sent (operator, 10 November 2026; R862) */
+function sentEarlier(n){ return n>0 ? `<span class="hint hint-t">Plus ${n} sent earlier</span>` : ''; }
 function thumbHTML(p, onDel, tag){
   return `<div class="thumb${p.failed?' failed':''}"><img src="${p.url}" alt="">${tag?`<span class="tag">${esc(tag)}</span>`:''}${canDel(p)?`<button class="del" aria-label="Remove photo" data-del="${onDel}">${ICON.trash}</button>`:''}</div>`;
 }
@@ -837,11 +843,13 @@ const R = {
     };
     /* A standing link starts the capture here; afterwards this form only edits its details. A quick Case link hands its own capture on, once: a second tap shows the link already made. */
     const bindStart=()=>{ const nb=$('#next'); if(nb && isStanding()) nb.onclick=()=>beginCapture(nb); const hb=$('#handoff'); if(hb) hb.onclick=()=>{ if(SRC.preset && S.handoffRes){ S.handoff=true; go(STEPS.indexOf('handoff')); return; } if(SRC.kind==='source' && !S.ins.locType) S.ins.locType='With the customer'; sendHandoff(hb); }; };
+    /* a registration that cannot be changed shows spaced, as a plate does; what is sent stays S.ins.reg (item 40) */
+    const regRO=SRC.preset||regLocked(), regV=regRO?regShown():I.reg;
     const handoffBtn=()=>(isStanding()||SRC.preset)?`<button class="btn outline" id="handoff" ${handoffOK()?'':'disabled'}>Send customer a link</button>`:'';
     if(SRC.kind==='client'){
       main.innerHTML = `<h2>Your details</h2>
       <p class="lede">So we can match your photos to your claim and get back to you if we need anything.</p>
-      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${SRC.preset||regLocked()?' readonly':''}></div>
+      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(regV)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${regRO?' readonly':''}></div>
       <div class="field"><label for="customer">Your name</label><input id="customer" type="text" data-ik="customer" value="${esc(I.customer)}" autocomplete="name"></div>
       <div class="field"><label for="phone">Mobile number</label><input id="phone" type="text" inputmode="tel" data-ik="phone" value="${esc(I.phone)}" autocomplete="tel"><span class="hint">We’ll only use this about your assessment</span></div>
       <div class="field"><label for="handler">Who is dealing with your claim? <span class="hint optl">(optional)</span></label><input id="handler" type="text" data-ik="handler" value="${esc(I.handler)}" placeholder="Solicitor or claims company" autocomplete="off"></div>
@@ -854,7 +862,7 @@ const R = {
     if(SRC.kind==='bodyshop'){
       main.innerHTML = `<h2>About this job</h2>
       <p class="lede">A few details so we can match your photos to the instruction when it arrives – or chase it if it doesn’t.</p>
-      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${SRC.preset||regLocked()?' readonly':''}></div>
+      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(regV)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${regRO?' readonly':''}></div>
       <div class="field"><label for="customer">Customer name <span class="hint optl">(optional)</span></label><input id="customer" type="text" data-ik="customer" value="${esc(I.customer)}"></div>
       ${locField(I)}
       <div class="field"><label for="handler">Who is handling the claim?</label><input id="handler" type="text" list="handlers" data-ik="handler" value="${esc(I.handler)}" placeholder="Start typing, or choose from the list" autocomplete="off"><datalist id="handlers"><option value="Customer direct (no claims company)"><option value="Not sure yet"></datalist><span class="hint">The accident management company, credit hire firm or solicitor – or choose “Not sure yet”</span></div>
@@ -867,7 +875,7 @@ const R = {
     }
     main.innerHTML = `<h2>About this claim</h2>
       <p class="lede">The more our engineer knows up front, the more accurate the report will be.</p>
-      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(I.reg)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${SRC.preset||regLocked()?' readonly':''}></div>
+      <div class="field"><label for="reg">Vehicle registration</label><input id="reg" type="text" data-ik="reg" value="${esc(regV)}" placeholder="e.g. RY65OFG" autocapitalize="characters" autocomplete="off" class="reginput"${regRO?' readonly':''}></div>
       <div class="field"><label for="accident">Accident date <span class="hint optl">(optional)</span></label><input id="accident" type="date" data-ik="accident" value="${esc(I.accident||'')}" max="${today}" class="finput"><span class="hint">Helpful if the vehicle has had more than one claim</span></div>
       <div class="field"><label for="customer">Customer / client name <span class="hint optl">(optional)</span></label><input id="customer" type="text" data-ik="customer" value="${esc(I.customer)}"></div>
       ${locField(I)}
@@ -883,7 +891,7 @@ const R = {
     const H=S.handoffRes; if(!H){ S.handoff=false; return go(STEPS.indexOf('instruction')); }
     const reg=H.registration||regShown(), link=H.url, msg=H.message+H.url;
     main.innerHTML = `<h2>Send the customer a link</h2>
-      <p class="lede">We’ve created a one-time link for <strong>${esc(reg)}</strong>. Forward it to ${esc(S.ins.customer||'the customer')} and they’ll be guided through the same photo steps. Their photos go straight to our engineers as they take them.</p>
+      <p class="lede">We’ve created a link for <strong>${esc(reg)}</strong>. Forward it to ${esc(S.ins.customer||'the customer')} and they’ll be guided through the same photo steps. Their photos go straight to our engineers as they take them.</p>
       <div class="big linkbox">
         <div class="linktxt" id="linktxt">${esc(link)}</div>
         <div class="sharerow">
@@ -973,13 +981,13 @@ const R = {
       ${SRC&&SRC.kind==='bodyshop'?`<div class="sec"><div class="h"><b>The job</b>${edit('instruction')}</div><div class="kv"><span class="muted">Customer</span><span>${esc(S.ins.customer||'—')}</span><span class="muted">Inspection location</span><span class="tr">${esc(locDisplay())}${S.ins.locOther?'<br><span class="muted">'+esc(S.ins.locOther)+'</span>':''}</span><span class="muted">Claim handled by</span><span class="tr">${esc(S.ins.handler)}</span><span class="muted">Your view</span><span>${esc(S.ins.view)}</span><span class="muted">Documents</span><span>${S.docs.length? esc(S.docs.map(d=>d.name).join(', ')) : '—'}</span></div></div>`:''}
       ${SRC&&SRC.kind==='source'?`<div class="sec"><div class="h"><b>The claim</b>${edit('instruction')}</div><div class="kv"><span class="muted">Accident date</span><span>${esc(fmtDate(S.ins.accident))}</span><span class="muted">Customer / client</span><span>${esc(S.ins.customer||'—')}</span><span class="muted">Inspection location</span><span class="tr">${esc(locDisplay())}${S.ins.locOther?'<br><span class="muted">'+esc(S.ins.locOther)+'</span>':''}</span><span class="muted">Roadworthy</span><span>${esc(S.ins.roadworthy)}</span><span class="muted">Preferred outcome</span><span>${esc(S.ins.outcome)}</span><span class="muted">In hire / going into hire</span><span>${esc(S.ins.hire)}</span><span class="muted">Documents</span><span>${S.docs.length? esc(S.docs.map(d=>d.name).join(', ')) : '—'}</span></div></div>`:''}
       <div class="sec"><div class="h"><b>Damage location</b>${edit('location')}</div><div class="chips">${S.zones.map(id=>`<span>${ZL(id)}</span>`).join('')}</div></div>
-      <div class="sec"><div class="h"><b>Overview shots</b>${edit('corners')}</div><div class="strip">${S.overview.map(simg).join('')}</div></div>
-      <div class="sec"><div class="h"><b>Plate, VIN and dashboard</b>${edit('plate')}</div><div class="strip">${[S.plate,S.vin,S.dash].filter(Boolean).map(simg).join('')}</div></div>
+      <div class="sec"><div class="h"><b>Overview shots</b>${edit('corners')}</div><div class="strip">${S.overview.map(simg).join('')}</div>${sentEarlier(rc('overview'))}</div>
+      <div class="sec"><div class="h"><b>Plate, VIN and dashboard</b>${edit('plate')}</div><div class="strip">${[S.plate,S.vin,S.dash].filter(Boolean).map(simg).join('')}</div>${sentEarlier(rc('plate')+rc('vin')+rc('dashboard'))}</div>
       <div class="sec"><div class="h"><b>Damage photos (${nDmg})</b>${edit('damage')}</div>${reviewDamage()}</div>
       <div class="sec"><div class="h"><b>Walk-around video</b>${edit('extras')}</div><div class="kv"><span class="muted">${S.video&&!S.video.failed?`Added · ${fmt(S.video.bytes)}`:rc('video')?'Added':'Not added'}</span><span></span></div></div>
       ${(!S.dash&&S.noKeys)?`<div class="sec"><div class="h"><b>Dashboard</b>${edit('dash')}</div><span class="hint">Skipped – no keys available</span></div>`:''}
-      <div class="sec"><div class="h"><b>Accident scene images (${nScene})</b>${edit('extras')}</div>${S.scene.length?`<div class="strip">${S.scene.map(simg).join('')}</div>`:(nScene?'':'<span class="hint">None added</span>')}</div>
-      <div class="sec"><div class="h"><b>Other vehicle images (${nOther})</b>${edit('extras')}</div>${S.other.length?`<div class="strip">${S.other.map(simg).join('')}</div>`:(nOther?'':'<span class="hint">None added</span>')}</div>
+      <div class="sec"><div class="h"><b>Accident scene photos (${nScene})</b>${edit('extras')}</div>${S.scene.length?`<div class="strip">${S.scene.map(simg).join('')}</div>${sentEarlier(rc('scene'))}`:(nScene?'':'<span class="hint">None added</span>')}</div>
+      <div class="sec"><div class="h"><b>Other vehicle photos (${nOther})</b>${edit('extras')}</div>${S.other.length?`<div class="strip">${S.other.map(simg).join('')}</div>${sentEarlier(rc('other-vehicle'))}`:(nOther?'':'<span class="hint">None added</span>')}</div>
       <div class="sec"><div class="h"><b>Your notes</b>${edit('extras')}</div>${S.notes?`<p class="notetext">${esc(S.notes)}</p>`:'<span class="hint">None</span>'}${S.mileageEst&&S.mileage?`<div class="kv mt8"><span class="muted">Estimated mileage</span><span>${Number(S.mileage).toLocaleString('en-GB')} miles</span></div>`:''}</div>
       <div class="uplog mb8"><span class="dot ${upBusy?'busy':''}"></span>${upBusy?(stalled()?retryHTML():'Still uploading the last photos…'):`${up.length<live.length?`${up.length} of ${live.length}`:`All ${nPhotos(up.length)}${S.video&&S.video.uploaded?' + video':''}`} uploaded · ${fmt(up.reduce((a,p)=>a+p.bytes,0)+(S.video&&S.video.uploaded?S.video.bytes:0))}`}</div>`;
     main.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{ returnTo='summary'; go(STEPS.indexOf(b.dataset.edit)); });
@@ -989,7 +997,7 @@ const R = {
     if(S.handoff){
       main.innerHTML = `<div class="done-wrap">
       <span class="tick">${ICON.check}</span>
-      <h1>Instruction received</h1>
+      <h1>${SRC.preset?'Sent to the customer':'Instruction received'}</h1>
       <p class="lede">We’ve logged ${esc((S.handoffRes&&S.handoffRes.registration)||regShown())}${S.ins.customer?' for '+esc(S.ins.customer):''}${SRC.name?' from '+esc(SRC.name):''}. The job is now waiting for the customer’s photos – we’ll pick it up as soon as they arrive.</p>
       <p class="hint">Status: awaiting customer photos · link valid ${SRC.lifetimeDays} days</p>
       <p class="hint">${upBusy?(stalled()?retryHTML():'Still uploading the last photos…'):'You can close this page now.'}</p>
@@ -1054,7 +1062,7 @@ function singleShot(key, title, lede, example, tip){
     const v=S.vin, bs=SRC&&SRC.kind==='bodyshop';
     const box=document.createElement('div'); box.className='subbox';
     box.innerHTML=`<p class="m0-4"><strong>${bs?'VIN plate':'Also helpful: the VIN'}</strong> <span class="hint">${bs?'':'(optional)'}</span></p>
-      <p class="hint mb10">${bs?'A clear shot of the VIN plate or chassis number if it’s easy to get to.':'The 17-character chassis number. Usually in a small plate at the bottom of the windscreen on the passenger’s side, or on a sticker that can be seen when you open the front door. Skip it if you can’t find it.'}</p>
+      <p class="hint mb10">${bs?'A clear shot of the VIN plate or chassis number.':'The 17-character chassis number. Usually in a small plate at the bottom of the windscreen on the passenger’s side, or on a sticker that can be seen when you open the front door. Skip it if you can’t find it.'}</p>
       ${v?`<div class="guide done m0"><div class="txt f1"><b>VIN captured</b><span>${fmt(v.bytes)}</span><div class="mt8"><button class="linkbtn" id="vinretake">${ICON.rotate} Retake</button></div></div><div class="shot"><img src="${v.url}" alt=""><span class="ok">${ICON.check}</span></div></div>`:`${countLine(rc('vin'))}<button class="btn outline btn-sm" id="vintake">${ICON.camera}Take VIN photo</button>`}`;
     main.appendChild(box);
     const b=box.querySelector('#vintake')||box.querySelector('#vinretake'); b.onclick=()=>frameCam('vin');
@@ -1099,7 +1107,8 @@ function render(){
   $('#stepLabel').textContent = k==='welcome' ? regShown() : k==='done' ? 'Complete' : k==='handoff' ? TITLES[k] : `Step ${si} of ${sn} · ${TITLES[k]}`;
   const pg=$('#prog'); if(pg) pg.style.width = (k==='done'?100:k==='handoff'?(2/sn)*100:(si/sn)*100)+'%';
   R[k]();
-  if(k==='damage' && !returnTo){ const nb=$('#next'); if(nb && (dmgTotal()<8 || weakAreas().length)) nb.onclick=()=>nudge(dmgTotal()); }
+  /* only when a damaged area has fewer than 3 photos (operator, 10 November 2026; R875) */
+  if(k==='damage' && !returnTo){ const nb=$('#next'); if(nb && weakAreas().length) nb.onclick=()=>nudge(dmgTotal()); }
   if(returnTo){ const nb=$('#next'); if(nb){ nb.textContent='Back to review'; nb.className='btn primary'; } const ab=$('#add2'); if(ab) ab.className='btn outline'; }
   main.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ const [kind,i]=b.dataset.del.split(':'); const p=S[kind][+i]; if(canDel(p)){ S[kind].splice(+i,1); cancelUpload(p); } render(); });
   const next=$('#next'), back=$('#back');
@@ -1117,7 +1126,7 @@ function startWith(ctx){
   CASE={ reg:String(CTX.registration||'') };
   STEPS = SRC ? ['welcome','instruction','handoff','location','corners','damage','plate','dash','extras','summary','done'] : ['welcome','location','corners','damage','plate','dash','extras','summary','done'];
   SEQ = STEPS.filter(s=>s!=='handoff');
-  TITLES = {welcome:'Start',instruction:SRC&&SRC.kind==='client'?'Your details':SRC&&SRC.kind==='bodyshop'?'The job':'The claim',handoff:'Send to customer',location:'Damage location',damage:'Damage photos',corners:'Overview shots',plate:'Registration plate',dash:'Dashboard',video:'Walk-around video',extras:'Extras',scene:'Accident scene',questions:'Notes',summary:'Review',done:'Submitted'};
+  TITLES = {welcome:'Start',instruction:SRC&&SRC.kind==='client'?'Your details':SRC&&SRC.kind==='bodyshop'?'The job':'The claim',handoff:'Send to customer',location:'Damage location',damage:'Damage photos',corners:'Overview shots',plate:'Number plate',dash:'Dashboard',video:'Walk-around video',extras:'Extras',scene:'Accident scene',questions:'Notes',summary:'Review',done:'Submitted'};
   KEY='ce-capture-'+(CTX.linkKey||'');
   /* What the server already holds, before this phone's own saved copy is laid over it: only that counts as sent. */
   S=BLANK(); applyServer(CTX); const held=JSON.stringify(detailsBody());
