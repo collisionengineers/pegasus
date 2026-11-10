@@ -179,7 +179,7 @@ internal sealed class ReportPreparationMcpTools(
                     {
                         var state = await ReportWordingEdits.ReadAsync(
                             reportSnapshotSource, caseId, context.Actor, selector, timeProvider.GetUtcNow(),
-                            cancellationToken);
+                            ReportWordingEdits.Unavailable, cancellationToken);
                         return await saveCaseWorkspace.ExecuteAsync(
                             new(caseId, expectedVersion, context.Actor, key, reason, token)
                             {

@@ -2762,7 +2762,8 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken)
     {
         var wording = await Pegasus.Web.Presentation.ReportWordingEdits.ReadAsync(
-            reportSnapshotSource, caseId, actor, work, clock.GetUtcNow(), cancellationToken);
+            reportSnapshotSource, caseId, actor, work, clock.GetUtcNow(),
+            Pegasus.Web.Presentation.ReportWordingEdits.UnavailableOnPage, cancellationToken);
         return new([.. edits.Select(edit => edit.ToRecord(wording.Snapshot, wording.Presentation))]);
     }
 

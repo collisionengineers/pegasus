@@ -625,10 +625,11 @@ operator acceptance are separate only when not exercised by the selected run.
 an isolated headless Chrome, Chromium or Edge profile (pass the executable's
 absolute path as its first argument, or set `CHROME`). It shows what the
 script-contract tests cannot: where a section jump lands, which lazy sections
-it reads and which section link it leaves current. Run it after changing the
-frame's jump, lazy-mount or scroll-spy code; it is on demand and not in CI
-(R889), makes no request beyond its own local server, and records JSON under
-`artifacts/case-page/browser/`.
+it reads and which section link it leaves current, and that report wording
+the Case refused is left out of the saves that follow. Run it after changing
+the frame's jump, lazy-mount, scroll-spy or commit code; it is on demand and
+not in CI (R889), makes no request beyond its own local server, and records
+JSON under `artifacts/case-page/browser/`.
 
 ### Imported source workspaces
 

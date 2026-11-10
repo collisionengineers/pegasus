@@ -170,7 +170,10 @@ public sealed class AutomationReportPreparationIngressTests
             blocks = new[] { new { key = "nature", text = "The vehicle was struck from behind while stationary." } },
         })))
         {
-            Assert.Contains("report wording is unavailable", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+            // The tool's caller has no page, so it reads the refusal without the page's last sentence (R893).
+            var refusal = await ReadErrorTextAsync(refused);
+            Assert.Contains(Pegasus.Web.Presentation.ReportWordingEdits.Unavailable, refusal, StringComparison.Ordinal);
+            Assert.DoesNotContain("still on the page", refusal, StringComparison.Ordinal);
         }
         Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""

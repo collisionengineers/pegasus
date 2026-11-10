@@ -136,7 +136,13 @@ Engineer's changes are held per Case, separately for the Inspection and the
 Audit once an Audit exists, and written by the one Case save. The save
 carries the wording only when the Engineer changed it; a wording change is
 refused while the report cannot be projected, and the typed wording stays on
-screen (operator, 30 October 2026; R572).
+screen (operator, 30 October 2026; R572). The refusal reads "The report is not
+ready, so its wording cannot be saved yet. Nothing in this save was stored.",
+and on the Case page it adds "Your wording is still on the page." Wording the
+Case has refused this way is not sent again as it stands, so the saves that
+follow land, the one that makes the report ready among them; it is offered
+again once the Engineer changes it further, and otherwise goes when the Case
+is reloaded (operator, 10 November 2026; R891 to R893).
 
 Report wording comes from two sources only (operator, 27 September 2026):
 the supplied template, `reference/rendererref1`, and the old manager's case
