@@ -5,7 +5,7 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Web;
 
-internal static class GraphMailWebhook
+internal static partial class GraphMailWebhook
 {
     private const int MaximumNotifications = 100;
 
@@ -20,8 +20,10 @@ internal static class GraphMailWebhook
         IMailboxWakeEnqueuer enqueuer,
         IConfiguration configuration,
         TimeProvider timeProvider,
+        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
+        var logger = loggerFactory.CreateLogger(typeof(GraphMailWebhook));
         if (request.Query.TryGetValue("validationToken", out var token))
         {
             return Results.Text(token.ToString(), "text/plain", Encoding.UTF8);
@@ -60,11 +62,13 @@ internal static class GraphMailWebhook
                 || !string.Equals(notification.TenantId, expectedTenantId, StringComparison.OrdinalIgnoreCase)
                 || string.IsNullOrWhiteSpace(notification.SubscriptionId))
             {
+                LogSkipped(logger, notification.SubscriptionId, "client state, tenant or subscription id refused");
                 continue;
             }
 
             if (!TryParseWakeKind(notification, out var wakeKind))
             {
+                LogSkipped(logger, notification.SubscriptionId, "not a created message or a known lifecycle event");
                 continue;
             }
 
@@ -77,14 +81,20 @@ internal static class GraphMailWebhook
                 subscriptionsById[notification.SubscriptionId] = subscription;
             }
 
-            if (subscription is null
-                || !MatchesSubscribedMailbox(subscription.Resource, notification.Resource))
+            // The subscription id Graph issued, the client state and the tenant
+            // name exactly one approved mailbox at its current generation; the
+            // resource is read only for the message id, since Graph names the
+            // mailbox by its user id whatever form the subscription used (R883).
+            if (subscription is null)
             {
+                LogSkipped(logger, notification.SubscriptionId,
+                    "no active subscription for the mailbox's current generation");
                 continue;
             }
 
             if (!Guid.TryParse(subscription.SubscriptionId, out var subscriptionId))
             {
+                LogSkipped(logger, notification.SubscriptionId, "the subscription id is not a GUID");
                 continue;
             }
 
@@ -154,27 +164,17 @@ internal static class GraphMailWebhook
             && CryptographicOperations.FixedTimeEquals(presentedBytes, expectedBytes);
     }
 
-    private static bool MatchesSubscribedMailbox(string subscribedResource, string? notifiedResource)
-    {
-        if (string.IsNullOrWhiteSpace(notifiedResource))
-        {
-            return false;
-        }
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Graph mail notification for subscription {SubscriptionId} was not queued: {Reason}.")]
+    private static partial void LogNotQueued(ILogger logger, string subscriptionId, string reason);
 
-        var folderSegment = subscribedResource.IndexOf("/mailFolders/", StringComparison.OrdinalIgnoreCase);
-        if (folderSegment <= 0)
-        {
-            return false;
-        }
-
-        var mailboxPrefix = subscribedResource[..folderSegment];
-        return notifiedResource.StartsWith(
-                subscribedResource + "/",
-                StringComparison.OrdinalIgnoreCase)
-            || notifiedResource.StartsWith(
-                mailboxPrefix + "/messages/",
-                StringComparison.OrdinalIgnoreCase);
-    }
+    // The endpoint is anonymous: only a well-formed subscription id reaches the log.
+    private static void LogSkipped(ILogger logger, string? presentedSubscriptionId, string reason) =>
+        LogNotQueued(
+            logger,
+            Guid.TryParse(presentedSubscriptionId, out var subscriptionId) ? subscriptionId.ToString("D") : "not a subscription id",
+            reason);
 
     private sealed record GraphNotificationBatch(IReadOnlyList<GraphNotification>? Value);
 
