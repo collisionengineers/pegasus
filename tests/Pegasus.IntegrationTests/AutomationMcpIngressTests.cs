@@ -723,6 +723,8 @@ public sealed class AutomationMcpIngressTests
             var body = document.RootElement.ToString();
             Assert.Contains("edit authority is already held", body, StringComparison.Ordinal);
             Assert.Contains("version 9", body, StringComparison.Ordinal);
+            // The refusal names the request a member of staff holding the Case can answer (R901).
+            Assert.Contains("pegasus_edit_begin and takeOver true", body, StringComparison.Ordinal);
             Assert.DoesNotContain(RecordingAutomationLeases.HeldToken, body, StringComparison.Ordinal);
         }
 

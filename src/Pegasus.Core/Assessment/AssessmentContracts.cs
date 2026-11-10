@@ -167,13 +167,32 @@ public static class AssessmentVocabulary
         + "An impact with all three empty is dropped. "
         + "Example: [{\"severity\":\"moderate\",\"location\":\"rear\",\"note\":\"\"}]";
 
-    /// <summary>The value <see cref="DamageMarkers"/> accepts, as its reader enforces it.</summary>
+    /// <summary>
+    /// The value <see cref="DamageMarkers"/> accepts, as its reader enforces it, with the plan's
+    /// orientation and where staff mark damage on it (operator, 10 November 2026; R901): the
+    /// landmarks are the drawings' outlines (<see cref="DamagePlanGeometry"/>) on the unit plan.
+    /// </summary>
     public static string DamageMarkersFormat { get; } =
         "A JSON array of the damage markers drawn on the plan for the report's picture, each an object "
-        + "with exactly the numeric members \"x\", \"y\" and \"r\": x and y from 0 to 1 across and down the plan, "
-        + "r from 0.0641 to 0.5 of its width. A marker records a position only; the impacts are assessment.impacts. "
-        + "Example: [{\"x\":0.5,\"y\":0.92,\"r\":0.12}]";
+        + "with exactly the numeric members \"x\", \"y\" and \"r\". The plan is the vehicle seen from above "
+        + "with its front at the top: y runs from 0 at the front bumper to 1 at the rear bumper, and x from 0 "
+        + "at the vehicle's left (LH, nearside) to 1 at its right (RH, offside). A centre may sit up to "
+        + Unit(DamageAreaGeometry.MarginX) + " across and " + Unit(DamageAreaGeometry.MarginY) + " along past those edges; "
+        + "r is the marker's radius, from " + Unit(DamageAreaGeometry.MinRadius) + " to " + Unit(DamageAreaGeometry.MaxRadius) + " of the plan's width. "
+        + "Staff mark damage around the edge of the vehicle: a row of small markers (r about 0.065 to 0.08, "
+        + "about 0.06 apart) along the outline over the damaged extent, each centred on the outline, not inside the body. "
+        + "On the car the sides run at x 0.03 and 0.97, the front at y 0.01 and the rear at y 0.99; the front "
+        + "wheels are at y 0.18 to 0.3, the door mirrors at y 0.35 and the rear wheels at y 0.75 to 0.88. "
+        + "On the van the sides run at x 0.01 and 0.99, the front at y 0.01 and the rear at y 0.99; the front "
+        + "wheels are at y 0.13 to 0.26, the door mirrors at y 0.24 and the rear wheels at y 0.77 to 0.91. "
+        + "On the motorbike (vehicle.type motorcycle or scooter) the body runs x 0.3 to 0.7, the wheels x 0.42 to "
+        + "0.58 at y 0 to 0.25 and 0.74 to 1, and the handlebars reach x 0.02 and 0.98 at y 0.26 to 0.31. "
+        + "A marker records a position only; the impacts are assessment.impacts. "
+        + "The example marks damage along the car's LH front wing. Example: "
+        + "[{\"x\":0.03,\"y\":0.2,\"r\":0.07},{\"x\":0.03,\"y\":0.26,\"r\":0.07},{\"x\":0.03,\"y\":0.32,\"r\":0.07}]";
 
+    private static string Unit(double value) =>
+        value.ToString("0.0###", System.Globalization.CultureInfo.InvariantCulture);
 
     private static readonly AssessmentFieldDefinition[] DefinitionList =
     [
