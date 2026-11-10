@@ -155,6 +155,8 @@ else
                                 <label class="choice"><input type="radio" name="QuickLinkFor" value="@quickLinkFor" checked="@(Model.QuickLinkFor == quickLinkFor)" required="@(Model.Mode == PhotoCaptureMode.Quick)" /> <span>@Labels.QuickLinkFor(quickLinkFor)</span></label>
                             }
                         </div>
+                        @* A Quick link sent without a Type is refused here (R868). *@
+                        <span asp-validation-for="QuickLinkFor"></span>
                     </fieldset>
                     <label class="choice"><input asp-for="LiveCameraOnly" /> <span>@Labels.LiveCameraOnly</span></label>
                     <div class="field field--narrow">

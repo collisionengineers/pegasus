@@ -412,27 +412,41 @@
                             </a>
                             <form method="post" asp-page-handler="@(link.IsActive ? "PauseWebsiteLink" : "ResumeWebsiteLink")" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)">
                                 <input type="hidden" name="ExpectedVersion" value="@link.Version" />
+                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                                 <button type="submit" class="btn btn--small" data-busy-label="@(link.IsActive ? OperatorLabels.Busy.Pausing : OperatorLabels.Busy.Resuming)">
                                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(link.IsActive ? "icon-pause" : "icon-play")" /></svg>
-                                    <span>@(link.IsActive ? OperatorLabels.PhotoCapture.PauseTheirLink : OperatorLabels.PhotoCapture.ResumeTheirLink)</span>
+                                    @* The website panel's own words; a contact's panel keeps "their" (R867). *@
+                                    <span>@(link.IsActive ? Labels.PauseTheLink : Labels.ResumeTheLink)</span>
                                 </button>
                             </form>
                             <button type="button" class="btn btn--small btn--danger" data-dialog-open="retire-website-link">@Labels.RetireLink</button>
                         </div>
-                        @* Replace gives the link the address typed here; Pegasus never makes one up (R797). *@
-                        <form method="post" asp-page-handler="ReplaceWebsiteLink" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)" class="photo-link-box">
+                        @* Replace gives the link the address typed here; Pegasus never makes one up (R797).
+                           The box carries its own label (R869) and a refused address its sentence (R868). *@
+                        <form method="post" asp-page-handler="ReplaceWebsiteLink" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)">
                             <input type="hidden" name="ExpectedVersion" value="@link.Version" />
-                            <span class="mono muted">@Model.WebsiteAddressPrefix</span>
-                            <input type="text" name="WebsiteSlug" aria-labelledby="website-link-title" autocomplete="off" spellcheck="false" maxlength="@Pegasus.Core.PhotoCapture.PhotoLinkToken.MaximumSlugLength" required />
-                            <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Replacing">
-                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-cw")" /></svg>
-                                <span>@Labels.ReplaceLink</span>
-                            </button>
+                            <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                            <div class="field">
+                                <label for="website-address">@Labels.WebsiteAddress</label>
+                                <div class="photo-link-box">
+                                    <span class="mono muted">@Model.WebsiteAddressPrefix</span>
+                                    <input type="text" id="website-address" name="WebsiteSlug" autocomplete="off" spellcheck="false" maxlength="@Pegasus.Core.PhotoCapture.PhotoLinkToken.MaximumSlugLength" required />
+                                    <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Replacing">
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-cw")" /></svg>
+                                        <span>@Labels.ReplaceLink</span>
+                                    </button>
+                                </div>
+                                @if (Model.WebsiteAddressRefusal is { } replaceRefusal)
+                                {
+                                    <span class="field-error" role="alert" data-website-address-refusal>@replaceRefusal</span>
+                                }
+                            </div>
                         </form>
                     </div>
                 </div>
                 <form method="post" asp-page-handler="UpdateWebsiteLinkDefaults" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)" class="stack contact-editor">
                     <input type="hidden" name="ExpectedVersion" value="@link.Version" />
+                    <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                     <partial name="Shared/_PhotoLinkDefaults" model="@((link, false))" />
                     <div class="button-row"><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
                 </form>
@@ -443,21 +457,33 @@
                         <form method="post" asp-page-handler="RetireWebsiteLink" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)">
                             <div class="dialog-body"><p>@Labels.RetireLinkConfirmation</p></div>
                             <input type="hidden" name="ExpectedVersion" value="@link.Version" />
-                            <div class="dialog-foot"><button class="btn" type="button" data-dialog-close>Cancel</button><button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Working">@Labels.RetireLink</button></div>
+                            <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                            <div class="dialog-foot"><button class="btn" type="button" data-dialog-close>Cancel</button><button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Retiring">@Labels.RetireLink</button></div>
                         </form>
                     </section>
                 </div>
             }
             else
             {
-                @* The Administrator types the website's address (R797). *@
-                <form method="post" asp-page-handler="CreateWebsiteLink" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)" class="photo-link-box">
-                    <span class="mono muted">@Model.WebsiteAddressPrefix</span>
-                    <input type="text" name="WebsiteSlug" aria-labelledby="website-link-title" autocomplete="off" spellcheck="false" maxlength="@Pegasus.Core.PhotoCapture.PhotoLinkToken.MaximumSlugLength" required />
-                    <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Creating">
-                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
-                        <span>@Labels.CreateTheWebsiteLink</span>
-                    </button>
+                @* The Administrator types the website's address (R797) in its labelled box (R869);
+                   a refused address shows its sentence beside it (R868). *@
+                <form method="post" asp-page-handler="CreateWebsiteLink" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)">
+                    <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                    <div class="field">
+                        <label for="website-address">@Labels.WebsiteAddress</label>
+                        <div class="photo-link-box">
+                            <span class="mono muted">@Model.WebsiteAddressPrefix</span>
+                            <input type="text" id="website-address" name="WebsiteSlug" autocomplete="off" spellcheck="false" maxlength="@Pegasus.Core.PhotoCapture.PhotoLinkToken.MaximumSlugLength" required />
+                            <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Creating">
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
+                                <span>@Labels.CreateTheWebsiteLink</span>
+                            </button>
+                        </div>
+                        @if (Model.WebsiteAddressRefusal is { } createRefusal)
+                        {
+                            <span class="field-error" role="alert" data-website-address-refusal>@createRefusal</span>
+                        }
+                    </div>
                 </form>
             }
         </div>

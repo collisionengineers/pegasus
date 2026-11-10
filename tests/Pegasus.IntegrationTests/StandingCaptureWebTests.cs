@@ -1093,7 +1093,7 @@ internal static class StandingCaptureDriver
 
         await using var scope = factory.Services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<StandingPhotoLinkAdministration>()
-            .CreateForContactAsync(Administrator, organizationId, CancellationToken.None);
+            .CreateForContactAsync(Administrator, Guid.NewGuid().ToString("N"), organizationId, CancellationToken.None);
     }
 
     internal static string Standing(StandingPhotoLink link) => PhotoCaptureAccess.StandingPrefix + link.Slug;

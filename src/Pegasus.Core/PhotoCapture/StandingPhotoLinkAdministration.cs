@@ -35,7 +35,10 @@ public sealed class StandingPhotoLinkException(StandingPhotoLinkError error)
 /// Administrator typed, never one the code invents (R797). Every change
 /// needs the contacts right. A change made over a stale read is refused as
 /// <see cref="StandingPhotoLinkError.StaleVersion"/>, which the store raises
-/// when the version it is given is not the row's.
+/// when the version it is given is not the row's. Every change, creating the
+/// link included, carries its form's operation key and writes one action
+/// history event naming who made it, as other Contacts changes do (FRD-04;
+/// operator, 10 November 2026; R846); the same key sent again changes nothing.
 /// </summary>
 public sealed class StandingPhotoLinkAdministration(
     IStandingPhotoLinkStore standingLinks,
@@ -48,10 +51,11 @@ public sealed class StandingPhotoLinkAdministration(
 
     public async Task<StandingPhotoLink> CreateForContactAsync(
         ActionActor actor,
+        string operationKey,
         Guid organizationId,
         CancellationToken cancellationToken)
     {
-        Require(actor);
+        var change = Change(actor, operationKey);
         if (organizationId == Guid.Empty)
         {
             throw new ArgumentException("A contact is required.", nameof(organizationId));
@@ -62,33 +66,41 @@ public sealed class StandingPhotoLinkAdministration(
             throw new StandingPhotoLinkException(StandingPhotoLinkError.AlreadyExists);
         }
 
-        return await CreateAsync(StandingPhotoLinkKind.Contact, organizationId, PhotoLinkToken.CreateSlug(), actor, cancellationToken);
+        return await CreateAsync(StandingPhotoLinkKind.Contact, organizationId, PhotoLinkToken.CreateSlug(), change, cancellationToken);
     }
 
     /// <summary>The one website link, at the address the Administrator typed (R797).</summary>
-    public async Task<StandingPhotoLink> CreateWebsiteAsync(ActionActor actor, string? typedSlug, CancellationToken cancellationToken)
+    public async Task<StandingPhotoLink> CreateWebsiteAsync(
+        ActionActor actor,
+        string operationKey,
+        string? typedSlug,
+        CancellationToken cancellationToken)
     {
-        Require(actor);
+        var change = Change(actor, operationKey);
         if (await standingLinks.FindWebsiteAsync(cancellationToken) is not null)
         {
             throw new StandingPhotoLinkException(StandingPhotoLinkError.AlreadyExists);
         }
 
         var slug = await TypedSlugAsync(typedSlug, cancellationToken);
-        return await CreateAsync(StandingPhotoLinkKind.Website, null, slug, actor, cancellationToken);
+        return await CreateAsync(StandingPhotoLinkKind.Website, null, slug, change, cancellationToken);
     }
 
-    public Task<StandingPhotoLink> PauseAsync(ActionActor actor, Guid id, long expectedVersion, CancellationToken cancellationToken)
-    {
-        Require(actor);
-        return standingLinks.SetPausedAsync(id, expectedVersion, timeProvider.GetUtcNow(), cancellationToken);
-    }
+    public Task<StandingPhotoLink> PauseAsync(
+        ActionActor actor,
+        string operationKey,
+        Guid id,
+        long expectedVersion,
+        CancellationToken cancellationToken) =>
+        standingLinks.SetPausedAsync(id, expectedVersion, paused: true, Change(actor, operationKey), cancellationToken);
 
-    public Task<StandingPhotoLink> ResumeAsync(ActionActor actor, Guid id, long expectedVersion, CancellationToken cancellationToken)
-    {
-        Require(actor);
-        return standingLinks.SetPausedAsync(id, expectedVersion, null, cancellationToken);
-    }
+    public Task<StandingPhotoLink> ResumeAsync(
+        ActionActor actor,
+        string operationKey,
+        Guid id,
+        long expectedVersion,
+        CancellationToken cancellationToken) =>
+        standingLinks.SetPausedAsync(id, expectedVersion, paused: false, Change(actor, operationKey), cancellationToken);
 
     /// <summary>
     /// A new slug; the old one answers like an unknown link from then on. A
@@ -97,18 +109,19 @@ public sealed class StandingPhotoLinkAdministration(
     /// </summary>
     public async Task<StandingPhotoLink> ReplaceAsync(
         ActionActor actor,
+        string operationKey,
         Guid id,
         long expectedVersion,
         string? typedSlug,
         CancellationToken cancellationToken)
     {
-        Require(actor);
+        var change = Change(actor, operationKey);
         var link = await standingLinks.GetAsync(id, cancellationToken)
             ?? throw new StandingPhotoLinkException(StandingPhotoLinkError.NotFound);
         var slug = link.Kind == StandingPhotoLinkKind.Website
             ? await TypedSlugAsync(typedSlug, cancellationToken)
             : PhotoLinkToken.CreateSlug();
-        return await standingLinks.ReplaceSlugAsync(id, expectedVersion, slug, timeProvider.GetUtcNow(), cancellationToken);
+        return await standingLinks.ReplaceSlugAsync(id, expectedVersion, slug, change, cancellationToken);
     }
 
     /// <summary>
@@ -116,11 +129,13 @@ public sealed class StandingPhotoLinkAdministration(
     /// and it cannot be resumed; the contact, or the website, may be given a
     /// new link.
     /// </summary>
-    public Task<StandingPhotoLink> RetireAsync(ActionActor actor, Guid id, long expectedVersion, CancellationToken cancellationToken)
-    {
-        Require(actor);
-        return standingLinks.SetRetiredAsync(id, expectedVersion, timeProvider.GetUtcNow(), cancellationToken);
-    }
+    public Task<StandingPhotoLink> RetireAsync(
+        ActionActor actor,
+        string operationKey,
+        Guid id,
+        long expectedVersion,
+        CancellationToken cancellationToken) =>
+        standingLinks.SetRetiredAsync(id, expectedVersion, Change(actor, operationKey), cancellationToken);
 
     /// <summary>
     /// Saves an address on a contact's link (R806): shown as an inspection
@@ -129,22 +144,23 @@ public sealed class StandingPhotoLinkAdministration(
     /// </summary>
     public async Task<StandingPhotoLink> AddAddressAsync(
         ActionActor actor,
+        string operationKey,
         Guid id,
         long expectedVersion,
         string? name,
         string? address,
         CancellationToken cancellationToken)
     {
-        Require(actor);
+        var change = Change(actor, operationKey);
         var (savedName, savedAddress) = SavedAddress(name, address);
         await RequireContactLinkAsync(id, cancellationToken);
-        return await standingLinks.AddAddressAsync(
-            id, expectedVersion, savedName, savedAddress, timeProvider.GetUtcNow(), cancellationToken);
+        return await standingLinks.AddAddressAsync(id, expectedVersion, savedName, savedAddress, change, cancellationToken);
     }
 
     /// <summary>Changes an address saved on the tab; the ones taken from the contact are not the tab's to change (R815).</summary>
     public async Task<StandingPhotoLink> ChangeAddressAsync(
         ActionActor actor,
+        string operationKey,
         Guid id,
         long expectedVersion,
         Guid addressId,
@@ -152,28 +168,30 @@ public sealed class StandingPhotoLinkAdministration(
         string? address,
         CancellationToken cancellationToken)
     {
-        Require(actor);
+        var change = Change(actor, operationKey);
         var (savedName, savedAddress) = SavedAddress(name, address);
         await RequireContactLinkAsync(id, cancellationToken);
         return await standingLinks.ChangeAddressAsync(
-            id, expectedVersion, addressId, savedName, savedAddress, cancellationToken);
+            id, expectedVersion, addressId, savedName, savedAddress, change, cancellationToken);
     }
 
     /// <summary>Removes an address saved on the tab (R815).</summary>
     public async Task<StandingPhotoLink> RemoveAddressAsync(
         ActionActor actor,
+        string operationKey,
         Guid id,
         long expectedVersion,
         Guid addressId,
         CancellationToken cancellationToken)
     {
-        Require(actor);
+        var change = Change(actor, operationKey);
         await RequireContactLinkAsync(id, cancellationToken);
-        return await standingLinks.RemoveAddressAsync(id, expectedVersion, addressId, cancellationToken);
+        return await standingLinks.RemoveAddressAsync(id, expectedVersion, addressId, change, cancellationToken);
     }
 
     public Task<StandingPhotoLink> UpdateDefaultsAsync(
         ActionActor actor,
+        string operationKey,
         Guid id,
         long expectedVersion,
         PhotoCaptureMode forwardedMode,
@@ -182,14 +200,14 @@ public sealed class StandingPhotoLinkAdministration(
         bool originalsInBackground,
         CancellationToken cancellationToken)
     {
-        Require(actor);
+        var change = Change(actor, operationKey);
         if (!CaptureLimits.IsLifetime(linkLifetimeDays) || !Enum.IsDefined(forwardedMode))
         {
             throw new StandingPhotoLinkException(StandingPhotoLinkError.InvalidDefaults);
         }
 
         return standingLinks.UpdateDefaultsAsync(
-            id, expectedVersion, forwardedMode, liveCameraOnly, linkLifetimeDays, originalsInBackground, cancellationToken);
+            id, expectedVersion, forwardedMode, liveCameraOnly, linkLifetimeDays, originalsInBackground, change, cancellationToken);
     }
 
     /// <summary>A saved address as stored: both parts trimmed and present, within a contact's own limits.</summary>
@@ -238,7 +256,7 @@ public sealed class StandingPhotoLinkAdministration(
         StandingPhotoLinkKind kind,
         Guid? organizationId,
         string slug,
-        ActionActor actor,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken) =>
         standingLinks.CreateAsync(
             kind,
@@ -248,13 +266,26 @@ public sealed class StandingPhotoLinkAdministration(
             DefaultLiveCameraOnly,
             CaptureLimits.DefaultLifetimeDays,
             DefaultOriginalsInBackground,
-            actor,
-            timeProvider.GetUtcNow(),
+            change,
             cancellationToken);
 
-    private static void Require(ActionActor actor)
+    /// <summary>
+    /// The change as its history event records it (R846): an actor with the
+    /// contacts right, the form's operation key and now. The key is the
+    /// event's correlation, so it is required and fits the history's column.
+    /// </summary>
+    private StandingPhotoLinkChange Change(ActionActor actor, string operationKey)
     {
         ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.ManageOrganizationsAndPrincipals);
+        var key = operationKey?.Trim();
+        if (string.IsNullOrEmpty(key) || key.Length > MaximumOperationKeyLength)
+        {
+            throw new ArgumentException("An operation key of at most 100 characters is required.", nameof(operationKey));
+        }
+
+        return new(actor, key, timeProvider.GetUtcNow());
     }
+
+    private const int MaximumOperationKeyLength = 100;
 }

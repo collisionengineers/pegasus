@@ -102,6 +102,10 @@ public sealed class AdministrationPolicyTests
         Assert.Equal(CaptureLimits.DefaultLifetimeDays, configuration.PhotoLinkDefaultLifetimeDays);
     }
 
+    /// <summary>
+    /// A refusal names the rule it broke, so the page can say it beside the
+    /// setting (operator, 10 November 2026; R868).
+    /// </summary>
     [Fact]
     public async Task PhotoLinkSettingsOfferALifetimeAndStartOnOneTheyOfferOrNothingIsSaved()
     {
@@ -109,21 +113,22 @@ public sealed class AdministrationPolicyTests
         var command = new UpdateWorkflowConfiguration(store);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 
-        foreach (var (offered, startsOn) in new (int[] Offered, int StartsOn)[]
+        foreach (var (offered, startsOn, rule) in new (int[] Offered, int StartsOn, PhotoLinkSendSettingsRule Rule)[]
         {
-            (NoLifetime, 7),
-            (ThreeDaysOnly, 7),
-            (FiveDays, 5),
-            (SevenDaysTwice, 7)
+            (NoLifetime, 7, PhotoLinkSendSettingsRule.NoLifetimeOffered),
+            (ThreeDaysOnly, 7, PhotoLinkSendSettingsRule.StartingLifetimeNotOffered),
+            (FiveDays, 5, PhotoLinkSendSettingsRule.NotAllowed),
+            (SevenDaysTwice, 7, PhotoLinkSendSettingsRule.NotAllowed)
         })
         {
-            await Assert.ThrowsAsync<PhotoLinkSendSettingsRefusedException>(() => command.ExecuteAsync(
+            var refused = await Assert.ThrowsAsync<PhotoLinkSendSettingsRefusedException>(() => command.ExecuteAsync(
                 new(1, actor, "photo-link-settings")
                 {
                     PhotoLinkLifetimesOffered = offered,
                     PhotoLinkDefaultLifetimeDays = startsOn
                 },
                 default));
+            Assert.Equal(rule, refused.Rule);
         }
 
         Assert.Null(store.UpdateRequest);
