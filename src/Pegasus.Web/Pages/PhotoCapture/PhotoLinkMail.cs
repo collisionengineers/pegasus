@@ -74,6 +74,13 @@ public sealed class PhotoLinkMail(
         CancellationToken cancellationToken) =>
         renderTemplate.ExecuteAsync(actor, EmailTemplatePurpose.PhotoLink, values, cancellationToken);
 
+    /// <summary>The Photo link (text) template rendered for these values (R919).</summary>
+    public Task<string> RenderTextAsync(
+        ActionActor actor,
+        IReadOnlyDictionary<string, string?> values,
+        CancellationToken cancellationToken) =>
+        renderTemplate.ExecuteAsync(actor, EmailTemplatePurpose.PhotoLinkText, values, cancellationToken);
+
     /// <summary>
     /// A body staff edited on the Send page: its remaining placeholders take
     /// their real values, and the link is added on its own line if staff took

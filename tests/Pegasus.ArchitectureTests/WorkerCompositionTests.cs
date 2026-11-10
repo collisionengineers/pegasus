@@ -61,13 +61,18 @@ public sealed class WorkerCompositionTests
             Assert.Null(provider.GetService<LocalApprovedSentOptions>());
             Assert.NotNull(scopedServices.GetRequiredService<PollSentEvidence>());
             // Only the Worker can move the answered instruction to Deleted Items (ADR-0071).
-            var mover = provider.GetRequiredService<ISentReportInstructionMover>();
-            Assert.Equal("Pegasus.Infrastructure.Email.GraphSentReportInstructionMover", mover.GetType().FullName);
+            var mover = provider.GetRequiredService<IRetainedMessageMover>();
+            Assert.Equal("Pegasus.Infrastructure.Email.GraphRetainedMessageMover", mover.GetType().FullName);
             Assert.True(mover.IsAvailable);
             Assert.NotNull(scopedServices.GetRequiredService<TidySentReportInstructions>());
             Assert.Equal(
                 "Pegasus.Infrastructure.Persistence.EfSentReportInstructionTidyStore",
                 scopedServices.GetRequiredService<ISentReportInstructionTidyStore>().GetType().FullName);
+            // The same mover tidies a ticked send's Case correspondence (R902).
+            Assert.NotNull(scopedServices.GetRequiredService<TidySentCaseCorrespondence>());
+            Assert.Equal(
+                "Pegasus.Infrastructure.Persistence.EfSentCaseCorrespondenceTidyStore",
+                scopedServices.GetRequiredService<ISentCaseCorrespondenceTidyStore>().GetType().FullName);
             Assert.NotNull(scopedServices.GetRequiredService<IGroupedIntakeSubmission>());
             Assert.NotNull(scopedServices.GetRequiredService<RetainIncomingArtifact>());
             Assert.Equal(
@@ -283,9 +288,13 @@ public sealed class WorkerCompositionTests
                 "Pegasus.Infrastructure.Email.LocalDurableApprovedSentSource",
                 provider.GetRequiredService<IApprovedSentSource>().GetType().FullName);
             // Offline there is no mailbox to move in, so the tidy does nothing.
-            Assert.IsType<UnavailableSentReportInstructionMover>(
-                provider.GetRequiredService<ISentReportInstructionMover>());
+            Assert.IsType<UnavailableRetainedMessageMover>(
+                provider.GetRequiredService<IRetainedMessageMover>());
             Assert.NotNull(scopedServices.GetRequiredService<TidySentReportInstructions>());
+            Assert.NotNull(scopedServices.GetRequiredService<TidySentCaseCorrespondence>());
+            Assert.Equal(
+                "Pegasus.Infrastructure.Persistence.EfSentCaseCorrespondenceTidyStore",
+                scopedServices.GetRequiredService<ISentCaseCorrespondenceTidyStore>().GetType().FullName);
             Assert.NotNull(scopedServices.GetRequiredService<IProcessQueuedCustody>());
             Assert.Equal(
                 "Pegasus.Infrastructure.Vehicle.DvlaDvsaReplayAdapter",
@@ -453,8 +462,8 @@ public sealed class WorkerCompositionTests
                 provider.GetRequiredService<Azure.Core.TokenCredential>().GetType().FullName);
             // The writes Production's Worker has: the move and the subscriptions, and
             // the send store its Sent-evidence poll settles the Web's sends with.
-            var mover = provider.GetRequiredService<ISentReportInstructionMover>();
-            Assert.Equal("Pegasus.Infrastructure.Email.GraphSentReportInstructionMover", mover.GetType().FullName);
+            var mover = provider.GetRequiredService<IRetainedMessageMover>();
+            Assert.Equal("Pegasus.Infrastructure.Email.GraphRetainedMessageMover", mover.GetType().FullName);
             Assert.True(mover.IsAvailable);
             Assert.NotNull(scope.ServiceProvider.GetService<Pegasus.Core.Operations.IStaffMailSendStore>());
             Assert.DoesNotContain(services, descriptor =>
@@ -489,8 +498,8 @@ public sealed class WorkerCompositionTests
 
             Assert.Null(provider.GetService<GraphMailboxChangeSubscriptions>());
             Assert.Equal(
-                "Pegasus.Infrastructure.Email.GraphSentReportInstructionMover",
-                provider.GetRequiredService<ISentReportInstructionMover>().GetType().FullName);
+                "Pegasus.Infrastructure.Email.GraphRetainedMessageMover",
+                provider.GetRequiredService<IRetainedMessageMover>().GetType().FullName);
             Assert.NotNull(scope.ServiceProvider.GetService<Pegasus.Core.Operations.IStaffMailSendStore>());
             Assert.DoesNotContain(services, descriptor =>
                 descriptor.ServiceType == typeof(Pegasus.Core.Operations.IStaffMailSend));

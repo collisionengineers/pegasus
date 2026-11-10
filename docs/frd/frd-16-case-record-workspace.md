@@ -656,7 +656,11 @@ form, and a connected source's card has **Get valuation**, a small button
 centred at the card's foot (operator, 9 October 2026), which asks the
 provider for the Case's accepted registration and mileage in that month and
 fills the boxes in place, without redrawing the page, and chooses the card
-when a retail answers (operator, 2 November 2026, R638). Glass's, Brego and Cazana
+when a retail answers (operator, 2 November 2026, R638). A source already
+answered for that month at the Case's registration and mileage is not asked
+again: the press is refused on the card (operator, 10 November 2026, R900;
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
+Glass's, Brego and Cazana
 are the connected sources; each valuation's PDF report is filed on the Case's
 Documents after the figures have answered and appears there on the next load
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).

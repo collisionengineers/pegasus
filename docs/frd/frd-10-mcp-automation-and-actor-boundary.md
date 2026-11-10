@@ -155,7 +155,10 @@ multi-step work, named by `recordKind`, under that record's own scope
 inside the call up to 45 seconds, returning the lease if they accept and a
 refusal naming declined, no answer or already asked otherwise; the Automation
 Actor never forces a hand-over (R554, 30 October 2026;
-[FRD-14](frd-14-record-edit-leases.md#take-over)). On a Triage Case `takeOver`
+[FRD-14](frd-14-record-edit-leases.md#take-over)). A Case's lease-conflict refusal names
+that request, and the tool, its `takeOver` parameter and the server's
+instructions describe it as the way to get a Case a member of staff holds
+(operator, 10 November 2026; R901). On a Triage Case `takeOver`
 still takes over a staff scope at once (R556, 30 October 2026), and the
 takeover goes into the record's history. Staff take over an Automation Case
 lease or Triage scope at once, and only staff may: the Automation Actor never
@@ -226,7 +229,10 @@ that card with the figures, as the section's Save would (operator, 8 October
 credential and, where the provider offers them, files its report and fills an
 empty VIN, exactly as for staff. An unavailable source, a vehicle the source
 does not value (`VehicleAge`) or a registration it holds no data for
-(`NoVehicleData`) records nothing. Adopting a basis card, which writes the report's Retail and Trade,
+(`NoVehicleData`) records nothing, and so does a source already answered for
+that guide month at the Case's registration and mileage (`AlreadyAsked`;
+operator, 10 November 2026, R900;
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)). Adopting a basis card, which writes the report's Retail and Trade,
 stays with `pegasus_valuation_save`; the Engineer's Value stays with
 `pegasus_assessment_update`.
 
@@ -329,8 +335,11 @@ submission is not part of it.
   ending in `.pdf` (omitted or blank, their delivery names; filed estimates
   keep their filed names; a kind named twice is refused), as the Case page's
   composer takes them (operator, 4 November 2026, R667, R670, R671; names
-  made file-safe, bounded and numbered as FRD-11 says, R895, R896), and the
-  covering message as written. It is a reply to the
+  made file-safe, bounded and numbered as FRD-11 says, R895, R896),
+  `deleteCaseCorrespondence`, the composer's Delete case correspondence tick
+  (9 November 2026, R905;
+  [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)),
+  and the covering message as written. It is a reply to the
   Case's instruction e-mail; `fromMailbox` names the Outgoing mailbox it
   leaves from, and omitted, the same default as the Case page applies: the
   mailbox the instruction arrived in, or for a staff forward held in
@@ -358,6 +367,11 @@ submission is not part of it.
   reply once Completed ([FRD-03](frd-03-triage.md)). `reply` and
   `reply_all` take `markQueryDone`, the composer's Mark query done tick
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)),
+  `deleteCaseCorrespondence`, the Delete case correspondence tick, taken
+  where the composers offer it: on a `reply` or `reply_all` to a message that
+  holds an open query on the Case and on the `triage_reply` that is the
+  outcome reply, and refused anywhere else (9 November 2026, R904, R905;
+  [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)),
   and `aiJobId`, the Draft ready Query response job the reply was composed
   on: a send the provider accepts completes it, as the staff composer's Send
   does ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)),
@@ -677,8 +691,8 @@ its one command when none is given.
 | `automation.mail` | `pegasus_mail_photo_registrations` | Read-only: the plate reads recorded for a retained message's photographs and the registration they agree on at the accepted bar; no image (R732 to R734) | none |
 | `automation.mail` | `pegasus_old_system_folder_search` | Read-only: folder names and identities matching a term below the old system's Box folder; a reference-shaped term matches a folder name only as a whole token (R592); unavailable until that folder is configured (R561) | none |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
-| `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does | one-command lease |
-| `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `markQueryDone` and `aiJobId`), `forward`, `triage_reply` | Case or Triage version and key |
+| `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does, with `deleteCaseCorrespondence` | one-command lease |
+| `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `markQueryDone`, `aiJobId` and `deleteCaseCorrespondence`), `forward`, `triage_reply` (with `deleteCaseCorrespondence` on the outcome reply) | Case or Triage version and key |
 
 ## States and transitions
 

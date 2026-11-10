@@ -1,0 +1,159 @@
+@page "/PhotoCapture/{id:guid}/Resend"
+@model Pegasus.Web.Pages.PhotoCapture.ResendModel
+@using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture
+@{
+    ViewData["Title"] = $"{Model.Title} {Labels.Registration(Model.Capture.NormalizedRegistration)}";
+    var registration = Labels.Registration(Model.Capture.NormalizedRegistration);
+    var unresolved = Model.Operation?.State is Pegasus.Core.Operations.StaffMailState.Submitted
+        or Pegasus.Core.Operations.StaffMailState.Unknown;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/photo-capture.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/js/photo-link-send.js" asp-append-version="true"></script>
+}
+
+@* The Send chaser's composer (R915): nothing is e-mailed until Send by e-mail. *@
+<div class="mail-compose-standalone">
+    <section id="mail-compose-content" class="dialog mail-compose-dialog" role="dialog"
+             aria-modal="true" aria-labelledby="mail-compose-title" tabindex="-1" data-photo-link-compose>
+        <header class="dialog-head">
+            <div>
+                <p class="eyebrow mono">@registration</p>
+                <h1 id="mail-compose-title">@Model.Title</h1>
+            </div>
+            <a class="dialog-close" href="@Model.BackHref" aria-label="Close composer">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+            </a>
+        </header>
+        <div class="dialog-body mail-compose-body">
+            <partial name="/Pages/Shared/_ErrorSummary.cshtml" />
+
+            @if (Model.IssuedUrl is { } issuedUrl)
+            {
+                @* The link exists only in this response: shown once to copy. *@
+                @if (Model.TextOutcome is { Accepted: false } textOutcome)
+                {
+                    <section class="mail-compose-status" aria-labelledby="mail-compose-status-title">
+                        <h2 id="mail-compose-status-title">@Labels.SendStatus</h2>
+                        <p>@Labels.TextNotSent <span class="mono">@textOutcome.FailureCode</span></p>
+                    </section>
+                }
+                @if (Model.Operation is { } operation)
+                {
+                    <section class="mail-compose-status" aria-labelledby="mail-compose-status-title">
+                        <h2 id="mail-compose-status-title">@Labels.SendStatus</h2>
+                        <p>@OperatorLabels.StaffMail.State(operation.State)</p>
+                        @if (operation.State == Pegasus.Core.Operations.StaffMailState.Failed && operation.FailureCode is { Length: > 0 } failureCode)
+                        {
+                            <p class="field-hint">@OperatorLabels.StaffMail.Failure(failureCode)</p>
+                        }
+                        @if (unresolved)
+                        {
+                            <p class="field-hint">Confirm the provider outcome before starting another message.</p>
+                        }
+                    </section>
+                }
+                <div class="photo-link-box" data-photo-link-issued>
+                    <code id="photo-link-issued-url" class="photo-link-url">@issuedUrl</code>
+                    <button type="button" class="btn btn--small" data-copy-target="photo-link-issued-url" hidden>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-copy")" /></svg>
+                        <span>@Labels.CopyLink</span>
+                    </button>
+                </div>
+                <footer class="mail-compose-footer">
+                    <a class="btn" href="@Model.BackHref">Close</a>
+                </footer>
+            }
+            else
+            {
+                <form method="post" asp-route-id="@Model.Id" class="mail-compose-form">
+                    <input type="hidden" asp-for="OperationKey" />
+                    <input type="hidden" asp-for="ReturnUrl" />
+                    @if (Model.CanEmail)
+                    {
+                        <div class="mail-compose-form-fields">
+                            <div class="mail-compose-addresses">
+                                <div class="field mail-compose-from">
+                                    <label asp-for="FromMailboxId">@Labels.FromMailbox</label>
+                                    <select asp-for="FromMailboxId" data-dialog-initial-focus>
+                                        <option value=""></option>
+                                        @foreach (var mailbox in Model.Senders.Mailboxes)
+                                        {
+                                            <option value="@mailbox.Id" selected="@(Model.FromMailboxId == mailbox.Id)">@mailbox.Address</option>
+                                        }
+                                    </select>
+                                    <span asp-validation-for="FromMailboxId"></span>
+                                </div>
+                                <div class="field mail-compose-to">
+                                    <label for="photo-link-to">To</label>
+                                    <input id="photo-link-to" type="text" value="@Model.Capture.Email" readonly />
+                                </div>
+                            </div>
+                            <div class="field mail-compose-subject">
+                                <label asp-for="Subject">@Labels.Subject</label>
+                                <input asp-for="Subject" type="text" />
+                                <span asp-validation-for="Subject"></span>
+                            </div>
+                            <div class="field mail-compose-message" data-photo-link-wording>
+                                <label asp-for="Body">@Labels.Message</label>
+                                <textarea asp-for="Body" rows="9" data-photo-link-message></textarea>
+                                <span asp-validation-for="Body"></span>
+                                <input type="hidden" asp-for="StandardBody" data-photo-link-standard />
+                                <p class="field-hint" data-photo-link-edited hidden="@(!Model.BodyEdited)">
+                                    @Labels.EditedForThisOneOnly
+                                    <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.ResendModel.StandardWording" class="btn btn--small" formnovalidate data-photo-link-reset data-busy-label="@OperatorLabels.Busy.Restoring">@Labels.PutTheStandardWordingBack</button>
+                                </p>
+                            </div>
+                        </div>
+                    }
+                    @if (Model.CanText)
+                    {
+                        @* The text: to the link's mobile, which staff may change, in the Photo link (text) wording (R918, R919). *@
+                        <div class="mail-compose-form-fields">
+                            <div class="field mail-compose-to">
+                                <label asp-for="Mobile">@Labels.Mobile</label>
+                                <input asp-for="Mobile" type="tel" inputmode="tel" autocomplete="off" data-dialog-initial-focus="@(!Model.CanEmail)" />
+                                <span asp-validation-for="Mobile"></span>
+                            </div>
+                            <div class="field mail-compose-message" data-photo-link-wording>
+                                <label asp-for="TextBody">@Labels.TextMessage</label>
+                                <textarea asp-for="TextBody" rows="5" data-photo-link-message></textarea>
+                                <span asp-validation-for="TextBody"></span>
+                                <input type="hidden" asp-for="StandardTextBody" data-photo-link-standard />
+                                <p class="field-hint" data-photo-link-edited hidden="@(!Model.TextBodyEdited)">
+                                    @Labels.EditedForThisOneOnly
+                                    <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.ResendModel.StandardTextWording" class="btn btn--small" formnovalidate data-photo-link-reset data-busy-label="@OperatorLabels.Busy.Restoring">@Labels.PutTheStandardWordingBack</button>
+                                </p>
+                            </div>
+                        </div>
+                    }
+                    <footer class="mail-compose-footer">
+                        <a class="btn" href="@Model.BackHref">Cancel</a>
+                        <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.ResendModel.ToCopy" class="btn" formnovalidate data-busy-label="@OperatorLabels.Busy.Creating">
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
+                            <span>@Labels.CreateLinkToCopy</span>
+                        </button>
+                        @if (Model.CanText)
+                        {
+                            <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.ResendModel.ByText" class="btn@(Model.CanEmail ? "" : " btn--primary")" data-busy-label="@OperatorLabels.Busy.Sending">
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
+                                <span>@Labels.SendByText</span>
+                            </button>
+                        }
+                        @if (Model.CanEmail)
+                        {
+                            <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.ResendModel.ByEmail" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Sending">
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
+                                <span>@Labels.SendByEmail</span>
+                            </button>
+                        }
+                    </footer>
+                </form>
+            }
+        </div>
+    </section>
+</div>

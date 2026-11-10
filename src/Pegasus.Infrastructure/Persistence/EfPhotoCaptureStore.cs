@@ -869,7 +869,44 @@ public sealed class EfPhotoCaptureStore(
     /// is; one recorded for anything else is refused. A lost race re-reads and
     /// decides again, so two clicks with one key act once.
     /// </summary>
-    private Task<PhotoCapture> ActAsync(
+    private async Task<PhotoCapture> ActAsync(
+        Guid captureId,
+        Pegasus.Core.Identity.ActionActor actor,
+        string operationKey,
+        string act,
+        DateTimeOffset occurredAtUtc,
+        string? afterJson,
+        Func<PhotoCaptureEntity, bool> change,
+        CancellationToken cancellationToken) =>
+        (await RecordActAsync(captureId, actor, operationKey, act, occurredAtUtc, afterJson, change, cancellationToken)).Capture;
+
+    /// <summary>A text act on the link's history (R921): the row changes only by its version.</summary>
+    public async Task<bool> RecordTextAsync(
+        Guid captureId,
+        Pegasus.Core.Identity.ActionActor actor,
+        string operationKey,
+        string act,
+        PhotoLinkTextRecord record,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        if (act is not (PhotoLinkActs.TextSubmitted or PhotoLinkActs.TextSent or PhotoLinkActs.TextFailed))
+        {
+            throw new ArgumentOutOfRangeException(nameof(act), act, "Not a text act.");
+        }
+
+        var afterJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            to = record.To,
+            messageId = record.MessageId,
+            failureCode = record.FailureCode
+        });
+        return (await RecordActAsync(captureId, actor, operationKey, act, occurredAtUtc, afterJson, _ => true, cancellationToken)).Recorded;
+    }
+
+    /// <summary><see cref="ActAsync"/>, also saying whether this call wrote the event or replayed one already written.</summary>
+    private Task<(PhotoCapture Capture, bool Recorded)> RecordActAsync(
         Guid captureId,
         Pegasus.Core.Identity.ActionActor actor,
         string operationKey,
@@ -901,18 +938,19 @@ public sealed class EfPhotoCaptureStore(
                         throw new InvalidOperationException("The operation key was already used for a different photo link action.");
                     }
 
-                    return Map(entity);
+                    return (Map(entity), false);
                 }
 
-                if (change(entity))
+                if (!change(entity))
                 {
-                    entity.Version++;
-                    context.ActionHistory.Add(DocumentActionHistory.Succeeded(
-                        HistoryAggregateType, aggregateId, act, actor, occurredAtUtc, key, afterJson: afterJson));
-                    await context.SaveChangesAsync(token);
+                    return (Map(entity), false);
                 }
 
-                return Map(entity);
+                entity.Version++;
+                context.ActionHistory.Add(DocumentActionHistory.Succeeded(
+                    HistoryAggregateType, aggregateId, act, actor, occurredAtUtc, key, afterJson: afterJson));
+                await context.SaveChangesAsync(token);
+                return (Map(entity), true);
             },
             cancellationToken,
             StoreConcurrencyRetry.IsRetryable);

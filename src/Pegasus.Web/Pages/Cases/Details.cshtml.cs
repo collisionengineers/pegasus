@@ -3305,6 +3305,7 @@ public sealed partial class DetailsModel(
         string? stopOverrideReason,
         string[]? holdsDone,
         string? subject,
+        bool deleteCaseCorrespondence,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -3358,7 +3359,9 @@ public sealed partial class DetailsModel(
                     // The subject and the documents' names as staff left them
                     // in the composer (v48 items C and E).
                     Subject: subject,
-                    AttachmentNames: PostedAttachmentNames("fileName")),
+                    AttachmentNames: PostedAttachmentNames("fileName"),
+                    // The dialog's Delete case correspondence tick (R902 to R905).
+                    TidiesCaseCorrespondence: deleteCaseCorrespondence),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)

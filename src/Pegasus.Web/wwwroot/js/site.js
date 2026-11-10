@@ -2030,6 +2030,23 @@
     }
 })();
 
+// --- Delete case correspondence ----------------------------------------------
+// The tick is unticked each time its form opens (FRD-21, R902, R916). A dialog
+// closed without sending keeps its fields while the page lives, and the Send
+// report dialog is carried across the Case page's in-place updates, so a tick
+// left on one would ride a later send. Each open puts the tick back as the
+// server drew it: unticked, or as posted on a refused send's redisplay.
+(function () {
+    'use strict';
+    document.addEventListener('pegasus:dialog-open', function (event) {
+        var dialog = event.target;
+        if (!(dialog instanceof Element)) { return; }
+        dialog.querySelectorAll('[data-delete-case-correspondence]').forEach(function (tick) {
+            tick.checked = tick.defaultChecked;
+        });
+    });
+})();
+
 // --- The bell's list ---------------------------------------------------------
 // The page carries only the unread count; the Notifications dialog fetches its
 // list from /Notifications?handler=List each time it opens, so a page pays for

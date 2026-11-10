@@ -167,7 +167,14 @@ motorcycle or scooter as the motorbike, and anything else, or no type, as the
 car (operator decision, 28 September 2026). All three share one body box, so
 a saved marker stands in the same place on each. Every marker is drawn as the
 same yellow comic burst, with no number and not clipped, so it may spill past
-the vehicle's outline. The workspace and the report draw alike.
+the vehicle's outline. The workspace and the report draw alike. Each drawing is
+the vehicle seen from above with its front at the top: the unit plan's y runs
+from the front bumper to the rear, and its x from the vehicle's left
+(nearside) to its right (offside). Staff mark damage around the edge of the
+vehicle, a row of small markers along the outline over the damaged extent;
+the `damage.impacts` format `pegasus_vocabulary_get` gives says so, with the
+drawings' landmarks, so the Automation Actor marks alike (operator,
+10 November 2026; R901).
 
 The record also carries the unrelated damage. Existing Cases started with no
 impacts when this rule arrived: each marker kept its disc, a damage recorded by
@@ -295,6 +302,17 @@ work holds none. When Brego holds no data for the registration, its card shows
 an info notice instead,
 `Brego cannot value this vehicle: it holds no data for its registration.`;
 whatever else stops a Brego valuation, the card shows its notice.
+Each connected source is asked once per Case and guide month at the Case's
+accepted registration and mileage (operator, 10 November 2026,
+[R900](../rulings.md)), whoever presses Get valuation, so a repeated press
+costs nothing. A later month counts as the current month it is valued in.
+Only an answer with figures uses the ask: a source that cannot answer or
+cannot value the vehicle may be asked again. A corrected accepted
+registration or mileage allows each source and month one more ask. The
+automatic Glass's request is that month's Glass's ask, and it is settled
+unasked when Glass's has already answered. Get valuation stays on the card;
+a press for a month already answered asks nothing and the card says
+`{Source} has already been asked for this Case.`
 Super CAP and CAP have no connected provider; connecting one needs its
 own accepted decision.
 

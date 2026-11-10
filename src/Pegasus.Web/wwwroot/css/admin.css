@@ -47,3 +47,23 @@
 [data-problem-reports] td > .cluster label { font-size: 11px; font-weight: 600; color: var(--muted); }
 [data-problem-reports] td > .cluster input[type=number] { width: 140px; max-width: 140px; min-height: 32px; padding: 5px 8px; }
 [data-problem-reports] td > .cluster > p { flex: 1 1 100%; margin: 0; }
+
+/* Workflow configuration (v50; R910): one panel per concern, two columns from
+   1441px; the chase interval and due targets as one list of narrow boxes with
+   "days" after each; the labour-rate boxes as Valuation presets' money box. */
+.workflow-panels { display: grid; gap: 14px; align-items: start; }
+.workflow-panels > .panel { margin: 0; }
+@media (min-width: 1441px) {
+  .workflow-panels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .workflow-panels__wide { grid-column: 1 / -1; }
+}
+.workflow-choices { gap: 8px 24px; }
+.workflow-days { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); column-gap: 28px; padding-top: 4px; padding-bottom: 4px; }
+.workflow-day { display: grid; grid-template-columns: minmax(0, 1fr) 84px 34px; align-items: center; gap: 8px; min-height: 44px; border-bottom: 1px solid var(--line); }
+.workflow-day label { font-weight: 600; }
+.workflow-day input { width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
+.workflow-day__unit { color: var(--quiet); font-size: 12px; }
+.workflow-day .field-error { grid-column: 1 / -1; }
+.workflow-day .field-error:empty { display: none; }
+.workflow-day.is-invalid input { border-color: var(--danger); }
+.workflow-rates .input-money input { width: 150px; margin-left: auto; }

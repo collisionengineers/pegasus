@@ -114,6 +114,13 @@
                         @OperatorLabels.StaffMail.MarkQueryDone
                     </label>
                 </div>
+                @* Offered exactly where Mark query done is (R904); unticked on every open. *@
+                <div class="field">
+                    <label>
+                        <input type="checkbox" asp-for="DeleteCaseCorrespondence" data-delete-case-correspondence />
+                        @OperatorLabels.StaffMail.DeleteCaseCorrespondence
+                    </label>
+                </div>
             }
             @if (Model.AvailableAttachments.Count > 0)
             {

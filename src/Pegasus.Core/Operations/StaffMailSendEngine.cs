@@ -565,6 +565,11 @@ public sealed class StaffMailSend(
         {
             throw new ArgumentException("Only a reply to Case correspondence is composed on an AI draft.", nameof(command));
         }
+        if (command.TidiesCaseCorrespondence
+            && !StaffMailSendCommand.MayTidyCaseCorrespondence(command.Purpose, command.ComposeMode))
+        {
+            throw new ArgumentException("Only a report send, a reply to Case correspondence and a Triage outcome reply can delete case correspondence.", nameof(command));
+        }
         // A report send is a reply to the instruction e-mail whenever its mailbox
         // can send (#1304), so the second report rides on either compose mode.
         if (command.SecondReport is { } second

@@ -4,6 +4,9 @@ namespace Pegasus.Infrastructure.Persistence;
 
 internal static class V1FoundationModelConfiguration
 {
+    private const string CorrespondenceTidyConstraint = "CK_StaffMailSendOperations_CorrespondenceTidy";
+    private const string CorrespondenceTidyDueIndex = "IX_StaffMailSendOperations_CorrespondenceTidyDue";
+
     public static void Configure(ModelBuilder builder)
     {
         builder.Entity<UserExternalCredentialEntity>(e =>
@@ -20,7 +23,7 @@ internal static class V1FoundationModelConfiguration
             var stages = string.Join(", ", Enum.GetNames<Pegasus.Core.Operations.StaffMailAttemptStage>().Select(x => $"'{x}'"));
             // Staff mail is sent by a member of staff or the Automation Actor
             // (ADR-0064); no other actor kind sends it.
-            e.ToTable("StaffMailSendOperations", t => { t.HasCheckConstraint("CK_StaffMailSendOperations_State", $"[State] IN ({states})"); t.HasCheckConstraint("CK_StaffMailSendOperations_AttemptStage", $"[AttemptStage] IS NULL OR [AttemptStage] IN ({stages})"); t.HasCheckConstraint("CK_StaffMailSendOperations_ActorKind", "[ActorKind] IN ('Staff', 'Automation')"); t.HasCheckConstraint("CK_StaffMailSendOperations_SecondReport", "([SecondContextId] IS NULL AND [SecondContextVersion] IS NULL) OR ([SecondContextId] IS NOT NULL AND [SecondContextVersion] > 0 AND [Purpose] = 'CaseReport' AND [SecondContextId] <> [ContextId])"); }); e.HasKey(x => x.Id);
+            e.ToTable("StaffMailSendOperations", t => { t.HasCheckConstraint("CK_StaffMailSendOperations_State", $"[State] IN ({states})"); t.HasCheckConstraint("CK_StaffMailSendOperations_AttemptStage", $"[AttemptStage] IS NULL OR [AttemptStage] IN ({stages})"); t.HasCheckConstraint("CK_StaffMailSendOperations_ActorKind", "[ActorKind] IN ('Staff', 'Automation')"); t.HasCheckConstraint("CK_StaffMailSendOperations_SecondReport", "([SecondContextId] IS NULL AND [SecondContextVersion] IS NULL) OR ([SecondContextId] IS NOT NULL AND [SecondContextVersion] > 0 AND [Purpose] = 'CaseReport' AND [SecondContextId] <> [ContextId])"); t.HasCheckConstraint(CorrespondenceTidyConstraint, "[TidiesCaseCorrespondence] = 0 OR [Purpose] IN ('CaseReport', 'TriageOutcomeReply') OR ([Purpose] = 'GeneralCorrespondence' AND [ComposeMode] IN ('Reply', 'ReplyAll'))"); }); e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.ActorSubjectId, x.MailboxId, x.OperationKey }).IsUnique();
             // Report sends are read by time: the Work Centre's Reports sent and every Management Report (ReportSends).
             e.HasIndex(x => new { x.Purpose, x.State, x.ObservedSentAtUtc });
@@ -29,6 +32,13 @@ internal static class V1FoundationModelConfiguration
             e.Property(x => x.InstructionMoveState).HasMaxLength(20);
             e.Property(x => x.InstructionMoveFailureCode).HasMaxLength(100);
             e.Property(x => x.InstructionMoveAttempts).HasDefaultValue(0);
+            // The Delete case correspondence tidy (ADR-0071, R902) reads the ticked, confirmed sends
+            // still due, oldest Sent item first. Named, so it never stands in for another index.
+            e.HasIndex(x => new { x.State, x.ObservedSentAtUtc }, CorrespondenceTidyDueIndex)
+                .HasFilter("[TidiesCaseCorrespondence] = 1 AND [CorrespondenceMoveState] IS NULL");
+            e.Property(x => x.CorrespondenceMoveState).HasMaxLength(20);
+            e.Property(x => x.CorrespondenceMoveFailureCode).HasMaxLength(100);
+            e.Property(x => x.CorrespondenceMoveAttempts).HasDefaultValue(0);
             e.Property(x => x.ActorSubjectId).HasMaxLength(200); e.Property(x => x.OperationKey).HasMaxLength(100);
             e.Property(x => x.PayloadHash).HasMaxLength(64).IsFixedLength(); e.Property(x => x.CorrelationMarker).HasMaxLength(100);
             e.Property(x => x.ObservedSentImmutableMessageId).HasMaxLength(500);

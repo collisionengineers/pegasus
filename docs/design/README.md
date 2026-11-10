@@ -495,8 +495,10 @@ prototype's effective media queries:
 
 | Max width | Reflow |
 | --- | --- |
+| 1480px | The Photo capture lists drop Next reminder and Received ([R912](../rulings.md)) |
 | 1360px | `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns. The Work Centre ledgers keep their columns to 600px, tightening their padding and folding Owner and Received into the task cell below 980px |
-| 1180px | `queue-layout` rail narrows to 170px; the advanced search grid drops to three columns; `checks-grid` two columns; `case-overview-grid` stacks |
+| 1300px | The Photo capture lists drop Links we sent's From and Coming in's Customer (R912) |
+| 1180px | The Photo capture lists drop Coming in's From, the mobile and the missing item, and a row's More shows only its chevron (R912); `queue-layout` rail narrows to 170px; the advanced search grid drops to three columns; `checks-grid` two columns; `case-overview-grid` stacks |
 | 1100px | `pane-layout--3` drops its first pane; metric strips to three columns; the identity ribbon to three columns |
 | 980px | The rail lies down into a horizontal bar; `admin-nav` becomes a horizontal scroller; `--content-max` is released |
 | 900px | Repair-spec form two columns; `checks-grid` one column |
@@ -1006,9 +1008,19 @@ deleted in wave 5.
 | Class | Role |
 | --- | --- |
 | `dialog-backdrop`, `dialog`, `dialog-head`, `dialog-body`, `dialog-foot` | Modal dialog ([contract](README.md#keyboard-and-dialog-contract)) |
-| `mail-compose-dialog`, `mail-compose-body`, `mail-compose-form`, `mail-compose-form-fields`, `mail-compose-addresses`, `mail-compose-subject`, `mail-compose-message`, `mail-compose-attachments`, `mail-compose-footer` | The composer dialog (the Triage reply, the Send chaser page and the Send report dialog): a grid whose fields scroll and whose footer is pinned; From, To and Cc in two columns, then Subject, Message and the attachments |
+| `mail-compose-dialog`, `mail-compose-body`, `mail-compose-form`, `mail-compose-form-fields`, `mail-compose-addresses`, `mail-compose-subject`, `mail-compose-message`, `mail-compose-attachments`, `mail-compose-footer` | The composer dialog (the Triage reply, the Send chaser page, the Send report dialog and a photo link's Resend page): a grid whose fields scroll and whose footer is pinned; From, To and Cc in two columns, then Subject, Message and the attachments |
 | `command-dialog` | Command palette |
 | `toast-region`, `toast` | Toasts |
+
+Every e-mail Pegasus sends for a member of staff goes through a composer; no
+button sends one on its own (operator, 10 November 2026: "any email sending
+always needs a dialogue box - a button cannot just send an email on its own";
+[R915](../rulings.md)). A photo link's Resend and Ask for it open the Send
+chaser's composer page (`/PhotoCapture/{id}/Resend`).
+
+A **More** menu holds two or more acts; one act is its own button beside the
+primary, and More takes the size of the buttons beside it (operator, 10
+November 2026; [R912](../rulings.md), [R913](../rulings.md)).
 
 ### Utility classes
 

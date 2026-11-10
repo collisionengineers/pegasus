@@ -27,6 +27,9 @@ and no production extract is kept as a file.
 Amended 9 November 2026 (R779, R785): while `Features__PhotoCapture` is on
 there, Funnel on 8443 also exposes the photo capture paths `/c`, `/s` and
 `/capture`; see Decision.
+Amended 10 November 2026 (R899): Funnel on 443 exposes the whole origin,
+behind password sign-in, and the Automation MCP offers the
+authorization-code flow to a claude.ai custom connector; see Decision.
 
 Accepted on the operator's rulings of 2 November 2026 (R623 to R628). It
 supersedes one clause of [ADR-0014](0014-local-to-production-deployment.md),
@@ -97,7 +100,8 @@ their Tailscale network, at no Azure cost (R623).
   path `/hooks/microsoft-graph/mail` (R676); while `Features__PhotoCapture`
   is on there, Funnel on 8443 also exposes `/c`, `/s` and `/capture`, and
   `PhotoCapture__PublicOrigin` is that Funnel origin (9 November 2026, R785);
-  port 443 stays tailnet-only. The
+  Funnel on 443 exposes the whole origin, behind password sign-in
+  (10 November 2026, R899). The
   Worker maintains subscriptions only when `Graph:ChangeNotificationUrl` and
   `Graph:ChangeNotificationClientState` are both set; without them the
   five-minute recovery poll carries mail.
@@ -105,7 +109,7 @@ their Tailscale network, at no Azure cost (R623).
   with every approved mailbox deactivated on import (R627), the copied
   subscription rows cleared (R678), the copied Principal API credentials
   paused (R679) and the copied pending answered-instruction tidies closed
-  (R680); each copy is a live production read the operator approves, into
+  (R680), with the copied Delete case correspondence tidies (R902); each copy is a live production read the operator approves, into
   the instance's run on its host alone, and the extract is removed once
   published (R696). The Box custody fence keeps the instance on the
   local-test root whatever the copied rows say.
@@ -116,9 +120,12 @@ their Tailscale network, at no Azure cost (R623).
   refuses without it. Migrations go forward only, so a branch that adds a
   migration is served only when the operator accepts that the return to
   `dev` waits for the branch to land or needs a Reset.
-- The Principal API and the Automation MCP run on the instance, tailnet-only:
-  Principal keys are issued on the instance, the MCP uses development keys and
-  the instance's own client secret, and no connector redirect exists (R679).
+- The Principal API and the Automation MCP run on the instance: Principal
+  keys are issued on the instance, and the MCP uses development keys and the
+  instance's own client secret (R679). Since 10 November 2026 both are on the
+  Funnelled public origin, and the MCP's one connector redirect is
+  `https://claude.ai/api/mcp/auth_callback`, so a claude.ai custom connector
+  reaches it through the authorization-code flow (R899).
 - The instance proves local behaviour at the Linux runtime production uses.
   The evidence tiers in [engineering](../engineering.md#required-evidence-tiers)
   are unchanged: staff send and Graph subscriptions can be rehearsed on the

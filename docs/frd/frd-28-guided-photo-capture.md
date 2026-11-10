@@ -5,7 +5,8 @@
 ## Short version
 
 - A **photo link** asks one person for photos of one vehicle. HQ sends it
-  from a Case, by e-mail from an approved mailbox or by Copy link; the
+  from a Case, by e-mail from an approved mailbox, by text from Pegasus's
+  own UK mobile number or by Copy link; the
   person opens it on their phone, and a guided app takes the photos and
   sends them. Nothing is installed and nobody signs in.
 - A **standing photo link** belongs to a Principal, Claim Source or Repairer
@@ -21,7 +22,8 @@
   the other vehicle, paperwork and video) does not. Files go flat into the
   Case's Box folder under story-order names.
 - Pegasus never sends a reminder by itself. **Links we sent** shows what is
-  due and a member of staff resends with one click.
+  due and a member of staff resends through the composer, which sends nothing
+  until **Send by e-mail** or **Send by text**.
 
 ## Purpose
 
@@ -29,7 +31,7 @@ This document owns Pegasus's own guided capture, the product idea of issue
 #1683, built under new capability identities (operator, 9 November 2026;
 R773 to R817). It serves the PRD outcomes for image-led work and complete
 images before Review, while keeping its exclusions: no SMS integration
-(BND-04), no persistent customer portal (BND-06), no automatic outbound
+beyond texting the photo link itself (BND-04; R918), no persistent customer portal (BND-06), no automatic outbound
 message (MAIL-19) and no customer account (ACC-12)
 ([PRD](../prd/pegasus-product.md#operating-and-commercial-constraints)).
 Tractable capture still arrives as an e-mailed PDF
@@ -69,9 +71,10 @@ and offers only the lifetimes set there: guided, both on and
 R817). Live camera only covers the vehicle
 photos: the scene and other-vehicle photos, paperwork and the walk-around
 video can always come from the camera roll, as in the handover's app (R778;
-9 November 2026). The link goes by e-mail, by Copy link, or both (R773):
-text and WhatsApp are Copy link and the staff member's own phone. Pegasus
-has no SMS or WhatsApp provider.
+9 November 2026). The link goes by e-mail, by Copy link, or both (R773),
+or by text to the mobile on the form ([The photo link
+text](#the-photo-link-text); R918, R920); WhatsApp is Copy link and the
+staff member's own phone, and Pegasus has no WhatsApp provider.
 
 When Quick is chosen, Send asks who the link is for, **Type**: **Accident
 management** or **Bodyshop**, and requires it; a guided link has none
@@ -137,9 +140,12 @@ managed on the **Photo links** tab of its edit page (R774): the standing
 URL, a QR code, Copy, **Pause** and **Resume**, **Replace link**, **Retire
 link**, and its defaults, which are the mode a link sent on to a customer
 takes, Live camera only, the lifetime and the originals choice. The one
-website link, for private customers, is managed by Administrators from the
-Photo capture page with the same controls and defaults, less the mode,
-because its captures are guided (operator, 9 November 2026; R797). Its
+website link, for private customers, is managed by Administrators on
+Administration › Photo links
+([FRD-17](frd-17-administration-workspace.md#photo-links); operator, 10
+November 2026; [R911](../rulings.md)) with the same controls and defaults,
+less the mode, because its captures are guided (operator, 9 November 2026;
+R797). Its
 panel's buttons read **Pause the link** and **Resume the link**, where a
 contact's panel keeps **Pause their link** and **Resume their link**
 (operator, 10 November 2026; R867); its address box is labelled **Website
@@ -430,11 +436,19 @@ A reminder is due, and shown, when a link is not opened after 24 hours and
 again after 48; when it was started but not finished after 4 quiet hours;
 when something is missing once it was sent; and when it is about to expire,
 within one day. Pegasus never sends a reminder (R773; MAIL-19 stands):
-**Links we sent** shows what is due, and **Remind** or **Resend** is one
-click by a member of staff. **Log call** records a phone call. On **Coming
-in**, **Ask for it** is the same click for a capture not sent from a Case: it
-makes a fresh link (operator, 9 November 2026; R806, R816) and counts as a
-reminder (operator, 10 November 2026; R842).
+**Links we sent** shows what is due, and a member of staff sends the link
+again with **Resend**. Resend and the former Remind sent the same message, so
+they are one act: a Case link's Resend counts as a reminder only when one was
+due (operator, 10 November 2026; [R914](../rulings.md)). No button sends an
+e-mail on its own: Resend opens the composer, the Send chaser's, with From,
+To, Subject and Message in the standard wording, and nothing is sent until
+**Send by e-mail**; **Create link to copy** makes the link without sending
+(operator, 10 November 2026: "any email sending always needs a dialogue box -
+a button cannot just send an email on its own"; [R915](../rulings.md)).
+**Log call** records a phone call. On **Coming in**, **Ask for it** is the
+same act for a capture not sent from a Case: it makes a fresh link (operator,
+9 November 2026; R806, R816) and counts as a reminder (operator, 10 November
+2026; R842).
 
 ### The photo link e-mail
 
@@ -477,6 +491,50 @@ edited message is sent as staff wrote it; one they did not edit follows the
 name and lifetime the form holds when the link is sent (operator,
 9 November 2026; R806).
 
+### The photo link text
+
+Staff may text a photo link as well as e-mail it (operator, 10 November
+2026; R918). Pegasus sends the text through Azure Communication Services
+from an SMS-enabled UK mobile number bought on its resource, over the Web's
+managed identity; the number is the `TextMessages:From` setting
+([configuration](../engineering/configuration.md)), and while it is empty no
+page offers **Send by text**. It texts a UK mobile only: 07… with eleven
+digits, or the same written +44 7…, 0044 7… or 44 7…, spaces, dashes, dots
+and brackets ignored; any other number is refused with "Enter a UK mobile
+number to send by text." beside it. Replies are not read.
+
+**Send by text** sits beside **Send by e-mail** on Send a photo link and in
+the Resend / Ask for it composer (R920); no button texts on its own (R915).
+On the Send page the text goes to the form's **Mobile**; in the composer, to
+the link's mobile, which staff may change there. The message is the
+template purpose **Photo link (text)**
+([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) with the
+Photo link e-mail's placeholders, drawn and edited as the e-mail is
+("Edited for this one only." and **Put the standard wording back**; R806,
+R919); a text with no `{photo link}` gets the link on its own line, and one
+over 1,530 characters (ten SMS segments) or empty is refused with "A text
+message is required.". Its built-in body, the agent's draft awaiting the
+operator's sign-off (R919):
+
+```text
+Hi {claimant},
+Collision Engineers need a few photos of {registration} to assess the damage. Please open this link on your phone:
+{photo link}
+The link works until {link expiry}.
+```
+
+The link is issued as for an e-mail, with a token of its own for the text,
+and a texted Resend counts as a reminder as an e-mailed one does (R914,
+R920). One operation key sends one text: the act is written to the link's
+history before the provider is asked, and a repeated post is refused with
+"This text was already sent.". The provider's answer is written after:
+"Sent by text · name" with its message id when it accepts the text, and
+"Text not sent · name" with its failure code when it refuses it or cannot
+be reached; the Send page and the composer then show **Text not sent** and
+the code, and a sent text returns from the composer with "Link sent to …
+by text". Accepted is not delivered: Pegasus does not yet read delivery
+reports (R921; issue #2054).
+
 ### Case field filling
 
 When a capture settles on a Case, the claimant name, contact number,
@@ -512,27 +570,45 @@ with no count (R774;
   R864). The From filter also offers **No case yet**, the captures
   with no Case. **Ask for it**, on a live row whose status is Something
   missing, makes a fresh link for that capture: when the capture is on a
-  Case and holds an e-mail address it e-mails the link, as Resend does;
+  Case and holds an e-mail address it opens the composer, as Resend does;
   otherwise it shows the link for staff to copy and send themselves
-  (operator, 9 November 2026; R806, R816);
+  (operator, 9 November 2026; R806, R816; R915);
 - **Links we sent**: Case links, with Vehicle, Customer and mobile, Case,
-  From, Sent by, Status, Photos and Next reminder, and the actions Resend,
-  Remind, Log call and View photos, with **Cancel link** on each live row.
-  From is the Case's Principal (operator, 9 November 2026; R805), with
-  **Sent on to their customer** under it once a quick link's firm has
-  handed it on (operator, 9 November 2026; R798). Remind is offered only
-  while the link is live.
+  From, Status, Photos and Next reminder, which is blank when nothing is due.
+  Sent by is on the link's page and in its history, not the list. From is the
+  Case's Principal (operator, 9 November 2026; R805), with **Sent on to their
+  customer** under it once a quick link's firm has handed it on (operator,
+  9 November 2026; R798).
 
-Each tab shows how many captures it holds (operator, 9 November 2026;
-R806).
+Each tab shows how many captures it holds, on the tab and on All (operator,
+9 November 2026; R806). A row is one line: a long name, firm or missing item
+ends in an ellipsis with the full text on hover. Each row leads with the act
+its state calls for: on Links we sent, **Resend** while the link is live and a
+reminder is due or it is unopened, **Log call** when it needs a phone call,
+else **View photos**; on Coming in, **Ask for it**, else **View photos** on a
+Case or **Match to a case** on a Vehicle images record. One other act stands
+beside it as its own button, two or more go in a **More** menu with **Cancel
+link** last; More never holds a single act, and **Cancel link** stays on each
+live row (R795). Log call from a row returns to the list with "Call logged".
+Narrower windows drop columns rather than scroll: from 1480px down Next
+reminder and Received, from 1300px Links we sent's From and Coming
+in's Customer, and from 1180px Coming in's From, the mobile and the missing
+item, every one of them still on the link's page (operator, 10 November 2026,
+approving the [v50 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v50-config-and-photo-capture/v50_planning) as drawn; [R912](../rulings.md)).
 
 `/PhotoCapture/Send/{caseId}` sends a link ([Photo links](#photo-links)).
 `/PhotoCapture/{id}` is a link's detail: its facts, the typed details, the
 note, the status, the missing items, the items by story group and the
-history, with Resend, Remind, Log call, Extend and Cancel. The history names
+history, with Resend, Log call, Extend and Cancel. Its status stands beside
+the registration; its one primary act is Resend when a reminder is due, Log
+call when the link needs a phone call, else Resend while it is live; View
+photos stands beside it, and the rest, Extend by 3, 7 or 14 days among them,
+go in More, Cancel link last. The missing items, the photos and the history
+form its main column, and its facts and what the sender told us a 360px aside
+(operator, 10 November 2026; [R913](../rulings.md)). The history names
 who acted: "Cancelled · name", "Link extended · name" and "Call logged ·
 name" (operator, 9 November 2026; R805), and "Reminded · name", one line for
-each reminder (operator, 10 November 2026; R870). Resend or Remind on an
+each reminder (operator, 10 November 2026; R870). Resend on an
 expired link is refused with "The link has expired; extend it first.", and
 on a cancelled link with "The link was cancelled; send a new one from the
 Case." (operator, 10 November 2026; R863). A live link on a Case also offers
@@ -541,8 +617,8 @@ act wherever it is offered, with the same refusal, and a repeated click
 cancels once (operator, 9 November 2026; R795). Beside a photo link in the
 Case's Files → Images stand its status, in the words above, and its photo
 count; while a live link has nothing yet, **No photos yet** and, on a link
-sent from the Case, **Resend the link**, which is the link page's Resend
-(operator, 9 November 2026; R806). Paperwork and video a capture with no
+sent from the Case, **Resend the link**, which opens the composer and returns
+to the Case's Files (operator, 9 November 2026; R806; R915). Paperwork and video a capture with no
 Case received stay kept and unfiled, and each opens from the link's page as
 any received file opens; nothing new is filed, chased or deleted, and a
 capture that sent only paperwork stays on Coming in (operator, 9 November
@@ -572,7 +648,7 @@ of those records has reached it.
 Photos are JPEG or PNG; paperwork is PDF, JPEG or PNG; video is MP4 or MOV.
 The limits are constants, not configuration, except which of the three
 lifetimes Send offers and the one it starts on, which an Administrator sets
-in Administration › Configuration; Extend and a contact's link defaults keep
+in Administration › Photo links (R911); Extend and a contact's link defaults keep
 all three (operator, 9 November 2026; R813, R817).
 
 ## States and transitions
@@ -652,7 +728,8 @@ administration (retiring, the typed website address, saved addresses and an
 inactive contact) and the settle, including the Triage note and the
 mileage that replaces an estimate; the
 greeting's name, a VIN not required once a link is handed on, a closed
-Case's refusal and the two Resend and Remind refusals are covered there
+Case's refusal, Resend's two refusals and when a Resend counts as a reminder
+are covered there
 too. Send's two settings are covered with the
 workflow configuration in `tests/Pegasus.Core.Tests/Identity/AdministrationPolicyTests.cs`.
 `tests/Pegasus.Core.Tests/Documents/CaseAssetPreparationTests.cs` covers the
@@ -672,9 +749,10 @@ Integration tests hold the rest:
   completed by the first photo, the loose damage photo, originals and their
   bytes, the ignored typed registration, one link's token not reaching
   another's items), an archived Case's dead link, and the staff pages (From,
-  Remind and Cancel on live rows, who acted, Retire, the website link's
-  typed address and defaults, the tab counts, No case yet, Ask for it, the
-  Case page's status and Resend, a kept file opening, a closed Case's Send
+  Resend through the composer and Cancel on live rows, who acted, Retire,
+  the website link's typed address and defaults on Administration › Photo
+  links, the tab counts, No case yet, Ask for it, the Case page's status and
+  Resend, a kept file opening, a closed Case's Send
   page, the refusal sentences beside their forms, Matched by staff,
   Contact inactive, Reminded · name, and a standing link's changes written
   to the action history);

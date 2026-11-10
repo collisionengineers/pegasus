@@ -5,6 +5,23 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Test instance MCP connector - 10 November 2026
+
+- On R899, the settings file gained
+  `AutomationMcp__RedirectUris=https://claude.ai/api/mcp/auth_callback`, run
+  `83ec377dd6f249d59c2e8ae8e96459c3` (at `00121b6e0`) was stopped and started
+  with `-RunId`, and Smoke passed. Port 443 is Funnelled
+  (`tailscale funnel --bg --https=443 https+insecure://localhost:7139`).
+- On the tailnet name, the protected-resource and authorization-server
+  metadata list the `authorization_code` grant, `/connect/authorize` sends the
+  claude.ai redirect to sign-in, and the client-credentials helper still gets a
+  token. The public route was not checked from the host; the first connector
+  sign-in is that check.
+- A `Start` without `-RunId` made a second run, `94d575fb`, with an empty
+  database. It was stopped about a minute later, before any function ran or
+  any Graph subscription was made. On the operator's word ("remove the
+  94d575fb run") it was Reset with `-Approve` the same day.
+
 ## Inspection location register cleanup - 5 November 2026
 
 - On the operator's word ("lets get rid of the ones that only appear once",

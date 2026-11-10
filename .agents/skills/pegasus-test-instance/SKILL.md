@@ -54,12 +54,13 @@ together, with a ruling.
 - **No Azure spend.** Key Vault secret reads, Graph calls and the SqlPackage
   extract to a local file are the only Azure touches (R623). A step that would
   create or run anything in Azure is a question to the operator first.
-- **Funnel for the Graph webhook path and, with photo capture on, its three
-  paths.** `tailscale serve` on 443 keeps the origin on the tailnet;
-  `tailscale funnel` on 8443 exposes `/hooks/microsoft-graph/mail` (R676)
-  and, only while `Features__PhotoCapture` is on there, `/c`, `/s` and
-  `/capture` so a phone off the tailnet can open a photo link (R785).
-  Nothing else is ever Funnelled.
+- **Funnel for the public origin, the Graph webhook path and, with photo
+  capture on, its three paths.** `tailscale funnel` on 443 exposes the whole
+  origin, behind password sign-in, so a claude.ai custom connector reaches
+  the MCP (R899); `tailscale funnel` on 8443 exposes
+  `/hooks/microsoft-graph/mail` (R676) and, only while
+  `Features__PhotoCapture` is on there, `/c`, `/s` and `/capture` so a phone
+  off the tailnet can open a photo link (R785). Nothing else is Funnelled.
 - **No public origin without password sign-in.** `Start` refuses it; the
   automatic offline sign-in would make every tailnet caller the Administrator.
 - **The data is not disposable (R696).** Staff UAT Cases, the Cases intake
@@ -130,6 +131,7 @@ Features__AutomationMcp=true
 AutomationMcp__UseDevelopmentKeys=true
 AutomationMcp__ClientId=pegasus-automation
 AutomationMcp__ClientSecret=<32+ characters the operator chooses>
+AutomationMcp__RedirectUris=https://claude.ai/api/mcp/auth_callback
 Features__LiveGraphMail=true
 Graph__BaseUri=https://graph.microsoft.com/v1.0/
 Graph__TenantId=<tenant id>
@@ -155,8 +157,10 @@ them if it does not yet, and the run uses the folder mailbox adapters. The two
 `ChangeNotification` lines go together and wait until the webhook path is
 Funnelled (section 3); without them the run polls and never subscribes. The
 Principal API issues its keys on the instance (Administration > Contacts);
-the MCP serves the local classifier and tailnet agents, with no connector
-redirect (R679). Never put `AutomationMcp__PublicOrigin` or
+the MCP serves the local classifier and tailnet agents with a
+client-credentials token, and a claude.ai custom connector through the
+authorization-code flow that `AutomationMcp__RedirectUris` turns on, an
+Administrator approving at `/connect/authorize` (R899). Never put `AutomationMcp__PublicOrigin` or
 `Glass__CallbackBaseUri` in the file: the lifecycle owns both and refuses
 them.
 
@@ -173,7 +177,7 @@ front of it, once, on the Tailscale node that owns the name (the Windows host
 through WSL localhost forwarding, or Tailscale inside WSL):
 
 ```bash
-tailscale serve --bg --https=443 https+insecure://localhost:7139
+tailscale funnel --bg --https=443 https+insecure://localhost:7139
 tailscale funnel --bg --https=8443 --set-path /hooks/microsoft-graph/mail https+insecure://localhost:7139/hooks/microsoft-graph/mail
 tailscale serve status
 tailscale funnel status
@@ -309,7 +313,8 @@ the run database with users, logins, role memberships, permissions and
 database options left out, every approved
 mailbox deactivated (R627), the copied subscription rows cleared (R678), the
 copied Principal API keys paused (R679), the copied pending
-answered-instruction tidies closed (R680) and the copied Glass's logins
+answered-instruction and Delete case correspondence tidies closed (R680,
+R902) and the copied Glass's logins
 cleared (R708), so the instance subscribes under its own webhook,
 authenticates no production key, moves only what its own sends answered and
 never tries to decrypt what production's key ring protects. The extract is removed once published, whether or not the publish succeeded,
@@ -338,7 +343,8 @@ Read [references/classifier-local-run.md](references/classifier-local-run.md).
 It runs one sweep per `npm start` against the instance's `/mcp` on the public
 origin, with the operator's Anthropic key in an ignored `.env`; a systemd user
 timer repeats it every 15 minutes. The same reference connects Claude Code on a
-tailnet machine to the instance's MCP (R679).
+tailnet machine, and a claude.ai custom connector, to the instance's MCP
+(R679, R899).
 
 ## 9. Stop
 

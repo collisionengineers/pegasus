@@ -383,10 +383,12 @@ refuses. Omitted on a restart, the recorded origin stands. In front of the run, 
 https+insecure://localhost:7139` (the Windows host's Tailscale through WSL
 localhost forwarding, or Tailscale inside WSL) answers with the tailnet's
 certificate, so no development certificate is exported. Tailscale Funnel
-exposes one path alone, the Graph webhook, on its own port (R676):
+exposes the Graph webhook on its own port (R676):
 `tailscale funnel --bg --https=8443 --set-path /hooks/microsoft-graph/mail
-https+insecure://localhost:7139/hooks/microsoft-graph/mail`; port 443 stays
-tailnet-only. OpenIddict issues tokens for the host a request arrived on, so a
+https+insecure://localhost:7139/hooks/microsoft-graph/mail`. On the hosted test
+instance, Funnel also exposes the whole origin on 443 (`tailscale funnel` in
+place of `tailscale serve`), behind password sign-in, so a claude.ai custom
+connector reaches the MCP (R899). OpenIddict issues tokens for the host a request arrived on, so a
 classifier or connector uses the public origin for both the token endpoint and
 the MCP endpoint.
 
@@ -431,7 +433,8 @@ rehearsal, `scripts/Copy-ProductionDatabaseToRun.ps1 -RunId <run-id>`
 replaces the Stopped run's database with a SqlPackage copy of production,
 deactivates every approved mailbox in the copy (R627), clears the copied
 subscription rows (R678), pauses the copied Principal API credentials (R679)
-closes the copied pending answered-instruction tidies (R680) and clears the
+closes the copied pending answered-instruction and Delete case
+correspondence tidies (R680, R902) and clears the
 copied per-user external credentials, which production's key ring protects
 (R708); without
 `-Approve` it prints the source, target and statements and stops, and with it
@@ -963,6 +966,7 @@ The approved release operator supplies these deployment inputs:
 | `CAZANA_COMPANION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `cazana-companion-password`, that account's password. No default. |
 | `BREGO_VALUATION_EMAIL_SECRET_URI` | Exact versioned Key Vault secret URI of `brego-valuation-email`, the Brego valuation account e-mail ([ADR-0084](adr/0084-brego-valuation-account-and-valuation-report.md)). No default. |
 | `BREGO_VALUATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `brego-valuation-password`, that account's password. No default. |
+| `PEGASUS_PHOTO_LINK_TEXT_FROM` | SMS-enabled UK mobile number in E.164, bought by hand in the portal on the `pegasus-prod-acs-` Communication Services resource; the Web App sends photo-link texts from it. Empty (the default) leaves texting unavailable. |
 | `ANTHROPIC_API_KEY_SECRET_URI` | Exact versioned Key Vault secret URI of the Anthropic API key the classifier agent uses. The classifier identity reads it, and the Automation MCP client secret, through grants at each secret's scope. No default. |
 | `PEGASUS_CLASSIFIER_ACTIVATION` | `approved` creates the classifier Function App (`infra/modules/classifier.bicep`); anything else leaves it absent. Defaults to `disabled`. |
 | `PEGASUS_CLASSIFIER_DRY_RUN` | `true` makes every classifier tick log its proposals and write nothing; `false` lets it write. Defaults to `false`. Set with `azd env set PEGASUS_CLASSIFIER_DRY_RUN true -e pegasus-prod`; it changes only by a provision (operator, 16 October 2026). |

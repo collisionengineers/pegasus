@@ -219,6 +219,7 @@ public static class WorkerDependencyInjection
         services.AddScoped<MaintainMailboxChangeSubscriptions>();
         // Composed in both profiles; the offline mover is unavailable, so it does nothing there.
         services.AddSentReportInstructionTidy();
+        services.AddSentCaseCorrespondenceTidy();
         return services;
     }
 

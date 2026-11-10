@@ -94,7 +94,10 @@ public enum AutomaticGuideValuationOutcome
     /// <summary>The Administrator's switch is off, so the request is settled unasked.</summary>
     SwitchedOff,
 
-    /// <summary>The Case is closed or archived, or its current work already holds a Glass's card.</summary>
+    /// <summary>
+    /// The Case is closed or archived, its current work already holds a
+    /// Glass's card, or Glass's has already been asked this month (R900).
+    /// </summary>
     NotNeeded,
 
     /// <summary>The provider answered that it cannot value the vehicle.</summary>
@@ -248,6 +251,11 @@ public sealed class RunAutomaticGuideValuation(
         catch (GuideValuationProviderUnavailableException)
         {
             return AutomaticGuideValuationOutcome.Unavailable;
+        }
+        catch (GuideValuationAlreadyFetchedException)
+        {
+            // Glass's has already answered this month for these vehicle facts (R900).
+            return AutomaticGuideValuationOutcome.NotNeeded;
         }
 
         var now = _timeProvider.GetUtcNow();

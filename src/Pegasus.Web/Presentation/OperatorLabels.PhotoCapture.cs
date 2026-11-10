@@ -160,7 +160,6 @@ public static partial class OperatorLabels
         public const string SendAPhotoLink = "Send a photo link";
         public const string SendPhotoLink = "Send photo link";
         public const string Resend = "Resend";
-        public const string Remind = "Remind";
         public const string LogCall = "Log call";
         public const string Extend = "Extend";
         public const string CancelLink = "Cancel link";
@@ -209,6 +208,11 @@ public static partial class OperatorLabels
         public const string Subject = "Subject";
         public const string Message = "Message";
         public const string SendByEmail = "Send by e-mail";
+
+        // The photo link text (R918 to R921); the wording awaits the operator's sign-off.
+        public const string SendByText = "Send by text";
+        public const string TextMessage = "Text message";
+        public const string TextNotSent = "Text not sent";
         public const string CreateLinkToCopy = "Create link to copy";
         public const string NeededToSendByEmail = "Needed to send by email";
         public const string SendStatus = "Send status";
@@ -241,6 +245,7 @@ public static partial class OperatorLabels
         public const string Sent = "Sent";
         public const string Reminded = "Reminded";
         public const string CallLoggedAt = "Call logged";
+        public const string SentByText = "Sent by text";
         public const string Filed = "Filed";
         public const string Cancelled = "Cancelled";
 
@@ -302,6 +307,7 @@ public static partial class OperatorLabels
 
         // Confirmations.
         public static string LinkSentTo(string? name) => $"Link sent to {(string.IsNullOrWhiteSpace(name) ? "the customer" : name.Trim())} by e-mail";
+        public static string LinkTextedTo(string? name) => $"Link sent to {(string.IsNullOrWhiteSpace(name) ? "the customer" : name.Trim())} by text";
         public const string LinkCopied = "Link copied";
         public const string LinkCancelled = "Link cancelled";
         public const string LinkExtended = "Link extended";

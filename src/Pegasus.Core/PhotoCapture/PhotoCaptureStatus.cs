@@ -78,6 +78,26 @@ public static class PhotoCaptureStatus
     }
 
     /// <summary>
+    /// A list row's due reminder: the capture's own due reminder
+    /// over the row's own missing items, photo count and Case. Only a link HQ
+    /// sent from a Case has one.
+    /// </summary>
+    public static DueCaptureReminder? DueReminder(PhotoCaptureListRow row, DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return row.Capture.Origin == PhotoCaptureOrigin.CaseLink
+            ? DueReminder(row.Capture, MissingOf(row), row.Photographs, nowUtc, row.CaseArchived)
+            : null;
+    }
+
+    /// <summary>A list row's missing items as the evaluation takes them: its labels are its codes.</summary>
+    public static IReadOnlyList<MissingCaptureItem> MissingOf(PhotoCaptureListRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return [.. row.MissingItems.Select(label => new MissingCaptureItem(label, label))];
+    }
+
+    /// <summary>
     /// The reminder due now, if any, in this order: not opened after 24 hours
     /// and again after 48; started but unfinished after 4 quiet hours;
     /// something missing once sent; about to expire within a day. A capture
