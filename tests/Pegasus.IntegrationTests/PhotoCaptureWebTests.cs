@@ -53,6 +53,9 @@ public sealed class PhotoCaptureWebTests
     private const string SecondOverview =
         "kind=overview&position=2&takenAt=2031-05-06T10%3A20%3A00.000Z&live=true&original=false";
 
+    /// <summary>A paperwork page the app sends from the camera roll.</summary>
+    private const string PaperworkQuery = "kind=paperwork&position=1&live=false&original=false";
+
     /// <summary>The workflow event a Case note is recorded as, the sender's note included.</summary>
     private const string AddCaseNoteEventType = Pegasus.Core.Cases.AddCaseNote.EventType;
 
@@ -1385,6 +1388,67 @@ public sealed class PhotoCaptureWebTests
         Assert.Equal(0, await StandingCaptureDriver.PhotosReceivedCountAsync(factory, caseId));
     }
 
+    /// <summary>
+    /// The close records the batch with its Case and its bell owed, and the
+    /// same run rings the bell and clears it: one notification for the
+    /// Engineer, nothing owed. A bell still owed, as a Worker that stopped
+    /// between the close and the ring leaves it, is rung by a later run, once.
+    /// </summary>
+    [Fact]
+    public async Task ACaseBatchsBellIsOwedWithItsCloseAndRungOnceEvenOnALaterRun()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await StandingCaptureDriver.AssignEngineerAsync(factory, caseId);
+        var link = await IssueLinkAsync(factory, caseId);
+        await SendAndDrainAsync(factory, client, link, FirstOverview, seed: 1);
+        await StandingCaptureDriver.CompleteAsync(client, link.Token.Value);
+
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        var closed = Assert.Single(await StandingCaptureDriver.BatchesAsync(factory, link.Capture.Id));
+        Assert.Equal(1, closed.Batch);
+        Assert.Equal(caseId, closed.CaseId);
+        Assert.False(closed.SubmissionGroupId.HasValue, "A Case batch recorded a submission group.");
+        Assert.False(closed.BellOwedAtUtc.HasValue, "The settle left its bell owed.");
+        Assert.Equal(1, await StandingCaptureDriver.PhotosReceivedCountAsync(factory, caseId));
+
+        await StandingCaptureDriver.OweBellAsync(factory, link.Capture.Id, batch: 1);
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        Assert.Equal(2, await StandingCaptureDriver.PhotosReceivedCountAsync(factory, caseId));
+        Assert.False(
+            Assert.Single(await StandingCaptureDriver.BatchesAsync(factory, link.Capture.Id)).BellOwedAtUtc.HasValue,
+            "The owed bell was not cleared once rung.");
+
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        Assert.Equal(2, await StandingCaptureDriver.PhotosReceivedCountAsync(factory, caseId));
+    }
+
+    /// <summary>
+    /// Paperwork sent as a JPEG files on the Case as a document of type
+    /// Other, not as one of its images: its type is its kind's (R803).
+    /// </summary>
+    [Fact]
+    public async Task PaperworkSentAsAJpegFilesAsOtherAndNotAsAnImage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var link = await IssueLinkAsync(factory, caseId);
+
+        var paperwork = await SendAndDrainAsync(factory, client, link, PaperworkQuery, seed: 1);
+
+        var receiptId = paperwork.IntakeReceiptId
+            ?? throw new InvalidOperationException("The paperwork did not learn its processed receipt.");
+        Assert.True(await PromotionCompletedAsync(factory, receiptId));
+        var files = await CaseFilesAsync(factory, caseId);
+        Assert.Equal(DocumentSemanticRole.Other, Assert.Single(files, file => file.FileName == paperwork.FileName).Role);
+        Assert.DoesNotContain(files, file => file.Role == DocumentSemanticRole.Image);
+    }
+
     /// <summary>What one settle of a Case link's first batch leaves, however often the settle runs.</summary>
     private static async Task AssertSettledOnceAsync(IntakeWebApplicationFactory factory, Guid caseId, Guid captureId, string note)
     {
@@ -1574,7 +1638,7 @@ public sealed class PhotoCaptureWebTests
     /// The Case's report has been sent: its state, and the sent message's
     /// evidence, as <c>AssociatedMailEvidenceIntegrationTests</c> seeds them.
     /// </summary>
-    private static async Task MarkReportSentAsync(IntakeWebApplicationFactory factory, Guid caseId)
+    internal static async Task MarkReportSentAsync(IntakeWebApplicationFactory factory, Guid caseId)
     {
         await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
         var workflow = await db.CaseWorkflows.SingleAsync(value => value.CaseId == caseId);

@@ -406,6 +406,13 @@ public sealed class StandingCaptureWebTests
         Assert.Equal("awaiting_instruction", record.LifecycleState);
         Assert.False(await AnythingUnidentifiedAsync(factory), "A photo link's capture was registered Unidentified.");
         await AssertRecordShowsThePhotoLinkAsync(client, record.Id, capture.Id);
+
+        // The close recorded the batch with its group, no Case and no bell.
+        var closed = Assert.Single(await StandingCaptureDriver.BatchesAsync(factory, capture.Id));
+        Assert.Equal(1, closed.Batch);
+        Assert.Equal(groupId, closed.SubmissionGroupId);
+        Assert.False(closed.CaseId.HasValue, "A Vehicle images batch recorded a Case at its close.");
+        Assert.False(closed.BellOwedAtUtc.HasValue, "A Vehicle images batch owed a bell.");
     }
 
     /// <summary>
@@ -682,6 +689,251 @@ public sealed class StandingCaptureWebTests
 
         Assert.Contains(listed, candidate => candidate.Capture.Id == withPhoto.Capture.Id);
         Assert.DoesNotContain(listed, candidate => candidate.Capture.Id == withoutPhoto.Capture.Id);
+    }
+
+    /// <summary>
+    /// An earlier batch's record that reaches a Case after a later batch went
+    /// straight to another Case finishes on its own Case (R803, R804): the
+    /// note is written there, its own kept paperwork files there, and the
+    /// bell rings for it, while the later batch's paperwork stays where its
+    /// own settle filed it and the capture keeps its Case.
+    /// </summary>
+    [Fact]
+    public async Task AnEarlierBatchsRecordThatReachesAnotherCaseFinishesThereAlone()
+    {
+        const string note = "Please call before 5pm.";
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var started = await StandingCaptureDriver.StartAsync(factory, client, link, "XY99 ZZZ");
+        var (_, firstPhotographReceipts, firstPaperwork) = await SendPhotographsAndPaperworkAsync(factory, client, started);
+        var firstPaperworkReceipt = await ReceiptOfAsync(factory, firstPaperwork);
+        await StandingCaptureDriver.CompleteAsync(client, started.Token, note);
+        await SettleAndReconcileAsync(factory);
+        var firstRecord = await StandingCaptureDriver.RecordForGroupAsync(
+            factory, PhotoCaptureIntakeRules.BatchGroupId(started.Capture.Id, 1));
+        Assert.Equal("awaiting_instruction", firstRecord.LifecycleState);
+        await StandingCaptureDriver.MoveLastSettleBackAsync(factory, started.Capture.Id);
+
+        // The second batch: a photo and its own paperwork, then a Case with the registration appears.
+        var secondPhoto = await StandingCaptureDriver.SendItemAsync(
+            factory, client, started, FourthOverview, MultiFormatFixture.Photograph(3), "image/jpeg");
+        var secondPaperwork = await StandingCaptureDriver.SendItemAsync(
+            factory, client, started, Paperwork, IntakeTestEvidence.CreatePdf("Engineer's invoice"), "application/pdf");
+        Assert.Equal((2, 2), (secondPhoto.Batch, secondPaperwork.Batch));
+        await StandingCaptureDriver.DrainAsync(factory, secondPhoto);
+        var secondPaperworkReceipt = await StandingCaptureDriver.DrainAsync(factory, secondPaperwork);
+        var straightCase = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await StandingCaptureDriver.SetCaseRegistrationAsync(factory, straightCase, "XY99ZZZ");
+        await StandingCaptureDriver.CompleteAsync(client, started.Token, note);
+        // A second tick is what the Worker's timer would run should the first find the filing still in flight.
+        await StandingCaptureDriver.SettleAsync(factory);
+        await StandingCaptureDriver.SettleAsync(factory);
+        var afterSecond = await StandingCaptureDriver.CaptureAsync(factory, started.Capture.Id);
+        Assert.Equal(2, afterSecond.SettledBatches);
+        Assert.Equal(straightCase, afterSecond.CaseId);
+        Assert.True(await StandingCaptureDriver.FiledOnAsync(factory, secondPaperworkReceipt, straightCase));
+
+        // Staff merge the first batch's record into a different Case.
+        var reachedCase = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory, sequence: 10);
+        await CreateCaseCustodyRootAsync(factory, reachedCase);
+        await StandingCaptureDriver.AssignEngineerAsync(factory, reachedCase);
+        await ImageIntakeTestData.ProcessImageCaseCustodyAsync(factory);
+        await MergeRecordIntoCaseAsync(factory, firstRecord.Id, firstPhotographReceipts, reachedCase);
+        await ImageIntakeTestData.ProcessCustodyAsync(factory, Pegasus.Core.Custody.ExternalWorkKinds.MergeImageCaseCustody);
+
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        Assert.Equal(
+            "Customer's note (photo link): " + note,
+            Assert.Single(await StandingCaptureDriver.CaseEventReasonsAsync(factory, reachedCase, Pegasus.Core.Cases.AddCaseNote.EventType)));
+        Assert.True(await StandingCaptureDriver.FiledOnAsync(factory, firstPaperworkReceipt, reachedCase));
+        Assert.Equal(DocumentSemanticRole.Other, await KeptFileRoleAsync(factory, reachedCase, firstPaperwork.FileName));
+        Assert.Equal(1, await StandingCaptureDriver.PhotosReceivedCountAsync(factory, reachedCase));
+        Assert.False(await StandingCaptureDriver.FiledOnAsync(factory, secondPaperworkReceipt, reachedCase));
+        Assert.Equal(straightCase, (await StandingCaptureDriver.AssociationAsync(factory, secondPaperworkReceipt)).CaseId);
+        Assert.Equal(straightCase, (await StandingCaptureDriver.CaptureAsync(factory, started.Capture.Id)).CaseId);
+        var batches = await StandingCaptureDriver.BatchesAsync(factory, started.Capture.Id);
+        Assert.Equal(2, batches.Length);
+        Assert.Equal(reachedCase, batches[0].CaseId);
+        Assert.True(batches[0].ReachedAtUtc.HasValue, "The first batch's reach was not recorded.");
+        Assert.False(batches[0].BellOwedAtUtc.HasValue, "The reach's bell was left owed.");
+        Assert.Equal(straightCase, batches[1].CaseId);
+        Assert.False(batches[1].ReachedAtUtc.HasValue, "The later batch was recorded as reaching a Case through a record.");
+    }
+
+    /// <summary>
+    /// A batch with no photograph filed on its Case writes nothing there: its
+    /// only photo was linked by staff to another Case before the settle
+    /// matched the capture to this one, so the batch closes with no images
+    /// completed, no note and no bell.
+    /// </summary>
+    [Fact]
+    public async Task ABatchWithNoPhotographFiledOnItsCaseWritesNothingThere()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var started = await StandingCaptureDriver.StartAsync(factory, client, link, "XY99 ZZZ");
+        var photo = await StandingCaptureDriver.SendItemAsync(
+            factory, client, started, FirstOverview, MultiFormatFixture.Photograph(1), "image/jpeg");
+        var receiptId = await StandingCaptureDriver.DrainAsync(factory, photo);
+        var elsewhere = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory, sequence: 10);
+        await StandingCaptureDriver.LinkByStaffAsync(factory, receiptId, elsewhere);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await StandingCaptureDriver.SetCaseRegistrationAsync(factory, caseId, "XY99ZZZ");
+        await StandingCaptureDriver.AssignEngineerAsync(factory, caseId);
+        await StandingCaptureDriver.CompleteAsync(client, started.Token, "Please call before 5pm.");
+
+        await StandingCaptureDriver.SettleAsync(factory);
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        var capture = await StandingCaptureDriver.CaptureAsync(factory, started.Capture.Id);
+        Assert.Equal(1, capture.SettledBatches);
+        Assert.Equal(caseId, capture.CaseId);
+        Assert.False(capture.ImagesCompletedAtUtc.HasValue, "A batch with no photo on the Case spent the images-complete.");
+        var closed = Assert.Single(await StandingCaptureDriver.BatchesAsync(factory, started.Capture.Id));
+        Assert.Equal(caseId, closed.CaseId);
+        Assert.False(closed.BellOwedAtUtc.HasValue, "A batch with no photo on the Case owed a bell.");
+        Assert.False(await StandingCaptureDriver.FiledOnAsync(factory, receiptId, caseId));
+        Assert.Equal(elsewhere, (await StandingCaptureDriver.AssociationAsync(factory, receiptId)).CaseId);
+        Assert.False(await StandingCaptureDriver.ImagesCompleteAsync(factory, caseId));
+        Assert.Empty(await StandingCaptureDriver.CaseEventReasonsAsync(factory, caseId, EfPhotoCaptureCaseWriter.ImagesCompletedEventType));
+        Assert.Empty(await StandingCaptureDriver.CaseEventReasonsAsync(factory, caseId, Pegasus.Core.Cases.AddCaseNote.EventType));
+        Assert.Equal(0, await StandingCaptureDriver.PhotosReceivedCountAsync(factory, caseId));
+    }
+
+    /// <summary>
+    /// A record a member of staff merged takes its batch's kept paperwork as
+    /// that member of staff's decision, which files on a Case in any state
+    /// that is not archived (R790): here the Case's report was sent between
+    /// the merge and the settle.
+    /// </summary>
+    [Fact]
+    public async Task AStaffMergeFilesTheKeptPaperworkOnAReportSentCase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var started = await StandingCaptureDriver.StartAsync(factory, client, link, UnheldRegistration);
+        var (_, photographReceipts, paperwork) = await SendPhotographsAndPaperworkAsync(factory, client, started);
+        var paperworkReceipt = await ReceiptOfAsync(factory, paperwork);
+        await StandingCaptureDriver.CompleteAsync(client, started.Token);
+        await SettleAndReconcileAsync(factory);
+        var record = await StandingCaptureDriver.RecordForGroupAsync(
+            factory, PhotoCaptureIntakeRules.BatchGroupId(started.Capture.Id, 1));
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await CreateCaseCustodyRootAsync(factory, caseId);
+        await ImageIntakeTestData.ProcessImageCaseCustodyAsync(factory);
+        await MergeRecordIntoCaseAsync(factory, record.Id, photographReceipts, caseId);
+        await ImageIntakeTestData.ProcessCustodyAsync(factory, Pegasus.Core.Custody.ExternalWorkKinds.MergeImageCaseCustody);
+        await PhotoCaptureWebTests.MarkReportSentAsync(factory, caseId);
+
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        var association = await StandingCaptureDriver.AssociationAsync(factory, paperworkReceipt);
+        Assert.Equal(caseId, association.CaseId);
+        Assert.Equal(nameof(Pegasus.Core.Identity.ActorKind.Staff), association.ActorKind);
+        Assert.Equal(DevelopmentOfflineIdentity.AdministratorId, Guid.Parse(association.ActorSubjectId));
+        Assert.True(await StandingCaptureDriver.FiledOnAsync(factory, paperworkReceipt, caseId));
+        Assert.Equal(DocumentSemanticRole.Other, await KeptFileRoleAsync(factory, caseId, paperwork.FileName));
+    }
+
+    /// <summary>
+    /// A record Pegasus paired with a Case takes its batch's kept paperwork as
+    /// the routing's system work, not as any member of staff's decision; on an
+    /// open Case it files as Other and the bell rings once.
+    /// </summary>
+    [Fact]
+    public async Task APegasusPairingFilesTheKeptPaperworkAsTheRoutingsWork()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var started = await StandingCaptureDriver.StartAsync(factory, client, link, UnheldRegistration);
+        var (_, _, paperwork) = await SendPhotographsAndPaperworkAsync(factory, client, started);
+        var paperworkReceipt = await ReceiptOfAsync(factory, paperwork);
+        await StandingCaptureDriver.CompleteAsync(client, started.Token);
+        await SettleAndReconcileAsync(factory);
+        var groupId = PhotoCaptureIntakeRules.BatchGroupId(started.Capture.Id, 1);
+        Assert.Equal("awaiting_instruction", (await StandingCaptureDriver.RecordForGroupAsync(factory, groupId)).LifecycleState);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        await StandingCaptureDriver.SetCaseRegistrationAsync(factory, caseId, "ZZ99QQQ");
+        await CreateCaseCustodyRootAsync(factory, caseId);
+        await StandingCaptureDriver.AssignEngineerAsync(factory, caseId);
+        await ImageIntakeTestData.ProcessImageCaseCustodyAsync(factory);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            // The pairing a newly accepted Case runs.
+            await scope.ServiceProvider.GetRequiredService<Pegasus.Core.ImageIntake.IImageIntakeCasePairing>()
+                .PairAcceptedCaseAsync(caseId, CancellationToken.None);
+        }
+
+        Assert.Equal(caseId, (await StandingCaptureDriver.RecordForGroupAsync(factory, groupId)).MergedIntoCaseId);
+        await ImageIntakeTestData.ProcessCustodyAsync(factory, Pegasus.Core.Custody.ExternalWorkKinds.MergeImageCaseCustody);
+
+        await StandingCaptureDriver.SettleAsync(factory);
+
+        var association = await StandingCaptureDriver.AssociationAsync(factory, paperworkReceipt);
+        Assert.Equal(caseId, association.CaseId);
+        Assert.Equal(nameof(Pegasus.Core.Identity.ActorKind.SystemWorker), association.ActorKind);
+        Assert.Equal(PhotoCaptureIntakeRules.RoutingActorId, association.ActorSubjectId);
+        Assert.True(await StandingCaptureDriver.FiledOnAsync(factory, paperworkReceipt, caseId));
+        Assert.Equal(DocumentSemanticRole.Other, await KeptFileRoleAsync(factory, caseId, paperwork.FileName));
+        Assert.Equal(1, await StandingCaptureDriver.PhotosReceivedCountAsync(factory, caseId));
+    }
+
+    /// <summary>
+    /// Recording a Case on a batch that has closed records nothing: the store
+    /// answers that it did not, and the capture keeps no Case.
+    /// </summary>
+    [Fact]
+    public async Task RecordingACaseOnAClosedBatchRecordsNothing()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var started = await StandingCaptureDriver.StartAsync(factory, client, link, UnheldRegistration);
+        var photo = await StandingCaptureDriver.SendItemAsync(
+            factory, client, started, FirstOverview, MultiFormatFixture.Photograph(1), "image/jpeg");
+        await StandingCaptureDriver.DrainAsync(factory, photo);
+        await StandingCaptureDriver.CompleteAsync(client, started.Token);
+        await SettleAndReconcileAsync(factory);
+        Assert.Equal(1, (await StandingCaptureDriver.CaptureAsync(factory, started.Capture.Id)).SettledBatches);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+
+        PhotoCaptureCaseRecorded recorded;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            recorded = await scope.ServiceProvider.GetRequiredService<IPhotoCaptureStore>().RecordCaseAsync(
+                started.Capture.Id, batch: 1, caseId, RoutePhotoCapture.SingleEligibleCase, CancellationToken.None);
+        }
+
+        Assert.False(recorded.Changed, "A Case was recorded on a batch that had closed.");
+        var capture = await StandingCaptureDriver.CaptureAsync(factory, started.Capture.Id);
+        Assert.False(capture.CaseId.HasValue, "The capture took a Case for a closed batch.");
+        Assert.Equal(PhotoCaptureDestination.VehicleImages, capture.Destination);
+    }
+
+    /// <summary>The processed receipt an item learned when its staged receipt was drained.</summary>
+    private static async Task<Guid> ReceiptOfAsync(IntakeWebApplicationFactory factory, PhotoCaptureItem item)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var current = await scope.ServiceProvider.GetRequiredService<IPhotoCaptureStore>()
+            .FindItemAsync(item.CaptureId, item.ClientItemId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The item was not found.");
+        return current.IntakeReceiptId
+            ?? throw new InvalidOperationException("The item did not learn its processed receipt.");
+    }
+
+    /// <summary>The role of the one document filed on the Case under the kept file's name.</summary>
+    private static async Task<DocumentSemanticRole> KeptFileRoleAsync(IntakeWebApplicationFactory factory, Guid caseId, string fileName)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        return Assert.Single(await (from occurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                                    join version in db.Set<DocumentVersionEntity>().AsNoTracking() on occurrence.VersionId equals version.Id
+                                    where occurrence.CaseId == caseId && version.FileName == fileName
+                                    select occurrence.SemanticRole).ToListAsync());
     }
 
     /// <summary>
@@ -1056,5 +1308,69 @@ internal static class StandingCaptureDriver
     {
         await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
         return await db.ImageIntakes.AsNoTracking().SingleAsync(value => value.SubmissionGroupId == groupId);
+    }
+
+    /// <summary>The capture's settled batches, as the close and the reach record them, in batch order.</summary>
+    internal static async Task<PhotoCaptureBatchEntity[]> BatchesAsync(IntakeWebApplicationFactory factory, Guid captureId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        return await db.PhotoCaptureBatches.AsNoTracking()
+            .Where(value => value.CaptureId == captureId)
+            .OrderBy(value => value.Batch)
+            .ToArrayAsync();
+    }
+
+    /// <summary>
+    /// Marks a closed batch's bell as owed, as a Worker that stopped between
+    /// the close and the ring leaves it.
+    /// </summary>
+    internal static async Task OweBellAsync(IntakeWebApplicationFactory factory, Guid captureId, int batch)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        Assert.Equal(1, await db.PhotoCaptureBatches
+            .Where(value => value.CaptureId == captureId && value.Batch == batch)
+            .ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.BellOwedAtUtc, (DateTimeOffset?)IntakeWebApplicationFactory.FixedUtcNow)));
+    }
+
+    /// <summary>Whether the receipt's evidence finished filing on the Case, as the filer records it.</summary>
+    internal static async Task<bool> FiledOnAsync(IntakeWebApplicationFactory factory, Guid receiptId, Guid caseId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        return await db.IntakeMutationHistory.AsNoTracking().AnyAsync(value =>
+            value.IntakeReceiptId == receiptId
+            && value.CaseId == caseId
+            && value.EventType == EfCaseFilingReplayStore.PromotionCompletedEventType);
+    }
+
+    /// <summary>The receipt's association with a Case, and who made it.</summary>
+    internal static async Task<IntakeManualAssociationEntity> AssociationAsync(IntakeWebApplicationFactory factory, Guid receiptId)
+    {
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        return await db.IntakeManualAssociations.AsNoTracking().SingleAsync(value => value.IntakeReceiptId == receiptId);
+    }
+
+    /// <summary>A member of staff links the receipt to the Case from the Intake log, holding the Case's edit lease.</summary>
+    internal static async Task LinkByStaffAsync(IntakeWebApplicationFactory factory, Guid receiptId, Guid caseId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var workflow = await services.GetRequiredService<Pegasus.Core.Workflow.ICaseWorkflowQueries>()
+            .GetAsync(caseId, CancellationToken.None);
+        var lease = await services.GetRequiredService<Pegasus.Core.Workflow.ILeaseCaseForEdit>().ClaimAsync(
+            new(caseId, workflow!.Version, Administrator, $"photo-capture-staff-link-lease:{receiptId:N}"),
+            CancellationToken.None);
+        var receipt = await services.GetRequiredService<IIntakeReceiptQueries>().GetAsync(receiptId, CancellationToken.None);
+        await services.GetRequiredService<ILinkIntake>().ExecuteAsync(
+            new(
+                receiptId,
+                caseId,
+                receipt!.Version,
+                lease.Version,
+                lease.Token,
+                Administrator,
+                $"photo-capture-staff-link:{receiptId:N}",
+                "Staff confirmed this photo belongs to another Case."),
+            CancellationToken.None);
     }
 }
