@@ -110,6 +110,26 @@ internal sealed class PhotoCaptureItemEntity
 }
 
 /// <summary>
+/// One settled batch of a capture, written by the close that settled it, so
+/// each batch keeps what happened to it after the capture moved on (FRD-28):
+/// the group a Vehicle images batch became, the Case it settled on or its
+/// record reached, when that reach was finished, and whether the Engineer's
+/// bell is still owed for it. The bell is set in the transaction that owes it
+/// and cleared once it has rung, so a settle stopped in between rings it on
+/// its next run.
+/// </summary>
+internal sealed class PhotoCaptureBatchEntity
+{
+    public Guid CaptureId { get; set; }
+    public int Batch { get; set; }
+    public Guid? SubmissionGroupId { get; set; }
+    public Guid? CaseId { get; set; }
+    public DateTimeOffset ClosedAtUtc { get; set; }
+    public DateTimeOffset? ReachedAtUtc { get; set; }
+    public DateTimeOffset? BellOwedAtUtc { get; set; }
+}
+
+/// <summary>
 /// A standing link: a contact's, or the one website link. It only starts
 /// captures; a replaced slug simply stops resolving.
 /// </summary>

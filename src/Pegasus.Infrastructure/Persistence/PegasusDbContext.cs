@@ -136,6 +136,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<PhotoCaptureEntity> PhotoCaptures => Set<PhotoCaptureEntity>();
     internal DbSet<PhotoCaptureTokenEntity> PhotoCaptureTokens => Set<PhotoCaptureTokenEntity>();
     internal DbSet<PhotoCaptureItemEntity> PhotoCaptureItems => Set<PhotoCaptureItemEntity>();
+    internal DbSet<PhotoCaptureBatchEntity> PhotoCaptureBatches => Set<PhotoCaptureBatchEntity>();
     internal DbSet<StandingPhotoLinkEntity> StandingPhotoLinks => Set<StandingPhotoLinkEntity>();
     internal DbSet<StandingPhotoLinkAddressEntity> StandingPhotoLinkAddresses => Set<StandingPhotoLinkAddressEntity>();
 

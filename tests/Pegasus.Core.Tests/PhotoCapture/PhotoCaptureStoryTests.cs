@@ -1,4 +1,5 @@
 using Pegasus.Core.Documents;
+using Pegasus.Core.Intake;
 using Pegasus.Core.PhotoCapture;
 
 namespace Pegasus.Core.Tests.PhotoCapture;
@@ -174,11 +175,24 @@ public sealed class PhotoCaptureStoryTests
     public void AnOriginalKeepsThePhotosNameAndTakesItsOwnExtension(string photo, string mediaType, string expected) =>
         Assert.Equal(expected, PhotoCaptureStory.OriginalFileName(photo, mediaType));
 
+    /// <summary>
+    /// What an item files as is its kind's: paperwork and video are Other in
+    /// any format, a JPEG of paperwork included, and a photograph declares
+    /// nothing and files as an image (operator, 9 November 2026; R803).
+    /// </summary>
     [Fact]
     public void PaperworkAndVideoFileAsOtherDocumentsAndPhotographsAsImages()
     {
-        Assert.Equal(DocumentSemanticRole.Other, PhotoCaptureStory.DeclaredDocumentType(PhotoCaptureItemKind.Video, "video/mp4"));
-        Assert.Equal(DocumentSemanticRole.Other, PhotoCaptureStory.DeclaredDocumentType(PhotoCaptureItemKind.Paperwork, "application/pdf"));
-        Assert.Null(PhotoCaptureStory.DeclaredDocumentType(PhotoCaptureItemKind.Paperwork, "image/jpeg"));
+        Assert.Equal(DocumentSemanticRole.Other, PhotoCaptureStory.DeclaredDocumentType(PhotoCaptureItemKind.Video));
+        Assert.Equal(DocumentSemanticRole.Other, PhotoCaptureStory.DeclaredDocumentType(PhotoCaptureItemKind.Paperwork));
+        Assert.Null(PhotoCaptureStory.DeclaredDocumentType(PhotoCaptureItemKind.Overview));
+        Assert.Null(PhotoCaptureStory.DeclaredDocumentType(PhotoCaptureItemKind.OtherVehicle));
+        Assert.Equal(
+            DocumentSemanticRole.Other,
+            IntakeCaseEvidenceRoles.ForPhotoCapture("image/jpeg", PhotoCaptureStory.DeclaredDocumentType(PhotoCaptureItemKind.Paperwork)));
+        Assert.Equal(
+            DocumentSemanticRole.Image,
+            IntakeCaseEvidenceRoles.ForPhotoCapture("image/jpeg", PhotoCaptureStory.DeclaredDocumentType(PhotoCaptureItemKind.Damage)));
+        Assert.Equal(DocumentSemanticRole.Other, IntakeCaseEvidenceRoles.ForPhotoCapture("application/pdf", null));
     }
 }

@@ -34,8 +34,13 @@ public sealed class ReceivePhotoCaptureItemTests
         Assert.Equal(DocumentSemanticRole.Other, source.DeclaredDocumentType);
     }
 
+    /// <summary>
+    /// Paperwork on a capture with no Case declares no Case and still its
+    /// kind's type, so it files as Other when the capture reaches a Case
+    /// (operator, 9 November 2026; R803).
+    /// </summary>
     [Fact]
-    public async Task AnItemWithNoCaseDeclaresNeitherACaseNorADocumentType()
+    public async Task AnItemWithNoCaseDeclaresNoCaseAndItsKindsDocumentType()
     {
         var read = Capture();
         var stored = Paperwork(batch: 1, ordinal: 0, declaredCaseId: null);
@@ -45,7 +50,7 @@ public sealed class ReceivePhotoCaptureItemTests
 
         var source = Assert.Single(staged);
         Assert.Null(source.DeclaredCaseId);
-        Assert.Null(source.DeclaredDocumentType);
+        Assert.Equal(DocumentSemanticRole.Other, source.DeclaredDocumentType);
     }
 
     private static PhotoCaptureItem Paperwork(int batch, int ordinal, Guid? declaredCaseId) =>

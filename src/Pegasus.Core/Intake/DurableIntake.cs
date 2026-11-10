@@ -384,7 +384,7 @@ public sealed class ReceiveIntake(
             MaximumExternalReceiptTokenLength,
             nameof(source.SourceIdentity.ExternalReceiptToken));
         ValidateLength(operationKey, MaximumOperationKeyLength, nameof(operationKey));
-        RequireDeclaredDocumentType(source.DeclaredCaseId, source.DeclaredDocumentType);
+        RequireDeclaredDocumentType(source.SourceIdentity.Channel, source.DeclaredCaseId, source.DeclaredDocumentType);
         if (source.Content.IsEmpty)
         {
             throw new InvalidDataException("The intake source is empty.");
@@ -547,15 +547,21 @@ public sealed class ReceiveIntake(
     /// <summary>
     /// A type chosen at upload belongs to a declared Case and is one the
     /// Upload page offers (<see cref="DocumentTypePolicy.UploadChoices"/>):
-    /// anything else is a malformed submission, refused before staging.
+    /// anything else is a malformed submission, refused before staging. A
+    /// photo link's file declares its type by its kind whether or not its
+    /// capture has a Case yet, so its paperwork and video file as Other when
+    /// they reach one (FRD-28; operator, 9 November 2026, R803).
     /// </summary>
-    internal static void RequireDeclaredDocumentType(Guid? declaredCaseId, DocumentSemanticRole? declaredDocumentType)
+    internal static void RequireDeclaredDocumentType(
+        IntakeSourceChannel channel,
+        Guid? declaredCaseId,
+        DocumentSemanticRole? declaredDocumentType)
     {
         if (declaredDocumentType is not { } type)
         {
             return;
         }
-        if (declaredCaseId is null)
+        if (declaredCaseId is null && channel != IntakeSourceChannel.PhotoCapture)
         {
             throw new ArgumentException(
                 "A document type chosen at upload needs the Case the upload was declared for.",
@@ -619,7 +625,7 @@ public sealed class ReceiveIntake(
             MaximumExternalReceiptTokenLength,
             nameof(source.SourceIdentity.ExternalReceiptToken));
         ValidateLength(operationKey, MaximumOperationKeyLength, nameof(operationKey));
-        RequireDeclaredDocumentType(source.DeclaredCaseId, source.DeclaredDocumentType);
+        RequireDeclaredDocumentType(source.SourceIdentity.Channel, source.DeclaredCaseId, source.DeclaredDocumentType);
         // The streamed path is the staff upload's and the photo link's (FRD-28):
         // both hand over one file whose bytes stay out of Web memory.
         if (source.SourceIdentity.Channel is not (IntakeSourceChannel.ManualUpload or IntakeSourceChannel.PhotoCapture))

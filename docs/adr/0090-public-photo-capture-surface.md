@@ -102,7 +102,7 @@ domain is a separate operator decision (EXT-19 stays retired).
 - The surface adds its tables and columns by two additive migrations:
   `PhotoCapture` (PhotoCaptures, PhotoCaptureTokens, PhotoCaptureItems,
   StandingPhotoLinks; `IntakeSubmissionGroups.DeclaredRegistration`) and
-  `PhotoCaptureSettleFacts` (StandingPhotoLinkAddresses;
+  `PhotoCaptureSettleFacts` (StandingPhotoLinkAddresses, PhotoCaptureBatches;
   `PhotoCaptures.ImagesCompletedAtUtc` and `QuickLinkFor`,
   `PhotoCaptureItems.DeclaredCaseId`,
   `IntakeSubmissionGroups.DeclaredIncidentDate`, and Send a photo link's

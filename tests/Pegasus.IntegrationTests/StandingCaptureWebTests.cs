@@ -121,10 +121,11 @@ public sealed class StandingCaptureWebTests
 
     /// <summary>
     /// Paperwork on a capture with no Case is taken, not refused: its staged
-    /// receipt declares no Case and so no document type (FRD-28).
+    /// receipt declares no Case, and declares its kind's type, Other, so it
+    /// files as Other when the capture reaches a Case (FRD-28; R803).
     /// </summary>
     [Fact]
-    public async Task PaperworkOnACaptureWithNoCaseIsTakenAndDeclaresNothing()
+    public async Task PaperworkOnACaptureWithNoCaseIsTakenAndDeclaresOnlyItsType()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -139,7 +140,7 @@ public sealed class StandingCaptureWebTests
         await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
         var staged = await db.IntakeStagedReceipts.AsNoTracking().SingleAsync(value => value.Id == stagedReceiptId);
         Assert.False(staged.DeclaredCaseId.HasValue, "Paperwork on a capture with no Case declared a Case.");
-        Assert.Null(staged.DeclaredDocumentType);
+        Assert.Equal(nameof(DocumentSemanticRole.Other), staged.DeclaredDocumentType);
     }
 
     /// <summary>

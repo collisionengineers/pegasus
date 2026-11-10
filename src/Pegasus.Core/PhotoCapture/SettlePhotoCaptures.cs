@@ -15,25 +15,30 @@ public sealed record SettlePhotoCapturesResult(int Examined, int Settled, int Re
 /// a photo and the sender has pressed Send, or the link has expired or was
 /// cancelled (operator, 9 November 2026; R792, R794).
 /// <para>
-/// A batch on a Case waits until every photo has filed on the Case, then the
-/// Case-side work runs: the Case's images complete once per capture, the
-/// sender's note is written once (a changed note is appended), the empty
-/// fields fill, and only then does the batch close and the Engineer's bell
-/// ring, once for the batch. An archived Case closes the batch with nothing
-/// written to it (R793). A Vehicle images batch waits until every photo is
-/// evaluated and is then matched again with the link's Principal and the
-/// typed accident date (R791): one eligible Case takes the batch straight
-/// onto that Case, with no group and no record; none or several close the
-/// batch as one submission group of its photographs, carrying the typed
+/// A batch on a Case waits until every photo has filed on the Case, or has
+/// ended for good without filing (<see cref="PhotoCaptureFiling"/>). When at
+/// least one photo filed, the Case-side work runs: the Case's images complete
+/// once per capture, the sender's note is written once (a changed note is
+/// appended), the empty fields fill. The close then commits the batch and,
+/// in its own transaction, records the Engineer's bell as owed; the bell
+/// rings after and is cleared once rung, so it is never lost. A batch with no
+/// photo filed, and one whose Case is archived (R793), closes with nothing
+/// written. A Vehicle images batch waits until every photo is evaluated and
+/// is then matched again with the link's Principal and the typed accident
+/// date (R791): one eligible Case takes the batch straight onto that Case,
+/// with no group and no record; none or several close the batch as one
+/// submission group of its evaluated photographs, carrying the typed
 /// registration and date, whose first member is re-driven to register the
-/// record. A capture whose record later reaches a Case finishes its Case-side
-/// work then, files its kept paperwork and video as Other (R803), records the
-/// Case and rings the bell once (R804).
+/// record. Each batch whose record later merges into a Case finishes there
+/// on its own: the note and the fill, its own kept paperwork and video filed
+/// as Other (R803), and the bell owed and rung once (R804).
 /// </para>
 /// <para>
-/// Every step is safe to repeat: the batch closes under the capture's lock
-/// and says when it already had; the images, the note, the fill and each
-/// link are keyed; and a capture that has to wait costs the next one nothing.
+/// Every step is safe to repeat: the close and the reach are recorded under
+/// the capture's lock and say when they already were; the images, the note,
+/// the fill and each link are keyed; a re-driven receipt replays its
+/// pipeline. Owed bells and reaches run before the walk, each with its own
+/// bound, so the waiting captures never starve them under the job's budget.
 /// </para>
 /// </summary>
 public sealed class SettlePhotoCaptures(
@@ -63,13 +68,90 @@ public sealed class SettlePhotoCaptures(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         var now = timeProvider.GetUtcNow();
-        var examined = 0;
-        var settled = 0;
+        var cutoff = IntakeEscapeWindow.LatestClosedStart(now);
+
+        // The bells earlier runs owed and the reaches first, each bounded on
+        // its own, then the walk; the walk's closes owe bells this run rings
+        // at its end.
+        var failures = await RingOwedAsync(maximumItems, cancellationToken);
+        var (reached, reachFailures) = await ReachAsync(maximumItems, now, cutoff, cancellationToken);
+        var (examined, settled, walkFailures) = await WalkAsync(maximumItems, now, cutoff, cancellationToken);
+        failures += reachFailures + walkFailures + await RingOwedAsync(maximumItems, cancellationToken);
+        return new(examined, settled, reached, failures);
+    }
+
+    /// <summary>Rings each owed bell, then clears it; a failure leaves it owed for the next run.</summary>
+    private async Task<int> RingOwedAsync(int maximumItems, CancellationToken cancellationToken)
+    {
+        var failures = 0;
+        foreach (var owed in await captures.ListBellsOwedAsync(maximumItems, cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                // A Case archived since the bell was owed is not rung for.
+                if (!owed.CaseArchived)
+                {
+                    await notifier.NotifyAsync(
+                        StaffNotificationCause.PhotosReceived,
+                        owed.CaseId,
+                        SettleActor,
+                        section: "files",
+                        owed.Registration,
+                        cancellationToken);
+                }
+
+                await captures.ClearBellAsync(owed.CaptureId, owed.Batch, cancellationToken);
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                failures++;
+            }
+        }
+
+        return failures;
+    }
+
+    private async Task<(int Reached, int Failures)> ReachAsync(
+        int maximumItems,
+        DateTimeOffset now,
+        DateTimeOffset cutoff,
+        CancellationToken cancellationToken)
+    {
         var reached = 0;
         var failures = 0;
+        foreach (var reach in await captures.ListBatchesReachingCaseAsync(maximumItems, cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                if (await ReachCaseAsync(reach, now, cutoff, cancellationToken))
+                {
+                    reached++;
+                }
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                failures++;
+            }
+        }
 
-        // Pages on past the captures that wait, so they never keep a ready
-        // one from its settle (F-R6c).
+        return (reached, failures);
+    }
+
+    /// <summary>
+    /// Pages on past the captures that wait, so they never keep a ready one
+    /// from its settle (F-R6c), until <paramref name="maximumItems"/> settled.
+    /// </summary>
+    private async Task<(int Examined, int Settled, int Failures)> WalkAsync(
+        int maximumItems,
+        DateTimeOffset now,
+        DateTimeOffset cutoff,
+        CancellationToken cancellationToken)
+    {
+        var examined = 0;
+        var settled = 0;
+        var failures = 0;
         PhotoCaptureSettleCursor? cursor = null;
         while (settled < maximumItems)
         {
@@ -80,7 +162,7 @@ public sealed class SettlePhotoCaptures(
                 examined++;
                 try
                 {
-                    if (await SettleAsync(candidate, now, cancellationToken))
+                    if (await SettleAsync(candidate, now, cutoff, cancellationToken))
                     {
                         settled++;
                         if (settled == maximumItems)
@@ -103,26 +185,14 @@ public sealed class SettlePhotoCaptures(
             cursor = new(page[^1].Capture.CreatedAtUtc, page[^1].Capture.Id);
         }
 
-        foreach (var candidate in await captures.ListSettledReachingCaseAsync(maximumItems, cancellationToken))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                if (await ReachCaseAsync(candidate, now, cancellationToken))
-                {
-                    reached++;
-                }
-            }
-            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-            {
-                failures++;
-            }
-        }
-
-        return new(examined, settled, reached, failures);
+        return (examined, settled, failures);
     }
 
-    private Task<bool> SettleAsync(PhotoCaptureSettleCandidate candidate, DateTimeOffset now, CancellationToken cancellationToken)
+    private Task<bool> SettleAsync(
+        PhotoCaptureSettleCandidate candidate,
+        DateTimeOffset now,
+        DateTimeOffset cutoff,
+        CancellationToken cancellationToken)
     {
         var capture = candidate.Capture;
         var batch = capture.CurrentBatch;
@@ -144,55 +214,71 @@ public sealed class SettlePhotoCaptures(
         return capture.Destination switch
         {
             PhotoCaptureDestination.Case when candidate.CaseId is { } caseId =>
-                SettleOnCaseAsync(candidate, caseId, now, cancellationToken),
-            PhotoCaptureDestination.VehicleImages => SettleVehicleImagesAsync(candidate, now, cancellationToken),
+                SettleOnCaseAsync(capture, caseId, candidate.CaseArchived, candidate.CaseIsTriage, now, cutoff, cancellationToken),
+            PhotoCaptureDestination.VehicleImages => SettleVehicleImagesAsync(capture, now, cutoff, cancellationToken),
             _ => Task.FromResult(false)
         };
     }
 
     /// <summary>
-    /// A batch on its Case: every receipt that waits is filed, and once each
-    /// photo has filed the Case-side work runs, the batch closes and the bell
-    /// rings for it.
+    /// A batch on its Case: every receipt not yet on the Case is linked and
+    /// every linked one whose filing has not started is re-driven; once each
+    /// photo has filed or ended for good, the Case-side work runs if any photo
+    /// filed, and the close, which checks the same again under its lock,
+    /// commits the batch with its bell owed.
     /// </summary>
     private async Task<bool> SettleOnCaseAsync(
-        PhotoCaptureSettleCandidate candidate,
+        PhotoCapture capture,
         Guid caseId,
+        bool caseArchived,
+        bool caseIsTriage,
         DateTimeOffset now,
+        DateTimeOffset cutoff,
         CancellationToken cancellationToken)
     {
-        var capture = candidate.Capture;
         var batch = capture.CurrentBatch;
-        if (candidate.CaseArchived)
+        if (caseArchived)
         {
             // The link is dead and the photos already filed stay (R793);
             // nothing more is written to an archived Case.
-            var archived = await captures.CloseBatchAsync(capture.Id, batch, now, group: null, cancellationToken);
+            var archived = await captures.CloseBatchAsync(
+                capture.Id, batch, new(now, cutoff, CaseId: null, Group: null, BellOwed: false, CaseSideNote: null), cancellationToken);
             return archived.Outcome == PhotoCaptureBatchClose.Closed;
         }
 
-        // A receipt that arrived before the capture had this Case (one the
-        // settle routed) files now, as the routing decided.
-        foreach (var item in candidate.Items.Where(item => item.Batch == batch && item.DeclaredCaseId != caseId))
+        var filings = await captures.ListBatchFilingsAsync(capture.Id, batch, caseId, cancellationToken);
+        if (await FileOnCaseAsync(
+                filings,
+                caseId,
+                PhotoCaptureIntakeRules.DeclaredDestinationDecider(capture),
+                PhotoCaptureIntakeRules.DeclaredDestinationReason(capture),
+                now,
+                cutoff,
+                cancellationToken))
         {
-            await FileOnCaseAsync(capture, item, caseId, now, cancellationToken);
+            filings = await captures.ListBatchFilingsAsync(capture.Id, batch, caseId, cancellationToken);
         }
 
-        if (!await captures.AllItemsSettledAsync(capture.Id, batch, caseId, cancellationToken))
+        if (!PhotoCaptureFiling.Settled(filings, caseId, cutoff))
         {
-            // A photo has not filed yet; the next tick looks again.
+            // A photo has not filed yet; the next run looks again.
             return false;
         }
 
-        await CaseSideAsync(candidate, capture, caseId, completeImages: true, cancellationToken);
-        var closed = await captures.CloseBatchAsync(capture.Id, batch, now, group: null, cancellationToken);
-        if (closed.Outcome != PhotoCaptureBatchClose.Closed)
+        // A batch with no photo on the Case writes nothing there and spends
+        // none of the capture's one images-complete.
+        var filed = PhotoCaptureFiling.AnyPhotographFiled(filings, caseId, cutoff);
+        if (filed)
         {
-            return false;
+            await CaseSideAsync(capture, caseId, caseIsTriage, completeImages: true, cancellationToken);
         }
 
-        await RingAsync(capture, caseId, cancellationToken);
-        return true;
+        var closed = await captures.CloseBatchAsync(
+            capture.Id,
+            batch,
+            new(now, cutoff, caseId, Group: null, BellOwed: filed, CaseSideNote: capture.Note),
+            cancellationToken);
+        return closed.Outcome == PhotoCaptureBatchClose.Closed;
     }
 
     /// <summary>
@@ -201,13 +287,14 @@ public sealed class SettlePhotoCaptures(
     /// Case takes it as a Case batch; none or several close it as one group.
     /// </summary>
     private async Task<bool> SettleVehicleImagesAsync(
-        PhotoCaptureSettleCandidate candidate,
+        PhotoCapture capture,
         DateTimeOffset now,
+        DateTimeOffset cutoff,
         CancellationToken cancellationToken)
     {
-        var capture = candidate.Capture;
         var batch = capture.CurrentBatch;
-        if (!await captures.AllItemsSettledAsync(capture.Id, batch, caseId: null, cancellationToken))
+        var filings = await captures.ListBatchFilingsAsync(capture.Id, batch, caseId: null, cancellationToken);
+        if (!PhotoCaptureFiling.Settled(filings, caseId: null, cutoff))
         {
             return false;
         }
@@ -220,19 +307,18 @@ public sealed class SettlePhotoCaptures(
         var decision = await routing.ExecuteAsync(registration, capture.IncidentDate, principalId, cancellationToken);
         if (decision is { Destination: PhotoCaptureDestination.Case, CaseId: { } matched })
         {
-            var recorded = await captures.RecordCaseAsync(
-                capture.Id, matched, decision.Reason, imagesCompletedAtUtc: null, cancellationToken);
-            // A capture that had its Case already is the next listing's Case batch.
+            // Recorded under the capture's lock, refused once the batch has
+            // closed, so two settles never split the batch.
+            var recorded = await captures.RecordCaseAsync(capture.Id, batch, matched, decision.Reason, cancellationToken);
             return recorded.Changed
-                && await SettleOnCaseAsync(
-                    candidate with { Capture = recorded.Capture, CaseId = matched, CaseArchived = false, CaseIsTriage = false },
-                    matched,
-                    now,
-                    cancellationToken);
+                && await SettleOnCaseAsync(recorded.Capture, matched, caseArchived: false, caseIsTriage: false, now, cutoff, cancellationToken);
         }
 
         var closed = await captures.CloseBatchAsync(
-            capture.Id, batch, now, new PhotoCaptureDeclaredGroup(registration, capture.IncidentDate), cancellationToken);
+            capture.Id,
+            batch,
+            new(now, cutoff, CaseId: null, new PhotoCaptureDeclaredGroup(registration, capture.IncidentDate), BellOwed: false, CaseSideNote: null),
+            cancellationToken);
         if (closed.Outcome != PhotoCaptureBatchClose.Closed)
         {
             return false;
@@ -242,10 +328,7 @@ public sealed class SettlePhotoCaptures(
         // complete, so only the group's routing runs, now with the whole
         // group present. Should it not run, the grouped-image sweep re-drives
         // the group.
-        var first = closed.Items
-            .Where(item => PhotoCaptureStory.IsPhotographKind(item.Kind) && item.StagedReceiptId is not null)
-            .MinBy(item => item.Ordinal);
-        if (first?.StagedReceiptId is { } firstStaged)
+        if (closed.Members.MinBy(item => item.Ordinal)?.StagedReceiptId is { } firstStaged)
         {
             await processQueuedIntake.ProcessAsync(firstStaged, cancellationToken);
         }
@@ -254,83 +337,105 @@ public sealed class SettlePhotoCaptures(
     }
 
     /// <summary>
-    /// A settled capture whose Vehicle images record reached a Case: the
-    /// note and the fill, its kept paperwork and video filed as Other
-    /// (R803), then the Case recorded on the capture with its images marker,
-    /// the fold having completed the images; the bell rings once, when the
-    /// Case is recorded (R804). An archived Case is recorded and nothing is
-    /// written to it.
+    /// A batch whose record merged into a Case: its own kept paperwork and
+    /// video are linked as the decision that took the record there (the
+    /// member of staff who chose the Case, or Pegasus's pairing) and
+    /// re-driven so they file as Other (R803); once each has a receipt and is
+    /// linked, the note and the fill run, and the reach is recorded with its
+    /// bell owed (R804). The record's merge completed the images. An archived
+    /// Case is recorded and nothing is written to it.
     /// </summary>
     private async Task<bool> ReachCaseAsync(
-        PhotoCaptureSettleCandidate candidate,
+        PhotoCaptureBatchReach reach,
         DateTimeOffset now,
+        DateTimeOffset cutoff,
         CancellationToken cancellationToken)
     {
-        if (candidate.CaseId is not { } caseId)
+        var capture = reach.Capture;
+        if (!reach.CaseArchived)
         {
-            return false;
-        }
-
-        var capture = candidate.Capture;
-        if (!candidate.CaseArchived)
-        {
-            await CaseSideAsync(candidate, capture, caseId, completeImages: false, cancellationToken);
-            foreach (var item in candidate.Items.Where(item =>
-                         !PhotoCaptureStory.IsPhotographKind(item.Kind) && item.DeclaredCaseId is null))
+            var decider = reach.RecordLinkedByStaffId is { } staffId
+                ? ActionActor.Staff(staffId, [StaffRole.User])
+                : ActionActor.SystemWorker(PhotoCaptureIntakeRules.RoutingActorId);
+            var reason = reach.RecordLinkedByStaffId is not null && !string.IsNullOrWhiteSpace(reach.RecordLinkReason)
+                ? reach.RecordLinkReason
+                : PhotoCaptureIntakeRules.RoutedDestinationReason;
+            var kept = (await captures.ListBatchFilingsAsync(capture.Id, reach.Batch, reach.CaseId, cancellationToken))
+                .Where(filing => !PhotoCaptureStory.IsPhotographKind(filing.Item.Kind))
+                .ToArray();
+            if (await FileOnCaseAsync(kept, reach.CaseId, decider, reason, now, cutoff, cancellationToken))
             {
-                await FileOnCaseAsync(capture, item, caseId, now, cancellationToken);
+                kept = (await captures.ListBatchFilingsAsync(capture.Id, reach.Batch, reach.CaseId, cancellationToken))
+                    .Where(filing => !PhotoCaptureStory.IsPhotographKind(filing.Item.Kind))
+                    .ToArray();
             }
+
+            if (!PhotoCaptureFiling.Settled(kept, reach.CaseId, cutoff))
+            {
+                // A kept file has no receipt yet, or is not yet linked.
+                return false;
+            }
+
+            await CaseSideAsync(capture, reach.CaseId, reach.CaseIsTriage, completeImages: false, cancellationToken);
         }
 
-        var recorded = await captures.RecordCaseAsync(
-            capture.Id, caseId, routingReason: null, imagesCompletedAtUtc: now, cancellationToken);
-        if (!recorded.Changed)
-        {
-            return false;
-        }
-
-        if (!candidate.CaseArchived)
-        {
-            await RingAsync(capture, caseId, cancellationToken);
-        }
-
-        return true;
+        return await captures.RecordBatchReachedAsync(
+            capture.Id, reach.Batch, reach.CaseId, bellOwed: !reach.CaseArchived, now, cancellationToken);
     }
 
     /// <summary>
-    /// Links one received item to the Case as its capture's declared
-    /// destination, decided as the capture's own items are
-    /// (<see cref="PhotoCaptureIntakeRules.DeclaredDestinationDecider"/>), and
-    /// re-drives it so it files. Keyed by receipt and Case: a repeat changes
-    /// nothing, and a receipt someone else linked first keeps that link.
+    /// Links each item not yet on any Case to <paramref name="caseId"/> as the
+    /// given decider's decision, keyed by receipt and Case, and re-drives
+    /// each item now linked there whose filing has not started, its link's
+    /// or an earlier run's: the pipeline's processing replays safely and
+    /// files a linked receipt. Answers whether anything was linked or
+    /// re-driven, so the caller reads the batch again.
     /// </summary>
-    private async Task FileOnCaseAsync(
-        PhotoCapture capture,
-        PhotoCaptureItem item,
+    private async Task<bool> FileOnCaseAsync(
+        IReadOnlyList<PhotoCaptureItemFiling> filings,
         Guid caseId,
+        ActionActor decider,
+        string reason,
         DateTimeOffset now,
+        DateTimeOffset cutoff,
         CancellationToken cancellationToken)
     {
-        if (item.IntakeReceiptId is not { } receiptId || item.StagedReceiptId is not { } stagedReceiptId)
+        var acted = false;
+        foreach (var filing in filings)
         {
-            // Not evaluated yet: the batch waits for it, and a later tick links it.
-            return;
+            if (filing.Item.IntakeReceiptId is not { } receiptId || filing.Item.StagedReceiptId is not { } stagedReceiptId)
+            {
+                continue;
+            }
+
+            var state = PhotoCaptureFiling.StateOf(filing, caseId, cutoff);
+            if (state == PhotoCaptureFilingState.Unlinked)
+            {
+                var outcome = await mutations.LinkDeclaredDestinationAsync(
+                    new(
+                        receiptId,
+                        caseId,
+                        decider,
+                        string.Create(CultureInfo.InvariantCulture, $"photo-capture-route:{receiptId:N}:{caseId:N}"),
+                        reason),
+                    now,
+                    cancellationToken);
+                acted = true;
+                if (outcome is not (DeclaredDestinationLinkOutcome.Linked or DeclaredDestinationLinkOutcome.AlreadyLinked))
+                {
+                    continue;
+                }
+            }
+            else if (state != PhotoCaptureFilingState.Linked)
+            {
+                continue;
+            }
+
+            await processQueuedIntake.ProcessAsync(stagedReceiptId, cancellationToken);
+            acted = true;
         }
 
-        var outcome = await mutations.LinkDeclaredDestinationAsync(
-            new(
-                receiptId,
-                caseId,
-                PhotoCaptureIntakeRules.DeclaredDestinationDecider(capture),
-                string.Create(CultureInfo.InvariantCulture, $"photo-capture-route:{receiptId:N}:{caseId:N}"),
-                PhotoCaptureIntakeRules.DeclaredDestinationReason(capture)),
-            now,
-            cancellationToken);
-        if (outcome == DeclaredDestinationLinkOutcome.Linked)
-        {
-            // The completed receipt's replay files its associated evidence.
-            await processQueuedIntake.ProcessAsync(stagedReceiptId, cancellationToken);
-        }
+        return acted;
     }
 
     /// <summary>
@@ -340,9 +445,9 @@ public sealed class SettlePhotoCaptures(
     /// A Triage Case keeps no Notes, so it takes no note.
     /// </summary>
     private async Task CaseSideAsync(
-        PhotoCaptureSettleCandidate candidate,
         PhotoCapture capture,
         Guid caseId,
+        bool caseIsTriage,
         bool completeImages,
         CancellationToken cancellationToken)
     {
@@ -356,7 +461,7 @@ public sealed class SettlePhotoCaptures(
                 cancellationToken);
         }
 
-        if (!candidate.CaseIsTriage && !string.IsNullOrWhiteSpace(capture.Note))
+        if (!caseIsTriage && !string.IsNullOrWhiteSpace(capture.Note))
         {
             var note = "Customer's note (photo link): " + capture.Note;
             await addCaseNote.ExecuteAsync(
@@ -380,15 +485,6 @@ public sealed class SettlePhotoCaptures(
         }
     }
 
-    private Task<StaffNotification?> RingAsync(PhotoCapture capture, Guid caseId, CancellationToken cancellationToken) =>
-        notifier.NotifyAsync(
-            StaffNotificationCause.PhotosReceived,
-            caseId,
-            SettleActor,
-            section: "files",
-            capture.NormalizedRegistration,
-            cancellationToken);
-
     /// <summary>
     /// The note's key: the same wording sent again replays, and a changed
     /// note is a new key, so it is appended (R792).
@@ -403,6 +499,90 @@ public sealed class SettlePhotoCaptures(
         items.Any(item => item.Batch == batch
             && item.StagedReceiptId is null
             && item.ReceivedAtUtc > now - UploadInFlightGrace);
+}
+
+/// <summary>
+/// Where a batch's received items stand against the Case it settles on, and
+/// whether the batch may close (FRD-28). A batch on a Case settles when every
+/// photo in it has filed in Box (operator, 9 November 2026; R792). A photo
+/// whose filing has ended for good without filing no longer holds its batch
+/// open, and the batch settles on the photos that did file: its work failed
+/// for good, its association was withdrawn or moved to another Case, its last
+/// filing replay was exhausted, or Pegasus made its link and the replay
+/// window (<see cref="IntakeEscapeWindow"/>) has closed, after which nothing
+/// files it. This is the lead's reading of R792 for a photo that can never
+/// file, pending the operator. Paperwork and video in a batch on a Case hold
+/// it only until each has a receipt and is linked; a Vehicle images batch
+/// waits only for its photos' evaluation.
+/// </summary>
+public static class PhotoCaptureFiling
+{
+    public static PhotoCaptureFilingState StateOf(PhotoCaptureItemFiling filing, Guid? caseId, DateTimeOffset systemFilingCutoff)
+    {
+        ArgumentNullException.ThrowIfNull(filing);
+        if (filing.Item.IntakeReceiptId is null)
+        {
+            return filing.WorkFailed ? PhotoCaptureFilingState.Failed : PhotoCaptureFilingState.Pending;
+        }
+
+        if (caseId is not { } onCase)
+        {
+            return filing.WorkFailed ? PhotoCaptureFilingState.Failed : PhotoCaptureFilingState.Evaluated;
+        }
+
+        if (filing.Filed)
+        {
+            return PhotoCaptureFilingState.Filed;
+        }
+
+        if (filing.WorkFailed)
+        {
+            return PhotoCaptureFilingState.Failed;
+        }
+
+        if (filing.Link is not { } link)
+        {
+            return PhotoCaptureFilingState.Unlinked;
+        }
+
+        if (!link.IsActive || link.CaseId != onCase)
+        {
+            return PhotoCaptureFilingState.Elsewhere;
+        }
+
+        if (filing.FilingExhaustedAtUtc > link.LinkedAtUtc
+            || (link.BySystem && link.LinkedAtUtc <= systemFilingCutoff))
+        {
+            return PhotoCaptureFilingState.Ended;
+        }
+
+        return filing.FilingStarted ? PhotoCaptureFilingState.Filing : PhotoCaptureFilingState.Linked;
+    }
+
+    /// <summary>Whether an item in this state holds its batch open.</summary>
+    public static bool Holds(PhotoCaptureFilingState state, PhotoCaptureItemKind kind, bool onCase) =>
+        PhotoCaptureStory.IsPhotographKind(kind)
+            ? state is PhotoCaptureFilingState.Pending
+                or PhotoCaptureFilingState.Unlinked
+                or PhotoCaptureFilingState.Linked
+                or PhotoCaptureFilingState.Filing
+            : onCase && state is PhotoCaptureFilingState.Pending or PhotoCaptureFilingState.Unlinked;
+
+    /// <summary>Whether no received item holds the batch open.</summary>
+    public static bool Settled(IEnumerable<PhotoCaptureItemFiling> filings, Guid? caseId, DateTimeOffset systemFilingCutoff)
+    {
+        ArgumentNullException.ThrowIfNull(filings);
+        return !filings.Any(filing =>
+            Holds(StateOf(filing, caseId, systemFilingCutoff), filing.Item.Kind, caseId is not null));
+    }
+
+    /// <summary>Whether at least one photograph of the batch has filed on the Case.</summary>
+    public static bool AnyPhotographFiled(IEnumerable<PhotoCaptureItemFiling> filings, Guid caseId, DateTimeOffset systemFilingCutoff)
+    {
+        ArgumentNullException.ThrowIfNull(filings);
+        return filings.Any(filing => PhotoCaptureStory.IsPhotographKind(filing.Item.Kind)
+            && StateOf(filing, caseId, systemFilingCutoff) == PhotoCaptureFilingState.Filed);
+    }
 }
 
 /// <summary>
