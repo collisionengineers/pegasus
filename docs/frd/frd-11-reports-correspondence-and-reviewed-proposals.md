@@ -414,7 +414,15 @@ for the send, the report included, the stem alone, since every delivered
 document ends in `.pdf`, and Reset restores the policy name. A rename holds
 for that send only: the next send starts on the policy name again. The
 Case's filed estimates attach under the names they were filed with and are
-not renamed (operator, 4 November 2026, R665, R671, R672). The delivery
+not renamed (operator, 4 November 2026, R665, R671, R672). A name staff give
+follows custody's rule: a character no file name can hold becomes `_`, and
+the whole name, `.pdf` included, is at most 120 characters; a longer one is
+refused with "A file name cannot exceed 120 characters." No two attachments
+of one send share a name, case ignored: a later document whose name an
+earlier attachment already carries gains " (2)", " (3)" and so on before
+`.pdf`, its stem shortened to keep within 120 characters, and since a filed
+estimate keeps its filed name, a document carrying it is the one numbered
+(operator, 10 November 2026; [R883](../rulings.md), [R884](../rulings.md)). The delivery
 carries one covering message, which starts as
 the Case report delivery template
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) rendered for
@@ -433,8 +441,12 @@ reply to the Case's instruction email, the retained mailbox message the
 Case's origin receipt came from; its subject starts as "Re:" and the
 instruction's subject. The composer's Subject field is prefilled with that
 derived subject and staff may change it; what they submit is sent, trimmed,
-at most 500 characters as the Triage composer's Subject is, and a field left
-blank sends the derived subject (operator, 4 November 2026, R667, R670). The form's From is a choice of every send-ready
+and a field left blank sends the derived subject (operator, 4 November 2026,
+R667, R670). A line break in a subject becomes a space. The 500-character
+bound of the Triage composer's Subject is on a subject staff changed: one
+refused for it reads "A subject cannot exceed 500 characters.", while the
+derived subject, left as prefilled or blank, is sent however long it is
+(operator, 10 November 2026; R670, [R885](../rulings.md)). The form's From is a choice of every send-ready
 Outgoing mailbox, starting on the approved mailbox the instruction arrived in
 while that mailbox is Outgoing and can send; staff may change it, and a
 report from another mailbox still answers the instruction, as a new message

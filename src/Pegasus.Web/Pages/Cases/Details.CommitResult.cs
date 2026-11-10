@@ -174,7 +174,7 @@ public sealed partial class DetailsModel
             }
             CurrentReportGeneration = await generation;
             OtherReportGeneration = otherGeneration is null ? null : await otherGeneration;
-            OriginalReport = await ReadOriginalReportAsync(id, cancellationToken);
+            OriginalReport = ReadOriginalReport();
             AiDrafts = AiDraftPolicy.Drafts(await caseAiJobs, Case.Data.RequiredAiDraftTargetDays);
             if (activeLease is not null)
             {

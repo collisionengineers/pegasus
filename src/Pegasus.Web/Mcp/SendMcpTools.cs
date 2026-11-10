@@ -28,7 +28,7 @@ internal sealed record ReportSendToolResult(
     string OperationKey,
     string CorrelationId,
     [property: Description("The other work's report generation the same e-mail carried, when otherReport was asked for.")] Guid? OtherGenerationId = null,
-    [property: Description("The file names the e-mail carries, in order: the report and the companion documents attached, the other work's report and its documents when otherReport was asked for, and the filed estimates the Principal's rules attach. Report what was sent from this list, not from what was asked for.")] IReadOnlyList<string>? Attachments = null);
+    [property: Description("The file names the e-mail carries, in order: the report and the companion documents attached, the filed estimates the Principal's rules attach, then the other work's report and its documents when otherReport was asked for. Report what was sent from this list, not from what was asked for.")] IReadOnlyList<string>? Attachments = null);
 
 internal sealed record MailSendToolResult(
     [property: Description("The send operation; replaying the same operation key with the same content returns it.")] Guid OperationId,
@@ -98,8 +98,8 @@ internal sealed class SendMcpTools(
         [Description("The other report's companion documents, as attach takes them; omit for every confirmed document its generation holds, or give an empty list for its report alone. Read only with otherReport.")] string[]? otherAttach = null,
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one send.")] string? editLeaseToken = null,
         [Description("The address of the Outgoing approved mailbox to send from; omit for the default: the approved mailbox the instruction e-mail arrived in (for a staff forward held in instructions@, the mailbox that forwarded it), else the Principal's Send from.")] string? fromMailbox = null,
-        [Description("The e-mail's subject, as the Case page's Subject field takes it (at most 500 characters); omit for the derived subject: Re: and the instruction's subject, else the registration and Report.")] string? subject = null,
-        [Description("Names for this report's documents in the send, keyed by kind (AssessmentReport, FeeNote, RepairSpecification, ImagePack), each ending in .pdf; a kind not named attaches under its delivery name. Filed estimates keep their filed names.")] Dictionary<string, string>? attachmentNames = null,
+        [Description("The e-mail's subject, as the Case page's Subject field takes it: a subject other than the derived one is at most 500 characters, and a line break becomes a space; omit for the derived subject: Re: and the instruction's subject, else the registration and Report.")] string? subject = null,
+        [Description("Names for this report's documents in the send, keyed by kind (AssessmentReport, FeeNote, RepairSpecification, ImagePack), each ending in .pdf and at most 120 characters with it; a character no file name can hold becomes _. A kind not named, or named blank, attaches under its delivery name. Filed estimates keep their filed names; a document given a name another attachment of the send already carries is numbered, as Name (2).pdf.")] Dictionary<string, string>? attachmentNames = null,
         [Description("Names for the other report's documents, as attachmentNames takes them. Read only with otherReport.")] Dictionary<string, string>? otherAttachmentNames = null,
         CancellationToken cancellationToken = default)
     {
@@ -116,6 +116,7 @@ internal sealed class SendMcpTools(
                 var actor = context.Actor;
                 var selector = ParseWork(work);
                 var kinds = ParseAttach(attach);
+                var names = ParseAttachmentNames(attachmentNames);
                 ReportRecipientReview? review = to is null && cc is null
                     ? null
                     : new(
@@ -174,7 +175,7 @@ internal sealed class SendMcpTools(
                                 from?.Id,
                                 second,
                                 Subject: subject,
-                                AttachmentNames: ParseAttachmentNames(attachmentNames)),
+                                AttachmentNames: names),
                             cancellationToken),
                         cancellationToken);
                 }
@@ -640,15 +641,35 @@ internal sealed class SendMcpTools(
                 .Distinct()
                 .ToArray();
 
-    private static Dictionary<CaseReportArtifactKind, string>? ParseAttachmentNames(Dictionary<string, string>? names) =>
-        names is null
-            ? null
-            : names.ToDictionary(
-                pair => pair.Key is not null
-                    && Enum.GetNames<CaseReportArtifactKind>().Contains(pair.Key.Trim(), StringComparer.Ordinal)
-                        ? Enum.Parse<CaseReportArtifactKind>(pair.Key.Trim())
-                        : throw new McpException("attachmentNames is keyed by AssessmentReport, FeeNote, RepairSpecification and ImagePack."),
-                pair => pair.Value);
+    /// <summary>
+    /// The names a caller gave a report's documents, as the Case page posts
+    /// them: a blank name keeps the document's delivery name, and one kind is
+    /// named once.
+    /// </summary>
+    private static Dictionary<CaseReportArtifactKind, string>? ParseAttachmentNames(Dictionary<string, string>? names)
+    {
+        if (names is null)
+        {
+            return null;
+        }
+        var parsed = new Dictionary<CaseReportArtifactKind, string>();
+        foreach (var (key, name) in names)
+        {
+            var kind = key is not null
+                && Enum.GetNames<CaseReportArtifactKind>().Contains(key.Trim(), StringComparer.Ordinal)
+                    ? Enum.Parse<CaseReportArtifactKind>(key.Trim())
+                    : throw new McpException("attachmentNames is keyed by AssessmentReport, FeeNote, RepairSpecification and ImagePack.");
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+            if (!parsed.TryAdd(kind, name))
+            {
+                throw new McpException($"attachmentNames names {kind} more than once.");
+            }
+        }
+        return parsed.Count == 0 ? null : parsed;
+    }
 
     private static CaseWorkSelector ParseWork(string? work) => work?.Trim() switch
     {

@@ -427,6 +427,15 @@ public sealed class StaffMailSendTests
             readiness, send).SendAsync(new(mail with { Attachments = [changedContent] }, report),
             CancellationToken.None));
 
+        // A delivery name keeps custody's bound, .pdf included (R883).
+        var overLong = deliveryAttachment with
+        {
+            FileName = new string('n', CaseReportDeliveryNaming.MaximumFileNameLength - 3) + ".pdf"
+        };
+        await Assert.ThrowsAsync<ArgumentException>(() => new StaffReportSend(
+            readiness, send).SendAsync(new(mail with { Attachments = [overLong] }, report),
+            CancellationToken.None));
+
         var companion = custodyAttachment with
         {
             DocumentId = Guid.NewGuid(),

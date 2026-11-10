@@ -1471,7 +1471,7 @@ public sealed partial class DetailsModel(
             : await otherHistory;
         ReportDeliveryMessage = await RenderReportDeliveryMessageAsync(actor, cancellationToken);
         ApplyReportDeliverySubject();
-        OriginalReport = await ReadOriginalReportAsync(id, cancellationToken);
+        OriginalReport = ReadOriginalReport();
         // A refused send lands back here with the dialog open on its notice
         // (v48 item N), only where the page offers the send.
         OpenDialog = EstimateDialogOf(dialog)

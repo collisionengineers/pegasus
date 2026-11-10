@@ -230,6 +230,9 @@ public sealed class EfCaseReportGenerationStore(
                     naming.AuditReportNameResend),
                 CaseTypeCodes.Parse(naming.Type),
                 reportInputs.WorkKind) + CaseReportDeliveryNaming.Extension,
+            // The guide the Engineer's Value came from, as the Original
+            // report card names it (R666, R886).
+            EngineerValueGuide = reportInputs.EngineerValueGuide,
         };
         var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken).ConfigureAwait(false);
         if (!await SignatoryMatchesAsync(context, snapshot, CaseSignOffEngineerResolver.Resolve(

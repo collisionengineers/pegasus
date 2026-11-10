@@ -177,7 +177,7 @@ public sealed class StaffReportSend(
             && frozen.Zip(prepared).All(pair =>
                 pair.First with { FileName = pair.Second.FileName } == pair.Second
                 && (string.Equals(pair.First.FileName, pair.Second.FileName, StringComparison.Ordinal)
-                    || (pair.Second.FileName is { Length: > 4 } deliveryFileName
+                    || (pair.Second.FileName is { Length: > 4 and <= CaseReportDeliveryNaming.MaximumFileNameLength } deliveryFileName
                         && deliveryFileName.EndsWith(".pdf", StringComparison.Ordinal)
                         && !string.IsNullOrWhiteSpace(
                             deliveryFileName[..^".pdf".Length]))));
