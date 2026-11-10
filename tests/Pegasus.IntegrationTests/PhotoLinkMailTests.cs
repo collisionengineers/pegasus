@@ -3,7 +3,7 @@ using Pegasus.Web.Pages.PhotoCapture;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>The photo link e-mail's subject (FRD-28 The photo link e-mail; R788).</summary>
-public sealed class PhotoLinkMailTests
+public sealed partial class PhotoLinkMailTests
 {
     [Fact]
     public void TheSubjectNamesTheVehicleForCollisionEngineers() =>

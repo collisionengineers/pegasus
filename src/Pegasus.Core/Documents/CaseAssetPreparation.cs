@@ -141,7 +141,21 @@ public sealed record CaseAssetPreparation(
     /// current and not removed, so the report can print it.
     /// </summary>
     public required bool CanPrint { get; init; }
+
+    /// <summary>
+    /// The image's place in the story of the photo link that sent it; null
+    /// for an image from any other channel. It orders the image only while
+    /// nobody has ordered it (R854).
+    /// </summary>
+    public CaseAssetStoryPlace? Story { get; init; }
 }
+
+/// <summary>
+/// Where a photo link's photograph stands in its capture's story: the
+/// capture, then its batch, story group, story sequence and ordinal, the
+/// order the link's own story is told in (FRD-28).
+/// </summary>
+public sealed record CaseAssetStoryPlace(Guid CaptureId, int Batch, int Group, int Sequence, int Ordinal);
 
 /// <summary>
 /// One requested change to a single occurrence's preparation, guarded by its
@@ -368,16 +382,56 @@ public static class CaseAssetPreparationPolicy
     /// <summary>
     /// The images in the report in the order staff set, which is the order
     /// the gallery shows. Those not yet ordered follow the ordered ones in
-    /// the order they arrived, then by file name.
+    /// the order they arrived, then by file name; except that a photo link's
+    /// photos nobody has ordered yet follow the link's story, as one block
+    /// standing where its first photo arrived. An order an engineer set is
+    /// never changed, and other channels keep arrival order (operator, 10
+    /// November 2026; R854).
     /// </summary>
-    private static List<CaseAssetPreparation> InReportOrder(IEnumerable<CaseAssetPreparation> inReport) =>
-    [
-        .. inReport
-            .OrderBy(item => item.Order ?? int.MaxValue)
+    private static List<CaseAssetPreparation> InReportOrder(IEnumerable<CaseAssetPreparation> inReport)
+    {
+        var items = inReport.ToArray();
+        var ordered = items
+            .Where(item => item.Order is not null)
+            .OrderBy(item => item.Order)
             .ThenBy(item => item.RecordedAtUtc)
             .ThenBy(item => item.SourceFileName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.OccurrenceId);
+        var arrived = items
+            .Where(item => item.Order is null)
+            .OrderBy(item => item.RecordedAtUtc)
+            .ThenBy(item => item.SourceFileName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.OccurrenceId)
-    ];
+            .ToArray();
+        var stories = arrived
+            .Where(item => item.Story is not null)
+            .GroupBy(item => item.Story!.CaptureId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderBy(item => item.Story!.Batch)
+                    .ThenBy(item => item.Story!.Group)
+                    .ThenBy(item => item.Story!.Sequence)
+                    .ThenBy(item => item.Story!.Ordinal)
+                    .ThenBy(item => item.OccurrenceId)
+                    .ToArray());
+        var result = new List<CaseAssetPreparation>(items.Length);
+        result.AddRange(ordered);
+        var placed = new HashSet<Guid>();
+        foreach (var item in arrived)
+        {
+            if (item.Story is not { } story)
+            {
+                result.Add(item);
+            }
+            else if (placed.Add(story.CaptureId))
+            {
+                result.AddRange(stories[story.CaptureId]);
+            }
+        }
+
+        return result;
+    }
 
     private static PreparedReportImage Prepared(CaseAssetPreparation item, CaseAssetReportRole role, int? order) =>
         new(

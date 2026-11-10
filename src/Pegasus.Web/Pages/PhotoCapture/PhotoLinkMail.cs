@@ -46,8 +46,9 @@ public sealed class PhotoLinkMail(
         Available ? senders.OptionsAsync(caseId, cancellationToken) : Task.FromResult(CaseMailSenderOptions.None);
 
     /// <summary>
-    /// The Photo link template's values. <c>{claimant}</c> is the first name
-    /// when one is known (EmailTemplates.PhotoLink); a value not yet known is
+    /// The Photo link template's values. <c>{claimant}</c> is the name the
+    /// greeting uses (<see cref="PhotoCaptureText.GreetingName"/>; R855) when
+    /// one is known (EmailTemplates.PhotoLink); a value not yet known is
     /// passed as its own placeholder so the composer keeps it in place.
     /// </summary>
     public static Dictionary<string, string?> Values(
@@ -60,7 +61,7 @@ public sealed class PhotoLinkMail(
             [EmailTemplates.Registration] = normalizedRegistration is { Length: > 0 } registration
                 ? PhotoCaptureText.DisplayRegistration(registration)
                 : null,
-            [EmailTemplates.Claimant] = FirstName(customerName),
+            [EmailTemplates.Claimant] = PhotoCaptureText.GreetingName(customerName),
             [EmailTemplates.PhotoLink] = link,
             [EmailTemplates.LinkExpiry] = expiresAtUtc is { } expires ? OperatorLabels.OfficeDate(expires) : null,
             [EmailTemplates.PrincipalName] = principalName
@@ -103,7 +104,7 @@ public sealed class PhotoLinkMail(
         ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         var header = await getCaseHeader.ExecuteAsync(new(caseId, actor), cancellationToken)
-            ?? throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.CaseUnavailable, "The Case cannot take a photo link.");
+            ?? throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.CaseUnavailable, IssuePhotoLink.CaseCannotTakeALink);
         var choices = await senders.OptionsAsync(caseId, cancellationToken);
         var sender = choices.Sender(fromMailboxId) ?? throw new CaseMailSenderRequiredException();
         return await staffMailSend.SendAsync(
@@ -131,7 +132,4 @@ public sealed class PhotoLinkMail(
             normalizedRegistration is { Length: > 0 } registration
                 ? PhotoCaptureText.DisplayRegistration(registration)
                 : null);
-
-    private static string? FirstName(string? name) =>
-        (name ?? string.Empty).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
 }

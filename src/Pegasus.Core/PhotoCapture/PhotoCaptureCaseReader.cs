@@ -5,7 +5,9 @@ namespace Pegasus.Core.PhotoCapture;
 /// reference and registration the message names, the facts the Send form
 /// prefills, and whether the Case can still take evidence. The Principal's
 /// organisation is the contact whose saved addresses a quick link for
-/// Accident management offers (R798).
+/// Accident management offers (R798). <see cref="IsClosed"/> is what the Case
+/// ribbon calls closed (<c>CaseLifecycleRules.IsTerminal</c>): such a Case
+/// sends no photo link (R847).
 /// </summary>
 public sealed record PhotoCaptureCaseFacts(
     Guid CaseId,
@@ -18,7 +20,8 @@ public sealed record PhotoCaptureCaseFacts(
     Guid? PrincipalId,
     Guid? PrincipalOrganizationId,
     bool IsArchived,
-    bool IsTriage);
+    bool IsTriage,
+    bool IsClosed);
 
 public interface IPhotoCaptureCaseReader
 {

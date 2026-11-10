@@ -642,6 +642,21 @@ public static class PhotoCaptureCaseFields
         return values;
     }
 
+    /// <summary>
+    /// Whether a typed value is written to <paramref name="fieldName"/>: never
+    /// over a confirmed value; where the field holds no fact; and, for the
+    /// mileage and its unit only, over a fact that is the DVSA estimate
+    /// (<see cref="CaseVehicleMileageSourcePolicy.IsEstimated"/>), which it
+    /// replaces. A value from the instruction, one staff entered and an exact
+    /// MOT reading are never replaced (operator, 10 November 2026; R843,
+    /// following R810).
+    /// </summary>
+    public static bool Replaces(string fieldName, CaseDataSource? existingFact, bool hasConfirmed) =>
+        !hasConfirmed
+        && (existingFact is null
+            || (fieldName is CaseDataFieldNames.VehicleMileage or CaseDataFieldNames.VehicleMileageUnit
+                && CaseVehicleMileageSourcePolicy.IsEstimated(existingFact)));
+
     public static string SourceLabel(PhotoCapture capture)
     {
         ArgumentNullException.ThrowIfNull(capture);

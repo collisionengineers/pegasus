@@ -10,10 +10,10 @@ namespace Pegasus.Infrastructure.Persistence;
 /// items, evaluates each one's missing items and status in memory, and then
 /// filters, searches and pages. The tabs hold hundreds of links, not
 /// millions, and the statement count is fixed whatever the row count: the
-/// captures, their items, their contacts, their Vehicle images records, the
-/// issuers' names (kept in <see cref="StaffAccountReads"/>) and which of
-/// their Cases are archived. The rows
-/// shown then read their From and pairing (<see cref="ShownAsync"/>).
+/// captures, their items, their contacts, which quick Case links were handed
+/// on, their Vehicle images records, the issuers' names (kept in
+/// <see cref="StaffAccountReads"/>) and which of their Cases are archived.
+/// The rows shown then read their From and pairing (<see cref="ShownAsync"/>).
 /// </summary>
 public sealed class EfPhotoCaptureQueries(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -204,6 +204,9 @@ public sealed class EfPhotoCaptureQueries(
 
         var withItems = await EfPhotoCaptureStore.WithItemsAsync(context, captures, cancellationToken);
         var contacts = await ContactsAsync(context, captures, cancellationToken);
+        // Read before the required items, so a handed-on link's missing VIN,
+        // its status, the tab's counts and its "Sent on" agree (R874).
+        var handedOn = await HandedOnAsync(context, withItems.Select(pending => pending.Capture), cancellationToken);
         var groupIds = captures
             .Where(capture => capture.SubmissionGroupId is not null)
             .Select(capture => capture.SubmissionGroupId!.Value)
@@ -258,7 +261,7 @@ public sealed class EfPhotoCaptureQueries(
             var missing = PhotoCaptureRequiredItems.Evaluate(
                 capture,
                 pending.Items,
-                PhotoCaptureRequiredItems.VinRequired(capture, contact?.IsRepairer ?? false));
+                PhotoCaptureRequiredItems.VinRequired(capture, contact?.IsRepairer ?? false, handedOn.Contains(capture.Id)));
             var caseArchived = capture.CaseId is { } caseId && archivedCases.Contains(caseId);
             var photographs = pending.Items.Count(item => PhotoCaptureStory.IsPhotographKind(item.Kind));
             var state = PhotoCaptureStatus.Evaluate(capture, missing, photographs, now, caseArchived);
@@ -277,7 +280,7 @@ public sealed class EfPhotoCaptureQueries(
                     PhotoCapturePairing.None,
                     caseArchived,
                     photographs,
-                    SentOnToCustomer: false),
+                    SentOnToCustomer: handedOn.Contains(capture.Id)),
                 state));
         }
 
@@ -287,10 +290,9 @@ public sealed class EfPhotoCaptureQueries(
     /// <summary>
     /// What only the rows being shown carry, read after the page is cut and
     /// never for the whole tab: a Case link's From, which is the Case's
-    /// Principal read now (R805), so a corrected Principal shows at once, and
-    /// whether its firm sent it on to their customer, which a Handoff token
-    /// on it records (R798); and how a standing or website capture reached
-    /// its Case. At most three statements, each for the page's rows.
+    /// Principal read now (R805), so a corrected Principal shows at once; and
+    /// how a standing or website capture reached its Case. At most two
+    /// statements, each for the page's rows.
     /// </summary>
     private static async Task<PhotoCaptureListRow[]> ShownAsync(
         PegasusDbContext context,
@@ -308,20 +310,6 @@ public sealed class EfPhotoCaptureQueries(
                 .Where(caseEntity => EF.Parameter(linkCaseIds).Contains(caseEntity.Id))
                 .Select(caseEntity => new { caseEntity.Id, caseEntity.Principal.Organization.Name })
                 .ToDictionaryAsync(item => item.Id, item => item.Name, cancellationToken);
-
-        var linkCaptureIds = rows
-            .Where(row => row.Capture.Origin == PhotoCaptureOrigin.CaseLink)
-            .Select(row => row.Capture.Id)
-            .ToArray();
-        var handoff = PhotoCaptureCodes.ToCode(PhotoLinkTokenPurpose.Handoff);
-        var sentOn = linkCaptureIds.Length == 0
-            ? []
-            : (await context.PhotoCaptureTokens.AsNoTracking()
-                    .Where(token => token.Purpose == handoff && EF.Parameter(linkCaptureIds).Contains(token.CaptureId))
-                    .Select(token => token.CaptureId)
-                    .Distinct()
-                    .ToListAsync(cancellationToken))
-                .ToHashSet();
 
         var pairedGroupIds = rows
             .Where(row => row.Capture.Origin != PhotoCaptureOrigin.CaseLink
@@ -355,7 +343,7 @@ public sealed class EfPhotoCaptureQueries(
             }
         }
 
-        return rows.Select(row => Shown(row, principals, chosenByStaff) with { SentOnToCustomer = sentOn.Contains(row.Capture.Id) }).ToArray();
+        return rows.Select(row => Shown(row, principals, chosenByStaff)).ToArray();
     }
 
     private static PhotoCaptureListRow Shown(
@@ -393,6 +381,7 @@ public sealed class EfPhotoCaptureQueries(
 
         var withItems = await EfPhotoCaptureStore.WithItemsAsync(context, captures, cancellationToken);
         var contacts = await ContactsAsync(context, captures, cancellationToken);
+        var handedOn = await HandedOnAsync(context, withItems.Select(pending => pending.Capture), cancellationToken);
         return withItems
             .Select(pending =>
             {
@@ -400,9 +389,42 @@ public sealed class EfPhotoCaptureQueries(
                     && contacts.TryGetValue(organizationId, out var found)
                         ? found
                         : null;
-                return new CasePhotoCaptureStory(pending.Capture, pending.Items, contact?.Name, contact?.IsRepairer ?? false);
+                return new CasePhotoCaptureStory(
+                    pending.Capture,
+                    pending.Items,
+                    contact?.Name,
+                    contact?.IsRepairer ?? false,
+                    handedOn.Contains(pending.Capture.Id));
             })
             .ToArray();
+    }
+
+    /// <summary>
+    /// The quick Case links among <paramref name="captures"/> their firm
+    /// handed on to their customer, which a Handoff token on it records
+    /// (R798): one statement, and none when no capture is a quick Case link.
+    /// </summary>
+    private static async Task<HashSet<Guid>> HandedOnAsync(
+        PegasusDbContext context,
+        IEnumerable<PhotoCapture> captures,
+        CancellationToken cancellationToken)
+    {
+        var ids = captures
+            .Where(HandOnCaseLink.IsQuickCaseLink)
+            .Select(capture => capture.Id)
+            .ToArray();
+        if (ids.Length == 0)
+        {
+            return [];
+        }
+
+        var handoff = PhotoCaptureCodes.ToCode(PhotoLinkTokenPurpose.Handoff);
+        return (await context.PhotoCaptureTokens.AsNoTracking()
+                .Where(token => token.Purpose == handoff && EF.Parameter(ids).Contains(token.CaptureId))
+                .Select(token => token.CaptureId)
+                .Distinct()
+                .ToListAsync(cancellationToken))
+            .ToHashSet();
     }
 
     /// <summary>The captures' contacts in one statement: each one's name and whether it is a repairer.</summary>

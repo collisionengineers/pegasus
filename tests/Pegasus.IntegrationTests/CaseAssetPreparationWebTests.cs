@@ -302,7 +302,8 @@ public sealed class CaseAssetPreparationWebTests
                 Item(closeUpAsset, PhotoCaptureItemKind.Damage, "fd", PhotoCaptureStage.CloseUp, 1, 1)
             ],
             null,
-            StandingLinkIsRepairer: false);
+            StandingLinkIsRepairer: false,
+            HandedOn: false);
         using var workspace = await EnterEngineerEditModeAsync(
             store,
             services =>

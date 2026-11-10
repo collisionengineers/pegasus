@@ -72,6 +72,14 @@
         </div>
     </section>
 }
+else if (facts.IsClosed)
+{
+    @* A closed Case sends no photo link (R847); links sent before it closed keep working. *@
+    <div class="notice notice--danger" role="alert">
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
+        <span>@IssuePhotoLink.CaseCannotTakeALink</span>
+    </div>
+}
 else
 {
     <form method="post" asp-route-caseId="@facts.CaseId" class="photo-link-send">

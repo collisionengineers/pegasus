@@ -1,13 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.PhotoCapture;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// What a photo link issued from a Case needs to know about it: its
 /// reference, registration and the facts the Send form prefills, read from
-/// the Case's current work, and whether it is archived or a Triage.
+/// the Case's current work, and whether it is archived, closed or a Triage.
 /// </summary>
 public sealed class EfPhotoCaptureCaseReader(
     IDbContextFactory<PegasusDbContext> contextFactory) : IPhotoCaptureCaseReader
@@ -38,7 +40,8 @@ public sealed class EfPhotoCaptureCaseReader(
                 PrincipalName = organization.Name,
                 PrincipalOrganizationId = organization.Id,
                 HasWorkflow = workflow != null,
-                ArchivedAtUtc = workflow == null ? null : workflow.ArchivedAtUtc
+                ArchivedAtUtc = workflow == null ? null : workflow.ArchivedAtUtc,
+                State = workflow == null ? null : workflow.State
             })
             .SingleOrDefaultAsync(cancellationToken);
         if (row is null)
@@ -88,6 +91,10 @@ public sealed class EfPhotoCaptureCaseReader(
             row.PrincipalId,
             row.PrincipalOrganizationId,
             row.ArchivedAtUtc is not null,
-            isTriage);
+            isTriage,
+            // Closed as the Case ribbon reads it (R847).
+            row.State is not null
+                && Enum.TryParse<CaseLifecycleState>(row.State, ignoreCase: false, out var state)
+                && CaseLifecycleRules.IsTerminal(state));
     }
 }

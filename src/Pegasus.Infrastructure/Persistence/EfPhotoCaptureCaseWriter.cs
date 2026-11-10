@@ -222,7 +222,9 @@ public sealed partial class EfPhotoCaptureCaseWriter(
     /// <summary>
     /// The fields filled, by name. A field fills where the Case holds neither
     /// an extracted fact nor a confirmed value; a filled mileage brings its
-    /// unit, as a looked-up one does.
+    /// unit, as a looked-up one does. A typed mileage replaces the DVSA
+    /// estimate, and only that, in its own fact row and its unit's
+    /// (<see cref="PhotoCaptureCaseFields.Replaces"/>; R843).
     /// </summary>
     private static List<string> FillCaseData(
         PegasusDbContext context,
@@ -236,11 +238,28 @@ public sealed partial class EfPhotoCaptureCaseWriter(
 
         void Fill(string fieldName, string valueType, string value)
         {
+            var fact = caseDataFields.Find(item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Fact);
             if (string.IsNullOrWhiteSpace(value)
-                || !VehicleLookupFillPolicy.Fills(
-                    caseDataFields.Exists(item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Fact),
+                || !PhotoCaptureCaseFields.Replaces(
+                    fieldName,
+                    fact is null ? null : EfCaseDataStore.Source(fact),
                     caseDataFields.Exists(item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Confirmed)))
             {
+                return;
+            }
+
+            if (fact is not null)
+            {
+                // The DVSA estimate's own row takes the typed reading, so the
+                // Case holds one mileage fact (R843).
+                fact.ValueType = valueType;
+                fact.Value = value.Trim();
+                fact.SourceKind = CaseDataCodes.PhotoLink;
+                fact.SourceIdentity = captureId.ToString("D");
+                fact.SourceLabel = sourceLabel;
+                fact.PolicyKey = PhotoCaptureCaseFields.PolicyKey;
+                fact.PolicyVersion = PhotoCaptureCaseFields.PolicyVersion;
+                filled.Add(fieldName);
                 return;
             }
 

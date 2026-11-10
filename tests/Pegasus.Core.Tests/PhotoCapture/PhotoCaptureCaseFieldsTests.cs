@@ -55,6 +55,54 @@ public sealed class PhotoCaptureCaseFieldsTests
             CaseVehicleMileageSourcePolicy.Resolve(photoLinkMileage.Kind, hasMileage: true));
     }
 
+    /// <summary>
+    /// A typed mileage replaces a DVSA estimate, and only that: a value from
+    /// the instruction, one staff entered, an exact MOT reading and a
+    /// confirmed value are never replaced (operator, 10 November 2026; R843).
+    /// </summary>
+    [Fact]
+    public void ATypedMileageReplacesTheDvsaEstimateAndItsUnit()
+    {
+        var estimate = Source(CaseDataSourceKind.VehicleLookup, MotMileageEstimationPolicy.MethodKey);
+
+        Assert.True(PhotoCaptureCaseFields.Replaces(CaseDataFieldNames.VehicleMileage, estimate, hasConfirmed: false));
+        Assert.True(PhotoCaptureCaseFields.Replaces(CaseDataFieldNames.VehicleMileageUnit, estimate, hasConfirmed: false));
+    }
+
+    [Fact]
+    public void AnExactMotReadingIsNotReplaced() =>
+        Assert.False(PhotoCaptureCaseFields.Replaces(
+            CaseDataFieldNames.VehicleMileage,
+            Source(CaseDataSourceKind.VehicleLookup, VehicleMileagePolicy.MethodKey),
+            hasConfirmed: false));
+
+    [Theory]
+    [InlineData(CaseDataSourceKind.IntakeEvidence)]
+    [InlineData(CaseDataSourceKind.CaseAcceptance)]
+    [InlineData(CaseDataSourceKind.StaffCorrection)]
+    [InlineData(CaseDataSourceKind.PhotoLink)]
+    public void AMileageFromAnyOtherSourceIsNotReplaced(CaseDataSourceKind kind) =>
+        Assert.False(PhotoCaptureCaseFields.Replaces(
+            CaseDataFieldNames.VehicleMileage, Source(kind, "instruction-extraction"), hasConfirmed: false));
+
+    [Fact]
+    public void AConfirmedValueIsNeverReplacedAndAnEmptyFieldIsFilled()
+    {
+        var estimate = Source(CaseDataSourceKind.VehicleLookup, MotMileageEstimationPolicy.MethodKey);
+
+        Assert.False(PhotoCaptureCaseFields.Replaces(CaseDataFieldNames.VehicleMileage, estimate, hasConfirmed: true));
+        Assert.False(PhotoCaptureCaseFields.Replaces(CaseDataFieldNames.VehicleMileage, existingFact: null, hasConfirmed: true));
+        Assert.True(PhotoCaptureCaseFields.Replaces(CaseDataFieldNames.VehicleMileage, existingFact: null, hasConfirmed: false));
+    }
+
+    /// <summary>Only the mileage gives way to an estimate: any other field's fact stands.</summary>
+    [Fact]
+    public void AnotherFieldsFactIsNotReplaced() =>
+        Assert.False(PhotoCaptureCaseFields.Replaces(
+            CaseDataFieldNames.ClaimantName,
+            Source(CaseDataSourceKind.VehicleLookup, MotMileageEstimationPolicy.MethodKey),
+            hasConfirmed: false));
+
     [Fact]
     public void NothingTypedOffersNothing()
     {
@@ -113,4 +161,7 @@ public sealed class PhotoCaptureCaseFieldsTests
         Assert.False((Capture() with { SubmissionGroupId = Guid.NewGuid() }).TakesOriginals);
         Assert.False((Capture() with { OriginalsInBackground = false }).TakesOriginals);
     }
+
+    private static CaseDataSource Source(CaseDataSourceKind kind, string policyKey) =>
+        new(kind, Guid.NewGuid().ToString("D"), "fixture", policyKey, 1);
 }
