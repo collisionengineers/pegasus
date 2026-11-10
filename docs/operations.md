@@ -459,7 +459,7 @@ named below, and one read-only count of 22 October 2026 posted on
 
 ## Release 2.4.1 - 9 November 2026 (deployment live)
 
-Release 2.4.1 deployed `dev` at the merge of PR 2004, which combined #1999 (a Repair Spec's 500-line technical ceiling, R767), #2001 (Release 2.2.0 Query Store after window, R768, R769), the 2.4.0 record (#2002) and the slowness stack #1990 to #1992 (the Case save keeps its lease and projects from its own transaction, one folder proof for report and fee note, report photos prepared two at a time; R770 to R772). Normal route, no migration; the Web restart was the only outage (R690). Released on the operator's approval of 9 November 2026 as 2.4.1, not the proposed MINOR 2.5.0 (R791), with the test instance not serving the candidate (R790).
+Release 2.4.1 deployed `dev` at the merge of PR 2004, which combined #1999 (a Repair Spec's 500-line technical ceiling, R767), #2001 (Release 2.2.0 Query Store after window, R768, R769), the 2.4.0 record (#2002) and the slowness stack #1990 to #1992 (the Case save keeps its lease and projects from its own transaction, one folder proof for report and fee note, report photos prepared two at a time; R770 to R772). Normal route, no migration; the Web restart was the only outage (R690). Released on the operator's approval of 9 November 2026 as 2.4.1, not the proposed MINOR 2.5.0 (R828), with the test instance not serving the candidate (R827).
 
 | Observation | Value |
 | --- | --- |
@@ -468,7 +468,7 @@ Release 2.4.1 deployed `dev` at the merge of PR 2004, which combined #1999 (a Re
 | Migration | none; head stays `20261108120000_WorkerReadsMigrationHistory` |
 | Deployment | provision not run (no infra change, azd environment unchanged); Web OneDeploy `24a10eee-eba1-4ddd-9b23-5c571ab30f22`; Worker `f4d1dc50-f896-4343-bdcb-45e9ceeb98e6`; classifier `b983ae0b-9869-43a1-b155-7c4d3294726b`, `Running`; `/diagnostics/version` reads `2.4.1` at the SHA |
 | Smoke | passed at 16:03:22Z; intake liveness last poll 16:00:00Z, subscription expires 2026-11-12 08:30Z. No focused live check beyond the smoke |
-| Test instance | serving `d852bff49` (#2005, with its PhotoCapture migration), not the candidate; the preflight's R684 check was skipped in a local copy of `Invoke-Release.ps1` for this release only (R790) |
+| Test instance | serving `d852bff49` (#2005, with its PhotoCapture migration), not the candidate; the preflight's R684 check was skipped in a local copy of `Invoke-Release.ps1` for this release only (R827) |
 | Evidence | `artifacts/releases/release-2.4.1-d1218313`, `artifacts/releases/logs/2.4.1-*.log` and Query Store before `artifacts/performance/query-store-2.4.1-before-20261109T1554Z.tsv` (24 h) on `cemattypc-1` |
 | Owed | #2000 (the slowness stack's live after figures and the Query Store after window) |
 
