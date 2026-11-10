@@ -15,11 +15,17 @@ public enum CaseFilingTargetDisposition
 /// <param name="IsOriginReceipt">Whether the receipt created the Case; acceptance custody filed its source.</param>
 /// <param name="Workflow">The Case's workflow, or null for a Triage Case.</param>
 /// <param name="HasTriage">Whether a Case with no workflow has its Triage record.</param>
+/// <param name="FollowsRecordMerge">
+/// Whether the pipeline's association follows a record's merge into the Case:
+/// a photo link's kept paperwork and video linked where its Vehicle images
+/// record merged (<see cref="PhotoCapture.PhotoCaptureIntakeRules.ReachActorId"/>).
+/// </param>
 public sealed record CaseFilingTargetFacts(
     bool IsStaffAssociation,
     bool IsOriginReceipt,
     CaseFilingWorkflowFacts? Workflow,
-    bool HasTriage);
+    bool HasTriage,
+    bool FollowsRecordMerge = false);
 
 /// <param name="State">The workflow state, or null when the stored state is not one Pegasus knows.</param>
 public sealed record CaseFilingWorkflowFacts(
@@ -35,7 +41,10 @@ public sealed record CaseFilingWorkflowFacts(
 /// pipeline's own association files only while the Case is in a state
 /// automatic association accepts and no report has been sent
 /// (<see cref="CaseAssociationEligibility.IsFormalCaseEligible"/>), and
-/// never on a Triage Case. An archived Case never files. No filing waits for
+/// never on a Triage Case, except where it follows a record's merge: a photo
+/// link's kept paperwork and video file wherever its record merged, as a
+/// member of staff's association does, a Triage Case or a report-sent Case
+/// included (operator, 10 November 2026; R844). An archived Case never files. No filing waits for
 /// a Case edit lease, whoever holds it: it moves the Case version under the
 /// lease like other system work (FRD-14; R727, R728).
 /// </summary>
@@ -60,10 +69,11 @@ public static class CaseFilingTargetRule
             return CaseFilingTargetDisposition.NotApplicable;
         }
 
+        var filesInAnyState = facts.IsStaffAssociation || facts.FollowsRecordMerge;
         if (facts.Workflow is { } workflow)
         {
             if (workflow.IsArchived
-                || (!facts.IsStaffAssociation
+                || (!filesInAnyState
                     && !(workflow.State is { } state
                         && CaseAssociationEligibility.IsFormalCaseEligible(
                             state, workflow.HasReportSentEvidence))))
@@ -74,7 +84,7 @@ public static class CaseFilingTargetRule
             return CaseFilingTargetDisposition.Current;
         }
 
-        return facts.IsStaffAssociation && facts.HasTriage
+        return filesInAnyState && facts.HasTriage
             ? CaseFilingTargetDisposition.Current
             : CaseFilingTargetDisposition.NotApplicable;
     }

@@ -5,7 +5,8 @@
 ## Short version
 
 - A **photo link** asks one person for photos of one vehicle. HQ sends it
-  from a Case, by e-mail from an approved mailbox or by Copy link; the
+  from a Case, by e-mail from an approved mailbox, by text from Pegasus's
+  own UK mobile number or by Copy link; the
   person opens it on their phone, and a guided app takes the photos and
   sends them. Nothing is installed and nobody signs in.
 - A **standing photo link** belongs to a Principal, Claim Source or Repairer
@@ -21,7 +22,8 @@
   the other vehicle, paperwork and video) does not. Files go flat into the
   Case's Box folder under story-order names.
 - Pegasus never sends a reminder by itself. **Links we sent** shows what is
-  due and a member of staff resends with one click.
+  due and a member of staff resends through the composer, which sends nothing
+  until **Send by e-mail** or **Send by text**.
 
 ## Purpose
 
@@ -29,7 +31,7 @@ This document owns Pegasus's own guided capture, the product idea of issue
 #1683, built under new capability identities (operator, 9 November 2026;
 R773 to R817). It serves the PRD outcomes for image-led work and complete
 images before Review, while keeping its exclusions: no SMS integration
-(BND-04), no persistent customer portal (BND-06), no automatic outbound
+beyond texting the photo link itself (BND-04; R918), no persistent customer portal (BND-06), no automatic outbound
 message (MAIL-19) and no customer account (ACC-12)
 ([PRD](../prd/pegasus-product.md#operating-and-commercial-constraints)).
 Tractable capture still arrives as an e-mailed PDF
@@ -51,7 +53,10 @@ public boundary is [ADR-0090](../adr/0090-public-photo-capture-surface.md).
 ### Photo links
 
 Staff send a photo link from a Case: the ribbon's **Send photo link** opens
-`/PhotoCapture/Send/{caseId}`. The Case and its registration are read-only.
+`/PhotoCapture/Send/{caseId}`. A closed Case cannot send one: the button is
+hidden and the Send page refuses it with "The Case cannot take a photo
+link."; links sent before the Case closed keep working (operator,
+10 November 2026; R847). The Case and its registration are read-only.
 The customer's name, accident date and mobile start from the Case and may
 be changed; the e-mail is typed, because a Case holds no customer e-mail.
 Staff choose the mode, **guided** (a page per step, for a customer) or
@@ -59,18 +64,23 @@ Staff choose the mode, **guided** (a page per step, for a customer) or
 only**, the lifetime, 3, 7 or 14 days, and whether full-size originals
 follow in the background. Send starts on the mode, the Live camera only and
 originals choices and the lifetime an Administrator sets in Administration ›
-Configuration, and offers only the lifetimes set there: guided, both on and
+Configuration
+([FRD-17](frd-17-administration-workspace.md#workflow-configuration)),
+and offers only the lifetimes set there: guided, both on and
 7 days of all three until they are changed (operator, 9 November 2026; R813,
 R817). Live camera only covers the vehicle
 photos: the scene and other-vehicle photos, paperwork and the walk-around
 video can always come from the camera roll, as in the handover's app (R778;
-9 November 2026). The link goes by e-mail, by Copy link, or both (R773):
-text and WhatsApp are Copy link and the staff member's own phone. Pegasus
-has no SMS or WhatsApp provider.
+9 November 2026). The link goes by e-mail, by Copy link, or both (R773),
+or by text to the mobile on the form ([The photo link
+text](#the-photo-link-text); R918, R920); WhatsApp is Copy link and the
+staff member's own phone, and Pegasus has no WhatsApp provider.
 
 When Quick is chosen, Send asks who the link is for, **Type**: **Accident
 management** or **Bodyshop**, and requires it; a guided link has none
-(operator, 9 November 2026; R808). A quick link sent from a Case opens the
+(operator, 9 November 2026; R808). A Quick link sent without a Type is
+refused with "Choose a Type for a Quick link." beside the form (operator,
+10 November 2026; R868). A quick link sent from a Case opens the
 handover app's staff start and form for that kind of firm, with the
 registration read-only and no reference (R782). Accident management gets
 "Photos needed for {registration}", "Thanks for the instruction – we’re
@@ -81,12 +91,22 @@ Principal's own standing link. Bodyshop gets "Photos needed for
 and are waiting for the photos.", "Confirm a few details, then take the
 guided photos – or send the customer a link if the car isn’t with you." and
 the form **About this job**, with no saved address; its staff are asked for
-the VIN, as a bodyshop's own staff are. **Send customer a link** there hands
+the VIN, as a bodyshop's own staff are. A Bodyshop link names no firm, so the
+three lines an Accident management link shows with its firm's name are left
+out (operator, 10 November 2026; R849). Either form opens with the
+customer's name and accident date from the Send page already in it, and the
+firm can change them (operator, 10 November 2026; R853). **Send customer a
+link** there hands
 the same capture on: what the firm typed is kept, and a guided link to the
 same Case, carried by the staff member's own phone, opens the customer's
 app, so the Case keeps one link. The firm's Opened stands, and **Links we
 sent** shows the link as **Sent on to their customer** (operator, 9 November
-2026; R798, R808).
+2026; R798, R808); whether the customer has opened it is not recorded, so
+the firm's Opened shows until photos arrive (operator, 10 November 2026;
+R848). The hand-on screen calls it a link, no longer "a one-time link"
+(operator, 10 November 2026; R872), and once the link is handed on the
+firm's phone is headed "Sent to the customer"; a standing link's hand-on
+keeps "Instruction received" (operator, 10 November 2026; R873).
 
 A link is `https://pegasus-prod-web-252ow37gij.azurewebsites.net/c/{token}`
 (R779): Pegasus's own hostname, from `PhotoCapture:PublicOrigin`. The token
@@ -102,13 +122,16 @@ A capture started from a standing link, its QR code or the website link by
 whoever holds the phone, where opening that link again starts a new capture,
 says instead "Forgot something? Open the link again and enter the same
 registration to send more photos for this vehicle." (operator, 9 November
-2026; R809). **Opened** is recorded on the link's first call to the app's
-API, not when the page is fetched, because link previews fetch pages. A
+2026; R809). On a reopened link the review page's strips show only this
+visit's pictures, and under a strip whose count includes earlier photos the
+app says "Plus {n} sent earlier" with the real number (operator,
+10 November 2026; R862). **Opened** is recorded on the link's first call to
+the app's API, not when the page is fetched, because link previews fetch pages. A
 capture a standing link starts to take the photos now is Opened as it is
 made. A hand-off's staff phone carries on under a session credential of its
 own, which never records Opened, so the paperwork it sends from its form
 leaves the customer's link not opened until the customer opens it
-(9 November 2026).
+(operator, 10 November 2026; R877).
 
 ### Standing photo links
 
@@ -117,21 +140,41 @@ managed on the **Photo links** tab of its edit page (R774): the standing
 URL, a QR code, Copy, **Pause** and **Resume**, **Replace link**, **Retire
 link**, and its defaults, which are the mode a link sent on to a customer
 takes, Live camera only, the lifetime and the originals choice. The one
-website link, for private customers, is managed by Administrators from the
-Photo capture page with the same controls and defaults, less the mode,
-because its captures are guided (operator, 9 November 2026; R797).
+website link, for private customers, is managed by Administrators on
+Administration › Photo links
+([FRD-17](frd-17-administration-workspace.md#photo-links); operator, 10
+November 2026; [R911](../rulings.md)) with the same controls and defaults,
+less the mode, because its captures are guided (operator, 9 November 2026;
+R797). Its
+panel's buttons read **Pause the link** and **Resume the link**, where a
+contact's panel keeps **Pause their link** and **Resume their link**
+(operator, 10 November 2026; R867); its address box is labelled **Website
+address**, and Retire reads "Retiring…" while it works, on either panel
+(operator, 10 November 2026; R869). A contact's link whose contact is
+inactive shows the amber chip **Contact inactive**, which it shows in place
+of Paused when the link is paused too (operator, 10 November 2026; R865).
+Each change to a standing link, the website link's included, is an
+action-history event
+([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration);
+operator, 10 November 2026; R846).
 
 The tab's **Saved addresses** are offered on the firm's form as its
 inspection locations: first those taken from the contact, its own address or
 a Principal's inspection locations, which stay read-only, then any added on
 the tab, the only ones that can be edited or removed (operator, 9 November
-2026; R806, R815). The website link has no contact and keeps none.
+2026; R806, R815). A saved address with no name or no address is refused
+with "A saved address needs a name and an address." (operator, 10 November
+2026; R868). The website link has no contact and keeps none.
 
 A standing link is `/s/{slug}`. A contact's slug is 12 Crockford base32
 characters. The website's is the readable one the Administrator types: 6 to
 60 lowercase letters, digits and hyphens, not starting or ending with a
 hyphen, and held by no other link, retired ones included; Pegasus never
-makes one up (operator, 9 November 2026; R797). A slug is not a secret: it
+makes one up (operator, 9 November 2026; R797). An address of the wrong
+shape is refused with "A website address is 6 to 60 lower-case letters,
+numbers and hyphens, and cannot start or end with a hyphen.", and one
+already held with "That website address is already in use.", each beside
+its form (operator, 10 November 2026; R868). A slug is not a secret: it
 lives on WhatsApp and in QR codes, and it can only start a capture, never
 take a photo. Starting one asks for the registration and the details; a
 capture without a registration is not started. A contact's staff either take
@@ -186,12 +229,15 @@ The app takes, in order:
    Passenger side, Front passenger corner);
 2. for each damaged area the sender marks, four stages: an overview "3 big
    steps back", a closer shot "1 big step away", close-ups, then extras;
-3. the number plate, the VIN, and the dashboard with the mileage;
+3. the number plate, its step labelled **Number plate** (operator,
+   10 November 2026; R866), the VIN, and the dashboard with the mileage;
 4. additional information: the accident scene, the other vehicle,
    paperwork, a walk-around video, and a note. The other vehicle has a row
    of its own, **Other vehicle photos** ("The other vehicle involved"),
    after **Accident scene photos** ("Where it happened") (operator,
-   9 November 2026; R800, R805).
+   9 November 2026; R800, R805). The review page heads them the same way,
+   **Accident scene photos** and **Other vehicle photos** (operator,
+   10 November 2026; R866).
 
 The damage areas are twelve zones: Front, Front driver corner, Driver side
 front, Driver side middle, Driver side rear, Rear driver corner, Rear, Rear
@@ -205,11 +251,17 @@ the capture, the dashboard is not listed as missing, and staff see
 **Dashboard** "Skipped – no keys available" (operator, 9 November 2026;
 R799). The VIN is required only when a bodyshop's own staff took the
 photos, on their standing link or a quick Case link for a Bodyshop
-(9 November 2026; R808). Extras, additional information and the note are never required.
+(9 November 2026; R808), and not once the firm has handed the link on to
+its customer. A bodyshop's staff are asked for "A clear shot of the VIN
+plate or chassis number.", and a customer sees the VIN as optional
+(operator, 10 November 2026; R874, R808). Extras, additional information
+and the note are never required.
 **Something missing** is derived from this list. After Send, with items
 still missing, the app asks **Could you add a few more?**, lists them, and
 offers **Add more** and **That’s everything** (operator, 9 November 2026;
-R787).
+R787). On the damage step the same question appears only when a damaged
+area has fewer than 3 photos, naming that area (operator, 10 November
+2026; R875).
 
 A damage photo taken outside the marked areas, from **Add more** or the
 phone's own camera, is accepted. It files in a **Damage** group after the
@@ -256,51 +308,76 @@ and a capture keeps receiving, so a capture is not one group from the start.
 A batch **settles** once it holds a photo and the sender has pressed
 **Send**, or the link has expired, or staff cancelled it: a cancelled
 link's photos still settle as normal (operator, 9 November 2026; R794). A
-Send with no photos settles nothing. A batch on a Case settles when every
+Send with no photos settles nothing, but it still counts: a Send that
+carried only paperwork lets photos that arrive later settle without a
+second Send (operator, 10 November 2026; R851). The Worker looks for
+batches to settle every minute while photo capture is on, so a Case moves
+within about a minute of Send once every photo has filed (operator,
+10 November 2026; R838). A batch on a Case settles when every
 photo in it has filed in Box (R792). A photo whose filing has ended for good
 without filing no longer holds its batch open: its work failed before its
 filing started, its link was withdrawn or moved to another Case, its
 filing's replay gave up, or Pegasus linked it and the replay window closed
 with its filing never started. A filing that has started holds the batch
-until it files or its replay gives up, however old its link. The batch then
-settles on the photos that did file; this is the lead's reading of R792 for
-a photo that can never file (9 November 2026), pending the operator. When at least
+until it files or its replay gives up, however old its link, and a photo a
+member of staff linked whose filing never starts keeps its batch waiting.
+The batch then settles on the photos that did file (operator, 10 November
+2026; R840). When at least
 one photo of the batch filed on the Case:
 
 - the Case's images complete (R781;
   [FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)),
   never on the first photo, and once per capture: only for a batch with
-  photos, and never after staff marked them incomplete (R792);
+  photos, and never after staff marked them incomplete (R792); the Case's
+  history gives the reason "The photo link's photos are in: the sender
+  pressed Send, or the link ran out or was cancelled with photos on it."
+  (operator, 10 November 2026; R871);
 - the sender's note is written into the Case's Notes as
   "Customer's note (photo link): …", once; a changed note is appended
-  (R792), a note sent while the batch settles included;
+  (R792), a note sent while the batch settles included. A Triage Case has
+  no Case Notes, so there the note is added to the Triage Case's own notes
+  ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)) with
+  the same words, a longer note as up to four notes of 500 characters each,
+  in order, and nothing on a completed or cancelled Triage Case; the whole
+  note always stays on the link's page (operator, 10 November 2026; R845);
 - empty Case fields fill from the typed details
   ([Case field filling](#case-field-filling));
 - the Case Engineer's bell rings, **Photos received**, once for each batch
   that brought photos (R792). The bell is owed in the same step that
   settles the batch and is cleared once it has rung, so a settle stopped
-  in between rings it on its next run.
+  in between rings it on its next run: it rings at least once, and twice if
+  the Worker stops between ringing it and recording that it rang (operator,
+  10 November 2026; R851). A Case with no Engineer has nobody to ring, so
+  no bell rings and an Engineer assigned later is not told; the Case's
+  history shows the photos (operator, 10 November 2026; R850).
 
 A batch with no photo filed on the Case, and a batch whose Case is
 archived, settles with none of these: the photos already filed stay
-(R793). Each batch of a capture that settled with no Case finishes on its
-own when its Vehicle images record merges into a Case: the note is written,
+(R793). A note can still land on a Case archived in the same moment the
+settle runs (operator, 10 November 2026; R851). Each batch of a capture
+that settled with no Case finishes on its own when its Vehicle images record merges into a Case: the note is written,
 the fields fill, that batch's own kept paperwork and video file as Other,
 and the Engineer's bell rings once (operator, 9 November 2026; R803,
 R804); the record's merge completes the images
-([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)). A
+([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)) only
+when the capture has not completed a Case's images before: a later record
+of the same capture does not complete them again (operator, 10 November
+2026; R841). A
 record is taken to reach its Case only by its merge, not by the pairing's
-links before it. The kept files follow the decision that took the record
-there: a member of staff's choice on the record's page files them as that
-member of staff, with the reason their link carries, so they file on any
-Case that is not archived (R790); Pegasus's pairing files them as the
-routing's system work. The batch's reach is recorded once each kept file
-has a receipt and is linked.
+links before it. The kept files file on whatever Case the record reached, a
+Triage Case or a report-sent Case included, as a Case link's photos do
+(R790): a member of staff's choice on the record's page files them as that
+member of staff, with the reason their link carries, and Pegasus's own
+pairing files them as following the record's merge (operator, 10 November
+2026; R844). The batch's reach is recorded once each kept file has filed or
+its filing has ended.
 Photos added after a settle form the next batch, matched again when it
 settles; with no Case, it becomes a further Vehicle images record for the
-same registration. A full-size original files as the next version of the same
+same registration. A photo still uploading when a link is cancelled can
+form such a batch, which rings a second bell (operator, 10 November 2026;
+R851). A full-size original files as the next version of the same
 Case image: the image keeps its tile, tags, report place and crop, Box shows
-the compressed picture as the earlier version of the one file (R664), and
+the compressed picture as the earlier version of the one file (R664, R839), and
 the report prints the original once it is filed. Until then, and should the
 original's upload fail, the compressed picture stands. Originals follow only
 while a capture files on its Case as each photo arrives: until there is a
@@ -327,7 +404,10 @@ dashboard) arrive In report. The **additional information** (the scene, the
 other vehicle, paperwork and video) arrives not In report, and the other
 vehicle arrives tagged Third party
 ([FRD-05](frd-05-documents-extraction-and-custody.md#image-tags)). Moving an
-item between the baskets is the In report toggle. Paperwork and video file
+item between the baskets is the In report toggle. In the report a link's
+photos that nobody has ordered follow the story
+([FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis);
+operator, 10 November 2026; R854). Paperwork and video file
 as documents of type Other, decided by the item's kind: paperwork sent as a
 JPEG or PNG is Other too (operator, 9 November 2026; R803).
 
@@ -343,9 +423,9 @@ paperwork or video:
 
 | Status | When |
 | --- | --- |
-| Sent not opened | The link has not been opened |
+| Sent, not opened | The link has not been opened (operator, 10 November 2026; R876) |
 | Opened | Opened, no photo yet |
-| Photos coming in | Photos received, not yet sent; paperwork or video alone is not photos (9 November 2026) |
+| Photos coming in | Photos received, not yet sent; paperwork or video alone is not photos (operator, 10 November 2026; R877) |
 | Something missing | Sent, or expired with photos, and a required item is missing |
 | Needs a phone call | Two reminders and nothing back since |
 | Complete | Sent, or expired with photos, and nothing required is missing |
@@ -356,11 +436,19 @@ A reminder is due, and shown, when a link is not opened after 24 hours and
 again after 48; when it was started but not finished after 4 quiet hours;
 when something is missing once it was sent; and when it is about to expire,
 within one day. Pegasus never sends a reminder (R773; MAIL-19 stands):
-**Links we sent** shows what is due, and **Remind** or **Resend** is one
-click by a member of staff. **Log call** records a phone call. On **Coming
-in**, **Ask for it** is the same click for a capture not sent from a Case: it
-makes a fresh link and counts as a reminder (operator, 9 November 2026;
-R806, R816).
+**Links we sent** shows what is due, and a member of staff sends the link
+again with **Resend**. Resend and the former Remind sent the same message, so
+they are one act: a Case link's Resend counts as a reminder only when one was
+due (operator, 10 November 2026; [R914](../rulings.md)). No button sends an
+e-mail on its own: Resend opens the composer, the Send chaser's, with From,
+To, Subject and Message in the standard wording, and nothing is sent until
+**Send by e-mail**; **Create link to copy** makes the link without sending
+(operator, 10 November 2026: "any email sending always needs a dialogue box -
+a button cannot just send an email on its own"; [R915](../rulings.md)).
+**Log call** records a phone call. On **Coming in**, **Ask for it** is the
+same act for a capture not sent from a Case: it makes a fresh link (operator,
+9 November 2026; R806, R816) and counts as a reminder (operator, 10 November
+2026; R842).
 
 ### The photo link e-mail
 
@@ -370,7 +458,12 @@ through the Graph staff send
 with the template purpose **Photo link**
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)). Its
 placeholders are `{registration}`, `{claimant}`, `{photo link}`,
-`{link expiry}` and `{principal name}`. Its built-in body:
+`{link expiry}` and `{principal name}`. `{claimant}` is the first word of
+the customer's name, passing over a first word of Mr, Mrs, Miss, Ms, Mx or
+Dr: "Mr Leroy Ejiofor" is greeted "Hi Leroy,", and a name that is only a
+title and a surname, "Mr Ejiofor", "Hi Mr Ejiofor,"; the hand-on
+message greets the customer the same way (operator, 10 November 2026;
+R855). Its built-in body:
 
 ```text
 Hi {claimant},
@@ -398,13 +491,58 @@ edited message is sent as staff wrote it; one they did not edit follows the
 name and lifetime the form holds when the link is sent (operator,
 9 November 2026; R806).
 
+### The photo link text
+
+Staff may text a photo link as well as e-mail it (operator, 10 November
+2026; R918). Pegasus sends the text through Azure Communication Services
+from an SMS-enabled UK mobile number bought on its resource, over the Web's
+managed identity; the number is the `TextMessages:From` setting
+([configuration](../engineering/configuration.md)), and while it is empty no
+page offers **Send by text**. It texts a UK mobile only: 07… with eleven
+digits, or the same written +44 7…, 0044 7… or 44 7…, spaces, dashes, dots
+and brackets ignored; any other number is refused with "Enter a UK mobile
+number to send by text." beside it. Replies are not read.
+
+**Send by text** sits beside **Send by e-mail** on Send a photo link and in
+the Resend / Ask for it composer (R920); no button texts on its own (R915).
+On the Send page the text goes to the form's **Mobile**; in the composer, to
+the link's mobile, which staff may change there. The message is the
+template purpose **Photo link (text)**
+([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) with the
+Photo link e-mail's placeholders, drawn and edited as the e-mail is
+("Edited for this one only." and **Put the standard wording back**; R806,
+R919); a text with no `{photo link}` gets the link on its own line, and one
+over 1,530 characters (ten SMS segments) or empty is refused with "A text
+message is required.". Its built-in body, the agent's draft awaiting the
+operator's sign-off (R919):
+
+```text
+Hi {claimant},
+Collision Engineers need a few photos of {registration} to assess the damage. Please open this link on your phone:
+{photo link}
+The link works until {link expiry}.
+```
+
+The link is issued as for an e-mail, with a token of its own for the text,
+and a texted Resend counts as a reminder as an e-mailed one does (R914,
+R920). One operation key sends one text: the act is written to the link's
+history before the provider is asked, and a repeated post is refused with
+"This text was already sent.". The provider's answer is written after:
+"Sent by text · name" with its message id when it accepts the text, and
+"Text not sent · name" with its failure code when it refuses it or cannot
+be reached; the Send page and the composer then show **Text not sent** and
+the code, and a sent text returns from the composer with "Link sent to …
+by text". Accepted is not delivered: Pegasus does not yet read delivery
+reports (R921; issue #2054).
+
 ### Case field filling
 
 When a capture settles on a Case, the claimant name, contact number,
 accident date and mileage the sender typed fill the Case's empty fields as
 Facts with source kind Photo link, shown with the source tag **Photo link**
 ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds)).
-A value already on the Case is never overwritten (R783). The registration is
+A value already on the Case is never overwritten (R783), except a DVSA
+mileage estimate (below). The registration is
 never written: it routed the capture. The typed inspection location is not
 written to the Case: it stays on the capture with the photos, and staff
 type the address if they want it (operator, 9 November 2026; R811,
@@ -413,7 +551,8 @@ preferred outcome, in hire, airbags and steering) also stay on the capture
 and show with the photos. A typed mileage ranks below anything from the
 instruction and above the DVSA estimate, so the estimate never replaces it,
 and the report keeps the instructing principal's sentence whoever typed it
-(operator, 9 November 2026; R810;
+(operator, 9 November 2026; R810). It replaces a DVSA estimate already on
+the Case, and only that (operator, 10 November 2026; R843;
 [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#vehicle-details-and-mileage-evidence)).
 
 ### Staff pages
@@ -425,36 +564,61 @@ with no count (R774;
 - **Coming in**: standing and website captures, with Vehicle, From,
   Customer, Case, Status, Photos and Received. The Case column reads
   **Awaiting instruction** for a capture with no Case (operator, 9 November
-  2026; R805). The From filter also offers **No case yet**, the captures
+  2026; R805). Under the reference of a Case a member of staff chose with
+  Match to a case it reads **Matched by staff**, beside **Matched
+  automatically** for one Pegasus matched (operator, 10 November 2026;
+  R864). The From filter also offers **No case yet**, the captures
   with no Case. **Ask for it**, on a live row whose status is Something
   missing, makes a fresh link for that capture: when the capture is on a
-  Case and holds an e-mail address it e-mails the link, as Resend does;
+  Case and holds an e-mail address it opens the composer, as Resend does;
   otherwise it shows the link for staff to copy and send themselves
-  (operator, 9 November 2026; R806, R816);
+  (operator, 9 November 2026; R806, R816; R915);
 - **Links we sent**: Case links, with Vehicle, Customer and mobile, Case,
-  From, Sent by, Status, Photos and Next reminder, and the actions Resend,
-  Remind, Log call and View photos, with **Cancel link** on each live row.
-  From is the Case's Principal (operator, 9 November 2026; R805), with
-  **Sent on to their customer** under it once a quick link's firm has
-  handed it on (operator, 9 November 2026; R798). Remind is offered only
-  while the link is live.
+  From, Status, Photos and Next reminder, which is blank when nothing is due.
+  Sent by is on the link's page and in its history, not the list. From is the
+  Case's Principal (operator, 9 November 2026; R805), with **Sent on to their
+  customer** under it once a quick link's firm has handed it on (operator,
+  9 November 2026; R798).
 
-Each tab shows how many captures it holds (operator, 9 November 2026;
-R806).
+Each tab shows how many captures it holds, on the tab and on All (operator,
+9 November 2026; R806). A row is one line: a long name, firm or missing item
+ends in an ellipsis with the full text on hover. Each row leads with the act
+its state calls for: on Links we sent, **Resend** while the link is live and a
+reminder is due or it is unopened, **Log call** when it needs a phone call,
+else **View photos**; on Coming in, **Ask for it**, else **View photos** on a
+Case or **Match to a case** on a Vehicle images record. One other act stands
+beside it as its own button, two or more go in a **More** menu with **Cancel
+link** last; More never holds a single act, and **Cancel link** stays on each
+live row (R795). Log call from a row returns to the list with "Call logged".
+Narrower windows drop columns rather than scroll: from 1480px down Next
+reminder and Received, from 1300px Links we sent's From and Coming
+in's Customer, and from 1180px Coming in's From, the mobile and the missing
+item, every one of them still on the link's page (operator, 10 November 2026,
+approving the [v50 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v50-config-and-photo-capture/v50_planning) as drawn; [R912](../rulings.md)).
 
 `/PhotoCapture/Send/{caseId}` sends a link ([Photo links](#photo-links)).
 `/PhotoCapture/{id}` is a link's detail: its facts, the typed details, the
 note, the status, the missing items, the items by story group and the
-history, with Resend, Remind, Log call, Extend and Cancel. The history names
+history, with Resend, Log call, Extend and Cancel. Its status stands beside
+the registration; its one primary act is Resend when a reminder is due, Log
+call when the link needs a phone call, else Resend while it is live; View
+photos stands beside it, and the rest, Extend by 3, 7 or 14 days among them,
+go in More, Cancel link last. The missing items, the photos and the history
+form its main column, and its facts and what the sender told us a 360px aside
+(operator, 10 November 2026; [R913](../rulings.md)). The history names
 who acted: "Cancelled · name", "Link extended · name" and "Call logged ·
-name" (operator, 9 November 2026; R805). A live link on a Case also offers
+name" (operator, 9 November 2026; R805), and "Reminded · name", one line for
+each reminder (operator, 10 November 2026; R870). Resend on an
+expired link is refused with "The link has expired; extend it first.", and
+on a cancelled link with "The link was cancelled; send a new one from the
+Case." (operator, 10 November 2026; R863). A live link on a Case also offers
 **Cancel link** beside it in the Case's Files → Images. Cancel is the same
 act wherever it is offered, with the same refusal, and a repeated click
 cancels once (operator, 9 November 2026; R795). Beside a photo link in the
 Case's Files → Images stand its status, in the words above, and its photo
 count; while a live link has nothing yet, **No photos yet** and, on a link
-sent from the Case, **Resend the link**, which is the link page's Resend
-(operator, 9 November 2026; R806). Paperwork and video a capture with no
+sent from the Case, **Resend the link**, which opens the composer and returns
+to the Case's Files (operator, 9 November 2026; R806; R915). Paperwork and video a capture with no
 Case received stay kept and unfiled, and each opens from the link's page as
 any received file opens; nothing new is filed, chased or deleted, and a
 capture that sent only paperwork stays on Coming in (operator, 9 November
@@ -484,7 +648,7 @@ of those records has reached it.
 Photos are JPEG or PNG; paperwork is PDF, JPEG or PNG; video is MP4 or MOV.
 The limits are constants, not configuration, except which of the three
 lifetimes Send offers and the one it starts on, which an Administrator sets
-in Administration › Configuration; Extend and a contact's link defaults keep
+in Administration › Photo links (R911); Extend and a contact's link defaults keep
 all three (operator, 9 November 2026; R813, R817).
 
 ## States and transitions
@@ -514,10 +678,16 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
   phone is offline or one has failed three times running; a request that
   hangs is given up and retried. Send stays unavailable while any photo is
   still to go, and the browser asks before the page is left then. A photo
+  still waiting to go is held only in the open page: a reload or a closed
+  tab loses it and the sender retakes it, while photos already sent are
+  safe (operator, 10 November 2026; R837). A photo
   Pegasus refuses is outlined, does not hold Send back, and the review counts
   "{n} of {m} uploaded" (9 November 2026; R786).
 - **Caps.** A request past a rate limit, a size, a per-link count or a
-  standing link's daily cap is refused; nothing past the cap is kept.
+  standing link's daily cap is refused; nothing past the cap is kept. A
+  file the app itself refuses for its size is not sent, and the app says
+  "The file is larger than this link accepts." (operator, 10 November 2026;
+  R878).
 - **Replays.** An item carries the id the phone gave it, so a retried upload
   is the same item, and it declares the Case its first attempt declared. An
   item joins the batch open when Pegasus takes it, never one already
@@ -542,7 +712,7 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
   shows read-only ([Photo links](#photo-links)), and a typed one is ignored.
 - **Feature off.** With `Features:PhotoCapture` off, `/c`, `/s`, `/capture`
   and `/PhotoCapture` answer 404, and the rail item, Send photo link, the
-  Photo links tab and Send a photo link's settings in Administration ›
+  Photo links tab and the **Photo links** settings in Administration ›
   Configuration are absent
   ([configuration](../engineering/configuration.md#photo-capture)).
 
@@ -555,8 +725,19 @@ the Case fields a capture offers, which tokens record Opened, receiving an
 item, recording the details and routing, minting from a standing link, a
 quick link's Type, the hand-on of a quick Case link, standing link
 administration (retiring, the typed website address, saved addresses and an
-inactive contact) and the settle; Send's two settings are covered with the
+inactive contact) and the settle, including the Triage note and the
+mileage that replaces an estimate; the
+greeting's name, a VIN not required once a link is handed on, a closed
+Case's refusal, Resend's two refusals and when a Resend counts as a reminder
+are covered there
+too. Send's two settings are covered with the
 workflow configuration in `tests/Pegasus.Core.Tests/Identity/AdministrationPolicyTests.cs`.
+`tests/Pegasus.Core.Tests/Documents/CaseAssetPreparationTests.cs` covers the
+story order of a link's unordered report images and
+`tests/Pegasus.Core.Tests/Intake/CaseFilingTargetRuleTests.cs` the kept
+files that follow a record's merge.
+`tests/Pegasus.ArchitectureTests/PendingWorkRecoveryFunctionTests.cs` covers
+the settle on every minute, off with the feature and stopped at its budget.
 Integration tests hold the rest:
 
 - `PhotoCaptureSecurityTests`: the one unavailable answer, byte for byte,
@@ -568,14 +749,21 @@ Integration tests hold the rest:
   completed by the first photo, the loose damage photo, originals and their
   bytes, the ignored typed registration, one link's token not reaching
   another's items), an archived Case's dead link, and the staff pages (From,
-  Remind and Cancel on live rows, who acted, Retire, the website link's
-  typed address and defaults, the tab counts, No case yet, Ask for it, the
-  Case page's status and Resend, a kept file opening);
+  Resend through the composer and Cancel on live rows, who acted, Retire,
+  the website link's typed address and defaults on Administration › Photo
+  links, the tab counts, No case yet, Ask for it, the Case page's status and
+  Resend, a kept file opening, a closed Case's Send
+  page, the refusal sentences beside their forms, Matched by staff,
+  Contact inactive, Reminded · name, and a standing link's changes written
+  to the action history);
+- `WorkflowConfigurationWebTests`: the Photo links settings' refusals;
 - `StandingCaptureWebTests`: a standing capture opened as it starts, waiting
   with no Case and never Unidentified, taking paperwork with no Case, routed
   until its first photo, taking no originals with no Case, filing on the one
-  Case its registration matches, the hand-off's session token, and an item
-  joining the open batch.
+  Case its registration matches, the hand-off's session token, an item
+  joining the open batch, a later record of the same capture not completing
+  the images again, and kept paperwork filing on the Case its record
+  reached, a Triage Case and a report-sent Case included.
 
 `tests/Pegasus.ArchitectureTests/CaptureAssetContractTests.cs` holds the
 app's assets to the security policy (no inline style, handler or script
@@ -589,7 +777,7 @@ Deployment and live acceptance are separate evidence tiers
 
 - Capabilities: `EXT-21`, `INT-34`, `MAIL-27`, `UI-20` in
   [capabilities](../capabilities.md).
-- Rulings: R773 to R817 in [rulings](../rulings.md).
+- Rulings: R773 to R817 and R836 to R878 in [rulings](../rulings.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration),
   [FRD-05](frd-05-documents-extraction-and-custody.md),

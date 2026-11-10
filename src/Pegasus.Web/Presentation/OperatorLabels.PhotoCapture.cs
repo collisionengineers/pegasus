@@ -143,6 +143,8 @@ public static partial class OperatorLabels
         public const string None = "None";
         public const string AwaitingInstruction = "Awaiting instruction";
         public const string MatchedAutomatically = "Matched automatically";
+        // A Case a member of staff chose with Match to a case (operator, 10 November 2026; R864).
+        public const string MatchedByStaff = "Matched by staff";
         public const string AlreadyInstructed = "Already instructed";
 
         /// <summary>"34 photos" once complete, "22 so far" while photos are still coming.</summary>
@@ -158,7 +160,6 @@ public static partial class OperatorLabels
         public const string SendAPhotoLink = "Send a photo link";
         public const string SendPhotoLink = "Send photo link";
         public const string Resend = "Resend";
-        public const string Remind = "Remind";
         public const string LogCall = "Log call";
         public const string Extend = "Extend";
         public const string CancelLink = "Cancel link";
@@ -207,6 +208,11 @@ public static partial class OperatorLabels
         public const string Subject = "Subject";
         public const string Message = "Message";
         public const string SendByEmail = "Send by e-mail";
+
+        // The photo link text (R918 to R921); the wording awaits the operator's sign-off.
+        public const string SendByText = "Send by text";
+        public const string TextMessage = "Text message";
+        public const string TextNotSent = "Text not sent";
         public const string CreateLinkToCopy = "Create link to copy";
         public const string NeededToSendByEmail = "Needed to send by email";
         public const string SendStatus = "Send status";
@@ -239,6 +245,7 @@ public static partial class OperatorLabels
         public const string Sent = "Sent";
         public const string Reminded = "Reminded";
         public const string CallLoggedAt = "Call logged";
+        public const string SentByText = "Sent by text";
         public const string Filed = "Filed";
         public const string Cancelled = "Cancelled";
 
@@ -247,6 +254,9 @@ public static partial class OperatorLabels
         public const string TheirStandingLink = "Their standing link";
         public const string PauseTheirLink = "Pause their link";
         public const string ResumeTheirLink = "Resume their link";
+        // The Website link panel's own (operator, 10 November 2026; R867); a contact's panel keeps "their".
+        public const string PauseTheLink = "Pause the link";
+        public const string ResumeTheLink = "Resume the link";
         public const string ReplaceLink = "Replace link";
         // Retire (R796), in the words R805 lists.
         public const string RetireLink = "Retire link";
@@ -272,6 +282,24 @@ public static partial class OperatorLabels
         public const string Active = "Active";
         public const string Saved = "Saved";
 
+        // The operator's words of 10 November 2026: the chip on an inactive
+        // contact's link, which wins over Paused (R865); the website link's
+        // address box (R869); Administration › Configuration's photo link
+        // settings and the lifetimes they offer (R869).
+        public const string ContactInactive = "Contact inactive";
+        public const string WebsiteAddress = "Website address";
+        public const string PhotoLinks = "Photo links";
+        public const string LifetimesOffered = "Lifetimes offered";
+
+        // The six refusals, each shown beside its form (operator, 10 November 2026; R868).
+        public const string WebsiteAddressShape =
+            "A website address is 6 to 60 lower-case letters, numbers and hyphens, and cannot start or end with a hyphen.";
+        public const string WebsiteAddressInUse = "That website address is already in use.";
+        public const string OfferAtLeastOneLifetime = "Offer at least one lifetime.";
+        public const string StartingLifetimeNotOffered = "The lifetime links start on must be one of those offered.";
+        public const string SavedAddressNeedsNameAndAddress = "A saved address needs a name and an address.";
+        public const string ChooseAQuickLinkType = "Choose a Type for a Quick link.";
+
         // The Case's Files → Images story (FRD-16).
         public const string WhatTheyToldUs = "What they told us";
         public const string CustomersNote = "Customer’s note";
@@ -279,6 +307,7 @@ public static partial class OperatorLabels
 
         // Confirmations.
         public static string LinkSentTo(string? name) => $"Link sent to {(string.IsNullOrWhiteSpace(name) ? "the customer" : name.Trim())} by e-mail";
+        public static string LinkTextedTo(string? name) => $"Link sent to {(string.IsNullOrWhiteSpace(name) ? "the customer" : name.Trim())} by text";
         public const string LinkCopied = "Link copied";
         public const string LinkCancelled = "Link cancelled";
         public const string LinkExtended = "Link extended";

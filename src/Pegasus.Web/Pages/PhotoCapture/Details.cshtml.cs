@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Operations;
 using Pegasus.Core.PhotoCapture;
 using Pegasus.Web.PhotoCapture;
 using Pegasus.Web.Presentation;
@@ -15,11 +13,12 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// <summary>
 /// One photo link (FRD-28 Staff pages): its facts, what the sender told us,
 /// the note, the status and what is missing, the items in story order and the
-/// history, with Resend, Remind, Log call, Extend and Cancel. Resend and
-/// Remind, and Coming in's Ask for it (R816), which posts to Remind, mint a
-/// fresh token (<see cref="PhotoLinkActions.ReissueAsync"/>): it is e-mailed
-/// when the link has an address on a Case, and otherwise shown once here to
-/// copy, since only the issuing response ever holds it.
+/// history, with Resend, Log call, Extend and Cancel (v50 N, O; R913). Resend
+/// opens the composer (<see cref="ResendModel"/>), since no button sends an
+/// e-mail on its own (operator, 10 November 2026; R915). This page's own
+/// Resend handler only makes a link to copy: Coming in's Ask for it on a
+/// capture with no Case or no address (R816), shown once here, since only the
+/// issuing response ever holds it.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -27,16 +26,9 @@ public sealed class DetailsModel(
     IPhotoCaptureQueries queries,
     IPhotoCaptureStore captures,
     PhotoLinkActions actions,
-    IPhotoCaptureCaseReader caseReader,
-    IStaffMailSend staffMailSend,
-    IGetCaseHeader getCaseHeader,
-    ResolveCaseMailSender senders,
-    RenderEmailTemplate renderTemplate,
     IOptions<PhotoCaptureOptions> options,
-    TimeProvider timeProvider,
-    ILogger<DetailsModel> logger) : PhotoCapturePageModel
+    TimeProvider timeProvider) : PhotoCapturePageModel
 {
-    private readonly PhotoLinkMail _mail = new(staffMailSend, getCaseHeader, senders, renderTemplate, options);
 
     /// <summary>One line of the link's history, from the record's own times.</summary>
     public sealed record HistoryLine(string Label, DateTimeOffset AtUtc, string? Detail = null);
@@ -68,18 +60,28 @@ public sealed class DetailsModel(
 
     public DateTimeOffset Now { get; private set; }
 
-    /// <summary>The link a Resend or Remind just minted, shown once to copy; null otherwise.</summary>
+    /// <summary>The link Ask for it just made to copy, shown once; null otherwise.</summary>
     public string? IssuedUrl { get; private set; }
-
-    /// <summary>The e-mail a Resend or Remind just sent, read off as the Send chaser reads its own.</summary>
-    public StaffMailOperation? Operation { get; private set; }
 
     public bool IsLive => PhotoCaptureAccess.IsLive(Capture, Now, Row.CaseArchived);
 
     public bool IsCaseLink => Capture.Origin == PhotoCaptureOrigin.CaseLink;
 
-    /// <summary>Resend and Remind: a live link HQ sent from a Case.</summary>
+    /// <summary>Resend, one act since Remind sent the same message (R914): a live link HQ sent from a Case.</summary>
     public bool OffersResend => IsCaseLink && IsLive;
+
+    /// <summary>
+    /// The page's one primary act (R913): Resend when a reminder is due, Log
+    /// call when the link needs a phone call, else Resend while it is live.
+    /// </summary>
+    public string? PrimaryAct =>
+        OffersResend && Due is not null ? Labels.Resend
+        : OffersLogCall && State == PhotoCaptureState.NeedsCall ? Labels.LogCall
+        : OffersResend ? Labels.Resend
+        : null;
+
+    /// <summary>Where Resend opens the composer, returning here.</summary>
+    public string ResendHref => IndexModel.ResendHref(Id, $"/PhotoCapture/{Id:D}");
 
     public bool OffersLogCall => IsCaseLink && !Capture.IsRevoked;
 
@@ -129,13 +131,12 @@ public sealed class DetailsModel(
                 Add(Labels.LastPhoto, capture.LastItemAtUtc);
             }
             Add(Labels.Sent, capture.SentAtUtc);
-            Add(
-                Labels.Reminded,
-                capture.LastRemindedAtUtc,
-                capture.ReminderCount > 1 ? capture.ReminderCount.ToString(System.Globalization.CultureInfo.InvariantCulture) : null);
             Add(Labels.Filed, capture.SettledAtUtc);
-            // Cancel, Extend and Log call name who acted: "Cancelled · name",
-            // "Link extended · name", "Call logged · name" (R805).
+            // Cancel, Extend, Log call and each reminder, Ask for it's
+            // included (R842), name who acted: "Cancelled · name", "Link
+            // extended · name", "Call logged · name" (R805) and one
+            // "Reminded · name" per reminder (operator, 10 November 2026; R870),
+            // and each text, "Sent by text · name" or "Text not sent · name" (R921).
             foreach (var act in Acts)
             {
                 var label = act.Kind switch
@@ -143,6 +144,9 @@ public sealed class DetailsModel(
                     PhotoLinkActs.Cancelled => Labels.Cancelled,
                     PhotoLinkActs.Extended => Labels.LinkExtended,
                     PhotoLinkActs.CallLogged => Labels.CallLoggedAt,
+                    PhotoLinkActs.Reminded => Labels.Reminded,
+                    PhotoLinkActs.TextSent => Labels.SentByText,
+                    PhotoLinkActs.TextFailed => Labels.TextNotSent,
                     _ => null
                 };
                 if (label is not null)
@@ -165,14 +169,9 @@ public sealed class DetailsModel(
         return await LoadAsync(cancellationToken) ? Page() : NotFound();
     }
 
-    public Task<IActionResult> OnPostResendAsync(CancellationToken cancellationToken) =>
-        ReissueAsync(isReminder: false, cancellationToken);
-
-    public Task<IActionResult> OnPostRemindAsync(CancellationToken cancellationToken) =>
-        ReissueAsync(isReminder: true, cancellationToken);
-
-    public Task<IActionResult> OnPostLogCallAsync(CancellationToken cancellationToken) =>
-        ActAsync((actor, token) => actions.LogCallAsync(actor, Id, OperationKey, token), Labels.CallLogged, returnUrl: null, cancellationToken);
+    /// <summary>Log call, from this page or a Links we sent row, which it returns to (v50 P; R912).</summary>
+    public Task<IActionResult> OnPostLogCallAsync(string? returnUrl, CancellationToken cancellationToken) =>
+        ActAsync((actor, token) => actions.LogCallAsync(actor, Id, OperationKey, token), Labels.CallLogged, returnUrl, cancellationToken);
 
     public Task<IActionResult> OnPostExtendAsync(CancellationToken cancellationToken) =>
         ActAsync((actor, token) => actions.ExtendAsync(actor, Id, Days, OperationKey, token), Labels.LinkExtended, returnUrl: null, cancellationToken);
@@ -224,11 +223,11 @@ public sealed class DetailsModel(
     }
 
     /// <summary>
-    /// Resend and Remind. The token is minted for e-mail when the link can be
-    /// e-mailed (an address, a Case and a staff send), else for copying; the
-    /// page then renders directly, because the raw token is never stored.
+    /// A fresh link to copy for this capture (Ask for it with nothing to e-mail;
+    /// R816), counted as Core's Resend says (R914, R842). The page renders
+    /// directly, because the raw token is never stored.
     /// </summary>
-    private async Task<IActionResult> ReissueAsync(bool isReminder, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostResendAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
@@ -240,18 +239,10 @@ public sealed class DetailsModel(
             return NotFound();
         }
 
-        var capture = Capture;
-        var byEmail = _mail.Available && capture.CaseId is not null && capture.Email is { Length: > 0 };
         IssuedPhotoLink issued;
         try
         {
-            issued = await actions.ReissueAsync(
-                actor,
-                Id,
-                byEmail ? PhotoLinkTokenPurpose.Email : PhotoLinkTokenPurpose.Copy,
-                isReminder,
-                OperationKey,
-                cancellationToken);
+            issued = await actions.ResendAsync(actor, Id, PhotoLinkTokenPurpose.Copy, OperationKey, cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
@@ -267,48 +258,8 @@ public sealed class DetailsModel(
             return Page();
         }
 
-        IssuedUrl = _mail.CaptureUrl(issued.Token);
-        if (byEmail)
-        {
-            try
-            {
-                // {principal name} is the Case's Principal, whichever link the
-                // capture came from (a Coming in capture's From is its contact).
-                var principalName = (await caseReader.GetAsync(capture.CaseId!.Value, cancellationToken))?.PrincipalName;
-                var body = await _mail.RenderAsync(
-                    actor,
-                    PhotoLinkMail.Values(capture.NormalizedRegistration, capture.CustomerName, principalName, IssuedUrl, capture.ExpiresAtUtc),
-                    cancellationToken);
-                Operation = await _mail.SendAsync(
-                    actor,
-                    capture.CaseId!.Value,
-                    fromMailboxId: null,
-                    capture.Email!,
-                    PhotoLinkMail.Subject(capture.NormalizedRegistration),
-                    body,
-                    OperationKey,
-                    cancellationToken);
-                if (Operation.State == StaffMailState.Failed)
-                {
-                    Pegasus.Web.Pages.Mail.StaffMailSendLog.Refused(logger, Operation.Id, Operation.ApprovedMailboxId, Operation.FailureCode);
-                }
-            }
-            catch (StaffAuthorizationException)
-            {
-                return Forbid();
-            }
-            catch (CaseMailSenderRequiredException exception)
-            {
-                // The token exists; staff copy it instead.
-                ModelState.AddModelError(string.Empty, exception.Message);
-            }
-            catch (PhotoCaptureRefusalException refusal)
-            {
-                ModelState.AddModelError(string.Empty, refusal.Message);
-            }
-        }
-
-        // The page draws the record as the reissue left it.
+        IssuedUrl = PhotoLinkUrls.CaptureUrl(options.Value.PublicOrigin, issued.Token);
+        // The page draws the record as the resend left it.
         await LoadAsync(cancellationToken);
         OperationKey = NewOperationKey();
         return Page();

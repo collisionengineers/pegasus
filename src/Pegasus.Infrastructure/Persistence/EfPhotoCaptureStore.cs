@@ -154,6 +154,14 @@ public sealed class EfPhotoCaptureStore(
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<bool> IsHandedOnAsync(Guid captureId, CancellationToken cancellationToken)
+    {
+        var handoff = PhotoCaptureCodes.ToCode(PhotoLinkTokenPurpose.Handoff);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.PhotoCaptureTokens.AsNoTracking()
+            .AnyAsync(token => token.CaptureId == captureId && token.Purpose == handoff, cancellationToken);
+    }
+
     public Task<PhotoCapture> RecordOpenedAsync(Guid captureId, DateTimeOffset openedAtUtc, CancellationToken cancellationToken) =>
         UpdateAsync(captureId, expectedVersion: null, (_, entity, _) =>
         {
@@ -749,6 +757,7 @@ public sealed class EfPhotoCaptureStore(
                         association.CaseId,
                         association.IsActive,
                         association.ActorKind,
+                        association.ActorSubjectId,
                         association.LinkedAtUtc
                     })
                     .FirstOrDefault(),
@@ -778,7 +787,10 @@ public sealed class EfPhotoCaptureStore(
                     : new PhotoCaptureItemLink(
                         row.Link.CaseId,
                         row.Link.IsActive,
-                        string.Equals(row.Link.ActorKind, systemWorker, StringComparison.Ordinal),
+                        // A link that follows a record's merge files as a
+                        // member of staff's does, with no window (R844).
+                        string.Equals(row.Link.ActorKind, systemWorker, StringComparison.Ordinal)
+                            && !PhotoCaptureIntakeRules.FollowsRecordMerge(row.Link.ActorKind, row.Link.ActorSubjectId),
                         row.Link.LinkedAtUtc),
                 row.FilingStarted,
                 row.Filed,
@@ -857,7 +869,44 @@ public sealed class EfPhotoCaptureStore(
     /// is; one recorded for anything else is refused. A lost race re-reads and
     /// decides again, so two clicks with one key act once.
     /// </summary>
-    private Task<PhotoCapture> ActAsync(
+    private async Task<PhotoCapture> ActAsync(
+        Guid captureId,
+        Pegasus.Core.Identity.ActionActor actor,
+        string operationKey,
+        string act,
+        DateTimeOffset occurredAtUtc,
+        string? afterJson,
+        Func<PhotoCaptureEntity, bool> change,
+        CancellationToken cancellationToken) =>
+        (await RecordActAsync(captureId, actor, operationKey, act, occurredAtUtc, afterJson, change, cancellationToken)).Capture;
+
+    /// <summary>A text act on the link's history (R921): the row changes only by its version.</summary>
+    public async Task<bool> RecordTextAsync(
+        Guid captureId,
+        Pegasus.Core.Identity.ActionActor actor,
+        string operationKey,
+        string act,
+        PhotoLinkTextRecord record,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        if (act is not (PhotoLinkActs.TextSubmitted or PhotoLinkActs.TextSent or PhotoLinkActs.TextFailed))
+        {
+            throw new ArgumentOutOfRangeException(nameof(act), act, "Not a text act.");
+        }
+
+        var afterJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            to = record.To,
+            messageId = record.MessageId,
+            failureCode = record.FailureCode
+        });
+        return (await RecordActAsync(captureId, actor, operationKey, act, occurredAtUtc, afterJson, _ => true, cancellationToken)).Recorded;
+    }
+
+    /// <summary><see cref="ActAsync"/>, also saying whether this call wrote the event or replayed one already written.</summary>
+    private Task<(PhotoCapture Capture, bool Recorded)> RecordActAsync(
         Guid captureId,
         Pegasus.Core.Identity.ActionActor actor,
         string operationKey,
@@ -889,18 +938,19 @@ public sealed class EfPhotoCaptureStore(
                         throw new InvalidOperationException("The operation key was already used for a different photo link action.");
                     }
 
-                    return Map(entity);
+                    return (Map(entity), false);
                 }
 
-                if (change(entity))
+                if (!change(entity))
                 {
-                    entity.Version++;
-                    context.ActionHistory.Add(DocumentActionHistory.Succeeded(
-                        HistoryAggregateType, aggregateId, act, actor, occurredAtUtc, key, afterJson: afterJson));
-                    await context.SaveChangesAsync(token);
+                    return (Map(entity), false);
                 }
 
-                return Map(entity);
+                entity.Version++;
+                context.ActionHistory.Add(DocumentActionHistory.Succeeded(
+                    HistoryAggregateType, aggregateId, act, actor, occurredAtUtc, key, afterJson: afterJson));
+                await context.SaveChangesAsync(token);
+                return (Map(entity), true);
             },
             cancellationToken,
             StoreConcurrencyRetry.IsRetryable);
@@ -1048,8 +1098,10 @@ public sealed class EfPhotoCaptureStore(
             async token =>
             {
                 // One transaction under the capture row's update lock: the
-                // batch's reach and owed bell, and the capture's Case and
-                // images marker when it has no Case yet, are written together.
+                // batch's reach and owed bell, and the capture's Case when it
+                // has no Case yet, are written together. The images marker is
+                // the merge's: the fold that merged the record wrote it with
+                // the images it completed, or found spent (R841).
                 await using var context = await contextFactory.CreateDbContextAsync(token);
                 await using var transaction = await context.Database.BeginReadCommittedAsync(token);
                 await context.Database.ExecuteSqlAsync(
@@ -1083,9 +1135,6 @@ public sealed class EfPhotoCaptureStore(
                     capture.Destination = PhotoCaptureCodes.ToCode(PhotoCaptureDestination.Case);
                 }
 
-                // The record's merge completed the Case's images: the
-                // capture's one images-complete is spent.
-                capture.ImagesCompletedAtUtc ??= nowUtc;
                 capture.Version++;
                 await context.SaveChangesAsync(token);
                 await transaction.CommitAsync(token);

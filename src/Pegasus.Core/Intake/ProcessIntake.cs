@@ -25,7 +25,8 @@ public sealed class ProcessIntake(
     IPrincipalSubmissionBindings? principalSubmissionBindings = null,
     RecordThirdPartyReportReading? recordThirdPartyReportReading = null,
     RetainIncomingArtifact? retainIncomingArtifact = null,
-    IRetainedMailboxMessageStore? retainedMessages = null)
+    IRetainedMailboxMessageStore? retainedMessages = null,
+    PhotoCapture.IPhotoCaptureStore? photoCaptures = null)
 {
     public async Task<IntakeReceipt> ExecuteAsync(
         IntakeSource source,
@@ -210,7 +211,9 @@ public sealed class ProcessIntake(
                 safeSource.ReceivedAtUtc,
                 retainedClassification,
                 cancellationToken)
-            : DeclaredDestinationAssessment(readResult, waitsForCapture: safeSource.DeclaredCaseId is null);
+            : DeclaredDestinationAssessment(
+                readResult,
+                await PhotoLinkDestinationReasonAsync(safeSource, cancellationToken));
         var draft = new IntakeReceiptDraft(
             safeSource.FileName,
             safeSource.MediaType,
@@ -724,24 +727,47 @@ public sealed class ProcessIntake(
     }
 
     /// <summary>
+    /// The Intake log's reason for a photo link's item (FRD-28; R805): one
+    /// with no Case yet waits for its capture to be sent; one whose capture
+    /// has its Case names who declared it, as its link to the Case does
+    /// (<see cref="PhotoCapture.PhotoCaptureIntakeRules.DeclaredDestinationReason"/>).
+    /// Null for any other source: a staff upload's own reason stands.
+    /// </summary>
+    private async Task<string?> PhotoLinkDestinationReasonAsync(IntakeSource source, CancellationToken cancellationToken)
+    {
+        if (source.SourceIdentity.Channel != IntakeSourceChannel.PhotoCapture)
+        {
+            return null;
+        }
+
+        if (source.DeclaredCaseId is null)
+        {
+            return PhotoCapture.PhotoCaptureIntakeRules.WaitingReason;
+        }
+
+        var capture = photoCaptures is not null && IntakeActorIdentity.TryParsePhotoCapture(source.Actor, out var captureId)
+            ? await photoCaptures.GetAsync(captureId, cancellationToken)
+            : null;
+        return PhotoCapture.PhotoCaptureIntakeRules.DeclaredDestinationReason(capture);
+    }
+
+    /// <summary>
     /// The assessment of a file whose Case a member of staff chose before
     /// uploading it (Add evidence on a Case page, FRD-18): its bytes are read
     /// and its photographs kept like any other upload, but no principal,
     /// route, match or OCR work runs, because nothing is left to identify. A
     /// file that cannot be read keeps that honest decision; its original still
-    /// files on the Case. A photo link's item with no Case yet
-    /// (<paramref name="waitsForCapture"/>) is assessed the same way and says
-    /// that it waits for its capture to be sent (FRD-28; R805).
+    /// files on the Case. A photo link's item is assessed the same way and
+    /// gives its own reason (<paramref name="photoLinkReason"/>; FRD-28, R805),
+    /// never a staff upload's.
     /// </summary>
-    private static IntakeAssessment DeclaredDestinationAssessment(IntakeSourceReadResult readResult, bool waitsForCapture)
+    private static IntakeAssessment DeclaredDestinationAssessment(IntakeSourceReadResult readResult, string? photoLinkReason)
     {
         var readerEvidence = ReaderEvidence(readResult);
         return ReaderFailureAssessment(readResult, readerEvidence)
             ?? new(
                 IntakeDecision.NeedsSorting,
-                waitsForCapture
-                    ? PhotoCapture.PhotoCaptureIntakeRules.WaitingReason
-                    : ProcessQueuedIntake.DeclaredDestinationReason,
+                photoLinkReason ?? ProcessQueuedIntake.DeclaredDestinationReason,
                 [
                     .. readerEvidence,
                     .. (readResult.IsIncomplete ? new[] { IncompleteReadEvidence() } : []),
@@ -750,9 +776,7 @@ public sealed class ProcessIntake(
                         IntakeEvidenceStrength.Strong,
                         IntakeEvidenceFinding.Information,
                         IntakeEvidenceSignals.DeclaredDestination,
-                        waitsForCapture
-                            ? PhotoCapture.PhotoCaptureIntakeRules.WaitingReason
-                            : "The destination Case was declared by staff on upload; no identification ran.")
+                        photoLinkReason ?? "The destination Case was declared by staff on upload; no identification ran.")
                 ],
                 [],
                 null,

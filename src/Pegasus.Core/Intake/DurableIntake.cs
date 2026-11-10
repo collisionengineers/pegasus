@@ -1402,24 +1402,14 @@ public sealed class ProcessQueuedIntake(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
-        // Only mailbox receipts are retained mail; the evidence read finds
-        // nothing for any other channel, so it is not asked.
-        if (automaticMailCaseAssociation is null
-            || receipt.CurrentCaseId is not null
-            || receipt.SourceIdentity.Channel != IntakeSourceChannel.Mailbox)
+        if (automaticMailCaseAssociation is null)
         {
             return false;
         }
 
-        // The plate its photographs read, inside its PDF or attached beside
-        // it, is a mail-linking signal (R474, R733), so they are read first.
-        var photographRegistration = imageIntakeAutomation is null
-            ? null
-            : await imageIntakeAutomation.ReadMailedPhotographsAsync(receipt, cancellationToken);
-        var outcome = await automaticMailCaseAssociation.ExecuteAsync(
-            receipt.Id,
-            receipt.CaseMatchDecision,
-            photographRegistration,
+        var outcome = await automaticMailCaseAssociation.ExecuteForReceiptAsync(
+            receipt,
+            imageIntakeAutomation,
             cancellationToken);
         return outcome is AutomaticCaseAssociationOutcome.Associated or AutomaticCaseAssociationOutcome.AlreadyAssociated;
     }

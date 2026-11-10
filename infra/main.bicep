@@ -110,6 +110,8 @@ param experianClientSecretSecretUri string
 param experianUsernameSecretUri string
 @description('Versioned Key Vault secret URI containing the Experian account password (ADR-0089).')
 param experianPasswordSecretUri string
+@description('SMS-enabled UK mobile number in E.164 bought on the Communication Services resource by hand; empty leaves photo-link texting unavailable.')
+param photoLinkTextFrom string = ''
 @description('Versioned Key Vault secret URI containing the DVSA API key.')
 param dvsaApiKeySecretUri string
 @description('Approved DVSA OAuth token endpoint.')
@@ -173,6 +175,7 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     experianClientSecretSecretUri: experianClientSecretSecretUri
     experianUsernameSecretUri: experianUsernameSecretUri
     experianPasswordSecretUri: experianPasswordSecretUri
+    photoLinkTextFrom: photoLinkTextFrom
     dvsaApiKeySecretUri: dvsaApiKeySecretUri
     dvsaTokenUri: dvsaTokenUri
     dvsaScope: dvsaScope

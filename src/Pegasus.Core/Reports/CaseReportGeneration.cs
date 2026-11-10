@@ -235,6 +235,15 @@ public sealed record CaseReportGenerationSnapshot(
     /// names, whose report keeps the renderer's name it was first filed under.
     /// </summary>
     public string? ReportFileName { get; init; }
+
+    /// <summary>
+    /// The guide of the valuation card <see cref="AppliedValuationId"/>'s
+    /// calculation was based on, as the report was frozen: the guide the
+    /// Original report card names beside the Engineer's Value (R666, R898).
+    /// Null for a typed value, and on a snapshot frozen before the guide was
+    /// kept, where only <see cref="Guides"/> holds it.
+    /// </summary>
+    public ValuationSource? EngineerValueGuide { get; init; }
 }
 
 /// <summary>
@@ -505,6 +514,12 @@ public sealed record CaseReportFreezeInputs(
     public Guid WorkId { get; init; }
 
     public CaseWorkKind WorkKind { get; init; }
+
+    /// <summary>
+    /// The guide of the card the latest applied valuation was based on, read
+    /// with the inputs; null when no applied valuation exists.
+    /// </summary>
+    public ValuationSource? EngineerValueGuide { get; init; }
 }
 
 /// <summary>

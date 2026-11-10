@@ -85,22 +85,45 @@ describe("leave_email (#1915)", () => {
   it("refuses an Unclassified e-mail while the lookups answer (R584)", async () => {
     const detail = mail();
     const run = harness([candidate(detail)], { mailboxes: true, folders: true });
-    await run.call("search_mailboxes", { query: "QDOS26001" });
+    await run.call("search_mailboxes", { messageId: detail.summary.id, query: "QDOS26001" });
     const result = await run.call("leave_email", { messageId: detail.summary.id, reason: "Nothing fits." });
     assert.equal(result.isError, true);
     assert.equal(run.outcomes.verdicts.size, 0);
     assert.equal(run.outcomes.deferred.size, 0);
   });
 
-  it("defers an Unclassified e-mail when a lookup was unavailable", async () => {
+  it("defers an Unclassified e-mail when both its lookups were unavailable (R738, R885)", async () => {
     const detail = mail();
     const run = harness([candidate(detail)]);
-    const lookup = await run.call("search_mailboxes", { query: "QDOS26001" });
-    assert.match(lookup.text, /"state": "unavailable"/);
-    const result = await run.call("leave_email", { messageId: detail.summary.id, reason: "The mailboxes could not be searched." });
+    const mailboxes = await run.call("search_mailboxes", { messageId: detail.summary.id, query: "QDOS26001" });
+    assert.match(mailboxes.text, /"state": "unavailable"/);
+    const folders = await run.call("search_old_system_folders", { messageId: detail.summary.id, query: "QDOS26001" });
+    assert.match(folders.text, /"state": "unavailable"/);
+    const result = await run.call("leave_email", { messageId: detail.summary.id, reason: "Neither lookup could be read." });
     assert.equal(result.isError, false);
     assert.ok(run.outcomes.deferred.has(detail.summary.id));
     assert.equal(run.outcomes.verdicts.size, 0);
+  });
+
+  it("refuses to defer when only one lookup was unavailable (#1982)", async () => {
+    const detail = mail();
+    const run = harness([candidate(detail)], { folders: true });
+    await run.call("search_mailboxes", { messageId: detail.summary.id, query: "QDOS26001" });
+    await run.call("search_old_system_folders", { messageId: detail.summary.id, query: "QDOS26001" });
+    const result = await run.call("leave_email", { messageId: detail.summary.id, reason: "The mailboxes could not be searched." });
+    assert.equal(result.isError, true);
+    assert.equal(run.outcomes.deferred.size, 0);
+  });
+
+  it("refuses to defer an e-mail whose own lookups were never unavailable (#1982)", async () => {
+    const searched = mail();
+    const other = mail();
+    const run = harness([candidate(searched), candidate(other)]);
+    await run.call("search_mailboxes", { messageId: searched.summary.id, query: "QDOS26001" });
+    await run.call("search_old_system_folders", { messageId: searched.summary.id, query: "QDOS26001" });
+    const result = await run.call("leave_email", { messageId: other.summary.id, reason: "The lookups were down." });
+    assert.equal(result.isError, true);
+    assert.equal(run.outcomes.deferred.size, 0);
   });
 });
 

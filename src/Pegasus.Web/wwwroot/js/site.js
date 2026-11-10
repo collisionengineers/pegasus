@@ -1035,6 +1035,11 @@
                     return;
                 }
                 if (event.key === 'Escape') {
+                    // A field that owns its Escape (a Files row's Rename box,
+                    // which puts the name back) handles it; the dialog stays.
+                    if (event.target instanceof Element && event.target.closest('[data-own-escape]')) {
+                        return;
+                    }
                     event.preventDefault();
                     if (cancel()) {
                         return;
@@ -2023,6 +2028,23 @@
     if (confirmation) {
         toast(confirmation.textContent.trim());
     }
+})();
+
+// --- Delete case correspondence ----------------------------------------------
+// The tick is unticked each time its form opens (FRD-21, R902, R916). A dialog
+// closed without sending keeps its fields while the page lives, and the Send
+// report dialog is carried across the Case page's in-place updates, so a tick
+// left on one would ride a later send. Each open puts the tick back as the
+// server drew it: unticked, or as posted on a refused send's redisplay.
+(function () {
+    'use strict';
+    document.addEventListener('pegasus:dialog-open', function (event) {
+        var dialog = event.target;
+        if (!(dialog instanceof Element)) { return; }
+        dialog.querySelectorAll('[data-delete-case-correspondence]').forEach(function (tick) {
+            tick.checked = tick.defaultChecked;
+        });
+    });
 })();
 
 // --- The bell's list ---------------------------------------------------------

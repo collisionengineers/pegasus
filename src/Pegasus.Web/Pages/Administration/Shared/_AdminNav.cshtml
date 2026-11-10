@@ -1,5 +1,8 @@
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @{
     var area = ViewData["AdminArea"] as string;
+    // Photo links is a photo capture page: absent while photo capture is off (v50 F; R911).
+    var photoCaptureEnabled = ShellRail.PhotoCaptureEnabled(Configuration);
     var page = ViewContext.RouteData.Values["page"] as string;
     string? Current(string key) => area == key
         || page == (key switch
@@ -35,6 +38,13 @@
             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-settings")" /></svg>
             <span>@OperatorLabels.Admin.Configuration</span>
         </a>
+        @if (photoCaptureEnabled)
+        {
+            <a asp-page="/Administration/PhotoLinks" aria-current="@Current("photo-links")">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-camera")" /></svg>
+                <span>@OperatorLabels.Admin.PhotoLinks</span>
+            </a>
+        }
         <a asp-page="/Administration/Mailboxes" aria-current="@Current("mail")">
             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-mail")" /></svg>
             <span>@OperatorLabels.Admin.Mail</span>

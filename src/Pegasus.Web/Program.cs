@@ -117,6 +117,8 @@ var developmentOfflineProfile = builder.Environment.IsDevelopment()
 var productionProfile = configuredRuntimeProfile.Equals("Production", StringComparison.Ordinal);
 QueueClient? intakeWorkQueue = null;
 TokenCredential? automationMcpCredential = null;
+// The Web's managed identity in Production, for the photo link text send.
+TokenCredential? textMessageCredential = null;
 var allowLocalQueueCreation = false;
 var applicationInsightsConfigured = false;
 if (configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal)
@@ -267,6 +269,7 @@ if (productionProfile)
         ExcludeBrokerCredential = true
     });
     automationMcpCredential = credential;
+    textMessageCredential = credential;
     builder.Services.AddDataProtection()
         .SetApplicationName("Pegasus")
         .PersistKeysToAzureBlobStorage(
@@ -1004,6 +1007,26 @@ if (photoCaptureOptions is not null)
     builder.Services.AddScoped<CaptureContextFactory>();
     builder.Services.AddSingleton<CaptureAssets>();
     builder.Services.AddSingleton<CaptureItemRateLimiter>();
+    // A photo link text goes through Azure Communication Services from the
+    // number configured for it (R918), over the Web's managed identity; with
+    // no number the infrastructure's unavailable send stays and no page
+    // offers Send by text.
+    var textMessageOptions = builder.Configuration
+        .GetSection(Pegasus.Infrastructure.TextMessages.TextMessageOptions.SectionName)
+        .Get<Pegasus.Infrastructure.TextMessages.TextMessageOptions>();
+    if (textMessageCredential is not null && textMessageOptions is { Configured: true })
+    {
+        builder.Services.AddHttpClient(
+            Pegasus.Infrastructure.TextMessages.AcsPhotoLinkTextSend.HttpClientName,
+            client => client.Timeout = TimeSpan.FromSeconds(30));
+        builder.Services.AddSingleton<Pegasus.Core.PhotoCapture.IPhotoLinkTextSend>(provider =>
+            new Pegasus.Infrastructure.TextMessages.AcsPhotoLinkTextSend(
+                provider.GetRequiredService<IHttpClientFactory>()
+                    .CreateClient(Pegasus.Infrastructure.TextMessages.AcsPhotoLinkTextSend.HttpClientName),
+                textMessageCredential,
+                textMessageOptions,
+                provider.GetRequiredService<ILogger<Pegasus.Infrastructure.TextMessages.AcsPhotoLinkTextSend>>()));
+    }
     if (applicationInsightsConfigured)
     {
         // A designed refusal on the capture surface is not a failed request.

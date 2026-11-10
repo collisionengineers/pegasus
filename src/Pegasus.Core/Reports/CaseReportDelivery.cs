@@ -28,6 +28,7 @@ public interface IReportSendReadiness
 /// <param name="AcknowledgedHolds">The hold texts staff ticked as done; every hold the plan sets must be among them.</param>
 /// <param name="Subject">The subject staff edited (v48 item C); null or blank sends the derived one.</param>
 /// <param name="AttachmentNames">The names staff gave this generation's documents for the send (v48 item E), by kind; a kind not named keeps its policy name.</param>
+/// <param name="TidiesCaseCorrespondence">The dialog's Delete case correspondence tick (R902 to R905, ADR-0071); no part of the dispatch fingerprint or record.</param>
 public sealed record SendCaseReportRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
     Guid GenerationId, long ExpectedGenerationVersion, string OperationKey,
@@ -42,7 +43,8 @@ public sealed record SendCaseReportRequest(
     IReadOnlyList<string>? AcknowledgedHolds = null,
     string? StopOverrideReason = null,
     string? Subject = null,
-    IReadOnlyDictionary<CaseReportArtifactKind, string>? AttachmentNames = null);
+    IReadOnlyDictionary<CaseReportArtifactKind, string>? AttachmentNames = null,
+    bool TidiesCaseCorrespondence = false);
 
 /// <summary>
 /// The other work's report one send also carries: its generation at the
@@ -258,9 +260,24 @@ public static class CaseReportDeliveryNaming
     public const string Extension = ".pdf";
 
     /// <summary>
+    /// The longest name a delivered document may carry, its extension
+    /// included: custody's bound for a file name (operator, 10 November
+    /// 2026; R895).
+    /// </summary>
+    public const int MaximumFileNameLength = 120;
+
+    /// <summary>The refusal of a staff name past <see cref="MaximumFileNameLength"/> (R895).</summary>
+    public static readonly string FileNameTooLong =
+        $"A file name cannot exceed {MaximumFileNameLength} characters.";
+
+    /// <summary>
     /// A name staff gave a document for one send (operator, 4 November 2026,
     /// v48 item E): trimmed, ending in <see cref="Extension"/> with something
-    /// before it. Anything else is refused.
+    /// before it, each character no file name can hold made <c>_</c> as
+    /// custody makes it, and at most <see cref="MaximumFileNameLength"/>
+    /// characters (operator, 10 November 2026; R895). A name without the
+    /// extension is refused; one too long is refused with
+    /// <see cref="FileNameTooLong"/>, which staff are shown.
     /// </summary>
     public static string StaffName(string name)
     {
@@ -271,7 +288,61 @@ public static class CaseReportDeliveryNaming
         {
             throw new ArgumentException($"A delivered document's name ends in {Extension}.", nameof(name));
         }
-        return trimmed;
+        if (trimmed.Length > MaximumFileNameLength)
+        {
+            throw new InvalidOperationException(FileNameTooLong);
+        }
+        return FileSafe(trimmed);
+    }
+
+    /// <summary>
+    /// The attachments of one send with no two sharing a name, case ignored
+    /// (operator, 10 November 2026; R896): a later document whose name an
+    /// earlier attachment already carries gains " (2)", " (3)" and so on
+    /// before its extension, its stem cut so the name stays within
+    /// <see cref="MaximumFileNameLength"/>. An attachment
+    /// <paramref name="keepsName"/> marks (a filed estimate, R671) is never
+    /// renamed; a document whose name it carries is numbered instead.
+    /// </summary>
+    public static IReadOnlyList<StaffMailAttachment> Distinct(
+        IReadOnlyList<StaffMailAttachment> attachments,
+        Func<int, bool> keepsName)
+    {
+        ArgumentNullException.ThrowIfNull(attachments);
+        ArgumentNullException.ThrowIfNull(keepsName);
+        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < attachments.Count; index++)
+        {
+            if (keepsName(index))
+            {
+                taken.Add(attachments[index].FileName);
+            }
+        }
+        var named = new StaffMailAttachment[attachments.Count];
+        for (var index = 0; index < attachments.Count; index++)
+        {
+            var attachment = attachments[index];
+            if (keepsName(index) || taken.Add(attachment.FileName))
+            {
+                named[index] = attachment;
+                continue;
+            }
+            var name = attachment.FileName;
+            var extension = name.EndsWith(Extension, StringComparison.OrdinalIgnoreCase)
+                ? name[^Extension.Length..]
+                : string.Empty;
+            var stem = name[..^extension.Length];
+            string numbered;
+            var number = 2;
+            do
+            {
+                var suffix = string.Create(CultureInfo.InvariantCulture, $" ({number++})") + extension;
+                numbered = stem[..Math.Min(stem.Length, MaximumFileNameLength - suffix.Length)].TrimEnd() + suffix;
+            }
+            while (!taken.Add(numbered));
+            named[index] = attachment with { FileName = numbered };
+        }
+        return named;
     }
 
     /// <summary>
@@ -369,26 +440,60 @@ public static class CaseReportDeliveryPolicy
     /// </summary>
     public const int MaximumSubjectLength = 500;
 
+    /// <summary>The refusal of a changed subject past <see cref="MaximumSubjectLength"/>, which staff are shown.</summary>
+    public static readonly string SubjectTooLong =
+        $"A subject cannot exceed {MaximumSubjectLength} characters.";
+
     /// <summary>
     /// The subject one delivery leaves under (v48 item C): the one staff
     /// edited, trimmed, when they gave one; else the subject the send
-    /// derives. A subject past <see cref="MaximumSubjectLength"/> is refused.
+    /// derives. Every line break or other control character becomes one
+    /// space. The <see cref="MaximumSubjectLength"/> bound is on a subject
+    /// staff changed: a subject sent as derived, blank or submitted as it was
+    /// prefilled, keeps only the mail command's ceiling (operator, 10
+    /// November 2026; R670, R897). A changed subject past the bound is refused
+    /// with <see cref="SubjectTooLong"/>.
     /// </summary>
     public static string Subject(string? edited, string derived)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(derived);
+        var derivedLine = OneLine(derived);
         if (string.IsNullOrWhiteSpace(edited))
         {
-            return derived;
+            return derivedLine;
         }
-        var trimmed = edited.Trim();
-        if (trimmed.Length > MaximumSubjectLength)
+        var line = OneLine(edited);
+        if (string.Equals(line, derivedLine, StringComparison.Ordinal))
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(edited),
-                $"A subject cannot exceed {MaximumSubjectLength} characters.");
+            return derivedLine;
         }
-        return trimmed;
+        if (line.Length > MaximumSubjectLength)
+        {
+            throw new InvalidOperationException(SubjectTooLong);
+        }
+        return line;
+    }
+
+    /// <summary>A subject on one line: each run of control characters one space, trimmed.</summary>
+    private static string OneLine(string subject)
+    {
+        var builder = new System.Text.StringBuilder(subject.Length);
+        var inBreak = false;
+        foreach (var character in subject)
+        {
+            if (char.IsControl(character))
+            {
+                if (!inBreak)
+                {
+                    builder.Append(' ');
+                }
+                inBreak = true;
+                continue;
+            }
+            inBreak = false;
+            builder.Append(character);
+        }
+        return builder.ToString().Trim();
     }
 
     /// <summary>
@@ -400,7 +505,7 @@ public static class CaseReportDeliveryPolicy
     public static string DerivedSubject(CaseInstructionEmail? replyTo, ReportDispatchFacts facts)
     {
         ArgumentNullException.ThrowIfNull(facts);
-        return replyTo?.ReplySubject ?? ReportDispatchPolicy.Subject(facts with { Instruction = null });
+        return OneLine(replyTo?.ReplySubject ?? ReportDispatchPolicy.Subject(facts with { Instruction = null }));
     }
 
     /// <summary>
@@ -840,11 +945,12 @@ public sealed class SendCaseReport(
             .. CaseReportDeliveryPolicy.Attachments(generation.Id, generation.Artifacts, attachChoice),
             .. plan.FiledEstimates
         ];
+        var attachedKinds = CaseReportDeliveryPolicy.AttachedKinds(generation.Id, generation.Artifacts, attachChoice);
         IReadOnlyList<StaffMailAttachment> named = CaseReportDeliveryNaming.Named(
             attachments,
             CaseReportDeliveryNaming.ReportName(
                 generation.Snapshot, history.SentCount, facts.ReportNames, facts.CaseType, generation.WorkKind),
-            CaseReportDeliveryPolicy.AttachedKinds(generation.Id, generation.Artifacts, attachChoice),
+            attachedKinds,
             request.AttachmentNames);
 
         // The other work's report the same email carries: deliverable on its
@@ -892,6 +998,14 @@ public sealed class SendCaseReport(
             ];
         }
 
+        // No two attachments share a name (R896): a later document is
+        // numbered, and a filed estimate, between the two reports'
+        // documents, keeps the name it was filed under (R671).
+        var firstEstimate = attachedKinds.Count;
+        var afterEstimates = firstEstimate + plan.FiledEstimates.Count;
+        named = CaseReportDeliveryNaming.Distinct(
+            named, index => index >= firstEstimate && index < afterEstimates);
+
         // A reply to the instruction email, or a new message when there is
         // none, from the mailbox staff chose or else the default (R655).
         var sender = await senders.ExecuteAsync(request.CaseId, request.FromMailboxId, cancellationToken).ConfigureAwait(false);
@@ -917,7 +1031,8 @@ public sealed class SendCaseReport(
             // Custody keeps its own name for the same bytes.
             named,
             request.OperationKey,
-            SecondReport: second is null ? null : new(second.Id, second.Version))
+            SecondReport: second is null ? null : new(second.Id, second.Version),
+            TidiesCaseCorrespondence: request.TidiesCaseCorrespondence)
         {
             ReportDispatch = new(
                 request.Decisions ?? [],

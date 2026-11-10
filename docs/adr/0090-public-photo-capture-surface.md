@@ -87,9 +87,10 @@ domain is a separate operator decision (EXT-19 stays retired).
   redacted wherever it would be written to a log or a trace, and the
   credential header and the token and slug path segments are not recorded.
 - **The token in the mail body is staff-initiated delivery.** A photo link
-  e-mail is a staff send from an approved mailbox (R773); Pegasus sends no
-  link by itself, and text and WhatsApp are Copy link and the staff member's
-  own phone. The e-mail's Sent evidence holds the link as any staff message
+  e-mail is a staff send from an approved mailbox (R773), and a text is a
+  staff send through Azure Communication Services from Pegasus's own UK
+  mobile number (R918); Pegasus sends no link by itself, and WhatsApp is
+  Copy link and the staff member's own phone. The e-mail's Sent evidence holds the link as any staff message
   holds what staff wrote.
 - **A composition gate.** `Features:PhotoCapture` off registers nothing:
   `/c`, `/s`, `/capture` and `/PhotoCapture` answer 404 before routing.

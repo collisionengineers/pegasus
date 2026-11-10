@@ -130,7 +130,15 @@ clientState and the known active subscription, queues only the subscription
 and approved-mailbox identifiers, and acknowledges promptly. It does not
 download, classify, extract, associate, allocate or change a message.
 Unknown, expired, malformed or wrongly scoped notifications fail closed
-without queuing work or revealing the secret.
+without queuing work or revealing the secret. The subscription id Graph
+issued, the clientState and the tenant identify the mailbox: a wrongly scoped
+notification is one whose subscription is unknown, expired or of an older
+mailbox generation. The resource is read only for the message id, since Graph
+names the mailbox by its user id whatever form the subscription was made with
+(operator, 10 November 2026; R883). Each notification it does not queue
+writes one log line naming the subscription and the reason, never the secret.
+A failed subscription write is logged with its error and recorded on the
+mailbox's subscription row, an older generation's included.
 Graph hangs up on a slow answer and resends only minutes later. So once the
 endpoint has read a batch, it finishes queuing it even if Graph has gone,
 within a 30 s bound. The resend is then a safe duplicate. The Web start-up

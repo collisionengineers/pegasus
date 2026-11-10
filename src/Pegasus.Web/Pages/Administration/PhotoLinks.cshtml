@@ -1,0 +1,216 @@
+@page
+@model Pegasus.Web.Pages.Administration.PhotoLinksModel
+@using Pegasus.Core.PhotoCapture
+@using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture
+@{
+    ViewData["Title"] = OperatorLabels.Admin.PhotoLinks;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+    ViewData["AdminArea"] = "photo-links";
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/photo-capture.css" asp-append-version="true" />
+}
+<partial name="Shared/_PageHeader" />
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
+        @if (Model.Notice is { } notice)
+        {
+            <div class="notice notice--success" role="status">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg>
+                <span>@notice</span>
+            </div>
+        }
+        @if (Model.Refusal is { } refusal)
+        {
+            <div class="notice notice--danger" role="alert">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
+                <span>@refusal</span>
+            </div>
+        }
+        <partial name="Shared/_ErrorSummary" />
+
+        @* The one website link for private customers (R797), moved here from the
+           Photo capture page (v50 F, H; R911). Save in the head saves its
+           defaults, the panel's only editable fields; More holds Pause / Resume,
+           Replace link and Retire link, last. *@
+        <section class="panel" id="website-link" aria-labelledby="website-link-title">
+            <div class="panel-head">
+                <h2 id="website-link-title">@Labels.WebsiteLink</h2>
+                @if (Model.WebsiteLink is { } chipLink)
+                {
+                    <partial name="Shared/_StatusChip" model="@(chipLink.IsActive ? Labels.Active : Labels.Paused)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = chipLink.IsActive ? "green" : "amber" }' />
+                    <div class="panel-actions">
+                        <button type="submit" form="website-link-defaults" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button>
+                        <details class="menu" data-menu>
+                            <summary class="btn btn--small"><span>More</span><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-down")" /></svg></summary>
+                            <div class="menu-body">
+                                <form method="post" asp-page-handler="@(chipLink.IsActive ? "PauseWebsiteLink" : "ResumeWebsiteLink")">
+                                    <input type="hidden" name="ExpectedVersion" value="@chipLink.Version" />
+                                    <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                    <button type="submit" class="btn" data-busy-label="@(chipLink.IsActive ? OperatorLabels.Busy.Pausing : OperatorLabels.Busy.Resuming)">
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(chipLink.IsActive ? "icon-pause" : "icon-play")" /></svg>
+                                        @* The website panel's own words; a contact's panel keeps "their" (R867). *@
+                                        <span>@(chipLink.IsActive ? Labels.PauseTheLink : Labels.ResumeTheLink)</span>
+                                    </button>
+                                </form>
+                                <button type="button" class="btn" data-dialog-open="replace-website-link">
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-cw")" /></svg>
+                                    <span>@Labels.ReplaceLink</span>
+                                </button>
+                                <div class="menu-sep"></div>
+                                <button type="button" class="btn btn--danger" data-dialog-open="retire-website-link">@Labels.RetireLink</button>
+                            </div>
+                        </details>
+                    </div>
+                }
+            </div>
+            <div class="panel-body stack">
+                @if (Model.WebsiteLink is { } link && Model.WebsiteUrl is { } url)
+                {
+                    <div class="photo-link-standing">
+                        <div class="photo-link-qr">@Html.Raw(Model.WebsiteQrSvg)</div>
+                        <div class="stack">
+                            <code id="website-link-url" class="photo-link-url">@url</code>
+                            <div class="button-row">
+                                <button type="button" class="btn btn--small" data-copy-target="website-link-url" hidden>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-copy")" /></svg>
+                                    <span>@Labels.Copy</span>
+                                </button>
+                                <a class="btn btn--small" asp-page="/Administration/PhotoLinks" asp-page-handler="WebsiteQr"
+                                   data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed">
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg>
+                                    <span>@Labels.DownloadQr</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <form method="post" asp-page-handler="UpdateWebsiteLinkDefaults" id="website-link-defaults" class="photo-link-defaults">
+                        <input type="hidden" name="ExpectedVersion" value="@link.Version" />
+                        <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                        <partial name="Shared/_PhotoLinkDefaults" model="@((link, false))" />
+                    </form>
+
+                    @* Replace gives the link the address typed here; Pegasus never makes
+                       one up (R797). A refused address reopens this dialog with its
+                       sentence beside the box (R868). *@
+                    <div class="dialog-backdrop" data-dialog="replace-website-link" @(Model.ReplaceRefused ? Html.Raw("data-dialog-open-on-load=\"true\"") : Html.Raw("hidden"))>
+                        <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="replace-website-link-title">
+                            <div class="dialog-head"><h2 id="replace-website-link-title" tabindex="-1">@Labels.ReplaceLink</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button></div>
+                            <form method="post" asp-page-handler="ReplaceWebsiteLink">
+                                <input type="hidden" name="ExpectedVersion" value="@link.Version" />
+                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                <div class="dialog-body">
+                                    <div class="field">
+                                        <label for="website-address">@Labels.WebsiteAddress</label>
+                                        <div class="photo-link-box">
+                                            <span class="mono muted">@Model.WebsiteAddressPrefix</span>
+                                            <input type="text" id="website-address" name="WebsiteSlug" autocomplete="off" spellcheck="false" maxlength="@PhotoLinkToken.MaximumSlugLength" required data-dialog-initial-focus />
+                                        </div>
+                                        @if (Model.WebsiteAddressRefusal is { } replaceRefusal)
+                                        {
+                                            <span class="field-error" role="alert" data-website-address-refusal>@replaceRefusal</span>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="dialog-foot">
+                                    <button class="btn" type="button" data-dialog-close>Cancel</button>
+                                    <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Replacing">
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-cw")" /></svg>
+                                        <span>@Labels.ReplaceLink</span>
+                                    </button>
+                                </div>
+                            </form>
+                        </section>
+                    </div>
+
+                    @* Retire ends the link for good (R796): confirmed, since it cannot be undone. *@
+                    <div class="dialog-backdrop" data-dialog="retire-website-link" hidden>
+                        <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="retire-website-link-title">
+                            <div class="dialog-head"><h2 id="retire-website-link-title" tabindex="-1" data-dialog-initial-focus>@Labels.RetireLink</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button></div>
+                            <form method="post" asp-page-handler="RetireWebsiteLink">
+                                <div class="dialog-body"><p>@Labels.RetireLinkConfirmation</p></div>
+                                <input type="hidden" name="ExpectedVersion" value="@link.Version" />
+                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                <div class="dialog-foot"><button class="btn" type="button" data-dialog-close>Cancel</button><button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Retiring">@Labels.RetireLink</button></div>
+                            </form>
+                        </section>
+                    </div>
+                }
+                else
+                {
+                    @* The Administrator types the website's address (R797) in its labelled box (R869);
+                       a refused address shows its sentence beside it (R868). *@
+                    <form method="post" asp-page-handler="CreateWebsiteLink">
+                        <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                        <div class="field">
+                            <label for="website-address">@Labels.WebsiteAddress</label>
+                            <div class="photo-link-box">
+                                <span class="mono muted">@Model.WebsiteAddressPrefix</span>
+                                <input type="text" id="website-address" name="WebsiteSlug" autocomplete="off" spellcheck="false" maxlength="@PhotoLinkToken.MaximumSlugLength" required />
+                                <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Creating">
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
+                                    <span>@Labels.CreateTheWebsiteLink</span>
+                                </button>
+                            </div>
+                            @if (Model.WebsiteAddressRefusal is { } createRefusal)
+                            {
+                                <span class="field-error" role="alert" data-website-address-refusal>@createRefusal</span>
+                            }
+                        </div>
+                    </form>
+                }
+            </div>
+        </section>
+
+        @* Send a photo link's starting values (R813) and the lifetimes it offers,
+           with the one it starts on (R817), under the Send page's title, since
+           "Photo links" is this page's (v50 G; R911). *@
+        <section class="panel" aria-labelledby="send-settings-title" data-photo-link-settings>
+            <form method="post" asp-page-handler="SaveSendSettings">
+                <input type="hidden" name="WorkflowExpectedVersion" value="@Model.WorkflowExpectedVersion" />
+                <input type="hidden" name="WorkflowOperationKey" value="@Model.WorkflowOperationKey" />
+                <div class="panel-head">
+                    <h2 id="send-settings-title">@Labels.SendAPhotoLink</h2>
+                    <div class="panel-actions"><button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
+                </div>
+                <div class="panel-body stack">
+                    <fieldset class="field fieldset-plain">
+                        <legend>@Labels.PhotoGuidance</legend>
+                        <div class="cluster">
+                            @foreach (var mode in Enum.GetValues<PhotoCaptureMode>())
+                            {
+                                <label class="choice"><input type="radio" name="PhotoLinkStartMode" value="@mode" checked="@(Model.PhotoLinkStartMode == mode)" /> <span>@Labels.Mode(mode)</span></label>
+                            }
+                        </div>
+                    </fieldset>
+                    <fieldset class="field fieldset-plain">
+                        <legend>@Labels.LifetimesOffered</legend>
+                        <div class="cluster">
+                            @foreach (var days in CaptureLimits.LifetimeDays)
+                            {
+                                <label class="choice"><input type="checkbox" name="PhotoLinkLifetimesOffered" value="@days" checked="@Model.PhotoLinkLifetimesOffered.Contains(days)" /> <span>@Labels.Days(days)</span></label>
+                            }
+                        </div>
+                        <span asp-validation-for="PhotoLinkLifetimesOffered" class="field-error"></span>
+                    </fieldset>
+                    <div class="field field--narrow">
+                        <label for="PhotoLinkDefaultLifetimeDays">@Labels.LinkLasts</label>
+                        <select id="PhotoLinkDefaultLifetimeDays" name="PhotoLinkDefaultLifetimeDays">
+                            @foreach (var days in CaptureLimits.LifetimeDays)
+                            {
+                                <option value="@days" selected="@(Model.PhotoLinkDefaultLifetimeDays == days)">@Labels.Days(days)</option>
+                            }
+                        </select>
+                        <span asp-validation-for="PhotoLinkDefaultLifetimeDays" class="field-error"></span>
+                    </div>
+                    <div class="cluster">
+                        <label class="choice"><input type="checkbox" name="PhotoLinkStartLiveCameraOnly" value="true" checked="@Model.PhotoLinkStartLiveCameraOnly" /> <span>@Labels.LiveCameraOnly</span></label>
+                        <label class="choice"><input type="checkbox" name="PhotoLinkStartOriginals" value="true" checked="@Model.PhotoLinkStartOriginals" /> <span>@Labels.FullSizeOriginals</span></label>
+                    </div>
+                </div>
+            </form>
+        </section>
+    </div>
+</div>

@@ -46,6 +46,33 @@ public static partial class OperatorLabels
         // C08 shell administration areas end
         public const string ReleaseNotes = "Release notes";
         public const string ProblemReports = "Problem reports";
+
+        /// <summary>The website link and Send a photo link's starting values, while photo capture is on (v50 F; R911).</summary>
+        public const string PhotoLinks = "Photo links";
+    }
+
+    /// <summary>
+    /// Workflow configuration's panels, one per concern, each with its own Save
+    /// (v50 A to E; operator, 10 November 2026; R910).
+    /// </summary>
+    public static class WorkflowConfiguration
+    {
+        public const string RequiredBeforeReview = "Required before Review";
+        public const string CasePo = "Case/PO";
+        public const string ChasingAndDueTargets = "Chasing and due targets";
+        public const string LabourRateCards = "Labour-rate cards";
+        public const string Instructions = "Instructions";
+        public const string Images = "Images";
+        public const string AddPToNewCasePo = "Add -p to new Case/PO";
+        public const string PanelAndPaintPerHour = "Panel and paint (£/hour)";
+
+        /// <summary>The unit after each day box (v50 D).</summary>
+        public const string Days = "days";
+        public const string Save = "Save";
+        public const string Saved = "Workflow settings saved.";
+        public const string CardSaved = "The labour-rate card was saved.";
+        public const string Changed = "Workflow settings changed. Reload the page before trying again.";
+        public const string FormUsed = "This workflow settings form was already used. Reload the page before trying again.";
     }
 
     /// <summary>Release notes (FRD-12 What's new; FRD-17): the labels, statuses and acknowledgements.</summary>
@@ -200,6 +227,8 @@ public static partial class OperatorLabels
         public const string Resetting = "Resetting…";
         public const string Restoring = "Restoring…";
         public const string Resuming = "Resuming…";
+        // A standing photo link's Retire while it works (operator, 10 November 2026; R869).
+        public const string Retiring = "Retiring…";
         public const string Retrying = "Retrying…";
         public const string Returning = "Returning…";
         public const string Revoking = "Revoking…";

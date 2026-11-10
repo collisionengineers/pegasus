@@ -28,9 +28,13 @@ namespace Pegasus.Worker;
 /// own five-minute timers, so they use this timer's warm instance instead of
 /// starting a cold one: the due-work sweep, then the approved-inbox fallback
 /// poll (Graph subscription maintenance first), then the sent-report instruction
-/// tidy (ADR-0071), a third job that was never on its own timer. On every other
+/// tidy and the sent-mail correspondence tidy (ADR-0071, R902), two jobs
+/// that were never on their own timers. On every other
 /// minute it runs one folded job, the pending-wake poll: each mailbox whose wake
 /// found it leased or not yet due is polled then, not at the next fallback poll.
+/// When guided photo capture is on, every minute first runs the photo capture
+/// settle, straight after the dispatch, so a Case moves within about a minute
+/// of Send (operator, 10 November 2026; R838).
 /// </summary>
 /// <remarks>
 /// The dispatch runs first and nothing below delays it. Each folded job
@@ -55,6 +59,7 @@ public sealed partial class PendingWorkRecoveryFunction(
     MaintainMailboxChangeSubscriptions maintainMailboxChangeSubscriptions,
     PollApprovedInbox pollApprovedInbox,
     TidySentReportInstructions tidySentReportInstructions,
+    TidySentCaseCorrespondence tidySentCaseCorrespondence,
     TimeProvider timeProvider,
     ILogger<PendingWorkRecoveryFunction> logger,
     PhotoCaptureWorkerGate? photoCaptureGate = null,
@@ -70,6 +75,9 @@ public sealed partial class PendingWorkRecoveryFunction(
 
     private static readonly ActionActor InstructionTidyActor =
         ActionActor.SystemWorker("sent-report-instruction-tidy");
+
+    private static readonly ActionActor CorrespondenceTidyActor =
+        ActionActor.SystemWorker("sent-mail-correspondence-tidy");
 
     [Function(nameof(PendingWorkRecoveryFunction))]
     public async Task RunAsync(
@@ -94,18 +102,21 @@ public sealed partial class PendingWorkRecoveryFunction(
         var foldedFailures = new List<ExceptionDispatchInfo>();
         try
         {
+            if (photoCaptureGate is { Enabled: true } && settlePhotoCaptures is not null)
+            {
+                // A photo link's capture settles here on every minute (FRD-28):
+                // once the sender has pressed Send, or the link ran out or was
+                // cancelled with photos, and every photo has filed, the Case
+                // moves within about a minute (operator, 10 November 2026; R838).
+                await RunFoldedJobAsync("photo-capture settle", RunPhotoCaptureSettleAsync, foldedFailures, cancellationToken);
+            }
+
             if (runFoldedJobs)
             {
                 await RunFoldedJobAsync("due-work sweep", RunDueWorkSweepAsync, foldedFailures, cancellationToken);
-                if (photoCaptureGate is { Enabled: true } && settlePhotoCaptures is not null)
-                {
-                    // A photo link's capture settles here (FRD-28): once the
-                    // sender has pressed Send, or the link ran out or was
-                    // cancelled with photos, and every photo has filed.
-                    await RunFoldedJobAsync("photo-capture settle", RunPhotoCaptureSettleAsync, foldedFailures, cancellationToken);
-                }
                 await RunFoldedJobAsync("approved-inbox recovery", RunInboxRecoveryAsync, foldedFailures, cancellationToken);
                 await RunFoldedJobAsync("sent-report instruction tidy", RunInstructionTidyAsync, foldedFailures, cancellationToken);
+                await RunFoldedJobAsync("sent-mail correspondence tidy", RunCorrespondenceTidyAsync, foldedFailures, cancellationToken);
             }
             else
             {
@@ -190,6 +201,23 @@ public sealed partial class PendingWorkRecoveryFunction(
             result.FailedCount);
     }
 
+    private async Task RunCorrespondenceTidyAsync(CancellationToken cancellationToken)
+    {
+        // Ten sends a run: each costs two or three Graph calls for every received
+        // e-mail of its Case, inside the folded job's budget.
+        var result = await tidySentCaseCorrespondence.ExecuteAsync(
+            10,
+            CorrespondenceTidyActor,
+            cancellationToken);
+        LogCorrespondenceTidy(
+            logger,
+            result.ExaminedCount,
+            result.MovedCount,
+            result.AlreadyMovedCount,
+            result.MessageMissingCount,
+            result.FailedCount);
+    }
+
     private async Task RunFoldedJobAsync(
         string job,
         Func<CancellationToken, Task> run,
@@ -258,6 +286,17 @@ public sealed partial class PendingWorkRecoveryFunction(
         Message = "Sent-report instruction tidy: {MovedCount} moved to Deleted Items, {AlreadyMovedCount} already there, {MessageMissingCount} no longer in the mailbox, {FailedCount} failed.")]
     private static partial void LogInstructionTidy(
         ILogger logger,
+        int movedCount,
+        int alreadyMovedCount,
+        int messageMissingCount,
+        int failedCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Sent-mail correspondence tidy: {SendCount} sends, {MovedCount} e-mails moved to Deleted Items, {AlreadyMovedCount} already there, {MessageMissingCount} no longer in the mailbox, {FailedCount} failed.")]
+    private static partial void LogCorrespondenceTidy(
+        ILogger logger,
+        int sendCount,
         int movedCount,
         int alreadyMovedCount,
         int messageMissingCount,
@@ -480,6 +519,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ReconcilePendingArtifactCustody reconcilePendingArtifactCustody,
     ISettleFiledCaseReportArtifacts settleFiledCaseReportArtifacts,
     ReconcileGroupedImageIntake reconcileGroupedImageIntake,
+    AssociateThreadSiblings associateThreadSiblings,
     ReplayCaseFilings replayCaseFilings,
     IImageIntakeCasePairing imageIntakeCasePairing,
     ITriageCasePairing triageCasePairing,
@@ -492,6 +532,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     DocumentUploadSweepSchedule documentUploadSweepSchedule,
     PrepareDocumentThumbnails prepareDocumentThumbnails,
     RecogniseFiledEstimates recogniseFiledEstimates,
+    RetryDeferredOriginalReportRecognition retryDeferredOriginalReportRecognition,
     ILogger<StagedArtifactReconciliationFunction> logger)
 {
     /// <summary>
@@ -653,6 +694,25 @@ public sealed partial class StagedArtifactReconciliationFunction(
             }
         }, failures, cancellationToken);
 
+        // Links a No Case Found e-mail whose own mailbox conversation has come
+        // to hold a Case since it was processed, within two hours (R884,
+        // #1831). It runs before the Case filings so what it links files in
+        // the same pass.
+        await RunStepAsync("thread siblings", async () =>
+        {
+            var siblings = await associateThreadSiblings.ExecuteAsync(50, cancellationToken);
+            if (siblings.Candidates > 0)
+            {
+                var siblingsLevel = FailureLevel(siblings.Failures);
+                LogThreadSiblingAssociation(
+                    logger,
+                    siblingsLevel,
+                    siblings.Candidates,
+                    siblings.Associated,
+                    siblings.Failures);
+            }
+        }, failures, cancellationToken);
+
         // Files the evidence of a receipt associated with a Case whose filing
         // waited for an editor or failed, calling the filer directly, within
         // the bounded replay window and attempts (FRD-22, FRD-05). Same
@@ -671,6 +731,24 @@ public sealed partial class StagedArtifactReconciliationFunction(
                     caseFilings.Filed,
                     caseFilings.Failures,
                     caseFilings.Exhausted);
+            }
+        }, failures, cancellationToken);
+
+        // Records an original report recognised while an editor held its
+        // Case, once the lease has ended (R728, #1981).
+        await RunStepAsync("original report recordings", async () =>
+        {
+            var deferred = await retryDeferredOriginalReportRecognition.ExecuteAsync(50, cancellationToken);
+            if (deferred.Candidates > 0)
+            {
+                var deferredLevel = FailureLevel(deferred.Failures);
+                LogDeferredOriginalReportRecognition(
+                    logger,
+                    deferredLevel,
+                    deferred.Candidates,
+                    deferred.Settled,
+                    deferred.Waiting,
+                    deferred.Failures);
             }
         }, failures, cancellationToken);
 
@@ -998,6 +1076,25 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int candidates,
         int retried,
         int escaped,
+        int failures);
+
+    [LoggerMessage(
+        Message = "Thread siblings: {Candidates} candidates, {Associated} associated, {Failures} failures.")]
+    private static partial void LogThreadSiblingAssociation(
+        ILogger logger,
+        LogLevel level,
+        int candidates,
+        int associated,
+        int failures);
+
+    [LoggerMessage(
+        Message = "Deferred original report recordings: {Candidates} candidates, {Settled} settled, {Waiting} still waiting for the editor, {Failures} failures.")]
+    private static partial void LogDeferredOriginalReportRecognition(
+        ILogger logger,
+        LogLevel level,
+        int candidates,
+        int settled,
+        int waiting,
         int failures);
 
     [LoggerMessage(

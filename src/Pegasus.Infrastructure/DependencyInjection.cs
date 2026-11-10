@@ -101,6 +101,7 @@ public static class DependencyInjection
         services.AddScoped<IIntakeSubmissionGroupStore>(provider =>
             provider.GetRequiredService<EfIntakeSubmissionGroupStore>());
         services.AddScoped<ICaseFilingReplayStore, EfCaseFilingReplayStore>();
+        services.AddScoped<IThreadSiblingAssociationCandidates, EfThreadSiblingAssociationCandidates>();
         services.AddScoped<IQueuedIntakeStatusQueries, EfQueuedIntakeStatusQueries>();
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
@@ -169,6 +170,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfIntakeMutationStore>());
         services.AddScoped<AssociateRetainedMailWithCase>();
         services.AddScoped<PromoteAssociatedIntakeCaseEvidence>();
+        services.AddScoped<IOriginalReportRecognitionDeferrals, EfOriginalReportRecognitionDeferrals>();
         services.AddScoped<ResolveIntake>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
         services.AddScoped<IRetryIntakeOcr, RetryIntakeOcr>();
@@ -205,6 +207,10 @@ public static class DependencyInjection
         services.AddScoped<ReceivePhotoCaptureItem>();
         services.AddScoped<CompletePhotoCapture>();
         services.AddScoped<PhotoLinkActions>();
+        // A photo link text (R918): unavailable unless the host composes the
+        // Azure Communication Services send over a configured number.
+        services.AddScoped<SendPhotoLinkText>();
+        services.TryAddSingleton<IPhotoLinkTextSend, Pegasus.Infrastructure.TextMessages.UnavailablePhotoLinkTextSend>();
         services.AddScoped<StandingPhotoLinkAdministration>();
         // A factory, because IProcessQueuedIntake is the Worker's own: the
         // Web never resolves the settle, and its build-time validation does
@@ -217,6 +223,7 @@ public static class DependencyInjection
             provider.GetRequiredService<IProcessQueuedIntake>(),
             provider.GetRequiredService<IPhotoCaptureCaseWriter>(),
             provider.GetRequiredService<IAddCaseNote>(),
+            provider.GetRequiredService<AddTriageNote>(),
             provider.GetRequiredService<ICaseStaffNotifier>(),
             provider.GetRequiredService<TimeProvider>()));
         services.AddScoped<EfUnidentifiedStore>();
@@ -574,6 +581,7 @@ public static class DependencyInjection
         services.AddScoped<IAppliedValuationStore>(provider =>
             provider.GetRequiredService<EfValuationStore>());
         services.AddScoped<IAutomaticGuideValuationStore, EfAutomaticGuideValuationStore>();
+        services.AddScoped<IGuideValuationFetchLedger, EfGuideValuationFetchLedger>();
         services.AddScoped<EfValuationPresetStore>();
         services.AddScoped<IValuationPresetStore>(provider =>
             provider.GetRequiredService<EfValuationPresetStore>());
@@ -1195,8 +1203,9 @@ public static class DependencyInjection
 
         services.AddGraphApprovedMailReads(graphOptions);
         // The Worker alone may move a retained message: it tidies the instruction a
-        // confirmed report send answered (ADR-0071). Web composes no mover.
-        services.Replace(ServiceDescriptor.Singleton<ISentReportInstructionMover, GraphSentReportInstructionMover>());
+        // confirmed report send answered (ADR-0071) and the Case's received e-mails
+        // after a ticked send (ADR-0071, R902). Web composes no mover.
+        services.Replace(ServiceDescriptor.Singleton<IRetainedMessageMover, GraphRetainedMessageMover>());
         // The Sent-evidence poll settles the Web's Submitted sends against the
         // Sent folder; the send itself is the Web's (AddProductionApprovedMailboxResolver).
         AddStaffMailSendStore(services);
@@ -1265,9 +1274,23 @@ public static class DependencyInjection
     public static IServiceCollection AddSentReportInstructionTidy(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.TryAddSingleton<ISentReportInstructionMover, UnavailableSentReportInstructionMover>();
+        services.TryAddSingleton<IRetainedMessageMover, UnavailableRetainedMessageMover>();
         services.AddScoped<ISentReportInstructionTidyStore, EfSentReportInstructionTidyStore>();
         services.AddScoped<TidySentReportInstructions>();
+        return services;
+    }
+
+    /// <summary>
+    /// The Worker's tidy of a Case's received e-mails after a send that carried the
+    /// Delete case correspondence tick (ADR-0071, R902). It shares the instruction tidy's
+    /// mover, so it too does nothing where that mover is unavailable.
+    /// </summary>
+    public static IServiceCollection AddSentCaseCorrespondenceTidy(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<IRetainedMessageMover, UnavailableRetainedMessageMover>();
+        services.AddScoped<ISentCaseCorrespondenceTidyStore, EfSentCaseCorrespondenceTidyStore>();
+        services.AddScoped<TidySentCaseCorrespondence>();
         return services;
     }
 

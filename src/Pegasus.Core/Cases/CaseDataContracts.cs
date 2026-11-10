@@ -31,7 +31,9 @@ public enum CaseDataSourceKind
     /// <summary>
     /// Typed by the sender on a photo link and written into an empty field
     /// when the capture settled (FRD-28; operator, 9 November 2026). Shown
-    /// with the source tag "Photo link"; never replaces a value already there.
+    /// with the source tag "Photo link"; never replaces a value already there
+    /// except a mileage that is the DVSA estimate (operator, 10 November 2026;
+    /// R843).
     /// </summary>
     PhotoLink
 }

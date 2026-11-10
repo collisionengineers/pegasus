@@ -36,6 +36,46 @@ public sealed class CaseFilingTargetRuleTests
             CaseFilingTargetRule.Decide(facts with { Workflow = facts.Workflow! with { IsArchived = true } }));
     }
 
+    /// <summary>
+    /// A photo link's kept paperwork and video, linked where its record
+    /// merged, file wherever the photos went, as a member of staff's
+    /// association does: a report-sent Case and a Triage Case included, an
+    /// archived Case never (operator, 10 November 2026; R844).
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.Review)]
+    [InlineData(CaseLifecycleState.ReportSent)]
+    public void ALinkThatFollowsARecordsMergeFilesInAnyState(CaseLifecycleState state)
+    {
+        var facts = Facts(isStaffAssociation: false, state) with { FollowsRecordMerge = true };
+
+        Assert.Equal(CaseFilingTargetDisposition.Current, CaseFilingTargetRule.Decide(facts));
+        Assert.Equal(
+            CaseFilingTargetDisposition.NotApplicable,
+            CaseFilingTargetRule.Decide(facts with { Workflow = facts.Workflow! with { IsArchived = true } }));
+    }
+
+    [Theory]
+    [InlineData(true, false, true, CaseFilingTargetDisposition.Current)]
+    [InlineData(false, true, true, CaseFilingTargetDisposition.Current)]
+    [InlineData(false, false, true, CaseFilingTargetDisposition.NotApplicable)]
+    [InlineData(false, true, false, CaseFilingTargetDisposition.NotApplicable)]
+    public void ATriageCaseTakesAStaffLinkOrOneThatFollowsARecordsMerge(
+        bool isStaffAssociation,
+        bool followsRecordMerge,
+        bool hasTriage,
+        CaseFilingTargetDisposition expected)
+    {
+        var facts = new CaseFilingTargetFacts(
+            isStaffAssociation,
+            IsOriginReceipt: false,
+            Workflow: null,
+            hasTriage,
+            followsRecordMerge);
+
+        Assert.Equal(expected, CaseFilingTargetRule.Decide(facts));
+    }
+
     private static CaseFilingTargetFacts Facts(bool isStaffAssociation, CaseLifecycleState state) =>
         new(
             isStaffAssociation,

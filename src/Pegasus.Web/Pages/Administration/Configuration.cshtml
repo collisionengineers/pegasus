@@ -1,105 +1,103 @@
 @page
 @model Pegasus.Web.Pages.Administration.ConfigurationModel
+@using Labels = Pegasus.Web.Presentation.OperatorLabels.WorkflowConfiguration
 @{
     ViewData["Title"] = OperatorLabels.Admin.Configuration;
     ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "configuration";
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
 }
 <partial name="Shared/_PageHeader" />
 <div class="admin-layout">
     <partial name="Shared/_AdminNav" />
     <div class="stack">
         <partial name="Shared/_ErrorSummary" />
-        <section class="panel" aria-labelledby="workflow-title">
-            <div class="panel-head"><h2 id="workflow-title">Case workflow</h2></div>
-            <form method="post" asp-page-handler="SaveWorkflow" class="panel-body stack">
-                <input type="hidden" name="WorkflowExpectedVersion" value="@Model.WorkflowExpectedVersion" />
-                <input type="hidden" name="WorkflowOperationKey" value="@Model.WorkflowOperationKey" />
-                <fieldset class="stack fieldset-plain">
-                    <legend>Required before Review</legend>
-                    <div class="form-grid form-grid--2">
-                        <label class="choice"><input type="checkbox" name="RequireInstructions" value="true" checked="@Model.RequireInstructions" /> Instructions</label>
-                        <label class="choice"><input type="checkbox" name="RequireImages" value="true" checked="@Model.RequireImages" /> Images</label>
+        @* One panel per concern, each saving only its own settings with the
+           version the page was drawn with (v50 A to E; R910). *@
+        <div class="workflow-panels" data-workflow-panels>
+            <section class="panel" aria-labelledby="workflow-review-title">
+                <form method="post" asp-page-handler="SaveReview">
+                    <input type="hidden" name="WorkflowExpectedVersion" value="@Model.WorkflowExpectedVersion" />
+                    <input type="hidden" name="WorkflowOperationKey" value="@Model.WorkflowOperationKey" />
+                    <div class="panel-head">
+                        <h2 id="workflow-review-title">@Labels.RequiredBeforeReview</h2>
+                        <div class="panel-actions"><button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@Labels.Save</button></div>
                     </div>
-                    <div class="form-grid form-grid--3" data-workflow-settings-edit>
+                    <div class="panel-body cluster workflow-choices">
+                        <label class="choice"><input type="checkbox" name="RequireInstructions" value="true" checked="@Model.RequireInstructions" /> <span>@Labels.Instructions</span></label>
+                        <label class="choice"><input type="checkbox" name="RequireImages" value="true" checked="@Model.RequireImages" /> <span>@Labels.Images</span></label>
+                    </div>
+                </form>
+            </section>
+
+            <section class="panel" aria-labelledby="workflow-reference-title">
+                <form method="post" asp-page-handler="SaveReference">
+                    <input type="hidden" name="WorkflowExpectedVersion" value="@Model.WorkflowExpectedVersion" />
+                    <input type="hidden" name="WorkflowOperationKey" value="@Model.WorkflowOperationKey" />
+                    <div class="panel-head">
+                        <h2 id="workflow-reference-title">@Labels.CasePo</h2>
+                        <div class="panel-actions"><button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@Labels.Save</button></div>
+                    </div>
+                    <div class="panel-body">
+                        <label class="choice"><input type="checkbox" name="CaseReferenceSuffix" value="true" checked="@Model.CaseReferenceSuffix" /> <span>@Labels.AddPToNewCasePo</span></label>
+                    </div>
+                </form>
+            </section>
+
+            <section class="panel workflow-panels__wide" aria-labelledby="workflow-targets-title">
+                <form method="post" asp-page-handler="SaveTargets">
+                    <input type="hidden" name="WorkflowExpectedVersion" value="@Model.WorkflowExpectedVersion" />
+                    <input type="hidden" name="WorkflowOperationKey" value="@Model.WorkflowOperationKey" />
+                    <div class="panel-head">
+                        <h2 id="workflow-targets-title">@Labels.ChasingAndDueTargets</h2>
+                        <div class="panel-actions"><button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@Labels.Save</button></div>
+                    </div>
+                    @* The chase interval, then the five due targets, each a narrow box
+                       with "days" after it (v50 D). *@
+                    <div class="panel-body workflow-days" data-workflow-settings-edit>
                         @foreach (var (setting, posted) in Model.WorkflowSettings)
                         {
                             var inputId = $"setting-{setting.Field}";
-                            <div class="field">
-                                <label for="@inputId">@setting.Label (days)</label>
-                                <input id="@inputId" name="@setting.Field" type="number" min="@setting.Minimum" max="@setting.Maximum" step="1" value="@Model.WorkflowInputValue(setting.Field, posted)" required class="@(setting.Field == nameof(ConfigurationModel.ChaseIntervalDays) ? "chase-interval-input" : null)" />
+                            var invalid = Model.ModelState.GetFieldValidationState(setting.Field) == Microsoft.AspNetCore.Mvc.ModelBinding.ModelValidationState.Invalid;
+                            <div class="workflow-day@(invalid ? " is-invalid" : null)">
+                                <label for="@inputId">@setting.Label</label>
+                                <input id="@inputId" name="@setting.Field" type="number" min="@setting.Minimum" max="@setting.Maximum" step="1" value="@Model.WorkflowInputValue(setting.Field, posted)" required aria-describedby="@(inputId)-unit" />
+                                <span class="workflow-day__unit" id="@(inputId)-unit">@Labels.Days</span>
                                 <span asp-validation-for="@setting.Field" class="field-error"></span>
                             </div>
                         }
                     </div>
-                </fieldset>
-                <label class="choice"><input type="checkbox" name="CaseReferenceSuffix" value="true" checked="@Model.CaseReferenceSuffix" /> Add -p to new Case/PO</label>
-                @if (Model.ShowsPhotoLinkSettings)
-                {
-                    @* What Send a photo link starts with (R813) and which lifetimes it
-                       offers, with the one it starts on (R817), in the Send page's words. *@
-                    <fieldset class="stack fieldset-plain" data-photo-link-settings>
-                        <legend>@OperatorLabels.PhotoCapture.SendAPhotoLink</legend>
-                        <fieldset class="field fieldset-plain">
-                            <legend>@OperatorLabels.PhotoCapture.PhotoGuidance</legend>
-                            <div class="cluster">
-                                @foreach (var mode in Enum.GetValues<Pegasus.Core.PhotoCapture.PhotoCaptureMode>())
-                                {
-                                    <label class="choice"><input type="radio" name="PhotoLinkStartMode" value="@mode" checked="@(Model.PhotoLinkStartMode == mode)" /> <span>@OperatorLabels.PhotoCapture.Mode(mode)</span></label>
-                                }
-                            </div>
-                        </fieldset>
-                        <label class="choice"><input type="checkbox" name="PhotoLinkStartLiveCameraOnly" value="true" checked="@Model.PhotoLinkStartLiveCameraOnly" /> <span>@OperatorLabels.PhotoCapture.LiveCameraOnly</span></label>
-                        <label class="choice"><input type="checkbox" name="PhotoLinkStartOriginals" value="true" checked="@Model.PhotoLinkStartOriginals" /> <span>@OperatorLabels.PhotoCapture.FullSizeOriginals</span></label>
-                        <fieldset class="field fieldset-plain">
-                            <legend>@OperatorLabels.PhotoCapture.LinksLast</legend>
-                            <div class="cluster">
-                                @foreach (var days in Pegasus.Core.PhotoCapture.CaptureLimits.LifetimeDays)
-                                {
-                                    <label class="choice"><input type="checkbox" name="PhotoLinkLifetimesOffered" value="@days" checked="@Model.PhotoLinkLifetimesOffered.Contains(days)" /> <span>@OperatorLabels.PhotoCapture.Days(days)</span></label>
-                                }
-                            </div>
-                        </fieldset>
-                        <div class="field field--narrow">
-                            <label for="PhotoLinkDefaultLifetimeDays">@OperatorLabels.PhotoCapture.LinkLasts</label>
-                            <select id="PhotoLinkDefaultLifetimeDays" name="PhotoLinkDefaultLifetimeDays">
-                                @foreach (var days in Pegasus.Core.PhotoCapture.CaptureLimits.LifetimeDays)
-                                {
-                                    <option value="@days" selected="@(Model.PhotoLinkDefaultLifetimeDays == days)">@OperatorLabels.PhotoCapture.Days(days)</option>
-                                }
-                            </select>
-                        </div>
-                    </fieldset>
-                }
-                <div class="button-row"><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save workflow settings</button></div>
-            </form>
-        </section>
-        <section class="panel" aria-labelledby="rates-title">
-            <div class="panel-head"><h2 id="rates-title">Labour-rate cards</h2></div>
-            <div class="table-wrap no-border"><table class="table table--compact">
-                <caption class="sr-only">Labour-rate cards</caption>
-                <thead><tr><th scope="col">Name</th><th scope="col" class="num">Panel and paint (£/hour)</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
-                <tbody>
-                @foreach (var card in Model.RateCards)
-                {
-                    var formId = "rate-card-" + card.Id.ToString("N");
-                    var showingPostedValues = Model.CardPostFailed && Model.CardId == card.Id;
-                    var rowHourlyRate = showingPostedValues ? Model.HourlyRateInput : card.HourlyRate.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                    var rowVersion = showingPostedValues ? Model.CardExpectedVersion : card.Version;
-                    var rowOperationKey = showingPostedValues ? Model.CardOperationKey : ConfigurationModel.NewOperationKey();
-                    <tr>
-                        <td>@card.Name</td>
-                        <td class="num"><input form="@formId" name="HourlyRate" type="number" min="0" max="999999" step="0.01" value="@rowHourlyRate" aria-label="@card.Name panel and paint hourly rate" class="num" required /></td>
-                        <td><form id="@formId" method="post" asp-page-handler="SaveCard">
-                            <input type="hidden" name="CardId" value="@card.Id" />
-                            <input type="hidden" name="CardExpectedVersion" value="@rowVersion" />
-                            <input type="hidden" name="CardOperationKey" value="@rowOperationKey" />
-                            <div class="button-row"><button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
-                        </form></td>
-                    </tr>
-                }
-                </tbody>
-            </table></div>
-        </section>
+                </form>
+            </section>
+
+            <section class="panel" aria-labelledby="workflow-rates-title">
+                <form method="post" asp-page-handler="SaveCards">
+                    <div class="panel-head">
+                        <h2 id="workflow-rates-title">@Labels.LabourRateCards</h2>
+                        <div class="panel-actions"><button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@Labels.Save</button></div>
+                    </div>
+                    <div class="table-wrap no-border"><table class="table table--compact preset-table workflow-rates">
+                        <caption class="sr-only">@Labels.LabourRateCards</caption>
+                        <thead><tr><th scope="col">Name</th><th scope="col">@Labels.PanelAndPaintPerHour</th></tr></thead>
+                        <tbody>
+                        @foreach (var card in Model.RateCards)
+                        {
+                            <tr>
+                                <td>@card.Name</td>
+                                <td>
+                                    <input type="hidden" name="CardIds" value="@card.Id" />
+                                    <input type="hidden" name="CardVersions" value="@card.Version" />
+                                    <input type="hidden" name="CardOperationKeys" value="@Pegasus.Web.Pages.Administration.ConfigurationModel.NewOperationKey()" />
+                                    <div class="input-money"><input name="HourlyRates" type="number" inputmode="decimal" min="0" max="999999" step="0.01" value="@Model.RateInputValue(card)" aria-label="@card.Name panel and paint hourly rate" required /></div>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table></div>
+                </form>
+            </section>
+        </div>
     </div>
 </div>

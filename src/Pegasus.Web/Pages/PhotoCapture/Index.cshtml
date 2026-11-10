@@ -42,13 +42,6 @@
         <span>@notice</span>
     </div>
 }
-@if (Model.Refusal is { } refusal)
-{
-    <div class="notice notice--danger" role="alert">
-        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
-        <span>@refusal</span>
-    </div>
-}
 
 @* Each tab is its own server-rendered address (?tab=), so the tabs are a nav
    of links with aria-current, as on Logs and a Principal contact. *@
@@ -119,9 +112,10 @@
     </aside>
 
     <div class="pane photo-capture-list">
+        @* The tab and All carry the count, so the list's own heading is for
+           assistive technology only (v50 L). *@
         <div class="pane-head">
-            <h2>@tabLabel</h2>
-            <span class="meta">@Model.TotalCount</span>
+            <h2 class="sr-only">@tabLabel</h2>
             <form method="get" action="/PhotoCapture" class="filter-bar photo-capture-filters" data-auto-submit role="search">
                 @if (Model.SentByUs)
                 {
@@ -156,6 +150,11 @@
                 }
             </form>
         </div>
+        @* One-line rows (v50 I to M): long text ends in an ellipsis with the full
+           text on hover; narrower widths drop the columns marked --wide, --medium
+           and --narrow rather than scroll (#2029). Each row leads with the act its
+           state calls for; one other act is its own button, two or more go in
+           More with Cancel link last (R912). *@
         <div class="photo-capture-table" data-row-list>
             @if (Model.Rows.Count == 0)
             {
@@ -163,17 +162,16 @@
             }
             else if (Model.SentByUs)
             {
-                <table class="table">
+                <table class="table photo-capture-rows">
                     <thead>
                         <tr>
                             <th scope="col">@Labels.Vehicle</th>
                             <th scope="col">@Labels.Customer</th>
                             <th scope="col">@Labels.Case</th>
-                            <th scope="col">@Labels.From</th>
-                            <th scope="col">@Labels.SentBy</th>
+                            <th scope="col" class="photo-capture-col--medium">@Labels.From</th>
                             <th scope="col">@Labels.Status</th>
                             <th scope="col">@Labels.Photos</th>
-                            <th scope="col">@Labels.NextReminder</th>
+                            <th scope="col" class="photo-capture-col--wide">@Labels.NextReminder</th>
                             <th scope="col"><span class="sr-only">@Labels.Action</span></th>
                         </tr>
                     </thead>
@@ -182,12 +180,23 @@
                         {
                             var capture = row.Capture;
                             var photosHref = Pegasus.Web.Pages.PhotoCapture.IndexModel.PhotosHref(row.Source);
+                            // The act the row's state calls for (R912): Resend while the link is
+                            // live and a reminder is due or it is unopened, Log call when it needs
+                            // a call, else View photos.
+                            var resend = row.IsLive && (row.Due is not null || row.State is PhotoCaptureState.SentNotOpened or PhotoCaptureState.Opened);
+                            var logCall = !resend && row.State == PhotoCaptureState.NeedsCall;
+                            var viewPhotosFirst = !resend && !logCall && capture.AcceptedItemCount > 0 && photosHref is not null;
+                            var viewPhotos = !viewPhotosFirst && capture.AcceptedItemCount > 0 && photosHref is not null;
+                            var cancel = row.IsLive;
+                            var missing = row.Source.MissingItems.Count > 0 && row.State is PhotoCaptureState.SomethingMissing or PhotoCaptureState.PhotosComingIn
+                                ? row.Source.MissingItems[0]
+                                : null;
                             <tr data-photo-capture-row="@capture.Id">
                                 <td class="mono nowrap"><a class="table-row-link" asp-page="/PhotoCapture/Details" asp-route-id="@capture.Id">@Labels.Registration(capture.NormalizedRegistration)</a></td>
                                 <td>
                                     @if (capture.CustomerName is { Length: > 0 } customer)
                                     {
-                                        <span>@customer</span>
+                                        <span class="photo-capture-clip" title="@customer">@customer</span>
                                     }
                                     else
                                     {
@@ -195,7 +204,7 @@
                                     }
                                     @if (capture.Mobile is { Length: > 0 } mobile)
                                     {
-                                        <small class="muted photo-capture-sub">@mobile</small>
+                                        <small class="muted photo-capture-sub photo-capture-col--narrow">@mobile</small>
                                     }
                                 </td>
                                 <td class="mono nowrap">
@@ -204,62 +213,64 @@
                                         <a asp-page="/Cases/Details" asp-route-id="@caseId">@capture.CaseReference</a>
                                     }
                                 </td>
-                                <td>
-                                    <span>@row.Source.OrganizationName</span>
+                                <td class="photo-capture-col--medium">
+                                    <span class="photo-capture-clip" title="@row.Source.OrganizationName">@row.Source.OrganizationName</span>
                                     @if (row.Source.SentOnToCustomer)
                                     {
                                         @* A quick link its firm sent on to their customer (R798). *@
-                                        <small class="muted photo-capture-sub">@Labels.SentOnToTheirCustomer</small>
+                                        <small class="muted photo-capture-sub photo-capture-clip">@Labels.SentOnToTheirCustomer</small>
                                     }
                                 </td>
-                                <td>@row.Source.IssuedByName</td>
                                 <td><partial name="Shared/_StatusChip" model="@Labels.State(row.State)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = Labels.StateTone(row.State) }' /></td>
                                 <td>
                                     @if (row.Source.Photographs > 0)
                                     {
                                         <span>@Labels.PhotoCount(row.Source.Photographs, row.State == PhotoCaptureState.Complete)</span>
                                     }
-                                    @if (row.Source.MissingItems.Count > 0 && row.State is PhotoCaptureState.SomethingMissing or PhotoCaptureState.PhotosComingIn)
+                                    @if (missing is not null)
                                     {
-                                        <small class="muted photo-capture-sub">@row.Source.MissingItems[0]</small>
+                                        <small class="muted photo-capture-sub photo-capture-clip photo-capture-col--narrow" title="@missing">@missing</small>
                                     }
                                 </td>
-                                <td>@(row.Due?.Label ?? Labels.None)</td>
+                                @* Blank when nothing is due (v50 K). *@
+                                <td class="photo-capture-col--wide">@row.Due?.Label</td>
                                 <td class="row-actions">
                                     <span class="cluster">
-                                        @if (row.Due is not null && row.IsLive)
+                                        @if (resend)
                                         {
-                                            <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Remind" asp-route-id="@capture.Id">
-                                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
-                                                <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Sending">@Labels.Remind</button>
-                                            </form>
+                                            <a class="btn btn--small" href="@Pegasus.Web.Pages.PhotoCapture.IndexModel.ResendHref(capture.Id, Model.Href())">@Labels.Resend</a>
                                         }
-                                        else if (row.State == PhotoCaptureState.NeedsCall)
+                                        else if (logCall)
                                         {
+                                            @* Log call returns to this list with its notice (v50 P). *@
                                             <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="LogCall" asp-route-id="@capture.Id">
                                                 <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                                <input type="hidden" name="returnUrl" value="@Model.Href()" />
                                                 <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Logging">@Labels.LogCall</button>
                                             </form>
                                         }
-                                        else if (row.State is PhotoCaptureState.SentNotOpened or PhotoCaptureState.Opened)
-                                        {
-                                            <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Resend" asp-route-id="@capture.Id">
-                                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
-                                                <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Sending">@Labels.Resend</button>
-                                            </form>
-                                        }
-                                        else if (capture.AcceptedItemCount > 0 && photosHref is not null)
+                                        else if (viewPhotosFirst)
                                         {
                                             <a class="btn btn--small" href="@photosHref">@Labels.ViewPhotos</a>
                                         }
-                                        @if (row.IsLive)
+                                        @if (viewPhotos && cancel)
                                         {
-                                            @* Cancel on each live row (R795): the link page's own act and refusal, back to this list. *@
-                                            <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Cancel" asp-route-id="@capture.Id">
-                                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
-                                                <input type="hidden" name="returnUrl" value="@Model.Href()" />
-                                                <button type="submit" class="btn btn--small btn--danger" data-busy-label="@OperatorLabels.Busy.Revoking">@Labels.CancelLink</button>
-                                            </form>
+                                            <details class="menu" data-menu>
+                                                <summary class="btn btn--small"><span class="photo-capture-more">More</span><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-down")" /></svg></summary>
+                                                <div class="menu-body">
+                                                    <a class="btn" href="@photosHref"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-images")" /></svg><span>@Labels.ViewPhotos</span></a>
+                                                    <div class="menu-sep"></div>
+                                                    <partial name="/Pages/PhotoCapture/_CancelLinkForm.cshtml" model="@((capture.Id, Model.Href(), true))" />
+                                                </div>
+                                            </details>
+                                        }
+                                        else if (viewPhotos)
+                                        {
+                                            <a class="btn btn--small" href="@photosHref">@Labels.ViewPhotos</a>
+                                        }
+                                        else if (cancel)
+                                        {
+                                            <partial name="/Pages/PhotoCapture/_CancelLinkForm.cshtml" model="@((capture.Id, Model.Href(), false))" />
                                         }
                                     </span>
                                 </td>
@@ -270,16 +281,16 @@
             }
             else
             {
-                <table class="table">
+                <table class="table photo-capture-rows">
                     <thead>
                         <tr>
                             <th scope="col">@Labels.Vehicle</th>
-                            <th scope="col">@Labels.From</th>
-                            <th scope="col">@Labels.Customer</th>
+                            <th scope="col" class="photo-capture-col--narrow">@Labels.From</th>
+                            <th scope="col" class="photo-capture-col--medium">@Labels.Customer</th>
                             <th scope="col">@Labels.Case</th>
                             <th scope="col">@Labels.Status</th>
                             <th scope="col">@Labels.Photos</th>
-                            <th scope="col">@Labels.Received</th>
+                            <th scope="col" class="photo-capture-col--wide">@Labels.Received</th>
                             <th scope="col"><span class="sr-only">@Labels.Action</span></th>
                         </tr>
                     </thead>
@@ -289,16 +300,23 @@
                             var capture = row.Capture;
                             var photosHref = Pegasus.Web.Pages.PhotoCapture.IndexModel.PhotosHref(row.Source);
                             var caseHow = Pegasus.Web.Pages.PhotoCapture.IndexModel.CaseHow(row.Source);
+                            var from = row.Source.OrganizationName ?? (capture.Origin == PhotoCaptureOrigin.Website ? Labels.Website : null);
+                            var askForIt = row.State == PhotoCaptureState.SomethingMissing && row.IsLive;
+                            var photosLabel = capture.CaseId is not null ? Labels.ViewPhotos : row.Source.ImageIntakeId is not null ? Labels.MatchToACase : null;
+                            var photos = photosHref is not null && photosLabel is not null;
+                            var missing = row.Source.MissingItems.Count > 0 && row.State is PhotoCaptureState.SomethingMissing or PhotoCaptureState.PhotosComingIn
+                                ? row.Source.MissingItems[0]
+                                : null;
                             <tr data-photo-capture-row="@capture.Id">
                                 <td class="mono nowrap"><a class="table-row-link" asp-page="/PhotoCapture/Details" asp-route-id="@capture.Id">@Labels.Registration(capture.NormalizedRegistration)</a></td>
-                                <td>
-                                    <span>@(row.Source.OrganizationName ?? (capture.Origin == PhotoCaptureOrigin.Website ? Labels.Website : null))</span>
-                                    <small class="muted photo-capture-sub">@Labels.Source(capture.Origin)</small>
+                                <td class="photo-capture-col--narrow">
+                                    <span class="photo-capture-clip" title="@from">@from</span>
+                                    <small class="muted photo-capture-sub photo-capture-clip">@Labels.Source(capture.Origin)</small>
                                 </td>
-                                <td>
+                                <td class="photo-capture-col--medium">
                                     @if (capture.CustomerName is { Length: > 0 } customer)
                                     {
-                                        <span>@customer</span>
+                                        <span class="photo-capture-clip" title="@customer">@customer</span>
                                     }
                                     else
                                     {
@@ -311,7 +329,7 @@
                                         <a class="mono" asp-page="/Cases/Details" asp-route-id="@caseId">@capture.CaseReference</a>
                                         @if (caseHow is not null)
                                         {
-                                            <small class="muted photo-capture-sub">@caseHow</small>
+                                            <small class="muted photo-capture-sub photo-capture-clip">@caseHow</small>
                                         }
                                     }
                                     else if (row.Source.ImageIntakeId is { } recordId)
@@ -330,31 +348,33 @@
                                 <td><partial name="Shared/_StatusChip" model="@Labels.State(row.State)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = Labels.StateTone(row.State) }' /></td>
                                 <td>
                                     <span>@Labels.PhotoCount(row.Source.Photographs, row.State == PhotoCaptureState.Complete)</span>
-                                    @if (row.Source.MissingItems.Count > 0 && row.State is PhotoCaptureState.SomethingMissing or PhotoCaptureState.PhotosComingIn)
+                                    @if (missing is not null)
                                     {
-                                        <small class="muted photo-capture-sub">@row.Source.MissingItems[0]</small>
+                                        <small class="muted photo-capture-sub photo-capture-clip photo-capture-col--narrow" title="@missing">@missing</small>
                                     }
                                 </td>
-                                <td class="nowrap">@OperatorLabels.OfficeTime(capture.LastItemAtUtc ?? capture.CreatedAtUtc)</td>
+                                <td class="nowrap photo-capture-col--wide">@OperatorLabels.OfficeTime(capture.LastItemAtUtc ?? capture.CreatedAtUtc)</td>
                                 <td class="row-actions">
                                     <span class="cluster">
-                                        @if (capture.CaseId is not null && photosHref is not null)
+                                        @if (askForIt)
                                         {
-                                            <a class="btn btn--small" href="@photosHref">@Labels.ViewPhotos</a>
+                                            @* Ask for it (R806, R816): a fresh link for this capture, through the
+                                               composer when it can be e-mailed or texted (R915, R920), else made to copy. *@
+                                            @if (Model.CanSend(capture))
+                                            {
+                                                <a class="btn btn--small" href="@Pegasus.Web.Pages.PhotoCapture.IndexModel.ResendHref(capture.Id, Model.Href())">@Labels.AskForIt</a>
+                                            }
+                                            else
+                                            {
+                                                <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Resend" asp-route-id="@capture.Id">
+                                                    <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                                    <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Creating">@Labels.AskForIt</button>
+                                                </form>
+                                            }
                                         }
-                                        else if (row.Source.ImageIntakeId is not null && photosHref is not null)
+                                        @if (photos)
                                         {
-                                            <a class="btn btn--small" href="@photosHref">@Labels.MatchToACase</a>
-                                        }
-                                        @if (row.State == PhotoCaptureState.SomethingMissing && row.IsLive)
-                                        {
-                                            @* Ask for it (R806, R816): a fresh link for this capture, e-mailed
-                                               when it is on a Case and holds an address, else shown to copy;
-                                               the link page's Remind does both. *@
-                                            <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Remind" asp-route-id="@capture.Id">
-                                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
-                                                <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Sending">@Labels.AskForIt</button>
-                                            </form>
+                                            <a class="btn btn--small" href="@photosHref">@photosLabel</a>
                                         }
                                     </span>
                                 </td>
@@ -379,87 +399,4 @@
         </nav>
     </div>
 </section>
-}
-
-@if (Model.IsAdministrator && !Model.IsUnavailable)
-{
-    @* The one website link for private customers, managed by Administrators
-       here at the address they type, with its defaults (R797). *@
-    <section class="panel photo-link-panel" id="website-link" aria-labelledby="website-link-title">
-        <div class="panel-head">
-            <h2 id="website-link-title">@Labels.WebsiteLink</h2>
-            @if (Model.WebsiteLink is { } chipLink)
-            {
-                <partial name="Shared/_StatusChip" model="@(chipLink.IsActive ? Labels.Active : Labels.Paused)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = chipLink.IsActive ? "green" : "amber" }' />
-            }
-        </div>
-        <div class="panel-body stack">
-            @if (Model.WebsiteLink is { } link && Model.WebsiteUrl is { } url)
-            {
-                <div class="photo-link-standing">
-                    <div class="photo-link-qr">@Html.Raw(Model.WebsiteQrSvg)</div>
-                    <div class="stack">
-                        <code id="website-link-url" class="photo-link-url">@url</code>
-                        <div class="button-row">
-                            <button type="button" class="btn btn--small" data-copy-target="website-link-url" hidden>
-                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-copy")" /></svg>
-                                <span>@Labels.Copy</span>
-                            </button>
-                            <a class="btn btn--small" asp-page="/PhotoCapture/Index" asp-page-handler="WebsiteQr"
-                               data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed">
-                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg>
-                                <span>@Labels.DownloadQr</span>
-                            </a>
-                            <form method="post" asp-page-handler="@(link.IsActive ? "PauseWebsiteLink" : "ResumeWebsiteLink")" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)">
-                                <input type="hidden" name="ExpectedVersion" value="@link.Version" />
-                                <button type="submit" class="btn btn--small" data-busy-label="@(link.IsActive ? OperatorLabels.Busy.Pausing : OperatorLabels.Busy.Resuming)">
-                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(link.IsActive ? "icon-pause" : "icon-play")" /></svg>
-                                    <span>@(link.IsActive ? OperatorLabels.PhotoCapture.PauseTheirLink : OperatorLabels.PhotoCapture.ResumeTheirLink)</span>
-                                </button>
-                            </form>
-                            <button type="button" class="btn btn--small btn--danger" data-dialog-open="retire-website-link">@Labels.RetireLink</button>
-                        </div>
-                        @* Replace gives the link the address typed here; Pegasus never makes one up (R797). *@
-                        <form method="post" asp-page-handler="ReplaceWebsiteLink" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)" class="photo-link-box">
-                            <input type="hidden" name="ExpectedVersion" value="@link.Version" />
-                            <span class="mono muted">@Model.WebsiteAddressPrefix</span>
-                            <input type="text" name="WebsiteSlug" aria-labelledby="website-link-title" autocomplete="off" spellcheck="false" maxlength="@Pegasus.Core.PhotoCapture.PhotoLinkToken.MaximumSlugLength" required />
-                            <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Replacing">
-                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-cw")" /></svg>
-                                <span>@Labels.ReplaceLink</span>
-                            </button>
-                        </form>
-                    </div>
-                </div>
-                <form method="post" asp-page-handler="UpdateWebsiteLinkDefaults" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)" class="stack contact-editor">
-                    <input type="hidden" name="ExpectedVersion" value="@link.Version" />
-                    <partial name="Shared/_PhotoLinkDefaults" model="@((link, false))" />
-                    <div class="button-row"><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
-                </form>
-                @* Retire ends the link for good (R796): confirmed, since it cannot be undone. *@
-                <div class="dialog-backdrop" data-dialog="retire-website-link" hidden>
-                    <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="retire-website-link-title">
-                        <div class="dialog-head"><h2 id="retire-website-link-title" tabindex="-1" data-dialog-initial-focus>@Labels.RetireLink</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button></div>
-                        <form method="post" asp-page-handler="RetireWebsiteLink" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)">
-                            <div class="dialog-body"><p>@Labels.RetireLinkConfirmation</p></div>
-                            <input type="hidden" name="ExpectedVersion" value="@link.Version" />
-                            <div class="dialog-foot"><button class="btn" type="button" data-dialog-close>Cancel</button><button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Working">@Labels.RetireLink</button></div>
-                        </form>
-                    </section>
-                </div>
-            }
-            else
-            {
-                @* The Administrator types the website's address (R797). *@
-                <form method="post" asp-page-handler="CreateWebsiteLink" asp-route-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : null)" class="photo-link-box">
-                    <span class="mono muted">@Model.WebsiteAddressPrefix</span>
-                    <input type="text" name="WebsiteSlug" aria-labelledby="website-link-title" autocomplete="off" spellcheck="false" maxlength="@Pegasus.Core.PhotoCapture.PhotoLinkToken.MaximumSlugLength" required />
-                    <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Creating">
-                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
-                        <span>@Labels.CreateTheWebsiteLink</span>
-                    </button>
-                </form>
-            }
-        </div>
-    </section>
 }

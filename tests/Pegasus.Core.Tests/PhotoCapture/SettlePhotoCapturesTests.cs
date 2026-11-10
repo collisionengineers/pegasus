@@ -6,6 +6,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Notifications;
 using Pegasus.Core.PhotoCapture;
 using Pegasus.Core.Tests.ImageIntake;
+using Pegasus.Core.Triage;
 using static Pegasus.Core.Tests.PhotoCapture.PhotoCaptureTestData;
 
 namespace Pegasus.Core.Tests.PhotoCapture;
@@ -27,6 +28,12 @@ public sealed class SettlePhotoCapturesTests
     private static readonly DateOnly TypedDate = new(2026, 10, 28);
     private static readonly string[] FilledFields = ["claimant_contact_number", "claimant_name", "incident_date", "vehicle_mileage"];
     private static readonly string[] CaseBatchOrder = ["images", "note", "fill", "close", "bell"];
+    private static readonly string[] IdleRunReads =
+    [
+        nameof(IPhotoCaptureStore.ListBellsOwedAsync),
+        nameof(IPhotoCaptureStore.ListBatchesReachingCaseAsync),
+        nameof(IPhotoCaptureStore.ListAwaitingSettleAsync)
+    ];
     private static readonly string[] NoteThenChangedNote =
     [
         "Customer's note (photo link): Rattle from the back.",
@@ -308,8 +315,8 @@ public sealed class SettlePhotoCapturesTests
     /// A photo whose filing ended for good without filing (its replay
     /// exhausted after its filing started, or Pegasus's link three hours old
     /// with its filing never started) no longer holds the batch, which
-    /// settles on the photos that did file: the lead's reading of R792,
-    /// pending the operator.
+    /// settles on the photos that did file: the operator's rule
+    /// (operator, 10 November 2026; R840).
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -568,15 +575,17 @@ public sealed class SettlePhotoCapturesTests
     }
 
     /// <summary>
-    /// A record that reaches a Case: its note and fill, its own batch's kept
-    /// paperwork filed as Pegasus's pairing decided, the reach recorded with
-    /// its bell owed and then rung once (R803, R804); the merge completed
-    /// the images, so no images call.
+    /// A record Pegasus paired that reaches a Case: its own batch's kept
+    /// paperwork linked as the work that follows the record's merge, so it
+    /// files wherever the photos went (R844), then its note and fill, and
+    /// the reach recorded with its bell owed and then rung once (R803,
+    /// R804); the merge completed the images, so no images call.
     /// </summary>
     [Fact]
     public async Task TheReachedPathMakesNoImagesCallFilesTheKeptPaperworkAndRingsOnce()
     {
         var harness = new Harness();
+        harness.Processor.FilesOnRedrive = true;
         var capture = Standing(sentAtUtc: Now.AddHours(-2), settledAtUtc: Now.AddHours(-1), settledBatches: 1, note: "Rattle from the back.");
         var photo = Item(PhotoCaptureItemKind.Overview, ordinal: 0, intakeReceiptId: Guid.NewGuid());
         var paperwork = Item(PhotoCaptureItemKind.Paperwork, ordinal: 1, intakeReceiptId: Guid.NewGuid()) with { MediaType = "application/pdf" };
@@ -595,6 +604,7 @@ public sealed class SettlePhotoCapturesTests
         var link = Assert.Single(harness.Mutations.Links);
         Assert.Equal(paperwork.IntakeReceiptId, link.ReceiptId);
         Assert.Equal(ActorKind.SystemWorker, link.Decider.Kind);
+        Assert.Equal(PhotoCaptureIntakeRules.ReachActorId, link.Decider.SubjectId);
         Assert.Equal(PhotoCaptureIntakeRules.RoutedDestinationReason, link.Reason);
         Assert.Equal(paperwork.StagedReceiptId, Assert.Single(harness.Processor.Redriven));
         Assert.Equal((StaffNotificationCause.PhotosReceived, reachedCaseId), Assert.Single(harness.Notifier.Raised));
@@ -631,6 +641,7 @@ public sealed class SettlePhotoCapturesTests
     public async Task KeptFilesFollowTheirOwnBatchsRecord()
     {
         var harness = new Harness();
+        harness.Processor.FilesOnRedrive = true;
         var capture = Standing(sentAtUtc: Now.AddHours(-2), settledAtUtc: Now.AddHours(-1), settledBatches: 2);
         var firstBatchPaperwork = Item(PhotoCaptureItemKind.Paperwork, ordinal: 1, intakeReceiptId: null) with { MediaType = "application/pdf" };
         var secondBatchPaperwork = Item(PhotoCaptureItemKind.Paperwork, ordinal: 1, batch: 2, intakeReceiptId: Guid.NewGuid()) with { MediaType = "application/pdf" };
@@ -659,6 +670,37 @@ public sealed class SettlePhotoCapturesTests
     }
 
     /// <summary>
+    /// A kept file holds the reach as a photograph holds its batch (R844):
+    /// linked and re-driven, it is waited for until it has filed, and only
+    /// then are the note and the bell written.
+    /// </summary>
+    [Fact]
+    public async Task AReachWaitsUntilItsKeptPaperworkHasFiled()
+    {
+        var harness = new Harness();
+        var capture = Standing(sentAtUtc: Now.AddHours(-2), settledAtUtc: Now.AddHours(-1), settledBatches: 1, note: "Rattle from the back.");
+        var paperwork = Item(PhotoCaptureItemKind.Paperwork, ordinal: 1, intakeReceiptId: Guid.NewGuid()) with { MediaType = "application/pdf" };
+        harness.Store.Add(capture, Item(PhotoCaptureItemKind.Overview, ordinal: 0, intakeReceiptId: Guid.NewGuid()), paperwork);
+        harness.Store.Reach(capture.Id, batch: 1, CaseId);
+
+        var waiting = await harness.Settle().ExecuteAsync(50, CancellationToken.None);
+
+        Assert.Equal(0, waiting.ReachedCase);
+        Assert.Single(harness.Mutations.Links);
+        Assert.Equal(paperwork.StagedReceiptId, Assert.Single(harness.Processor.Redriven));
+        Assert.Empty(harness.Store.Reached);
+        Assert.Empty(harness.Notes.Written);
+        Assert.Empty(harness.Notifier.Raised);
+
+        harness.Store.FileLinked(paperwork.StagedReceiptId!.Value);
+        var reached = await harness.Settle(Now.AddMinutes(1)).ExecuteAsync(50, CancellationToken.None);
+
+        Assert.Equal(1, reached.ReachedCase);
+        Assert.Single(harness.Notes.Written);
+        Assert.Equal((StaffNotificationCause.PhotosReceived, CaseId), Assert.Single(harness.Notifier.Raised));
+    }
+
+    /// <summary>
     /// Reaching a Case is tracked per batch: an earlier batch's record that
     /// reaches a different Case after the capture already had one still gets
     /// its note, fill, kept files and bell there.
@@ -667,6 +709,7 @@ public sealed class SettlePhotoCapturesTests
     public async Task AnEarlierBatchsRecordReachingADifferentCaseLaterFinishesThere()
     {
         var harness = new Harness();
+        harness.Processor.FilesOnRedrive = true;
         var capture = Standing(sentAtUtc: Now.AddHours(-2), settledAtUtc: Now.AddHours(-1), settledBatches: 2, note: "Rattle from the back.") with
         {
             CaseId = CaseId,
@@ -687,7 +730,10 @@ public sealed class SettlePhotoCapturesTests
         Assert.Equal(CaseId, harness.Store.Captures[capture.Id].CaseId);
     }
 
-    /// <summary>A cancelled link's photos still settle as normal (R794).</summary>
+    /// <summary>
+    /// A cancelled link's photos still settle as normal (R794), and the
+    /// Case history's reason says so (operator, 10 November 2026; R871).
+    /// </summary>
     [Fact]
     public async Task ACancelledCaptureWithPhotosSettles()
     {
@@ -700,9 +746,100 @@ public sealed class SettlePhotoCapturesTests
         var result = await harness.Settle().ExecuteAsync(50, CancellationToken.None);
 
         Assert.Equal(1, result.Settled);
-        Assert.Single(harness.CaseWriter.ImagesCompleted);
+        Assert.Equal(
+            "The photo link's photos are in: the sender pressed Send, or the link ran out or was cancelled with photos on it.",
+            Assert.Single(harness.CaseWriter.ImagesCompleted).Reason);
         Assert.Single(harness.Notes.Written);
         Assert.Single(harness.Notifier.Raised);
+    }
+
+    /// <summary>
+    /// A Triage Case keeps no Case Notes: the sender's note is written as its
+    /// own Triage note, with the words a Case note gets, once; a changed note
+    /// is appended (operator, 10 November 2026; R845, R792).
+    /// </summary>
+    [Fact]
+    public async Task ATriageCaseTakesTheNoteAsATriageNoteOnceAndAChangedNoteIsAppended()
+    {
+        var harness = new Harness();
+        harness.Store.CaseIsTriage = true;
+        var capture = Capture(sentAtUtc: Now.AddMinutes(-10), note: "Rattle from the back.");
+        harness.Store.AddFiled(capture, CaseId, OnCase(PhotoCaptureItemKind.Overview, 0));
+        await harness.Settle().ExecuteAsync(50, CancellationToken.None);
+
+        harness.Store.SendAgain(capture.Id, Now.AddMinutes(1), "Rattle from the back.", CaseId, OnCase(PhotoCaptureItemKind.Dashboard, 0, batch: 2));
+        await harness.Settle(Now.AddMinutes(2)).ExecuteAsync(50, CancellationToken.None);
+
+        var first = Assert.Single(harness.TriageNotes.Written);
+        Assert.Equal((CaseId, ActorKind.SystemWorker), (first.CaseId, first.ActorKind));
+        Assert.Equal("Customer's note (photo link): Rattle from the back.", first.Note);
+        Assert.Empty(harness.Notes.Written);
+
+        harness.Store.SendAgain(capture.Id, Now.AddMinutes(3), "Rattle from the back, and the boot leaks.", CaseId, OnCase(PhotoCaptureItemKind.Vin, 0, batch: 3));
+        await harness.Settle(Now.AddMinutes(4)).ExecuteAsync(50, CancellationToken.None);
+
+        Assert.Equal(NoteThenChangedNote, harness.TriageNotes.Written.Select(note => note.Note));
+        Assert.NotEqual(harness.TriageNotes.Written[0].OperationKey, harness.TriageNotes.Written[1].OperationKey);
+        Assert.Empty(harness.Notes.Written);
+    }
+
+    /// <summary>
+    /// A Triage note holds 500 characters, so a longer note is written as
+    /// up to four Triage notes, in order, the words starting the first (R845).
+    /// </summary>
+    [Fact]
+    public async Task ATriageCaseTakesALongNoteAsSeveralTriageNotesInOrder()
+    {
+        var harness = new Harness();
+        harness.Store.CaseIsTriage = true;
+        var note = string.Concat(Enumerable.Range(0, 120).Select(index => (index % 10).ToString(System.Globalization.CultureInfo.InvariantCulture).PadRight(10, '.')));
+        Assert.Equal(1_200, note.Length);
+        harness.Store.AddFiled(Capture(sentAtUtc: Now.AddMinutes(-1), note: note), CaseId, OnCase(PhotoCaptureItemKind.Overview, 0));
+
+        await harness.Settle().ExecuteAsync(50, CancellationToken.None);
+        await harness.Settle(Now.AddMinutes(1)).ExecuteAsync(50, CancellationToken.None);
+
+        var parts = harness.TriageNotes.Written.Select(written => written.Note).ToArray();
+        Assert.Equal(3, parts.Length);
+        Assert.All(parts, part => Assert.InRange(part.Length, 1, TriageNotes.MaximumLength));
+        Assert.Equal("Customer's note (photo link): " + note, string.Concat(parts));
+        Assert.StartsWith("Customer's note (photo link): ", parts[0], StringComparison.Ordinal);
+        Assert.Equal(3, harness.TriageNotes.Written.Select(written => written.OperationKey).Distinct().Count());
+        Assert.Empty(harness.Notes.Written);
+    }
+
+    /// <summary>A completed or cancelled Triage Case takes no note (R845).</summary>
+    [Fact]
+    public async Task AFinishedTriageCaseTakesNoNote()
+    {
+        var harness = new Harness();
+        harness.Store.CaseIsTriage = true;
+        harness.TriageNotes.Finished = true;
+        harness.Store.AddFiled(Capture(sentAtUtc: Now.AddMinutes(-1), note: "Rattle from the back."), CaseId, OnCase(PhotoCaptureItemKind.Overview, 0));
+
+        var result = await harness.Settle().ExecuteAsync(50, CancellationToken.None);
+
+        Assert.Equal(1, result.Settled);
+        Assert.Empty(harness.TriageNotes.Written);
+        Assert.Empty(harness.Notes.Written);
+    }
+
+    /// <summary>
+    /// The settle runs every minute (R838): a run that settles and reaches
+    /// nothing reads the owed bells once, the reaches and the waiting
+    /// captures, and nothing else.
+    /// </summary>
+    [Fact]
+    public async Task AnIdleRunReadsTheOwedBellsOnce()
+    {
+        var harness = new Harness();
+        // Not yet sent: the walk examines it and leaves it.
+        harness.Store.Add(Capture(), OnCase(PhotoCaptureItemKind.Overview, 0));
+
+        var result = await harness.Settle().ExecuteAsync(50, CancellationToken.None);
+
+        Assert.Equal((1, 0, 0, 0), (result.Examined, result.Settled, result.ReachedCase, result.Failures));
+        Assert.Equal(IdleRunReads, harness.Store.Calls);
     }
 
     /// <summary>An archived Case: the batch closes and nothing is written to the Case (R793).</summary>
@@ -759,15 +896,17 @@ public sealed class SettlePhotoCapturesTests
         public FakeProcessor Processor { get; }
         public FakeCaseWriter CaseWriter { get; }
         public RecordingNotes Notes { get; }
+        public RecordingTriageNotes TriageNotes { get; }
         public FakeNotifier Notifier { get; }
 
         public Harness()
         {
             Store = new(Events);
             Mutations = new(Events, Store);
-            Processor = new(Events);
+            Processor = new(Events, Store);
             CaseWriter = new(Events, Store);
             Notes = new(Events);
+            TriageNotes = new(Events);
             Notifier = new(Events);
         }
 
@@ -788,6 +927,7 @@ public sealed class SettlePhotoCapturesTests
                 Processor,
                 CaseWriter,
                 new AddCaseNote(Notes, clock),
+                new AddTriageNote(TriageNotes.Proxy),
                 Notifier,
                 clock);
         }
@@ -846,7 +986,7 @@ public sealed class SettlePhotoCapturesTests
                         || (capture.CreatedAtUtc == after.CreatedAtUtc && capture.Id.CompareTo(after.Id) > 0))
                     .Take((int)args[2]!)
                     .Select(capture => new PhotoCaptureSettleCandidate(
-                        capture, Items[capture.Id], capture.CaseId, CaseArchived, CaseIsTriage: false))
+                        capture, Items[capture.Id], capture.CaseId, CaseArchived, CaseIsTriage))
                     .ToArray());
             };
             forwarder.Overrides[nameof(IPhotoCaptureStore.ListBatchFilingsAsync)] = args =>
@@ -894,7 +1034,7 @@ public sealed class SettlePhotoCapturesTests
                 Task.FromResult<IReadOnlyList<PhotoCaptureBatchReach>>(reaches
                     .Where(reach => !Row(reach.CaptureId, reach.Batch).Reached)
                     .Select(reach => new PhotoCaptureBatchReach(
-                        Captures[reach.CaptureId], reach.Batch, reach.CaseId, CaseArchived, CaseIsTriage: false, reach.StaffId, reach.Reason))
+                        Captures[reach.CaptureId], reach.Batch, reach.CaseId, CaseArchived, CaseIsTriage, reach.StaffId, reach.Reason))
                     .ToArray());
             forwarder.Overrides[nameof(IPhotoCaptureStore.RecordBatchReachedAsync)] = args =>
             {
@@ -911,11 +1051,11 @@ public sealed class SettlePhotoCapturesTests
                 row.BellOwed |= (bool)args[3]!;
                 Reached.Add((captureId, caseId));
                 var capture = Captures[captureId];
+                // The images marker is the record's merge's, not the reach's (R841).
                 Captures[captureId] = capture with
                 {
                     CaseId = capture.CaseId ?? caseId,
-                    Destination = PhotoCaptureDestination.Case,
-                    ImagesCompletedAtUtc = capture.ImagesCompletedAtUtc ?? (DateTimeOffset)args[4]!
+                    Destination = PhotoCaptureDestination.Case
                 };
                 return Task.FromResult(true);
             };
@@ -930,11 +1070,16 @@ public sealed class SettlePhotoCapturesTests
 
         public IPhotoCaptureStore Proxy => (IPhotoCaptureStore)forwarder.Proxy;
 
+        /// <summary>The store's calls in order, by method name.</summary>
+        public List<string> Calls => forwarder.Calls;
+
         public Dictionary<Guid, Core.PhotoCapture.PhotoCapture> Captures { get; } = [];
 
         public Dictionary<Guid, List<PhotoCaptureItem>> Items { get; } = [];
 
         public bool CaseArchived { get; set; }
+
+        public bool CaseIsTriage { get; set; }
 
         public Action<Guid>? BeforeClose { get; set; }
 
@@ -1000,6 +1145,17 @@ public sealed class SettlePhotoCapturesTests
         {
             Row(captureId, batch).GroupId = PhotoCaptureIntakeRules.BatchGroupId(captureId, batch);
             reaches.Add((captureId, batch, caseId, staffId, reason));
+        }
+
+        /// <summary>The receipt files on the Case its active link names.</summary>
+        public void FileLinked(Guid stagedReceiptId)
+        {
+            var item = Items.Values.SelectMany(list => list).SingleOrDefault(value => value.StagedReceiptId == stagedReceiptId);
+            if (item is not null && Facts(item).Link is { IsActive: true } link)
+            {
+                Facts(item).StartedOn = link.CaseId;
+                Facts(item).FiledOn = link.CaseId;
+            }
         }
 
         /// <summary>Links the receipt to the Case as the store does; answers the outcome it would.</summary>
@@ -1131,7 +1287,10 @@ public sealed class SettlePhotoCapturesTests
 
             Links.Add(request);
             events.Add($"link:{request.ReceiptId}");
-            var linked = store.Link(request.ReceiptId, request.CaseId, request.Decider.Kind == ActorKind.SystemWorker, occurredAtUtc);
+            // A link that follows a record's merge files as a member of staff's does (R844).
+            var bySystem = request.Decider.Kind == ActorKind.SystemWorker
+                && !PhotoCaptureIntakeRules.FollowsRecordMerge(request.Decider.Kind.ToString(), request.Decider.SubjectId);
+            var linked = store.Link(request.ReceiptId, request.CaseId, bySystem, occurredAtUtc);
             return Task.FromResult(Outcome ?? linked);
         }
 
@@ -1154,14 +1313,26 @@ public sealed class SettlePhotoCapturesTests
             throw new NotSupportedException();
     }
 
-    private sealed class FakeProcessor(List<string> events) : IProcessQueuedIntake
+    /// <summary>
+    /// Records each re-drive. With <see cref="FilesOnRedrive"/> the re-driven
+    /// receipt files on the Case its active link names, as the pipeline's
+    /// processing of a linked receipt does.
+    /// </summary>
+    private sealed class FakeProcessor(List<string> events, CaptureStore store) : IProcessQueuedIntake
     {
         public List<Guid> Redriven { get; } = [];
+
+        public bool FilesOnRedrive { get; set; }
 
         public Task<QueuedIntakeProcessingResult> ProcessAsync(Guid stagedReceiptId, CancellationToken cancellationToken = default)
         {
             Redriven.Add(stagedReceiptId);
             events.Add($"redrive:{stagedReceiptId}");
+            if (FilesOnRedrive)
+            {
+                store.FileLinked(stagedReceiptId);
+            }
+
             return Task.FromResult(new QueuedIntakeProcessingResult(QueuedIntakeProcessingOutcome.Completed));
         }
     }
@@ -1169,7 +1340,7 @@ public sealed class SettlePhotoCapturesTests
     /// <summary>The Case-side writer; completing the images records the capture's marker, as the store's transaction does.</summary>
     private sealed class FakeCaseWriter(List<string> events, CaptureStore store) : IPhotoCaptureCaseWriter
     {
-        public List<(Guid CaseId, Guid CaptureId)> ImagesCompleted { get; } = [];
+        public List<(Guid CaseId, Guid CaptureId, string Reason)> ImagesCompleted { get; } = [];
         public List<IReadOnlyDictionary<string, string>> Filled { get; } = [];
         public List<Guid> FilledOn { get; } = [];
         public int FailImages { get; set; }
@@ -1182,7 +1353,7 @@ public sealed class SettlePhotoCapturesTests
                 throw new InvalidOperationException("The Case could not be written just now.");
             }
 
-            ImagesCompleted.Add((caseId, captureId));
+            ImagesCompleted.Add((caseId, captureId, reason));
             events.Add("images");
             store.Captures[captureId] = store.Captures[captureId] with { ImagesCompletedAtUtc = Now };
             return Task.CompletedTask;
@@ -1214,6 +1385,39 @@ public sealed class SettlePhotoCapturesTests
 
             return Task.CompletedTask;
         }
+    }
+
+    /// <summary>
+    /// A Triage Case's own notes as system work writes them: an operation key
+    /// already written replays, and a finished Triage takes nothing, as the
+    /// store's do.
+    /// </summary>
+    private sealed class RecordingTriageNotes
+    {
+        private readonly AutomaticImageIntakeTests.Forwarder forwarder =
+            AutomaticImageIntakeTests.Forwarder.For<ITriageStore>(null);
+
+        public RecordingTriageNotes(List<string> events)
+        {
+            forwarder.Overrides[nameof(ITriageStore.AddSystemNoteAsync)] = args =>
+            {
+                var operationKey = (string)args[2]!;
+                if (Finished || Written.Exists(note => note.OperationKey == operationKey))
+                {
+                    return Task.FromResult(false);
+                }
+
+                Written.Add(((Guid)args[0]!, ((ActionActor)args[1]!).Kind, operationKey, (string)args[3]!));
+                events.Add("triage-note");
+                return Task.FromResult(true);
+            };
+        }
+
+        public ITriageStore Proxy => (ITriageStore)forwarder.Proxy;
+
+        public bool Finished { get; set; }
+
+        public List<(Guid CaseId, ActorKind ActorKind, string OperationKey, string Note)> Written { get; } = [];
     }
 
     private sealed class FakeNotifier(List<string> events) : ICaseStaffNotifier

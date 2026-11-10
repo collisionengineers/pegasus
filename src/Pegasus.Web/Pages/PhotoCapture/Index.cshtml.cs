@@ -1,12 +1,9 @@
 using System.Globalization;
-using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Extensions.Options;
 using Pegasus.Core.Identity;
 using Pegasus.Core.PhotoCapture;
-using Pegasus.Web.PhotoCapture;
 using Pegasus.Web.Presentation;
 using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture;
 
@@ -16,17 +13,15 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// Photo capture (FRD-28 Staff pages; R774): <b>Coming in</b>, the captures
 /// standing and website links started, and <b>Links we sent</b>, the links
 /// HQ sent from a Case. The left pane is the tab's headline states with their
-/// queried counts, as the Cases list's scopes are; the list is one query
-/// (<see cref="IPhotoCaptureQueries.ListAsync"/>), newest first. Below the
-/// list an Administrator manages the one website link (R797).
+/// queried counts, as the Cases list's scopes are; the list and those counts
+/// are one query (<see cref="IPhotoCaptureQueries.ListAsync"/>), newest first. The
+/// website link is managed on Administration › Photo links (v50 F; R911).
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed class IndexModel(
     IPhotoCaptureQueries queries,
-    IStandingPhotoLinkStore standingLinks,
-    StandingPhotoLinkAdministration administration,
-    IOptions<PhotoCaptureOptions> options,
+    IPhotoLinkTextSend textSend,
     TimeProvider timeProvider) : PhotoCapturePageModel
 {
     private const int PageSize = 25;
@@ -34,7 +29,7 @@ public sealed class IndexModel(
     /// <summary>
     /// One list row with what is derived from it as it is read (FRD-28: never
     /// stored). <see cref="IsLive"/> is whether the link still takes photos,
-    /// which Remind needs (Core refuses it on a dead link).
+    /// which Resend needs (Core refuses it on a dead link).
     /// </summary>
     public sealed record Row(PhotoCaptureListRow Source, PhotoCaptureState State, DueCaptureReminder? Due, bool IsLive)
     {
@@ -59,29 +54,8 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true)]
     public int CurrentPage { get; set; } = 1;
 
-    [BindProperty]
-    public long ExpectedVersion { get; set; }
-
-    /// <summary>The website link's address as the Administrator typed it, on Create and Replace (R797).</summary>
-    [BindProperty]
-    public string? WebsiteSlug { get; set; }
-
-    // The website link's defaults (R797); its mode stays guided.
-    [BindProperty]
-    public bool LinkLiveCameraOnly { get; set; }
-
-    [BindProperty]
-    public int LinkLifetimeDays { get; set; }
-
-    [BindProperty]
-    public bool LinkOriginalsInBackground { get; set; }
-
     [TempData]
     public string? Notice { get; set; }
-
-    /// <summary>A refused website link change, shown above the page once.</summary>
-    [TempData]
-    public string? Refusal { get; set; }
 
     public bool SentByUs => Tab == Labels.LinksWeSentKey;
 
@@ -106,18 +80,6 @@ public sealed class IndexModel(
 
     public bool IsUnavailable { get; private set; }
 
-    public bool IsAdministrator => User.IsInRole(StaffRoleNames.Administrator);
-
-    /// <summary>The website standing link, read for Administrators only; null when none exists.</summary>
-    public StandingPhotoLink? WebsiteLink { get; private set; }
-
-    public string? WebsiteUrl => WebsiteLink is { } link ? PhotoLinkMail.StandingUrl(options.Value, link.Slug) : null;
-
-    public string? WebsiteQrSvg => WebsiteUrl is { } url ? PhotoLinkQr.Svg(url) : null;
-
-    /// <summary>What every standing address starts with, shown before the box the Administrator types the website's into.</summary>
-    public string WebsiteAddressPrefix => new Uri(options.Value.PublicOrigin, "s/").AbsoluteUri;
-
     public bool HasPreviousPage => CurrentPage > 1;
 
     public bool HasNextPage => CurrentPage * PageSize < TotalCount;
@@ -126,7 +88,7 @@ public sealed class IndexModel(
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        if (!TryGetActor(out var actor))
+        if (!TryGetActor(out _))
         {
             return Forbid();
         }
@@ -149,17 +111,12 @@ public sealed class IndexModel(
             var page = queries.ListAsync(
                 new(SentByUs, Query, State, Origin, NoCaseYet, PageSize, CurrentPage),
                 cancellationToken);
-            var counts = queries.CountByStateAsync(SentByUs, cancellationToken);
             var tabCounts = queries.CountByTabAsync(cancellationToken);
-            var website = IsAdministrator && StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ManageOrganizationsAndPrincipals)
-                ? standingLinks.FindWebsiteAsync(cancellationToken)
-                : Task.FromResult<StandingPhotoLink?>(null);
-            await Task.WhenAll(page, counts, tabCounts, website);
+            await Task.WhenAll(page, tabCounts);
             TotalCount = page.Result.TotalCount;
             Rows = [.. page.Result.Rows.Select(row => Derive(row, Now))];
-            Counts = counts.Result;
+            Counts = page.Result.CountsByState;
             TabCounts = tabCounts.Result;
-            WebsiteLink = website.Result;
             LoadedAtUtc = Now;
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
@@ -179,13 +136,10 @@ public sealed class IndexModel(
     public static Row Derive(PhotoCaptureListRow row, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(row);
-        IReadOnlyList<MissingCaptureItem> missing = [.. row.MissingItems.Select(label => new MissingCaptureItem(label, label))];
         return new(
             row,
-            PhotoCaptureStatus.Evaluate(row.Capture, missing, row.Photographs, now, row.CaseArchived),
-            row.Capture.Origin == PhotoCaptureOrigin.CaseLink
-                ? PhotoCaptureStatus.DueReminder(row.Capture, missing, row.Photographs, now, row.CaseArchived)
-                : null,
+            PhotoCaptureStatus.Evaluate(row.Capture, PhotoCaptureStatus.MissingOf(row), row.Photographs, now, row.CaseArchived),
+            PhotoCaptureStatus.DueReminder(row, now),
             PhotoCaptureAccess.IsLive(row.Capture, now, row.CaseArchived));
     }
 
@@ -223,9 +177,10 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// How a Coming in capture reached its Case: it was already instructed, or
-    /// it was matched when the instruction came. A Case a member of staff
-    /// chose has no words of its own, so it shows none.
+    /// How a Coming in capture reached its Case: it was already instructed,
+    /// it was matched when the instruction came, or a member of staff chose
+    /// it with Match to a case (operator, 10 November 2026; R864). A capture
+    /// with no Case shows none.
     /// </summary>
     public static string? CaseHow(PhotoCaptureListRow row)
     {
@@ -234,123 +189,28 @@ public sealed class IndexModel(
         {
             PhotoCapturePairing.FiledAsItArrived => Labels.AlreadyInstructed,
             PhotoCapturePairing.MatchedAutomatically => Labels.MatchedAutomatically,
+            PhotoCapturePairing.ChosenByStaff => Labels.MatchedByStaff,
             _ => null
         };
     }
 
-    // The website link (R797): Administrators create it at the address they
-    // type, pause, resume, replace it with a newly typed address, retire it
-    // and set its defaults here. It starts guided captures.
-    public Task<IActionResult> OnPostCreateWebsiteLinkAsync(CancellationToken cancellationToken) =>
-        ChangeWebsiteLinkAsync("create", cancellationToken);
+    /// <summary>
+    /// Where Resend, and Ask for it on a capture that can be e-mailed, open:
+    /// the composer, since no button sends an e-mail on its own (operator, 10
+    /// November 2026; R915). It returns to <paramref name="returnUrl"/>.
+    /// </summary>
+    public static string ResendHref(Guid captureId, string returnUrl) =>
+        QueryHelpers.AddQueryString($"/PhotoCapture/{captureId:D}/Resend", "returnUrl", returnUrl);
 
-    public Task<IActionResult> OnPostPauseWebsiteLinkAsync(CancellationToken cancellationToken) =>
-        ChangeWebsiteLinkAsync("pause", cancellationToken);
-
-    public Task<IActionResult> OnPostResumeWebsiteLinkAsync(CancellationToken cancellationToken) =>
-        ChangeWebsiteLinkAsync("resume", cancellationToken);
-
-    public Task<IActionResult> OnPostReplaceWebsiteLinkAsync(CancellationToken cancellationToken) =>
-        ChangeWebsiteLinkAsync("replace", cancellationToken);
-
-    public Task<IActionResult> OnPostRetireWebsiteLinkAsync(CancellationToken cancellationToken) =>
-        ChangeWebsiteLinkAsync("retire", cancellationToken);
-
-    public Task<IActionResult> OnPostUpdateWebsiteLinkDefaultsAsync(CancellationToken cancellationToken) =>
-        ChangeWebsiteLinkAsync("defaults", cancellationToken);
-
-    /// <summary>The website link's QR code as a file to print.</summary>
-    public async Task<IActionResult> OnGetWebsiteQrAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Whether Ask for it opens the composer: the capture can be e-mailed, a
+    /// capture on a Case that holds an address (R816), or texted, one that
+    /// holds a mobile where texting is configured (R920).
+    /// </summary>
+    public bool CanSend(Pegasus.Core.PhotoCapture.PhotoCapture capture)
     {
-        if (!TryGetActor(out var actor) || !MayManageLinks(actor))
-        {
-            return Forbid();
-        }
-
-        var link = await standingLinks.FindWebsiteAsync(cancellationToken);
-        if (link is null)
-        {
-            return NotFound();
-        }
-
-        return File(
-            Encoding.UTF8.GetBytes(PhotoLinkQr.Svg(PhotoLinkMail.StandingUrl(options.Value, link.Slug))),
-            "image/svg+xml",
-            PhotoLinkQr.FileName(link.Slug));
+        ArgumentNullException.ThrowIfNull(capture);
+        return (capture.CaseId is not null && !string.IsNullOrWhiteSpace(capture.Email))
+            || (textSend.Available && !string.IsNullOrWhiteSpace(capture.Mobile));
     }
-
-    // The change is Core's (StandingPhotoLinkAdministration); a change made
-    // over a stale read comes back as the page's refusal notice.
-    private async Task<IActionResult> ChangeWebsiteLinkAsync(string action, CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor) || !MayManageLinks(actor))
-        {
-            return Forbid();
-        }
-
-        var link = await standingLinks.FindWebsiteAsync(cancellationToken);
-        if (action != "create" && link is null)
-        {
-            return BadRequest();
-        }
-
-        try
-        {
-            switch (action)
-            {
-                case "create":
-                    await administration.CreateWebsiteAsync(actor, WebsiteSlug, cancellationToken);
-                    break;
-                case "pause":
-                    await administration.PauseAsync(actor, link!.Id, ExpectedVersion, cancellationToken);
-                    break;
-                case "resume":
-                    await administration.ResumeAsync(actor, link!.Id, ExpectedVersion, cancellationToken);
-                    break;
-                case "replace":
-                    await administration.ReplaceAsync(actor, link!.Id, ExpectedVersion, WebsiteSlug, cancellationToken);
-                    break;
-                case "retire":
-                    await administration.RetireAsync(actor, link!.Id, ExpectedVersion, cancellationToken);
-                    break;
-                case "defaults":
-                    await administration.UpdateDefaultsAsync(
-                        actor,
-                        link!.Id,
-                        ExpectedVersion,
-                        link.ForwardedMode,
-                        LinkLiveCameraOnly,
-                        LinkLifetimeDays,
-                        LinkOriginalsInBackground,
-                        cancellationToken);
-                    Notice = Labels.Saved;
-                    break;
-                default:
-                    return BadRequest();
-            }
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.AlreadyExists)
-        {
-            // The link is there, whoever made it: the panel shows it.
-        }
-        catch (StandingPhotoLinkException exception) when (exception.Error == StandingPhotoLinkError.NotFound)
-        {
-            return NotFound();
-        }
-        catch (StandingPhotoLinkException)
-        {
-            // A stale read, and a typed address of the wrong shape or already
-            // in use, which have no words of their own yet.
-            Refusal = OperatorLabels.ActionNotApplied;
-        }
-
-        return Redirect(Href() + "#website-link");
-    }
-
-    private bool MayManageLinks(ActionActor actor) =>
-        IsAdministrator && StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ManageOrganizationsAndPrincipals);
 }

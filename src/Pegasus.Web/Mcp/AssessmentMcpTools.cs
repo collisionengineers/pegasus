@@ -591,7 +591,7 @@ internal sealed class AssessmentMcpTools(
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same result.")] string operationKey,
         [Description("Why these values are being recorded (case history reason, at most 500 characters).")] string reason,
-        [Description("Assessment values keyed by field path, each as a string, limited to fields staff can record on the Case; a null value clears the field. An enumerated field takes one of its codes; assessment.impacts (the impacts, each a severity, a location and a note) and damage.impacts (the damage markers drawn on the plan) each take a JSON array in the format pegasus_vocabulary_get gives for it.")] Dictionary<string, string?>? fields = null,
+        [Description("Assessment values keyed by field path, each as a string, limited to fields staff can record on the Case; a null value clears the field. An enumerated field takes one of its codes; assessment.impacts (the impacts, each a severity, a location and a note) and damage.impacts (the damage markers drawn on the plan: the vehicle seen from above with its front at the top, y 0, and its left, nearside, at x 0; staff mark damage along its outline) each take a JSON array in the format pegasus_vocabulary_get gives for it.")] Dictionary<string, string?>? fields = null,
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {

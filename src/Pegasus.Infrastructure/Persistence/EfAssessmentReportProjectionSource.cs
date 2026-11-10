@@ -132,7 +132,7 @@ internal sealed class EfAssessmentReportProjectionSource(
             : listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
         await Task.WhenAll(ownReads, profilesRead, preparationsRead, appliedRead);
         var profiles = profilesRead.Result;
-        var (confirmed, guides, wording) = ownReads.Result;
+        var (confirmed, guides, guideByCard, wording) = ownReads.Result;
         var signOffEngineer = CaseSignOffEngineerResolver.Resolve(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,
@@ -245,22 +245,26 @@ internal sealed class EfAssessmentReportProjectionSource(
         {
             WorkId = selectedWork.Id,
             WorkKind = selectedWork.Kind,
+            EngineerValueGuide = latestApplied is not null
+                && guideByCard.TryGetValue(latestApplied.GuideValuationId, out var basisGuide)
+                    ? basisGuide
+                    : null,
         };
     }
 
-    private static async Task<(ConfirmedDocumentRow[] Confirmed, ReportGuideSources Guides, CaseReportWording[] Wording)>
+    private static async Task<(ConfirmedDocumentRow[] Confirmed, ReportGuideSources Guides, IReadOnlyDictionary<Guid, ValuationSource> GuideByCard, CaseReportWording[] Wording)>
         ReadOwnComponentsAsync(
             PegasusDbContext context, Guid caseId, Guid workId, CancellationToken cancellationToken)
     {
         var confirmed = await ConfirmedDocumentsAsync(context, caseId, cancellationToken);
-        var guides = await GuidesOfAsync(context, workId, cancellationToken);
+        var (guides, guideByCard) = await GuidesOfAsync(context, workId, cancellationToken);
         var wording = await context.CaseReportWordings.AsNoTracking()
             .Where(item => item.WorkId == workId)
             .OrderBy(item => item.BlockKey)
             .Select(item => new CaseReportWording(
                 item.BlockKey, item.Title, item.Text, item.Order, item.Included, item.Manual))
             .ToArrayAsync(cancellationToken);
-        return (confirmed, guides, wording);
+        return (confirmed, guides, guideByCard, wording);
     }
 
     /// <summary>
@@ -273,27 +277,28 @@ internal sealed class EfAssessmentReportProjectionSource(
 
     /// <summary>
     /// The valuation guides the Case's accepted values were taken from. Only
-    /// these decide the report's source-aware guide wording.
+    /// these decide the report's source-aware guide wording. Each card's guide
+    /// comes back by card too, so the applied valuation's basis card names
+    /// its guide without a second read (R898).
     /// </summary>
-    private static async Task<ReportGuideSources> GuidesOfAsync(
+    private static async Task<(ReportGuideSources Guides, IReadOnlyDictionary<Guid, ValuationSource> ByCard)> GuidesOfAsync(
         PegasusDbContext context, Guid workId, CancellationToken cancellationToken)
     {
-        var names = await context.CaseValuations
+        var cards = await context.CaseValuations
             .AsNoTracking()
             .Where(item => item.WorkId == workId)
-            .Select(item => item.Source)
-            .Distinct()
+            .Select(item => new { item.Id, item.Source })
             .ToArrayAsync(cancellationToken);
-        var guides = new List<ValuationSource>(names.Length);
-        foreach (var name in names)
+        var byCard = new Dictionary<Guid, ValuationSource>(cards.Length);
+        foreach (var card in cards)
         {
-            if (Enum.TryParse<ValuationSource>(name, out var source))
+            if (Enum.TryParse<ValuationSource>(card.Source, out var source))
             {
-                guides.Add(source);
+                byCard[card.Id] = source;
             }
         }
 
-        return new ReportGuideSources(guides);
+        return (new ReportGuideSources([.. byCard.Values.Distinct()]), byCard);
     }
 
     /// <summary>

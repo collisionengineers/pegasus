@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.DataProtection;
@@ -228,6 +230,81 @@ public sealed class StaffMailSendPersistenceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             store.PrepareAsync(command, new string('B', 64), now, CancellationToken.None));
     }
+
+    /// <summary>
+    /// The Delete case correspondence tick (ADR-0071, R902) is stored on the send it
+    /// was ticked on, its tidy not yet run; an unticked send stores none.
+    /// </summary>
+    [Fact]
+    public async Task ATickedReplyStoresItsCorrespondenceTidyAndAnUntickedOneDoesNot()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var now = new DateTimeOffset(2026, 11, 10, 9, 0, 0, TimeSpan.Zero);
+        var tickedCommand = ReplyCommand(mailboxId, retainedMessageId, "ticked-correspondence-reply") with
+        {
+            TidiesCaseCorrespondence = true
+        };
+        var untickedCommand = ReplyCommand(mailboxId, retainedMessageId, "unticked-correspondence-reply");
+
+        var ticked = await store.PrepareAsync(
+            tickedCommand, EnginePayloadHash(tickedCommand), now, CancellationToken.None);
+        var unticked = await store.PrepareAsync(
+            untickedCommand, EnginePayloadHash(untickedCommand), now, CancellationToken.None);
+
+        await using var db = await database.CreateContextAsync();
+        var tickedRow = await db.Set<StaffMailSendOperationEntity>().AsNoTracking()
+            .SingleAsync(item => item.Id == ticked.Id);
+        Assert.True(tickedRow.TidiesCaseCorrespondence);
+        Assert.Null(tickedRow.CorrespondenceMoveState);
+        Assert.Equal(0, tickedRow.CorrespondenceMoveAttempts);
+        Assert.Null(tickedRow.CorrespondenceMovedAtUtc);
+        Assert.Null(tickedRow.CorrespondenceMoveFailureCode);
+        var untickedRow = await db.Set<StaffMailSendOperationEntity>().AsNoTracking()
+            .SingleAsync(item => item.Id == unticked.Id);
+        Assert.False(untickedRow.TidiesCaseCorrespondence);
+        Assert.Equal(0, untickedRow.CorrespondenceMoveAttempts);
+    }
+
+    /// <summary>
+    /// The tick is part of the send's content: replaying its operation key
+    /// with the tick flipped is a different send, and is refused. An unticked
+    /// command hashes as it did before the tick existed.
+    /// </summary>
+    [Fact]
+    public async Task ReplayingAnOperationKeyWithTheCorrespondenceTickFlippedConflicts()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var now = new DateTimeOffset(2026, 11, 10, 9, 0, 0, TimeSpan.Zero);
+        var command = ReplyCommand(mailboxId, retainedMessageId, "tick-flipped-reply");
+        var ticked = command with { TidiesCaseCorrespondence = true };
+
+        var first = await store.PrepareAsync(command, EnginePayloadHash(command), now, CancellationToken.None);
+        var replay = await store.PrepareAsync(command, EnginePayloadHash(command), now, CancellationToken.None);
+
+        Assert.Equal(first.Id, replay.Id);
+        Assert.DoesNotContain(
+            "tidiesCaseCorrespondence",
+            JsonSerializer.Serialize(command, JsonSerializerOptions.Web),
+            StringComparison.OrdinalIgnoreCase);
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            store.PrepareAsync(ticked, EnginePayloadHash(ticked), now, CancellationToken.None));
+        Assert.Contains("already used for different content", refused.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>The payload hash <c>StaffMailSend</c> prepares a command under: its web JSON, SHA-256, hex.</summary>
+    private static string EnginePayloadHash(StaffMailSendCommand command) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            JsonSerializer.Serialize(command, JsonSerializerOptions.Web))));
 
     /// <summary>
     /// Operator, 12 October 2026: one retained message may be answered more than

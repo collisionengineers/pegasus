@@ -22,6 +22,11 @@ it, stand. Send, the
 approved-mailbox identity and the Sent-item evidence rule stand under
 [ADR-0036](0036-outbound-mail-via-approved-mailbox.md) and ADR-0042.
 
+Amended 9 November 2026 (R902 to R905): clauses 2 and 5 and the clause 4
+record are edited in place for the **Delete case correspondence** tick.
+Clauses 1 and 3 stand as written. Amended 10 November 2026 (R916, R917):
+clause 5 names the activated mailbox and a staff forward's original.
+
 ## Context
 
 A report goes out as a reply in the instruction's thread from the mailbox the
@@ -36,9 +41,15 @@ Pegasus would leave every answered instruction in the Inbox.
    Pegasus moves the instruction e-mail it replied to into the mailbox's
    Deleted Items folder. The move is recoverable: staff and Outlook can take
    the item back out. Pegasus never deletes a mailbox item permanently.
-2. **No Delete control.** There is still no Delete or Flag control, no staff
-   action and no tool that moves anything to Deleted Items. The move is a
-   consequence of a confirmed report send and nothing else.
+2. **No Delete control; one tick.** There is still no Delete or Flag control
+   and no staff action or tool that moves a chosen message to Deleted Items.
+   Besides the automatic move of clause 1, one optional tick, **Delete case
+   correspondence**, rides on three sends: Send report, a reply that answers
+   a query (offered exactly where Mark query done is) and the Triage outcome
+   reply. `pegasus_report_send` and `pegasus_mail_send` take it as
+   `deleteCaseCorrespondence` and stay non-destructive tools, because the
+   move is recoverable. A move is a consequence of a confirmed send and
+   nothing else (9 November 2026, R902, R904, R905).
 3. **The Worker does it.** The Worker moves the message inside its existing
    recovery timer. Web composes no mover and cannot move a message.
    The move needs the Worker's Mail.ReadWrite on that mailbox (an operations
@@ -50,9 +61,23 @@ Pegasus would leave every answered instruction in the Inbox.
    A move writes Case history `instruction_moved_to_deleted_items`. A failure
    writes `instruction_move_failed` with a failure code on each attempt.
    After the third failure nothing retries; the instruction stays where it is.
-5. **Only that message.** The candidate is the retained instruction the report
-   send answered, matched by the send's recorded original message. No other
-   message, folder or mailbox is touched.
+   A ticked send is recorded the same way in its own columns of the send
+   operation: a run with no failure ends it and writes
+   `correspondence_moved_to_deleted_items` with its counts; a run with a
+   failure writes `correspondence_move_failed`, and the third such run ends
+   it (9 November 2026, R902).
+5. **Only those messages.** The automatic move's candidate is the retained
+   instruction the report send answered, matched by the send's recorded
+   original message. A ticked send's candidates are the Case's received
+   e-mails: the Inbox-scope retained messages currently linked to the Case,
+   in a mailbox that is still Approved and activated (10 November 2026,
+   R916), that Pegasus held when the send was prepared. With a Collision
+   Engineers staff forward held in instructions@ goes the original its reply
+   headers name in the mailbox that forwarded it, linked to the Case or not,
+   unless it stands linked to another Case (10 November 2026, R917).
+   Pegasus's own Sent items, uploaded files, mail that arrives after the
+   send and every other message, folder and mailbox are left
+   (9 November 2026, R903).
 
 ## Consequences
 
@@ -66,6 +91,11 @@ Pegasus would leave every answered instruction in the Inbox.
   history.
 - FRD-21's "No Flag, no Delete" paragraph becomes "No Flag, no Delete
   control", with the one automatic move.
+- The tick (9 November 2026) adds five columns and one filtered index to the
+  send operation row by an additive migration, and a fourth job folded into
+  the Worker's recovery timer after the instruction tidy. A production copy
+  into the test instance closes the copied ticked sends as it closes the
+  copied instruction tidies (R680).
 
 ## Links
 

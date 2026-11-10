@@ -235,8 +235,8 @@ public sealed partial class DetailsModel(
         var capture = story.Capture;
         var missing = Pegasus.Core.PhotoCapture.PhotoCaptureRequiredItems.Evaluate(
             capture,
-            story.Items,
-            Pegasus.Core.PhotoCapture.PhotoCaptureRequiredItems.VinRequired(capture, story.StandingLinkIsRepairer));
+            Pegasus.Core.PhotoCapture.PhotoCaptureItemPresence.Of(story.Items),
+            Pegasus.Core.PhotoCapture.PhotoCaptureRequiredItems.VinRequired(capture, story.StandingLinkIsRepairer, story.HandedOn));
         var photographs = story.Items.Count(item => Pegasus.Core.PhotoCapture.PhotoCaptureStory.IsPhotographKind(item.Kind));
         return Pegasus.Core.PhotoCapture.PhotoCaptureStatus.Evaluate(
             capture, missing, photographs, clock.GetUtcNow(), CurrentWorkflow?.Archive is not null);
@@ -756,6 +756,16 @@ public sealed partial class DetailsModel(
     /// Recompose puts the composed sentence back without a round trip.
     /// </summary>
     public IReadOnlyDictionary<string, string> ReportWordingComposed { get; private set; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The heading each offered block carries when the Engineer has not
+    /// renamed it. With <see cref="ReportWordingComposed"/> it lets the page
+    /// send a block it still shows as drawn as no change, so a section kept
+    /// on screen while the Case moved on stores nothing the Engineer did not
+    /// write (issue 2042).
+    /// </summary>
+    public IReadOnlyDictionary<string, string> ReportWordingHeadings { get; private set; } =
         new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// <summary>
@@ -1403,6 +1413,12 @@ public sealed partial class DetailsModel(
                             block.Key, wordingSnapshot, wordingSnapshot.Presentation()),
                         StringComparer.Ordinal)
                     : new Dictionary<string, string>(StringComparer.Ordinal);
+                ReportWordingHeadings = wording.Snapshot is { } headingSnapshot
+                    ? ReportWording.Where(block => !block.Manual).ToDictionary(
+                        block => block.Key,
+                        block => ReportWordingComposition.StandardTitle(block.Key, headingSnapshot.Presentation()),
+                        StringComparer.Ordinal)
+                    : new Dictionary<string, string>(StringComparer.Ordinal);
             }
         }
         CurrentReportGeneration = await currentGeneration;
@@ -1462,7 +1478,7 @@ public sealed partial class DetailsModel(
             : await otherHistory;
         ReportDeliveryMessage = await RenderReportDeliveryMessageAsync(actor, cancellationToken);
         ApplyReportDeliverySubject();
-        OriginalReport = await ReadOriginalReportAsync(id, cancellationToken);
+        OriginalReport = ReadOriginalReport();
         // A refused send lands back here with the dialog open on its notice
         // (v48 item N), only where the page offers the send.
         OpenDialog = EstimateDialogOf(dialog)
@@ -2769,7 +2785,8 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken)
     {
         var wording = await Pegasus.Web.Presentation.ReportWordingEdits.ReadAsync(
-            reportSnapshotSource, caseId, actor, work, clock.GetUtcNow(), cancellationToken);
+            reportSnapshotSource, caseId, actor, work, clock.GetUtcNow(),
+            Pegasus.Web.Presentation.ReportWordingEdits.UnavailableOnPage, cancellationToken);
         return new([.. edits.Select(edit => edit.ToRecord(wording.Snapshot, wording.Presentation))]);
     }
 
@@ -3295,6 +3312,7 @@ public sealed partial class DetailsModel(
         string? stopOverrideReason,
         string[]? holdsDone,
         string? subject,
+        bool deleteCaseCorrespondence,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -3348,7 +3366,9 @@ public sealed partial class DetailsModel(
                     // The subject and the documents' names as staff left them
                     // in the composer (v48 items C and E).
                     Subject: subject,
-                    AttachmentNames: PostedAttachmentNames("fileName")),
+                    AttachmentNames: PostedAttachmentNames("fileName"),
+                    // The dialog's Delete case correspondence tick (R902 to R905).
+                    TidiesCaseCorrespondence: deleteCaseCorrespondence),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)

@@ -59,7 +59,9 @@ Case at the same route renders as the Triage Case page instead
   photo link for this Case, to the customer or, as a quick link, to a firm
   (operator, 9 November 2026; R808), absent while `Features:PhotoCapture`
   is off (operator, 9 November 2026; R773;
-  [FRD-28](frd-28-guided-photo-capture.md#photo-links));
+  [FRD-28](frd-28-guided-photo-capture.md#photo-links)) and on a closed
+  Case, whose Send page refuses it (operator, 10 November 2026;
+  [R847](../rulings.md));
 - the one **Actions** menu.
 
 When a colleague holds the lease the ribbon shows who, and offers **Ask to
@@ -76,7 +78,12 @@ lasts while the page is open (operator, 6 October 2026). The rule is in
 the current section as you scroll, and carries **Refresh**. The page always
 scrolls; there is no Tabs layout (operator, 9 October 2026). Each section's
 folded state is remembered per browser and painted by the server.
-`?section=` jumps to a section. Sections below the fold load lazily.
+`?section=` jumps to a section. Sections below the fold load lazily. A jump
+lands in one movement, made at once, with the section under the section row;
+a jump to a blocker's field outlines the field and centres it beneath the row
+only when it lies deeper in its section than that, so the page never backs up
+into the section before the one asked for and the section row marks the
+section clicked (operator, 10 November 2026; R888).
 
 Every editable section head has its own **Edit**, which starts the one
 page-wide edit session without moving the page. When the state does not
@@ -321,7 +328,10 @@ VAT", the report's printed total; "Salvage value", only when that report's
 outcome was a Total loss; and "Engineer's Value", the value the report
 printed, followed in brackets by the guide its basis card came from
 ("£5,000.00 (Cazana)") when the value was calculated from a card, nothing for
-a typed value; then "Settlement", only when that report's outcome was a Total
+a typed value. The guide is the one the snapshot froze, so a card applied
+since does not change it; a report generated before the guide was frozen
+names it only when that report was taken from a single guide, and otherwise
+shows no brackets (operator, 10 November 2026; [R898](../rulings.md)); then "Settlement", only when that report's outcome was a Total
 loss: the settlement it printed, the pre-accident value less salvage
 (operator, 6 November 2026; [R730](../rulings.md)). Until an Inspection
 report exists every figure is the absent glyph. No new breakpoint: below 1441px the card is one more cell of the
@@ -651,7 +661,11 @@ form, and a connected source's card has **Get valuation**, a small button
 centred at the card's foot (operator, 9 October 2026), which asks the
 provider for the Case's accepted registration and mileage in that month and
 fills the boxes in place, without redrawing the page, and chooses the card
-when a retail answers (operator, 2 November 2026, R638). Glass's, Brego and Cazana
+when a retail answers (operator, 2 November 2026, R638). A source already
+answered for that month at the Case's registration and mileage is not asked
+again: the press is refused on the card (operator, 10 November 2026, R900;
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
+Glass's, Brego and Cazana
 are the connected sources; each valuation's PDF report is filed on the Case's
 Documents after the figures have answered and appears there on the next load
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).

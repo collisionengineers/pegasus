@@ -856,14 +856,65 @@ public sealed partial class AssessmentReportDraftWebTests
             request.Decisions!.OrderBy(decision => decision.RuleIndex).ToArray());
         Assert.Equal("Agreed by phone.", request.StopOverrideReason);
         Assert.Equal(["Authorise the garage.", "Check the WhatsApp group."], request.AcknowledgedHolds);
+        Assert.False(request.TidiesCaseCorrespondence);
+    }
+
+    /// <summary>
+    /// Delete case correspondence (operator, 9 November 2026; R902 to R905):
+    /// the dialog's tick reaches the send as posted, and a send posted
+    /// without it deletes nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SendReportCarriesTheDeleteCaseCorrespondenceTick(bool ticked)
+    {
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        var caseId = Guid.NewGuid();
+        var send = new RecordingSendReport(StaffMailState.Submitted);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            sendReport: send);
+        using var client = Client(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+        var fields = new List<(string Name, string Value)>
+        {
+            ("id", caseId.ToString("D")),
+            ("operationKey", Guid.NewGuid().ToString("N")),
+            ("editLeaseToken", "held-report-lease"),
+            ("expectedCaseVersion", "0"),
+            ("generationId", Guid.NewGuid().ToString("D")),
+            ("expectedGenerationVersion", "13"),
+            ("coveringMessage", "Report attached."),
+            ("toRecipients", "reviewed@recipient.example")
+        };
+        if (ticked)
+        {
+            fields.Add(("deleteCaseCorrespondence", "true"));
+        }
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SendReport&section=report",
+            Form(AntiforgeryValue(html), [.. fields]));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var request = Assert.Single(send.Requests);
+        Assert.Equal(ticked, request.TidiesCaseCorrespondence);
     }
 
     /// <summary>
     /// When Core refuses the send, the refusal it states is shown on the
-    /// Case, so staff read why the report was not sent.
+    /// Case, so staff read why the report was not sent: a changed dispatch,
+    /// a subject staff made too long and a name past custody's bound (#1912,
+    /// R895, R897), never "Retry the operation".
     /// </summary>
-    [Fact]
-    public async Task ARefusedSendStatesWhyOnTheCase()
+    [Theory]
+    [MemberData(nameof(Refusals))]
+    public async Task ARefusedSendStatesWhyOnTheCase(string refusal)
     {
         using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
@@ -873,7 +924,7 @@ public sealed partial class AssessmentReportDraftWebTests
             FullAssessmentProjection(caseId),
             new FakeProjectionSource(ReadyInput(caseId)),
             new FakeRenderer([1]),
-            sendReport: new RefusingSendReport(CaseReportDeliveryPolicy.DispatchChanged));
+            sendReport: new RefusingSendReport(refusal));
         using var client = Client(factory);
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
 
@@ -896,8 +947,16 @@ public sealed partial class AssessmentReportDraftWebTests
         // to open on its notice (v48 item N).
         Assert.Contains("dialog=send-report", response.Headers.Location!.OriginalString, StringComparison.Ordinal);
         var reloaded = WebUtility.HtmlDecode(await GetHtmlAsync(client, response.Headers.Location!.OriginalString!));
-        Assert.Contains(CaseReportDeliveryPolicy.DispatchChanged, reloaded, StringComparison.Ordinal);
+        Assert.Contains(refusal, reloaded, StringComparison.Ordinal);
+        Assert.DoesNotContain("Retry the operation", reloaded, StringComparison.Ordinal);
     }
+
+    public static TheoryData<string> Refusals => new()
+    {
+        CaseReportDeliveryPolicy.DispatchChanged,
+        CaseReportDeliveryPolicy.SubjectTooLong,
+        CaseReportDeliveryNaming.FileNameTooLong,
+    };
 
     /// <summary>
     /// The delivery form follows the Principal's rules as one plan: it says
@@ -1164,11 +1223,56 @@ public sealed partial class AssessmentReportDraftWebTests
         var reportName = Regex.Match(reportRow, "data-default-name=\"([^\"]+)\"").Groups[1].Value;
         Assert.Contains($"aria-label=\"Rename {reportName}\"", reportRow, StringComparison.Ordinal);
         Assert.Contains("<input type=\"hidden\" name=\"fileName-AssessmentReport\" value=\"\" data-send-file-name />", reportRow, StringComparison.Ordinal);
+        // A name is at most custody's 120 characters, .pdf included (R895),
+        // and its box owns its Escape so the dialog stays open (#1911).
+        Assert.Contains(
+            $"maxlength=\"{CaseReportDeliveryNaming.MaximumFileNameLength - CaseReportDeliveryNaming.Extension.Length}\" aria-label=\"{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.FileName}\" data-send-file-stem data-own-escape />",
+            reportRow,
+            StringComparison.Ordinal);
         Assert.Contains("checked=\"checked\"", FileRow(dialog, CaseReportArtifactKind.FeeNote), StringComparison.Ordinal);
         Assert.Contains("name=\"fileName-FeeNote\"", FileRow(dialog, CaseReportArtifactKind.FeeNote), StringComparison.Ordinal);
         Assert.DoesNotContain("checked", InputTag(FileRow(dialog, CaseReportArtifactKind.RepairSpecification), "data-report-attach-choice=\"RepairSpecification\""), StringComparison.Ordinal);
         Assert.Contains("data-dialog-close", dialog, StringComparison.Ordinal);
         Assert.Single(Regex.Matches(html, "handler=SendReport"));
+    }
+
+    /// <summary>
+    /// Delete case correspondence (operator, 9 November 2026; R902 to R905):
+    /// the dialog's last row, after the holds and before the footer, is the
+    /// tick under its label, unticked on every open.
+    /// </summary>
+    [Fact]
+    public async Task TheSendReportDialogEndsWithAnUntickedDeleteCaseCorrespondence()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var facts = new ReportDispatchFacts(
+            "QDOS26001", "PK12TMZ", "Principal Ltd",
+            PrincipalReportSendingRules.Default with { Hold = "Authorise the garage." },
+            null);
+        using var factory = WithDispatchFacts(
+            baseFactory, caseId, new FakeCurrentGeneration(caseId), facts, CaseReportSendHistory.None);
+        using var client = Client(factory);
+
+        var html = WebUtility.HtmlDecode(await EnterEditModeAsync(client, caseId));
+
+        var dialog = SendDialog(html);
+        var tick = InputTag(dialog, "data-delete-case-correspondence");
+        Assert.Equal(
+            "<input type=\"checkbox\" name=\"deleteCaseCorrespondence\" value=\"true\" data-delete-case-correspondence />",
+            tick);
+        Assert.Single(Regex.Matches(dialog, "data-delete-case-correspondence"));
+        Assert.Contains(
+            $"<label class=\"choice\">{tick}<span>{Pegasus.Web.Presentation.OperatorLabels.StaffMail.DeleteCaseCorrespondence}</span></label>",
+            dialog,
+            StringComparison.Ordinal);
+        var tickAt = dialog.IndexOf(tick, StringComparison.Ordinal);
+        var holdAt = dialog.LastIndexOf("data-report-hold", StringComparison.Ordinal);
+        Assert.True(holdAt >= 0, "The Principal's hold is rendered with its tick.");
+        Assert.True(holdAt < tickAt, "The tick follows the holds.");
+        Assert.True(
+            tickAt < dialog.IndexOf("<footer class=\"mail-compose-footer\">", StringComparison.Ordinal),
+            "The tick precedes the footer.");
     }
 
     private static string FileRow(string dialog, CaseReportArtifactKind kind)

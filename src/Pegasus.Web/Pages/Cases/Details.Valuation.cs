@@ -823,6 +823,16 @@ public sealed partial class DetailsModel
             }
             TempData["CaseError"] = message;
         }
+        catch (GuideValuationAlreadyFetchedException)
+        {
+            // The button stays; a repeat press is refused on the card (R900).
+            var message = CaseWorkspaceLabels.Valuation.AlreadyFetched(source);
+            if (json)
+            {
+                return new JsonResult(new { status = "refused", message });
+            }
+            TempData["CaseError"] = message;
+        }
         catch (Exception exception) when (exception is ArgumentException
             or InvalidOperationException
             or KeyNotFoundException)

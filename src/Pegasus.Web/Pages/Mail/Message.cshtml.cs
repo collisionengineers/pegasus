@@ -161,6 +161,15 @@ public sealed class MessageModel(
     [BindProperty(SupportsGet = true, Name = "markQueryDone")]
     public bool MarkQueryDone { get; set; }
 
+    /// <summary>
+    /// The reply composer's Delete case correspondence tick, offered exactly
+    /// where Mark query done is (operator, 9 November 2026; R904): once the
+    /// Sent item is observed, the Worker moves the Case's received e-mails to
+    /// Deleted Items. Never set by a link, so it is unticked on every open.
+    /// </summary>
+    [BindProperty]
+    public bool DeleteCaseCorrespondence { get; set; }
+
     /// <summary>Whether this message holds an open query on its linked Case.</summary>
     public bool MessageHoldsOpenQuery { get; private set; }
 
@@ -1530,7 +1539,8 @@ public sealed class MessageModel(
                     attachments,
                     CorrespondenceOperationKey!.Trim(),
                     MarksQueryDone: MarkQueryDone && OffersMarkQueryDone,
-                    AiJobId: AiJobId is { } aiJobId && aiJobId != Guid.Empty ? aiJobId : null),
+                    AiJobId: AiJobId is { } aiJobId && aiJobId != Guid.Empty ? aiJobId : null,
+                    TidiesCaseCorrespondence: DeleteCaseCorrespondence && OffersMarkQueryDone),
                 cancellationToken);
             CorrespondenceOperation = operation;
             if (operation.State == StaffMailState.Sent)
@@ -1742,8 +1752,23 @@ public sealed class MessageModel(
         }
 
         var queries = HttpContext.RequestServices.GetRequiredService<ICaseQueryStore>();
-        var listed = await queries.ListCaseQueriesAsync(CorrespondenceCase.Summary.CaseId, cancellationToken);
-        return listed.Any(item => item.IsOpen && item.Message?.RetainedMessageId == Detail.Summary.Id);
+        return await HoldsOpenQueryAsync(
+            queries, CorrespondenceCase.Summary.CaseId, Detail.Summary.Id, cancellationToken);
+    }
+
+    /// <summary>
+    /// Whether the retained message holds an open query on the Case: the rule
+    /// the composer offers Mark query done and Delete case correspondence by,
+    /// which the Automation send reads too.
+    /// </summary>
+    internal static async Task<bool> HoldsOpenQueryAsync(
+        ICaseQueryStore queries,
+        Guid caseId,
+        Guid retainedMessageId,
+        CancellationToken cancellationToken)
+    {
+        var listed = await queries.ListCaseQueriesAsync(caseId, cancellationToken);
+        return listed.Any(item => item.IsOpen && item.Message?.RetainedMessageId == retainedMessageId);
     }
 
     private Task<CaseHeader?> ResolveCaseAsync(

@@ -178,18 +178,83 @@ public sealed class CaseReportDeliveryNamingTests
 
     /// <summary>
     /// Operator, 4 November 2026 (v48 item C): the subject staff edited is
-    /// sent, trimmed; left blank, the derived one; past 500 characters, refused.
+    /// sent, trimmed; left blank, the derived one. A line break becomes a
+    /// space, and only a subject staff changed is held to 500 characters: the
+    /// derived subject, blank or as prefilled, goes however long (R670, R897).
     /// </summary>
     [Fact]
-    public void TheSubjectIsStaffsWhenGivenElseTheDerivedOneAndBounded()
+    public void TheSubjectIsStaffsWhenGivenElseTheDerivedOneAndAChangedOneIsBounded()
     {
         Assert.Equal("Re: Claim", CaseReportDeliveryPolicy.Subject(null, "Re: Claim"));
         Assert.Equal("Re: Claim", CaseReportDeliveryPolicy.Subject("  ", "Re: Claim"));
         Assert.Equal("Our report", CaseReportDeliveryPolicy.Subject(" Our report \r\n", "Re: Claim"));
+        Assert.Equal("Our report for you", CaseReportDeliveryPolicy.Subject("Our report\r\n\tfor you", "Re: Claim"));
         Assert.Equal(500, CaseReportDeliveryPolicy.MaximumSubjectLength);
         var longest = new string('s', CaseReportDeliveryPolicy.MaximumSubjectLength);
         Assert.Equal(longest, CaseReportDeliveryPolicy.Subject(longest, "Re: Claim"));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CaseReportDeliveryPolicy.Subject(longest + "s", "Re: Claim"));
+        var refused = Assert.Throws<InvalidOperationException>(
+            () => CaseReportDeliveryPolicy.Subject(longest + "s", "Re: Claim"));
+        Assert.Equal("A subject cannot exceed 500 characters.", refused.Message);
+
+        var derived = "Re: " + new string('d', 600);
+        Assert.Equal(derived, CaseReportDeliveryPolicy.Subject(null, derived));
+        Assert.Equal(derived, CaseReportDeliveryPolicy.Subject(derived, derived));
+        Assert.Equal(derived, CaseReportDeliveryPolicy.Subject(" " + derived + " ", derived));
+        Assert.Throws<InvalidOperationException>(() => CaseReportDeliveryPolicy.Subject(derived + "x", derived));
+        Assert.Equal("Re: Claim one", CaseReportDeliveryPolicy.Subject(null, "Re: Claim\r\none"));
+    }
+
+    /// <summary>
+    /// Operator, 10 November 2026 (R895): a staff name keeps to custody's
+    /// rule: a character no file name can hold becomes <c>_</c>, and the
+    /// whole name, .pdf included, is at most 120 characters.
+    /// </summary>
+    [Fact]
+    public void AStaffNameIsMadeFileSafeAndBoundedAsCustodyNamesAre()
+    {
+        Assert.Equal("a_b_c_d_e_.pdf", CaseReportDeliveryNaming.StaffName("a/b\\c:d\re\n.pdf"));
+        Assert.Equal("Our _report_.pdf", CaseReportDeliveryNaming.StaffName(" Our \"report?.pdf "));
+        var longest = new string('n', CaseReportDeliveryNaming.MaximumFileNameLength - 4) + ".pdf";
+        Assert.Equal(longest, CaseReportDeliveryNaming.StaffName(longest));
+        var refused = Assert.Throws<InvalidOperationException>(() => CaseReportDeliveryNaming.StaffName("n" + longest));
+        Assert.Equal("A file name cannot exceed 120 characters.", refused.Message);
+        Assert.Throws<ArgumentException>(() => CaseReportDeliveryNaming.StaffName("  "));
+    }
+
+    /// <summary>
+    /// Operator, 10 November 2026 (R896): no two attachments of one send share
+    /// a name, case ignored. A later document is numbered before its .pdf;
+    /// a filed estimate keeps the name it was filed under (R671), so the
+    /// document carrying its name is numbered instead; a number that would
+    /// take a name past 120 characters shortens the stem.
+    /// </summary>
+    [Fact]
+    public void ALaterDocumentWhoseNameIsTakenIsNumbered()
+    {
+        var estimate = new StaffMailAttachment(
+            Guid.NewGuid(), Guid.NewGuid(), new string('d', 64), 40, "Report.pdf", "application/pdf");
+        var distinct = CaseReportDeliveryNaming.Distinct(
+            [
+                ReportAttachment with { FileName = "Report.pdf" },
+                FeeAttachment with { FileName = "report.PDF" },
+                estimate,
+                ImageAttachment with { FileName = "Report (2).pdf" },
+            ],
+            index => index == 2);
+
+        Assert.Equal(
+            ["Report (2).pdf", "report (3).PDF", "Report.pdf", "Report (2) (2).pdf"],
+            distinct.Select(attachment => attachment.FileName).ToArray());
+        Assert.Equal(estimate, distinct[2]);
+        Assert.Equal(FeeAttachment.Sha256, distinct[1].Sha256);
+
+        var longest = new string('n', CaseReportDeliveryNaming.MaximumFileNameLength - 4) + ".pdf";
+        var bounded = CaseReportDeliveryNaming.Distinct(
+            [ReportAttachment with { FileName = longest }, FeeAttachment with { FileName = longest }],
+            _ => false);
+        Assert.Equal(longest, bounded[0].FileName);
+        Assert.Equal(CaseReportDeliveryNaming.MaximumFileNameLength, bounded[1].FileName.Length);
+        Assert.EndsWith("n (2).pdf", bounded[1].FileName, StringComparison.Ordinal);
     }
 
     [Fact]

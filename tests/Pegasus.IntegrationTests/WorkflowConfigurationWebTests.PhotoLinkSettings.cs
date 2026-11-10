@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.PhotoCapture;
@@ -9,13 +10,16 @@ using Pegasus.Web.Authentication;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// Send a photo link's settings on Administration › Configuration (FRD-17,
-/// FRD-28; R813, R817): the mode, the two toggles Send starts with, and which
-/// of 3, 7 and 14 days it offers with the one it starts on. Send reads them;
-/// Extend keeps all three lifetimes.
+/// Send a photo link's settings on Administration › Photo links (FRD-17,
+/// FRD-28; R813, R817; moved from Workflow configuration, v50 G, R911): the
+/// mode, the two toggles Send starts with, and which of 3, 7 and 14 days it
+/// offers with the one it starts on. Send reads them; Extend keeps all three
+/// lifetimes. Each page's panel saves only its own settings.
 /// </summary>
 public sealed partial class WorkflowConfigurationWebTests
 {
+    private const string PhotoLinksRoute = "/Administration/PhotoLinks";
+
     private static readonly ActionActor PhotoLinkIssuer =
         ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
 
@@ -25,20 +29,20 @@ public sealed partial class WorkflowConfigurationWebTests
 
     /// <summary>
     /// Saving the photo link settings raises the configuration's version by
-    /// one and they read back as saved; a later workflow post that does not
-    /// carry them keeps them.
+    /// one and they read back as saved; a later Chasing and due targets save
+    /// on Workflow configuration, which does not carry them, keeps them.
     /// </summary>
     [Fact]
-    public async Task ThePhotoLinkSettingsSaveWithTheWorkflowAndAPostWithoutThemKeepsThem()
+    public async Task ThePhotoLinkSettingsSaveOnPhotoLinksAndAConfigurationSaveKeepsThem()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var html = await GetPageAsync(client);
+        var html = await GetPhotoLinksPageAsync(client);
         var before = int.Parse(Field(html, "WorkflowExpectedVersion"), System.Globalization.CultureInfo.InvariantCulture);
 
         using (var saved = await client.PostAsync(
-            Route + "?handler=SaveWorkflow",
-            new FormUrlEncodedContent(WorkflowForm(html, QuickFrom3And14()))))
+            PhotoLinksRoute + "?handler=SaveSendSettings",
+            new FormUrlEncodedContent(SendSettingsForm(html, QuickFrom3And14()))))
         {
             Assert.True(
                 saved.StatusCode == HttpStatusCode.Redirect,
@@ -50,18 +54,93 @@ public sealed partial class WorkflowConfigurationWebTests
         AssertQuickFrom3And14(settings);
 
         var reloaded = await GetPageAsync(client);
-        var withoutThem = WorkflowForm(reloaded, []);
-        var chaseInterval = withoutThem.FindIndex(field => field.Key == "ChaseIntervalDays");
         // Another workflow setting changes, so the post writes.
-        withoutThem[chaseInterval] = new("ChaseIntervalDays", Field(reloaded, "ChaseIntervalDays") == "9" ? "8" : "9");
-        using (var other = await client.PostAsync(Route + "?handler=SaveWorkflow", new FormUrlEncodedContent(withoutThem)))
+        var chaseInterval = Field(reloaded, "ChaseIntervalDays") == "9" ? "8" : "9";
+        using (var other = await client.PostAsync(Route + "?handler=SaveTargets", new FormUrlEncodedContent(TargetsForm(reloaded, chaseInterval))))
         {
             Assert.True(
                 other.StatusCode == HttpStatusCode.Redirect,
                 $"Expected a redirect but got {other.StatusCode}. {await ValidationMessagesAsync(other)}");
         }
 
-        AssertQuickFrom3And14(await CurrentSettingsAsync(factory));
+        var after = await CurrentSettingsAsync(factory);
+        Assert.Equal(settings.PolicyVersion + 1, after.PolicyVersion);
+        Assert.Equal(int.Parse(chaseInterval, System.Globalization.CultureInfo.InvariantCulture), after.ChaseIntervalDays);
+        AssertQuickFrom3And14(after);
+    }
+
+    /// <summary>
+    /// A panel save keeps every other panel's settings as stored, wherever
+    /// they are drawn (v50; R910, R911): Chasing and due targets keeps
+    /// Required before Review and the photo link settings, and Send a photo
+    /// link's save on Photo links keeps Required before Review and the targets.
+    /// </summary>
+    [Fact]
+    public async Task APanelSaveKeepsTheOtherPanelsStoredValues()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        // Images no longer required: the unticked box posts nothing.
+        var page = await GetPageAsync(client);
+        using (var review = await client.PostAsync(Route + "?handler=SaveReview", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["WorkflowExpectedVersion"] = Field(page, "WorkflowExpectedVersion"),
+            ["WorkflowOperationKey"] = Field(page, "WorkflowOperationKey"),
+            ["__RequestVerificationToken"] = Field(page, "__RequestVerificationToken"),
+            ["RequireInstructions"] = "true"
+        })))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, review.StatusCode);
+        }
+
+        var afterReview = await CurrentSettingsAsync(factory);
+        Assert.True(afterReview.RequireInstructions);
+        Assert.False(afterReview.RequireImages);
+
+        var photoLinks = await GetPhotoLinksPageAsync(client);
+        using (var send = await client.PostAsync(
+            PhotoLinksRoute + "?handler=SaveSendSettings",
+            new FormUrlEncodedContent(SendSettingsForm(photoLinks, QuickFrom3And14()))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, send.StatusCode);
+        }
+
+        page = await GetPageAsync(client);
+        var chaseInterval = Field(page, "ChaseIntervalDays") == "9" ? "8" : "9";
+        using (var targets = await client.PostAsync(Route + "?handler=SaveTargets", new FormUrlEncodedContent(TargetsForm(page, chaseInterval))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, targets.StatusCode);
+        }
+
+        var afterTargets = await CurrentSettingsAsync(factory);
+        Assert.Equal(int.Parse(chaseInterval, System.Globalization.CultureInfo.InvariantCulture), afterTargets.ChaseIntervalDays);
+        Assert.True(afterTargets.RequireInstructions);
+        Assert.False(afterTargets.RequireImages);
+        Assert.Equal(afterReview.TriageTargetDays, afterTargets.TriageTargetDays);
+        AssertQuickFrom3And14(afterTargets);
+
+        photoLinks = await GetPhotoLinksPageAsync(client);
+        List<KeyValuePair<string, string>> guidedFor7Days =
+        [
+            new("PhotoLinkStartMode", nameof(PhotoCaptureMode.Guided)),
+            new("PhotoLinkLifetimesOffered", "7"),
+            new("PhotoLinkDefaultLifetimeDays", "7")
+        ];
+        using (var send = await client.PostAsync(
+            PhotoLinksRoute + "?handler=SaveSendSettings",
+            new FormUrlEncodedContent(SendSettingsForm(photoLinks, guidedFor7Days))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, send.StatusCode);
+        }
+
+        var afterSend = await CurrentSettingsAsync(factory);
+        Assert.Equal(PhotoCaptureMode.Guided, afterSend.PhotoLinkStartMode);
+        Assert.Equal(7, afterSend.PhotoLinkDefaultLifetimeDays);
+        Assert.Equal(afterTargets.ChaseIntervalDays, afterSend.ChaseIntervalDays);
+        Assert.Equal(afterTargets.TriageTargetDays, afterSend.TriageTargetDays);
+        Assert.True(afterSend.RequireInstructions);
+        Assert.False(afterSend.RequireImages);
     }
 
     /// <summary>
@@ -73,7 +152,7 @@ public sealed partial class WorkflowConfigurationWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var html = await GetPageAsync(client);
+        var html = await GetPhotoLinksPageAsync(client);
         var before = await CurrentSettingsAsync(factory);
 
         List<KeyValuePair<string, string>> noneOffered =
@@ -91,8 +170,8 @@ public sealed partial class WorkflowConfigurationWebTests
         foreach (var photoLinkFields in new[] { noneOffered, startsOnOneNotOffered })
         {
             using var refused = await client.PostAsync(
-                Route + "?handler=SaveWorkflow",
-                new FormUrlEncodedContent(WorkflowForm(html, photoLinkFields)));
+                PhotoLinksRoute + "?handler=SaveSendSettings",
+                new FormUrlEncodedContent(SendSettingsForm(html, photoLinkFields)));
             Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
         }
 
@@ -105,17 +184,18 @@ public sealed partial class WorkflowConfigurationWebTests
     /// <summary>
     /// Send starts on the configured mode, toggles and lifetime and offers
     /// only the configured lifetimes; a lifetime it does not offer is not
-    /// the page's own post. Extend still offers all three.
+    /// the page's own post. Extend, on the link's page, still offers all
+    /// three, one form each (R913).
     /// </summary>
     [Fact]
     public async Task SendStartsFromTheSettingsAndOffersOnlyTheirLifetimesWhileExtendOffersAll()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var html = await GetPageAsync(client);
+        var html = await GetPhotoLinksPageAsync(client);
         using (var saved = await client.PostAsync(
-            Route + "?handler=SaveWorkflow",
-            new FormUrlEncodedContent(WorkflowForm(html, QuickFrom3And14()))))
+            PhotoLinksRoute + "?handler=SaveSendSettings",
+            new FormUrlEncodedContent(SendSettingsForm(html, QuickFrom3And14()))))
         {
             Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
         }
@@ -154,7 +234,7 @@ public sealed partial class WorkflowConfigurationWebTests
         }
 
         var link = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture/{issued.Capture.Id:D}");
-        Assert.Equal(AllLifetimes, OptionValues(SelectElement(link, "id=\"photo-link-extend-days\"")));
+        Assert.Equal(AllLifetimes, ExtendDays(link));
     }
 
     /// <summary>Quick, both toggles off, 3 and 14 days offered and 14 the one Send starts on.</summary>
@@ -177,8 +257,8 @@ public sealed partial class WorkflowConfigurationWebTests
         Assert.Equal(14, settings.PhotoLinkDefaultLifetimeDays);
     }
 
-    /// <summary>The workflow form as the page holds it, with the photo link fields given.</summary>
-    private static List<KeyValuePair<string, string>> WorkflowForm(
+    /// <summary>Send a photo link's settings form as Photo links holds it, with the photo link fields given.</summary>
+    private static List<KeyValuePair<string, string>> SendSettingsForm(
         string html,
         List<KeyValuePair<string, string>> photoLinkFields)
     {
@@ -186,21 +266,27 @@ public sealed partial class WorkflowConfigurationWebTests
         [
             new("WorkflowExpectedVersion", Field(html, "WorkflowExpectedVersion")),
             new("WorkflowOperationKey", Field(html, "WorkflowOperationKey")),
-            new("__RequestVerificationToken", Field(html, "__RequestVerificationToken")),
-            new("RequireInstructions", "true"),
-            new("RequireImages", "true"),
-            new("ChaseIntervalDays", Field(html, "ChaseIntervalDays")),
-            new("UnidentifiedTargetDays", Field(html, "UnidentifiedTargetDays")),
-            new("TriageTargetDays", Field(html, "TriageTargetDays")),
-            new("HeldTargetDays", Field(html, "HeldTargetDays")),
-            new("ReviewTargetDays", Field(html, "ReviewTargetDays")),
-            new("AiDraftTargetDays", Field(html, "AiDraftTargetDays"))
+            new("__RequestVerificationToken", Field(html, "__RequestVerificationToken"))
         ];
         fields.AddRange(photoLinkFields);
         return fields;
     }
 
-    private static async Task<CaseWorkflowConfiguration> CurrentSettingsAsync(IntakeWebApplicationFactory factory)
+    private static async Task<string> GetPhotoLinksPageAsync(HttpClient client)
+    {
+        using var response = await client.GetAsync(PhotoLinksRoute);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadAsStringAsync();
+    }
+
+    /// <summary>The lifetimes the link page's Extend forms post, one form each, in order.</summary>
+    private static string[] ExtendDays(string html) =>
+    [
+        .. Regex.Matches(html, "handler=Extend\"[\\s\\S]*?name=\"Days\" value=\"(?<days>\\d+)\"")
+            .Select(match => match.Groups["days"].Value)
+    ];
+
+    private static async Task<CaseWorkflowConfiguration> CurrentSettingsAsync(WebApplicationFactory<Program> factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<ICaseWorkflowConfiguration>()

@@ -149,6 +149,8 @@ public sealed class AutomationSendIngressTests
         Assert.Equal(CaseWorkSelector.Current, request.Work);
         // No instruction e-mail to reply to: the report leaves the named Outgoing mailbox.
         Assert.Equal(mailbox.Id, request.FromMailboxId);
+        // Delete case correspondence was not asked for (R902 to R905).
+        Assert.False(request.TidiesCaseCorrespondence);
 
         Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
@@ -159,6 +161,51 @@ public sealed class AutomationSendIngressTests
               AND AggregateId = N'{caseId:D}'
               AND Outcome = N'Succeeded'
             """));
+    }
+
+    /// <summary>
+    /// deleteCaseCorrespondence is the Send report dialog's Delete case
+    /// correspondence tick (R902 to R905): the report send carries it to the
+    /// staff command.
+    /// </summary>
+    [Fact]
+    public async Task ReportSendCarriesDeleteCaseCorrespondence()
+    {
+        var generationId = Guid.NewGuid();
+        var sends = new RecordingReportSend();
+        var mailbox = OutgoingMailbox();
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ISendCaseReport>();
+                services.AddSingleton<ISendCaseReport>(sends);
+                services.RemoveAll<IApprovedMailboxStore>();
+                services.AddSingleton<IApprovedMailboxStore>(new FixedMailboxes(mailbox));
+                WithCurrentGeneration(services, generationId);
+            }));
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, SendScopes);
+        await EnsureInReviewAsync(mcpFactory, client, token, caseId);
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+
+        using var sent = await PostMcpAsync(client, token, ToolCallPayload(16, "pegasus_report_send", new
+        {
+            caseId,
+            expectedVersion = version,
+            operationKey = "mcp:report-send-delete-correspondence",
+            coveringMessage = "Please find our report attached.",
+            to = Handler,
+            fromMailbox = mailbox.Address,
+            deleteCaseCorrespondence = true,
+        }));
+        var result = await ReadStructuredContentAsync(sent);
+        Assert.Equal(nameof(StaffMailState.Submitted), result.GetProperty("state").GetString());
+
+        var request = Assert.Single(sends.Requests);
+        Assert.Equal(caseId, request.CaseId);
+        Assert.True(request.TidiesCaseCorrespondence);
     }
 
     [Fact]
@@ -236,6 +283,68 @@ public sealed class AutomationSendIngressTests
         Assert.Equal(
             SentFileNames,
             result.GetProperty("attachments").EnumerateArray().Select(name => name.GetString()!).ToArray());
+    }
+
+    /// <summary>
+    /// #1910: attachmentNames reads as the Case page posts its names. A blank
+    /// name keeps the document's delivery name, as an unrenamed Files row
+    /// does, and a kind named twice once its key is trimmed is refused in
+    /// words, before anything is sent.
+    /// </summary>
+    [Fact]
+    public async Task ABlankAttachmentNameKeepsTheDeliveryNameAndAKindNamedTwiceIsRefused()
+    {
+        var sends = new RecordingReportSend();
+        var generationId = Guid.NewGuid();
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ISendCaseReport>();
+                services.AddSingleton<ISendCaseReport>(sends);
+                WithCurrentGeneration(services, generationId);
+            }));
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, SendScopes);
+        await EnsureInReviewAsync(mcpFactory, client, token, caseId);
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+
+        using (var twice = await PostMcpAsync(client, token, ToolCallPayload(14, "pegasus_report_send", new
+        {
+            caseId,
+            expectedVersion = version,
+            operationKey = "mcp:report-send-named-twice",
+            coveringMessage = "Please find our report attached.",
+            attachmentNames = new Dictionary<string, string>
+            {
+                ["FeeNote"] = "Fee.pdf",
+                [" FeeNote "] = "Our fee.pdf",
+            },
+        })))
+        {
+            Assert.Contains("names FeeNote more than once", await ReadErrorTextAsync(twice), StringComparison.Ordinal);
+        }
+        Assert.Empty(sends.Requests);
+
+        using var blank = await PostMcpAsync(client, token, ToolCallPayload(15, "pegasus_report_send", new
+        {
+            caseId,
+            expectedVersion = version,
+            operationKey = "mcp:report-send-blank-name",
+            coveringMessage = "Please find our report attached.",
+            attachmentNames = new Dictionary<string, string>
+            {
+                ["AssessmentReport"] = "  ",
+                ["FeeNote"] = "Our fee.pdf",
+            },
+        }));
+        await ReadStructuredContentAsync(blank);
+
+        var request = Assert.Single(sends.Requests);
+        var names = Assert.IsAssignableFrom<IReadOnlyDictionary<CaseReportArtifactKind, string>>(request.AttachmentNames);
+        Assert.Equal("Our fee.pdf", Assert.Single(names, pair => pair.Key == CaseReportArtifactKind.FeeNote).Value);
+        Assert.False(names.ContainsKey(CaseReportArtifactKind.AssessmentReport));
     }
 
     /// <summary>
@@ -445,6 +554,188 @@ public sealed class AutomationSendIngressTests
             OperatorLabels.QueryResponseJobs.NotCompleted(AiJobConfirmRefusal.AlreadyCompleted),
             result.GetProperty("aiJobNotCompleted").GetString());
         Assert.Equal(jobId, Assert.Single(mail.Commands).AiJobId);
+    }
+
+    /// <summary>
+    /// deleteCaseCorrespondence is taken where the composers offer Delete case
+    /// correspondence (R904): a chaser, a forward and a reply to a message
+    /// that holds no open query on the Case refuse it before anything is
+    /// sent, and a reply to the message's open query carries it to the staff
+    /// send command; a reply without it carries none.
+    /// </summary>
+    [Fact]
+    public async Task DeleteCaseCorrespondenceRidesOnlyAReplyToTheMessagesOpenQuery()
+    {
+        const string graphId = "mcp-reply-delete";
+        const string address = "delete-replies@collisionengineers.example";
+        var mail = new RecordingMailSend();
+        var mailbox = OutgoingMailbox() with { Id = TestMailboxId.From(graphId), Address = address };
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithMailSend(factory, mail, mailbox);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        var messageId = await SeedRetainedMessageAsync(mcpFactory, graphId, address);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, SendScopes);
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+
+        using (var chaser = await PostMcpAsync(client, token, ToolCallPayload(60, "pegasus_mail_send", new
+        {
+            mode = "chaser", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
+            operationKey = "mcp:mail-chaser-delete", to = Handler, fromMailbox = address, deleteCaseCorrespondence = true,
+        })))
+        {
+            Assert.Contains(
+                "deleteCaseCorrespondence applies to reply, reply_all and triage_reply only.",
+                await ReadErrorTextAsync(chaser),
+                StringComparison.Ordinal);
+        }
+        using (var forward = await PostMcpAsync(client, token, ToolCallPayload(61, "pegasus_mail_send", new
+        {
+            mode = "forward", caseId, expectedVersion = version, messageId, subject = "Fw: The labour rate", body = "For you.",
+            operationKey = "mcp:mail-forward-delete", to = Handler, deleteCaseCorrespondence = true,
+        })))
+        {
+            Assert.Contains(
+                "deleteCaseCorrespondence applies to reply, reply_all and triage_reply only.",
+                await ReadErrorTextAsync(forward),
+                StringComparison.Ordinal);
+        }
+        using (var noQuery = await PostMcpAsync(client, token, ToolCallPayload(62, "pegasus_mail_send", new
+        {
+            mode = "reply", caseId, expectedVersion = version, messageId, subject = "Re: The labour rate",
+            body = "The labour rate is as reported.", operationKey = "mcp:mail-reply-no-query-delete",
+            deleteCaseCorrespondence = true,
+        })))
+        {
+            Assert.Contains(
+                "deleteCaseCorrespondence applies to a reply to a message that holds an open query on the Case.",
+                await ReadErrorTextAsync(noQuery),
+                StringComparison.Ordinal);
+        }
+        Assert.Empty(mail.Commands);
+
+        await OpenQueryOnMessageAsync(mcpFactory, caseId, messageId);
+        version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+
+        using (var sent = await PostMcpAsync(client, token, ToolCallPayload(63, "pegasus_mail_send", new
+        {
+            mode = "reply",
+            caseId,
+            expectedVersion = version,
+            messageId,
+            subject = "Re: The labour rate",
+            body = "The labour rate is as reported.",
+            operationKey = "mcp:mail-reply-delete",
+            deleteCaseCorrespondence = true,
+        })))
+        {
+            var result = await ReadStructuredContentAsync(sent);
+            Assert.Equal("reply", result.GetProperty("mode").GetString());
+        }
+        var command = Assert.Single(mail.Commands);
+        Assert.Equal(StaffMailComposeMode.Reply, command.ComposeMode);
+        Assert.Equal(messageId, command.OriginalMessage?.RetainedMessageId);
+        Assert.Equal(caseId, command.ContextId);
+        Assert.True(command.TidiesCaseCorrespondence);
+
+        using (var unticked = await PostMcpAsync(client, token, ToolCallPayload(64, "pegasus_mail_send", new
+        {
+            mode = "reply",
+            caseId,
+            expectedVersion = version,
+            messageId,
+            subject = "Re: The labour rate",
+            body = "The labour rate is as reported.",
+            operationKey = "mcp:mail-reply-keep",
+        })))
+        {
+            var result = await ReadStructuredContentAsync(unticked);
+            Assert.Equal("reply", result.GetProperty("mode").GetString());
+        }
+        Assert.Equal(2, mail.Commands.Count);
+        Assert.False(mail.Commands[1].TidiesCaseCorrespondence);
+    }
+
+    /// <summary>
+    /// triage_reply takes deleteCaseCorrespondence for the outcome reply alone
+    /// (R904): while the Triage's reply is still the chaser it is refused
+    /// before anything is sent.
+    /// </summary>
+    [Fact]
+    public async Task DeleteCaseCorrespondenceIsRefusedOnATriageChaser()
+    {
+        const string graphId = "mcp-triage-chaser";
+        const string address = "triage-chaser@collisionengineers.example";
+        var mail = new RecordingMailSend();
+        var mailbox = OutgoingMailbox() with { Id = TestMailboxId.From(graphId), Address = address };
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithMailSend(factory, mail, mailbox);
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            // The Triage's request arrived in the mailbox the send rig answers from.
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            await TestMailboxId.EnsureApprovedAsync(context, graphId, address, SeedUtcNow.AddDays(-1));
+            await context.SaveChangesAsync();
+        }
+        var triage = await QdosTriageIntegrationTests.SeedMailboxTriageAsync(mcpFactory, mailboxAddress: address);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, SendScopes);
+
+        using var refused = await PostMcpAsync(client, token, ToolCallPayload(65, "pegasus_mail_send", new
+        {
+            mode = "triage_reply",
+            caseId = triage.TriageCaseId,
+            expectedVersion = triage.Version,
+            subject = "Re: Originating triage subject",
+            body = "Please supply the requested additional vehicle details.",
+            operationKey = "mcp:triage-chaser-delete",
+            deleteCaseCorrespondence = true,
+        }));
+
+        Assert.Contains(
+            "deleteCaseCorrespondence applies to the Triage outcome reply, not the chaser.",
+            await ReadErrorTextAsync(refused),
+            StringComparison.Ordinal);
+        Assert.Empty(mail.Commands);
+    }
+
+    /// <summary>
+    /// The message holds an open query on the Case, as the query ledger opens
+    /// one for mail: the query names the receipt the message was retained
+    /// under, here the Case's origin receipt.
+    /// </summary>
+    private static async Task OpenQueryOnMessageAsync(
+        WebApplicationFactory<Program> factory, Guid caseId, Guid messageId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var receiptId = await context.Cases.AsNoTracking()
+            .Where(item => item.Id == caseId)
+            .Select(item => item.OriginIntakeReceiptId)
+            .SingleAsync()
+            ?? throw new InvalidOperationException("The seeded case has no origin receipt.");
+        var receiptToken = await context.IntakeReceipts.AsNoTracking()
+            .Where(item => item.Id == receiptId)
+            .Select(item => item.ExternalReceiptToken)
+            .SingleAsync();
+        var message = await context.RetainedMailboxMessages.SingleAsync(item => item.Id == messageId);
+        message.ExternalReceiptToken = receiptToken;
+        context.CaseQueries.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseId,
+            Source = nameof(Pegasus.Core.Workflow.CaseQuerySource.Mail),
+            IntakeReceiptId = receiptId,
+            RaisedAtUtc = SeedUtcNow,
+            RaisedByKind = nameof(ActorKind.Staff),
+            RaisedBySubjectId = Guid.NewGuid().ToString("D"),
+            RaisedOperationKey = $"fixture-query:{Guid.NewGuid():N}"
+        });
+        var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+        workflow.HasOpenQuery = true;
+        await context.SaveChangesAsync();
     }
 
     /// <summary>

@@ -17,7 +17,10 @@
 - Automatic mail association never writes the Case row, so it never breaks
   a staff edit. Other automatic association yields to a live edit lease.
 - Staff may link material to any Case or Triage Case, in any state.
-  Automatic association keeps its own, narrower rules.
+  Automatic association keeps its own, narrower rules; a photo link's kept
+  paperwork and video follow their record onto whatever Case it reached
+  ([FRD-28](frd-28-guided-photo-capture.md#routing-and-filing); operator,
+  10 November 2026, [R844](../rulings.md)).
 
 ## Purpose
 
@@ -256,7 +259,8 @@ association and files the material in the same pass. Filed on an open Audit
 awaiting its original report, the material is read for that report, however
 it was associated ([FRD-16](frd-16-case-record-workspace.md#original-report));
 while the Case is being edited, recording that report waits for the editor
-and retries (R728).
+and retries once the lease ends, without failing or holding back the filing
+or the rest of the receipt's processing (R728).
 Automatic Image-initiated
 association checks the current Case version and yields to an active staff
 lease; the later image merge also yields to a live lease and rechecks the
@@ -269,7 +273,11 @@ inside the bounded replay window it already has, the existing two hours
 ([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface)) from the
 association's link, for system associations only; staff links have no
 window; after the window the mail stays No Case Found for a
-person (operator, 22 October 2026; R189, R377).
+person (operator, 22 October 2026; R189, R377). A No Case Found e-mail whose
+own conversation comes to hold a Case is associated again within two hours of
+its processing, and that association files the same way
+([FRD-08](frd-08-email-mailbox-and-background-processing.md); operator,
+10 November 2026; R884).
 
 ## States and transitions
 

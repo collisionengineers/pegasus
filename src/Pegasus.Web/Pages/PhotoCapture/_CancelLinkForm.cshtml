@@ -1,0 +1,14 @@
+@*
+    Cancel link on a Links we sent row (R795): the link page's own act and
+    refusal, back to the list it was asked from. In More it is a menu item;
+    as the row's one other act it is a small button (v50 I; R912).
+
+    Model: the capture, the list address to return to, and whether it sits in More.
+*@
+@model (Guid CaptureId, string ReturnUrl, bool InMenu)
+@using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture
+<form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Cancel" asp-route-id="@Model.CaptureId">
+    <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+    <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+    <button type="submit" class="btn@(Model.InMenu ? null : " btn--small") btn--danger" data-busy-label="@OperatorLabels.Busy.Revoking">@Labels.CancelLink</button>
+</form>

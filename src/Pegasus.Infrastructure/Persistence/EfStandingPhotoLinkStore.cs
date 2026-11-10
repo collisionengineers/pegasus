@@ -1,6 +1,5 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
-using Pegasus.Core.Identity;
 using Pegasus.Core.PhotoCapture;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -13,6 +12,10 @@ namespace Pegasus.Infrastructure.Persistence;
 /// contact or a second website link, which the unique indexes stop, as
 /// <see cref="StandingPhotoLinkError.AlreadyExists"/>, so the pages render
 /// the refusal rather than a fault (<see cref="StandingPhotoLinkAdministration"/>).
+/// Every write saves, in the same save, the one <c>ActionHistory</c> event the
+/// change writes (<see cref="StandingPhotoLinkActs"/>; FRD-04; operator,
+/// 10 November 2026; R846), its operation key as the correlation and its
+/// before and after holding only the fields it changed.
 /// </summary>
 public sealed class EfStandingPhotoLinkStore(
     IDbContextFactory<PegasusDbContext> contextFactory) : IStandingPhotoLinkStore
@@ -20,6 +23,15 @@ public sealed class EfStandingPhotoLinkStore(
     // The stored contact type codes (EfContactDirectoryAdministration).
     private const string PrincipalRole = "principal";
     private const string RepairerRole = "repairer";
+
+    /// <summary>
+    /// Where a contact's link's history is filed: under the contact, the
+    /// area and subject its other history uses (EfContactDirectoryAdministration).
+    /// </summary>
+    internal const string ContactHistoryArea = "contact";
+
+    /// <summary>The website link has no contact; its history sits under its own area, "Website photo link" (R846).</summary>
+    internal const string WebsiteHistoryArea = "website_photo_link";
 
     public Task<StandingPhotoLink?> FindBySlugAsync(string slug, CancellationToken cancellationToken)
     {
@@ -47,12 +59,11 @@ public sealed class EfStandingPhotoLinkStore(
         bool liveCameraOnly,
         int linkLifetimeDays,
         bool originalsInBackground,
-        ActionActor actor,
-        DateTimeOffset createdAtUtc,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(slug);
-        ArgumentNullException.ThrowIfNull(actor);
+        RequireChange(change);
         var entity = new StandingPhotoLinkEntity
         {
             Id = Guid.NewGuid(),
@@ -63,14 +74,28 @@ public sealed class EfStandingPhotoLinkStore(
             LiveCameraOnly = liveCameraOnly,
             LinkLifetimeDays = linkLifetimeDays,
             OriginalsInBackground = originalsInBackground,
-            CreatedAtUtc = createdAtUtc,
-            CreatedByKind = actor.Kind.ToString(),
-            CreatedBySubjectId = actor.SubjectId,
+            CreatedAtUtc = change.AtUtc,
+            CreatedByKind = change.Actor.Kind.ToString(),
+            CreatedBySubjectId = change.Actor.SubjectId,
             Version = 1
         };
         await using (var context = await contextFactory.CreateDbContextAsync(cancellationToken))
         {
+            // A key already recorded made the link it was sent for: the link
+            // is there, whoever made it, and nothing more is written.
+            if (await RecordedAsync(context, change.OperationKey, cancellationToken) is not null)
+            {
+                throw new StandingPhotoLinkException(StandingPhotoLinkError.AlreadyExists);
+            }
+
             context.StandingPhotoLinks.Add(entity);
+            var created = new FieldChanges();
+            created.Set<string?>("slug", null, entity.Slug);
+            created.Set<string?>("forwardedMode", null, entity.ForwardedMode);
+            created.Set<bool?>("liveCameraOnly", null, entity.LiveCameraOnly);
+            created.Set<int?>("linkLifetimeDays", null, entity.LinkLifetimeDays);
+            created.Set<bool?>("originalsInBackground", null, entity.OriginalsInBackground);
+            AddHistory(context, entity, StandingPhotoLinkActs.Created, change, created);
             try
             {
                 await context.SaveChangesAsync(cancellationToken);
@@ -104,39 +129,74 @@ public sealed class EfStandingPhotoLinkStore(
         bool liveCameraOnly,
         int linkLifetimeDays,
         bool originalsInBackground,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken) =>
-        UpdateAsync(id, expectedVersion, entity =>
+        UpdateAsync(id, expectedVersion, StandingPhotoLinkActs.DefaultsSaved, change, entity =>
         {
-            entity.ForwardedMode = PhotoCaptureCodes.ToCode(forwardedMode);
+            var changes = new FieldChanges();
+            var mode = PhotoCaptureCodes.ToCode(forwardedMode);
+            changes.Set("forwardedMode", entity.ForwardedMode, mode);
+            changes.Set("liveCameraOnly", entity.LiveCameraOnly, liveCameraOnly);
+            changes.Set("linkLifetimeDays", entity.LinkLifetimeDays, linkLifetimeDays);
+            changes.Set("originalsInBackground", entity.OriginalsInBackground, originalsInBackground);
+            entity.ForwardedMode = mode;
             entity.LiveCameraOnly = liveCameraOnly;
             entity.LinkLifetimeDays = linkLifetimeDays;
             entity.OriginalsInBackground = originalsInBackground;
+            return changes;
         }, cancellationToken);
 
     public Task<StandingPhotoLink> SetPausedAsync(
         Guid id,
         long expectedVersion,
-        DateTimeOffset? pausedAtUtc,
+        bool paused,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken) =>
-        UpdateAsync(id, expectedVersion, entity => entity.PausedAtUtc = pausedAtUtc, cancellationToken);
+        UpdateAsync(
+            id,
+            expectedVersion,
+            paused ? StandingPhotoLinkActs.Paused : StandingPhotoLinkActs.Resumed,
+            change,
+            entity =>
+            {
+                var changes = new FieldChanges();
+                DateTimeOffset? pausedAtUtc = paused ? change.AtUtc : null;
+                changes.Set("pausedAtUtc", entity.PausedAtUtc, pausedAtUtc);
+                entity.PausedAtUtc = pausedAtUtc;
+                return changes;
+            },
+            cancellationToken);
 
     public Task<StandingPhotoLink> SetRetiredAsync(
         Guid id,
         long expectedVersion,
-        DateTimeOffset retiredAtUtc,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken) =>
-        UpdateAsync(id, expectedVersion, entity => entity.RetiredAtUtc ??= retiredAtUtc, cancellationToken);
+        UpdateAsync(id, expectedVersion, StandingPhotoLinkActs.Retired, change, entity =>
+        {
+            var changes = new FieldChanges();
+            var retiredAtUtc = entity.RetiredAtUtc ?? change.AtUtc;
+            changes.Set("retiredAtUtc", entity.RetiredAtUtc, (DateTimeOffset?)retiredAtUtc);
+            entity.RetiredAtUtc = retiredAtUtc;
+            return changes;
+        }, cancellationToken);
 
     public Task<StandingPhotoLink> ReplaceSlugAsync(
         Guid id,
         long expectedVersion,
         string newSlug,
-        DateTimeOffset replacedAtUtc,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(newSlug);
         // The old slug is simply no longer stored, so it resolves like an unknown one.
-        return UpdateAsync(id, expectedVersion, entity => entity.Slug = newSlug, cancellationToken);
+        return UpdateAsync(id, expectedVersion, StandingPhotoLinkActs.Replaced, change, entity =>
+        {
+            var changes = new FieldChanges();
+            changes.Set("slug", entity.Slug, newSlug);
+            entity.Slug = newSlug;
+            return changes;
+        }, cancellationToken);
     }
 
     public async Task<IReadOnlyList<StandingPhotoLinkAddress>> ListAddressesAsync(
@@ -177,12 +237,12 @@ public sealed class EfStandingPhotoLinkStore(
         long expectedVersion,
         string name,
         string address,
-        DateTimeOffset addedAtUtc,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
-        return UpdateAsync(id, expectedVersion, (context, _, _) =>
+        return UpdateAsync(id, expectedVersion, StandingPhotoLinkActs.AddressAdded, change, (context, _, _) =>
         {
             context.StandingPhotoLinkAddresses.Add(new StandingPhotoLinkAddressEntity
             {
@@ -190,9 +250,12 @@ public sealed class EfStandingPhotoLinkStore(
                 StandingPhotoLinkId = id,
                 Name = name,
                 Address = address,
-                CreatedAtUtc = addedAtUtc
+                CreatedAtUtc = change.AtUtc
             });
-            return Task.CompletedTask;
+            var changes = new FieldChanges();
+            changes.Set<string?>("name", null, name);
+            changes.Set<string?>("address", null, address);
+            return Task.FromResult(changes);
         }, cancellationToken);
     }
 
@@ -202,15 +265,20 @@ public sealed class EfStandingPhotoLinkStore(
         Guid addressId,
         string name,
         string address,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
-        return UpdateAsync(id, expectedVersion, async (context, _, token) =>
+        return UpdateAsync(id, expectedVersion, StandingPhotoLinkActs.AddressChanged, change, async (context, _, token) =>
         {
             var saved = await SavedAddressAsync(context, id, addressId, token);
+            var changes = new FieldChanges();
+            changes.Set("name", saved.Name, name);
+            changes.Set("address", saved.Address, address);
             saved.Name = name;
             saved.Address = address;
+            return changes;
         }, cancellationToken);
     }
 
@@ -218,10 +286,16 @@ public sealed class EfStandingPhotoLinkStore(
         Guid id,
         long expectedVersion,
         Guid addressId,
+        StandingPhotoLinkChange change,
         CancellationToken cancellationToken) =>
-        UpdateAsync(id, expectedVersion, async (context, _, token) =>
+        UpdateAsync(id, expectedVersion, StandingPhotoLinkActs.AddressRemoved, change, async (context, _, token) =>
         {
-            context.StandingPhotoLinkAddresses.Remove(await SavedAddressAsync(context, id, addressId, token));
+            var saved = await SavedAddressAsync(context, id, addressId, token);
+            var changes = new FieldChanges();
+            changes.Set<string?>("name", saved.Name, null);
+            changes.Set<string?>("address", saved.Address, null);
+            context.StandingPhotoLinkAddresses.Remove(saved);
+            return changes;
         }, cancellationToken);
 
     // An address of this link saved on its tab; one taken from the contact,
@@ -391,41 +465,66 @@ public sealed class EfStandingPhotoLinkStore(
     private Task<StandingPhotoLink> UpdateAsync(
         Guid id,
         long expectedVersion,
-        Action<StandingPhotoLinkEntity> change,
+        string act,
+        StandingPhotoLinkChange change,
+        Func<StandingPhotoLinkEntity, FieldChanges> apply,
         CancellationToken cancellationToken) =>
         UpdateAsync(
             id,
             expectedVersion,
-            (_, entity, _) =>
-            {
-                change(entity);
-                return Task.CompletedTask;
-            },
+            act,
+            change,
+            (_, entity, _) => Task.FromResult(apply(entity)),
             cancellationToken);
 
     /// <summary>
-    /// One versioned write of the link row, and of any rows of its own the
-    /// change makes in the same save (its saved addresses).
+    /// One versioned write of the link row, of any rows of its own the change
+    /// makes in the same save (its saved addresses), and of the change's
+    /// action history event (R846). The operation key is the event's
+    /// correlation, so a key already recorded for this change of this link
+    /// changes nothing and answers the link as it is, before the version is
+    /// looked at; one recorded for anything else is refused, as the photo
+    /// link's own acts refuse it (EfPhotoCaptureStore).
     /// </summary>
     private Task<StandingPhotoLink> UpdateAsync(
         Guid id,
         long expectedVersion,
-        Func<PegasusDbContext, StandingPhotoLinkEntity, CancellationToken, Task> change,
-        CancellationToken cancellationToken) =>
-        StoreConcurrencyRetry.ExecuteAsync(
+        string act,
+        StandingPhotoLinkChange change,
+        Func<PegasusDbContext, StandingPhotoLinkEntity, CancellationToken, Task<FieldChanges>> apply,
+        CancellationToken cancellationToken)
+    {
+        RequireChange(change);
+        return StoreConcurrencyRetry.ExecuteAsync(
             async token =>
             {
                 await using var context = await contextFactory.CreateDbContextAsync(token);
                 var entity = await context.StandingPhotoLinks
                     .SingleOrDefaultAsync(item => item.Id == id, token)
                     ?? throw new StandingPhotoLinkException(StandingPhotoLinkError.NotFound);
+                var recorded = await RecordedAsync(context, change.OperationKey, token);
+                if (recorded is not null)
+                {
+                    var (area, subject) = HistorySubject(entity);
+                    if (!string.Equals(recorded.AggregateType, area, StringComparison.Ordinal)
+                        || !string.Equals(recorded.AggregateId, subject, StringComparison.Ordinal)
+                        || !string.Equals(recorded.EventKind, act, StringComparison.Ordinal))
+                    {
+                        throw new InvalidOperationException("The operation key was already used for a different standing photo link change.");
+                    }
+
+                    return await ReadOneAsync(context, item => item.Id == id, token)
+                        ?? throw new InvalidOperationException("The standing photo link was not read back.");
+                }
+
                 if (entity.Version != expectedVersion)
                 {
                     throw new StandingPhotoLinkException(StandingPhotoLinkError.StaleVersion);
                 }
 
-                await change(context, entity, token);
+                var changes = await apply(context, entity, token);
                 entity.Version++;
+                AddHistory(context, entity, act, change, changes);
                 try
                 {
                     await context.SaveChangesAsync(token);
@@ -447,6 +546,82 @@ public sealed class EfStandingPhotoLinkStore(
             },
             cancellationToken,
             StoreConcurrencyRetry.IsDeadlockOrKeyCollision);
+    }
+
+    private static void RequireChange(StandingPhotoLinkChange change)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+        ArgumentNullException.ThrowIfNull(change.Actor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(change.OperationKey);
+    }
+
+    /// <summary>The standing link history event already recorded under the operation key, if any.</summary>
+    private static Task<ActionHistoryEntity?> RecordedAsync(
+        PegasusDbContext context,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        context.ActionHistory.AsNoTracking()
+            .Where(item => (item.AggregateType == ContactHistoryArea || item.AggregateType == WebsiteHistoryArea)
+                && item.CorrelationId == operationKey)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>Where the link's history is filed: its contact, or the website link itself.</summary>
+    private static (string Area, string Subject) HistorySubject(StandingPhotoLinkEntity entity) =>
+        entity.OrganizationId is { } organizationId
+            ? (ContactHistoryArea, organizationId.ToString("D"))
+            : (WebsiteHistoryArea, entity.Id.ToString("D"));
+
+    private static void AddHistory(
+        PegasusDbContext context,
+        StandingPhotoLinkEntity entity,
+        string act,
+        StandingPhotoLinkChange change,
+        FieldChanges changes)
+    {
+        var (area, subject) = HistorySubject(entity);
+        context.ActionHistory.Add(DocumentActionHistory.Succeeded(
+            area,
+            subject,
+            act,
+            change.Actor,
+            change.AtUtc,
+            change.OperationKey,
+            beforeJson: changes.BeforeJson,
+            afterJson: changes.AfterJson));
+    }
+
+    /// <summary>
+    /// The fields a change changed, each with its value before and after;
+    /// a field it left as it was is in neither, and a side with no value
+    /// (nothing before a creation, nothing after a removal) is null.
+    /// </summary>
+    private sealed class FieldChanges
+    {
+        private readonly Dictionary<string, object?> _before = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, object?> _after = new(StringComparer.Ordinal);
+
+        public void Set<T>(string field, T before, T after)
+        {
+            if (EqualityComparer<T>.Default.Equals(before, after))
+            {
+                return;
+            }
+
+            if (before is not null)
+            {
+                _before[field] = before;
+            }
+
+            if (after is not null)
+            {
+                _after[field] = after;
+            }
+        }
+
+        public string? BeforeJson => _before.Count == 0 ? null : DocumentActionHistory.Serialize(_before);
+
+        public string? AfterJson => _after.Count == 0 ? null : DocumentActionHistory.Serialize(_after);
+    }
 
     internal static StandingPhotoLink Map(
         StandingPhotoLinkEntity entity,

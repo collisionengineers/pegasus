@@ -177,7 +177,7 @@ public sealed class StaffReportSend(
             && frozen.Zip(prepared).All(pair =>
                 pair.First with { FileName = pair.Second.FileName } == pair.Second
                 && (string.Equals(pair.First.FileName, pair.Second.FileName, StringComparison.Ordinal)
-                    || (pair.Second.FileName is { Length: > 4 } deliveryFileName
+                    || (pair.Second.FileName is { Length: > 4 and <= CaseReportDeliveryNaming.MaximumFileNameLength } deliveryFileName
                         && deliveryFileName.EndsWith(".pdf", StringComparison.Ordinal)
                         && !string.IsNullOrWhiteSpace(
                             deliveryFileName[..^".pdf".Length]))));
@@ -564,6 +564,11 @@ public sealed class StaffMailSend(
                 || command.ComposeMode is not (StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)))
         {
             throw new ArgumentException("Only a reply to Case correspondence is composed on an AI draft.", nameof(command));
+        }
+        if (command.TidiesCaseCorrespondence
+            && !StaffMailSendCommand.MayTidyCaseCorrespondence(command.Purpose, command.ComposeMode))
+        {
+            throw new ArgumentException("Only a report send, a reply to Case correspondence and a Triage outcome reply can delete case correspondence.", nameof(command));
         }
         // A report send is a reply to the instruction e-mail whenever its mailbox
         // can send (#1304), so the second report rides on either compose mode.

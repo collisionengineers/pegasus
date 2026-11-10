@@ -168,7 +168,7 @@ public sealed class CaseFilingReplayListingTests
                 pairs.Add((caseId, (await harness.AddReceiptAsync(caseId, actor, linkedAtUtc)).ReceiptId));
             }
 
-            var origin = await harness.AddCaseAsync(CaseLifecycleState.Review);
+            var origin = await harness.AddCaseAsync(CaseLifecycleState.NotReady);
             var originReceipt = await harness.AddReceiptAsync(origin, actor, linkedAtUtc);
             await harness.MakeOriginAsync(origin, originReceipt.ReceiptId);
             pairs.Add((origin, originReceipt.ReceiptId));
@@ -343,6 +343,39 @@ public sealed class CaseFilingReplayListingTests
                     AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable))
                 : Task.FromException<AutomaticCaseEvidencePromotionPreparation>(fault);
         }
+    }
+
+    /// <summary>
+    /// #1981, R728: an original report recording that waited for a Case
+    /// editor stays listed until settled; recording or settling it twice
+    /// writes nothing, and a later wait for the same pair is listed again.
+    /// </summary>
+    [Fact]
+    public async Task AnOriginalReportRecordingWaitIsListedUntilSettled()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = await harness.AddCaseAsync(CaseLifecycleState.NotReady);
+        var seeded = await harness.AddReceiptAsync(caseId, ActorKind.SystemWorker, DateTimeOffset.UtcNow);
+        var deferrals = new EfOriginalReportRecognitionDeferrals(harness.Factory, TimeProvider.System);
+        var waiting = new OriginalReportRecognitionDeferral(caseId, seeded.ReceiptId);
+
+        await deferrals.RecordAsync(caseId, seeded.ReceiptId, 1, default);
+        await deferrals.RecordAsync(caseId, seeded.ReceiptId, 1, default);
+        Assert.Equal([waiting], await deferrals.ListAsync(50, default));
+
+        await deferrals.SettleAsync(waiting, default);
+        await deferrals.SettleAsync(waiting, default);
+        Assert.Empty(await deferrals.ListAsync(50, default));
+
+        await deferrals.RecordAsync(caseId, seeded.ReceiptId, 1, default);
+        Assert.Equal([waiting], await deferrals.ListAsync(50, default));
+        await deferrals.SettleAsync(waiting, default);
+        Assert.Empty(await deferrals.ListAsync(50, default));
+
+        await using var context = await harness.Database.CreateContextAsync();
+        Assert.Equal(4, await context.IntakeMutationHistory.CountAsync(row => row.IntakeReceiptId == seeded.ReceiptId
+            && (row.EventType == "original_report_recognition_deferred"
+                || row.EventType == "original_report_recognition_settled")));
     }
 
     private sealed class Harness : IAsyncDisposable

@@ -58,7 +58,9 @@ without erasing it from history.
 **Photo link details.** When a photo link's capture settles on a Case, the
 claimant name, contact number, accident date and mileage its sender typed
 fill the Case's empty fields as Facts with source kind Photo link, tagged
-**Photo link**. A value already on the Case is never overwritten, and the
+**Photo link**. A value already on the Case is never overwritten, except a
+DVSA mileage estimate
+([below](#vehicle-details-and-mileage-evidence)), and the
 registration is never written. The typed inspection location is not
 written to the Case: it stays on the capture with the photos (operator,
 9 November 2026, [R811](../rulings.md), narrowing R783). The sender's views
@@ -105,7 +107,11 @@ applicable DVLA or MOT source. Mileage evidence ranks as:
 
 DVSA runs for every Case. Its estimate fills the Case mileage only when no
 higher-tier value exists, so it never replaces a photo link's mileage
-(R810). The odometer-vision
+(R810), and a later lookup does not put the estimate back. A mileage typed
+on a photo link replaces a DVSA estimate already on the Case, and only
+that: a value from the instruction, a confirmed value, one staff entered or
+an exact MOT reading is never replaced (operator, 10 November 2026,
+[R843](../rulings.md), with R783 and R810 as they stand). The odometer-vision
 capability does not imply an activated AI caller before its own accepted
 evaluation and integration contract. The estimate method is owned by
 [FRD-06](frd-06-vehicle-and-engineering-evidence.md#conservative-mot-mileage-estimation).

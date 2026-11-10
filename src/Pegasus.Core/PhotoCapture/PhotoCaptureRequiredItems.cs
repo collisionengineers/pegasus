@@ -4,12 +4,35 @@ namespace Pegasus.Core.PhotoCapture;
 public sealed record MissingCaptureItem(string Code, string Label);
 
 /// <summary>
+/// What <see cref="PhotoCaptureRequiredItems.Evaluate"/> reads of one item:
+/// its kind, a damage photo's area and stage, and an overview's position.
+/// The Photo capture lists read only this, once for each distinct value
+/// (#2020); every other caller projects its items with <c>Of</c>.
+/// </summary>
+public sealed record PhotoCaptureItemPresence(PhotoCaptureItemKind Kind, string? Area, PhotoCaptureStage? Stage, int Position)
+{
+    public static PhotoCaptureItemPresence Of(PhotoCaptureItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        return new(item.Kind, item.Area, item.Stage, item.Position);
+    }
+
+    /// <summary>The presence of each of <paramref name="items"/>, in their order.</summary>
+    public static IReadOnlyList<PhotoCaptureItemPresence> Of(IEnumerable<PhotoCaptureItem> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        return [.. items.Select(item => Of(item))];
+    }
+}
+
+/// <summary>
 /// What a capture must hold before it is complete: the app's non-optional
 /// steps (FRD-28). Eight overviews; for each damaged area an overview, a
 /// closer shot and at least one close-up; the number plate; the dashboard
 /// unless the sender said they have no keys (R799);
 /// the VIN only where a bodyshop's own staff took the photos, on their own
-/// standing link or a quick link sent from a Case for a Bodyshop (R808),
+/// standing link or a quick link sent from a Case for a Bodyshop (R808) not
+/// handed on to their customer (R874),
 /// because the app asks them for it and marks it optional for everyone else. Extras, the
 /// scene, the other vehicle, paperwork, video and the note are never required.
 /// </summary>
@@ -17,7 +40,7 @@ public static class PhotoCaptureRequiredItems
 {
     public static IReadOnlyList<MissingCaptureItem> Evaluate(
         PhotoCapture capture,
-        IReadOnlyList<PhotoCaptureItem> items,
+        IReadOnlyList<PhotoCaptureItemPresence> items,
         bool vinRequired)
     {
         ArgumentNullException.ThrowIfNull(capture);
@@ -84,16 +107,20 @@ public static class PhotoCaptureRequiredItems
     /// <summary>
     /// The VIN is asked of a bodyshop's own staff: on their standing link
     /// (whether it is a repairer's is read with the capture), or on a quick
-    /// link sent from a Case for a Bodyshop (R808).
+    /// link sent from a Case for a Bodyshop (R808) that they have not handed
+    /// on to their customer: once a Handoff token exists for it
+    /// (<paramref name="handedOn"/>), a customer takes the photos and is not
+    /// asked for a VIN (operator, 10 November 2026; R874).
     /// </summary>
-    public static bool VinRequired(PhotoCapture capture, bool standingLinkIsRepairer)
+    public static bool VinRequired(PhotoCapture capture, bool standingLinkIsRepairer, bool handedOn)
     {
         ArgumentNullException.ThrowIfNull(capture);
         return capture.Origin switch
         {
             PhotoCaptureOrigin.StandingStaff => standingLinkIsRepairer,
             PhotoCaptureOrigin.CaseLink => capture.Mode == PhotoCaptureMode.Quick
-                && capture.QuickLinkFor == PhotoCaptureQuickLinkFor.Bodyshop,
+                && capture.QuickLinkFor == PhotoCaptureQuickLinkFor.Bodyshop
+                && !handedOn,
             _ => false
         };
     }

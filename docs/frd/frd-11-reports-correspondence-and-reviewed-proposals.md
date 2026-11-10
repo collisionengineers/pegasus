@@ -131,12 +131,24 @@ their only on/off, and are offered whatever the switch says; PAV
 commentary's words are the recorded valuation commentary text (or the
 applied valuation's reason), never wording held against the block
 (operator, 2 November 2026; R641 A, E). Wording that reads the same as the
-composed sentence is no change, so the block keeps tracking its fields. The
+composed sentence is no change, so the block keeps tracking its fields. That
+holds for the sentence and the heading a block was drawn with as it does for
+the ones composed at the save, so a Report section kept on screen while the
+Case moved on stores nothing the Engineer did not write (#2042, 10 November
+2026). The
 Engineer's changes are held per Case, separately for the Inspection and the
 Audit once an Audit exists, and written by the one Case save. The save
 carries the wording only when the Engineer changed it; a wording change is
 refused while the report cannot be projected, and the typed wording stays on
-screen (operator, 30 October 2026; R572).
+screen (operator, 30 October 2026; R572). The refusal reads "The report is not
+ready, so its wording cannot be saved yet. Nothing in this save was stored.",
+and on the Case page it adds "Your wording is still on the page." Wording the
+Case has refused this way is not sent again as it stands, so the saves that
+follow land, the one that makes the report ready among them. It is offered
+again once the Engineer changes it further, and by the page itself, once,
+when the Case as it then stands can compose the report again; refused a
+second time, it waits for the Engineer (operator, 10 November 2026; R891 to
+R894).
 
 Report wording comes from two sources only (operator, 27 September 2026):
 the supplied template, `reference/rendererref1`, and the old manager's case
@@ -369,7 +381,10 @@ Report section's **Send report** opens the delivery composer, a dialog that
 holds From, the recipients, the subject, the covering message and the
 documents to attach, each under its name, and its one **Send report** sends
 them (operator, 4 November 2026, R665;
-[FRD-16](frd-16-case-record-workspace.md#assessment)). There is no separate
+[FRD-16](frd-16-case-record-workspace.md#assessment)). Its last row is the
+**Delete case correspondence** tick, unticked on every open, which
+[FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)
+owns (9 November 2026, R902). There is no separate
 preparation and no second confirmation. The
 staff-send operation is the record of what was sent. The composer stays offered
 after a send, whatever its outcome, so the same report can be sent again.
@@ -402,7 +417,15 @@ for the send, the report included, the stem alone, since every delivered
 document ends in `.pdf`, and Reset restores the policy name. A rename holds
 for that send only: the next send starts on the policy name again. The
 Case's filed estimates attach under the names they were filed with and are
-not renamed (operator, 4 November 2026, R665, R671, R672). The delivery
+not renamed (operator, 4 November 2026, R665, R671, R672). A name staff give
+follows custody's rule: a character no file name can hold becomes `_`, and
+the whole name, `.pdf` included, is at most 120 characters; a longer one is
+refused with "A file name cannot exceed 120 characters." No two attachments
+of one send share a name, case ignored: a later document whose name an
+earlier attachment already carries gains " (2)", " (3)" and so on before
+`.pdf`, its stem shortened to keep within 120 characters, and since a filed
+estimate keeps its filed name, a document carrying it is the one numbered
+(operator, 10 November 2026; [R895](../rulings.md), [R896](../rulings.md)). The delivery
 carries one covering message, which starts as
 the Case report delivery template
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)) rendered for
@@ -421,8 +444,12 @@ reply to the Case's instruction email, the retained mailbox message the
 Case's origin receipt came from; its subject starts as "Re:" and the
 instruction's subject. The composer's Subject field is prefilled with that
 derived subject and staff may change it; what they submit is sent, trimmed,
-at most 500 characters as the Triage composer's Subject is, and a field left
-blank sends the derived subject (operator, 4 November 2026, R667, R670). The form's From is a choice of every send-ready
+and a field left blank sends the derived subject (operator, 4 November 2026,
+R667, R670). A line break in a subject becomes a space. The 500-character
+bound of the Triage composer's Subject is on a subject staff changed: one
+refused for it reads "A subject cannot exceed 500 characters.", while the
+derived subject, left as prefilled or blank, is sent however long it is
+(operator, 10 November 2026; R670, [R897](../rulings.md)). The form's From is a choice of every send-ready
 Outgoing mailbox, starting on the approved mailbox the instruction arrived in
 while that mailbox is Outgoing and can send; staff may change it, and a
 report from another mailbox still answers the instruction, as a new message

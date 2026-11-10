@@ -135,6 +135,7 @@ internal static class PhotoCaptureCodes
         PhotoLinkTokenPurpose.Copy => "copy",
         PhotoLinkTokenPurpose.Handoff => "handoff",
         PhotoLinkTokenPurpose.Session => "session",
+        PhotoLinkTokenPurpose.Text => "text",
         _ => throw UnknownEnum(value)
     };
 
@@ -144,6 +145,7 @@ internal static class PhotoCaptureCodes
         "copy" => PhotoLinkTokenPurpose.Copy,
         "handoff" => PhotoLinkTokenPurpose.Handoff,
         "session" => PhotoLinkTokenPurpose.Session,
+        "text" => PhotoLinkTokenPurpose.Text,
         _ => throw UnknownCode("photo link token purpose", value)
     };
 

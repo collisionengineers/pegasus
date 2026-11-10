@@ -73,6 +73,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 new EmptyStagedArtifactStore()),
             settlement,
             groupedImageReconciler,
+            NoThreadSiblings(),
             CaseFilingReplay(caseFilings),
             pairing,
             triagePairing,
@@ -86,6 +87,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new DocumentUploadSweepSchedule(TimeProvider.System),
             new PrepareDocumentThumbnails(thumbnailCandidates, new UnreachableDocumentThumbnails()),
             new RecogniseFiledEstimates(estimateCandidates, new UnreachableDocumentReads(), []),
+            NoDeferredOriginalReports(),
             logger);
 
         await function.RunAsync(null!, CancellationToken.None);
@@ -395,6 +397,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new ReconcileGroupedImageIntake(receipts, new UnreachableGroupStore(), workStore,
                 new UnreachableProcessQueuedIntake(),
                 new RegisterUnidentifiedSubmissionGroup(null!, new UnreachableRegisterUnidentified())),
+            NoThreadSiblings(),
             CaseFilingReplay(new EmptyCaseFilingReplayStore()),
             pairing,
             triagePairing ?? new TriageCasePairing(new EfTriageStore(contextFactory,
@@ -416,13 +419,43 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 thumbnailCandidates ?? new NoDocumentThumbnailCandidates(), new UnreachableDocumentThumbnails()),
             new RecogniseFiledEstimates(
                 estimateCandidates ?? new RecordingEstimateCandidates(), new UnreachableDocumentReads(), []),
+            NoDeferredOriginalReports(),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
         return function.RunAsync(null!, cancellationToken);
     }
 
     /// <summary>A Case-filing replay over an empty page: the filer is never reached.</summary>
+    private static AssociateThreadSiblings NoThreadSiblings() =>
+        new(new EmptyThreadSiblingCandidates(), new EmptyIntakeReceiptQueries(),
+            new AssociateRetainedMailWithCase(null!, null!, TimeProvider.System), TimeProvider.System);
+
+    private sealed class EmptyThreadSiblingCandidates : IThreadSiblingAssociationCandidates
+    {
+        public Task<IReadOnlyList<Guid>> ListAsync(
+            DateTimeOffset completedAfterUtc,
+            int maximumItems,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+    }
+
     private static ReplayCaseFilings CaseFilingReplay(ICaseFilingReplayStore store) =>
         new(store, new EmptyIntakeReceiptQueries(), new PromoteAssociatedIntakeCaseEvidence(null!, null!, null!), TimeProvider.System);
+
+    private static RetryDeferredOriginalReportRecognition NoDeferredOriginalReports() =>
+        new(new NoOriginalReportRecognitionDeferrals(), new EmptyIntakeReceiptQueries());
+
+    private sealed class NoOriginalReportRecognitionDeferrals : IOriginalReportRecognitionDeferrals
+    {
+        public Task RecordAsync(Guid caseId, Guid receiptId, long intakeVersion, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task<IReadOnlyList<OriginalReportRecognitionDeferral>> ListAsync(
+            int maximumItems, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<OriginalReportRecognitionDeferral>>([]);
+
+        public Task SettleAsync(OriginalReportRecognitionDeferral deferral, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+    }
 
     private sealed class EmptyCaseFilingReplayStore : ICaseFilingReplayStore
     {

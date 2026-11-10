@@ -48,6 +48,29 @@ internal static class CurrentIntakeAssociations
                 && message.ExternalReceiptToken == receipt.ExternalReceiptToken));
 
     /// <summary>
+    /// The receipts that stand linked to no Case, read in the order the
+    /// summaries read the Case in (<c>EfRetainedMailboxMessageStore.MapSummariesAsync</c>): an active
+    /// association; else an accepted link when no association row exists; else
+    /// the Case the latest allocation created, unless an association was
+    /// reversed; else the Triage the receipt opened. A query to compose into
+    /// one statement.
+    /// </summary>
+    internal static IQueryable<IntakeReceiptEntity> ReceiptsHoldingNoCase(PegasusDbContext context) =>
+        context.IntakeReceipts.Where(receipt =>
+            !context.IntakeManualAssociations.Any(association =>
+                association.IntakeReceiptId == receipt.Id && association.IsActive)
+            && (context.IntakeManualAssociations.Any(association => association.IntakeReceiptId == receipt.Id)
+                || !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == receipt.Id))
+            && (context.IntakeManualAssociations.Any(association =>
+                    association.IntakeReceiptId == receipt.Id && !association.IsActive)
+                || context.IntakeAllocationAttempts
+                    .Where(attempt => attempt.IntakeReceiptId == receipt.Id)
+                    .OrderByDescending(attempt => attempt.AttemptNumber)
+                    .Select(attempt => attempt.CaseId)
+                    .FirstOrDefault() == null)
+            && !context.Triage.Any(triage => triage.OriginReceiptId == receipt.Id));
+
+    /// <summary>
     /// The receipts that stand linked to a Case now, read as
     /// <see cref="ReadAsync"/> reads them: an active association row, else an
     /// accepted link where no association row exists. A query to compose
@@ -59,6 +82,21 @@ internal static class CurrentIntakeAssociations
                     item.IntakeReceiptId == receipt.Id && item.IsActive)
                 || (!context.IntakeManualAssociations.Any(item => item.IntakeReceiptId == receipt.Id)
                     && context.CaseIntakeLinks.Any(item => item.IntakeReceiptId == receipt.Id)))
+            .Select(receipt => receipt.Id);
+
+    /// <summary>
+    /// The receipts that stand linked to one Case now, by the rule
+    /// <see cref="LinkedReceiptIds"/> reads: an active association row to that
+    /// Case, else an accepted link to it where no association row exists. A
+    /// query to compose into one statement.
+    /// </summary>
+    internal static IQueryable<Guid> ReceiptIdsLinkedTo(PegasusDbContext context, Guid caseId) =>
+        context.IntakeReceipts
+            .Where(receipt => context.IntakeManualAssociations.Any(item =>
+                    item.IntakeReceiptId == receipt.Id && item.IsActive && item.CaseId == caseId)
+                || (!context.IntakeManualAssociations.Any(item => item.IntakeReceiptId == receipt.Id)
+                    && context.CaseIntakeLinks.Any(item =>
+                        item.IntakeReceiptId == receipt.Id && item.CaseId == caseId)))
             .Select(receipt => receipt.Id);
 
     /// <summary>

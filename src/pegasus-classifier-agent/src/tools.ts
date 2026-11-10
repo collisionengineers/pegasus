@@ -228,9 +228,11 @@ export function createClassifierTools(options: ClassifierToolOptions) {
   // the type this run would have given.
   const proposed = new Map<string, { category: string; workType?: string }>();
 
-  // Whether a lookup reported its source unavailable this run: only then may
-  // an Unclassified e-mail be left without a type (decision of 6 November 2026).
-  let lookupUnavailable = false;
+  // The e-mails whose own mailbox search, and whose own folder search, found
+  // its source unavailable this run. An Unclassified e-mail may be left without
+  // a type only when both lookups were unavailable for it (R738, R885).
+  const mailboxesUnavailableFor = new Set<string>();
+  const foldersUnavailableFor = new Set<string>();
 
   // What this run last knew of each listed message: its classification version
   // and linked Case id as listed, then as this run's own writes left them.
@@ -759,7 +761,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
 
   const leave = tool(
     "leave_email",
-    "Leaves a listed e-mail as it is, with a one-sentence reason, when you have read it and nothing is to change: an e-mail that already has a type and nothing to link or open. An Unclassified e-mail is given a type instead, correspondence when nothing else fits; it may be left only when the lookups it needs were unavailable, and it is then looked at again next run. Nothing is written to Pegasus.",
+    "Leaves a listed e-mail as it is, with a one-sentence reason, when you have read it and nothing is to change: an e-mail that already has a type and nothing to link or open. An Unclassified e-mail is given a type instead, correspondence when nothing else fits; it may be left only when both search_mailboxes and search_old_system_folders were unavailable for it, and it is then looked at again next run. Nothing is written to Pegasus.",
     {
       messageId: z.guid().describe("messageId from list_eligible_emails"),
       reason: z.string().min(1).max(450),
@@ -777,7 +779,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         log("leave", { messageId: args.messageId, reason: args.reason });
         return text("Left as it is.");
       }
-      if (lookupUnavailable) {
+      if (mailboxesUnavailableFor.has(args.messageId) && foldersUnavailableFor.has(args.messageId)) {
         outcomes.deferred.add(args.messageId);
         outcomes.failed.delete(args.messageId);
         log("leave until the lookups are back", { messageId: args.messageId, reason: args.reason });
@@ -819,20 +821,25 @@ export function createClassifierTools(options: ClassifierToolOptions) {
   const searchFolders = tool(
     "search_old_system_folders",
     "Read-only. Searches the firm's old-system case folders by name and returns folder names only. The folders are named by the firm's own Case reference (QDOS26112, a.QDOS26112; for a PRIVATE one-off, its registration), so search by that reference; a reference-shaped term matches a folder name only as a whole token. isTruncated means more folders matched than were returned. state is unavailable when the folders could not be read.",
-    { query: z.string().min(1).max(200).describe("The firm's own Case reference for the job, as named in the firm's earlier e-mail about it") },
+    {
+      messageId: z.guid().describe("messageId from list_eligible_emails of the e-mail this lookup is for"),
+      query: z.string().min(1).max(200).describe("The firm's own Case reference for the job, as named in the firm's earlier e-mail about it, or the reference or registration the e-mail itself names when search_mailboxes was unavailable"),
+    },
     async (args) => {
       try {
         const result = await pegasus.searchOldSystemFolders(args.query, LookupLimit);
-        lookupUnavailable ||= result.state === "unavailable";
-        log("search old system folders", { query: args.query, state: result.state, hits: result.items.length });
+        if (result.state === "unavailable") {
+          foldersUnavailableFor.add(args.messageId);
+        }
+        log("search old system folders", { messageId: args.messageId, query: args.query, state: result.state, hits: result.items.length });
         return text({
           state: result.state,
           isTruncated: result.isTruncated,
           folders: result.items.map((item) => ({ name: item.name, modifiedAtUtc: item.modifiedAtUtc })),
         });
       } catch (error) {
-        lookupUnavailable = true;
-        log("search old system folders failed", { query: args.query, error: messageOf(error) });
+        foldersUnavailableFor.add(args.messageId);
+        log("search old system folders failed", { messageId: args.messageId, query: args.query, error: messageOf(error) });
         return text(`Pegasus refused the lookup: ${messageOf(error)}`, true);
       }
     },
@@ -841,12 +848,17 @@ export function createClassifierTools(options: ClassifierToolOptions) {
   const searchMailboxes = tool(
     "search_mailboxes",
     "Read-only. Searches the firm's approved mailboxes for earlier e-mail about a term and returns subjects, senders and dates only. state is unavailable when no mailbox could be read.",
-    { query: z.string().min(1).max(200).describe("A case reference, registration, claimant or claim number") },
+    {
+      messageId: z.guid().describe("messageId from list_eligible_emails of the e-mail this lookup is for"),
+      query: z.string().min(1).max(200).describe("A case reference, registration, claimant or claim number"),
+    },
     async (args) => {
       try {
         const result = await pegasus.searchMailboxes(args.query, LookupLimit);
-        lookupUnavailable ||= result.state === "unavailable";
-        log("search mailboxes", { query: args.query, state: result.state, hits: result.items.length });
+        if (result.state === "unavailable") {
+          mailboxesUnavailableFor.add(args.messageId);
+        }
+        log("search mailboxes", { messageId: args.messageId, query: args.query, state: result.state, hits: result.items.length });
         return text({
           state: result.state,
           isTruncated: result.isTruncated,
@@ -860,8 +872,8 @@ export function createClassifierTools(options: ClassifierToolOptions) {
           })),
         });
       } catch (error) {
-        lookupUnavailable = true;
-        log("search mailboxes failed", { query: args.query, error: messageOf(error) });
+        mailboxesUnavailableFor.add(args.messageId);
+        log("search mailboxes failed", { messageId: args.messageId, query: args.query, error: messageOf(error) });
         return text(`Pegasus refused the lookup: ${messageOf(error)}`, true);
       }
     },

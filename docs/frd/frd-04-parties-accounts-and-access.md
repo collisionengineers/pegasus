@@ -295,7 +295,13 @@ contact is inactive (operator, 9 November 2026; R796); its behaviour is
 
 Every change is a permanent action-history event with actor, time, operation
 identity and before and after values. Routine settings changes need no
-reason. A reason is kept only where the action's rule requires one.
+reason. A reason is kept only where the action's rule requires one. A
+standing photo link's changes are such events, the website link's included:
+"Photo link created", "Photo link paused", "Photo link resumed", "Photo
+link replaced", "Photo link retired", "Photo link defaults saved", "Photo
+link address added", "Photo link address changed" and "Photo link address
+removed", under the area Contact for a contact's link and the area "Website
+photo link" for the website link (operator, 10 November 2026; R846).
 
 ### Staff accounts
 

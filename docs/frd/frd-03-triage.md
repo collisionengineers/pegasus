@@ -114,8 +114,11 @@ none of them is a finding or completion evidence.
 
 **History and notes.** `History` shows the record's events and notes in one
 chronological order. Staff and the Automation Actor add notes
-(`pegasus_triage_note_add`). Notes are append-only. Each carries its author,
-time and text. A correction is a new note; notes cannot be edited or deleted
+(`pegasus_triage_note_add`), and Pegasus adds the customer's note from a
+photo link whose photos reach the Triage Case
+([FRD-28](frd-28-guided-photo-capture.md#routing-and-filing); operator,
+10 November 2026, [R845](../rulings.md)). Notes are append-only. Each
+carries its author, time and text. A correction is a new note; notes cannot be edited or deleted
 on any screen or through any caller. A Triage Case keeps these notes; Case
 Notes do not apply to it.
 
@@ -167,7 +170,9 @@ and a mailbox may answer it
 R651). It opens the composer with the
 Triage outcome template from Administration
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)), which the
-user can edit. A sent reply is linked to the
+user can edit, and offers the **Delete case correspondence** tick, which the
+chaser does not (9 November 2026, R902, R904;
+[FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)). A sent reply is linked to the
 Triage through the normal email evidence rules, but neither composing nor
 sending is a gate. Once the outcome reply is sent it is no longer offered;
 Reopen and a fresh completion offer it again (operator, issue 1047,
