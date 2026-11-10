@@ -836,6 +836,14 @@ public static class CaseWorkspaceLabels
             GuideValuationNotValuedReason.NoVehicleData => NoVehicleDataNotValued(source),
             _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, "The reason is not recognised."),
         };
+
+        /// <summary>
+        /// A Get valuation refused because the source has already answered for
+        /// this Case, month, registration and mileage (operator, 10 November
+        /// 2026, R900).
+        /// </summary>
+        public static string AlreadyFetched(ValuationSource source) =>
+            SourceLabel(source) + " has already been asked for this Case.";
         public const string AbsentGuideMonth = "Not recorded";
 
         // v26: the calculator (v25 decision 8) and the per-source Get valuation row.

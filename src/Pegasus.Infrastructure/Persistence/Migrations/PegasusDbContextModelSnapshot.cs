@@ -3919,6 +3919,72 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("GlassRepairEstimateSessions", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.GuideValuationFetchEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ActorSubjectId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset?>("AnsweredAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ClaimExpiresAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ClaimToken")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nchar(32)")
+                        .IsFixedLength();
+
+                    b.Property<DateOnly>("GuideMonth")
+                        .HasColumnType("date");
+
+                    b.Property<long>("Mileage")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("MileageUnit")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Registration")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId", "Source", "GuideMonth", "Registration", "Mileage", "MileageUnit")
+                        .IsUnique();
+
+                    b.ToTable("GuideValuationFetches", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_GuideValuationFetches_Mileage", "[Mileage] >= 0");
+
+                            t.HasCheckConstraint("CK_GuideValuationFetches_Source", "[Source] IN ('Glasses', 'Cazana', 'EngineersValue', 'AiMarketResearch', 'Brego', 'SuperCap', 'Cap')");
+
+                            t.HasCheckConstraint("CK_GuideValuationFetches_State", "[State] IN ('Asking', 'Answered')");
+                        });
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ImageIntakeEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -9168,6 +9234,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasOne("Pegasus.Infrastructure.Persistence.PegasusIdentityUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.GuideValuationFetchEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CaseId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

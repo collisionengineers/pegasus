@@ -108,6 +108,98 @@ public sealed class GuideValuationNotValuedException(
     public GuideValuationNotValuedReason Reason { get; } = reason;
 }
 
+/// <summary>
+/// The source has already answered for this Case, month, registration and
+/// mileage, or is answering now, so it is not asked again (R900, 10 November
+/// 2026). Nothing is fetched and nothing is charged.
+/// </summary>
+public sealed class GuideValuationAlreadyFetchedException(ValuationSource source)
+    : InvalidOperationException($"{source} has already been asked for this Case.")
+{
+    public ValuationSource ValuationSource { get; } = source;
+}
+
+/// <summary>
+/// One paid ask of a guide provider: the Case, the source, the guide month it
+/// values and the registration and mileage it values at. A source is asked
+/// once per key; a corrected registration or mileage is a new key (R900).
+/// </summary>
+public sealed record GuideValuationFetchKey(
+    Guid CaseId,
+    ValuationSource Source,
+    DateOnly GuideMonth,
+    string Registration,
+    long Mileage,
+    string MileageUnit);
+
+/// <summary>
+/// The record of each guide provider ask, so a source is never asked twice
+/// for one key (R900). A claim is taken before the provider is asked; it is
+/// marked answered when figures come back and released when none do, so only
+/// an answer with figures uses the ask. A claim that is neither (its host
+/// stopped mid-ask) lapses at its expiry.
+/// </summary>
+public interface IGuideValuationFetchLedger
+{
+    /// <summary>
+    /// The claim's token, or null when the key has been answered or holds a
+    /// live claim.
+    /// </summary>
+    Task<string?> TryClaimAsync(
+        GuideValuationFetchKey key,
+        ActionActor actor,
+        DateTimeOffset nowUtc,
+        DateTimeOffset claimExpiresAtUtc,
+        CancellationToken cancellationToken);
+
+    Task MarkAnsweredAsync(
+        GuideValuationFetchKey key,
+        string claimToken,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
+    Task ReleaseAsync(
+        GuideValuationFetchKey key,
+        string claimToken,
+        CancellationToken cancellationToken);
+}
+
+public static class GuideValuationFetchPolicy
+{
+    /// <summary>
+    /// Longer than any provider's sign-in, lookup and valuation together, so a
+    /// claim never lapses while its ask is still running.
+    /// </summary>
+    public static TimeSpan ClaimDuration { get; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// The key a request asks for. A later month is valued today and filled
+    /// as the current month, so it is the current month's ask; the
+    /// registration is compared without spacing or case.
+    /// </summary>
+    public static GuideValuationFetchKey Key(
+        Guid caseId,
+        ValuationSource source,
+        DateOnly guideMonth,
+        string registration,
+        long mileage,
+        string? mileageUnit,
+        DateOnly today)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(registration);
+        var month = new DateOnly(guideMonth.Year, guideMonth.Month, 1);
+        var current = new DateOnly(today.Year, today.Month, 1);
+        return new(
+            caseId,
+            source,
+            month > current ? current : month,
+            string.Concat(registration.Where(character => !char.IsWhiteSpace(character)))
+                .ToUpperInvariant(),
+            mileage,
+            mileageUnit?.Trim() ?? string.Empty);
+    }
+}
+
 public sealed record FetchGuideValuationRequest(
     Guid CaseId,
     long ExpectedVersion,
@@ -126,7 +218,8 @@ public sealed record FetchGuideValuationRequest(
 /// Case's registration and mileage in the chosen month and answers with the
 /// figures. The figures fill the source's card, where the Engineer reads,
 /// corrects and saves them; the save is the one route to a record, so a
-/// fetched figure and a typed one are the same record.
+/// fetched figure and a typed one are the same record. Each source is asked
+/// once per Case, guide month, registration and mileage (R900).
 /// </summary>
 public interface IFetchGuideValuation
 {
@@ -146,7 +239,9 @@ public sealed class FetchGuideValuation(
     IEnumerable<IGuideValuationProvider> providers,
     ICaseDataQueries caseData,
     IScheduleGuideValuationReport reports,
-    IFillGlassVin vins) : IFetchGuideValuation
+    IFillGlassVin vins,
+    IGuideValuationFetchLedger ledger,
+    TimeProvider timeProvider) : IFetchGuideValuation
 {
     private readonly IReadOnlyList<IGuideValuationProvider> _providers =
         [.. providers ?? throw new ArgumentNullException(nameof(providers))];
@@ -156,6 +251,10 @@ public sealed class FetchGuideValuation(
         reports ?? throw new ArgumentNullException(nameof(reports));
     private readonly IFillGlassVin _vins =
         vins ?? throw new ArgumentNullException(nameof(vins));
+    private readonly IGuideValuationFetchLedger _ledger =
+        ledger ?? throw new ArgumentNullException(nameof(ledger));
+    private readonly TimeProvider _timeProvider =
+        timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
     public bool IsConnected(ValuationSource source) =>
         ValuationSources.IsGuide(source) && _providers.Any(candidate => candidate.Source == source);
@@ -204,10 +303,35 @@ public sealed class FetchGuideValuation(
             ?? throw new InvalidOperationException(
                 "A confirmed mileage is required before a valuation can be fetched.");
 
-        var quote = await provider.GetAsync(
-            new(request.Actor, request.CaseId, registration, mileage, Accepted(data.Vehicle.MileageUnit)?.Value, guideMonth),
-            cancellationToken);
-        ArgumentNullException.ThrowIfNull(quote);
+        var mileageUnit = Accepted(data.Vehicle.MileageUnit)?.Value;
+
+        // A paid ask is made once per key (R900): the claim is taken before
+        // the provider is asked, so two presses at once ask it once.
+        var now = _timeProvider.GetUtcNow();
+        var key = GuideValuationFetchPolicy.Key(
+            request.CaseId, request.Source, guideMonth, registration, mileage, mileageUnit,
+            LondonCalendar.DateAt(now));
+        var claim = await _ledger.TryClaimAsync(
+            key, request.Actor, now, now.Add(GuideValuationFetchPolicy.ClaimDuration), cancellationToken)
+            ?? throw new GuideValuationAlreadyFetchedException(request.Source);
+
+        GuideValuationQuote quote;
+        try
+        {
+            quote = await provider.GetAsync(
+                new(request.Actor, request.CaseId, registration, mileage, mileageUnit, guideMonth),
+                cancellationToken);
+            ArgumentNullException.ThrowIfNull(quote);
+        }
+        catch
+        {
+            // No figures came back, so the ask is not used: the next press asks again.
+            await _ledger.ReleaseAsync(key, claim, CancellationToken.None);
+            throw;
+        }
+
+        // The figures are the paid answer; whatever follows, the ask is used.
+        await _ledger.MarkAnsweredAsync(key, claim, _timeProvider.GetUtcNow(), CancellationToken.None);
 
         // Every valuation's own report is filed on the Case as its evidence
         // (operator, 1 October 2026). The figures are answered first; the

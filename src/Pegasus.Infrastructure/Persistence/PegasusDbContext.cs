@@ -1139,6 +1139,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         ProblemReportModelConfiguration.Configure(builder);
         EmailTemplateModelConfiguration.Configure(builder);
         WorkCentreDismissalModelConfiguration.Configure(builder);
+        GuideValuationFetchModelConfiguration.Configure(builder);
         PhotoCaptureModelConfiguration.Configure(builder);
     }
 }

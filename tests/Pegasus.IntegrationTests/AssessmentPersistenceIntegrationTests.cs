@@ -2062,6 +2062,52 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             scope.ServiceProvider.GetRequiredService<IMarketResearchAiJobCompletionStore>());
         Assert.IsType<CompleteMarketResearchAiJob>(
             scope.ServiceProvider.GetRequiredService<ICompleteMarketResearchAiJob>());
+        Assert.IsType<EfGuideValuationFetchLedger>(
+            scope.ServiceProvider.GetRequiredService<IGuideValuationFetchLedger>());
+    }
+
+    /// <summary>
+    /// R900 (10 November 2026): a guide source is asked once per Case, month,
+    /// registration and mileage. Two claims at once take one; a claim that
+    /// answered no figures is released for the next press; an answered key
+    /// stays taken; a claim whose host stopped mid-ask lapses at its expiry;
+    /// another mileage is a key of its own.
+    /// </summary>
+    [Fact]
+    public async Task AGuideValuationAskIsClaimedOncePerKey()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("guide-valuation-ask-accept-case");
+        var caseId = outcome.Identity.CaseId;
+        var ledger = new EfGuideValuationFetchLedger(harness.Factory);
+        var now = harness.Clock.GetUtcNow();
+        var expires = now.AddMinutes(10);
+        var actor = harness.EngineerActor;
+        var key = new GuideValuationFetchKey(
+            caseId, ValuationSource.Cazana, new DateOnly(2031, 5, 1), "AB12CDE", 42_000, "miles");
+
+        var claims = await Task.WhenAll(
+            ledger.TryClaimAsync(key, actor, now, expires, CancellationToken.None),
+            ledger.TryClaimAsync(key, actor, now, expires, CancellationToken.None));
+        var claim = Assert.Single(claims, token => token is not null);
+        Assert.Single(claims, token => token is null);
+
+        await ledger.ReleaseAsync(key, claim!, CancellationToken.None);
+        var second = await ledger.TryClaimAsync(key, actor, now, expires, CancellationToken.None);
+        Assert.NotNull(second);
+        await ledger.MarkAnsweredAsync(key, second, now, CancellationToken.None);
+        await ledger.ReleaseAsync(key, second, CancellationToken.None);
+        Assert.Null(await ledger.TryClaimAsync(key, actor, now.AddHours(1), now.AddHours(2), CancellationToken.None));
+
+        var other = key with { Mileage = 43_000 };
+        Assert.NotNull(await ledger.TryClaimAsync(other, actor, now, expires, CancellationToken.None));
+        Assert.Null(await ledger.TryClaimAsync(other, actor, now.AddMinutes(5), expires, CancellationToken.None));
+        Assert.NotNull(await ledger.TryClaimAsync(other, actor, expires, expires.AddMinutes(10), CancellationToken.None));
+
+        Assert.Equal(1, await harness.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM GuideValuationFetches WHERE CaseId = '{caseId:D}' AND Mileage = 42000 AND State = N'Answered' AND AnsweredAtUtc IS NOT NULL"));
+        Assert.Equal(1, await harness.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM GuideValuationFetches WHERE CaseId = '{caseId:D}' AND Mileage = 43000 AND State = N'Asking'"));
     }
 
     /// <summary>

@@ -295,6 +295,17 @@ work holds none. When Brego holds no data for the registration, its card shows
 an info notice instead,
 `Brego cannot value this vehicle: it holds no data for its registration.`;
 whatever else stops a Brego valuation, the card shows its notice.
+Each connected source is asked once per Case and guide month at the Case's
+accepted registration and mileage (operator, 10 November 2026,
+[R900](../rulings.md)), whoever presses Get valuation, so a repeated press
+costs nothing. A later month counts as the current month it is valued in.
+Only an answer with figures uses the ask: a source that cannot answer or
+cannot value the vehicle may be asked again. A corrected accepted
+registration or mileage allows each source and month one more ask. The
+automatic Glass's request is that month's Glass's ask, and it is settled
+unasked when Glass's has already answered. Get valuation stays on the card;
+a press for a month already answered asks nothing and the card says
+`{Source} has already been asked for this Case.`
 Super CAP and CAP have no connected provider; connecting one needs its
 own accepted decision.
 

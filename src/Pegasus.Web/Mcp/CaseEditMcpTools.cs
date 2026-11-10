@@ -48,7 +48,7 @@ internal sealed record ValuationSaveToolResult(
 
 internal sealed record ValuationGetToolResult(
     Guid CaseId,
-    [property: Description("Recorded, Unavailable, VehicleAge or NoVehicleData.")] string Outcome,
+    [property: Description("Recorded, Unavailable, VehicleAge, NoVehicleData or AlreadyAsked.")] string Outcome,
     string? Message,
     decimal? RetailValue,
     decimal? TradeValue,
@@ -557,7 +557,7 @@ internal sealed class CaseEditMcpTools(
         Idempotent = false,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Runs the Valuation section's Get valuation for one guide source and records that source's card on the case with the figures it answers, as a member of staff pressing Get valuation and saving does. Pegasus asks the source's connected provider (Glass's, Brego or Cazana) for the case's confirmed registration and mileage in the guide month, files the provider's own valuation report on the case afterwards and fills an empty case VIN the provider names (Glass's, Brego and Cazana offer both). Outcome Recorded carries the figures; Unavailable (no connected provider, or it could not answer), VehicleAge (the source does not value a vehicle of this age) and NoVehicleData (the source holds no data for the registration) record nothing. Adopting a basis card, which writes the report's Retail and Trade values, stays with pegasus_valuation_save; the Engineer's Value stays with pegasus_assessment_update. Each call asks the provider again. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
+    [Description("Runs the Valuation section's Get valuation for one guide source and records that source's card on the case with the figures it answers, as a member of staff pressing Get valuation and saving does. Pegasus asks the source's connected provider (Glass's, Brego or Cazana) for the case's confirmed registration and mileage in the guide month, files the provider's own valuation report on the case afterwards and fills an empty case VIN the provider names (Glass's, Brego and Cazana offer both). Outcome Recorded carries the figures; Unavailable (no connected provider, or it could not answer), VehicleAge (the source does not value a vehicle of this age), NoVehicleData (the source holds no data for the registration) and AlreadyAsked (the source has already answered for this case and guide month at its current registration and mileage, so it is not asked or charged again) record nothing. Adopting a basis card, which writes the report's Retail and Trade values, stays with pegasus_valuation_save; the Engineer's Value stays with pegasus_assessment_update. A source is asked once per case and guide month at its confirmed registration and mileage: only an answer with figures uses that ask, and a corrected registration or mileage allows one more. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
     public async Task<ValuationGetToolResult> GetValuationAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -605,6 +605,11 @@ internal sealed class CaseEditMcpTools(
                         {
                             return new FetchedValuation(
                                 notValued.Reason.ToString(), CaseWorkspaceLabels.Valuation.NotValued(valuationSource, notValued.Reason), null, null);
+                        }
+                        catch (GuideValuationAlreadyFetchedException)
+                        {
+                            return new FetchedValuation(
+                                "AlreadyAsked", CaseWorkspaceLabels.Valuation.AlreadyFetched(valuationSource), null, null);
                         }
 
                         // The fetched figures are recorded as the card's Save records them.

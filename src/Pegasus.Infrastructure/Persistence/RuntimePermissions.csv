@@ -118,6 +118,7 @@ pegasus_web_runtime_role,G,DELETE,ContactPrincipalLinks
 pegasus_web_runtime_role,G,DELETE,DocumentOccurrenceTags
 pegasus_web_runtime_role,G,DELETE,EditScopes
 pegasus_web_runtime_role,G,DELETE,GlassRepairEstimateSessions
+pegasus_web_runtime_role,G,DELETE,GuideValuationFetches
 pegasus_web_runtime_role,G,DELETE,IntakeAllocationAttempts
 pegasus_web_runtime_role,G,DELETE,IntakeAssetTags
 pegasus_web_runtime_role,G,DELETE,StaffNotifications
@@ -167,6 +168,7 @@ pegasus_web_runtime_role,G,INSERT,EmailTemplates
 pegasus_web_runtime_role,G,INSERT,ExternalWorkItems
 pegasus_web_runtime_role,G,INSERT,GeneratedCaseArtifacts
 pegasus_web_runtime_role,G,INSERT,GlassRepairEstimateSessions
+pegasus_web_runtime_role,G,INSERT,GuideValuationFetches
 pegasus_web_runtime_role,G,INSERT,ImageIntakeLifecycleEvents
 pegasus_web_runtime_role,G,INSERT,ImageIntakeSequences
 pegasus_web_runtime_role,G,INSERT,ImageIntakes
@@ -274,6 +276,7 @@ pegasus_web_runtime_role,G,SELECT,EmailTemplates
 pegasus_web_runtime_role,G,SELECT,ExternalWorkItems
 pegasus_web_runtime_role,G,SELECT,GeneratedCaseArtifacts
 pegasus_web_runtime_role,G,SELECT,GlassRepairEstimateSessions
+pegasus_web_runtime_role,G,SELECT,GuideValuationFetches
 pegasus_web_runtime_role,G,SELECT,ImageIntakeLifecycleEvents
 pegasus_web_runtime_role,G,SELECT,ImageIntakeSequences
 pegasus_web_runtime_role,G,SELECT,ImageIntakes
@@ -374,6 +377,7 @@ pegasus_web_runtime_role,G,UPDATE,EmailTemplates
 pegasus_web_runtime_role,G,UPDATE,ExternalWorkItems
 pegasus_web_runtime_role,G,UPDATE,GeneratedCaseArtifacts
 pegasus_web_runtime_role,G,UPDATE,GlassRepairEstimateSessions
+pegasus_web_runtime_role,G,UPDATE,GuideValuationFetches
 pegasus_web_runtime_role,G,UPDATE,ImageIntakeSequences
 pegasus_web_runtime_role,G,UPDATE,ImageIntakes
 pegasus_web_runtime_role,G,UPDATE,ImageVrmSuggestions
@@ -459,6 +463,7 @@ pegasus_worker_runtime_role,D,DELETE,EmailTemplates
 pegasus_worker_runtime_role,D,DELETE,ExternalWorkItems
 pegasus_worker_runtime_role,D,DELETE,GeneratedCaseArtifacts
 pegasus_worker_runtime_role,D,DELETE,GlassRepairEstimateSessions
+pegasus_worker_runtime_role,D,DELETE,GuideValuationFetches
 pegasus_worker_runtime_role,D,DELETE,ImageIntakeLifecycleEvents
 pegasus_worker_runtime_role,D,DELETE,ImageIntakeSequences
 pegasus_worker_runtime_role,D,DELETE,ImageIntakes

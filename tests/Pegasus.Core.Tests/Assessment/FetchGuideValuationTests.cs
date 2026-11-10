@@ -13,7 +13,7 @@ public sealed class FetchGuideValuationTests
     public async Task ASourceWithoutAConnectedProviderIsRefusedBeforeTheCaseIsRead()
     {
         var caseData = new RecordingCaseData();
-        var fetch = new FetchGuideValuation([], caseData, new RecordingSchedule(), new RecordingVins());
+        var fetch = Fetch([], caseData, new RecordingSchedule(), new RecordingVins());
 
         await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
             fetch.ExecuteAsync(Request(ValuationSource.Glasses), default));
@@ -26,7 +26,7 @@ public sealed class FetchGuideValuationTests
     [InlineData(ValuationSource.AiMarketResearch)]
     public async Task OnlyAGuideSourceCanBeFetched(ValuationSource source)
     {
-        var fetch = new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins());
+        var fetch = Fetch([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins());
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             fetch.ExecuteAsync(Request(source), default));
@@ -40,20 +40,20 @@ public sealed class FetchGuideValuationTests
     [Fact]
     public void OnlyAGuideSourceWithAProviderIsConnected()
     {
-        var fetch = new FetchGuideValuation(
+        var fetch = Fetch(
             [new StubProvider(ValuationSource.Brego)], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins());
 
         Assert.True(fetch.IsConnected(ValuationSource.Brego));
         Assert.False(fetch.IsConnected(ValuationSource.Glasses));
         Assert.False(fetch.IsConnected(ValuationSource.EngineersValue));
-        Assert.False(new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins())
+        Assert.False(Fetch([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins())
             .IsConnected(ValuationSource.Brego));
     }
 
     [Fact]
     public async Task AnActorWithoutCaseworkOrAnEmptyKeyIsRefused()
     {
-        var fetch = new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins());
+        var fetch = Fetch([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins());
         var reader = ActionActor.SystemWorker("valuation-worker");
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
@@ -73,7 +73,7 @@ public sealed class FetchGuideValuationTests
         var report = new StubReport("glass-stock:33636950");
         var schedule = new RecordingSchedule();
         var request = Request(ValuationSource.Glasses);
-        var fetch = new FetchGuideValuation(
+        var fetch = Fetch(
             [new AnsweringProvider(ValuationSource.Glasses, report)],
             new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
             schedule,
@@ -96,7 +96,7 @@ public sealed class FetchGuideValuationTests
     {
         var schedule = new RecordingSchedule();
         var request = Request(ValuationSource.Glasses);
-        var fetch = new FetchGuideValuation(
+        var fetch = Fetch(
             [new AnsweringProvider(ValuationSource.Glasses, report: null)],
             new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
             schedule,
@@ -116,7 +116,7 @@ public sealed class FetchGuideValuationTests
     {
         var vins = new RecordingVins();
         var request = Request(ValuationSource.Glasses) with { Work = CaseWorkSelector.Primary };
-        var fetch = new FetchGuideValuation(
+        var fetch = Fetch(
             [new AnsweringProvider(ValuationSource.Glasses, report: null, vin: "TESTVEH0A1B2C3D45")],
             new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
             new RecordingSchedule(),
@@ -134,7 +134,7 @@ public sealed class FetchGuideValuationTests
     {
         var vins = new RecordingVins();
         var request = Request(ValuationSource.Glasses);
-        var fetch = new FetchGuideValuation(
+        var fetch = Fetch(
             [new AnsweringProvider(ValuationSource.Glasses, report: null)],
             new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
             new RecordingSchedule(),
@@ -143,6 +143,191 @@ public sealed class FetchGuideValuationTests
         await fetch.ExecuteAsync(request, default);
 
         Assert.Empty(vins.Fills);
+    }
+
+    /// <summary>
+    /// A source that has answered for the Case is not asked again for the same
+    /// month, registration and mileage, so a repeated press costs nothing
+    /// (R900, 10 November 2026).
+    /// </summary>
+    [Fact]
+    public async Task ASourceThatAnsweredIsNotAskedAgainForTheSameMonth()
+    {
+        var provider = new CountingProvider();
+        var request = Request(ValuationSource.Glasses);
+        var fetch = Fetch(
+            [provider], new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
+            new RecordingSchedule(), new RecordingVins());
+
+        await fetch.ExecuteAsync(request, default);
+        var refused = await Assert.ThrowsAsync<GuideValuationAlreadyFetchedException>(() =>
+            fetch.ExecuteAsync(request with { OperationKey = "get-valuation-again" }, default));
+
+        Assert.Equal(ValuationSource.Glasses, refused.ValuationSource);
+        Assert.Equal(1, provider.Calls);
+    }
+
+    /// <summary>
+    /// The ask is once per source and guide month, and a corrected
+    /// registration or mileage allows one more (R900).
+    /// </summary>
+    [Theory]
+    [InlineData("month")]
+    [InlineData("source")]
+    [InlineData("mileage")]
+    [InlineData("registration")]
+    public async Task AnotherMonthSourceOrVehicleFactIsAskedAgain(string change)
+    {
+        var ledger = new MemoryLedger();
+        var glasses = new CountingProvider();
+        var brego = new CountingProvider(source: ValuationSource.Brego);
+        var request = Request(ValuationSource.Glasses);
+        await Fetch(
+                [glasses, brego], new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
+                new RecordingSchedule(), new RecordingVins(), ledger)
+            .ExecuteAsync(request, default);
+
+        var again = change switch
+        {
+            "month" => request with { GuideMonth = new DateOnly(2026, 8, 1) },
+            "source" => request with { Source = ValuationSource.Brego },
+            _ => request,
+        };
+        var facts = change switch
+        {
+            "mileage" => Valued(request.CaseId, "KY12CAB", 71000),
+            "registration" => Valued(request.CaseId, "KY12CAC", 69000),
+            _ => Valued(request.CaseId, "KY12CAB", 69000),
+        };
+        await Fetch([glasses, brego], new RecordingCaseData(facts), new RecordingSchedule(), new RecordingVins(), ledger)
+            .ExecuteAsync(again, default);
+
+        Assert.Equal(2, glasses.Calls + brego.Calls);
+        Assert.Equal(2, ledger.Answered.Count);
+    }
+
+    /// <summary>
+    /// The registration is compared without spacing or case, and a later
+    /// month is valued as the current one, so neither makes a second ask.
+    /// </summary>
+    [Fact]
+    public async Task ARespacedRegistrationOrALaterMonthIsTheSameAsk()
+    {
+        var ledger = new MemoryLedger();
+        var provider = new CountingProvider();
+        var request = Request(ValuationSource.Glasses) with { GuideMonth = new DateOnly(2031, 5, 1) };
+        await Fetch(
+                [provider], new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
+                new RecordingSchedule(), new RecordingVins(), ledger)
+            .ExecuteAsync(request, default);
+
+        var fetch = Fetch(
+            [provider], new RecordingCaseData(Valued(request.CaseId, "ky12 cab", 69000)),
+            new RecordingSchedule(), new RecordingVins(), ledger);
+        await Assert.ThrowsAsync<GuideValuationAlreadyFetchedException>(() =>
+            fetch.ExecuteAsync(request, default));
+        await Assert.ThrowsAsync<GuideValuationAlreadyFetchedException>(() =>
+            fetch.ExecuteAsync(request with { GuideMonth = new DateOnly(2031, 7, 1) }, default));
+
+        Assert.Equal(1, provider.Calls);
+    }
+
+    /// <summary>
+    /// Only an answer with figures uses the ask: a provider that cannot answer
+    /// or cannot value the vehicle leaves it for the next press (R900).
+    /// </summary>
+    [Theory]
+    [InlineData("age")]
+    [InlineData("down")]
+    public async Task AnAskThatAnswersNoFiguresIsAskedAgain(string answer)
+    {
+        var ledger = new MemoryLedger();
+        var request = Request(ValuationSource.Glasses);
+        var caseData = new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000));
+        Exception failure = answer == "age"
+            ? new GuideValuationNotValuedException(ValuationSource.Glasses, GuideValuationNotValuedReason.VehicleAge)
+            : new GuideValuationProviderUnavailableException(ValuationSource.Glasses);
+        await Assert.ThrowsAsync(
+            failure.GetType(),
+            () => Fetch([new CountingProvider(failure)], caseData, new RecordingSchedule(), new RecordingVins(), ledger)
+                .ExecuteAsync(request, default));
+
+        var provider = new CountingProvider();
+        await Fetch([provider], caseData, new RecordingSchedule(), new RecordingVins(), ledger)
+            .ExecuteAsync(request, default);
+
+        Assert.Equal(1, provider.Calls);
+        Assert.Single(ledger.Answered);
+    }
+
+    /// <summary>
+    /// The figures are the paid answer, so a report that cannot be scheduled
+    /// afterwards still leaves the ask used.
+    /// </summary>
+    [Fact]
+    public async Task AnAnswerWhoseReportFailsIsStillUsed()
+    {
+        var ledger = new MemoryLedger();
+        var provider = new CountingProvider();
+        var request = Request(ValuationSource.Glasses);
+        var caseData = new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000));
+        var reporting = new AnsweringProvider(ValuationSource.Glasses, new StubReport("glass-stock:1"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Fetch([reporting], caseData, new ThrowingSchedule(), new RecordingVins(), ledger)
+                .ExecuteAsync(request, default));
+
+        await Assert.ThrowsAsync<GuideValuationAlreadyFetchedException>(() =>
+            Fetch([provider], caseData, new RecordingSchedule(), new RecordingVins(), ledger)
+                .ExecuteAsync(request, default));
+
+        Assert.Equal(0, provider.Calls);
+    }
+
+    /// <summary>
+    /// A second press while the first is still asking is refused without a
+    /// second ask, so two presses at once are charged once.
+    /// </summary>
+    [Fact]
+    public async Task APressWhileTheSourceIsAskingIsRefused()
+    {
+        var ledger = new MemoryLedger();
+        var provider = new CountingProvider();
+        var request = Request(ValuationSource.Glasses);
+        var key = GuideValuationFetchPolicy.Key(
+            request.CaseId, request.Source, request.GuideMonth, "KY12CAB", 69000, null,
+            DateOnly.FromDateTime(Now.UtcDateTime));
+        Assert.NotNull(await ledger.TryClaimAsync(key, Engineer, Now, Now.AddMinutes(10), default));
+
+        await Assert.ThrowsAsync<GuideValuationAlreadyFetchedException>(() =>
+            Fetch(
+                    [provider], new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
+                    new RecordingSchedule(), new RecordingVins(), ledger)
+                .ExecuteAsync(request, default));
+
+        Assert.Equal(0, provider.Calls);
+    }
+
+    /// <summary>
+    /// A month Glass's has already answered for staff settles the automatic
+    /// request unasked, as a Case that already holds the card does (R900).
+    /// </summary>
+    [Fact]
+    public async Task AnAutomaticRequestForAMonthAlreadyAskedIsSettledUnasked()
+    {
+        var caseId = Guid.NewGuid();
+        var ledger = new MemoryLedger();
+        var provider = new CountingProvider();
+        var caseData = new RecordingCaseData(Valued(caseId, "KY12CAB", 69000));
+        await Fetch([provider], caseData, new RecordingSchedule(), new RecordingVins(), ledger)
+            .ExecuteAsync(Request(ValuationSource.Glasses) with { CaseId = caseId, GuideMonth = new DateOnly(2031, 5, 1) }, default);
+        var store = new AutomaticStore(Open());
+
+        var outcome = await Automatic(provider, caseData, store, ledger: ledger)
+            .ExecuteAsync(new(WorkItem, caseId), default);
+
+        Assert.Equal(AutomaticGuideValuationOutcome.NotNeeded, outcome);
+        Assert.Equal(1, provider.Calls);
+        Assert.Empty(store.Recorded);
     }
 
     /// <summary>
@@ -299,13 +484,22 @@ public sealed class FetchGuideValuationTests
         RecordingCaseData caseData,
         AutomaticStore store,
         bool enabled = true,
-        RecordingSchedule? schedule = null) =>
+        RecordingSchedule? schedule = null,
+        MemoryLedger? ledger = null) =>
         new(
-            new FetchGuideValuation([provider], caseData, schedule ?? new RecordingSchedule(), new RecordingVins()),
+            Fetch([provider], caseData, schedule ?? new RecordingSchedule(), new RecordingVins(), ledger),
             caseData,
             store,
             new FixedSwitch(enabled),
             new FixedClock(Now));
+
+    private static FetchGuideValuation Fetch(
+        IEnumerable<IGuideValuationProvider> providers,
+        ICaseDataQueries caseData,
+        IScheduleGuideValuationReport schedule,
+        IFillGlassVin vins,
+        MemoryLedger? ledger = null) =>
+        new(providers, caseData, schedule, vins, ledger ?? new MemoryLedger(), new FixedClock(Now));
 
     private static FetchGuideValuationRequest Request(ValuationSource source) => new(
         Guid.NewGuid(),
@@ -364,11 +558,12 @@ public sealed class FetchGuideValuationTests
             });
     }
 
-    private sealed class CountingProvider(Exception? failure = null) : IGuideValuationProvider
+    private sealed class CountingProvider(
+        Exception? failure = null, ValuationSource source = ValuationSource.Glasses) : IGuideValuationProvider
     {
         public int Calls { get; private set; }
 
-        public ValuationSource Source => ValuationSource.Glasses;
+        public ValuationSource Source => source;
 
         public Task<GuideValuationQuote> GetAsync(GuideValuationRequest request, CancellationToken cancellationToken)
         {
@@ -437,6 +632,59 @@ public sealed class FetchGuideValuationTests
         public Task<bool> SetEnabledAsync(
             bool enabled, ActionActor actor, string? reason, string operationKey, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    /// <summary>The ledger's contract in memory: one row per key, Asking or Answered.</summary>
+    private sealed class MemoryLedger : IGuideValuationFetchLedger
+    {
+        private readonly Dictionary<GuideValuationFetchKey, (string Token, bool Answered, DateTimeOffset Expires)> _rows = [];
+
+        public IReadOnlyCollection<GuideValuationFetchKey> Answered =>
+            [.. _rows.Where(row => row.Value.Answered).Select(row => row.Key)];
+
+        public Task<string?> TryClaimAsync(
+            GuideValuationFetchKey key,
+            ActionActor actor,
+            DateTimeOffset nowUtc,
+            DateTimeOffset claimExpiresAtUtc,
+            CancellationToken cancellationToken)
+        {
+            if (_rows.TryGetValue(key, out var row) && (row.Answered || row.Expires > nowUtc))
+            {
+                return Task.FromResult<string?>(null);
+            }
+
+            var token = Guid.NewGuid().ToString("N");
+            _rows[key] = (token, false, claimExpiresAtUtc);
+            return Task.FromResult<string?>(token);
+        }
+
+        public Task MarkAnsweredAsync(
+            GuideValuationFetchKey key, string claimToken, DateTimeOffset nowUtc, CancellationToken cancellationToken)
+        {
+            if (_rows.TryGetValue(key, out var row) && row.Token == claimToken)
+            {
+                _rows[key] = row with { Answered = true };
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task ReleaseAsync(GuideValuationFetchKey key, string claimToken, CancellationToken cancellationToken)
+        {
+            if (_rows.TryGetValue(key, out var row) && row.Token == claimToken && !row.Answered)
+            {
+                _rows.Remove(key);
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingSchedule : IScheduleGuideValuationReport
+    {
+        public Task ScheduleAsync(FileGuideValuationReportRequest request, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The report could not be scheduled.");
     }
 
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider
