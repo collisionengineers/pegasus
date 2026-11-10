@@ -386,8 +386,8 @@ public sealed class ImageIntakeAutomation(
             // decision table scopes itself to a submission with more than
             // one member: a one-member group is a lone image and stays on
             // the single-image path below, whose exact-match candidate rule
-            // (operator-directed 2026-08-03) differs from the group's
-            // fail-closed eligible-case count.
+            // (operator-directed 2026-08-03) differs from the group's, which
+            // never associates while it routes (R880).
             return null;
         }
 
@@ -487,16 +487,9 @@ public sealed class ImageIntakeAutomation(
             }
         }
 
-        var registrationCandidates = VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(recognitions);
-        IReadOnlyList<ImageIntakeCaseCandidate> eligibleCases = registrationCandidates.Length == 1
-            ? CaseAssociationEligibility.FormalCases(await caseCandidates.FindEligibleByRegistrationAsync(
-                registrationCandidates[0],
-                cancellationToken))
-            : [];
         var routing = ImageIntakeGroupRoutingPolicy.Evaluate(
             recognitions,
-            imageReceipts.Length,
-            eligibleCases.Count);
+            imageReceipts.Length);
         if (routing.Decision is ImageIntakeGroupRoutingDecision.WaitingForMembers
             or ImageIntakeGroupRoutingDecision.WaitingForRecognition)
         {
@@ -520,20 +513,29 @@ public sealed class ImageIntakeAutomation(
                 GroupReading: new(group, receipts, []));
         }
 
-        if (group.Channel == IntakeSourceChannel.ManualUpload
-            && eligibleCases.Count >= 1
-            && MatchWaitIsOpen(group))
+        if (group.Channel == IntakeSourceChannel.ManualUpload)
         {
-            // A usable registration that matches existing Cases registers
-            // nothing while staff decide
-            // (operator, 11 October 2026); once staff have linked a member the
-            // decision is theirs to finish, so it neither waits nor registers.
-            if (receipts.Any(HasStaffAssociation))
+            // The eligible Cases serve only this wait: a group never
+            // associates while it routes (R880).
+            var registrationCandidates = VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(recognitions);
+            IReadOnlyList<ImageIntakeCaseCandidate> eligibleCases = registrationCandidates.Length == 1
+                ? CaseAssociationEligibility.FormalCases(await caseCandidates.FindEligibleByRegistrationAsync(
+                    registrationCandidates[0],
+                    cancellationToken))
+                : [];
+            if (eligibleCases.Count >= 1 && MatchWaitIsOpen(group))
             {
-                return new(receipt);
-            }
+                // A usable registration that matches existing Cases registers
+                // nothing while staff decide
+                // (operator, 11 October 2026); once staff have linked a member the
+                // decision is theirs to finish, so it neither waits nor registers.
+                if (receipts.Any(HasStaffAssociation))
+                {
+                    return new(receipt);
+                }
 
-            return new(receipt, AwaitingStaffDecision: true);
+                return new(receipt, AwaitingStaffDecision: true);
+            }
         }
 
         // The group is the registration unit: exactly one
@@ -550,7 +552,6 @@ public sealed class ImageIntakeAutomation(
             imageReceipts[0],
             scans,
             routing,
-            eligibleCases,
             cancellationToken);
 
         var finalReceipt = await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt;
@@ -573,32 +574,22 @@ public sealed class ImageIntakeAutomation(
     /// receipts.
     /// </summary>
     /// <remarks>
-    /// A group decision other than
-    /// <see cref="ImageIntakeGroupRoutingDecision.AssociateExistingCase"/> —
-    /// most importantly <see cref="ImageIntakeGroupRoutingDecision.HandOffToImageIntake"/>,
-    /// chosen because the eligible-case count was zero or ambiguous — must
-    /// register the ImageIntake evidence but must never associate a Case:
-    /// the group's own fail-closed decision is the sole authority for
-    /// whether association happens.
+    /// No group associates a Case while it routes; it only registers its
+    /// read (R880). A manual submission keeps staff confirmation over the
+    /// Case link, even where one photograph read a unique existing Case, so a
+    /// match waits for staff before it gets here. A photo link's batch was
+    /// matched at its settle with its Principal and typed date, which this
+    /// path does not see, so it registers and its record pairs by those
+    /// (operator, 9 November 2026; R791).
     /// </remarks>
     private async Task<bool> TryRegisterGroupAsync(
         IntakeSubmissionGroup group,
         IntakeReceipt primary,
         IReadOnlyList<(IntakeReceipt Receipt, IReadOnlyList<ImageVrmSuggestion> Suggestions)> scans,
         ImageIntakeGroupRoutingResult routing,
-        IReadOnlyList<ImageIntakeCaseCandidate> eligibleCases,
         CancellationToken cancellationToken)
     {
         var actor = ActionActor.SystemWorker(ActorId);
-        var read = routing.NormalizedRegistration!;
-        // Manual submissions always retain staff confirmation over the case
-        // link, even where one photograph read a unique existing case. A
-        // photo link's batch was matched at its settle with its Principal and
-        // typed date, which this count does not see, so it always registers
-        // and its record pairs by those (operator, 9 November 2026; R791).
-        var associationAllowed = group.Channel != IntakeSourceChannel.ManualUpload
-            && routing.Decision == ImageIntakeGroupRoutingDecision.AssociateExistingCase
-            && !PhotoCapture.PhotoCaptureIntakeRules.UsesDeclaredRegistration(group);
         try
         {
             var origin = await originResolver.ResolveOriginAsync(primary.Id, cancellationToken);
@@ -607,25 +598,13 @@ public sealed class ImageIntakeAutomation(
                 return false;
             }
 
-            // The group's routing decision already fixed WHETHER
-            // association happens; the selection below only fixes WHICH
-            // value is registered.
-            var target = SelectAssociationTarget(
-                associationAllowed ? eligibleCases : [],
-                read,
-                principalId: null);
-            var registration = target?.ConfirmedRegistration ?? read;
-            var reason = target is not null
-                && !string.Equals(registration, read, StringComparison.Ordinal)
-                ? $"Automatic registration: the group's confident read {read} matches case {target.CaseReference}'s confirmed registration with one character missing; registered with the confirmed value."
-                : "Automatic registration of the whole submission group from a confident vehicle-registration read on its retained image evidence.";
             var record = await registerImageIntake.ExecuteAsync(
                 new(
                     origin,
-                    registration,
+                    routing.NormalizedRegistration!,
                     actor,
                     $"image-intake-register:group:{group.Id:N}",
-                    reason,
+                    "Automatic registration of the whole submission group from a confident vehicle-registration read on its retained image evidence.",
                     SubmissionGroupId: group.Id),
                 cancellationToken);
             foreach (var (memberReceipt, suggestions) in scans)
@@ -641,11 +620,6 @@ public sealed class ImageIntakeAutomation(
                         memberReceipt.Id,
                         cancellationToken);
                 }
-            }
-
-            if (target is not null)
-            {
-                await casePairing.PairRegisteredReceiptAsync(primary.Id, cancellationToken);
             }
 
             return true;

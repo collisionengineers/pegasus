@@ -12,10 +12,9 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
             Member(VrmRecognitionOutcomeKind.Suggested, "AC04", 0.95),
             Member(VrmRecognitionOutcomeKind.NoReadableResult, null, null)
         ],
-        expectedMemberCount: 2,
-        eligibleCaseCount: 1);
+        expectedMemberCount: 2);
 
-        Assert.Equal(ImageIntakeGroupRoutingDecision.AssociateExistingCase, result.Decision);
+        Assert.Equal(ImageIntakeGroupRoutingDecision.HandOffToImageIntake, result.Decision);
         Assert.Equal("AC04", result.NormalizedRegistration);
     }
 
@@ -27,8 +26,7 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
             Member(VrmRecognitionOutcomeKind.Suggested, "AC04", 0.95),
             Member(VrmRecognitionOutcomeKind.Suggested, "BD05", 0.95)
         ],
-        expectedMemberCount: 2,
-        eligibleCaseCount: 1);
+        expectedMemberCount: 2);
 
         Assert.Equal(ImageIntakeGroupRoutingDecision.RouteToUnidentified, result.Decision);
         Assert.Equal("conflicting_vrms", result.ReasonCode);
@@ -42,10 +40,9 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
             Member(VrmRecognitionOutcomeKind.Suggested, "AK24", 0.85),
             Member(VrmRecognitionOutcomeKind.Suggested, "AK24UYD", 0.89)
         ],
-        expectedMemberCount: 2,
-        eligibleCaseCount: 1);
+        expectedMemberCount: 2);
 
-        Assert.Equal(ImageIntakeGroupRoutingDecision.AssociateExistingCase, result.Decision);
+        Assert.Equal(ImageIntakeGroupRoutingDecision.HandOffToImageIntake, result.Decision);
         Assert.Equal("AK24UYD", result.NormalizedRegistration);
     }
 
@@ -57,8 +54,7 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
             Member(VrmRecognitionOutcomeKind.Suggested, "AK24UYD", 0.89),
             Member(VrmRecognitionOutcomeKind.Suggested, "AK24UYE", 0.89)
         ],
-        expectedMemberCount: 2,
-        eligibleCaseCount: 1);
+        expectedMemberCount: 2);
 
         Assert.Equal(ImageIntakeGroupRoutingDecision.RouteToUnidentified, result.Decision);
         Assert.Equal("conflicting_vrms", result.ReasonCode);
@@ -73,8 +69,7 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
             new(receiptId, true, VrmRecognitionOutcomeKind.Suggested, "AC04", 0.95),
             new(receiptId, true, VrmRecognitionOutcomeKind.Suggested, "BD05", 0.95)
         ],
-        expectedMemberCount: 1,
-        eligibleCaseCount: 1);
+        expectedMemberCount: 1);
 
         Assert.Equal(ImageIntakeGroupRoutingDecision.RouteToUnidentified, result.Decision);
         Assert.Equal("conflicting_vrms", result.ReasonCode);
@@ -88,8 +83,7 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
             Member(VrmRecognitionOutcomeKind.NoReadableResult, null, null),
             Member(VrmRecognitionOutcomeKind.NoReadableResult, null, null)
         ],
-        expectedMemberCount: 2,
-        eligibleCaseCount: 0);
+        expectedMemberCount: 2);
 
         Assert.Equal(ImageIntakeGroupRoutingDecision.RouteToUnidentified, result.Decision);
         Assert.Equal("group_no_accepted_vrm", result.ReasonCode);
@@ -100,26 +94,28 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
     {
         var result = ImageIntakeGroupRoutingPolicy.Evaluate(
             [Member(VrmRecognitionOutcomeKind.Suggested, "AC04", 0.95)],
-            expectedMemberCount: 2,
-            eligibleCaseCount: 1);
+            expectedMemberCount: 2);
 
         Assert.Equal(ImageIntakeGroupRoutingDecision.WaitingForMembers, result.Decision);
     }
 
+    /// <summary>
+    /// One usable registration hands the group to Image intake; no group
+    /// associates a Case while it routes (R880).
+    /// </summary>
     [Fact]
-    public void OneUsableVrmWithoutUniqueCaseHandsOffToImageIntake()
+    public void OneUsableVrmHandsOffToImageIntake()
     {
         var result = ImageIntakeGroupRoutingPolicy.Evaluate(
         [
             Member(VrmRecognitionOutcomeKind.Suggested, "AC04", 0.95),
             Member(VrmRecognitionOutcomeKind.NoReadableResult, null, null)
         ],
-        expectedMemberCount: 2,
-        eligibleCaseCount: 0);
+        expectedMemberCount: 2);
 
         Assert.Equal(ImageIntakeGroupRoutingDecision.HandOffToImageIntake, result.Decision);
         Assert.Equal("AC04", result.NormalizedRegistration);
-        Assert.Equal("group_vrm_no_eligible_case", result.ReasonCode);
+        Assert.Equal("group_single_vrm", result.ReasonCode);
     }
 
     /// <summary>
@@ -135,10 +131,9 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
             Member(VrmRecognitionOutcomeKind.Suggested, "AC04", 0.95),
             new(Guid.NewGuid(), false, VrmRecognitionOutcomeKind.TechnicalFailure, null, null, "corrupt", CouldNotBeRead: true)
         ],
-        expectedMemberCount: 2,
-        eligibleCaseCount: 1);
+        expectedMemberCount: 2);
 
-        Assert.Equal(ImageIntakeGroupRoutingDecision.AssociateExistingCase, result.Decision);
+        Assert.Equal(ImageIntakeGroupRoutingDecision.HandOffToImageIntake, result.Decision);
         Assert.Equal("AC04", result.NormalizedRegistration);
     }
 
@@ -150,8 +145,7 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
             new(Guid.NewGuid(), false, VrmRecognitionOutcomeKind.TechnicalFailure, null, null, "corrupt", CouldNotBeRead: true),
             new(Guid.NewGuid(), false, VrmRecognitionOutcomeKind.NoReadableResult, null, null, null, CouldNotBeRead: true)
         ],
-        expectedMemberCount: 2,
-        eligibleCaseCount: 0);
+        expectedMemberCount: 2);
 
         Assert.Equal(ImageIntakeGroupRoutingDecision.RouteToUnidentified, result.Decision);
         Assert.Equal("group_could_not_be_read", result.ReasonCode);

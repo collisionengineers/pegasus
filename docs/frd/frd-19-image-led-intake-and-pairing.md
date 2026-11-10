@@ -239,8 +239,10 @@ document ([FRD-02 EXT-17](frd-02-intake-and-source-identity.md)) is the
 exception: its photographs are images for an existing Case, so with no Case
 holding its printed registration nothing registers and the e-mail waits in
 No Case Found (operator, 2 November 2026, [R585](../rulings.md)). A
-multi-file image submission from manual upload or the eligible mailbox
-route below is one evidence group, not independent images. A damage close-up with no visible
+multi-file manual upload, and a photo link's batch that settles without one
+eligible Case, are each one evidence group, not independent images; an
+e-mail is one receipt, whose photographs file with it on the Case it
+matches ([R880](../rulings.md)). A damage close-up with no visible
 plate must not detach from the overview image submitted with it. The group,
 never an individual image, is what reaches an association, a registration,
 or an Unidentified outcome.
@@ -284,8 +286,11 @@ manual upload filed as a file, a PDF with a text layer or a recognised
 report, still has its photographs read, and the one registration they agree
 on offers the matched Cases the same way; the file itself never registers
 and never becomes Unidentified (operator, 28 October 2026, R472, R473). The
-precedence below applies to non-manual routes. Recognition,
-complete membership, and fail-closed source-identity rules apply to both.
+precedence below applies to a manual upload's group and to a photo link's
+batch, whose members read as its typed registration; a manual upload whose
+registration matches a Case has first waited for staff as above
+([R880](../rulings.md)). Recognition, complete membership, and fail-closed
+source-identity rules apply to both.
 
 - **PDF and mailbox photograph entry.** Otherwise-unrouted standalone PDFs
   and mailbox receipts containing selected photographs use the same image
@@ -380,36 +385,30 @@ complete membership, and fail-closed source-identity rules apply to both.
   12 October 2026). Where accepted reads from a group's images disagree, the
   read from the largest plate area wins and confidence breaks a tie
   (operator, 15 October 2026).
-- **Associate-or-hand-off precedence, in this order:**
+- **Group routing precedence, in this order:**
   1. Any image member's recognition ended in a technical failure or an
      unavailable dependency: the group fails closed to a named technical
      outcome. Nothing is associated or registered while any member's
      evidence is unreliable.
-  2. Exactly one distinct accepted registration across the group, and
-     exactly one eligible pre-report instructed Case carries it: every
-     member associates to that Case as evidence, under the same unambiguous
-     normalised-match rule (including its confirmed-registration completion
-     for a one-character-missing read) that governs single images. Mailed
-     images associate and file on the Case; no record and no folder are made
-     (operator, 11 October 2026).
-  3. Exactly one distinct accepted registration, but zero or more than one
-     eligible Case carries it: the registration is usable but not uniquely
-     matched. The group registers as **one** Image-initiated Case with
-     exactly one Image reference for the whole group, never one per member.
-     Every member's receipt and evidence records against that one
-     registration, and none associates to any Case.
-  4. Zero distinct accepted registrations, or more than one: no single
+  2. Exactly one distinct accepted registration across the group: the
+     group registers as **one** Image-initiated Case with exactly one Image
+     reference for the whole group, never one per member. Every member's
+     receipt and evidence records against that one registration, and none
+     associates to any Case in the same pass, however many eligible Cases
+     carry it. A manual upload with matching Cases has first waited for
+     staff; the record then pairs under
+     [Pairing and merge](#pairing-and-merge) ([R880](../rulings.md)).
+  3. Zero distinct accepted registrations, or more than one: no single
      usable identity exists. The whole group stays together as one
      `Unidentified` item. No registration-based reference is made for it and
      no member is split off. The routing outcome tag `conflicting_vrms` maps
      to the `ConflictingIdentification` reason.
-- **Fail-closed is a group property.** Rows 3 and 4 are handled differently
+- **Fail-closed is a group property.** Rows 2 and 3 are handled differently
   but both withhold association. A per-member candidate search run while
-  registering that member must never resolve an ambiguity the group did not
-  resolve. If the group's eligible-Case count for its one registration was
-  zero or more than one, no member may associate, even where a member-level
-  search could pick one by exact match. The group's decision is the sole
-  authority.
+  registering that member must never associate it: no member of a group
+  associates while the group routes, even where a member-level search could
+  pick one Case by exact match ([R880](../rulings.md)). The group's decision
+  is the sole authority.
 - **Recognition is idempotent per image.** A group may be re-evaluated more
   than once (a sibling arriving, a replay). An image whose recognition
   outcome is already recorded is never re-scanned; the recorded outcome is
@@ -516,7 +515,7 @@ word "intake" appears only on the Administrator's Intake log tab
 ## Acceptance evidence
 
 Acceptance proves, through the real Worker and Web callers: one reference
-per group; the four precedence rows; the group-level fail-closed rule; the
+per group; the three precedence rows; the group-level fail-closed rule; the
 manual-upload confirmation exception, and a manual upload pairing with a Case
 created after it on acceptance and on the timer; both arrival orders and
 replays resuming one pairing operation; the merge on the Case timeline; the
