@@ -228,14 +228,15 @@ public sealed class ReportRequirementOwnershipTests
         // findings included since 7 October 2026; the unprinted settlement
         // facts gone since 9 October 2026), 1 Valuation (the Engineer's Value:
         // Retail and Trade follow the chosen guide card since 8 October 2026),
-        // 4 original report, 9 Report (FAO The Court and Include statement of
-        // truth since 2 November 2026; R610, R611), 3 Damage (the impacts staff
+        // 4 original report, 8 Report (FAO The Court and Include statement of
+        // truth since 2 November 2026; R610, R611; the Engineer's comments gone
+        // since 10 November 2026, R922), 3 Damage (the impacts staff
         // enter since 3 November 2026, R646, Skip impacts since v47, R649, and the
         // unrelated damage) and 4 Vehicle editors, the vehicle history and condition,
         // and the 4 typed Case-save paths (the mileage source pick gone since
         // 12 October 2026). A new editor changes this count on purpose: it
         // widens what automation may write.
-        Assert.Equal(34, accepted.Count);
+        Assert.Equal(33, accepted.Count);
     }
 
     [Theory]

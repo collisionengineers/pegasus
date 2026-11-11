@@ -613,7 +613,7 @@ public sealed class AssessmentReportRenderingTests
             NewParts: ["Front bumper"], Repairs: ["Bonnet"], Operations: ["Paint front panels"],
             Damage: Damage(), Settlement: outcome == AssessmentReportOutcome.ContractRepair
                 ? Settlement() with { ContractSum = 300m } : Settlement(),
-            HistoryCheck: "History clear", EngineerComments: null,
+            HistoryCheck: "History clear",
             Signatory: new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"),
             AgreedFee: 120m, FeeDescriptionLines: ["Engineering assessment"],
             Photos: [new ReportImageEvidence("box://case/photo-1", "image/png", ReportImageContent.Opened(_ => Task.FromResult(image)), Convert.ToHexStringLower(SHA256.HashData(image)))],

@@ -899,7 +899,6 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
             }),
             Report = new(new Dictionary<string, string?>(StringComparer.Ordinal)
             {
-                [AssessmentVocabulary.EngineersComments] = "Scuffed",
                 [AssessmentVocabulary.AgreedFee] = "120.00",
                 [AssessmentVocabulary.FeeDescriptionLines] = "Assessment report",
                 [AssessmentVocabulary.ReportDiscloseGuideSource] = "true",
@@ -923,7 +922,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         // One workspace event and one report-invalidation event, not one save per section.
         Assert.Equal(historyBefore + 2, await harness.HistoryCountAsync());
         Assert.Equal("false", saved.Assessment.Field(AssessmentVocabulary.SettlementClaimantVatRegistered)?.Value);
-        Assert.Equal("Scuffed", saved.Assessment.Field(AssessmentVocabulary.EngineersComments)?.Value);
+        Assert.Equal("Assessment report", saved.Assessment.Field(AssessmentVocabulary.FeeDescriptionLines)?.Value);
         Assert.Equal("120.00", saved.Assessment.Field(AssessmentVocabulary.AgreedFee)?.Value);
         Assert.Equal("2031-05-20", saved.Assessment.Field(AssessmentVocabulary.ReportDate)?.Value);
         // Every value this save wrote is staff's; the Good pre-incident
@@ -1360,7 +1359,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
                     }),
                     Report = new(new Dictionary<string, string?>(StringComparer.Ordinal)
                     {
-                        [AssessmentVocabulary.EngineersComments] = "Never written",
+                        [AssessmentVocabulary.FeeDescriptionLines] = "Never written",
                         [AssessmentVocabulary.AgreedFee] = "120.00"
                     }, null, new DateOnly(2031, 5, 20)),
                     // A discarded spec is gone: the refusal comes after the

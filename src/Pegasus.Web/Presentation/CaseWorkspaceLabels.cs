@@ -195,7 +195,6 @@ public static class CaseWorkspaceLabels
 
         public static IReadOnlyDictionary<string, string> Report { get; } = new Dictionary<string, string>
         {
-            [AssessmentVocabulary.EngineersComments] = "Engineer's comments",
             [AssessmentVocabulary.AgreedFee] = "Agreed fee",
             [AssessmentVocabulary.FeeDescriptionLines] = "Fee description",
             [AssessmentVocabulary.ReportDiscloseGuideSource] = "Disclose guide source",

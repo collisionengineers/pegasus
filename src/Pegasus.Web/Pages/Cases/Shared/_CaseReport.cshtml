@@ -349,9 +349,6 @@
                     <input id="f-report-date" class="fi" type="date" name="reportDate" form="case-edit-form" value="@reportDate" />
                 }
             </div>
-            @* The comments take a full row (v36 f38). *@
-            @{ await Field(AssessmentVocabulary.EngineersComments, labels[AssessmentVocabulary.EngineersComments], multi: true, extraClass: "span4");
-            }
         </div>
 
         @* Report wording (v28 P30; v45, operator, 2 November 2026): every

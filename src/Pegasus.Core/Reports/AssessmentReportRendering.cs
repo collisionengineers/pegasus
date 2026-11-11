@@ -510,7 +510,6 @@ public sealed record AssessmentReportSnapshot(
     ReportDamage Damage,
     ReportSettlement Settlement,
     string HistoryCheck,
-    string? EngineerComments,
     ReportSignatory Signatory,
     decimal AgreedFee,
     IReadOnlyList<string> FeeDescriptionLines,
