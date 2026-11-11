@@ -5,6 +5,22 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Test instance OCR identity admitted - 11 November 2026
+
+- On R931, the `CollisionSpike Graph Intake` registration's service principal
+  (object id `e25ca6f2-3eb2-4ea8-9953-229efcfd8893`) was assigned
+  `Cognitive Services User` on `pegasus-prod-ocr-252ow37gij`
+  (`rg-pegasus-prod`) at 09:20 UTC. The account has keys disabled; until
+  then only the production Worker's identity held the role. Nothing else in
+  Azure changed.
+- The instance's settings file does not yet carry `Features__LiveOcr` or
+  `DocumentIntelligence__Endpoint`; they are added once `dev` holds the
+  opt-in, and the first scanned page read on the instance is the check.
+- The same day, on R932, the Automation Actor retried document storage on
+  `QDOS26171-p` and re-ran the vehicle lookup on `QDOS26198-p` and
+  `QDOS26199-p` on run `83ec377dd6f249d59c2e8ae8e96459c3`; all three reached
+  Review.
+
 ## Test instance MCP connector - 10 November 2026
 
 - On R899, the settings file gained

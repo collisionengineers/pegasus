@@ -455,9 +455,16 @@ and photographs enter through the Upload page, which the verification walk
 drives when files are supplied.
 
 What the instance cannot prove, even with every opt-in on, is listed in the
-matrix: OCR and the problem-report sink. Staff send, Graph subscriptions and
-the answered-instruction move run on it with `Features__LiveGraphMail`, as a
-rehearsal; production remains their proof of record (R677).
+matrix: the problem-report sink. Staff send, Graph subscriptions and the
+answered-instruction move run on it with `Features__LiveGraphMail`, and OCR
+of scanned pages with `Features__LiveOcr` (11 November 2026), as a
+rehearsal; production remains their proof of record (R677, R931).
+`Features__LiveOcr=true` with `DocumentIntelligence__Endpoint` (production's
+Document Intelligence account) and the three `Graph__` credential keys in the
+settings file composes the Worker's OCR adapter over the same app
+registration, which needs `Cognitive Services User` on that account; a
+missing endpoint or key fails the start naming it, and without the flag the
+endpoint is refused as a Production-only setting.
 
 ### Isolated runs and failure controls
 

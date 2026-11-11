@@ -1187,7 +1187,8 @@ function Get-PegasusDatabaseConnectionString {
 #
 # An operator-supplied, ignored KEY=VALUE file that opts a DevelopmentOffline
 # run into real vendor integrations (live DVLA/DVSA, Box custody, Glass's,
-# Graph mail with parity) and password sign-in. Its values reach only the Web and
+# Graph mail with parity, OCR on production's Document Intelligence account)
+# and password sign-in. Its values reach only the Web and
 # Worker process environments; the run manifest records the derived boolean
 # flags and never a value. The lifecycle owns the keys named in
 # Get-PegasusReservedLocalSettingKeys.
@@ -1196,7 +1197,7 @@ $script:PegasusLocalSettingsFileName = 'local.settings.env'
 
 $script:PegasusLocalSettingsHostPrefixes = @{
     Web = @('Features__', 'Box__', 'Glass__', 'Cazana__', 'Brego__', 'Graph__', 'GitHub__', 'DevelopmentOffline__', 'AutomationMcp__', 'PhotoCapture__')
-    Worker = @('Features__', 'Box__', 'Dvla__', 'Dvsa__', 'Graph__')
+    Worker = @('Features__', 'Box__', 'Dvla__', 'Dvsa__', 'Graph__', 'DocumentIntelligence__')
 }
 
 $script:PegasusLiveIntegrationFlagKeys = [ordered]@{
@@ -1205,6 +1206,7 @@ $script:PegasusLiveIntegrationFlagKeys = [ordered]@{
     glass = 'Features__LiveGlass'
     guideValuation = 'Features__LiveGuideValuation'
     graphMail = 'Features__LiveGraphMail'
+    ocr = 'Features__LiveOcr'
     passwordSignIn = 'Features__PasswordSignIn'
     automationMcp = 'Features__AutomationMcp'
     principalApi = 'Features__PrincipalApi'

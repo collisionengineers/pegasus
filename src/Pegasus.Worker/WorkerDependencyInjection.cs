@@ -20,6 +20,7 @@ public static class WorkerDependencyInjection
 {
     private const string DevelopmentOfflineProfile = "DevelopmentOffline";
     private const string ProductionProfile = "Production";
+    private const string LiveOcrFeatureKey = "Features:LiveOcr";
 
     public static IServiceCollection AddPegasusWorker(
         this IServiceCollection services,
@@ -49,9 +50,15 @@ public static class WorkerDependencyInjection
         var liveVehicleLookup = RequireOfflineFeature(configuration, developmentOffline, "Features:LiveVehicleLookup");
         var liveBoxCustody = RequireOfflineFeature(configuration, developmentOffline, "Features:LiveBoxCustody");
         var liveGraphMail = RequireOfflineFeature(configuration, developmentOffline, LocalGraphCredential.FeatureKey);
+        var liveOcr = RequireOfflineFeature(configuration, developmentOffline, LiveOcrFeatureKey);
         AzureDocumentIntelligenceOptions? ocrOptions = null;
         var ocrEndpointValue = configuration[WorkerAzureClientFactory.DocumentIntelligenceEndpointKey];
-        if (!developmentOffline && !string.IsNullOrEmpty(ocrEndpointValue))
+        if (liveOcr && string.IsNullOrWhiteSpace(ocrEndpointValue))
+        {
+            throw new InvalidOperationException(
+                $"{WorkerAzureClientFactory.DocumentIntelligenceEndpointKey} is required for {LiveOcrFeatureKey}.");
+        }
+        if ((!developmentOffline || liveOcr) && !string.IsNullOrEmpty(ocrEndpointValue))
         {
             if (string.IsNullOrWhiteSpace(ocrEndpointValue)
                 || !Uri.TryCreate(ocrEndpointValue, UriKind.Absolute, out var ocrEndpoint)
@@ -63,8 +70,16 @@ public static class WorkerDependencyInjection
 
             ocrOptions = AzureDocumentIntelligenceOptions.Create(ocrEndpoint);
         }
+        // The hosted test instance reads production's Document Intelligence
+        // account with its existing Graph app registration, granted Cognitive
+        // Services User on that account (ADR-0088 as amended, R931). Parsed
+        // here, so a missing Graph key fails the start naming it; handed to the
+        // OCR adapter alone, so the Graph clients and telemetry are unchanged.
+        var liveOcrCredential = liveOcr
+            ? LocalGraphCredential.Create(key => configuration[key], LiveOcrFeatureKey)
+            : null;
         var azureClientRegistration = developmentOffline
-            ? WorkerAzureClientFactory.CreateDevelopmentOffline(configuration)
+            ? WorkerAzureClientFactory.CreateDevelopmentOffline(configuration, liveOcr)
             : WorkerAzureClientFactory.CreateProduction(configuration);
 
         // Live Box custody offline keeps the production storage shape (blob-backed
@@ -171,13 +186,26 @@ public static class WorkerDependencyInjection
             services.AddProductionExternalAdapters(
                 productionOptions!.Value.Graph,
                 productionOptions.Value.Vehicle);
+        }
 
-            if (ocrOptions is not null)
+        if (ocrOptions is not null)
+        {
+            services.AddSingleton(ocrOptions);
+            if (liveOcrCredential is { } instanceCredential)
             {
-                services.AddSingleton(ocrOptions);
-                services.AddHttpClient<IIntakeOcrProvider, AzureDocumentIntelligenceOcr>();
-                services.AddScoped<IProcessIntakeOcr, ProcessIntakeOcr>();
+                services.AddHttpClient<IIntakeOcrProvider, AzureDocumentIntelligenceOcr>(
+                    (HttpClient httpClient, IServiceProvider provider) => new AzureDocumentIntelligenceOcr(
+                        provider.GetRequiredService<AzureDocumentIntelligenceOptions>(),
+                        httpClient,
+                        instanceCredential,
+                        provider.GetRequiredService<TimeProvider>()));
             }
+            else
+            {
+                // Production: the Worker's managed identity, the registered credential.
+                services.AddHttpClient<IIntakeOcrProvider, AzureDocumentIntelligenceOcr>();
+            }
+            services.AddScoped<IProcessIntakeOcr, ProcessIntakeOcr>();
         }
 
         services.AddScoped<IProcessQueuedVehicleLookup, ProcessQueuedVehicleLookup>();

@@ -134,11 +134,15 @@ internal static class WorkerAzureClientFactory
             credential);
     }
 
+    // With Features:LiveOcr on, the hosted test instance reads production's
+    // Document Intelligence account, so its endpoint is the one Production-only
+    // key DevelopmentOffline then permits (ADR-0088 as amended, R931).
     internal static WorkerAzureClientRegistration CreateDevelopmentOffline(
-        IConfiguration configuration)
+        IConfiguration configuration,
+        bool liveOcr)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-        EnsureProductionSettingsAreAbsent(configuration);
+        EnsureProductionSettingsAreAbsent(configuration, liveOcr);
 
         var queueConnectionString = configuration[DevelopmentStorageKey]
             ?? configuration.GetConnectionString(DevelopmentStorageKey)
@@ -219,10 +223,14 @@ internal static class WorkerAzureClientFactory
         }
     }
 
-    private static void EnsureProductionSettingsAreAbsent(IConfiguration configuration)
+    private static void EnsureProductionSettingsAreAbsent(IConfiguration configuration, bool liveOcr)
     {
         foreach (var key in ProductionOnlyKeys)
         {
+            if (liveOcr && key.Equals(DocumentIntelligenceEndpointKey, StringComparison.Ordinal))
+            {
+                continue;
+            }
             if (!string.IsNullOrWhiteSpace(configuration[key]))
             {
                 throw new InvalidOperationException(

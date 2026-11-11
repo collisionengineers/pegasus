@@ -23,8 +23,12 @@ as an absolute HTTPS URI and reuses the credential selected by
 `AzureIdentity:WorkerClientId`. It adds no API-key setting. An absent endpoint
 leaves the provider and processor unregistered; an OCR work row then fails
 closed through the existing external-work dispatcher. `DevelopmentOffline`
-rejects the endpoint setting and composes no OCR provider. The durable OCR
-store remains available to both hosts. Configuration, resource permission,
+rejects the endpoint setting and composes no OCR provider, unless
+`Features:LiveOcr` is on (11 November 2026, R931; see
+[local opt-in features](#local-opt-in-features)): then the endpoint is
+required, validated as in Production, and the same adapter and processor are
+composed over the hosted test instance's Graph app registration. The durable
+OCR store remains available to both hosts. Configuration, resource permission,
 deployment and live provider proof require their separately approved targets;
 local composition tests do not establish any of them.
 
@@ -92,7 +96,7 @@ Administrator changes, not deployment settings
 
 ## Local opt-in features
 
-The `DevelopmentOffline` profile accepts five opt-ins that a hosted local test
+The `DevelopmentOffline` profile accepts seven opt-ins that a hosted local test
 instance uses to reach the vendors it is allowed to. Each is read only in that
 profile; a Production host carrying one refuses to start naming the key, as it
 does for `Features:LocalIntake`.
@@ -104,6 +108,7 @@ does for `Features:LocalIntake`.
 | `Features:LiveGlass` | The Web composes the Glass's gateway from `Glass:*` at start. Without it, or in any host without Glass's, the Case page offers no Glass's control and refuses the command. |
 | `Features:LiveGuideValuation` | The Web composes the Glass's, Cazana and Brego guide valuations, as Production does, from production's accounts (`Glass:ValuationAccount:*`, `Cazana:CompanionAccount:*`, `Brego:ValuationAccount:*`), each checked at start naming the key; it requires `Features:LiveGlass`, whose options Glass's valuation reads. There is no Brego session store offline, so each Brego valuation signs in afresh (R709). Without it an offline host offers no Get valuation. |
 | `Features:LiveGraphMail` | Both hosts compose Production's Graph mail side (the mail client, the Inbox and Sent sources and their pollers, staff and report send and the answered-instruction move in the Worker; the mailbox resolver, access check, search and staff send in the Web) over a `ClientSecretCredential` built from `Graph:TenantId`, `Graph:ClientId` and `Graph:ClientSecret`, parsed at start. The Worker maintains change subscriptions only when `Graph:ChangeNotificationUrl` (the Funnelled webhook path on the instance's public host) and `Graph:ChangeNotificationClientState` are both set, checked at start: one without the other fails the start naming the missing key, and neither leaves the five-minute recovery poll to carry mail (ADR-0088 as amended, R675 to R677). |
+| `Features:LiveOcr` | The Worker composes Production's Document Intelligence OCR adapter and processor against `DocumentIntelligence:Endpoint`, production's account, which is otherwise a Production-only setting the profile refuses; the endpoint is required and validated as in Production. The adapter authenticates with a `ClientSecretCredential` built from `Graph:TenantId`, `Graph:ClientId` and `Graph:ClientSecret`, the registration `Features:LiveGraphMail` uses, which needs `Cognitive Services User` on that account; it is handed to the adapter alone. A missing endpoint or key fails the start naming it. No OCR opt-in existed before this one: without it an offline host composes no OCR provider and OCR work fails closed (ADR-0088 as amended, R931). |
 | `Features:PasswordSignIn` | The automatic offline sign-in stops answering; the Identity cookie and `/Account/SignIn` are used, and `--initialize-development` sets `DevelopmentOffline:AdministratorPassword` on the local Administrator each time it runs. The lifecycle requires it for a run with a public origin. |
 
 `Features:AutomationMcp` with `AutomationMcp:UseDevelopmentKeys` and

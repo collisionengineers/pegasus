@@ -27,15 +27,24 @@ public static class LocalGraphCredential
     /// <summary>The webhook's own bound on the client state it compares.</summary>
     private const int MaximumClientStateLength = 128;
 
-    public static TokenCredential Create(Func<string, string?> read)
+    public static TokenCredential Create(Func<string, string?> read) => Create(read, FeatureKey);
+
+    /// <summary>
+    /// The same registration's credential for another opt-in that presents it:
+    /// the Worker's <c>Features:LiveOcr</c> reads production's Document
+    /// Intelligence account with it (ADR-0088 as amended, R931). A missing key
+    /// names that opt-in.
+    /// </summary>
+    public static TokenCredential Create(Func<string, string?> read, string featureKey)
     {
         ArgumentNullException.ThrowIfNull(read);
-        var tenantId = RequireGuid(read, TenantIdKey);
-        var clientId = RequireGuid(read, ClientIdKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(featureKey);
+        var tenantId = RequireGuid(read, TenantIdKey, featureKey);
+        var clientId = RequireGuid(read, ClientIdKey, featureKey);
         var clientSecret = read(ClientSecretKey);
         if (string.IsNullOrWhiteSpace(clientSecret))
         {
-            throw new InvalidOperationException($"{ClientSecretKey} is required for {FeatureKey}.");
+            throw new InvalidOperationException($"{ClientSecretKey} is required for {featureKey}.");
         }
 
         return new ClientSecretCredential(tenantId.ToString("D"), clientId.ToString("D"), clientSecret);
@@ -86,16 +95,16 @@ public static class LocalGraphCredential
         return true;
     }
 
-    private static Guid RequireGuid(Func<string, string?> read, string key)
+    private static Guid RequireGuid(Func<string, string?> read, string key, string featureKey)
     {
         var value = read(key);
         if (string.IsNullOrWhiteSpace(value))
         {
-            throw new InvalidOperationException($"{key} is required for {FeatureKey}.");
+            throw new InvalidOperationException($"{key} is required for {featureKey}.");
         }
         if (!Guid.TryParse(value, out var parsed))
         {
-            throw new InvalidOperationException($"{key} must be a GUID for {FeatureKey}.");
+            throw new InvalidOperationException($"{key} must be a GUID for {featureKey}.");
         }
 
         return parsed;
