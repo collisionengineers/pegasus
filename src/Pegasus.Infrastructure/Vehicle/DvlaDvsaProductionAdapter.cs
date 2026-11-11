@@ -151,7 +151,11 @@ internal sealed class DvlaDvsaProductionAdapter(
         using var request = new HttpRequestMessage(HttpMethod.Post, uri);
         request.Headers.TryAddWithoutValidation("x-api-key", options.DvlaApiKey);
         request.Content = JsonContent.Create(new { registrationNumber = registration });
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await SendOrUnreachedAsync(request, cancellationToken);
+        if (response is null)
+        {
+            return new(null, false, new("dvla_unavailable", Retryable: true), "dvla-unreached", TimeSpan.Zero);
+        }
         var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
         var identity = Hash(body);
         if (response.StatusCode == HttpStatusCode.NotFound)
@@ -209,7 +213,11 @@ internal sealed class DvlaDvsaProductionAdapter(
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
         request.Headers.TryAddWithoutValidation("X-API-Key", options.DvsaApiKey);
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await SendOrUnreachedAsync(request, cancellationToken);
+        if (response is null)
+        {
+            return new(null, [], false, new("dvsa_unavailable", Retryable: true), "dvsa-unreached", TimeSpan.Zero);
+        }
         var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
         var identity = Hash(body);
         if (response.StatusCode == HttpStatusCode.NotFound)
@@ -298,7 +306,11 @@ internal sealed class DvlaDvsaProductionAdapter(
                     ["scope"] = options.DvsaScope
                 })
             };
-            using var response = await httpClient.SendAsync(request, cancellationToken);
+            using var response = await SendOrUnreachedAsync(request, cancellationToken);
+            if (response is null)
+            {
+                return new(null, new("dvsa_auth_unavailable", Retryable: true), "dvsa-auth-unreached");
+            }
             var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
             var identity = Hash(body);
             if (!response.IsSuccessStatusCode)
@@ -579,6 +591,30 @@ internal sealed class DvlaDvsaProductionAdapter(
             {
                 yield return (value, true);
             }
+        }
+    }
+
+    /// <summary>
+    /// Sends one provider request, answering null when no HTTP response came
+    /// back at all (connection, TLS or DNS). The caller reports that provider
+    /// unavailable and retryable, the failure a 5xx gives, so the queued
+    /// lookup takes its own back-off. Thrown out of the adapter, it was not a
+    /// failure the lookup knows: when DVSA refused the TLS handshake for 35
+    /// minutes on 9 November 2026 the queue redelivered within minutes and
+    /// poisoned the work with no observation and no later retry. The caller's
+    /// own cancellation still surfaces.
+    /// </summary>
+    private async Task<HttpResponseMessage?> SendOrUnreachedAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await httpClient.SendAsync(request, cancellationToken);
+        }
+        catch (HttpRequestException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return null;
         }
     }
 
