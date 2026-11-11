@@ -44,6 +44,7 @@ public sealed class IndexModel(
     ISearchCases searchCases,
     IGetCaseSectionFrame getCaseSectionFrame,
     ICaseDocumentQueries caseDocuments,
+    INotReadyCaseQueries notReadyCases,
     ICaseReportSnapshotSource reportSnapshotSource,
     ICaseReportGenerationStore reportGenerations,
     ICaseReportSendHistoryQueries reportSendHistory,
@@ -74,6 +75,8 @@ public sealed class IndexModel(
         getCaseSectionFrame ?? throw new ArgumentNullException(nameof(getCaseSectionFrame));
     private readonly ICaseDocumentQueries _caseDocuments =
         caseDocuments ?? throw new ArgumentNullException(nameof(caseDocuments));
+    private readonly INotReadyCaseQueries _notReadyCases =
+        notReadyCases ?? throw new ArgumentNullException(nameof(notReadyCases));
     private readonly ICaseReportSnapshotSource _reportSnapshotSource =
         reportSnapshotSource ?? throw new ArgumentNullException(nameof(reportSnapshotSource));
     private readonly ICaseReportGenerationStore _reportGenerations =
@@ -100,6 +103,15 @@ public sealed class IndexModel(
     /// detail does not read the same Engineer again.
     /// </summary>
     private IReadOnlyDictionary<Guid, string> _engineerNames = new Dictionary<Guid, string>();
+
+    /// <summary>
+    /// What holds each listed Not ready Case besides its instruction and
+    /// images, and the configuration its requirements are read against; read
+    /// once for the queue and kept for the selected row's detail (R929).
+    /// </summary>
+    private IReadOnlyDictionary<Guid, NotReadyCaseBlockers> _notReadyBlockers =
+        new Dictionary<Guid, NotReadyCaseBlockers>();
+    private CaseWorkflowConfiguration? _notReadyConfiguration;
 
     /// <summary>One rail entry: its key, label and icon.</summary>
     public sealed record Tab(string Key, string Label, string Icon);
@@ -517,6 +529,10 @@ public sealed class IndexModel(
 
         var items = result.Items.ToArray();
         _engineerNames = await EngineerNamesAsync(items, cancellationToken);
+        _notReadyConfiguration = await _workflowConfiguration.GetCurrentAsync(cancellationToken);
+        _notReadyBlockers = await _notReadyCases.GetBlockersAsync(
+            items.Select(item => item.CaseId).ToArray(),
+            cancellationToken);
         return items.Select(item => CaseRow(item, _engineerNames)).ToArray();
     }
 
@@ -626,28 +642,36 @@ public sealed class IndexModel(
         // aside states (issue 896), read from the same facts. In Not ready
         // and Held it is the first outstanding requirement in the aside's
         // order: Original report missing on an Audit without its report
-        // (R155), then the completeness facts the configuration requires.
-        // Only those states read the configuration, and only an Audit kept
-        // without standalone evidence reads whether its report is filed.
+        // (R155), then the completeness facts the configuration requires,
+        // the mileage among them (R759), behind a failed document storage,
+        // which holds the Case whatever else it has (R929). Only those states
+        // read the configuration. The Not ready queue has already read what
+        // holds each of its Cases; from any other queue only an Audit kept
+        // without standalone evidence reads whether its report is filed, and
+        // a Case past Not ready has passed the mileage gate.
         IReadOnlyList<string> missingRequirements = [];
         string? firstRequirement = null;
         if (CaseNextAction.ReadsTheRequirements(workflow))
         {
+            var listed = _notReadyBlockers.GetValueOrDefault(caseId);
             var configurationRead = _workflowConfiguration.GetCurrentAsync(cancellationToken);
-            var auditReportRead = OriginalReportPolicy.ReadsTheDocuments(summary.CaseType, frame.StandaloneAuditEvidenceId)
+            var auditReportRead = listed is null
+                && OriginalReportPolicy.ReadsTheDocuments(summary.CaseType, frame.StandaloneAuditEvidenceId)
                 ? _caseDocuments.HasCurrentAuditReportAsync(caseId, cancellationToken)
                 : Task.FromResult(false);
             await Task.WhenAll(configurationRead, auditReportRead);
-            // The list row carries no mileage, so a Case waiting only for its
-            // mileage reads its stage here; the Case page names the mileage (R759).
             missingRequirements = CaseCompletenessPolicy.Evaluate(
                 new(summary.InstructionComplete ?? false, summary.ImagesComplete ?? false),
                 configurationRead.Result,
-                mileageRecorded: true).MissingRequirements;
-            firstRequirement = OriginalReportPolicy.IsMissing(
-                summary.CaseType, frame.StandaloneAuditEvidenceId, auditReportRead.Result)
-                ? OperatorLabels.OriginalReportMissing
-                : missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null;
+                mileageRecorded: listed?.MileageRecorded ?? true).MissingRequirements;
+            var originalReportMissing = listed?.OriginalReportMissing
+                ?? OriginalReportPolicy.IsMissing(
+                    summary.CaseType, frame.StandaloneAuditEvidenceId, auditReportRead.Result);
+            firstRequirement = frame.CustodyState == CaseCustodyState.Failed
+                ? OperatorLabels.DocumentStorageFailed
+                : originalReportMissing
+                    ? OperatorLabels.OriginalReportMissing
+                    : missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null;
         }
         var outstanding = workflow.State == CaseLifecycleState.NotReady
             ? OperatorLabels.CaseRequirements(missingRequirements)
@@ -772,14 +796,43 @@ public sealed class IndexModel(
             ? $"{OperatorLabels.CaseStage(CaseLifecycleState.Held)} · review on {reviewOn.ToString("d MMM", CultureInfo.InvariantCulture)}"
             : OperatorLabels.CaseStage(item.State, item.HasOpenQuery);
 
-    /// <summary>What a Not ready Case is missing, from its recorded completeness facts.</summary>
-    public static string MissingText(CaseSearchItem item) => (item.InstructionComplete, item.ImagesComplete) switch
+    /// <summary>What a Not ready Case reads when nothing it needs is outstanding: one staff reopened to Not ready.</summary>
+    public const string ReviewPending = "Review pending";
+
+    /// <summary>
+    /// What holds a Not ready Case, in the words the Case page uses (operator,
+    /// 11 November 2026; R929): a failed document storage, then an Audit's
+    /// missing original report, then the requirements the configuration names
+    /// as missing, the mileage among them (R759), as "Instructions and
+    /// images" has always joined two. <see cref="ReviewPending"/> is left for
+    /// a Case that lacks none of them.
+    /// </summary>
+    public static string MissingText(
+        CaseSearchItem item,
+        CaseWorkflowConfiguration configuration,
+        NotReadyCaseBlockers? blockers)
     {
-        (false, false) => "Instructions and images",
-        (false, _) => "Instructions",
-        (_, false) => "Images",
-        _ => "Review pending"
-    };
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(configuration);
+        if (blockers is { CustodyFailed: true })
+        {
+            return OperatorLabels.DocumentStorageFailed;
+        }
+        if (blockers is { OriginalReportMissing: true })
+        {
+            return OperatorLabels.OriginalReportMissing;
+        }
+
+        var missing = configuration.MissingRequirements(
+            new(item.InstructionComplete ?? false, item.ImagesComplete ?? false),
+            mileageRecorded: blockers?.MileageRecorded ?? true);
+        return missing.Count switch
+        {
+            0 => ReviewPending,
+            1 => missing[0],
+            _ => $"{missing[0]} and {string.Join(" and ", missing.Skip(1)).ToLowerInvariant()}"
+        };
+    }
 
     private QueueRow CaseRow(CaseSearchItem item, IReadOnlyDictionary<Guid, string> engineers)
     {
@@ -787,7 +840,7 @@ public sealed class IndexModel(
         var chip = StateChipText(item);
         var last = Queue switch
         {
-            "not_ready" => new Cell(MissingText(item), CellKind.Chip, MissingText(item) == "Review pending" ? "neutral" : "amber"),
+            "not_ready" => NotReadyCell(item),
             // A With Engineer Case with no Engineer reads Unassigned (#1213, v41 W8).
             "with_engineer" => Cell.Of(item.EngineerId is { } engineerId
                 ? ActorDisplayNames.Resolve(ActorKind.Staff, engineerId.ToString("D"), engineers)
@@ -819,6 +872,15 @@ public sealed class IndexModel(
             [],
             Chip: chip,
             ChipTone: null);
+    }
+
+    private Cell NotReadyCell(CaseSearchItem item)
+    {
+        var missing = MissingText(
+            item,
+            _notReadyConfiguration ?? throw new InvalidOperationException("The Not ready queue was not read."),
+            _notReadyBlockers.GetValueOrDefault(item.CaseId));
+        return new Cell(missing, CellKind.Chip, missing == ReviewPending ? "neutral" : "amber");
     }
 
     private QueueRow ImageRow(ImageIntakeSummary item, int chaseIntervalDays)

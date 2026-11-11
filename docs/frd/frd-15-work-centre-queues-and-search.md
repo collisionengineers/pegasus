@@ -281,6 +281,15 @@ Engineer, Queries, Triage, Held (operator, 13 October 2026). Every queue
 button looks the same. There is no separate Unidentified queue.
 
 `?tab=` selects the queue. Not ready contains only formal instructed Cases.
+Its Missing column names what holds each Case, in the Case page's words
+(operator, 11 November 2026; R929): **Document storage failed** when the
+Case's storage failed; otherwise **Original report missing** on an Audit
+without its report; otherwise the requirements the configuration names as
+missing, Instructions, Vehicle mileage (R759) and Images, two of them joined
+as "Instructions and images" is. "Review pending" is left for a Case that
+lacks none of these, one staff reopened to Not ready. The quick detail's
+Current work and the Case's Next action name the same first requirement, a
+failed document storage ahead of the others and opening Files.
 Triage lists the Triage Cases still being worked: Open, Awaiting information
 and Finding recorded, the same states the Triages metric counts, and its
 count is theirs. A Completed or Cancelled Triage Case leaves the queue and is
