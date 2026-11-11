@@ -542,6 +542,32 @@ public static partial class OperatorLabels
     }
 
     /// <summary>
+    /// Administration › Unroadworthy reasons: the bank's wordings, their rows
+    /// and their confirmations and refusals (operator, 11 November 2026; R952
+    /// to R954). The area's own name lives in <see cref="Admin.UnroadworthyReasons"/>.
+    /// </summary>
+    public static class UnroadworthyReasons
+    {
+        public const string Wordings = "Wordings";
+        public const string Wording = "Wording";
+        public const string Save = "Save";
+        public const string Remove = "Remove";
+        public const string Add = "Add";
+        public const string Actions = "Actions";
+        public const string NoWordings = "No unroadworthy reason wordings are recorded.";
+        public const string Added = "The wording was added.";
+        public const string Saved = "The wording was saved.";
+        public const string Removed = "The wording was removed.";
+        public const string WordingRequired = "Enter a wording of up to 300 characters.";
+        public const string AlreadyOffered = "The bank already offers that wording.";
+        public const string Stale = "The wording changed after this page was loaded. Reload it and try again.";
+
+        /// <summary>The wording count the panel head shows under the title.</summary>
+        public static string WordingCount(int count) =>
+            count == 1 ? "1 wording" : $"{count} wordings";
+    }
+
+    /// <summary>
     /// The consolidated "Staff accounts &amp; roles" administration area —
     /// one list. The area's own name lives in
     /// <see cref="Admin.Accounts"/>; the three <see cref="StaffRole"/> names

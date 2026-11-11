@@ -471,16 +471,20 @@ counts as the matrix's. Opening the edit fills nothing. The Save records the
 value as it records a typed one, with no separate provenance. A Principal
 without a matrix changes nothing.
 
-**The unroadworthy reason bank (v28 P15).** An Engineer inserts a wording
-into the reason, joined to what is already there with "and", and may save
-the typed reason to the Principal's own bank. Seven standard wordings are
-offered to every firm; a firm's saved wordings follow them. The wordings
-print on the assessment report, so they are report wording. Nothing deletes
-a wording. The reason finishes the sentence the report prints: while editing,
-the reason row shows the sentence's fixed opening in the greyed value style
-before the box, and a wording inserted into an empty box keeps its small
-first letter; while reading, the row shows the whole sentence as printed
-(operator, 2 November 2026; R612).
+**The unroadworthy reason bank (v28 P15).** An Engineer inserts a wording into
+the reason, joined to what is already there with "and", and may save the typed
+reason to the bank. The bank is one list offered on every Case, oldest first,
+whichever Principal the Case belongs to (operator, 11 November 2026; R952,
+R954). The seven standard wordings are its first rows, no longer fixed in the
+code (R953). An Administrator adds, rewords and removes wordings on
+[Administration](frd-17-administration-workspace.md#unroadworthy-reasons); a
+reason already recorded on a Case is that Case's own text, so rewording or
+removing a wording never changes it (R955). The wordings print on the
+assessment report, so they are report wording. The reason finishes the
+sentence the report prints: while editing, the reason row shows the sentence's
+fixed opening in the greyed value style before the box, and a wording inserted
+into an empty box keeps its small first letter; while reading, the row shows
+the whole sentence as printed (operator, 2 November 2026; R612).
 
 Settlement saves with the Case's single workspace Save. Storage per day and
 recovery use the existing typed Inspection members. The repair total is read from the Current repair

@@ -13,6 +13,7 @@
             "problem-reports" => "/Administration/ProblemReports",
             "health" => "/Administration/Health",
             "valuation-presets" => "/Administration/ValuationPresets/Index",
+            "unroadworthy-reasons" => "/Administration/UnroadworthyReasons/Index",
             "contacts" => "/Administration/Contacts/Index",
             "email-templates" => "/Administration/EmailTemplates/Index",
             _ => string.Empty
@@ -56,6 +57,10 @@
         <a asp-page="/Administration/ValuationPresets/Index" aria-current="@Current("valuation-presets")">
             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-pound-sterling")" /></svg>
             <span>@OperatorLabels.Admin.ValuationPresets</span>
+        </a>
+        <a asp-page="/Administration/UnroadworthyReasons/Index" aria-current="@Current("unroadworthy-reasons")">
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-car")" /></svg>
+            <span>@OperatorLabels.Admin.UnroadworthyReasons</span>
         </a>
     </div>
     <div class="admin-nav__group" role="group" aria-labelledby="admin-nav-oversight">

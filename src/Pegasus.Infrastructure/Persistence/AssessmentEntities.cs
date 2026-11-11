@@ -130,11 +130,10 @@ internal sealed class CaseRepairSpecificationSnapshotEntity
     public bool SentOnReport { get; set; }
 }
 
-/// <summary>One wording in a firm's unroadworthy reason bank (v28 P15).</summary>
+/// <summary>One wording in the unroadworthy reason bank (v28 P15; R952).</summary>
 internal sealed class UnroadworthyReasonEntity
 {
     public Guid Id { get; set; }
-    public required string PrincipalCode { get; set; }
     public required string Text { get; set; }
     public required string CreatedBy { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
