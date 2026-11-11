@@ -517,6 +517,10 @@ operator, 15 and 19 October 2026,
 Results are one table (Case/PO and Claim reference, vehicle, claimant,
 principal, type, state, due; v41 W3, operator, 15 and 19 October 2026,
 [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+The Case/PO stays on one line in a column set wide enough for one, and a long
+Claim reference wraps onto further lines inside that column. The State column
+is set wide enough for its longest chip, and the other columns share the rest
+(operator, 11 November 2026, R945 to R947).
 Pointer or keyboard intent on a row shows a selected-Case preview beside the
 table (type, state, accident circumstances, Claim reference, Engineer, due,
 next action, outstanding requirements, Open Case, copy Case/PO). The accident
