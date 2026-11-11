@@ -91,6 +91,7 @@
                        every active preset, Add 20 % VAT, then the custom rows,
                        where an applied increase that is not an active preset opens. *@
                     var index = 0;
+                    var otherNumber = 0;
                     var vatDrawn = false;
                     foreach (var row in Model.ValuationIncreaseRows)
                     {
@@ -114,15 +115,19 @@
                         }
                         else
                         {
-                            <div class="add add--custom @(row.Selected ? "on" : null)" data-valuation-add="@index">
-                                <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" checked="@(row.Selected ? "checked" : null)" data-preset-toggle data-valuation-input aria-label="@ValuationLabels.OtherAddition" />
+                            @* An Other row counts once it is ticked and has a name and an
+                               amount above zero (R934). Its three controls are spoken by
+                               number, so the two rows can be told apart (R938). *@
+                            otherNumber++;
+                            <div class="add add--custom @(row.Selected ? "on" : null)" data-valuation-add="@index" data-valuation-other>
+                                <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" checked="@(row.Selected ? "checked" : null)" data-preset-toggle data-valuation-input aria-label="@ValuationLabels.OtherIncrease(otherNumber)" />
                                 <input type="hidden" name="selection.AdditionPresetId" value="@Guid.Empty" form="@lineForm" />
                                 <input type="hidden" name="selection.AdditionPresetVersion" value="0" form="@lineForm" />
                                 <input type="text" name="selection.AdditionLabel" form="@lineForm" maxlength="@ValuationCalculationPolicy.MaximumAdditionLabelLength"
-                                       value="@row.Label" placeholder="@ValuationLabels.OtherAddition" aria-label="@ValuationLabels.OtherAddition" data-valuation-input />
+                                       value="@row.Label" placeholder="@ValuationLabels.OtherAddition" aria-label="@ValuationLabels.OtherIncreaseName(otherNumber)" data-valuation-input />
                                 <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="@lineForm" placeholder="£"
                                        value="@row.Amount?.ToString("0.##", CultureInfo.InvariantCulture)"
-                                       aria-label="@ValuationLabels.OtherAddition amount" data-valuation-input />
+                                       aria-label="@ValuationLabels.OtherIncreaseAmount(otherNumber)" data-valuation-input />
                             </div>
                         }
                         index++;

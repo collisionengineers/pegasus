@@ -862,6 +862,18 @@ public static class CaseWorkspaceLabels
         public const string ClaimantVatRegistered = "Claimant is VAT registered";
         public const string ValueIncreases = "Value increases";
         public const string OtherAddition = "Other…";
+
+        /// <summary>
+        /// What an Other row's three controls are called aloud: the row shows
+        /// only its "Other…" placeholder, so each is named by the row's number
+        /// (operator, 11 November 2026; R938).
+        /// </summary>
+        public static string OtherIncrease(int number) =>
+            "Other increase " + number.ToString(CultureInfo.InvariantCulture);
+
+        public static string OtherIncreaseName(int number) => OtherIncrease(number) + " name";
+
+        public static string OtherIncreaseAmount(int number) => OtherIncrease(number) + " amount";
         public const string NoneYet = "None yet";
         public const string Applied = "Applied";
         public const string GuideMonth = "Guide month";

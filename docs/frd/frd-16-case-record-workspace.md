@@ -719,6 +719,16 @@ are. There is no Use this value button and no Apply (operator, 23 September
 The value increases are one list in two columns: every active preset with
 its figure, then **Add 20 % VAT** with its amount, then two **Other…** rows; a
 VAT-registered claimant's VAT row is disabled with that reason beside it.
+An **Other…** row is a value increase once it is ticked and has a name and an
+amount above zero. Until then the Save records nothing for it and refuses
+nothing because of it, and the page keeps the row as typed (operator, 11
+November 2026; R934). A name or an amount typed into an Other row, or a
+preset's amount changed, ticks that row; unticking is a click (R935). With no
+card chosen the Save records no calculation, so the page keeps the controls
+as the Engineer set them and they are applied once a card is chosen (R936).
+The two Other rows' controls are spoken as "Other increase 1", "Other
+increase 1 name" and "Other increase 1 amount", and the same for 2; the rows
+show only the "Other…" placeholder (R938).
 Reading lists only what the recorded calculation applied, each with a tick,
 and the calculator opens on that applied selection while the Engineer's Value
 holds that calculation's figure. The deductions are the **Condition

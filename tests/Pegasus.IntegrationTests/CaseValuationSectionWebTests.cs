@@ -447,6 +447,84 @@ public sealed class CaseValuationSectionWebTests
     }
 
     /// <summary>
+    /// An Other row counts once it is ticked and has a name and an amount
+    /// above zero (operator, 11 November 2026; R934). A ticked row short of
+    /// either is still being typed: the Save records no calculation for it and
+    /// refuses nothing, and the preview works the figure out without it. The
+    /// two rows' controls are spoken by number (R938).
+    /// </summary>
+    [Fact]
+    public async Task AnOtherRowCountsOnceItHasANameAndAnAmount()
+    {
+        var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
+        var preset = valuation.AddPreset("Tow bar", 150m);
+        var preview = new RecordingPreview();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ISaveCaseWorkspace>(services, store);
+            Substitute<IPreviewValuationCalculation>(services, preview);
+        });
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+        Assert.Equal(2, Regex.Count(html, "data-valuation-add=\"[12]\" data-valuation-other>", RegexOptions.CultureInvariant));
+        for (var number = 1; number <= 2; number++)
+        {
+            Assert.Contains($"aria-label=\"Other increase {number}\"", html, StringComparison.Ordinal);
+            Assert.Contains($"aria-label=\"Other increase {number} name\"", html, StringComparison.Ordinal);
+            Assert.Contains($"aria-label=\"Other increase {number} amount\"", html, StringComparison.Ordinal);
+        }
+        var opening = WebUtility.HtmlDecode(InputValue(html, "selection.Opening"));
+
+        // The preset stands unticked in row 0; the first Other row, row 1, is ticked.
+        (string, string)[] TickedOther(string name, string amount, params (string, string)[] more) =>
+        [
+            ("selection.Opening", opening),
+            ("selection.GuideValuationId", glasses.ValuationId.ToString("D")),
+            ("selection.PriorTotalLossPercentage", ""),
+            ("selection.ConditionDeduction", ""),
+            ("selection.AdditionSelected[0]", "1"),
+            ("selection.AdditionPresetId[0]", preset.Id.ToString("D")),
+            ("selection.AdditionPresetVersion[0]", preset.Version.ToString(CultureInfo.InvariantCulture)),
+            ("selection.AdditionLabel[0]", ""),
+            ("selection.AdditionAmount[0]", "150"),
+            ("selection.AdditionPresetId[1]", Guid.Empty.ToString("D")),
+            ("selection.AdditionPresetVersion[1]", "0"),
+            ("selection.AdditionLabel[1]", name),
+            ("selection.AdditionAmount[1]", amount),
+            .. more,
+        ];
+        async Task<CaseWorkspaceValuation?> SaveAsync(string operationKey, string claimNumber, string name, string amount)
+        {
+            using var response = await workspace.Client.PostAsync(
+                $"/Cases/{store.CaseId:D}?handler=Save",
+                workspace.MutationForm(operationKey, "Saved the claim", TickedOther(name, amount, ("claimNumber", claimNumber))));
+            AssertPrg(response, store.CaseId);
+            return store.Saves[^1].Valuation;
+        }
+
+        Assert.Null(await SaveAsync(DetailsModelOperationKey, "CLM-1", "", ""));
+        Assert.Null(await SaveAsync("5f5e5d5c5b5a59585756555453525150", "CLM-2", "Roof rack", ""));
+        Assert.Null(await SaveAsync("6f6e6d6c6b6a69686766656463626160", "CLM-3", "", "250"));
+        Assert.Null(await SaveAsync("7f7e7d7c7b7a79787776757473727170", "CLM-4", "Roof rack", "0"));
+        var counted = await SaveAsync("8f8e8d8c8b8a89888786858483828180", "CLM-5", "Roof rack", "250");
+        Assert.Equal(5, store.Saves.Count);
+        var addition = Assert.Single(counted!.Adoption!.Additions);
+        Assert.Equal(Guid.Empty, addition.PresetId);
+        Assert.Equal("Roof rack", addition.Label);
+        Assert.Equal(250m, addition.Amount);
+
+        // The preview is the same reading: an amount with no name yet is
+        // left out, not handed to Core to refuse.
+        using var typing = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=PreviewValuation",
+            Form(workspace.AntiforgeryToken, TickedOther("", "250")));
+        Assert.Equal(HttpStatusCode.OK, typing.StatusCode);
+        Assert.Empty(Assert.Single(preview.Requests).Selection.Additions);
+    }
+
+    /// <summary>
     /// A source with a connected provider is offered Get valuation and keeps
     /// its notice hidden until the request is refused; the sources without one
     /// say so on their cards now.
