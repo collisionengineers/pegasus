@@ -104,6 +104,39 @@ public sealed class ProductionVehicleLookupTests
         Assert.Equal(VehicleMileageUnit.Kilometres, latest.MileageUnit);
     }
 
+    /// <summary>
+    /// The day the vehicle was first registered travels with the answer for
+    /// the MOT mileage estimate (R926): DVSA's <c>firstUsedDate</c>, which it
+    /// documents as that day, else its <c>registrationDate</c>, in either
+    /// date shape the API writes. Invented values; none is made up where DVSA
+    /// gives neither.
+    /// </summary>
+    [Fact]
+    public async Task DvsaFirstRegistrationDateTravelsWithTheAnswer()
+    {
+        Assert.Equal(
+            new DateOnly(2007, 6, 29),
+            await FirstRegisteredOnAsync(
+                """{"make":"TOYOTA","model":"ALPHARD","firstUsedDate":"2007-06-29T00:00:00.000Z","registrationDate":"2019-01-07","motTests":[]}"""));
+        Assert.Equal(
+            new DateOnly(2023, 1, 17),
+            await FirstRegisteredOnAsync(
+                """{"make":"FORD","model":"FOCUS","registrationDate":"2023-01-17","motTests":[]}"""));
+        Assert.Null(await FirstRegisteredOnAsync("""{"make":"FORD","model":"FOCUS","motTests":[]}"""));
+
+        static async Task<DateOnly?> FirstRegisteredOnAsync(string dvsaBody)
+        {
+            using var adapter = Create(request =>
+                request.RequestUri!.Host == "driver-vehicle-licensing.api.gov.uk"
+                    ? Json(HttpStatusCode.OK, """{"make":"FORD","yearOfManufacture":2023}""")
+                    : request.RequestUri.Host == "login.microsoftonline.com"
+                        ? Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""")
+                        : Json(HttpStatusCode.OK, dvsaBody));
+            var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+            return result.FirstRegisteredOn;
+        }
+    }
+
     [Fact]
     public async Task DvsaPrimaryColourDescribesTheColourVesDoesNotGive()
     {

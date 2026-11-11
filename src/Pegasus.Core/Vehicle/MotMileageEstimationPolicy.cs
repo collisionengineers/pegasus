@@ -95,6 +95,10 @@ public sealed record MotMileageSegment(
 /// Everything the answer rests on, each kept distinct: the raw tests, the
 /// normalised readings, what was set aside and why, the segments with their
 /// rate and holdouts, and the method that assembled them.
+/// <paramref name="Lifetime"/> is the interval from zero miles at first
+/// registration to the latest reading, present only where the forecast had no
+/// rate of its own and weighed it (operator, 11 November 2026; R926). It
+/// belongs to no segment, so it carries no weight.
 /// </summary>
 public sealed record MotMileageEvidence(
     string MethodKey,
@@ -103,7 +107,8 @@ public sealed record MotMileageEvidence(
     IReadOnlyList<MotMileageSetAsideObservation> SetAsideObservations,
     IReadOnlyList<MotMileageReading> Readings,
     IReadOnlyList<MotMileageInterval> Intervals,
-    IReadOnlyList<MotMileageSegment> Segments);
+    IReadOnlyList<MotMileageSegment> Segments,
+    MotMileageInterval? Lifetime = null);
 
 /// <summary>
 /// The answer for <paramref name="AsOf"/>, always in miles. Only an Exact or
@@ -149,13 +154,19 @@ public sealed record MotMileageEstimate(
 /// cohort prior is read. Any usable reading gives a figure (operator, 5
 /// November 2026); only a day whose readings disagree, an odometer drop, or a
 /// history with no usable reading gives a qualified range or an abstention.
+/// A first odometer with no clean interval is carried forward at the
+/// vehicle's lifetime rate, the latest reading over the days since first
+/// registration (operator, 11 November 2026; R926).
 /// </summary>
 public static class MotMileageEstimationPolicy
 {
     public const string MethodKey = "mot-mileage-estimate";
 
-    /// <summary>Changing any tuning constant below bumps this version.</summary>
-    public const int MethodVersion = 2;
+    /// <summary>
+    /// Changing any tuning constant below bumps this version. Version 3
+    /// carries a history with no rate forward at the lifetime rate (R926).
+    /// </summary>
+    public const int MethodVersion = 3;
 
     /// <summary>Tests within this many days after a failed test are its retests.</summary>
     public const int RetestWindowDays = 30;
@@ -181,8 +192,15 @@ public static class MotMileageEstimationPolicy
 
     private const string FailedTestStatus = "FAILED";
 
-    /// <summary>The mileage on <paramref name="asOf"/>; the same answer for any input order.</summary>
-    public static MotMileageEstimate Estimate(IReadOnlyList<MotTestObservation> observations, DateOnly asOf)
+    /// <summary>
+    /// The mileage on <paramref name="asOf"/>; the same answer for any input
+    /// order. <paramref name="firstRegisteredOn"/> is the day the odometer is
+    /// taken to have read zero, where the provider gave one.
+    /// </summary>
+    public static MotMileageEstimate Estimate(
+        IReadOnlyList<MotTestObservation> observations,
+        DateOnly asOf,
+        DateOnly? firstRegisteredOn = null)
     {
         ArgumentNullException.ThrowIfNull(observations);
 
@@ -237,12 +255,13 @@ public static class MotMileageEstimationPolicy
         return Array.Exists(onDate, test => VehicleMileagePolicy.UnusableReason(test) is null)
             || segments.Count == 0
             ? Abstain(asOf, MotMileageAbstentionReason.ConflictingReadings, evidence)
-            : FromSegments(segments, asOf, evidence);
+            : FromSegments(segments, asOf, firstRegisteredOn, evidence);
     }
 
     private static MotMileageEstimate FromSegments(
         List<MotMileageSegment> segments,
         DateOnly asOf,
+        DateOnly? firstRegisteredOn,
         MotMileageEvidence evidence)
     {
         var first = segments[0].Readings[0];
@@ -298,10 +317,22 @@ public static class MotMileageEstimationPolicy
 
         // After the latest reading there is always a figure (operator, 5
         // November 2026): the latest reading carried forward at the segment's
-        // rate, or as it stands where no clean interval gives a rate. Holdouts
-        // narrow the interval where there are any; otherwise it runs from the
-        // latest reading to the plausibility ceiling.
-        var forecast = current.MilesPerDay is { } rate ? last.Miles + Round(rate * days) : last.Miles;
+        // rate. Where no clean interval gives one, a first odometer is carried
+        // forward at the vehicle's lifetime rate (operator, 11 November 2026;
+        // R926); a later odometer no longer counts from first registration, so
+        // its reading stands, as does one whose lifetime gives no rate.
+        // Holdouts narrow the interval where there are any; otherwise it runs
+        // from the latest reading to the plausibility ceiling.
+        var rate = current.MilesPerDay;
+        if (rate is null && index == 0 && firstRegisteredOn is { } registered && registered < last.ObservedOn)
+        {
+            var lifetime = Between(new(registered, 0), last);
+            lifetime = lifetime with { SetAsideReason = LimitReason(lifetime) };
+            evidence = evidence with { Lifetime = lifetime };
+            rate = lifetime.SetAsideReason is null ? lifetime.MilesPerDay : null;
+        }
+
+        var forecast = rate is { } perDay ? last.Miles + Round(perDay * days) : last.Miles;
         if (current.Holdouts.Count == 0)
         {
             return Estimated(asOf, forecast, last.Miles, ceiling, evidence);
@@ -389,12 +420,7 @@ public static class MotMileageEstimationPolicy
             }
 
             groups[^1].Intervals.Add(intervals.Count);
-            intervals.Add(interval with
-            {
-                SetAsideReason = interval.Days < MinIntervalDays ? MotMileageSetAsideReason.ShortSpan
-                    : interval.MilesPerDay > MaxPlausibleMilesPerDay ? MotMileageSetAsideReason.ImplausibleRate
-                    : null
-            });
+            intervals.Add(interval with { SetAsideReason = LimitReason(interval) });
             groups[^1].Points.Add(point);
             previous = point;
         }
@@ -475,6 +501,12 @@ public static class MotMileageEstimationPolicy
     /// <summary>The widest miss per day among the segment's holdouts.</summary>
     private static decimal ErrorRate(MotMileageSegment segment) =>
         segment.Holdouts.Max(holdout => Math.Abs(holdout.ErrorMiles) / (decimal)holdout.Days);
+
+    /// <summary>Why a rising interval is too short or too steep to give a rate, or null when it is clean.</summary>
+    private static MotMileageSetAsideReason? LimitReason(MotMileageInterval interval) =>
+        interval.Days < MinIntervalDays ? MotMileageSetAsideReason.ShortSpan
+        : interval.MilesPerDay > MaxPlausibleMilesPerDay ? MotMileageSetAsideReason.ImplausibleRate
+        : null;
 
     private static MotMileageInterval Between(MotMileagePoint start, MotMileagePoint end)
     {

@@ -114,7 +114,8 @@ internal sealed class DvlaDvsaProductionAdapter(
                 retrievedAtUtc - sourceAge,
                 vehicle,
                 dvsa.Tests,
-                failure);
+                failure,
+                dvsa.FirstRegisteredOn);
         }
         else if (dvla.NotFound && dvsa.NotFound)
         {
@@ -267,7 +268,8 @@ internal sealed class DvlaDvsaProductionAdapter(
                 false,
                 null,
                 identity,
-                response.Headers.Age ?? TimeSpan.Zero);
+                response.Headers.Age ?? TimeSpan.Zero,
+                vehicles.Select(ParseFirstRegistration).FirstOrDefault(item => item is not null));
         }
         catch (JsonException)
         {
@@ -397,6 +399,19 @@ internal sealed class DvlaDvsaProductionAdapter(
                     Text(value, "primaryColour"),
                     null),
                 null);
+
+    /// <summary>
+    /// The day the vehicle was first registered, which the MOT mileage
+    /// estimate takes as the odometer's zero (R926): DVSA's
+    /// <c>firstUsedDate</c>, else its <c>registrationDate</c> (operator, 11
+    /// November 2026; R927). DVSA documents the first as "the date the vehicle
+    /// was first registered" and the second as "the date the vehicle was
+    /// registered"; they differ for an import, whose odometer ran before it
+    /// was registered here.
+    /// </summary>
+    private static DateOnly? ParseFirstRegistration(JsonElement value) =>
+        ParseProviderDate(Text(value, "firstUsedDate"))
+        ?? ParseProviderDate(Text(value, "registrationDate"));
 
     /// <summary>
     /// The MOT History API writes <c>manufactureDate</c> as a full instant for
@@ -644,6 +659,7 @@ internal sealed class DvlaDvsaProductionAdapter(
         bool NotFound,
         VehicleLookupFailure? Failure,
         string Identity,
-        TimeSpan ResponseAge);
+        TimeSpan ResponseAge,
+        DateOnly? FirstRegisteredOn = null);
     private sealed record TokenResult(string? Token, VehicleLookupFailure? Failure, string Identity);
 }
