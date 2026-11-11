@@ -9,7 +9,9 @@ namespace Pegasus.Core.Intake;
 /// The one owner of which images are the instruction's evidence photographs.
 /// Retention applies the photograph rule to every image a reading yields,
 /// attached, inline or embedded in a PDF or Word document alike, so only
-/// photographs are stored as images; a directly uploaded image source is
+/// photographs are stored as images, and letterhead art is never one (a
+/// picture on every page of a PDF, or in a Word document's header or
+/// footer); a directly uploaded image source is
 /// always kept. One photograph carried twice (attached and embedded, or
 /// repeated across pages) appears once, preferring the attached copy.
 /// Custody promotion and the case evidence gallery both resolve through
@@ -93,7 +95,8 @@ public static class InstructionEvidenceImages
     /// The reader candidates that become separately retained receipt assets:
     /// those <see cref="IsRetentionCandidate"/> keeps, less letterhead art,
     /// meaning an image placed on every page of a PDF of two or more pages
-    /// (operator, 22 October 2026). Inside a capture PDF an image must also
+    /// (operator, 22 October 2026) or in a Word document's header or footer
+    /// (operator, 11 November 2026, R939). Inside a capture PDF an image must also
     /// be one of its designated photographs (FRD-02 EXT-17). The capture
     /// designation is the caller's, computed once per reading and shared with
     /// the assessment.
@@ -120,15 +123,22 @@ public static class InstructionEvidenceImages
     internal static IEqualityComparer<ReadOnlyMemory<byte>> SameBytes { get; } = new SameBytesComparer();
 
     /// <summary>
-    /// The embedded images whose content is placed on every page of a PDF of
-    /// two or more pages. A PDF whose image read stopped early has pages
-    /// without placements, so its images are kept. One pass groups the
-    /// embedded images by the PDF that carries them, and each group is checked
-    /// against its own PDF's page count.
+    /// The embedded images a Word document places in a header or footer
+    /// (R939), and those whose content is placed on every page of a PDF of
+    /// two or more pages. U76's only "photograph" was the first kind: a
+    /// 1112x1414 letterhead laid behind the text from the header of an
+    /// instruction letter, which the size rule alone keeps. A picture in the
+    /// body of a Word document is not letterhead and is judged by its shape.
+    ///
+    /// A PDF whose image read stopped early has pages without placements, so
+    /// its images are kept. One pass groups the embedded images by the PDF
+    /// that carries them, and each group is checked against its own PDF's
+    /// page count.
     /// </summary>
     private static HashSet<IntakeAssetCandidate> LetterheadArt(IntakeSourceReadResult readResult)
     {
         var art = new HashSet<IntakeAssetCandidate>(ReferenceEqualityComparer.Instance);
+        art.UnionWith(readResult.AssetCandidates.Where(candidate => candidate.InHeaderOrFooter));
         var pageCounts = readResult.PdfReadings
             .Where(pdf => pdf.PageCount >= 2)
             .ToLookup(pdf => pdf.SourceLabel, pdf => pdf.PageCount, StringComparer.Ordinal);

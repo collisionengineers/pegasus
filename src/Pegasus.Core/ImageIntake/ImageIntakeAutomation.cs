@@ -310,7 +310,8 @@ public sealed class ImageIntakeAutomation(
 
     /// <summary>
     /// An e-mail filed as a file has the photographs inside its PDF read
-    /// (operator, 28 October 2026, R474) and those attached beside it
+    /// (operator, 28 October 2026, R474), those inside its Word document
+    /// (11 November 2026, R940) and those attached beside it
     /// (6 November 2026, R733), and so does a photos-only e-mail the pipeline
     /// classified (R733, "Also photos-only mail"). Every photograph gets its
     /// durable recognition outcome; the one registration they agree on is a

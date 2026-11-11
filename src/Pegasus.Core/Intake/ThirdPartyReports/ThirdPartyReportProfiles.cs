@@ -335,7 +335,8 @@ public static class ThirdPartyReportProfiles
     ///
     /// A source carrying a PDF is one too, whatever its issuer (operator,
     /// 22 October 2026): any PDF a source carries, and an uploaded PDF with a
-    /// readable text layer. One signal covers the whole source, so its loose
+    /// readable text layer. So is a source carrying a Word document (operator,
+    /// 11 November 2026, R940). One signal covers the whole source, so its loose
     /// photographs are filed with it once its Case is matched. A capture PDF is
     /// known from the reading's capture designation, the one retention already
     /// made, so its signature is not matched a second time.
@@ -347,7 +348,7 @@ public static class ThirdPartyReportProfiles
         ArgumentNullException.ThrowIfNull(readResult);
         ArgumentNullException.ThrowIfNull(capture);
 
-        if (CarriesPdfDocument(readResult, capture))
+        if (CarriesDocument(readResult, capture))
         {
             return true;
         }
@@ -365,17 +366,21 @@ public static class ThirdPartyReportProfiles
     }
 
     /// <summary>
-    /// Whether the source carries a PDF that makes it a document carrier (R296,
-    /// R297): read from the reader's PDF readings alone, with no page read and
-    /// no signature match. An incomplete read asks only this.
+    /// Whether the source carries a file that makes it a document carrier: a
+    /// PDF (R296, R297) or a Word document (R940). U76 was an instruction
+    /// letter sent as a .docx, whose e-mail became Unidentified because only a
+    /// PDF counted. Read from what the reader states it opened, with no page
+    /// read and no signature match. An incomplete read asks only this. A Word
+    /// document uploaded on its own is the source, not a file it carries.
     /// </summary>
-    internal static bool CarriesPdfDocument(IntakeSourceReadResult readResult, VehicleCaptureDesignation capture)
+    internal static bool CarriesDocument(IntakeSourceReadResult readResult, VehicleCaptureDesignation capture)
     {
         ArgumentNullException.ThrowIfNull(readResult);
         ArgumentNullException.ThrowIfNull(capture);
 
         return capture.Documents.Count == 0
-            && readResult.PdfReadings.Any(pdf => !pdf.IsRoot || pdf.HasTextLayer);
+            && (readResult.CarriesWordDocument
+                || readResult.PdfReadings.Any(pdf => !pdf.IsRoot || pdf.HasTextLayer));
     }
 
     /// <summary>

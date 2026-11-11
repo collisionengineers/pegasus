@@ -585,6 +585,11 @@ public sealed record IntakeAssetBounds(
 /// The reader records it for every JPEG and PNG that decodes; it is used
 /// before storage and never persisted.
 /// </param>
+/// <param name="InHeaderOrFooter">
+/// Whether a Word document places the image in a header or footer. The reader
+/// states where the image sits and <see cref="InstructionEvidenceImages"/>
+/// decides what that means; like the fingerprint it is never persisted.
+/// </param>
 public sealed record IntakeAssetCandidate(
     string SourceLabel,
     string FileName,
@@ -596,7 +601,8 @@ public sealed record IntakeAssetCandidate(
     IntakeAssetBounds? Bounds = null,
     int? WidthPixels = null,
     int? HeightPixels = null,
-    ulong? Fingerprint = null);
+    ulong? Fingerprint = null,
+    bool InHeaderOrFooter = false);
 
 public sealed record ScannedPdfOcrCandidate(
     string SourceLabel,
@@ -614,6 +620,12 @@ public sealed record IntakePdfReading(
     int PageCount,
     bool HasTextLayer);
 
+/// <param name="CarriesWordDocument">
+/// Whether the source carries a Word document (.doc or .docx) rather than
+/// being one. The reader states it before it opens the file, so a Word
+/// document it could not open, or whose read a limit stopped, is still one
+/// the source carries.
+/// </param>
 public sealed record IntakeSourceReadResult(
     IntakeSourceReadStatus Status,
     IReadOnlyList<IntakeContentFragment> Content,
@@ -630,7 +642,8 @@ public sealed record IntakeSourceReadResult(
     IReadOnlyList<IntakeAttachmentDescriptor>? Attachments = null,
     IReadOnlyList<IntakeContentFragment>? Companions = null,
     IntakeEmailSummary? RootEmail = null,
-    IReadOnlyList<IntakePdfReading>? Pdfs = null)
+    IReadOnlyList<IntakePdfReading>? Pdfs = null,
+    bool CarriesWordDocument = false)
 {
     public IReadOnlyList<IntakeAssetCandidate> AssetCandidates => Assets ?? [];
 
