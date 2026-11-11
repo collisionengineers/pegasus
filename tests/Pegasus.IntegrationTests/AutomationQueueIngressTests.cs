@@ -202,6 +202,7 @@ public sealed class AutomationQueueIngressTests
         var token = await RequestTokenAsync(client, "automation.intake");
 
         long version;
+        Guid routeCaseId;
         using (var response = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_intake_get", new { receiptId = informal.Id })))
         {
             var detail = await ReadStructuredContentAsync(response);
@@ -225,6 +226,26 @@ public sealed class AutomationQueueIngressTests
             var accepted = await ReadStructuredContentAsync(response);
             Assert.Equal("Succeeded", accepted.GetProperty("allocationStatus").GetString());
             Assert.StartsWith(QdosPrincipal.Code, accepted.GetProperty("caseReference").GetString(), StringComparison.Ordinal);
+            routeCaseId = accepted.GetProperty("caseId").GetGuid();
+        }
+
+        // Nothing was extracted from this item, so it has no extraction
+        // policy: its facts are the ones keyed on Create case and are kept as
+        // that, under the acceptance policy. Requiring an extraction policy
+        // for them refused every Case from an item with no profile.
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+            var claimant = await context.CaseDataFields.AsNoTracking()
+                .SingleAsync(item => item.WorkId == routeCaseId
+                    && item.FieldName == CaseDataFieldNames.ClaimantName
+                    && item.ValueKind == CaseDataCodes.Fact);
+            Assert.Equal("Route Claimant", claimant.Value);
+            Assert.Equal(CaseDataCodes.StaffCorrection, claimant.SourceKind);
+            Assert.Null(await context.IntakeReceipts.AsNoTracking()
+                .Where(item => item.Id == informal.Id)
+                .Select(item => item.ExtractionPolicyKey)
+                .SingleAsync());
         }
 
         using (var response = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_intake_get", new { receiptId = conflicting.Id })))
