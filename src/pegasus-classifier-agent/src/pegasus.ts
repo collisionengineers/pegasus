@@ -40,6 +40,8 @@ export interface MailSummary {
   /** The received item a Case is created from; null for mail intake never took. */
   intakeReceiptId: string | null;
   classification: ClassificationResult | null;
+  /** Who decided the current type, as get's currentActor names it; null with no decision. */
+  classificationActor: string | null;
 }
 
 export interface MailPage {

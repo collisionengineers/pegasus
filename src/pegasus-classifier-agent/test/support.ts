@@ -42,6 +42,7 @@ export function mail(options: MailOptions = {}): MailDetail {
       isTriageCase: false,
       intakeReceiptId: options.receiptId === undefined ? randomUUID() : options.receiptId,
       classification: current,
+      classificationActor: options.actor ?? "system-worker:legacy-intake",
     },
     toAddresses: ["desk@example.test"],
     ccAddresses: [],

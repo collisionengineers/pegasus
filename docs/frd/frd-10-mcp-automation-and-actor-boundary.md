@@ -492,7 +492,10 @@ replays by its operation key.
   page also carries `awaitingDecisionCount`: the Inbox messages, not
   dismissed, whose classification the pipeline decided and that are
   Unclassified or have no Case, counted outside the list's own filters so
-  that a list hiding mail shows (operator, 4 November 2026, R735).
+  that a list hiding mail shows (operator, 4 November 2026, R735). Each row
+  names who decided its current type in `classificationActor`, so a caller
+  that works only pipeline-decided mail passes over the rest without reading
+  each message.
 - `pegasus_mail_correct_classification` takes `correspondence`, one of the
   four category codes, or `new-instruction:Inspection` (and Audit,
   InspectionAndAudit), with a reason, as the staff Type select does

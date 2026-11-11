@@ -33,6 +33,28 @@ describe("eligibility", () => {
       assert.ok(!isEligible(mail({ actor })), actor);
     }
   });
+
+  it("passes over a row the pipeline did not decide without reading it", async () => {
+    assert.ok(isCandidate(mail().summary));
+    const decided = ["staff:alex", "automation:pegasus-automation", "principal:qdos"].map((actor) => mail({ actor }));
+    for (const detail of decided) {
+      assert.ok(!isCandidate(detail.summary), detail.classification!.currentActor);
+    }
+    const undecided = { ...mail().summary, classification: null, classificationActor: null };
+    assert.ok(!isCandidate(undecided));
+
+    let reads = 0;
+    const collected = await collectBatch(
+      { scanPages: 1, batch: 20 },
+      {
+        list: async (): Promise<MailPage> => ({ items: decided.map((detail) => detail.summary), continuation: null, awaitingDecisionCount: 0 }),
+        get: async () => { reads++; return decided[0]; },
+        linkDestinations: async () => [],
+      },
+      new MemoryReviewedStore());
+    assert.equal(reads, 0);
+    assert.equal(collected.candidatesListed, 0);
+  });
 });
 
 describe("the turn budget (#1918)", () => {

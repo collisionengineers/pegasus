@@ -108,6 +108,7 @@ export class FixturePegasus implements ClassifierPegasus {
     };
     detail.classification = next;
     detail.summary.classification = next.current;
+    detail.summary.classificationActor = next.currentActor;
     this.writes.push({
       kind: "classify",
       messageId: args.messageId,
