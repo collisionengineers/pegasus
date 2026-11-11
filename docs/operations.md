@@ -5,6 +5,19 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Production Worker mail move grant - 11 November 2026
+
+- Read-only, after Release 3.0.0 (#2085): the Worker identity
+  `pegasus-prod-worker-id-252ow37gij` already moves mail in
+  `instructions@collisionengineers.co.uk`. Its answered-instruction tidy
+  (ADR-0071) has 16 `StaffMailSendOperations` rows `Moved`, the latest at
+  12:40 UTC, none failed. Delete case correspondence moves through the same
+  `GraphRetainedMessageMover` under the same identity, and
+  `instructions@` is the only production mailbox holding retained Inbox mail
+  (desk@ and engineers@ hold Sent Items only; info@ is Disabled). No Exchange
+  grant was changed; an Incoming mailbox added later needs the Worker's
+  scoped `Mail.ReadWrite` first ([runbook](runbook.md#runbook-admitting-a-new-mailbox-to-the-tenant)).
+
 ## Test instance OCR identity admitted - 11 November 2026
 
 - On R931, the `CollisionSpike Graph Intake` registration's service principal
