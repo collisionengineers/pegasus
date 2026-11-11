@@ -321,14 +321,16 @@ public sealed class CaseAssetPreparationWebTests
         Assert.True(block >= 0, "The Images tab draws no story block.");
         Assert.DoesNotContain("data-image-grid>", html, StringComparison.Ordinal);
         var storyBlock = html[block..];
-        Assert.Contains("Overview all the way round", storyBlock, StringComparison.Ordinal);
+        // One gallery with no story headings (v51 H; R948), led by the link's bar.
+        Assert.DoesNotContain("Overview all the way round", storyBlock, StringComparison.Ordinal);
+        Assert.Contains("data-photo-link-bar", html, StringComparison.Ordinal);
         var movable = Card(storyBlock, fixture.FirstSupportingOccurrenceId);
         Assert.Contains("class=\"grip\"", movable, StringComparison.Ordinal);
         Assert.Contains("data-preparation-order=\"3\"", movable, StringComparison.Ordinal);
         var pinned = Card(storyBlock, fixture.CloseUpOccurrenceId);
         Assert.DoesNotContain("class=\"grip\"", pinned, StringComparison.Ordinal);
         Assert.Contains("data-preparation-fixed=\"true\"", pinned, StringComparison.Ordinal);
-        // The images the story does not hold follow under Other images, in the same block.
+        // The images the story does not hold follow in the same grid.
         Assert.Contains("class=\"grip\"", Card(storyBlock, fixture.SecondSupportingOccurrenceId), StringComparison.Ordinal);
     }
 
@@ -338,7 +340,7 @@ public sealed class CaseAssetPreparationWebTests
     private sealed class StoryOnly(CasePhotoCaptureStory story) : IPhotoCaptureQueries
     {
         public Task<PhotoCaptureListPage> ListAsync(PhotoCaptureListFilter filter, CancellationToken cancellationToken) =>
-            Task.FromResult(new PhotoCaptureListPage([], 0, new Dictionary<PhotoCaptureState, int>()));
+            Task.FromResult(new PhotoCaptureListPage([], 0, new Dictionary<PhotoCaptureScope, int>()));
 
         public Task<PhotoCaptureListRow?> GetRowAsync(Guid captureId, CancellationToken cancellationToken) =>
             Task.FromResult<PhotoCaptureListRow?>(null);
@@ -352,8 +354,10 @@ public sealed class CaseAssetPreparationWebTests
         public Task<IReadOnlyList<PhotoLinkAct>> ListHistoryAsync(Guid captureId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PhotoLinkAct>>([]);
 
-        public Task<PhotoCaptureTabCounts> CountByTabAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new PhotoCaptureTabCounts(0, 0));
+        public Task<IReadOnlyList<StandingPhotoLinkListing>> ListStandingLinksAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StandingPhotoLinkListing>>([]);
+
+        public Task<int> CountAwaitingAsync(CancellationToken cancellationToken) => Task.FromResult(0);
     }
 
     /// <summary>

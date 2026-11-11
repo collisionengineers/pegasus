@@ -514,46 +514,56 @@ public sealed record PhotoCaptureBellOwed(
     bool CaseArchived);
 
 /// <summary>
-/// One list's filter. <see cref="NoCaseYet"/> keeps only the captures with no
-/// Case, Coming in's "No case yet" (R806).
+/// The Direct links tab's workflow scopes (operator, 11 November 2026; v51 N;
+/// R948), which <see cref="PhotoCaptureStatus.InScope"/> decides.
 /// </summary>
-public sealed record PhotoCaptureListFilter(
-    bool SentByUs,
-    string? Search,
-    PhotoCaptureState? State,
-    PhotoCaptureOrigin? Origin,
-    bool NoCaseYet,
-    int PageSize,
-    int Page);
-
-/// <summary>How many captures each tab holds, counted together (R806).</summary>
-public sealed record PhotoCaptureTabCounts(int ComingIn, int LinksWeSent);
-
-/// <summary>
-/// How a Coming in capture reached its Case: it filed there as its photos
-/// arrived, or its Vehicle images record was paired with the Case, by Pegasus
-/// or by a member of staff. <see cref="None"/> for a capture with no Case and
-/// for a Case link, which was sent from its Case.
-/// </summary>
-public enum PhotoCapturePairing
+public enum PhotoCaptureScope
 {
-    None,
-    FiledAsItArrived,
-    MatchedAutomatically,
-    ChosenByStaff
+    Awaiting,
+    NeedsChase,
+    Complete,
+    Closed,
+    All
 }
 
 /// <summary>
-/// One list row. <see cref="OrganizationName"/> is the From: the standing
-/// link's contact, or for a Case link the Case's Principal (R805), read when
-/// the row is shown. <see cref="Pairing"/> is read only for the rows shown.
-/// <see cref="CaseArchived"/> is whether the capture's Case is archived: its
-/// link is then dead and reads Expired (R793). <see cref="Photographs"/> is
-/// how many of its items are photographs, not paperwork or video: what the
-/// Photos column counts and what decides Opened or Photos coming in.
-/// <see cref="SentOnToCustomer"/> is whether a quick Case link's firm sent it
-/// on to their customer (R798), read with the tab because such a link asks no
-/// VIN (R874).
+/// One list's filter. <see cref="Direct"/> is the Direct links tab, the links
+/// HQ sent from a Case, filtered by <see cref="Scope"/>; otherwise it is the
+/// Standing links tab, the captures standing and website links started,
+/// narrowed to one link by <see cref="StandingLinkId"/> (v51 N, P; R948).
+/// </summary>
+public sealed record PhotoCaptureListFilter(
+    bool Direct,
+    string? Search,
+    PhotoCaptureScope Scope,
+    Guid? StandingLinkId,
+    int PageSize,
+    int Page);
+
+/// <summary>
+/// One photograph a list row previews: settled, it is the intake asset
+/// <see cref="AssetId"/> of <see cref="ReceiptId"/>; before the settle it is
+/// the staged receipt <see cref="ReceiptId"/> alone (v51 N; R948).
+/// </summary>
+public sealed record PhotoCapturePreview(Guid ReceiptId, Guid? AssetId, string FileName, string MediaType, string ContentHash);
+
+/// <summary>
+/// One row of the Standing links directory: a link that is not retired and how
+/// many captures it has started (operator, 11 November 2026; v51 P; R948).
+/// </summary>
+public sealed record StandingPhotoLinkListing(StandingPhotoLink Link, int Submissions);
+
+/// <summary>
+/// One list row. <see cref="OrganizationName"/> is the standing link's
+/// contact, or for a Case link the Case's Principal (R805), read when the row
+/// is shown. <see cref="CaseArchived"/> is whether the capture's Case is
+/// archived: its link is then dead and reads Expired (R793).
+/// <see cref="Photographs"/> is how many of its items are photographs, not
+/// paperwork or video: what the Photos column counts and what decides Opened
+/// or Photos coming in. <see cref="SentOnToCustomer"/> is whether a quick Case
+/// link's firm sent it on to their customer (R798), read with the tab because
+/// such a link asks no VIN (R874). <see cref="Preview"/> is the first few
+/// photographs, read only for the rows shown (v51 N; R948).
 /// </summary>
 public sealed record PhotoCaptureListRow(
     PhotoCapture Capture,
@@ -562,21 +572,23 @@ public sealed record PhotoCaptureListRow(
     Guid? ImageIntakeId,
     IReadOnlyList<string> MissingItems,
     string? IssuedByName,
-    PhotoCapturePairing Pairing,
     bool CaseArchived,
     int Photographs,
-    bool SentOnToCustomer);
+    bool SentOnToCustomer)
+{
+    public IReadOnlyList<PhotoCapturePreview> Preview { get; init; } = [];
+}
 
 /// <summary>
-/// One page of a list. <see cref="CountsByState"/> is how many of the tab's
-/// captures each state holds, a state with none left out, before the state,
-/// search, From and "No case yet" filters: the left pane's counts, from the
-/// same evaluation of the tab as the page's rows (#2020).
+/// One page of a list. <see cref="CountsByScope"/> is how many of the Direct
+/// links tab's captures each scope holds, before the scope and search
+/// filters, from the same evaluation of the tab as the page's rows (#2020);
+/// empty on the Standing links tab.
 /// </summary>
 public sealed record PhotoCaptureListPage(
     IReadOnlyList<PhotoCaptureListRow> Rows,
     int TotalCount,
-    IReadOnlyDictionary<PhotoCaptureState, int> CountsByState);
+    IReadOnlyDictionary<PhotoCaptureScope, int> CountsByScope);
 
 /// <summary>The staff acts on a link that name who did them in its history (FRD-28 Staff pages; R805).</summary>
 public static class PhotoLinkActs
@@ -954,8 +966,15 @@ public interface IPhotoCaptureQueries
 
     Task<IReadOnlyList<CasePhotoCaptureStory>> ListForImageIntakeAsync(Guid imageIntakeId, CancellationToken cancellationToken);
 
-    /// <summary>How many captures Coming in and Links we sent each hold, from one count by origin.</summary>
-    Task<PhotoCaptureTabCounts> CountByTabAsync(CancellationToken cancellationToken);
+    /// <summary>
+    /// The standing links that are not retired, contacts' by name and the
+    /// website's last, each with how many captures it started: the Standing
+    /// links directory (v51 P; R948).
+    /// </summary>
+    Task<IReadOnlyList<StandingPhotoLinkListing>> ListStandingLinksAsync(CancellationToken cancellationToken);
+
+    /// <summary>How many Direct links are Awaiting: the Direct links tab's count (v51 N; R948).</summary>
+    Task<int> CountAwaitingAsync(CancellationToken cancellationToken);
 
     /// <summary>The staff acts on the link, oldest first, each with the name of who did it.</summary>
     Task<IReadOnlyList<PhotoLinkAct>> ListHistoryAsync(Guid captureId, CancellationToken cancellationToken);

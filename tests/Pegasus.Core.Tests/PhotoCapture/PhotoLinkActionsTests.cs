@@ -110,19 +110,19 @@ public sealed class PhotoLinkActionsTests
     }
 
     /// <summary>
-    /// Ask for it on a Coming in capture, one not sent from a Case, always
-    /// counts as a reminder, due or not (R842).
+    /// Ask for it is retired (v51 Q; R948): a capture a standing or website
+    /// link started is never sent again, so no token is minted for it.
     /// </summary>
     [Fact]
-    public async Task AskForItOnAComingInCaptureAlwaysCountsAsAReminder()
+    public async Task AStandingOrWebsiteCaptureIsNeverSentAgain()
     {
         var capture = Capture(origin: PhotoCaptureOrigin.Website, createdAtUtc: Now.AddHours(-1));
-        Assert.Null(PhotoCaptureStatus.DueReminder(Row(capture), Now));
         var captures = Store(capture);
 
-        await Resend(captures, capture);
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => Resend(captures, capture));
 
-        Assert.Contains(nameof(IPhotoCaptureStore.RecordReminderAsync), captures.Calls);
+        Assert.DoesNotContain(nameof(IPhotoCaptureStore.ReissueAsync), captures.Calls);
+        Assert.DoesNotContain(nameof(IPhotoCaptureStore.RecordReminderAsync), captures.Calls);
     }
 
     /// <summary>
@@ -252,7 +252,6 @@ public sealed class PhotoLinkActionsTests
             ImageIntakeId: null,
             MissingItems: [],
             IssuedByName: null,
-            PhotoCapturePairing.None,
             CaseArchived: false,
             Photographs: 0,
             SentOnToCustomer: false);

@@ -376,12 +376,27 @@ span.blocker-name{cursor:default;text-decoration:none}
 .image-tile.is-dragging{opacity:.5}
 .image-tile.is-drop{outline:2px solid var(--navy);outline-offset:2px}
 .image-grid-count{margin:6px 0 0;font-size:12px}
-/* Files → Images with photo links (FRD-28; R774): each link's What they told us,
-   then its images in story groups, then Other images. */
-.photo-story,.photo-story-capture{display:grid;gap:8px;min-width:0}
-.photo-story-capture+.photo-story-capture{border-top:1px solid var(--line);padding-top:10px}
-.photo-story-heading{margin:6px 0 0}
-.photo-story-stage{font-size:11px;font-weight:650;color:var(--quiet);margin:0}
+/* v51 Case images (R948): Files → Images with photo links. The primary link's
+   one bar above the one image grid, its key answers and the customer's note,
+   and the Case's other links folded under it (v51 I, J). */
+.pc-case-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;min-width:0;margin:0 0 10px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2);font-size:13px}
+.pc-case-bar-lead{display:inline-flex;flex-wrap:wrap;align-items:center;gap:7px;font-weight:650}
+.pc-case-bar-lead .icon{width:16px;height:16px}
+.pc-case-bar-source{font-weight:500;color:var(--muted)}
+.pc-case-bar-facts{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 10px;color:var(--muted);font-size:12.5px}
+.pc-case-bar-facts strong{color:var(--ink)}
+.pc-case-bar-facts>span+span::before{content:"·";margin-right:10px;color:var(--line-strong)}
+.pc-case-bar-end{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;margin-left:auto}
+.pc-case-note{flex-basis:100%;margin:0;padding:6px 10px;border-left:3px solid var(--ink);background:var(--surface);font-size:12.5px;white-space:pre-line;overflow-wrap:anywhere}
+.pc-other-links{flex-basis:100%;margin-top:2px;padding-top:6px;border-top:1px solid var(--line)}
+.pc-other-links>summary{display:inline-flex;align-items:center;gap:4px;list-style:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--muted)}
+.pc-other-links>summary::-webkit-details-marker{display:none}
+.pc-other-links>summary::marker{content:""}
+.pc-other-links>summary .icon{width:14px;height:14px}
+.pc-other-links[open]>summary .icon{transform:rotate(90deg)}
+.pc-other-links-rows{display:grid;gap:4px;margin:6px 0 0;padding:0;list-style:none;font-size:12.5px}
+.pc-other-links-rows li{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:4px 8px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
+.pc-ol-end{display:inline-flex;align-items:center;gap:6px;margin-left:auto}
 
 .wording .stack{gap:8px}
 /* Report wording's settings (v45): one wrapping line of ticks, each block and then the three report switches. */

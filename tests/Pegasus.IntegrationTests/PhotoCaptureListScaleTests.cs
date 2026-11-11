@@ -62,11 +62,17 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
 
     private const string ItemsTable = "[PhotoCaptureItems]";
 
-    /// <summary>A column only a read of whole item rows selects.</summary>
-    private const string WholeItemRowColumn = "[ContentHash]";
+    /// <summary>
+    /// A column only a read of whole item rows selects: the preview read
+    /// selects a row's content hash for its address, never its client id.
+    /// </summary>
+    private const string WholeItemRowColumn = "[ClientItemId]";
 
-    private const string ComingInUrl = "/PhotoCapture";
-    private const string LinksWeSentUrl = $"/PhotoCapture?tab={Labels.LinksWeSentKey}";
+    /// <summary>The standing links the seed makes: one per contact and the website's.</summary>
+    private const int StandingLinks = 21;
+
+    private const string StandingUrl = $"/PhotoCapture?tab={Labels.StandingLinksKey}";
+    private const string DirectUrl = "/PhotoCapture?scope=all";
 
     [Fact]
     public async Task BothPhotoCaptureListsSendTheSameStatementsAt2000CapturesAsAt500AndCountWhatWasSeeded()
@@ -86,8 +92,8 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
             seeding.Stop();
             Assert.Equal(size, seed.Captures);
             var expected = seed.Snapshot();
-            readings.Add(await MeasureAsync(client, counter, ComingInUrl, sentByUs: false, expected, seeding.Elapsed));
-            readings.Add(await MeasureAsync(client, counter, LinksWeSentUrl, sentByUs: true, expected, seeding.Elapsed));
+            readings.Add(await MeasureAsync(client, counter, StandingUrl, direct: false, expected, seeding.Elapsed));
+            readings.Add(await MeasureAsync(client, counter, DirectUrl, direct: true, expected, seeding.Elapsed));
         }
 
         output.WriteLine(seed.DescribeRows());
@@ -104,10 +110,10 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
             AssertItemReadsBounded(reading);
         }
 
-        foreach (var sentByUs in new[] { false, true })
+        foreach (var direct in new[] { false, true })
         {
-            var atFirst = Assert.Single(readings, reading => reading.SentByUs == sentByUs && reading.Expected.Captures == FirstSize);
-            var atSecond = Assert.Single(readings, reading => reading.SentByUs == sentByUs && reading.Expected.Captures == SecondSize);
+            var atFirst = Assert.Single(readings, reading => reading.Direct == direct && reading.Expected.Captures == FirstSize);
+            var atSecond = Assert.Single(readings, reading => reading.Direct == direct && reading.Expected.Captures == SecondSize);
             Assert.True(atFirst.Statements > 0, "The interceptor observed no statement at all.");
             Assert.True(
                 atFirst.Statements == atSecond.Statements,
@@ -127,7 +133,7 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
         HttpClient client,
         SqlStatementCounter counter,
         string url,
-        bool sentByUs,
+        bool direct,
         SeedCounts expected,
         TimeSpan seeding)
     {
@@ -167,7 +173,7 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
 
         times.Sort();
         return new(
-            sentByUs,
+            direct,
             expected,
             NearestRank(times, 50),
             NearestRank(times, 95),
@@ -187,41 +193,57 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The page's own counts, as it renders them: the two tabs' totals, the
-    /// tab's All and each state's count in the left pane, and a full first
-    /// page of rows.
+    /// The page's own counts, as it renders them (v51 N, P; R948): Direct
+    /// links' Awaiting count and the standing links' count on the tabs; on
+    /// Direct links each scope's count, Awaiting, Complete and Closed adding
+    /// up to All; on Standing links the submissions received; and a full
+    /// first page of rows.
     /// </summary>
     private static void AssertPageCounts(Reading reading)
     {
         var html = reading.Html;
         var expected = reading.Expected;
         var where = $"{reading.TabLabel} at {expected.Captures} captures";
+        var direct = expected.LinksWeSentStates;
+        int Seeded(params PhotoCaptureState[] states) => states.Sum(state => direct.GetValueOrDefault(state));
+        // Every seeded link still waiting is live; Expired and Cancelled ones are closed.
+        var awaiting = Seeded(
+            PhotoCaptureState.SentNotOpened, PhotoCaptureState.Opened, PhotoCaptureState.PhotosComingIn,
+            PhotoCaptureState.SomethingMissing, PhotoCaptureState.NeedsCall);
         var tabCounts = Regex.Matches(html, "<span class=\"tab-count\">(\\d+)</span>")
             .Select(match => int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture))
             .ToArray();
         Assert.True(tabCounts.Length == 2, $"{where}: the page rendered {tabCounts.Length} tab counts, not two.");
-        Assert.Equal(expected.ComingIn, tabCounts[0]);
-        Assert.Equal(expected.LinksWeSent, tabCounts[1]);
+        Assert.Equal(awaiting, tabCounts[0]);
+        Assert.Equal(StandingLinks, tabCounts[1]);
 
-        var states = reading.SentByUs ? expected.LinksWeSentStates : expected.ComingInStates;
-        var tabTotal = reading.SentByUs ? expected.LinksWeSent : expected.ComingIn;
-        Assert.True(ScopeCount(html, string.Empty) == tabTotal, $"{where}: All reads {ScopeCount(html, string.Empty)}, not {tabTotal}.");
-        foreach (var state in Enum.GetValues<PhotoCaptureState>())
+        if (reading.Direct)
         {
-            int? seeded = states.TryGetValue(state, out var count) ? count : null;
-            var shown = ScopeCount(html, Labels.StateKey(state));
-            Assert.True(shown == seeded, $"{where}: {Labels.State(state)} reads {shown?.ToString(CultureInfo.InvariantCulture) ?? "nothing"}, not {seeded?.ToString(CultureInfo.InvariantCulture) ?? "nothing"}.");
+            Assert.True(ScopeCount(html, "all") == expected.LinksWeSent, $"{where}: All reads {ScopeCount(html, "all")}, not {expected.LinksWeSent}.");
+            Assert.True(ScopeCount(html, "awaiting") == awaiting, $"{where}: Awaiting reads {ScopeCount(html, "awaiting")}, not {awaiting}.");
+            Assert.Equal(Seeded(PhotoCaptureState.Complete), ScopeCount(html, "complete"));
+            Assert.Equal(Seeded(PhotoCaptureState.Expired, PhotoCaptureState.Cancelled), ScopeCount(html, "closed"));
+            var chase = ScopeCount(html, "due");
+            Assert.True(
+                chase >= Seeded(PhotoCaptureState.NeedsCall) && chase <= awaiting,
+                $"{where}: Needs chase reads {chase}, outside {Seeded(PhotoCaptureState.NeedsCall)} to {awaiting}.");
+        }
+        else
+        {
+            Assert.Contains(Labels.ReceivedCount(expected.ComingIn), html, StringComparison.Ordinal);
         }
 
         Assert.Equal(PageSize, Regex.Count(html, "data-photo-capture-row=\""));
     }
 
     /// <summary>
-    /// The list reads of the tab's items only what the required items rule
-    /// and the photograph count use, grouped in SQL (#2020): never whole item
-    /// rows, and at most <see cref="ItemRowsReadPerCapture"/> rows for each
-    /// capture with photos, fewer than its <see cref="ItemsPerCaptureWithPhotos"/>
-    /// items. A ceiling, never an exact total.
+    /// The list reads of the items only what the required items rule and
+    /// the photograph count use, grouped in SQL (#2020), and the few each row
+    /// previews: never whole item rows, and at most
+    /// <see cref="ItemRowsReadPerCapture"/> rows for each capture with photos
+    /// it evaluates, fewer than its <see cref="ItemsPerCaptureWithPhotos"/>
+    /// items. Standing links also counts Direct links' Awaiting, so its
+    /// ceiling is over both tabs. A ceiling, never an exact total.
     /// </summary>
     private static void AssertItemReadsBounded(Reading reading)
     {
@@ -230,18 +252,19 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
         Assert.False(
             reading.ReadsWholeItemRows,
             $"{where}: a statement read whole item rows." + Environment.NewLine + reading.StatementText);
-        var ceiling = reading.TabItems / ItemsPerCaptureWithPhotos * ItemRowsReadPerCapture;
+        var items = reading.Direct ? reading.TabItems : reading.Expected.ComingInItems + reading.Expected.LinksWeSentItems;
+        var ceiling = items / ItemsPerCaptureWithPhotos * ItemRowsReadPerCapture;
         Assert.True(
             reading.ItemRowsRead <= ceiling,
-            $"{where}: the list read {reading.ItemRowsRead} item rows, more than {ceiling} for {reading.TabItems / ItemsPerCaptureWithPhotos} captures with photos.");
+            $"{where}: the list read {reading.ItemRowsRead} item rows, more than {ceiling} for {items / ItemsPerCaptureWithPhotos} captures with photos.");
     }
 
-    /// <summary>The count beside the left pane's state button whose value is <paramref name="stateKey"/> (All's is empty), or null when it has none.</summary>
-    private static int? ScopeCount(string html, string stateKey)
+    /// <summary>The count on the Direct links scope button whose value is <paramref name="scopeKey"/>, or null when it has none.</summary>
+    private static int? ScopeCount(string html, string scopeKey)
     {
         var match = Regex.Match(
             html,
-            "name=\"state\" value=\"" + Regex.Escape(stateKey) + "\" class=\"scope-button\"[\\s\\S]*?</span>\\s*<span>(\\d+)</span>");
+            "name=\"scope\" value=\"" + Regex.Escape(scopeKey) + "\" class=\"pc-pill\"[\\s\\S]*?<span class=\"pc-pill-count\">(\\d+)</span>");
         return match.Success ? int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) : null;
     }
 
@@ -298,7 +321,7 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
 
     /// <summary>One tab at one size: its timings, its statements, the item rows they read and the last page it rendered.</summary>
     private sealed record Reading(
-        bool SentByUs,
+        bool Direct,
         SeedCounts Expected,
         double P50,
         double P95,
@@ -309,11 +332,11 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
         double SeedSeconds,
         string Html)
     {
-        public string TabLabel => SentByUs ? Labels.LinksWeSent : Labels.ComingIn;
+        public string TabLabel => Direct ? Labels.DirectLinks : Labels.StandingLinks;
 
-        private int TabCaptures => SentByUs ? Expected.LinksWeSent : Expected.ComingIn;
+        private int TabCaptures => Direct ? Expected.LinksWeSent : Expected.ComingIn;
 
-        public int TabItems => SentByUs ? Expected.LinksWeSentItems : Expected.ComingInItems;
+        public int TabItems => Direct ? Expected.LinksWeSentItems : Expected.ComingInItems;
 
         public string Line => string.Create(
             CultureInfo.InvariantCulture,

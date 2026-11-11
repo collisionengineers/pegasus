@@ -4,14 +4,6 @@
 
 .photo-capture-tabs { margin-bottom: 10px; }
 
-.photo-capture-queue { grid-template-columns: 185px minmax(0, 1fr); min-height: 0; }
-.photo-capture-queue > .pane { min-width: 0; }
-.photo-capture-list .pane-head .meta { font-size: 12px; color: var(--muted); }
-.photo-capture-filters { margin: 0 0 0 auto; }
-.photo-capture-filters .field { min-width: 0; }
-.photo-capture-filters select,
-.photo-capture-filters input { width: auto; min-height: 32px; font-size: 12px; }
-.photo-capture-filters input[type="search"] { width: 260px; }
 
 .photo-capture-table { overflow-x: auto; }
 /* break-word, not anywhere: a long word may still break, but no cell's
@@ -43,13 +35,6 @@
 .photo-link-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; margin-top: 14px; }
 .page-actions form.cluster select { width: auto; }
 
-/* The story groups on a link's page. */
-.photo-story-group + .photo-story-group { border-top: 1px solid var(--line); padding-top: 10px; }
-.photo-story-heading { font-size: 12px; font-weight: 700; margin: 0 0 6px; }
-.photo-story-stage { font-size: 11px; font-weight: 650; color: var(--quiet); margin: 6px 0 4px; }
-.photo-story-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 12px; }
-.photo-story-items li { display: flex; justify-content: space-between; gap: 10px; }
-
 /* One-line rows (v50 I to M; R912): a long name, firm or missing item ends in
    an ellipsis with the full text on hover; narrower widths drop the columns
    marked --wide, --medium and --narrow rather than scroll (#2029), and More
@@ -60,16 +45,13 @@
 .photo-capture-rows td.row-actions .cluster { flex-wrap: nowrap; justify-content: flex-end; }
 .photo-capture-rows .menu-body { min-width: 180px; }
 .photo-capture-clip { display: block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 1480px) { .photo-capture-rows .photo-capture-col--wide { display: none; } }
-@media (max-width: 1300px) { .photo-capture-rows .photo-capture-col--medium { display: none; } }
 
-/* The link page (v50 N, O; R913): the status beside the registration; the
-   missing items, photos and history beside a 360px aside of the link's facts. */
+/* The link page: the status beside the registration; the Photos panel beside
+   a 320px Summary aside (v50 N, O; R913; v51 L1 to L6, R948). The Vehicle
+   images record lays out its images and Summary the same way (v51 O). */
 .photo-link-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.photo-link-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; align-items: start; margin-top: 14px; }
-.photo-link-layout .definition-list { grid-template-columns: minmax(0, 1fr); }
-.photo-link-missing { margin: 0; padding: 8px 14px 10px 30px; display: grid; gap: 4px; }
-.photo-link-missing li::marker { color: var(--amber); }
+.photo-link-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; margin-top: 12px; }
+.photo-link-layout > .stack { min-width: 0; }
 .menu-body .menu-label { padding: 4px 8px 0; font-size: 10.5px; font-weight: 650; color: var(--quiet); text-transform: uppercase; letter-spacing: .08em; }
 
 /* Website link defaults on Administration › Photo links, under the link. */
@@ -79,15 +61,136 @@
     .photo-link-send,
     .photo-link-grid,
     .photo-link-layout { grid-template-columns: minmax(0, 1fr); }
-    .photo-capture-rows .photo-capture-col--narrow { display: none; }
     .photo-capture-clip { max-width: 100px; }
     .photo-capture-rows td, .photo-capture-rows th { padding-left: 6px; padding-right: 6px; }
-    .photo-capture-rows .photo-capture-more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 }
 
 @media (max-width: 760px) {
-    .photo-capture-queue { grid-template-columns: minmax(0, 1fr); }
-    .photo-capture-queue > .pane:first-child { border-bottom: 1px solid var(--line); }
-    .photo-capture-filters input[type="search"] { width: 100%; }
     .photo-capture-table .table th { white-space: normal; }
+}
+
+/* v51 Photo capture tabs (R948): Direct links' scopes and search on one
+   toolbar, a row's first photographs beside its registration, and Standing
+   links' directory beside its submissions. Every control in a toolbar or bar
+   shares the small control height (R913). */
+.pc-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.pc-pills { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 0; }
+.pc-pill { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--muted); font: 600 12px/1 var(--font); cursor: pointer; }
+.pc-pill:hover { border-color: var(--line-strong); color: var(--ink); }
+.pc-pill[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+.pc-pill-count { font-variant-numeric: tabular-nums; opacity: .82; }
+.pc-search-form { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.pc-search-form input[type="search"] { width: 286px; min-height: 32px; height: 32px; font-size: 12.5px; }
+.pc-veh-cell { display: inline-flex; align-items: center; gap: 8px; }
+.pc-mini-thumbs { display: inline-flex; align-items: center; gap: 2px; vertical-align: middle; }
+.pc-mini-thumbs img { display: block; width: 28px; height: 21px; object-fit: cover; border: 1px solid var(--line); border-radius: 2px; background: var(--surface-3); }
+.pc-due-sub { display: block; margin-top: 1px; font-size: 11.5px; font-weight: 600; color: var(--amber); }
+
+.pc-standing-layout { display: grid; grid-template-columns: 288px minmax(0, 1fr); gap: 14px; align-items: start; }
+.pc-standing-layout > .panel { min-width: 0; margin: 0; }
+.pc-partner-list { list-style: none; margin: 0; padding: 6px; display: grid; gap: 2px; }
+.pc-partner-item { display: flex; align-items: center; gap: 6px; padding: 7px 8px; border: 1px solid transparent; border-radius: var(--radius); }
+.pc-partner-item:hover { background: var(--surface-2); }
+.pc-partner-item.is-selected { background: var(--surface-2); border-color: var(--line-strong); }
+.pc-partner-select { flex: 1; min-width: 0; display: grid; gap: 1px; color: inherit; text-decoration: none; }
+.pc-partner-name { overflow: hidden; font-size: 13px; font-weight: 650; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
+.pc-partner-meta { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); }
+.pc-partner-count { padding: 1px 6px; border-radius: 999px; background: var(--surface-3); font-size: 11.5px; font-weight: 600; color: var(--quiet); font-variant-numeric: tabular-nums; }
+.pc-partner-tools { display: inline-flex; align-items: center; gap: 3px; flex: none; }
+.pc-icon-btn { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--muted); cursor: pointer; }
+.pc-icon-btn:hover { border-color: var(--line-strong); color: var(--ink); }
+.pc-partner-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); font-size: 12.5px; }
+.pc-partner-bar code { padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 12px; overflow-wrap: anywhere; user-select: all; }
+.pc-partner-bar-end { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; }
+.pc-qr-stage { display: grid; justify-items: center; gap: 10px; padding: 8px 0; }
+.pc-qr-box { display: block; width: 220px; height: 220px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; box-sizing: border-box; }
+
+.pc-oneline td { white-space: nowrap; vertical-align: middle; }
+.pc-oneline td, .pc-oneline th { padding-left: 9px; padding-right: 9px; }
+.pc-oneline td.row-actions { width: 1%; text-align: right; }
+@media (max-width: 1460px) { .pc-oneline .hide-l { display: none; } }
+@media (max-width: 1300px) { .pc-oneline .hide-m, .pc-mini-thumbs { display: none; } }
+@media (max-width: 1180px) {
+    .pc-oneline .hide-s { display: none; }
+    .pc-oneline td, .pc-oneline th { padding-left: 6px; padding-right: 6px; }
+}
+@media (max-width: 1060px) { .pc-standing-layout { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) {
+    .pc-search-form { width: 100%; margin-left: 0; }
+    .pc-search-form input[type="search"] { flex: 1; width: auto; }
+}
+
+/* v51 link page (R948): /PhotoCapture/{id}'s one Photos panel, its inline
+   Missing bar, numbered 4:3 tiles (the shared .gallery) and Files strip; the
+   320px Summary card with what they told us and the folded History; and the
+   Vehicle images record's Summary, which uses the same card (v51 A to G, O). */
+.photo-link-resend { display: contents; }
+.photo-link-missing-bar { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--amber-bg); font-size: 13px; line-height: 1.35; }
+.photo-link-missing-bar .icon { flex: none; margin-top: 1px; color: var(--amber); }
+.photo-link-missing-bar p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.photo-link-missing-bar strong { font-weight: 650; color: var(--amber); }
+.photo-link-empty { margin: 0; }
+.photo-link-gallery .gallery-caption { font-size: 12px; }
+.photo-link-gallery .gallery-caption strong { font-weight: 600; }
+.photo-link-tile-number { position: absolute; top: 5px; left: 5px; padding: 2px 5px; border-radius: var(--radius); background: var(--nav); color: var(--nav-text); font-size: 10.5px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.photo-link-files { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 9px 12px; border-top: 1px solid var(--line); background: var(--surface-2); font-size: 12.5px; }
+.photo-link-files .section-label { margin: 0; }
+.photo-link-file { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); font-weight: 550; text-decoration: none; }
+a.photo-link-file:hover { border-color: var(--line-strong); text-decoration: none; }
+
+.photo-link-summary-list { margin: 0; }
+.photo-link-summary-list > div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.photo-link-summary-list > div:last-child { border-bottom: 0; }
+.photo-link-summary-list dt { font-size: 12px; font-weight: 600; color: var(--quiet); }
+.photo-link-summary-list dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.photo-link-summary-list form { margin: 0; }
+.photo-link-summary-list select { width: auto; max-width: 100%; }
+.photo-link-sub { display: block; margin-top: 1px; font-size: 12px; color: var(--muted); }
+.photo-link-chase { font-weight: 600; color: var(--amber); }
+.photo-link-summary .photo-capture-told { border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 10px 12px; gap: 8px; }
+.photo-link-summary .photo-capture-told > h3 { margin-bottom: 0; }
+.photo-link-summary .photo-capture-told .definition-list { gap: 6px 12px; border: 0; background: none; }
+.photo-link-summary .photo-capture-told .definition { padding: 0; border: 0; }
+.photo-link-summary .photo-capture-told .definition dt { font-size: 11px; font-weight: 600; color: var(--quiet); }
+.photo-link-summary .photo-capture-told .definition dd { margin-top: 1px; font-size: 13px; font-weight: 600; }
+.photo-link-history { border-top: 1px solid var(--line); }
+.photo-link-history > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; list-style: none; cursor: pointer; font-size: 12.5px; font-weight: 650; color: var(--muted); }
+.photo-link-history > summary::-webkit-details-marker { display: none; }
+.photo-link-history > summary:hover { background: var(--surface-2); color: var(--ink); }
+.photo-link-history[open] > summary .icon { transform: rotate(180deg); }
+.photo-link-history-list { list-style: none; margin: 0; padding: 2px 12px 10px; display: grid; gap: 4px; font-size: 12px; }
+.photo-link-history-list li { display: flex; justify-content: space-between; gap: 8px; }
+.photo-link-history-list time { white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
+.image-record-body > .photo-link-layout { margin-top: 0; }
+
+/* v51 composer (R948): Send a photo link and Resend share one composer that
+   shows one channel at a time (operator, 11 November 2026; v51 L, M). The
+   switch is a radio group drawn as segments; the checked one shows its own
+   boxes and button by :has() without script, and photo-link-send.js keeps
+   [hidden] in step with it. */
+.pc-channel-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.pc-channel-seg { display: inline-flex; min-width: 0; margin: 0; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; }
+.pc-channel-seg label { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-right: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 12.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.pc-channel-seg label:last-of-type { border-right: 0; }
+.pc-channel-seg input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.pc-channel-seg label:has(input:checked) { background: var(--ink); color: var(--surface); }
+.pc-channel-seg label:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: -3px; }
+.pc-send-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); font-size: 12.5px; }
+.pc-send-opt { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.pc-send-opt > span { color: var(--muted); }
+.pc-send-opts select { width: auto; height: 30px; min-height: 30px; padding: 0 24px 0 8px; font-size: 12.5px; }
+.pc-send-opt .field-validation-error { flex-basis: 100%; }
+.pc-composer:has(input[name="Channel"][value="email"]:not(:checked)) [data-photo-link-for="email"],
+.pc-composer:has(input[name="Channel"][value="text"]:not(:checked)) [data-photo-link-for="text"],
+.pc-composer:has(input[name="Channel"][value="copy"]:not(:checked)) [data-photo-link-for="copy"] { display: none; }
+.pc-capture-options > summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }
+.pc-capture-options .cluster { margin-top: 8px; gap: 16px; }
+/* The page: one bounded column (v51 S1); the dialog sizes to its channel. */
+.pc-composer-page { max-width: 820px; }
+.pc-composer-page .mail-compose-form-fields { overflow: visible; margin: 0; padding: 0; }
+.pc-composer-page .photo-link-send-actions { margin-top: 12px; }
+.dialog.mail-compose-dialog.pc-composer-dialog { height: auto; max-height: calc(100vh - 32px); }
+.pc-composer-dialog .dialog-body.mail-compose-body { flex: 0 1 auto; overflow: auto; }
+@media (forced-colors: active) {
+  .pc-channel-seg label:has(input:checked) { forced-color-adjust: none; background: Highlight; color: HighlightText; }
 }

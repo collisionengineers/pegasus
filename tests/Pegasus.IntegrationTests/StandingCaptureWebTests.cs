@@ -987,7 +987,7 @@ public sealed partial class StandingCaptureWebTests
     private static async Task AssertRecordShowsThePhotoLinkAsync(HttpClient client, Guid recordId, Guid captureId)
     {
         var page = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{recordId:D}");
-        Assert.Contains("id=\"image-intake-photo-link-title\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-image-photo-link", page, StringComparison.Ordinal);
         Assert.Contains($"/PhotoCapture/{captureId:D}", page, StringComparison.OrdinalIgnoreCase);
     }
 

@@ -140,28 +140,38 @@ public sealed class PhotoCaptureStatusTests
         Assert.True(PhotoCaptureAccess.IsLive(notOpened, Now));
     }
 
+    /// <summary>
+    /// A standing or website capture reads Uploading while photos it received
+    /// are still to settle, and Received once they have (v51 Q; R948).
+    /// </summary>
     [Fact]
-    public void ACaptureWithNoCaseOrSentFromItsCaseHasNoPairing()
+    public void PhotosAreUploadingUntilTheSettleAfterTheLastOne()
     {
-        Assert.Equal(
-            PhotoCapturePairing.None,
-            PhotoCaptureStatus.Pairing(Capture(PhotoCaptureOrigin.StandingStaff, PhotoCaptureDestination.VehicleImages), recordChosenByStaff: null));
-        Assert.Equal(PhotoCapturePairing.None, PhotoCaptureStatus.Pairing(Capture(), recordChosenByStaff: true));
+        Assert.False(PhotoCaptureStatus.IsUploading(Capture(PhotoCaptureOrigin.StandingStaff)));
+        Assert.True(PhotoCaptureStatus.IsUploading(Capture(PhotoCaptureOrigin.StandingStaff, acceptedItemCount: 3, lastItemAtUtc: Now)));
+        Assert.False(PhotoCaptureStatus.IsUploading(
+            Capture(PhotoCaptureOrigin.StandingStaff, acceptedItemCount: 3, lastItemAtUtc: Now, settledAtUtc: Now.AddMinutes(1))));
+        Assert.True(PhotoCaptureStatus.IsUploading(
+            Capture(PhotoCaptureOrigin.StandingStaff, acceptedItemCount: 4, lastItemAtUtc: Now.AddMinutes(2), settledAtUtc: Now.AddMinutes(1))));
     }
 
-    [Fact]
-    public void ACaptureThatFiledOnItsCaseWithNoRecordWasAlreadyInstructed() =>
-        Assert.Equal(
-            PhotoCapturePairing.FiledAsItArrived,
-            PhotoCaptureStatus.Pairing(Capture(PhotoCaptureOrigin.Website), recordChosenByStaff: null));
-
-    [Fact]
-    public void ARecordPairedOnAStaffAssociationIsNotMatchedAutomatically()
+    /// <summary>The Direct links tab's scopes (v51 N; R948).</summary>
+    [Theory]
+    [InlineData(PhotoCaptureState.Opened, false, true, true, false, false, false)]
+    [InlineData(PhotoCaptureState.SentNotOpened, true, true, true, true, false, false)]
+    [InlineData(PhotoCaptureState.NeedsCall, false, true, true, true, false, false)]
+    [InlineData(PhotoCaptureState.Complete, false, true, false, false, true, false)]
+    [InlineData(PhotoCaptureState.Complete, false, false, false, false, true, false)]
+    [InlineData(PhotoCaptureState.Expired, false, false, false, false, false, true)]
+    [InlineData(PhotoCaptureState.Cancelled, false, false, false, false, false, true)]
+    public void EachDirectLinkScopeKeepsItsLinks(
+        PhotoCaptureState state, bool due, bool live, bool awaiting, bool needsChase, bool complete, bool closed)
     {
-        var paired = Capture(PhotoCaptureOrigin.StandingForwarded) with { SubmissionGroupId = Guid.NewGuid() };
-
-        Assert.Equal(PhotoCapturePairing.ChosenByStaff, PhotoCaptureStatus.Pairing(paired, recordChosenByStaff: true));
-        Assert.Equal(PhotoCapturePairing.MatchedAutomatically, PhotoCaptureStatus.Pairing(paired, recordChosenByStaff: false));
-        Assert.Equal(PhotoCapturePairing.MatchedAutomatically, PhotoCaptureStatus.Pairing(paired, recordChosenByStaff: null));
+        var reminder = due ? new DueCaptureReminder("not_opened", "Not opened") : null;
+        Assert.Equal(awaiting, PhotoCaptureStatus.InScope(PhotoCaptureScope.Awaiting, state, reminder, live));
+        Assert.Equal(needsChase, PhotoCaptureStatus.InScope(PhotoCaptureScope.NeedsChase, state, reminder, live));
+        Assert.Equal(complete, PhotoCaptureStatus.InScope(PhotoCaptureScope.Complete, state, reminder, live));
+        Assert.Equal(closed, PhotoCaptureStatus.InScope(PhotoCaptureScope.Closed, state, reminder, live));
+        Assert.True(PhotoCaptureStatus.InScope(PhotoCaptureScope.All, state, reminder, live));
     }
 }

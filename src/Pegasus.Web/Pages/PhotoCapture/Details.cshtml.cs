@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using Pegasus.Core.Identity;
 using Pegasus.Core.PhotoCapture;
-using Pegasus.Web.PhotoCapture;
 using Pegasus.Web.Presentation;
 using CaptureRecord = Pegasus.Core.PhotoCapture.PhotoCapture;
 using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture;
@@ -11,14 +9,15 @@ using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture;
 namespace Pegasus.Web.Pages.PhotoCapture;
 
 /// <summary>
-/// One photo link (FRD-28 Staff pages): its facts, what the sender told us,
-/// the note, the status and what is missing, the items in story order and the
-/// history, with Resend, Log call, Extend and Cancel (v50 N, O; R913). Resend
-/// opens the composer (<see cref="ResendModel"/>), since no button sends an
-/// e-mail on its own (operator, 10 November 2026; R915). This page's own
-/// Resend handler only makes a link to copy: Coming in's Ask for it on a
-/// capture with no Case or no address (R816), shown once here, since only the
-/// issuing response ever holds it.
+/// One photo link (FRD-28 Staff pages): its photographs as tiles that open
+/// the evidence viewer in place, the paperwork and video beside them, what is
+/// missing on a Direct link, and a Summary of its facts, what the sender told
+/// us and its key history, with Resend, Log call, Extend and Cancel
+/// (operator, 11 November 2026; v51 A to G, Q, R; R948). Resend opens the
+/// composer (<see cref="ResendModel"/>), since no button sends an e-mail on
+/// its own (operator, 10 November 2026; R915). A standing or website capture
+/// is not chased: it reads Uploading, then Received, and nothing on this page
+/// makes it a one-off link (v51 Q; R948).
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -26,12 +25,32 @@ public sealed class DetailsModel(
     IPhotoCaptureQueries queries,
     IPhotoCaptureStore captures,
     PhotoLinkActions actions,
-    IOptions<PhotoCaptureOptions> options,
     TimeProvider timeProvider) : PhotoCapturePageModel
 {
 
     /// <summary>One line of the link's history, from the record's own times.</summary>
     public sealed record HistoryLine(string Label, DateTimeOffset AtUtc, string? Detail = null);
+
+    /// <summary>
+    /// One photograph's tile (v51 A, B; R948): <see cref="Href"/> is what the
+    /// viewer and Save as read, the settled intake asset or, before the
+    /// settle, the staged image; <see cref="TileHref"/> is the tile's own
+    /// rendering where the route serves one. <see cref="Category"/> is the
+    /// filter it falls under (<see cref="OperatorLabels.PhotoCapture.PhotoFilterKey"/>), null for
+    /// All only; <see cref="FileName"/> is the caption with the file's
+    /// extension, the name Save as offers.
+    /// </summary>
+    public sealed record PhotoTile(
+        int Number,
+        string Caption,
+        string? Category,
+        string Href,
+        string TileHref,
+        string FileName,
+        string MediaType);
+
+    /// <summary>One paperwork or video item of the Files strip; <see cref="Href"/> is null until it reaches intake.</summary>
+    public sealed record FileChip(string Caption, string? Href);
 
     [BindProperty(SupportsGet = true)]
     public Guid Id { get; set; }
@@ -49,10 +68,14 @@ public sealed class DetailsModel(
 
     public CaptureRecord Capture => Row.Capture;
 
-    public IReadOnlyList<PhotoCaptureStoryGroup> Story { get; private set; } = [];
+    /// <summary>The capture's photographs in story order, numbered and captioned.</summary>
+    public IReadOnlyList<PhotoTile> Photos { get; private set; } = [];
 
-    /// <summary>The staff acts on the link, each naming who did it (R805).</summary>
-    public IReadOnlyList<PhotoLinkAct> Acts { get; private set; } = [];
+    /// <summary>The capture's paperwork and video, in story order.</summary>
+    public IReadOnlyList<FileChip> Files { get; private set; } = [];
+
+    /// <summary>The key milestones, oldest first (v51 G; R948).</summary>
+    public IReadOnlyList<HistoryLine> History { get; private set; } = [];
 
     public PhotoCaptureState State { get; private set; }
 
@@ -60,12 +83,39 @@ public sealed class DetailsModel(
 
     public DateTimeOffset Now { get; private set; }
 
-    /// <summary>The link Ask for it just made to copy, shown once; null otherwise.</summary>
-    public string? IssuedUrl { get; private set; }
-
     public bool IsLive => PhotoCaptureAccess.IsLive(Capture, Now, Row.CaseArchived);
 
     public bool IsCaseLink => Capture.Origin == PhotoCaptureOrigin.CaseLink;
+
+    /// <summary>Whether photos it received are still to settle (v51 L1, Q; R948).</summary>
+    public bool IsUploading => PhotoCaptureStatus.IsUploading(Capture);
+
+    /// <summary>
+    /// The header chip's words (v51 L3, Q; R948): a Direct link's derived
+    /// state; a standing or website capture is not graded against the guided
+    /// checklist, so it reads Uploading while its photos settle and Received
+    /// once they have. One that has received nothing reads its derived state,
+    /// Opened, Expired or Cancelled, as a Direct link would.
+    /// </summary>
+    public string ChipLabel =>
+        IsCaseLink || Capture.AcceptedItemCount == 0 ? Labels.State(State)
+        : IsUploading ? Labels.Uploading
+        : Labels.Received;
+
+    /// <summary>The header chip's tone: amber while uploading, green once received.</summary>
+    public string ChipTone =>
+        IsCaseLink || Capture.AcceptedItemCount == 0 ? Labels.StateTone(State)
+        : IsUploading ? "amber"
+        : "green";
+
+    /// <summary>
+    /// The inline Missing bar (v51 C; R948): only a Direct link is graded
+    /// against the checklist, and a cancelled or expired one is not chased.
+    /// </summary>
+    public bool ShowsMissing =>
+        IsCaseLink
+        && Row.MissingItems.Count > 0
+        && State is not (PhotoCaptureState.Cancelled or PhotoCaptureState.Expired);
 
     /// <summary>Resend, one act since Remind sent the same message (R914): a live link HQ sent from a Case.</summary>
     public bool OffersResend => IsCaseLink && IsLive;
@@ -90,74 +140,20 @@ public sealed class DetailsModel(
 
     public bool OffersCancel => IsLive;
 
-    /// <summary>Where the photos are: the Case's Files section, else the Vehicle images record.</summary>
-    public string? PhotosHref => IndexModel.PhotosHref(Row);
-
     /// <summary>
-    /// Where a kept file opens (R807): paperwork or video a capture with no
-    /// Case holds, served by the existing received-file page under its own
-    /// access rule. Null for anything else, and for a file not yet received
-    /// into intake.
+    /// Where the photos are, after the follow-up act (v51 D, R; R948): the
+    /// Case's Files, else the Vehicle images record its photos became; null
+    /// while it has neither.
     /// </summary>
-    public string? KeptFileHref(PhotoCaptureItem item)
-    {
-        ArgumentNullException.ThrowIfNull(item);
-        return Capture.CaseId is null
-            && item.Kind is (PhotoCaptureItemKind.Paperwork or PhotoCaptureItemKind.Video)
-            && item.IntakeReceiptId is { } receiptId
-            && item.IntakeAssetId is { } assetId
-                ? $"/Received/{receiptId:D}/Asset/{assetId:D}"
-                : null;
-    }
+    public string? DestinationHref =>
+        Capture.CaseId is { } caseId ? Pegasus.Core.Notifications.StaffNotificationPolicy.CaseRoute(caseId, "files")
+        : Row.ImageIntakeId is { } recordId ? $"/VehicleImages/{recordId:D}"
+        : null;
 
-    public IReadOnlyList<HistoryLine> History
-    {
-        get
-        {
-            var capture = Capture;
-            var lines = new List<HistoryLine> { new(Labels.Created, capture.CreatedAtUtc, Row.IssuedByName) };
-            void Add(string label, DateTimeOffset? at, string? detail = null)
-            {
-                if (at is { } value)
-                {
-                    lines.Add(new(label, value, detail));
-                }
-            }
+    public string DestinationLabel => Capture.CaseId is not null ? Labels.OpenCase : Labels.OpenVehicleImages;
 
-            Add(Labels.Opened, capture.OpenedAtUtc);
-            Add(Labels.FirstPhoto, capture.FirstItemAtUtc);
-            if (capture.LastItemAtUtc != capture.FirstItemAtUtc)
-            {
-                Add(Labels.LastPhoto, capture.LastItemAtUtc);
-            }
-            Add(Labels.Sent, capture.SentAtUtc);
-            Add(Labels.Filed, capture.SettledAtUtc);
-            // Cancel, Extend, Log call and each reminder, Ask for it's
-            // included (R842), name who acted: "Cancelled · name", "Link
-            // extended · name", "Call logged · name" (R805) and one
-            // "Reminded · name" per reminder (operator, 10 November 2026; R870),
-            // and each text, "Sent by text · name" or "Text not sent · name" (R921).
-            foreach (var act in Acts)
-            {
-                var label = act.Kind switch
-                {
-                    PhotoLinkActs.Cancelled => Labels.Cancelled,
-                    PhotoLinkActs.Extended => Labels.LinkExtended,
-                    PhotoLinkActs.CallLogged => Labels.CallLoggedAt,
-                    PhotoLinkActs.Reminded => Labels.Reminded,
-                    PhotoLinkActs.TextSent => Labels.SentByText,
-                    PhotoLinkActs.TextFailed => Labels.TextNotSent,
-                    _ => null
-                };
-                if (label is not null)
-                {
-                    lines.Add(new(label, act.AtUtc, act.ActorName));
-                }
-            }
-
-            return [.. lines.OrderBy(line => line.AtUtc)];
-        }
-    }
+    /// <summary>The Summary's Chase row on a live Direct link: the reminder due, else how many were sent.</summary>
+    public string? Chase => IsCaseLink && IsLive ? Labels.ChaseCue(Due, Capture.ReminderCount) : null;
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -169,7 +165,7 @@ public sealed class DetailsModel(
         return await LoadAsync(cancellationToken) ? Page() : NotFound();
     }
 
-    /// <summary>Log call, from this page or a Links we sent row, which it returns to (v50 P; R912).</summary>
+    /// <summary>Log call, from this page or a Direct links row, which it returns to (v50 P; R912).</summary>
     public Task<IActionResult> OnPostLogCallAsync(string? returnUrl, CancellationToken cancellationToken) =>
         ActAsync((actor, token) => actions.LogCallAsync(actor, Id, OperationKey, token), Labels.CallLogged, returnUrl, cancellationToken);
 
@@ -177,9 +173,9 @@ public sealed class DetailsModel(
         ActAsync((actor, token) => actions.ExtendAsync(actor, Id, Days, OperationKey, token), Labels.LinkExtended, returnUrl: null, cancellationToken);
 
     /// <summary>
-    /// Cancel, from this page, a Links we sent row or the Case page (R795):
-    /// the same act and the same refusal, which this page shows; a success
-    /// goes back to where it was asked from.
+    /// Cancel, from this page or the Case page (R795): the same act and the
+    /// same refusal, which this page shows; a success goes back to where it
+    /// was asked from.
     /// </summary>
     public Task<IActionResult> OnPostCancelAsync(string? returnUrl, CancellationToken cancellationToken) =>
         ActAsync((actor, token) => actions.RevokeAsync(actor, Id, OperationKey, token), Labels.LinkCancelled, returnUrl, cancellationToken);
@@ -222,56 +218,6 @@ public sealed class DetailsModel(
         return RedirectToPage(new { id = Id });
     }
 
-    /// <summary>
-    /// A fresh link to copy for this capture (Ask for it with nothing to e-mail;
-    /// R816), counted as Core's Resend says (R914, R842). The page renders
-    /// directly, because the raw token is never stored.
-    /// </summary>
-    public async Task<IActionResult> OnPostResendAsync(CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        if (!await LoadAsync(cancellationToken))
-        {
-            return NotFound();
-        }
-
-        IssuedPhotoLink issued;
-        try
-        {
-            issued = await actions.ResendAsync(actor, Id, PhotoLinkTokenPurpose.Copy, OperationKey, cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-        catch (PhotoCaptureRefusalException refusal)
-        {
-            ModelState.AddModelError(string.Empty, refusal.Message);
-            return Page();
-        }
-
-        // The form posted again made nothing: its link was shown to the first
-        // post only, so the page is drawn as it is.
-        if (issued.Replayed)
-        {
-            return RedirectToPage(new { id = Id });
-        }
-
-        IssuedUrl = PhotoLinkUrls.CaptureUrl(options.Value.PublicOrigin, issued.Token);
-        // The page draws the record as the resend left it.
-        await LoadAsync(cancellationToken);
-        OperationKey = NewOperationKey();
-        return Page();
-    }
-
     private async Task<bool> LoadAsync(CancellationToken cancellationToken)
     {
         var row = queries.GetRowAsync(Id, cancellationToken);
@@ -289,11 +235,104 @@ public sealed class DetailsModel(
         State = derived.State;
         Due = derived.Due;
         // Only the items whose upload reached intake are photos the link has,
-        // as the phone and the Send count them.
-        Story = PhotoCaptureStoryView.Groups(
-            items.Result.Where(item => item.StagedReceiptId is not null).ToArray(),
-            found.Capture.Details.MarkedAreas);
-        Acts = acts.Result;
+        // as the phone and the Send count them; the story decides their order.
+        var ordered = PhotoCaptureStoryView.Groups(
+                items.Result.Where(item => item.StagedReceiptId is not null).ToArray(),
+                found.Capture.Details.MarkedAreas)
+            .SelectMany(group => group.Stages)
+            .SelectMany(stage => stage.Items)
+            .ToArray();
+        var photographs = ordered.Where(item => PhotoCaptureStory.IsPhotographKind(item.Kind)).ToArray();
+        var captions = Labels.Captions(photographs);
+        Photos = [.. photographs.Select((item, index) => Tile(item, index + 1, captions[index]))];
+        Files = [.. ordered
+            .Where(item => !PhotoCaptureStory.IsPhotographKind(item.Kind))
+            .Select(item => new FileChip(Labels.ItemLabel(item), FileHref(item)))];
+        History = KeyMilestones(found, acts.Result, State);
         return true;
+    }
+
+    private PhotoTile Tile(PhotoCaptureItem item, int number, string caption)
+    {
+        // Settled, the intake asset, whose tile is a rendering at tile size;
+        // before the settle, the staged image (v51 A; R948).
+        var href = item.IntakeReceiptId is { } receiptId && item.IntakeAssetId is { } assetId
+            ? Url.Page("/Intake/Asset", new { id = receiptId, assetId, v = item.ContentHash })!
+            : Url.Page("/Intake/Image", new { id = item.StagedReceiptId })!;
+        var tileHref = new GalleryImage(
+            href,
+            href,
+            caption,
+            item.MediaType,
+            IntakeAssetId: item.IntakeAssetId,
+            IntakeReceiptId: item.IntakeReceiptId,
+            ContentHash: item.ContentHash).TileHref;
+        return new(
+            number,
+            caption,
+            Labels.PhotoFilterKey(item.Kind),
+            href,
+            tileHref,
+            caption + Path.GetExtension(item.FileName),
+            item.MediaType);
+    }
+
+    /// <summary>
+    /// Where a paperwork or video item opens (R807): the received file, served
+    /// by its own route under its own access rule. Null for one not yet
+    /// received into intake.
+    /// </summary>
+    private string? FileHref(PhotoCaptureItem item) =>
+        item.IntakeReceiptId is { } receiptId && item.IntakeAssetId is { } assetId
+            ? Url.Page("/Intake/Asset", new { id = receiptId, assetId })
+            : null;
+
+    /// <summary>
+    /// The key milestones (operator, 11 November 2026; v51 G; R948): Created
+    /// with who sent it, Opened, Received with how many photos, each staff act
+    /// with who did it, Reminded, Link extended, Sent by text, Text not sent,
+    /// Call logged and Cancelled (R805, R870, R921), and Expired.
+    /// </summary>
+    private static IReadOnlyList<HistoryLine> KeyMilestones(
+        PhotoCaptureListRow row,
+        IReadOnlyList<PhotoLinkAct> acts,
+        PhotoCaptureState state)
+    {
+        var capture = row.Capture;
+        var lines = new List<HistoryLine> { new(Labels.Created, capture.CreatedAtUtc, row.IssuedByName) };
+        if (capture.OpenedAtUtc is { } opened)
+        {
+            lines.Add(new(Labels.Opened, opened));
+        }
+
+        if (capture.AcceptedItemCount > 0 && capture.LastItemAtUtc is { } received)
+        {
+            lines.Add(new(Labels.Received, received, row.Photographs > 0 ? Labels.PhotosOf(row.Photographs) : null));
+        }
+
+        foreach (var act in acts)
+        {
+            var label = act.Kind switch
+            {
+                PhotoLinkActs.Reminded => Labels.Reminded,
+                PhotoLinkActs.Extended => Labels.LinkExtended,
+                PhotoLinkActs.TextSent => Labels.SentByText,
+                PhotoLinkActs.TextFailed => Labels.TextNotSent,
+                PhotoLinkActs.CallLogged => Labels.CallLoggedAt,
+                PhotoLinkActs.Cancelled => Labels.Cancelled,
+                _ => null
+            };
+            if (label is not null)
+            {
+                lines.Add(new(label, act.AtUtc, act.ActorName));
+            }
+        }
+
+        if (state == PhotoCaptureState.Expired && !row.CaseArchived)
+        {
+            lines.Add(new(Labels.State(PhotoCaptureState.Expired), capture.ExpiresAtUtc));
+        }
+
+        return [.. lines.OrderBy(line => line.AtUtc)];
     }
 }

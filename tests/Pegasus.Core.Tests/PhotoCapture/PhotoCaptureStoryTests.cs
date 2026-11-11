@@ -195,4 +195,40 @@ public sealed class PhotoCaptureStoryTests
             IntakeCaseEvidenceRoles.ForPhotoCapture("image/jpeg", PhotoCaptureStory.DeclaredDocumentType(PhotoCaptureItemKind.Damage)));
         Assert.Equal(DocumentSemanticRole.Other, IntakeCaseEvidenceRoles.ForPhotoCapture("application/pdf", null));
     }
+
+    /// <summary>
+    /// A Case's photo links lead with the latest that holds a photograph and
+    /// is not cancelled, then the others latest first (v51 J; R948); with no
+    /// such link the latest leads.
+    /// </summary>
+    [Fact]
+    public void ACasesLinksLeadWithTheLatestWithPhotosThatIsNotCancelled()
+    {
+        var now = PhotoCaptureTestData.Now;
+        CasePhotoCaptureStory Story(int minutesAgo, bool photo, bool cancelled = false)
+        {
+            var capture = PhotoCaptureTestData.Capture(
+                createdAtUtc: now.AddMinutes(-minutesAgo),
+                revokedAtUtc: cancelled ? now : null) with { Id = Guid.NewGuid() };
+            var items = new List<PhotoCaptureItem>();
+            if (photo)
+            {
+                items.Add(new PhotoCaptureItem(
+                    Guid.NewGuid(), capture.Id, Guid.NewGuid(), PhotoCaptureItemKind.Overview, null, null, 1, 1, 0, 0, 0,
+                    "overview.jpg", "image/jpeg", null, true, true, new string('a', 64), 1, null, null, null, false, now));
+            }
+
+            return new(capture, items, null, StandingLinkIsRepairer: false, HandedOn: false);
+        }
+
+        var oldWithPhoto = Story(30, photo: true);
+        var cancelledWithPhoto = Story(20, photo: true, cancelled: true);
+        var newestEmpty = Story(10, photo: false);
+
+        Assert.Equal(
+            new[] { oldWithPhoto, newestEmpty, cancelledWithPhoto },
+            PhotoCaptureStory.CaseOrder([oldWithPhoto, cancelledWithPhoto, newestEmpty]));
+        Assert.Equal(new[] { newestEmpty, cancelledWithPhoto }, PhotoCaptureStory.CaseOrder([cancelledWithPhoto, newestEmpty]));
+        Assert.Empty(PhotoCaptureStory.CaseOrder([]));
+    }
 }

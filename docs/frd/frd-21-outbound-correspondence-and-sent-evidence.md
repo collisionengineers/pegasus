@@ -318,10 +318,8 @@ mobile number; a text is not mail and has no Sent evidence, and the link's
 history records it ([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-text);
 [R918](../rulings.md) to R921). WhatsApp is Copy link and the staff
 member's own phone (operator, 9 November 2026, [R773](../rulings.md)).
-**Ask for it**, on a capture that came in on a standing or website link,
-opens the same composer when the capture is on a Case and holds an e-mail
-address, and otherwise shows the link to copy (operator, 9 November 2026;
-R816).
+A capture a standing or website link started is never sent again: **Ask
+for it** is retired (operator, 11 November 2026; [R948](../rulings.md)).
 
 **Reply targets.** Pegasus keeps the structured MIME Reply-To addresses in
 their original order and uses the From addresses only when Reply-To is

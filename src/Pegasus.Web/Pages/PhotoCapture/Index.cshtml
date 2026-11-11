@@ -4,12 +4,12 @@
 @using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture
 @{
     ViewData["Title"] = Labels.Title;
-    // Refreshing reruns the tab, its state, its filters and the page.
+    // Refreshing reruns the tab, its scope or standing link, the search and the page.
     ViewData["RefreshFields"] = new Dictionary<string, string?>
     {
-        ["tab"] = Model.SentByUs ? Labels.LinksWeSentKey : null,
-        ["state"] = Model.StateFilter,
-        ["origin"] = Model.SentByUs ? null : Model.OriginFilter,
+        ["tab"] = Model.Direct ? null : Labels.StandingLinksKey,
+        ["scope"] = Model.Direct ? Model.ScopeKey : null,
+        ["link"] = Model.SelectedLink?.Link.Id.ToString("D"),
         ["q"] = Model.Query,
         ["page"] = Model.CurrentPage > 1 ? Model.CurrentPage.ToString(System.Globalization.CultureInfo.InvariantCulture) : null
     };
@@ -17,13 +17,14 @@
     {
         ViewData["RefreshStatus"] = "unavailable";
     }
-
-    var tabLabel = Model.SentByUs ? Labels.LinksWeSent : Labels.ComingIn;
-    var hasFilters = Model.Origin is not null || Model.NoCaseYet || Model.Query is not null;
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/photo-capture.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/js/photo-link-send.js" asp-append-version="true"></script>
 }
 
 <header class="page-header">
@@ -43,135 +44,77 @@
     </div>
 }
 
-@* Each tab is its own server-rendered address (?tab=), so the tabs are a nav
-   of links with aria-current, as on Logs and a Principal contact. *@
+@* The two kinds of link (v51 N; R948): Direct links, sent for a Case, counted
+   by those Awaiting; Standing links, counted by the links themselves. Each tab
+   is its own server-rendered address, so the tabs are a nav of links. *@
 <nav class="tabs photo-capture-tabs" aria-label="@Labels.Title">
-    @* Each tab carries how many captures it holds (R806). *@
-    <a class="tab" href="@Model.Href(tab: Labels.ComingInKey, keepState: false)" aria-current="@(Model.SentByUs ? null : "page")">
-        <span>@Labels.ComingIn</span>
-        @if (Model.TabCounts is { } comingInCount)
+    <a class="tab" href="@Model.Href(direct: true, keepLink: false)" aria-current="@(Model.Direct ? "page" : null)">
+        <span>@Labels.DirectLinks</span>
+        @if (Model.AwaitingCount is { } awaiting)
         {
-            <span class="tab-count">@comingInCount.ComingIn</span>
+            <span class="tab-count">@awaiting</span>
         }
     </a>
-    <a class="tab" href="@Model.Href(tab: Labels.LinksWeSentKey, keepState: false)" aria-current="@(Model.SentByUs ? "page" : null)">
-        <span>@Labels.LinksWeSent</span>
-        @if (Model.TabCounts is { } sentCount)
+    <a class="tab" href="@Model.Href(direct: false, keepLink: false)" aria-current="@(Model.Direct ? null : "page")">
+        <span>@Labels.StandingLinks</span>
+        @if (!Model.IsUnavailable)
         {
-            <span class="tab-count">@sentCount.LinksWeSent</span>
+            <span class="tab-count">@Model.StandingLinks.Count</span>
         }
     </a>
 </nav>
 
-@if (!Model.IsUnavailable)
+@if (!Model.IsUnavailable && Model.Direct)
 {
-<section class="pane-layout queue-layout photo-capture-queue" data-photo-capture-tab="@(Model.SentByUs ? Labels.LinksWeSentKey : Labels.ComingInKey)">
-    <aside class="pane">
-        @* The tab's headline states with their queried counts, as the Cases
-           list's scopes: one GET form whose buttons carry state=, keeping the
-           tab, the From filter and the search. *@
-        <form method="get" action="/PhotoCapture" class="scope-list" data-row-list>
-            @if (Model.SentByUs)
-            {
-                <input type="hidden" name="tab" value="@Labels.LinksWeSentKey" />
-            }
-            else if (Model.OriginFilter is { Length: > 0 } origin)
-            {
-                <input type="hidden" name="origin" value="@origin" />
-            }
-            @if (Model.Query is { } query)
-            {
-                <input type="hidden" name="q" value="@query" />
-            }
-            <button type="submit" name="state" value="" class="scope-button" aria-pressed="@(Model.State is null ? "true" : "false")">
-                <span class="scope-visual-icon">
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-list")" /></svg>
-                </span>
-                <span>@Labels.All</span>
-                @if (Model.State is null)
+    <section class="panel pc-direct" data-photo-capture-tab="direct">
+        @* Workflow scopes and the search on one toolbar (v51 N; R948): the scopes
+           are one GET form whose buttons carry scope=, keeping the search. *@
+        <div class="pc-toolbar">
+            <form method="get" action="/PhotoCapture" class="pc-pills" role="group" aria-label="@Labels.FilterDirectLinks">
+                @if (Model.Query is { } scopeQuery)
                 {
-                    <span>@Model.TotalCount</span>
+                    <input type="hidden" name="q" value="@scopeQuery" />
                 }
-                else
+                @foreach (var scope in Enum.GetValues<PhotoCaptureScope>())
                 {
-                    <span hidden></span>
+                    <button type="submit" name="scope" value="@Labels.ScopeKey(scope)" class="pc-pill" aria-pressed="@(Model.Scope == scope ? "true" : "false")">
+                        <span>@Labels.Scope(scope)</span>
+                        <span class="pc-pill-count">@Model.Counts.GetValueOrDefault(scope)</span>
+                    </button>
                 }
-            </button>
-            @foreach (var state in Model.CountedStates)
-            {
-                <button type="submit" name="state" value="@Labels.StateKey(state)" class="scope-button"
-                        aria-pressed="@(Model.State == state ? "true" : "false")">
-                    <span class="scope-visual-icon">
-                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(Labels.StateIcon(state))" /></svg>
-                    </span>
-                    <span>@Labels.State(state)</span>
-                    <span>@Model.Counts[state]</span>
-                </button>
-            }
-        </form>
-    </aside>
-
-    <div class="pane photo-capture-list">
-        @* The tab and All carry the count, so the list's own heading is for
-           assistive technology only (v50 L). *@
-        <div class="pane-head">
-            <h2 class="sr-only">@tabLabel</h2>
-            <form method="get" action="/PhotoCapture" class="filter-bar photo-capture-filters" data-auto-submit role="search">
-                @if (Model.SentByUs)
+            </form>
+            <form method="get" action="/PhotoCapture" class="pc-search-form" data-auto-submit role="search">
+                @if (Model.ScopeKey is { Length: > 0 } scopeKey)
                 {
-                    <input type="hidden" name="tab" value="@Labels.LinksWeSentKey" />
+                    <input type="hidden" name="scope" value="@scopeKey" />
                 }
-                @if (Model.StateFilter is { Length: > 0 } stateKey)
+                <label class="sr-only" for="photo-capture-search">@Labels.Search</label>
+                <input id="photo-capture-search" name="q" type="search" value="@Model.Query" maxlength="100" placeholder="@Labels.DirectSearchPlaceholder" />
+                <noscript><button type="submit" class="btn btn--small">@Labels.Apply</button></noscript>
+                @if (Model.Query is not null)
                 {
-                    <input type="hidden" name="state" value="@stateKey" />
-                }
-                @if (!Model.SentByUs)
-                {
-                    <div class="field">
-                        <label class="sr-only" for="photo-capture-origin">@Labels.From</label>
-                        <select id="photo-capture-origin" name="origin">
-                            <option value="">@Labels.All</option>
-                            @foreach (var origin in Labels.ComingInOrigins)
-                            {
-                                <option value="@Labels.OriginKey(origin)" selected="@(Model.Origin == origin ? "selected" : null)">@Labels.Source(origin)</option>
-                            }
-                            <option value="@Labels.NoCaseYetKey" selected="@(Model.NoCaseYet ? "selected" : null)">@Labels.NoCaseYet</option>
-                        </select>
-                    </div>
-                }
-                <div class="field">
-                    <label class="sr-only" for="photo-capture-search">@Labels.Search</label>
-                    <input id="photo-capture-search" name="q" type="search" value="@Model.Query" maxlength="100" placeholder="@Labels.SearchPlaceholder" />
-                </div>
-                <noscript><button type="submit" class="btn">@Labels.Apply</button></noscript>
-                @if (hasFilters)
-                {
-                    <a class="btn" href="@Model.Href(keepState: true)" data-photo-capture-clear>@Labels.Clear</a>
+                    <a class="btn btn--small" href="@Model.Href(keepQuery: false)" data-photo-capture-clear>@Labels.Clear</a>
                 }
             </form>
         </div>
-        @* One-line rows (v50 I to M): long text ends in an ellipsis with the full
-           text on hover; narrower widths drop the columns marked --wide, --medium
-           and --narrow rather than scroll (#2029). Each row leads with the act its
-           state calls for; one other act is its own button, two or more go in
-           More with Cancel link last (R912). *@
+        @* One-line rows: the act the row's state calls for is its one button, and
+           Cancel link and Extend stay on the link's page and the Case (v51 N). *@
         <div class="photo-capture-table" data-row-list>
             @if (Model.Rows.Count == 0)
             {
-                <div class="photo-capture-empty">@Labels.NothingHere</div>
+                <div class="photo-capture-empty">@(Model.TotalCount == 0 && Model.Counts.GetValueOrDefault(PhotoCaptureScope.All) == 0 ? Labels.NoDirectLinksYet : Labels.NoDirectLinksMatch)</div>
             }
-            else if (Model.SentByUs)
+            else
             {
-                <table class="table photo-capture-rows">
+                <table class="table pc-oneline photo-capture-rows">
                     <thead>
                         <tr>
                             <th scope="col">@Labels.Vehicle</th>
-                            <th scope="col">@Labels.Customer</th>
                             <th scope="col">@Labels.Case</th>
-                            <th scope="col" class="photo-capture-col--medium">@Labels.From</th>
+                            <th scope="col" class="hide-s">@Labels.Recipient</th>
                             <th scope="col">@Labels.Status</th>
                             <th scope="col">@Labels.Photos</th>
-                            <th scope="col" class="photo-capture-col--wide">@Labels.NextReminder</th>
+                            <th scope="col" class="hide-l">@Labels.Sent</th>
                             <th scope="col"><span class="sr-only">@Labels.Action</span></th>
                         </tr>
                     </thead>
@@ -179,21 +122,33 @@
                         @foreach (var row in Model.Rows)
                         {
                             var capture = row.Capture;
-                            var photosHref = Pegasus.Web.Pages.PhotoCapture.IndexModel.PhotosHref(row.Source);
-                            // The act the row's state calls for (R912): Resend while the link is
-                            // live and a reminder is due or it is unopened, Log call when it needs
-                            // a call, else View photos.
-                            var resend = row.IsLive && (row.Due is not null || row.State is PhotoCaptureState.SentNotOpened or PhotoCaptureState.Opened);
+                            // Resend while the link is live and a reminder is due or it is
+                            // still waiting for photos; Log call when it needs a call (R912).
+                            var resend = row.IsLive && (row.Due is not null
+                                || row.State is PhotoCaptureState.SentNotOpened or PhotoCaptureState.Opened or PhotoCaptureState.SomethingMissing);
                             var logCall = !resend && row.State == PhotoCaptureState.NeedsCall;
-                            var viewPhotosFirst = !resend && !logCall && capture.AcceptedItemCount > 0 && photosHref is not null;
-                            var viewPhotos = !viewPhotosFirst && capture.AcceptedItemCount > 0 && photosHref is not null;
-                            var cancel = row.IsLive;
+                            var chase = row.IsLive ? Labels.ChaseCue(row.Due, capture.ReminderCount) : null;
                             var missing = row.Source.MissingItems.Count > 0 && row.State is PhotoCaptureState.SomethingMissing or PhotoCaptureState.PhotosComingIn
-                                ? row.Source.MissingItems[0]
+                                ? string.Join(" · ", row.Source.MissingItems)
                                 : null;
                             <tr data-photo-capture-row="@capture.Id">
-                                <td class="mono nowrap"><a class="table-row-link" asp-page="/PhotoCapture/Details" asp-route-id="@capture.Id">@Labels.Registration(capture.NormalizedRegistration)</a></td>
-                                <td>
+                                <td class="mono nowrap">
+                                    <span class="pc-veh-cell">
+                                        <a class="table-row-link" asp-page="/PhotoCapture/Details" asp-route-id="@capture.Id">@Labels.Registration(capture.NormalizedRegistration)</a>
+                                        <partial name="/Pages/PhotoCapture/_PreviewStrip.cshtml" model="@((Model, row.Source.Preview))" />
+                                    </span>
+                                </td>
+                                <td class="nowrap">
+                                    @if (capture.CaseId is { } caseId)
+                                    {
+                                        <a class="mono" asp-page="/Cases/Details" asp-route-id="@caseId">@capture.CaseReference</a>
+                                    }
+                                    @if (row.Source.OrganizationName is { Length: > 0 } principal)
+                                    {
+                                        <small class="muted photo-capture-sub photo-capture-clip hide-m" title="@principal">@principal</small>
+                                    }
+                                </td>
+                                <td class="hide-s">
                                     @if (capture.CustomerName is { Length: > 0 } customer)
                                     {
                                         <span class="photo-capture-clip" title="@customer">@customer</span>
@@ -202,181 +157,52 @@
                                     {
                                         <span class="muted">@Labels.NotGiven</span>
                                     }
-                                    @if (capture.Mobile is { Length: > 0 } mobile)
-                                    {
-                                        <small class="muted photo-capture-sub photo-capture-col--narrow">@mobile</small>
-                                    }
-                                </td>
-                                <td class="mono nowrap">
-                                    @if (capture.CaseId is { } caseId)
-                                    {
-                                        <a asp-page="/Cases/Details" asp-route-id="@caseId">@capture.CaseReference</a>
-                                    }
-                                </td>
-                                <td class="photo-capture-col--medium">
-                                    <span class="photo-capture-clip" title="@row.Source.OrganizationName">@row.Source.OrganizationName</span>
                                     @if (row.Source.SentOnToCustomer)
                                     {
                                         @* A quick link its firm sent on to their customer (R798). *@
-                                        <small class="muted photo-capture-sub photo-capture-clip">@Labels.SentOnToTheirCustomer</small>
+                                        <small class="muted photo-capture-sub">@Labels.ForwardedToCustomer</small>
+                                    }
+                                    else if (capture.Mobile is { Length: > 0 } mobile)
+                                    {
+                                        <small class="muted photo-capture-sub">@mobile</small>
                                     }
                                 </td>
-                                <td><partial name="Shared/_StatusChip" model="@Labels.State(row.State)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = Labels.StateTone(row.State) }' /></td>
+                                <td>
+                                    <partial name="Shared/_StatusChip" model="@Labels.State(row.State)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = Labels.StateTone(row.State) }' />
+                                    @if (chase is not null)
+                                    {
+                                        <span class="pc-due-sub">@chase</span>
+                                    }
+                                </td>
                                 <td>
                                     @if (row.Source.Photographs > 0)
                                     {
                                         <span>@Labels.PhotoCount(row.Source.Photographs, row.State == PhotoCaptureState.Complete)</span>
                                     }
-                                    @if (missing is not null)
-                                    {
-                                        <small class="muted photo-capture-sub photo-capture-clip photo-capture-col--narrow" title="@missing">@missing</small>
-                                    }
-                                </td>
-                                @* Blank when nothing is due (v50 K). *@
-                                <td class="photo-capture-col--wide">@row.Due?.Label</td>
-                                <td class="row-actions">
-                                    <span class="cluster">
-                                        @if (resend)
-                                        {
-                                            <a class="btn btn--small" href="@Pegasus.Web.Pages.PhotoCapture.IndexModel.ResendHref(capture.Id, Model.Href())">@Labels.Resend</a>
-                                        }
-                                        else if (logCall)
-                                        {
-                                            @* Log call returns to this list with its notice (v50 P). *@
-                                            <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="LogCall" asp-route-id="@capture.Id">
-                                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
-                                                <input type="hidden" name="returnUrl" value="@Model.Href()" />
-                                                <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Logging">@Labels.LogCall</button>
-                                            </form>
-                                        }
-                                        else if (viewPhotosFirst)
-                                        {
-                                            <a class="btn btn--small" href="@photosHref">@Labels.ViewPhotos</a>
-                                        }
-                                        @if (viewPhotos && cancel)
-                                        {
-                                            <details class="menu" data-menu>
-                                                <summary class="btn btn--small"><span class="photo-capture-more">More</span><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-down")" /></svg></summary>
-                                                <div class="menu-body">
-                                                    <a class="btn" href="@photosHref"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-images")" /></svg><span>@Labels.ViewPhotos</span></a>
-                                                    <div class="menu-sep"></div>
-                                                    <partial name="/Pages/PhotoCapture/_CancelLinkForm.cshtml" model="@((capture.Id, Model.Href(), true))" />
-                                                </div>
-                                            </details>
-                                        }
-                                        else if (viewPhotos)
-                                        {
-                                            <a class="btn btn--small" href="@photosHref">@Labels.ViewPhotos</a>
-                                        }
-                                        else if (cancel)
-                                        {
-                                            <partial name="/Pages/PhotoCapture/_CancelLinkForm.cshtml" model="@((capture.Id, Model.Href(), false))" />
-                                        }
-                                    </span>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            }
-            else
-            {
-                <table class="table photo-capture-rows">
-                    <thead>
-                        <tr>
-                            <th scope="col">@Labels.Vehicle</th>
-                            <th scope="col" class="photo-capture-col--narrow">@Labels.From</th>
-                            <th scope="col" class="photo-capture-col--medium">@Labels.Customer</th>
-                            <th scope="col">@Labels.Case</th>
-                            <th scope="col">@Labels.Status</th>
-                            <th scope="col">@Labels.Photos</th>
-                            <th scope="col" class="photo-capture-col--wide">@Labels.Received</th>
-                            <th scope="col"><span class="sr-only">@Labels.Action</span></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var row in Model.Rows)
-                        {
-                            var capture = row.Capture;
-                            var photosHref = Pegasus.Web.Pages.PhotoCapture.IndexModel.PhotosHref(row.Source);
-                            var caseHow = Pegasus.Web.Pages.PhotoCapture.IndexModel.CaseHow(row.Source);
-                            var from = row.Source.OrganizationName ?? (capture.Origin == PhotoCaptureOrigin.Website ? Labels.Website : null);
-                            var askForIt = row.State == PhotoCaptureState.SomethingMissing && row.IsLive;
-                            var photosLabel = capture.CaseId is not null ? Labels.ViewPhotos : row.Source.ImageIntakeId is not null ? Labels.MatchToACase : null;
-                            var photos = photosHref is not null && photosLabel is not null;
-                            var missing = row.Source.MissingItems.Count > 0 && row.State is PhotoCaptureState.SomethingMissing or PhotoCaptureState.PhotosComingIn
-                                ? row.Source.MissingItems[0]
-                                : null;
-                            <tr data-photo-capture-row="@capture.Id">
-                                <td class="mono nowrap"><a class="table-row-link" asp-page="/PhotoCapture/Details" asp-route-id="@capture.Id">@Labels.Registration(capture.NormalizedRegistration)</a></td>
-                                <td class="photo-capture-col--narrow">
-                                    <span class="photo-capture-clip" title="@from">@from</span>
-                                    <small class="muted photo-capture-sub photo-capture-clip">@Labels.Source(capture.Origin)</small>
-                                </td>
-                                <td class="photo-capture-col--medium">
-                                    @if (capture.CustomerName is { Length: > 0 } customer)
-                                    {
-                                        <span class="photo-capture-clip" title="@customer">@customer</span>
-                                    }
                                     else
                                     {
-                                        <span class="muted">@Labels.NotGiven</span>
+                                        <span class="muted">—</span>
                                     }
-                                </td>
-                                <td>
-                                    @if (capture.CaseId is { } caseId)
-                                    {
-                                        <a class="mono" asp-page="/Cases/Details" asp-route-id="@caseId">@capture.CaseReference</a>
-                                        @if (caseHow is not null)
-                                        {
-                                            <small class="muted photo-capture-sub photo-capture-clip">@caseHow</small>
-                                        }
-                                    }
-                                    else if (row.Source.ImageIntakeId is { } recordId)
-                                    {
-                                        <a href="/VehicleImages/@recordId">@Labels.AwaitingInstruction</a>
-                                        @if (row.Source.ImageIntakeReference is { } recordReference)
-                                        {
-                                            <small class="muted mono photo-capture-sub">@recordReference</small>
-                                        }
-                                    }
-                                    else
-                                    {
-                                        <span class="muted">@Labels.AwaitingInstruction</span>
-                                    }
-                                </td>
-                                <td><partial name="Shared/_StatusChip" model="@Labels.State(row.State)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = Labels.StateTone(row.State) }' /></td>
-                                <td>
-                                    <span>@Labels.PhotoCount(row.Source.Photographs, row.State == PhotoCaptureState.Complete)</span>
                                     @if (missing is not null)
                                     {
-                                        <small class="muted photo-capture-sub photo-capture-clip photo-capture-col--narrow" title="@missing">@missing</small>
+                                        <small class="muted photo-capture-sub photo-capture-clip hide-s" title="@missing">@missing</small>
                                     }
                                 </td>
-                                <td class="nowrap photo-capture-col--wide">@OperatorLabels.OfficeTime(capture.LastItemAtUtc ?? capture.CreatedAtUtc)</td>
+                                <td class="nowrap hide-l">@OperatorLabels.OfficeTime(capture.SentAtUtc ?? capture.CreatedAtUtc)</td>
                                 <td class="row-actions">
-                                    <span class="cluster">
-                                        @if (askForIt)
-                                        {
-                                            @* Ask for it (R806, R816): a fresh link for this capture, through the
-                                               composer when it can be e-mailed or texted (R915, R920), else made to copy. *@
-                                            @if (Model.CanSend(capture))
-                                            {
-                                                <a class="btn btn--small" href="@Pegasus.Web.Pages.PhotoCapture.IndexModel.ResendHref(capture.Id, Model.Href())">@Labels.AskForIt</a>
-                                            }
-                                            else
-                                            {
-                                                <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Resend" asp-route-id="@capture.Id">
-                                                    <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
-                                                    <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Creating">@Labels.AskForIt</button>
-                                                </form>
-                                            }
-                                        }
-                                        @if (photos)
-                                        {
-                                            <a class="btn btn--small" href="@photosHref">@photosLabel</a>
-                                        }
-                                    </span>
+                                    @if (resend)
+                                    {
+                                        <a class="btn btn--small" href="@Pegasus.Web.Pages.PhotoCapture.IndexModel.ResendHref(capture.Id, Model.Href())" data-photo-link-composer>@Labels.Resend</a>
+                                    }
+                                    else if (logCall)
+                                    {
+                                        @* Log call returns to this list with its notice (v50 P). *@
+                                        <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="LogCall" asp-route-id="@capture.Id">
+                                            <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                            <input type="hidden" name="returnUrl" value="@Model.Href()" />
+                                            <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Logging">@Labels.LogCall</button>
+                                        </form>
+                                    }
                                 </td>
                             </tr>
                         }
@@ -384,19 +210,273 @@
                 </table>
             }
         </div>
-        <nav class="pagination" aria-label="Pages">
-            <span>@OperatorLabels.CaseQueueFooter.PageLine(Model.CurrentPage, Model.HasPreviousPage || Model.HasNextPage)</span>
-            <div class="button-row">
-                @if (Model.HasPreviousPage)
+        <partial name="/Pages/PhotoCapture/_ListPages.cshtml" model="Model" />
+    </section>
+}
+else if (!Model.IsUnavailable)
+{
+    var selected = Model.SelectedLink;
+    <section class="pc-standing-layout" data-photo-capture-tab="@Labels.StandingLinksKey">
+        @* The directory of standing and website links (v51 P; R948): every member
+           of staff may copy one or show its QR code; Defaults and Manage lead
+           Administrators to where links are changed. *@
+        <aside class="panel pc-directory">
+            <div class="panel-head">
+                <h2>@Labels.StandingLinks</h2>
+                @if (Model.ManagesLinks)
                 {
-                    <a class="btn btn--small" href="@Model.Href(page: Model.CurrentPage - 1)">Previous</a>
-                }
-                @if (Model.HasNextPage)
-                {
-                    <a class="btn btn--small" href="@Model.Href(page: Model.CurrentPage + 1)">Next</a>
+                    <a class="btn btn--small" asp-page="/Administration/PhotoLinks">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-settings")" /></svg>
+                        <span>@Labels.Defaults</span>
+                    </a>
                 }
             </div>
-        </nav>
-    </div>
-</section>
+            @if (Model.StandingLinks.Count == 0)
+            {
+                <div class="photo-capture-empty">@Labels.NoStandingLinks</div>
+            }
+            else
+            {
+                <ul class="pc-partner-list">
+                    <li class="pc-partner-item@(selected is null ? " is-selected" : null)">
+                        <a class="pc-partner-select" href="@Model.Href(keepLink: false)" aria-current="@(selected is null ? "true" : null)">
+                            <span class="pc-partner-name">@Labels.AllSubmissions</span>
+                            <span class="pc-partner-meta">@Labels.AcrossActiveLinks(Model.StandingLinks.Count(link => link.Link.StartsCaptures))</span>
+                        </a>
+                        <span class="pc-partner-count">@Model.StandingSubmissions</span>
+                    </li>
+                    @foreach (var standing in Model.StandingLinks)
+                    {
+                        var link = standing.Link;
+                        var name = Labels.StandingLinkName(link);
+                        var isSelected = selected?.Link.Id == link.Id;
+                        <li class="pc-partner-item@(isSelected ? " is-selected" : null)">
+                            <a class="pc-partner-select" href="@Model.Href(link: link.Id)" aria-current="@(isSelected ? "true" : null)">
+                                <span class="pc-partner-name" title="@name">@name</span>
+                                <span class="pc-partner-meta">
+                                    <span>@Labels.StandingLinkKind(link)</span>
+                                    @if (!link.ContactActive)
+                                    {
+                                        <span>· <strong>@Labels.ContactInactive</strong></span>
+                                    }
+                                    else if (!link.IsActive)
+                                    {
+                                        <span>· <strong>@Labels.Paused</strong></span>
+                                    }
+                                </span>
+                            </a>
+                            <span class="pc-partner-count">@standing.Listing.Submissions</span>
+                            @if (standing.Url is { } url)
+                            {
+                                <span class="pc-partner-tools">
+                                    <code id="standing-link-url-@link.Id" hidden>@url</code>
+                                    <button type="button" class="pc-icon-btn" data-copy-target="standing-link-url-@link.Id" data-copy-quiet title="@Labels.CopyLink" aria-label="@Labels.CopyLinkFor(name)" hidden>
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-copy")" /></svg>
+                                    </button>
+                                    <button type="button" class="pc-icon-btn" data-dialog-open="standing-qr-@link.Id" title="@Labels.QrCode" aria-label="@Labels.QrCodeFor(name)">
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-layout-grid")" /></svg>
+                                    </button>
+                                </span>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </aside>
+
+        <div class="panel pc-submissions">
+            <div class="pc-toolbar">
+                <div><strong>@(selected is null ? Labels.RecentSubmissions : Labels.StandingLinkName(selected.Link))</strong> <span class="muted">· @Labels.ReceivedCount(Model.TotalCount)</span></div>
+                <form method="get" action="/PhotoCapture" class="pc-search-form" data-auto-submit role="search">
+                    <input type="hidden" name="tab" value="@Labels.StandingLinksKey" />
+                    @if (selected is not null)
+                    {
+                        <input type="hidden" name="link" value="@selected.Link.Id" />
+                    }
+                    <label class="sr-only" for="photo-capture-search">@Labels.Search</label>
+                    <input id="photo-capture-search" name="q" type="search" value="@Model.Query" maxlength="100" placeholder="@Labels.StandingSearchPlaceholder" />
+                    <noscript><button type="submit" class="btn btn--small">@Labels.Apply</button></noscript>
+                    @if (Model.Query is not null)
+                    {
+                        <a class="btn btn--small" href="@Model.Href(keepQuery: false)" data-photo-capture-clear>@Labels.Clear</a>
+                    }
+                </form>
+            </div>
+            @if (selected is not null)
+            {
+                var link = selected.Link;
+                var name = Labels.StandingLinkName(link);
+                var chip = !link.ContactActive ? Labels.ContactInactive : link.IsActive ? Labels.Active : Labels.Paused;
+                <div class="pc-partner-bar">
+                    <partial name="Shared/_StatusChip" model="@chip" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = link.StartsCaptures ? "green" : "amber" }' />
+                    @if (selected.Url is { } url)
+                    {
+                        <code id="selected-standing-link-url">@url</code>
+                    }
+                    <span class="muted">@Labels.StandingLinkDefaults(link)</span>
+                    <span class="pc-partner-bar-end">
+                        @if (selected.Url is not null)
+                        {
+                            <button type="button" class="btn btn--small" data-copy-target="selected-standing-link-url" hidden>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-copy")" /></svg>
+                                <span data-copy-label>@Labels.CopyLink</span>
+                            </button>
+                            <button type="button" class="btn btn--small" data-dialog-open="standing-qr-@link.Id">
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-layout-grid")" /></svg>
+                                <span>@Labels.QrCode</span>
+                            </button>
+                        }
+                        @if (Model.ManagesLinks)
+                        {
+                            @if (link.Kind == StandingPhotoLinkKind.Website)
+                            {
+                                <a class="btn btn--small" asp-page="/Administration/PhotoLinks">
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-settings")" /></svg>
+                                    <span>@Labels.Manage</span>
+                                </a>
+                            }
+                            else if (link.OrganizationId is { } organizationId)
+                            {
+                                <a class="btn btn--small" asp-page="/Administration/Contacts/Edit" asp-route-id="@organizationId" asp-route-tab="@Pegasus.Web.Pages.Administration.Contacts.EditModel.PhotoLinksTab">
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-settings")" /></svg>
+                                    <span>@Labels.Manage</span>
+                                </a>
+                            }
+                        }
+                    </span>
+                </div>
+            }
+            @* No Ask for it and no Match to a case (v51 Q, R; R948): a submission
+               shows Uploading until it settles, and its Destination is the Case
+               or the Vehicle images record Pegasus already made for it. *@
+            <div class="photo-capture-table" data-row-list>
+                @if (Model.Rows.Count == 0)
+                {
+                    <div class="photo-capture-empty">@(selected is null ? Labels.NoStandingSubmissionsYet : Labels.NoSubmissionsVia(Labels.StandingLinkName(selected.Link)))</div>
+                }
+                else
+                {
+                    <table class="table pc-oneline pc-oneline--standing photo-capture-rows">
+                        <thead>
+                            <tr>
+                                <th scope="col">@Labels.Vehicle</th>
+                                @if (selected is null)
+                                {
+                                    <th scope="col" class="hide-s">@Labels.StandingLink</th>
+                                }
+                                <th scope="col" class="hide-m">@Labels.Customer</th>
+                                <th scope="col">@Labels.Destination</th>
+                                <th scope="col">@Labels.Photos</th>
+                                <th scope="col" class="hide-l">@Labels.Received</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in Model.Rows)
+                            {
+                                var capture = row.Capture;
+                                var from = row.Source.OrganizationName ?? (capture.Origin == PhotoCaptureOrigin.Website ? Labels.Website : null);
+                                var uploading = PhotoCaptureStatus.IsUploading(capture);
+                                <tr data-photo-capture-row="@capture.Id">
+                                    <td class="mono nowrap">
+                                        <span class="pc-veh-cell">
+                                            <a class="table-row-link" asp-page="/PhotoCapture/Details" asp-route-id="@capture.Id">@Labels.Registration(capture.NormalizedRegistration)</a>
+                                            <partial name="/Pages/PhotoCapture/_PreviewStrip.cshtml" model="@((Model, row.Source.Preview))" />
+                                        </span>
+                                    </td>
+                                    @if (selected is null)
+                                    {
+                                        <td class="hide-s">
+                                            <span class="photo-capture-clip" title="@from">@from</span>
+                                            <small class="muted photo-capture-sub photo-capture-clip">@Labels.Source(capture.Origin)</small>
+                                        </td>
+                                    }
+                                    <td class="hide-m">
+                                        @if (capture.CustomerName is { Length: > 0 } customer)
+                                        {
+                                            <span class="photo-capture-clip" title="@customer">@customer</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="muted">—</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (capture.CaseId is { } caseId)
+                                        {
+                                            <a class="mono" asp-page="/Cases/Details" asp-route-id="@caseId">@capture.CaseReference</a>
+                                        }
+                                        else if (row.Source.ImageIntakeId is { } recordId)
+                                        {
+                                            <a class="mono" href="/VehicleImages/@recordId">@(row.Source.ImageIntakeReference ?? Labels.AwaitingInstruction)</a>
+                                            <small class="muted photo-capture-sub">@Labels.AwaitingInstruction</small>
+                                        }
+                                        else
+                                        {
+                                            <span class="muted">@Labels.AwaitingInstruction</span>
+                                        }
+                                    </td>
+                                    <td class="nowrap">
+                                        @if (uploading)
+                                        {
+                                            <partial name="Shared/_StatusChip" model="@Labels.Uploading" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = "amber" }' />
+                                            <span class="muted">@Labels.PhotoCount(row.Source.Photographs, complete: false)</span>
+                                        }
+                                        else if (row.Source.Photographs > 0)
+                                        {
+                                            <span>@Labels.PhotoCount(row.Source.Photographs, complete: true)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="muted">@Labels.NoPhotosYet</span>
+                                        }
+                                    </td>
+                                    <td class="nowrap hide-l">@OperatorLabels.OfficeTime(capture.LastItemAtUtc ?? capture.CreatedAtUtc)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+            <partial name="/Pages/PhotoCapture/_ListPages.cshtml" model="Model" />
+        </div>
+    </section>
+
+    @* One QR code dialog per link; its picture loads when the dialog first shows. *@
+    @foreach (var standing in Model.StandingLinks.Where(link => link.Url is not null))
+    {
+        var link = standing.Link;
+        var name = Labels.StandingLinkName(link);
+        <div class="dialog-backdrop" data-dialog="standing-qr-@link.Id" hidden>
+            <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="standing-qr-title-@link.Id">
+                <div class="dialog-head">
+                    <div>
+                        <p class="eyebrow">@Labels.StandingLinkKind(link)</p>
+                        <h2 id="standing-qr-title-@link.Id" tabindex="-1">@name</h2>
+                    </div>
+                    <button type="button" class="dialog-close" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button>
+                </div>
+                <div class="dialog-body stack">
+                    <div class="pc-qr-stage">
+                        <img class="pc-qr-box" src="@Url.Page("/PhotoCapture/Index", "Qr", new { id = link.Id })" alt="@Labels.QrCodeFor(name)" width="220" height="220" loading="lazy" />
+                        <code id="standing-qr-url-@link.Id" class="photo-link-url">@standing.Url</code>
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close>Close</button>
+                    <button type="button" class="btn" data-copy-target="standing-qr-url-@link.Id" hidden>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-copy")" /></svg>
+                        <span data-copy-label>@Labels.CopyLink</span>
+                    </button>
+                    <a class="btn btn--primary" href="@Url.Page("/PhotoCapture/Index", "Qr", new { id = link.Id, download = true })"
+                       data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg>
+                        <span>@Labels.DownloadQr</span>
+                    </a>
+                </div>
+            </section>
+        </div>
+    }
 }
+
+@* The composer every Resend opens (v51 M; R948): one backdrop, filled per link. *@
+<div class="dialog-backdrop" data-dialog="photo-link-compose" hidden></div>

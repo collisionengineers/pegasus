@@ -372,11 +372,12 @@ public sealed partial class PhotoCaptureWebTests
     }
 
     /// <summary>
-    /// Links we sent names a Case link's From as the Case's Principal, read
-    /// when the page is shown (R805), on the list and on the link's own page.
+    /// Direct links names a Case link's Principal under its Case, read when
+    /// the page is shown (R805; v51 N, R948), on the list and on the link's
+    /// own page.
     /// </summary>
     [Fact]
-    public async Task LinksWeSentNamesTheCasesPrincipalAsFrom()
+    public async Task DirectLinksNamesTheCasesPrincipal()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -392,14 +393,14 @@ public sealed partial class PhotoCaptureWebTests
 
         var encoded = HtmlEncoder.Default.Encode(principalName);
 
-        var list = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}");
+        var list = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture?scope=all");
         // A long name ends in an ellipsis with the full name on hover (v50 I).
         Assert.Contains(
-            $"<span class=\"photo-capture-clip\" title=\"{encoded}\">{encoded}</span>",
+            $"<small class=\"muted photo-capture-sub photo-capture-clip hide-m\" title=\"{encoded}\">{encoded}</small>",
             ListRow(list, link.Capture.Id),
             StringComparison.Ordinal);
         var details = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture/{link.Capture.Id:D}");
-        Assert.Contains($"<dt>{OperatorLabels.PhotoCapture.From}</dt><dd>{encoded}", details, StringComparison.Ordinal);
+        Assert.Contains($"<dt>{OperatorLabels.Principal}</dt><dd>{encoded}</dd>", details, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -410,7 +411,7 @@ public sealed partial class PhotoCaptureWebTests
     /// offers Remind.
     /// </summary>
     [Fact]
-    public async Task LinksWeSentOffersResendOnlyOnALiveLink()
+    public async Task DirectLinksOffersResendOnlyOnALiveLink()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -428,12 +429,12 @@ public sealed partial class PhotoCaptureWebTests
                 .SetProperty(value => value.SentAtUtc, (DateTimeOffset?)now.AddDays(-2)));
         }
 
-        var list = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}");
+        var list = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture?scope=all");
 
         var liveRow = ListRow(list, live.Capture.Id);
         var expiredRow = ListRow(list, expired.Capture.Id);
         Assert.Contains(
-            $"href=\"/PhotoCapture/{live.Capture.Id:D}/Resend?returnUrl=%2FPhotoCapture%3Ftab%3D{OperatorLabels.PhotoCapture.LinksWeSentKey}\">{OperatorLabels.PhotoCapture.Resend}</a>",
+            $"href=\"/PhotoCapture/{live.Capture.Id:D}/Resend?returnUrl=%2FPhotoCapture%3Fscope%3Dall\" data-photo-link-composer>{OperatorLabels.PhotoCapture.Resend}</a>",
             liveRow,
             StringComparison.Ordinal);
         Assert.DoesNotContain("/Resend", expiredRow, StringComparison.Ordinal);
@@ -467,7 +468,7 @@ public sealed partial class PhotoCaptureWebTests
 
         Assert.Single(await CaseImagesAsync(factory, caseId), image => image.FileName == filed.FileName);
         var row = ListRow(
-            await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}"),
+            await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture?scope=all"),
             link.Capture.Id);
         Assert.Contains(
             $">{OperatorLabels.PhotoCapture.State(PhotoCaptureState.Expired)}</span>",
@@ -651,31 +652,24 @@ public sealed partial class PhotoCaptureWebTests
     }
 
     /// <summary>
-    /// Cancel is on each live Links we sent row and on no dead one (R795);
-    /// posted from the list it goes back to the list, and a return address
-    /// that is not this application's goes to the link's page instead.
+    /// Direct links rows carry no Cancel link (v51 N; R948): it stays on the
+    /// link's page and the Case. Posted with a return address it goes back
+    /// there, and a return address that is not this application's goes to the
+    /// link's page instead.
     /// </summary>
     [Fact]
-    public async Task LinksWeSentOffersCancelOnLiveRowsAndReturnsToTheList()
+    public async Task DirectLinksRowsCarryNoCancelAndCancelReturnsWhereItWasAsked()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
         var live = await IssueLinkAsync(factory, caseId);
         var other = await IssueLinkAsync(factory, caseId);
-        var expired = await IssueLinkAsync(factory, caseId);
-        var now = IntakeWebApplicationFactory.FixedUtcNow;
-        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
-        {
-            await db.PhotoCaptures.Where(value => value.Id == expired.Capture.Id).ExecuteUpdateAsync(update => update
-                .SetProperty(value => value.CreatedAtUtc, now.AddDays(-8))
-                .SetProperty(value => value.ExpiresAtUtc, now.AddDays(-1)));
-        }
 
-        var listPath = $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}";
+        var listPath = "/PhotoCapture?scope=all";
         var list = await IntakeWebDriver.GetHtmlAsync(client, listPath);
-        Assert.Contains("handler=Cancel", ListRow(list, live.Capture.Id), StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=Cancel", ListRow(list, expired.Capture.Id), StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=Cancel", ListRow(list, live.Capture.Id), StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.PhotoCapture.CancelLink, ListRow(list, live.Capture.Id), StringComparison.Ordinal);
 
         using (var cancelled = await PostStaffFormAsync(
             client, $"/PhotoCapture/{live.Capture.Id:D}?handler=Cancel", NewOperationKey(), "returnUrl", listPath))
@@ -796,9 +790,12 @@ public sealed partial class PhotoCaptureWebTests
         Assert.Equal(typedSlug, updated.Slug);
     }
 
-    /// <summary>Each tab carries how many captures it holds (R806): Coming in its standing captures, Links we sent its Case links.</summary>
+    /// <summary>
+    /// Direct links carries how many of its links are Awaiting, and Standing
+    /// links how many standing links there are (v51 N, P; R948).
+    /// </summary>
     [Fact]
-    public async Task TheTabsCountTheCapturesEachHolds()
+    public async Task TheTabsCountAwaitingDirectLinksAndStandingLinks()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -814,13 +811,21 @@ public sealed partial class PhotoCaptureWebTests
             .Select(match => match.Groups[1].Value)
             .ToArray();
         Assert.Equal(2, counts.Length);
-        Assert.Equal("2", counts[0]);
-        Assert.Equal("1", counts[1]);
+        Assert.Equal("1", counts[0]);
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        Assert.Equal(
+            (await db.StandingPhotoLinks.CountAsync(value => value.RetiredAtUtc == null)).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            counts[1]);
     }
 
-    /// <summary>Coming in's "No case yet" lists only the captures with no Case (R806).</summary>
+    /// <summary>
+    /// Standing links lists the captures its links started, all of them or
+    /// one link's, each with its Destination: the Case, or Awaiting
+    /// instruction. None offers Ask for it, Match to a case or Resend, which
+    /// are retired for standing captures (v51 P, Q, R; R948).
+    /// </summary>
     [Fact]
-    public async Task NoCaseYetListsOnlyTheCapturesWithNoCase()
+    public async Task StandingLinksListsTheirSubmissionsWithNoAskForItOrMatchToACase()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -830,76 +835,41 @@ public sealed partial class PhotoCaptureWebTests
         var onCase = await StandingCaptureDriver.StartAsync(factory, client, link, "XY99 ZZZ");
         var noCase = await StandingCaptureDriver.StartAsync(factory, client, link, "ZZ99 QQQ");
         Assert.Equal(caseId, onCase.Capture.CaseId);
-
-        var all = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture");
-        var filtered = await IntakeWebDriver.GetHtmlAsync(
-            client, $"/PhotoCapture?origin={OperatorLabels.PhotoCapture.NoCaseYetKey}");
-
-        Assert.Contains(RowMarker(onCase.Capture.Id), all, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(RowMarker(noCase.Capture.Id), all, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(RowMarker(noCase.Capture.Id), filtered, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(RowMarker(onCase.Capture.Id), filtered, StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// Ask for it is on a live Coming in row whose status is Something
-    /// missing, and not on a dead one (R806, R816). With no Case or no
-    /// address it makes a link to copy on the link's page; on a Case with an
-    /// address it opens the composer, since no button sends an e-mail on its
-    /// own (R915).
-    /// </summary>
-    [Fact]
-    public async Task ComingInOffersAskForItOnlyOnALiveRowWithSomethingMissing()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
-        await StandingCaptureDriver.SetCaseRegistrationAsync(factory, caseId, "XY99ZZZ");
-        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
-        var live = await StandingCaptureDriver.StartAsync(factory, client, link, "ZZ99 QQQ");
-        var dead = await StandingCaptureDriver.StartAsync(factory, client, link, "ZZ88 HHH");
-        var onCase = await StandingCaptureDriver.StartAsync(factory, client, link, "XY99 ZZZ");
-        Assert.Equal(caseId, onCase.Capture.CaseId);
         var now = IntakeWebApplicationFactory.FixedUtcNow;
         await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
         {
-            // All were sent with nothing in them; the second link has since expired.
-            await db.PhotoCaptures.Where(value => value.Id == live.Capture.Id).ExecuteUpdateAsync(update => update
+            await db.PhotoCaptures.Where(value => value.Id == noCase.Capture.Id).ExecuteUpdateAsync(update => update
                 .SetProperty(value => value.SentAtUtc, (DateTimeOffset?)now.AddHours(-1)));
-            await db.PhotoCaptures.Where(value => value.Id == dead.Capture.Id).ExecuteUpdateAsync(update => update
-                .SetProperty(value => value.SentAtUtc, (DateTimeOffset?)now.AddDays(-2))
-                .SetProperty(value => value.ExpiresAtUtc, now.AddDays(-1)));
-            await db.PhotoCaptures.Where(value => value.Id == onCase.Capture.Id).ExecuteUpdateAsync(update => update
-                .SetProperty(value => value.SentAtUtc, (DateTimeOffset?)now.AddHours(-1))
-                .SetProperty(value => value.Email, "sam.taylor@example.com"));
         }
 
-        var list = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture");
+        var all = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.StandingLinksKey}");
+        var one = await IntakeWebDriver.GetHtmlAsync(
+            client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.StandingLinksKey}&link={link.Id:D}");
 
-        var askForIt = $">{OperatorLabels.PhotoCapture.AskForIt}</button>";
-        var liveRow = StandingCaptureDriver.ListRow(list, live.Capture.Id);
-        Assert.Contains(
-            $">{OperatorLabels.PhotoCapture.State(PhotoCaptureState.SomethingMissing)}</span>",
-            liveRow,
-            StringComparison.Ordinal);
-        Assert.Contains(askForIt, liveRow, StringComparison.Ordinal);
-        Assert.Contains($"/PhotoCapture/{live.Capture.Id:D}?handler=Resend", liveRow, StringComparison.Ordinal);
-        Assert.DoesNotContain(askForIt, StandingCaptureDriver.ListRow(list, dead.Capture.Id), StringComparison.Ordinal);
-        var onCaseRow = StandingCaptureDriver.ListRow(list, onCase.Capture.Id);
-        Assert.Contains(
-            $"href=\"/PhotoCapture/{onCase.Capture.Id:D}/Resend?returnUrl=%2FPhotoCapture\">{OperatorLabels.PhotoCapture.AskForIt}</a>",
-            onCaseRow,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=Resend", onCaseRow, StringComparison.Ordinal);
+        foreach (var html in new[] { all, one })
+        {
+            var onCaseRow = StandingCaptureDriver.ListRow(html, onCase.Capture.Id);
+            var noCaseRow = StandingCaptureDriver.ListRow(html, noCase.Capture.Id);
+            Assert.Contains($"/Cases/{caseId:D}", onCaseRow, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(OperatorLabels.PhotoCapture.AwaitingInstruction, noCaseRow, StringComparison.Ordinal);
+            Assert.DoesNotContain("Resend", noCaseRow, StringComparison.Ordinal);
+            Assert.DoesNotContain(OperatorLabels.PhotoCapture.State(PhotoCaptureState.SomethingMissing), noCaseRow, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotContain("Ask for it", all, StringComparison.Ordinal);
+        Assert.DoesNotContain("Match to a case", all, StringComparison.Ordinal);
+        Assert.Contains($"data-dialog=\"standing-qr-{link.Id:D}\"", all, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
-    /// The Case page shows each photo link's status beside it (R806): a link
-    /// with a photo its count; a live Case link with nothing its status,
-    /// "No photos yet" and "Resend the link".
+    /// The Case's Files → Images shows one photo link bar (v51 I, J; R948):
+    /// the link with a photo leads with its status and count and Resend,
+    /// which opens the composer back to the Case's files (R915) and posts
+    /// nothing itself; the empty link folds under "Other photo links on this
+    /// case" with its status and "No photos".
     /// </summary>
     [Fact]
-    public async Task TheCasePageShowsEachLinksStatusAndAnEmptyLinksResend()
+    public async Task TheCasePageLeadsWithTheLinkWithPhotosAndFoldsTheOthers()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -913,23 +883,30 @@ public sealed partial class PhotoCaptureWebTests
 
         var files = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}?section=files");
 
-        var photoStory = StoryBlock(files, withPhoto.Capture.Id);
-        Assert.Contains(OperatorLabels.PhotoCapture.PhotoCount(1, complete: false), photoStory, StringComparison.Ordinal);
-        Assert.DoesNotContain(OperatorLabels.PhotoCapture.NoPhotosYet, photoStory, StringComparison.Ordinal);
-        var emptyStory = StoryBlock(files, empty.Capture.Id);
+        var bar = Between(files, $"data-photo-link-bar=\"{withPhoto.Capture.Id:D}\"", "data-photo-link-others");
+        Assert.Contains(OperatorLabels.PhotoCapture.PhotoCount(1, complete: false), bar, StringComparison.Ordinal);
+        Assert.Contains(
+            $"href=\"/PhotoCapture/{withPhoto.Capture.Id:D}/Resend?returnUrl=",
+            bar,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("handler=Resend", bar, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.PhotoCapture.OtherPhotoLinksOnThisCase(1), files, StringComparison.Ordinal);
+        var folded = Between(files, $"data-photo-link-other=\"{empty.Capture.Id:D}\"", "</li>");
         Assert.Contains(
             $">{OperatorLabels.PhotoCapture.State(PhotoCaptureState.SentNotOpened)}</span>",
-            emptyStory,
+            folded,
             StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.PhotoCapture.NoPhotosYet, emptyStory, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.PhotoCapture.ResendTheLink, emptyStory, StringComparison.Ordinal);
-        // Resend the link opens the composer, back to the Case's files (R915); it posts nothing itself.
-        Assert.Contains(
-            $"href=\"/PhotoCapture/{empty.Capture.Id:D}/Resend?returnUrl=",
-            emptyStory,
-            StringComparison.Ordinal);
-        Assert.Contains("data-photo-link-resend", emptyStory, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=Resend", emptyStory, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.PhotoCapture.NoPhotos, folded, StringComparison.Ordinal);
+    }
+
+    /// <summary>The page from <paramref name="start"/> to the first <paramref name="end"/> after it.</summary>
+    private static string Between(string html, string start, string end)
+    {
+        var from = html.IndexOf(start, StringComparison.OrdinalIgnoreCase);
+        Assert.True(from >= 0, $"The page has no {start}.");
+        var to = html.IndexOf(end, from + start.Length, StringComparison.Ordinal);
+        Assert.True(to > from, $"Nothing ends {start}.");
+        return html[from..to];
     }
 
     /// <summary>
@@ -1216,9 +1193,9 @@ public sealed partial class PhotoCaptureWebTests
         Assert.Equal(capturesBefore, await CaptureIdsAsync(factory, caseId));
         Assert.Equal(openedBefore, (await StandingCaptureDriver.CaptureAsync(factory, quick.Capture.Id)).OpenedAtUtc);
         var row = ListRow(
-            await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}"),
+            await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture?scope=all"),
             quick.Capture.Id);
-        Assert.Contains(OperatorLabels.PhotoCapture.SentOnToTheirCustomer, row, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.PhotoCapture.ForwardedToCustomer, row, StringComparison.Ordinal);
 
         var forCustomer = await ContextAsync(client, new CaptureLinkSecret(customerToken));
         Assert.Equal("guided", forCustomer.GetProperty("mode").GetString());
@@ -2061,18 +2038,6 @@ public sealed partial class PhotoCaptureWebTests
             "<textarea[^>]*name=\"" + System.Text.RegularExpressions.Regex.Escape(name) + "\"[^>]*>(?<text>[\\s\\S]*?)</textarea>");
         Assert.True(textarea.Success, $"The page draws no {name} message.");
         return WebUtility.HtmlDecode(textarea.Groups["text"].Value);
-    }
-
-    private static string RowMarker(Guid captureId) => $"data-photo-capture-row=\"{captureId:D}\"";
-
-    /// <summary>One photo link's block on the Case page, from its marker to its section's first close.</summary>
-    private static string StoryBlock(string html, Guid captureId)
-    {
-        var start = html.IndexOf($"data-photo-capture-story=\"{captureId:D}\"", StringComparison.OrdinalIgnoreCase);
-        Assert.True(start >= 0, $"The Case page shows no photo link {captureId:D}.");
-        var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
-        Assert.True(end > start, $"The photo link {captureId:D}'s block does not end.");
-        return html[start..end];
     }
 
     private sealed record CaptureCounts(int OriginalCount, long AcceptedBytes);

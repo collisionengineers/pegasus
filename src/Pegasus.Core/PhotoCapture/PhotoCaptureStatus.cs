@@ -78,6 +78,35 @@ public static class PhotoCaptureStatus
     }
 
     /// <summary>
+    /// Whether photos the capture received are still to settle: an item
+    /// arrived after the last settle, or before any. A standing or website
+    /// capture reads Uploading while it is, and Received once it has settled,
+    /// and is not graded against the guided checklist (operator, 11 November
+    /// 2026; v51 Q; R948).
+    /// </summary>
+    public static bool IsUploading(PhotoCapture capture)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        return capture.LastItemAtUtc is { } last && (capture.SettledAtUtc is not { } settled || settled < last);
+    }
+
+    /// <summary>
+    /// Whether a list row falls in one of the Direct links tab's workflow
+    /// scopes (operator, 11 November 2026; v51 N; R948): Awaiting is a live
+    /// link not yet complete; Needs chase is a live link with a reminder due,
+    /// or one that needs a call; Closed is a dead link that is not complete.
+    /// </summary>
+    public static bool InScope(PhotoCaptureScope scope, PhotoCaptureState state, DueCaptureReminder? due, bool isLive) =>
+        scope switch
+        {
+            PhotoCaptureScope.Awaiting => isLive && state != PhotoCaptureState.Complete,
+            PhotoCaptureScope.NeedsChase => (isLive && due is not null) || state == PhotoCaptureState.NeedsCall,
+            PhotoCaptureScope.Complete => state == PhotoCaptureState.Complete,
+            PhotoCaptureScope.Closed => !isLive && state != PhotoCaptureState.Complete,
+            _ => true
+        };
+
+    /// <summary>
     /// A list row's due reminder: the capture's own due reminder
     /// over the row's own missing items, photo count and Case. Only a link HQ
     /// sent from a Case has one.
@@ -155,29 +184,5 @@ public static class PhotoCaptureStatus
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// How a standing or website capture reached its Case. With no Vehicle
-    /// images group it filed on the Case as its photos arrived. Otherwise its
-    /// record was paired: <paramref name="recordChosenByStaff"/> says whether
-    /// the record merged into the Case on a member of staff's association
-    /// (null when no record of its group merged there), and anything not
-    /// chosen by staff was matched automatically.
-    /// </summary>
-    public static PhotoCapturePairing Pairing(PhotoCapture capture, bool? recordChosenByStaff)
-    {
-        ArgumentNullException.ThrowIfNull(capture);
-        if (capture.CaseId is null || capture.Origin == PhotoCaptureOrigin.CaseLink)
-        {
-            return PhotoCapturePairing.None;
-        }
-
-        if (capture.SubmissionGroupId is null)
-        {
-            return PhotoCapturePairing.FiledAsItArrived;
-        }
-
-        return recordChosenByStaff == true ? PhotoCapturePairing.ChosenByStaff : PhotoCapturePairing.MatchedAutomatically;
     }
 }

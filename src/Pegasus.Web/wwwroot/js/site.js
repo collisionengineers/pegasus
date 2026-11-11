@@ -647,11 +647,21 @@
 
             button.dataset.copyBound = 'true';
             button.hidden = false;
+            // A button with an icon says Copied in its [data-copy-label], so the
+            // icon stays; an icon-only one ([data-copy-quiet]) says it in its title.
+            var label = button.querySelector('[data-copy-label]');
             button.addEventListener('click', function () {
                 navigator.clipboard.writeText(source.textContent.trim()).then(function () {
-                    var original = button.textContent;
-                    button.textContent = 'Copied';
-                    window.setTimeout(function () { button.textContent = original; }, 2000);
+                    if (button.hasAttribute('data-copy-quiet')) {
+                        var title = button.getAttribute('title');
+                        button.setAttribute('title', 'Copied');
+                        window.setTimeout(function () { button.setAttribute('title', title || ''); }, 2000);
+                        return;
+                    }
+                    var target = label || button;
+                    var original = target.textContent;
+                    target.textContent = 'Copied';
+                    window.setTimeout(function () { target.textContent = original; }, 2000);
                 });
             });
         });
@@ -932,6 +942,10 @@
                                 return document.importNode(node, true);
                             }));
                             dialog.removeAttribute('data-dialog-fragment');
+                            // A backdrop given data-dialog-fragment again (the
+                            // photo-link composer, one backdrop for many
+                            // links; v51 M, R948) fetches that one next.
+                            loading = null;
                             bindCloseControls();
                             (window.pegasusMountBinders || []).forEach(function (bind) { bind(dialog); });
                         })
