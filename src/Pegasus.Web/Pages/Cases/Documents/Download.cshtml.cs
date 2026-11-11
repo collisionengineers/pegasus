@@ -311,12 +311,10 @@ public sealed partial class DownloadModel(
             SetInlineDisposition(fileName);
             if (VideoSnapshotPolicy.IsSupportedVideoMediaType(mediaType) && content.Content.CanSeek)
             {
-                return File(
-                    content.Content,
-                    mediaType,
-                    lastModified: null,
-                    entityTag: new EntityTagHeaderValue(ContentETag(sha256)),
-                    enableRangeProcessing: true);
+                var videoResult = File(content.Content, mediaType);
+                videoResult.EntityTag = new EntityTagHeaderValue(ContentETag(sha256));
+                videoResult.EnableRangeProcessing = true;
+                return videoResult;
             }
 
             Response.ContentLength = content.ContentLength;

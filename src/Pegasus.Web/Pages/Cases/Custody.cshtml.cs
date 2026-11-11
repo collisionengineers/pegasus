@@ -15,6 +15,7 @@ namespace Pegasus.Web.Pages.Cases;
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
+[RequestSizeLimit(VideoSnapshotPolicy.MaximumSnapshotBytes + 64 * 1024)]
 public sealed class CustodyModel(
     ILogicallyRemoveDocument logicallyRemoveDocument,
     ISnapshotCaseVideo snapshotCaseVideo,
@@ -276,7 +277,6 @@ public sealed class CustodyModel(
     /// Files a still JPEG or PNG frame captured from a Case video onto the
     /// Case's Images set without requiring or breaking an edit lease (R945).
     /// </summary>
-    [RequestSizeLimit(VideoSnapshotPolicy.MaximumSnapshotBytes + 64 * 1024)]
     public async Task<IActionResult> OnPostSnapshotVideoAsync(
         Guid id,
         Guid videoOccurrenceId,
