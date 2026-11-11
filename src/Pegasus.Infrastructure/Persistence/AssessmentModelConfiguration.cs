@@ -195,10 +195,9 @@ internal static class AssessmentModelConfiguration
                 "CK_UnroadworthyReasons_Text", "[Text] <> ''"));
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Id).ValueGeneratedNever();
-            entity.Property(item => item.PrincipalCode).HasMaxLength(20).IsRequired();
             entity.Property(item => item.Text).HasMaxLength(UnroadworthyReasonBank.MaximumLength).IsRequired();
             entity.Property(item => item.CreatedBy).HasMaxLength(200).IsRequired();
-            entity.HasIndex(item => new { item.PrincipalCode, item.Text }).IsUnique();
+            entity.HasIndex(item => item.Text).IsUnique();
         });
 
         builder.Entity<CaseValuationEntity>(entity =>

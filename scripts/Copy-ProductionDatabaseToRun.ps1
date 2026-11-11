@@ -104,9 +104,10 @@ $deactivateStatement = 'UPDATE dbo.ApprovedMailboxes SET ActivatedAtUtc = NULL W
 $clearSubscriptionsStatement = 'DELETE FROM dbo.ApprovedMailboxSubscriptions;'
 # R679: production's Principal API keys must not authenticate against the instance.
 $pauseCredentialsStatement = "UPDATE dbo.PrincipalApiCredentials SET State = 'Paused', PausedAtUtc = SYSUTCDATETIME(), Version = Version + 1 WHERE State = 'Active';"
-# R680: the answered-instruction tidy does not check activation, so the copied
-# pending tidies are closed here; the instance then moves only the instructions
-# its own sends answered.
+# R680: the copied pending answered-instruction tidies are closed here, so
+# enabling a production mailbox on the instance moves none of them. The tidy
+# also moves only in an activated mailbox (R961), so the instance's own send
+# that answers a copied instruction moves nothing in a mailbox not enabled.
 $closeTidiesStatement = "UPDATE dbo.StaffMailSendOperations SET InstructionMoveState = 'Failed', InstructionMoveFailureCode = 'production_copy' WHERE InstructionMoveState IS NULL AND Purpose = 'CaseReport' AND State = 'Sent';"
 # R680, R902: the Delete case correspondence tidy moves only in an activated
 # mailbox (R916), but a copied ticked send would move production mail as soon

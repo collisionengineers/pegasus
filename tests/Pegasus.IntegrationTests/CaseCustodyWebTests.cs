@@ -301,6 +301,106 @@ public sealed class CaseCustodyWebTests
     }
 
     /// <summary>
+    /// A stored Word document has View, which shows a PDF rendering of it:
+    /// the button names the rendering, and the viewer's Download gives the
+    /// row's own file. It is known by its media type, or by its name when it
+    /// arrived as <c>application/octet-stream</c>. A file the viewer cannot
+    /// show keeps Save as alone, and a Word document still being stored has
+    /// no View until its custody is confirmed.
+    /// </summary>
+    [Fact]
+    public async Task CaseFilesSectionGivesAStoredWordDocumentAViewOfItsPdfRendering()
+    {
+        var docxId = Guid.NewGuid();
+        var docxVersionId = Guid.NewGuid();
+        var docId = Guid.NewGuid();
+        var docVersionId = Guid.NewGuid();
+        var octetId = Guid.NewGuid();
+        var octetVersionId = Guid.NewGuid();
+        var textId = Guid.NewGuid();
+        var pendingId = Guid.NewGuid();
+        var pdfId = Guid.NewGuid();
+        var store = new RecordingCaseDetailsStore
+        {
+            CaseDocuments =
+            [
+                Document(docxId, docxVersionId, "assessment.docx", WordDocxMediaType),
+                Document(docId, docVersionId, "LETTER.DOC", "application/msword"),
+                Document(octetId, octetVersionId, "report.docx", "application/octet-stream"),
+                Document(textId, Guid.NewGuid(), "notes.txt", "text/plain"),
+                Document(
+                    pendingId, Guid.NewGuid(), "pending.docx", WordDocxMediaType,
+                    custody: DocumentCustodyStatus.Pending),
+                Document(pdfId, Guid.NewGuid(), "instruction.pdf", "application/pdf")
+            ]
+        };
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCaseEditBasis>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
+
+        AssertWordView(DocumentRow(html, docxId), store.CaseId, docxId, docxVersionId, "assessment.docx");
+        AssertWordView(DocumentRow(html, docId), store.CaseId, docId, docVersionId, "LETTER.DOC");
+        AssertWordView(DocumentRow(html, octetId), store.CaseId, octetId, octetVersionId, "report.docx");
+
+        // A text file is a download only.
+        var text = DocumentRow(html, textId);
+        Assert.Contains(OperatorLabels.CaseWorkspace.SaveAs, text, StringComparison.Ordinal);
+        Assert.DoesNotContain("<span>" + CaseWorkspaceLabels.Files.View + "</span>", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-document-preview", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-evidence-item", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("&amp;inline=", text, StringComparison.OrdinalIgnoreCase);
+
+        // A Word document still being stored has nothing to render yet.
+        var pending = DocumentRow(html, pendingId);
+        Assert.DoesNotContain("<span>" + CaseWorkspaceLabels.Files.View + "</span>", pending, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-document-preview", pending, StringComparison.Ordinal);
+        Assert.DoesNotContain($"renderer={CaseDocumentPreviews.RenditionIdentity}", pending, StringComparison.Ordinal);
+
+        // A PDF is still the viewer's own item, not a rendering.
+        var pdf = DocumentRow(html, pdfId);
+        Assert.Contains("data-evidence-item", pdf, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-document-preview", pdf, StringComparison.Ordinal);
+        Assert.DoesNotContain($"renderer={CaseDocumentPreviews.RenditionIdentity}", pdf, StringComparison.Ordinal);
+    }
+
+    private const string WordDocxMediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+    /// <summary>
+    /// One row's Word View: the rendering's address (the preview naming the
+    /// current rendering), the viewer's fetch-first trigger with its busy
+    /// state, the row's own file for Download, and not the viewer's direct
+    /// item, which would show the Word bytes themselves.
+    /// </summary>
+    private static void AssertWordView(string row, Guid caseId, Guid occurrenceId, Guid versionId, string fileName)
+    {
+        var download = $"/Cases/{caseId:D}/Documents/{occurrenceId:D}/Download?versionId={versionId:D}";
+        Assert.Contains("<span>" + CaseWorkspaceLabels.Files.View + "</span>", row, StringComparison.Ordinal);
+        Assert.Contains(
+            $"href=\"{download}&amp;inline=true&amp;renderer={CaseDocumentPreviews.RenditionIdentity}\"",
+            row,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-document-preview", row, StringComparison.Ordinal);
+        Assert.Contains("data-busy-label=", row, StringComparison.Ordinal);
+        Assert.Contains($"data-download-href=\"{download}\"", row, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"data-file-name=\"{fileName}\"", row, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-evidence-item", row, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.CaseWorkspace.SaveAs, row, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The Files section is one panel with two tabs (issue 6). Documents lists
     /// every file as a row; Images lists the case's own image occurrences as
     /// tiles built from the case documents themselves — not from the intake

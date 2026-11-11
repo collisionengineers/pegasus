@@ -1615,11 +1615,16 @@ th a:hover { text-decoration: underline; }
 /* The result table has only the facts needed to identify a case. The selected
    case retains its wider preview beside it, so normal desktop use does not
    require an inner horizontal scrollbar. The results take the wider share for
-   their Type and Due columns, and a Case/PO stays on one line (v41 W3). */
+   their Type and Due columns, and a Case/PO stays on one line (v41 W3) in a
+   column set wide enough for one; the claim reference under it wraps inside
+   that column. State, the sixth column, is set wide enough for its longest
+   chip, "With Engineer". The other six share the rest (#2073, R945 to R947). */
 .case-search-layout { grid-template-columns: minmax(0, 1.75fr) minmax(360px, 1fr); }
 .case-search-layout .table-wrap table { min-width: 0; table-layout: fixed; }
 .case-search-layout th, .case-search-layout td { padding: var(--sp-2) var(--sp-3); }
-.case-search-layout .table-wrap td:first-child, .case-search-layout .table-wrap td:first-child * { white-space: nowrap; }
+.case-search-layout .table-wrap th:first-child { width: 132px; }
+.case-search-layout .table-wrap th:nth-child(6) { width: 122px; }
+.case-search-layout .table-wrap td:first-child .table-row-link { white-space: nowrap; }
 
 .compact-log-filter {
   display: grid;

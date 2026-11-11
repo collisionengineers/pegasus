@@ -5273,33 +5273,10 @@
 
 // --- saved document previews -------------------------------------------------
 // Fetch once, then give the viewer and its Download action the same Blob URL.
-// Plain links remain the no-script browser-PDF path.
+// A Files row's preview is a rendering of the document the row names, so its
+// Download stays the row's own file. Plain links remain the no-script path.
 (function () {
     'use strict';
-
-    function fileName(response, fallback) {
-        var disposition = response.headers.get('content-disposition') || '';
-        var match = /filename="?([^";]+)"?/i.exec(disposition);
-        return match ? match[1] : fallback;
-    }
-
-    function mediaType(response) {
-        return (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-    }
-
-    async function failureMessage(response) {
-        if (response.status === 422 && mediaType(response) === 'application/problem+json') {
-            try {
-                var problem = await response.json();
-                if (problem && typeof problem.detail === 'string' && problem.detail.trim()) {
-                    return problem.detail.trim().slice(0, 500);
-                }
-            } catch (_) {
-                // A malformed refusal is an unexpected response below.
-            }
-        }
-        return 'Preview unavailable';
-    }
 
     function currentViewer() {
         var viewer = window.pegasusCaseViewer;
@@ -5314,29 +5291,21 @@
         var shown = menu ? menu.querySelector('summary') : trigger;
         if (shown && shown.hasAttribute('data-busy')) { return; }
         if (window.pegasusBusy) { window.pegasusBusy.start(shown, null, trigger.getAttribute('data-busy-label')); }
-        var response;
-        var message = 'Preview unavailable';
         try {
-            response = await fetch(trigger.href, {
-                credentials: 'same-origin',
-                headers: { 'X-Pegasus-Document-Preview': '1' }
-            });
-            if (!response.ok || mediaType(response) !== 'application/pdf') {
-                message = await failureMessage(response);
-                throw new Error(message);
-            }
-            var url = URL.createObjectURL(await response.blob());
+            var preview = await window.pegasusUi.fetchPreview(trigger.href);
+            var original = trigger.getAttribute('data-download-href');
+            var named = trigger.getAttribute('data-file-name');
             viewer.openDocument({
-                href: url,
-                name: fileName(response, trigger.getAttribute('data-file-name') || 'Estimate PDF'),
-                download: url,
+                href: preview.url,
+                name: (original ? named || preview.name : preview.name || named) || 'Estimate PDF',
+                download: original || preview.url,
                 downloadLabel: trigger.hasAttribute('data-report-preview') ? 'Download draft' : 'Download',
-                revoke: url,
+                revoke: preview.url,
                 invoker: trigger
             });
         } catch (error) {
-            if (typeof window.pegasusToast === 'function') { window.pegasusToast(message); }
-            else { window.alert(message); }
+            if (typeof window.pegasusToast === 'function') { window.pegasusToast(error.message); }
+            else { window.alert(error.message); }
         } finally {
             if (window.pegasusBusy) { window.pegasusBusy.end(shown); }
         }

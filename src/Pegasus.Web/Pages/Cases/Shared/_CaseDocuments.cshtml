@@ -27,7 +27,8 @@
 
 @* The Files section's Documents tab: every live file as a row (v26 `.doc-row`).
    View opens the viewer for a file the browser renders (image, PDF, admitted
-   video); Save as is the audited download; Remove asks for a reason. *@
+   video) and for a Word document, as a PDF rendering of it; Save as is the
+   audited download; Remove asks for a reason. *@
 @if (files.Count == 0)
 {
     <p class="muted" data-documents-empty>@FilesLabels.NoDocuments</p>
@@ -40,7 +41,9 @@ else
             var occurrence = entry.Occurrence;
             var version = entry.Version;
             var mayRead = version.CustodyStatus == DocumentCustodyStatus.Confirmed;
-            var viewable = mayRead && Pegasus.Web.Pages.Cases.DetailsModel.IsViewable(version.MediaType);
+            var previewKind = mayRead
+                ? CaseDocumentPreviews.KindOf(version.MediaType, version.FileName)
+                : CaseDocumentPreviewKind.None;
             // Valuation Evidence the Automation Actor filed, such as market
             // research findings, wears the AI tint (operator, 22 October 2026).
             var isAiValuationEvidence = occurrence.SemanticRole == DocumentSemanticRole.ValuationEvidence
@@ -66,7 +69,21 @@ else
                         @* The same authorised route displays or saves
                            depending on the flag; the preview link is the
                            viewer's trigger and stays a real link without script. *@
-                        @if (viewable)
+                        @if (previewKind == CaseDocumentPreviewKind.WordAsPdf)
+                        {
+                            @* The viewer fetches the PDF rendering first, so
+                               the wait for one still being made shows on this
+                               button; its Download gives this row's own file. *@
+                            <a class="btn btn--small"
+                               href="@Model.PdfRenditionUrl(entry)"
+                               data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-no-inplace
+                               data-download-href="@Model.DownloadUrl(entry)"
+                               data-file-name="@version.FileName">
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg>
+                                <span>@FilesLabels.View</span>
+                            </a>
+                        }
+                        else if (previewKind != CaseDocumentPreviewKind.None)
                         {
                             <a class="btn btn--small"
                                href="@Model.PreviewUrl(entry)"

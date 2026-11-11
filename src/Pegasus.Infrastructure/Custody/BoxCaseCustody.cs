@@ -1660,19 +1660,7 @@ internal sealed partial class BoxContentClient(
                 null,
                 cancellationToken);
             using var metadataDocument = await ReadSuccessJsonAsync(metadataResponse, cancellationToken);
-            var file = ParseItem(metadataDocument.RootElement);
-            if (!string.Equals(file.Type, "file", StringComparison.Ordinal))
-            {
-                throw new InvalidDataException("Box returned the wrong type for a custody file.");
-            }
-            if (IsTrashed(metadataDocument.RootElement))
-            {
-                throw new UnauthorizedAccessException("A Box custody object is in trash.");
-            }
-            if (!string.Equals(file.ParentId, expectedParentId, StringComparison.Ordinal))
-            {
-                throw new InvalidDataException("The Box file is outside its expected Case root.");
-            }
+            _ = RequireOwnedFile(metadataDocument.RootElement, expectedParentId);
             if (rememberAncestry)
             {
                 await EnsureLiveFolderForReadAsync(expectedParentId, cancellationToken);
@@ -1696,6 +1684,29 @@ internal sealed partial class BoxContentClient(
                 await DiscardDownloadAsync(content, abandon);
             }
         }
+    }
+
+    /// <summary>
+    /// The checks a custody file's own metadata must pass before anything of
+    /// it is handed to a caller: the object is a file, it is not in the trash,
+    /// and its parent is the expected folder.
+    /// </summary>
+    private static BoxItem RequireOwnedFile(JsonElement metadata, string expectedParentId)
+    {
+        var file = ParseItem(metadata);
+        if (!string.Equals(file.Type, "file", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("Box returned the wrong type for a custody file.");
+        }
+        if (IsTrashed(metadata))
+        {
+            throw new UnauthorizedAccessException("A Box custody object is in trash.");
+        }
+        if (!string.Equals(file.ParentId, expectedParentId, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The Box file is outside its expected Case root.");
+        }
+        return file;
     }
 
     /// <summary>
@@ -1799,9 +1810,25 @@ internal sealed partial class BoxContentClient(
                 null,
                 response.StatusCode);
         }
+        return await RetainContentAsync(
+            response, maximumLength, contentHash, "Box version content exceeds its recorded length.", cancellationToken);
+    }
+
+    /// <summary>
+    /// Copies one response's content to a temporary file that is deleted when
+    /// the returned stream is disposed, refusing content longer than
+    /// <paramref name="maximumLength"/>.
+    /// </summary>
+    private static async Task<Stream> RetainContentAsync(
+        HttpResponseMessage response,
+        long maximumLength,
+        IncrementalHash? contentHash,
+        string tooLongMessage,
+        CancellationToken cancellationToken)
+    {
         if (response.Content.Headers.ContentLength is { } length && length > maximumLength)
         {
-            throw new InvalidDataException("Box version content exceeds its recorded length.");
+            throw new InvalidDataException(tooLongMessage);
         }
 
         await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -1829,7 +1856,7 @@ internal sealed partial class BoxContentClient(
                 copied = checked(copied + read);
                 if (copied > maximumLength)
                 {
-                    throw new InvalidDataException("Box version content exceeds its recorded length.");
+                    throw new InvalidDataException(tooLongMessage);
                 }
                 contentHash?.AppendData(buffer, 0, read);
                 await retained.WriteAsync(buffer.AsMemory(0, read), cancellationToken);

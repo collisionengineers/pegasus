@@ -343,6 +343,23 @@ byte-range requests so the viewer can seek cleanly before capturing a frame. Exp
 ([FRD-07](frd-07-case-export.md#export-case)), not a per-document action
 (operator ruling, 15 October 2026).
 
+A Word document (.doc or .docx) has a Preview although no browser draws one
+(operator, 11 November 2026, R949). The viewer is given a PDF rendering of
+the confirmed version. Box makes it from its own copy of that version, and
+Pegasus keeps it in the same rebuildable cache, beside the thumbnail, until
+it has gone 30 days unused. A document is taken as Word by its media type,
+or by its `.doc` or `.docx` name where it arrived without one. The rendering
+is a preview like any other: never an audited download, and never the
+document, so Save as and the viewer's Download give the stored Word file. It
+is offered on the Case page and on a Triage Case, and not for an attachment
+on mail that has no Case (R950). It is made at the first Preview, behind the
+busy state, and kept; background preparation is built only if a measured
+first Preview is over its budget
+([engineering](../engineering.md#simplicity); R951). A rendering still being
+made is waited for. Where Box makes none (a protected or damaged file, or a
+version Box no longer holds as the file's current one) the Preview is
+refused and the document is left to Save as.
+
 The Worker makes the plain gallery thumbnail of each newly filed image, and the
 thumbnail of its saved rotation and crop, in the background, a few at a time on
 its existing sweep. The first view then reads a small cached rendering. Nothing the user sees changes. An image the
@@ -413,7 +430,8 @@ whole path every time.
 
 A browser may keep a private copy of an image or PDF preview for a week. It
 keeps one only when the address names the exact bytes. For a Case document
-that is the document version. For an intake image it is the image's content
+that is the document version, and for a Word document's PDF rendering also
+the renderer. For an intake image it is the image's content
 hash, and for its tile also the crop version and renderer. Any other address
 is sent with `private, no-store`, so a changed image is never shown from an
 old copy. A saved download is never kept.

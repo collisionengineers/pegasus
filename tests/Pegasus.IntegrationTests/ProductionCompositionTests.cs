@@ -45,6 +45,7 @@ public sealed class ProductionCompositionTests
     [
         "document.preview",
         "document.thumbnail.render.gate",
+        "document.rendition.open",
         "web.case.resource",
         "web.case.result",
         "web.workcentre.resource",
@@ -362,6 +363,26 @@ public sealed class ProductionCompositionTests
         Assert.Same(
             services.GetRequiredService<IReadLogicalDocumentVersion>(),
             services.GetRequiredService<IDocumentContentCachePublisher>());
+    }
+
+    /// <summary>
+    /// Production views a Word document as Box's PDF representation, kept in
+    /// the content cache; a profile without Box custody and that cache has no
+    /// rendering, so a Word document there stays a download.
+    /// </summary>
+    [Fact]
+    public void ProductionRendersWordDocumentsThroughTheCachedBoxRepresentationAndOfflineDoesNot()
+    {
+        using var provider = BuildProduction();
+        using var scope = provider.CreateScope();
+
+        Assert.IsType<CaseDocumentPdfRenditionReader>(
+            scope.ServiceProvider.GetRequiredService<IRenderDocumentAsPdf>());
+
+        using var offline = new IntakeWebApplicationFactory();
+        using var offlineScope = offline.Services.CreateScope();
+        Assert.IsType<NoDocumentPdfRenderer>(
+            offlineScope.ServiceProvider.GetRequiredService<IRenderDocumentAsPdf>());
     }
 
     [Fact]

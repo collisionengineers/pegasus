@@ -91,7 +91,6 @@ pegasus_web_runtime_role,D,DELETE,Triage
 pegasus_web_runtime_role,D,DELETE,TriageFindings
 pegasus_web_runtime_role,D,DELETE,TriageHistory
 pegasus_web_runtime_role,D,DELETE,UnidentifiedHistory
-pegasus_web_runtime_role,D,DELETE,UnroadworthyReasons
 pegasus_web_runtime_role,D,DELETE,ValuationPresets
 pegasus_web_runtime_role,D,DELETE,VehicleLookupObservations
 pegasus_web_runtime_role,D,DELETE,VehicleLookupRequests
@@ -124,6 +123,7 @@ pegasus_web_runtime_role,G,DELETE,IntakeAssetTags
 pegasus_web_runtime_role,G,DELETE,StaffNotifications
 pegasus_web_runtime_role,G,DELETE,StandingPhotoLinkAddresses
 pegasus_web_runtime_role,G,DELETE,TriageResponseEvidenceLinks
+pegasus_web_runtime_role,G,DELETE,UnroadworthyReasons
 pegasus_web_runtime_role,G,DELETE,UserExternalCredentials
 pegasus_web_runtime_role,G,INSERT,ActionHistory
 pegasus_web_runtime_role,G,INSERT,AiJobs
@@ -409,6 +409,7 @@ pegasus_web_runtime_role,G,UPDATE,StandingPhotoLinkAddresses
 pegasus_web_runtime_role,G,UPDATE,StandingPhotoLinks
 pegasus_web_runtime_role,G,UPDATE,Triage
 pegasus_web_runtime_role,G,UPDATE,UnidentifiedItems
+pegasus_web_runtime_role,G,UPDATE,UnroadworthyReasons
 pegasus_web_runtime_role,G,UPDATE,UserExternalCredentials
 pegasus_web_runtime_role,G,UPDATE,ValuationPresets
 pegasus_web_runtime_role,G,UPDATE,VehicleLookupObservations

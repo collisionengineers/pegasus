@@ -4,11 +4,12 @@
 
 ## Short version
 
-- `/Administration` has thirteen areas: Accounts, Contacts, Workflow
+- `/Administration` has fourteen areas: Accounts, Contacts, Workflow
   configuration, Photo links (while photo capture is on), Mail settings,
-  E-mail templates, Valuation presets, Service health, Logs, Management
-  Reports, Release notes, Problem reports and Automation & AI, which holds the
-  AI jobs list. Its Automation panels appear only when composed.
+  E-mail templates, Valuation presets, Unroadworthy reasons, Service health,
+  Logs, Management Reports, Release notes, Problem reports and Automation &
+  AI, which holds the AI jobs list. Its Automation panels appear only when
+  composed.
 - Administration buttons act on the click. There is no confirmation dialog,
   except Delete access
   ([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
@@ -40,7 +41,8 @@ estimates by
 `/Administration` carries **Accounts**, **Contacts**, **Workflow
 configuration**, **Photo links** (while photo capture is on; operator, 10
 November 2026; [R911](../rulings.md)), **Mail settings**, **E-mail templates**,
-**Valuation presets**, **Service
+**Valuation presets**, **Unroadworthy reasons** (operator, 11 November 2026;
+[R952](../rulings.md)), **Service
 health**, **Logs**, **Management Reports**, **Release notes**, **Problem reports** and
 **Automation & AI**. Automation & AI is one page (operator, 28 October 2026;
 R467): the Automation panel and the AI settings panel, which carries the Send
@@ -296,6 +298,21 @@ the list and out of new selection. A removed preset frees its label
 keeps its own snapshot
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 
+### Unroadworthy reasons
+
+**Unroadworthy reasons** keeps the bank of wordings every Case offers an
+Engineer for an unroadworthy reason
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement);
+operator, 11 November 2026; R952 to R955). It is the Valuation presets table:
+a compact add row and every wording editable immediately, with no dialog.
+A wording takes the bank's one shape when saved: single-spaced, no closing
+full stop, a small first letter, at most 300 characters. One the bank already
+offers is refused. Save and Remove act on the click and carry the wording the
+row rendered; a wording reworded or removed since is refused and asks the
+Administrator to reload. **Remove** deletes the wording. Neither reaches a
+reason already recorded on a Case. Add, Save and Remove write no Action log
+entry.
+
 ### Service health
 
 **Service health** (`/Administration/Health`) is Administration only and
@@ -534,12 +551,13 @@ checks the expected version inside its mutation transaction.
 
 ## Acceptance evidence
 
-Acceptance covers the twelve areas and their routes, the on-click actions
+Acceptance covers the fourteen areas and their routes, the on-click actions
 without confirmation (Delete access confirms), the Action logs actor
 resolution and filter, the Intake log columns and actions, the six workflow
 settings and their ranges, and the Management Reports with each report's CSV
 and the workbook, the period choices and the invalid period, the Case list's
-downloads and refusals, and preset create, save and remove. Authenticated Web
+downloads and refusals, preset create, save and remove, and unroadworthy
+reason wording add, reword, remove and the stale refusal. Authenticated Web
 tests cover server-owned behaviour. Deployment and live acceptance are
 separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).

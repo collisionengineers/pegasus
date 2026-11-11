@@ -1,4 +1,5 @@
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Documents;
 
@@ -178,4 +179,141 @@ public static class CaseDocumentThumbnails
         mediaType is not null
         && mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
         && !mediaType.StartsWith("image/svg", StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>How the viewer shows one Case document, where it shows it at all.</summary>
+public enum CaseDocumentPreviewKind
+{
+    /// <summary>Not shown over the page: the file is a download.</summary>
+    None,
+    Image,
+    Pdf,
+    Video,
+
+    /// <summary>A Word document, shown as a PDF rendering of its stored version.</summary>
+    WordAsPdf
+}
+
+/// <summary>
+/// The one owner of which Case documents the viewer shows, and as what.
+/// </summary>
+/// <remarks>
+/// A Case document is arbitrary operator-supplied content, so retained HTML
+/// served inline would execute as same-origin script: only images, PDFs and
+/// the two admitted video media types are ever dispositioned for display.
+/// SVG is an image that executes script when it is navigated to, so it stays
+/// a download. A Word document is never served inline itself; the viewer is
+/// given a PDF rendering of the stored version, and the file a reader saves
+/// is still the Word document (operator, 11 November 2026, R949).
+/// </remarks>
+public static class CaseDocumentPreviews
+{
+    /// <summary>
+    /// The one current PDF rendering of a Word document. This changes whenever
+    /// the rendering can change its bytes, so the address, the cache variant
+    /// and the validator all advance together.
+    /// </summary>
+    public const string RenditionIdentity = "p1";
+
+    /// <summary>The variant a PDF rendering is cached and validated under.</summary>
+    public const string RenditionVariant = "pdf-" + RenditionIdentity;
+
+    /// <summary>What a rendering is served as.</summary>
+    public const string RenditionMediaType = "application/pdf";
+
+    /// <summary>
+    /// How long one request waits for a rendering that is still being made
+    /// before it answers "not yet": the budget a render behind a busy state
+    /// has (docs/engineering.md, Simplicity).
+    /// </summary>
+    public static readonly TimeSpan RenditionWait = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// How this document is shown. A Word document is known by its media type,
+    /// or by its file name where it arrived as <c>application/octet-stream</c>,
+    /// as a mailed attachment often does.
+    /// </summary>
+    public static CaseDocumentPreviewKind KindOf(string? mediaType, string? fileName)
+    {
+        if (BareMediaType(mediaType) is not { } type)
+        {
+            return CaseDocumentPreviewKind.None;
+        }
+        if (type.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            return CaseDocumentPreviewKind.Pdf;
+        }
+        if (type.Equals(IntakeUploadFilePolicy.Mp4MediaType, StringComparison.OrdinalIgnoreCase)
+            || type.Equals(IntakeUploadFilePolicy.MovMediaType, StringComparison.OrdinalIgnoreCase))
+        {
+            return CaseDocumentPreviewKind.Video;
+        }
+        if (type.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            return type.Equals("image/svg+xml", StringComparison.OrdinalIgnoreCase)
+                ? CaseDocumentPreviewKind.None
+                : CaseDocumentPreviewKind.Image;
+        }
+        if (IsWord(type))
+        {
+            return CaseDocumentPreviewKind.WordAsPdf;
+        }
+        return type.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(fileName)
+            && IsWord(IntakeUploadFilePolicy.MediaTypeFor(fileName))
+                ? CaseDocumentPreviewKind.WordAsPdf
+                : CaseDocumentPreviewKind.None;
+    }
+
+    /// <summary>
+    /// Whether the stored bytes themselves may be dispositioned for display
+    /// from this origin: an image, a PDF or an admitted video, and nothing else.
+    /// </summary>
+    public static bool IsInlineSafe(string? mediaType) =>
+        KindOf(mediaType, fileName: null)
+            is CaseDocumentPreviewKind.Image or CaseDocumentPreviewKind.Pdf or CaseDocumentPreviewKind.Video;
+
+    /// <summary>
+    /// The <c>type/subtype</c> of a media type, without its parameters, or
+    /// <c>null</c> when the value is not one.
+    /// </summary>
+    private static string? BareMediaType(string? mediaType)
+    {
+        if (string.IsNullOrWhiteSpace(mediaType))
+        {
+            return null;
+        }
+        var parameters = mediaType.IndexOf(';', StringComparison.Ordinal);
+        var type = (parameters < 0 ? mediaType : mediaType[..parameters]).Trim();
+        var slash = type.IndexOf('/', StringComparison.Ordinal);
+        return slash > 0
+            && slash < type.Length - 1
+            && type.LastIndexOf('/') == slash
+            && !type.Any(char.IsWhiteSpace)
+                ? type
+                : null;
+    }
+
+    private static bool IsWord(string? mediaType) =>
+        string.Equals(mediaType, IntakeUploadFilePolicy.DocxMediaType, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(mediaType, IntakeUploadFilePolicy.DocMediaType, StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>
+/// The PDF rendering of one Case document the browser cannot draw itself (a
+/// Word document), made from the stored version.
+/// </summary>
+/// <remarks>
+/// Answers <c>null</c> when no rendering can be made of this document, and
+/// throws <see cref="TimeoutException"/> when one is still being made after
+/// <see cref="CaseDocumentPreviews.RenditionWait"/>; the caller answers that
+/// with a retry. The rendering is derived data: the document a reader saves
+/// is always the stored original.
+/// </remarks>
+public interface IRenderDocumentAsPdf
+{
+    Task<byte[]?> RenderAsync(
+        ActionActor actor,
+        CaseDocumentPreview preview,
+        CancellationToken cancellationToken);
 }

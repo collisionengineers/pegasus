@@ -3159,7 +3159,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CaseId", "AfterVersion")
                         .IsUnique()
-                        .HasFilter("[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied' AND [EventType] <> 'case_report_draft_previewed' AND [EventType] <> 'case_report_artifact_downloaded' AND [EventType] <> 'case_estimate_document_previewed' AND [EventType] <> 'edit_lease_taken_over' AND [EventType] <> 'market_research_attached' AND [EventType] <> 'correspondence_sent'");
+                        .HasFilter("[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied' AND [EventType] <> 'case_report_draft_previewed' AND [EventType] <> 'case_report_artifact_downloaded' AND [EventType] <> 'case_estimate_document_previewed' AND [EventType] <> 'edit_lease_taken_over' AND [EventType] <> 'market_research_attached' AND [EventType] <> 'correspondence_sent' AND [EventType] <> 'instruction_moved_to_deleted_items' AND [EventType] <> 'instruction_move_failed' AND [EventType] <> 'correspondence_moved_to_deleted_items' AND [EventType] <> 'correspondence_move_failed'");
 
                     b.HasIndex("CaseId", "OperationKey")
                         .IsUnique();
@@ -8103,11 +8103,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("PrincipalCode")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -8115,7 +8110,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PrincipalCode", "Text")
+                    b.HasIndex("Text")
                         .IsUnique();
 
                     b.ToTable("UnroadworthyReasons", null, t =>

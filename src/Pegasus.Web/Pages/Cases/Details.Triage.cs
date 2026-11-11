@@ -62,12 +62,6 @@ public sealed class TriageCaseView(TriageDetail triage)
 
     public string? ReplyBody { get; set; }
 
-    /// <summary>
-    /// Reply with finding's Delete case correspondence tick as it was posted, for a
-    /// refused send's redisplay; unticked on every other open (R902 to R905).
-    /// </summary>
-    public bool DeleteCaseCorrespondence { get; set; }
-
     /// <summary>The reply this state offers: the chaser, Reply with finding, or none once Cancelled.</summary>
     public StaffMailPurpose? ReplyPurpose => TriageLifecycleRules.ReplyPurpose(Record.State);
 
@@ -237,6 +231,8 @@ public sealed class TriageCaseView(TriageDetail triage)
         "triage_state_open" => "Reopened",
         "triage_case_linked" => "Case linked",
         "triage_case_unlinked" => "Case unlinked",
+        "correspondence_moved_to_deleted_items" => OperatorLabels.StaffMail.CaseEmailsMoved,
+        "correspondence_move_failed" => OperatorLabels.StaffMail.CaseEmailsNotMoved,
         _ => eventType
     };
 }
@@ -654,8 +650,10 @@ public sealed partial class DetailsModel
 
         // A refused send redisplays what the operator typed, never the
         // template again.
+        // The Delete case correspondence tick is not among it: a refused send
+        // comes back unticked (operator, 11 November 2026; R960).
         var draft = new TriageReplyDraft(
-            to, cc, subject, body, selectedAttachments ?? [], fromMailboxId, deleteCaseCorrespondence);
+            to, cc, subject, body, selectedAttachments ?? [], fromMailboxId);
 
         // A reply answers the mailbox request a Triage Case was opened from.
         if (triage.Record.Origin is not { } origin
@@ -832,8 +830,7 @@ public sealed partial class DetailsModel
         string? Subject,
         string? Body,
         IReadOnlyList<string> Attachments,
-        Guid? FromMailboxId,
-        bool DeleteCaseCorrespondence);
+        Guid? FromMailboxId);
 
     /// <summary>The page again after a refused send, with the composer open on what was posted.</summary>
     private async Task<IActionResult> ReloadTriageCaseAsync(
@@ -856,7 +853,6 @@ public sealed partial class DetailsModel
         view.ReplyBody = draft.Body;
         view.SelectedAttachments = draft.Attachments;
         view.ReplyFromMailboxId = draft.FromMailboxId;
-        view.DeleteCaseCorrespondence = draft.DeleteCaseCorrespondence && view.IsOutcomeReply;
         view.ReplyRefused = true;
         view.ComposerOpensOnLoad = view.OffersComposer;
         return Page();

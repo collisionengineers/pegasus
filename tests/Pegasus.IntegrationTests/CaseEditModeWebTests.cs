@@ -55,7 +55,6 @@ public sealed class CaseEditModeWebTests
         Assert.Equal("The brake line is severed.",
             saved.Settlement!.AssessmentFields![AssessmentVocabulary.UnroadworthyReason]);
         var bankRequest = Assert.Single(bank.Requests);
-        Assert.Equal("QDOS", bankRequest.PrincipalCode);
         Assert.Equal("The brake line is severed.", bankRequest.Text);
         Assert.Equal([1], bank.CaseSaveCountsAtRequest);
         Assert.Contains("data-case-editing=\"true\"", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
@@ -2672,13 +2671,20 @@ public sealed class CaseEditModeWebTests
         public List<SaveUnroadworthyReasonRequest> Requests { get; } = [];
         public List<int> CaseSaveCountsAtRequest { get; } = [];
 
-        public Task<IReadOnlyList<UnroadworthyReason>> ListAsync(
-            string principalCode, CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<UnroadworthyReason>> ListAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<UnroadworthyReason>>([]);
 
         public Task<UnroadworthyReason?> AddAsync(
             SaveUnroadworthyReasonRequest request, string normalized, CancellationToken cancellationToken) =>
             Task.FromResult<UnroadworthyReason?>(null);
+
+        public Task<UnroadworthyReasonChange> RewordAsync(
+            Guid id, string renderedText, string normalized, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<UnroadworthyReasonChange> RemoveAsync(
+            Guid id, string renderedText, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<UnroadworthyReason?> ExecuteAsync(
             SaveUnroadworthyReasonRequest request, CancellationToken cancellationToken)
@@ -2689,8 +2695,7 @@ public sealed class CaseEditModeWebTests
                 CaseSaveCountsAtRequest.Add(count());
             }
             return Task.FromResult<UnroadworthyReason?>(new(
-                Guid.NewGuid(), request.PrincipalCode, request.Text, request.Actor.SubjectId,
-                DateTimeOffset.UtcNow));
+                Guid.NewGuid(), request.Text, request.Actor.SubjectId, DateTimeOffset.UtcNow));
         }
     }
 

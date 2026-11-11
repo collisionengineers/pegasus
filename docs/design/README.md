@@ -648,7 +648,7 @@ sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`.
 | `download` | `download` | `23C34A5D75EE3B4256A7EC2D89C92E7FF20F83C500D753D878AC6956795D8710` | Save as, Export case in the Actions menu |
 | `folder` | `folder` | `AA09149FD90B101E57C3EE895B3B8E26A637DE49054FC3934ADB04D44391129B` | Folder scopes, Case Files |
 | `info` | `info` | `F8A3505045B576526C28DD34580C9F5FCE03E8162A44439B54FF3013729AA5E5` | Informational notice |
-| `car` | `car` | `95D81365198304961775C6F6D8AF7336155B479E0B83999ECF2DDEB3B6385659` | Vehicle section |
+| `car` | `car` | `95D81365198304961775C6F6D8AF7336155B479E0B83999ECF2DDEB3B6385659` | Vehicle section; Administration nav: Unroadworthy reasons |
 | `person` | `user` | (as `user`) | Claimant, parties |
 | `archive` | `archive` | `5E37C25B5019E3BEC630670AF534085D0EC8A7DED60A527CA5E5D0189FC86BE1` | Archive, Deleted Items |
 | `send` | `send` | `567F1008963A9513C9F8F40EC8E4F8E981A697747E95C92707ED3C0B153D4CDB` | Send, **Send to AI** (the prototype's `btn(…,'primary','send')`) |
