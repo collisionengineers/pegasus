@@ -502,8 +502,7 @@ Release 3.0.0 deployed `dev` at the merge of PR 2082: the range of #2028, from g
 | Migration | ten migrations; head `20261108120000_WorkerReadsMigrationHistory` to `20261111140000_UnroadworthyReasonsOneList` |
 | Deployment | `azd provision --no-state` in 117 s, creating `pegasus-prod-acs-252ow37gij` (UK data) with Contributor for `pegasus-prod-web-id-252ow37gij` and dropping `AppServiceHTTPLogs` (R923); Web OneDeploy `20aee70b-ef70-4dfd-8735-f562bcb5b55d`; Worker `d6f886ee-50a4-43fe-890c-3db002ac4a90`; classifier `b6bce07a-0ad6-4336-93bf-bd9753f8d734`, `Running`; `/diagnostics/version` reads `3.0.0` at the SHA |
 | Settings read back | `Features__PhotoCapture=true` on Web and Worker; `PhotoCapture__PublicOrigin` the Web's origin; `TextMessages__Endpoint` the ACS host, `TextMessages__From` empty (texting off); the five Worker `Disabled` settings `false` |
-| Smoke | passed at 14:50:39Z; intake liveness last poll 14:50:00Z, subscription expires 2026-11-16 08:30Z; photo capture's unknown link answers its designed 404 |
-| Test instance | serving the candidate `55dd3f0c2` (R684) |
+| Smoke | passed at 14:50:39Z; intake liveness last poll 14:50:00Z, subscription expires 2026-11-16 08:30Z; photo capture's unknown link answers its designed 404; the test instance served the candidate (R684) |
 | Evidence | `artifacts/releases/release-3.0.0-55dd3f0c` and `artifacts/releases/logs/release-3.0.0-*.log` on `cemattypc-1` |
 | Owed | #2085 (Exchange `Mail.ReadWrite`), #2086 (SMS number and R919 wording), #2087 (live checks), #2088 (Standing links budget), #2009, #2054 |
 
