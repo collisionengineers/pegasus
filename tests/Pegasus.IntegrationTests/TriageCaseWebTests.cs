@@ -105,6 +105,72 @@ public sealed partial class TriageCaseWebTests
     }
 
     /// <summary>
+    /// A Triage Case's Documents tab gives a stored Word document the same
+    /// View the Case record does: a PDF rendering of it, whose Download is the
+    /// row's own file. A text file stays a download and a PDF stays the
+    /// viewer's own item. The Triage's files are its standard Case documents,
+    /// so the fixture adds them to the real Triage read.
+    /// </summary>
+    [Fact]
+    public async Task ATriageCaseGivesAStoredWordDocumentAViewOfItsPdfRendering()
+    {
+        var docxId = Guid.NewGuid();
+        var docxVersionId = Guid.NewGuid();
+        var octetId = Guid.NewGuid();
+        var octetVersionId = Guid.NewGuid();
+        var textId = Guid.NewGuid();
+        var pdfId = Guid.NewGuid();
+        Pegasus.Core.Documents.CaseDocument[] documents =
+        [
+            Document(
+                docxId, docxVersionId, "assessment.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+            Document(octetId, octetVersionId, "report.docx", "application/octet-stream"),
+            Document(textId, Guid.NewGuid(), "notes.txt", "text/plain"),
+            Document(pdfId, Guid.NewGuid(), "instruction.pdf", "application/pdf")
+        ];
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetTriage>();
+                services.AddScoped<IGetTriage>(provider => new TriageWithDocuments(
+                    ActivatorUtilities.CreateInstance<GetTriage>(provider),
+                    documents));
+            }));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var triage = await CreateManualTriageAsync(factory.Services, "triage-word-view");
+
+        var html = await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}");
+
+        foreach (var (occurrenceId, versionId, fileName) in new[]
+        {
+            (docxId, docxVersionId, "assessment.docx"),
+            (octetId, octetVersionId, "report.docx")
+        })
+        {
+            var row = TriageDocumentRow(html, occurrenceId);
+            var download = $"/Cases/{triage.CaseId:D}/Documents/{occurrenceId:D}/Download?versionId={versionId:D}";
+            Assert.Contains(
+                $"href=\"{download}&amp;inline=true&amp;renderer={Pegasus.Core.Documents.CaseDocumentPreviews.RenditionIdentity}\"",
+                row,
+                StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("data-document-preview", row, StringComparison.Ordinal);
+            Assert.Contains($"data-download-href=\"{download}\"", row, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains($"data-file-name=\"{fileName}\"", row, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-evidence-item", row, StringComparison.Ordinal);
+        }
+
+        var text = TriageDocumentRow(html, textId);
+        Assert.DoesNotContain("data-document-preview", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-evidence-item", text, StringComparison.Ordinal);
+
+        var pdf = TriageDocumentRow(html, pdfId);
+        Assert.Contains("data-evidence-item", pdf, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-document-preview", pdf, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// R309: the Principal's "Notes on every Case" shows on a Triage Case in
     /// every state, read-only (no control) and once; a Principal with no note,
     /// or only blanks, draws nothing.
@@ -939,6 +1005,20 @@ public sealed partial class TriageCaseWebTests
         return html[start..end];
     }
 
+    /// <summary>One row of the Triage Case's Documents tab, up to the next row or the Correspondence tab.</summary>
+    private static string TriageDocumentRow(string html, Guid occurrenceId)
+    {
+        var marker = html.IndexOf($"data-document-row=\"{occurrenceId:D}\"", StringComparison.Ordinal);
+        Assert.True(marker >= 0, "The document row is not rendered.");
+        var end = html.IndexOf("data-document-row=", marker + 1, StringComparison.Ordinal);
+        if (end < 0)
+        {
+            end = html.IndexOf("id=\"triage-files-correspondence\"", marker, StringComparison.Ordinal);
+        }
+        Assert.True(end > marker, "The document row is not closed.");
+        return html[marker..end];
+    }
+
     private static async Task<IntakeReceipt> GetReceiptAsync(IServiceProvider services, Guid receiptId)
     {
         await using var scope = services.CreateAsyncScope();
@@ -1084,6 +1164,19 @@ public sealed partial class TriageCaseWebTests
 
         public Task<bool> ThreadHoldsCaseOrTriageAsync(Guid receiptId, CancellationToken cancellationToken) =>
             Task.FromResult(false);
+    }
+
+    /// <summary>The real Triage read, with the Case documents a test files on it.</summary>
+    private sealed class TriageWithDocuments(
+        IGetTriage inner,
+        IReadOnlyList<Pegasus.Core.Documents.CaseDocument> documents) : IGetTriage
+    {
+        public async Task<TriageDetail?> ExecuteAsync(
+            GetTriageQuery query,
+            CancellationToken cancellationToken = default) =>
+            await inner.ExecuteAsync(query, cancellationToken) is { } detail
+                ? detail with { Documents = documents }
+                : null;
     }
 
     private sealed class FailingCaseCustody : ICaseCustody

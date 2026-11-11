@@ -543,6 +543,8 @@ public static class DependencyInjection
         services.AddScoped<IRepairSpecificationSnapshotStore, EfRepairSpecificationSnapshotStore>();
         services.AddScoped<IUnroadworthyReasonBankStore, EfUnroadworthyReasonBankStore>();
         services.AddScoped<ISaveUnroadworthyReason, SaveUnroadworthyReason>();
+        services.AddScoped<RewordUnroadworthyReason>();
+        services.AddScoped<RemoveUnroadworthyReason>();
         services.AddScoped<IScaleRepairSpecification, ScaleRepairSpecification>();
         services.AddScoped<RemoveRepairSpecificationScaling>();
         services.AddScoped<RestoreRepairSpecificationSnapshot>();
@@ -755,6 +757,18 @@ public static class DependencyInjection
                     provider.GetRequiredService<IReadLogicalDocumentVersion>(),
                     provider.GetService<DocumentThumbnailCache>(),
                     provider.GetService<ILogger<CaseDocumentThumbnailReader>>()));
+            // The viewer's PDF rendering of a Word document: Box's own, kept
+            // as a variant of the same cache. A profile without Box custody
+            // and the content cache has none, and a Word document there stays
+            // a download.
+            services.AddScoped<IRenderDocumentAsPdf>(provider =>
+                provider.GetService<CachedDocumentContentStore>() is { } store
+                && provider.GetService<DocumentThumbnailCache>() is { } renderings
+                    ? new CaseDocumentPdfRenditionReader(
+                        store,
+                        renderings,
+                        provider.GetService<ILogger<CaseDocumentPdfRenditionReader>>())
+                    : new NoDocumentPdfRenderer());
             // The Worker's sweep makes plain thumbnails through that same
             // reader before the first view.
             services.AddScoped<PrepareDocumentThumbnails>();

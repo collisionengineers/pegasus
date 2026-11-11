@@ -1,0 +1,85 @@
+@page
+@using Pegasus.Core.Assessment
+@model Pegasus.Web.Pages.Administration.UnroadworthyReasons.IndexModel
+@using Labels = Pegasus.Web.Presentation.OperatorLabels.UnroadworthyReasons
+@{
+    ViewData["Title"] = OperatorLabels.Admin.UnroadworthyReasons;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+    ViewData["AdminArea"] = "unroadworthy-reasons";
+    var textLimit = UnroadworthyReasonBank.MaximumLength;
+}
+
+<partial name="Shared/_PageHeader" />
+
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
+        <partial name="Shared/_ErrorSummary" />
+
+        <section class="panel" aria-labelledby="unroadworthy-reasons-title">
+            <div class="panel-head">
+                <div>
+                    <h2 id="unroadworthy-reasons-title">@Labels.Wordings</h2>
+                    <p class="panel-title-meta">@Labels.WordingCount(Model.Wordings.Count)</p>
+                </div>
+            </div>
+            <div class="table-wrap no-border">
+                @* The Valuation presets table: every row editable at once, an add row last. *@
+                <table class="table table--compact preset-table">
+                    <caption class="sr-only">@OperatorLabels.Admin.UnroadworthyReasons</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">@Labels.Wording</th>
+                            <th scope="col" class="preset-actions"><span class="sr-only">@Labels.Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @if (Model.Wordings.Count == 0)
+                    {
+                        <tr><td colspan="2" class="muted">@Labels.NoWordings</td></tr>
+                    }
+                    @foreach (var wording in Model.Wordings)
+                    {
+                        var wordingId = wording.Id.ToString("D");
+                        var saveFormId = "wording-save-" + wording.Id.ToString("N");
+                        var rowText = Model.RowId == wording.Id ? Model.RowText : wording.Text;
+                        <tr>
+                            <td>
+                                <label class="sr-only" for="wording-text-@wordingId">@Labels.Wording</label>
+                                <input id="wording-text-@wordingId" class="input" name="text" form="@saveFormId" required maxlength="@textLimit" value="@rowText" />
+                            </td>
+                            <td class="preset-actions">
+                                <div class="row-actions">
+                                    <form method="post" asp-page-handler="Remove">
+                                        <input type="hidden" name="wordingId" value="@wordingId" />
+                                        <input type="hidden" name="renderedText" value="@wording.Text" />
+                                        <button type="submit" class="btn btn--small btn--danger" data-busy-label="@OperatorLabels.Busy.Removing">@Labels.Remove</button>
+                                    </form>
+                                    <form id="@saveFormId" method="post" asp-page-handler="Save">
+                                        <input type="hidden" name="wordingId" value="@wordingId" />
+                                        <input type="hidden" name="renderedText" value="@wording.Text" />
+                                        <button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@Labels.Save</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    <tr>
+                        <td>
+                            <label class="sr-only" for="create-text">@Labels.Wording</label>
+                            <input id="create-text" class="input" name="text" form="wording-create" required maxlength="@textLimit" value="@Model.CreateText" />
+                        </td>
+                        <td class="preset-actions">
+                            <div class="row-actions">
+                                <form id="wording-create" method="post" asp-page-handler="Create">
+                                    <button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Adding">@Labels.Add</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>

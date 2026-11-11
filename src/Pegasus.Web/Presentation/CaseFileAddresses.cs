@@ -53,6 +53,14 @@ public static class CaseFileAddresses
         + "&prep=" + (preparation?.PreparationVersion ?? 0).ToString(CultureInfo.InvariantCulture)
         + "&renderer=" + CaseDocumentThumbnails.RendererIdentity;
 
+    /// <summary>
+    /// The PDF rendering the viewer shows for a Word document. It names the
+    /// rendering, so a changed renderer is a new address rather than a
+    /// week-cached earlier rendering.
+    /// </summary>
+    public static string PdfRendition(Guid caseId, CaseFile file) =>
+        Preview(caseId, file) + "&renderer=" + CaseDocumentPreviews.RenditionIdentity;
+
     /// <summary>The images window for a Case, opened on <paramref name="occurrenceId"/> when given.</summary>
     public static string ImagesWindow(Guid caseId, Guid? occurrenceId = null) =>
         $"/Cases/{caseId:D}/Images" + (occurrenceId is { } start ? $"?image={start:D}" : string.Empty);

@@ -155,6 +155,15 @@ public static partial class OperatorLabels
         /// </summary>
         public const string DeleteCaseCorrespondence = "Delete case correspondence";
 
+        /// <summary>
+        /// The Notes labels for what the tick's tidy and the answered-instruction
+        /// tidy did in the mailbox (operator, 11 November 2026; R959).
+        /// </summary>
+        public const string CaseEmailsMoved = "Case e-mails moved to Deleted Items";
+        public const string CaseEmailsNotMoved = "Case e-mails not moved";
+        public const string InstructionMoved = "Instruction moved to Deleted Items";
+        public const string InstructionNotMoved = "Instruction not moved";
+
         public static string State(Pegasus.Core.Operations.StaffMailState state) => state switch
         {
             Pegasus.Core.Operations.StaffMailState.Prepared => "Preparing",
@@ -539,6 +548,32 @@ public static partial class OperatorLabels
         /// <summary>The preset count the panel head shows under the title.</summary>
         public static string PresetCount(int count) =>
             count == 1 ? "1 preset" : $"{count} presets";
+    }
+
+    /// <summary>
+    /// Administration › Unroadworthy reasons: the bank's wordings, their rows
+    /// and their confirmations and refusals (operator, 11 November 2026; R952
+    /// to R954). The area's own name lives in <see cref="Admin.UnroadworthyReasons"/>.
+    /// </summary>
+    public static class UnroadworthyReasons
+    {
+        public const string Wordings = "Wordings";
+        public const string Wording = "Wording";
+        public const string Save = "Save";
+        public const string Remove = "Remove";
+        public const string Add = "Add";
+        public const string Actions = "Actions";
+        public const string NoWordings = "No unroadworthy reason wordings are recorded.";
+        public const string Added = "The wording was added.";
+        public const string Saved = "The wording was saved.";
+        public const string Removed = "The wording was removed.";
+        public const string WordingRequired = "Enter a wording of up to 300 characters.";
+        public const string AlreadyOffered = "The bank already offers that wording.";
+        public const string Stale = "The wording changed after this page was loaded. Reload it and try again.";
+
+        /// <summary>The wording count the panel head shows under the title.</summary>
+        public static string WordingCount(int count) =>
+            count == 1 ? "1 wording" : $"{count} wordings";
     }
 
     /// <summary>

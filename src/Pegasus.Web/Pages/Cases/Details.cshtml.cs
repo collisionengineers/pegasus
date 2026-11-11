@@ -857,11 +857,10 @@ public sealed partial class DetailsModel(
     public string RestoreOperationKey { get; private set; } = NewOperationKey();
 
     /// <summary>
-    /// The unroadworthy reason wordings offered on this Case (v28 P15): the
-    /// standard ones, then the Principal's own, in the order they were saved.
+    /// The unroadworthy reason wordings offered on every Case (v28 P15; R952):
+    /// the bank's, in the order they were added.
     /// </summary>
-    public IReadOnlyList<string> UnroadworthyReasonWordings { get; private set; } =
-        UnroadworthyReasonBank.Standard;
+    public IReadOnlyList<string> UnroadworthyReasonWordings { get; private set; } = [];
 
     /// <summary>
     /// The salvage matrix of this Case's Principal (29 September 2026), read
@@ -1354,7 +1353,6 @@ public sealed partial class DetailsModel(
         // the assessment.
         var canOpen = AssessmentCanOpen;
         var asksSendToAi = AssessmentCanOpen && !AssessmentIsReadOnly;
-        var principalCode = Case!.Workflow.Identity.PrincipalCode;
         // The snapshot source takes what this page already read for the work
         // rather than reading the workspace, preparations, valuations and the
         // Case's works again.
@@ -1363,7 +1361,7 @@ public sealed partial class DetailsModel(
             workspace,
             AssetPreparations,
             appliedValuationsLoaded ? AppliedValuations : null,
-            Case.Frame);
+            Case!.Frame);
 
         using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
         // The authors' names depend only on the estimates, so they are read in
@@ -1376,7 +1374,7 @@ public sealed partial class DetailsModel(
             return (Listed: listed, AuthorNames: await ResolveSpecAuthorNamesAsync(listed, token));
         });
         var cards = reads.Start(token => labourRateCards.ListAsync(actor, token));
-        var savedReasons = reads.Start(token => unroadworthyReasonBank.ListAsync(principalCode, token));
+        var bankWordings = reads.Start(unroadworthyReasonBank.ListAsync);
         var salvageMatrix = CanEditEngineering
             ? reads.Start(token => principalSalvageMatrices.GetForCaseAsync(id, token))
             : null;
@@ -1397,8 +1395,7 @@ public sealed partial class DetailsModel(
         (Estimates, SpecAuthorNames) = await estimates;
         LabourRateCards = await cards;
         ApplyEstimateSelection(estimate);
-        var saved = await savedReasons;
-        UnroadworthyReasonWordings = [.. UnroadworthyReasonBank.Standard, .. saved.Select(item => item.Text)];
+        UnroadworthyReasonWordings = [.. (await bankWordings).Select(item => item.Text)];
         PrincipalSalvageMatrix = salvageMatrix is null ? null : await salvageMatrix;
         var inputs = await reportInputs;
         snapshotSignOffEngineers = inputs?.Readiness.EligibleSignOffEngineers;
@@ -2728,10 +2725,10 @@ public sealed partial class DetailsModel(
                     try
                     {
                         var saved = await saveUnroadworthyReasonAction.ExecuteAsync(
-                            new(current.Workflow.Identity.PrincipalCode, bankWording!, actor),
+                            new(bankWording!, actor),
                             cancellationToken);
                         bankStatus = saved is null
-                            ? "The bank already offers that wording."
+                            ? Labels.UnroadworthyReasons.AlreadyOffered
                             : "The wording was saved to the bank.";
                     }
                     catch (Exception exception) when (exception is not OperationCanceledException)

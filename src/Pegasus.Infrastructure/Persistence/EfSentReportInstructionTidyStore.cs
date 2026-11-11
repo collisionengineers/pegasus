@@ -21,7 +21,9 @@ internal sealed class EfSentReportInstructionTidyStore(
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumItems, 1);
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // A mailbox an Administrator has withdrawn is never written to.
+        // A mailbox an Administrator has withdrawn is never written to, nor is one
+        // that is not enabled, as a production copy leaves every mailbox on the
+        // test instance (R916, R627, R693; operator, 11 November 2026, R961).
         var approvedState = ApprovedMailboxState.Approved.ToString();
         var rows = await db.Set<StaffMailSendOperationEntity>().AsNoTracking()
             .Where(operation => operation.Purpose == StaffMailPurpose.CaseReport
@@ -40,7 +42,9 @@ internal sealed class EfSentReportInstructionTidyStore(
                 pair => pair.message.MailboxId!.Value,
                 mailbox => mailbox.Id,
                 (pair, mailbox) => new { pair.operation, pair.message, mailbox })
-            .Where(trio => trio.mailbox.MailboxIdentity != null && trio.mailbox.State == approvedState)
+            .Where(trio => trio.mailbox.MailboxIdentity != null
+                && trio.mailbox.ActivatedAtUtc != null
+                && trio.mailbox.State == approvedState)
             .Join(
                 db.Set<CaseReportGenerationEntity>().AsNoTracking(),
                 trio => trio.operation.ContextId,
@@ -112,7 +116,7 @@ internal sealed class EfSentReportInstructionTidyStore(
             {
                 operation.InstructionMoveState = nameof(SentReportInstructionTidyOutcome.Failed);
             }
-            eventType = "instruction_move_failed";
+            eventType = SentMailTidyHistory.InstructionMoveFailed;
             reason = $"The answered instruction could not be moved to Deleted Items ({operation.InstructionMoveFailureCode}); attempt {operation.InstructionMoveAttempts} of {TidySentReportInstructions.MaximumAttempts}.";
         }
         else
@@ -127,7 +131,7 @@ internal sealed class EfSentReportInstructionTidyStore(
             // is recorded on the send row alone.
             if (outcome != SentReportInstructionTidyOutcome.MessageMissing)
             {
-                eventType = "instruction_moved_to_deleted_items";
+                eventType = SentMailTidyHistory.InstructionMoved;
                 reason = outcome == SentReportInstructionTidyOutcome.Moved
                     ? "The answered instruction was moved to Deleted Items after the report was sent."
                     : "The answered instruction was already in Deleted Items after the report was sent.";
@@ -140,18 +144,15 @@ internal sealed class EfSentReportInstructionTidyStore(
             .SingleOrDefaultAsync(cancellationToken);
         if (eventType is not null && caseId is { } id)
         {
-            db.CaseHistory.Add(new CaseHistoryEntity
-            {
-                Id = Guid.NewGuid(),
-                CaseId = id,
-                EventType = eventType,
-                Actor = Actor,
-                Reason = reason,
-                OccurredAtUtc = nowUtc,
-                OperationKey = $"instruction-tidy:{operation.Id:N}:{operation.InstructionMoveAttempts}",
-                BeforeVersion = null,
-                AfterVersion = 0
-            });
+            await SentMailTidyHistory.AddAsync(
+                db,
+                id,
+                eventType,
+                Actor,
+                reason,
+                $"instruction-tidy:{operation.Id:N}:{operation.InstructionMoveAttempts}",
+                nowUtc,
+                cancellationToken);
         }
 
         try

@@ -63,6 +63,25 @@ internal sealed class DatabaseLessCaseReads :
         new(new Guid("5b0f3c1e-8f4a-4d2b-9a57-1c3e2f6a7b02"), LabourRateCardAdministration.PrestigeAluminium, 103.06m, 1),
     ];
 
+    /// <summary>The standard wordings the schema seeds, as the bank lists them (R953).</summary>
+    private static readonly IReadOnlyList<UnroadworthyReason> UnroadworthyReasons =
+    [
+        .. new[]
+        {
+            "as the steering and suspension geometry has been compromised",
+            "as the rear lamp assemblies are inoperative",
+            "as the headlamp assemblies are inoperative",
+            "as the vehicle presents sharp edges likely to cause injury",
+            "as the supplementary restraint systems have deployed",
+            "as structural distortion is evident to the body shell",
+            "as there is a loss of essential fluids",
+        }.Select((text, index) => new UnroadworthyReason(
+            new Guid($"00000000-0000-4000-8000-0000000b000{index + 1}"),
+            text,
+            "system:standard-wordings",
+            DateTimeOffset.UnixEpoch.AddSeconds(index + 1))),
+    ];
+
     /// <summary>The presets the schema seeds, in the store's label order.</summary>
     private static readonly IReadOnlyList<ValuationPreset> ValuationPresets =
     [
@@ -162,12 +181,20 @@ internal sealed class DatabaseLessCaseReads :
         Refused<LabourRateCard>(nameof(ILabourRateCardStore));
 
     Task<IReadOnlyList<UnroadworthyReason>> IUnroadworthyReasonBankStore.ListAsync(
-        string principalCode, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<UnroadworthyReason>>([]);
+        CancellationToken cancellationToken) =>
+        Task.FromResult(UnroadworthyReasons);
 
     Task<UnroadworthyReason?> IUnroadworthyReasonBankStore.AddAsync(
         SaveUnroadworthyReasonRequest request, string normalized, CancellationToken cancellationToken) =>
         Refused<UnroadworthyReason?>(nameof(IUnroadworthyReasonBankStore));
+
+    Task<UnroadworthyReasonChange> IUnroadworthyReasonBankStore.RewordAsync(
+        Guid id, string renderedText, string normalized, CancellationToken cancellationToken) =>
+        Refused<UnroadworthyReasonChange>(nameof(IUnroadworthyReasonBankStore));
+
+    Task<UnroadworthyReasonChange> IUnroadworthyReasonBankStore.RemoveAsync(
+        Guid id, string renderedText, CancellationToken cancellationToken) =>
+        Refused<UnroadworthyReasonChange>(nameof(IUnroadworthyReasonBankStore));
 
     Task<SalvageMatrix?> IPrincipalSalvageMatrixQueries.GetForCaseAsync(
         Guid caseId, CancellationToken cancellationToken) =>
