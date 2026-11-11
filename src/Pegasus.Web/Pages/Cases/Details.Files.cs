@@ -1,6 +1,4 @@
-using Microsoft.Net.Http.Headers;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Intake;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Cases;
@@ -78,21 +76,11 @@ public sealed partial class DetailsModel
     /// </summary>
     public bool MayPrepareImages => CanEditCaseData;
 
-    /// <summary>
-    /// Which files the viewer displays over the page: images, PDFs and the two
-    /// admitted video media types; everything else is a download. Restates the
-    /// inline rule the document route applies.
-    /// </summary>
-    public static bool IsViewable(string mediaType) =>
-        MediaTypeHeaderValue.TryParse(mediaType, out var parsed)
-        && (parsed.MediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
-            || parsed.MediaType.Equals(IntakeUploadFilePolicy.Mp4MediaType, StringComparison.OrdinalIgnoreCase)
-            || parsed.MediaType.Equals(IntakeUploadFilePolicy.MovMediaType, StringComparison.OrdinalIgnoreCase)
-            || (parsed.Type.Equals("image", StringComparison.OrdinalIgnoreCase)
-                && !parsed.MediaType.Equals("image/svg+xml", StringComparison.OrdinalIgnoreCase)));
-
     /// <summary>The inline preview the viewer reads (the original bytes, no history row).</summary>
     public string PreviewUrl(CaseFile file) => CaseFileAddresses.Preview(CurrentCaseId, file);
+
+    /// <summary>The PDF rendering the viewer shows for a Word document (no history row).</summary>
+    public string PdfRenditionUrl(CaseFile file) => CaseFileAddresses.PdfRendition(CurrentCaseId, file);
 
     /// <summary>The audited download.</summary>
     public string DownloadUrl(CaseFile file) => CaseFileAddresses.Download(CurrentCaseId, file);

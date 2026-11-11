@@ -355,6 +355,38 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.Contains("data-wording-composed=\"@composed\" data-wording-heading=\"@heading\">", panel, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A Word document's View (R949, R950): the Case viewer and the Triage Case's
+    /// Evidence viewer fetch the PDF rendering through the one shared fetch, which
+    /// comes back for a rendering still being made, and each viewer's Download
+    /// stays the row's own file.
+    /// </summary>
+    [Fact]
+    public void BothViewersFetchAWordDocumentsRenderingThroughOneFetchAndDownloadStaysTheRowsFile()
+    {
+        var scripts = Path.Combine(RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js");
+        var workspace = File.ReadAllText(Path.Combine(scripts, "case-workspace.js"));
+        var site = File.ReadAllText(Path.Combine(scripts, "site.js"));
+
+        var fetchPreview = FunctionBody(site, "function fetchPreview(url) {", "    ");
+        Assert.Contains("headers: { 'X-Pegasus-Document-Preview': '1' }", fetchPreview, StringComparison.Ordinal);
+        Assert.Contains("response.status === 503 && retries < 2 && seconds > 0", fetchPreview, StringComparison.Ordinal);
+        Assert.Contains("fetchPreview: fetchPreview", site, StringComparison.Ordinal);
+        Assert.DoesNotContain("X-Pegasus-Document-Preview", workspace, StringComparison.Ordinal);
+
+        var caseViewer = FunctionBody(workspace, "async function openInViewer(trigger, viewer) {", "    ");
+        Assert.Contains("await window.pegasusUi.fetchPreview(trigger.href);", caseViewer, StringComparison.Ordinal);
+        Assert.Contains("download: original || preview.url,", caseViewer, StringComparison.Ordinal);
+
+        var evidenceViewer = FunctionBody(site, "function bindDocumentPreviews(root) {");
+        Assert.Contains("window.pegasusUi.fetchPreview(trigger.href)", evidenceViewer, StringComparison.Ordinal);
+        Assert.Contains(
+            "item.setAttribute('data-download-href', trigger.getAttribute('data-download-href') || preview.url);",
+            evidenceViewer,
+            StringComparison.Ordinal);
+        Assert.Contains("open(item, trigger);", evidenceViewer, StringComparison.Ordinal);
+    }
+
     private static string FunctionBody(string script, string signature, string indent = "        ")
     {
         var start = script.IndexOf(signature, StringComparison.Ordinal);

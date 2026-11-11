@@ -81,7 +81,53 @@
         });
     }
 
-    window.pegasusUi = { glyph: glyph, iconHref: iconHref, inertOutside: inertOutside, previewKind: previewKind, onBackdropClick: onBackdropClick };
+    // A preview the viewer fetches before it shows it: a rendered report, or
+    // the PDF rendering of a Word document. The route answers a rendering
+    // still being made with 503 and Retry-After, so the fetch comes back for
+    // it twice at that pace, as a gallery tile does. Resolves to a Blob URL
+    // and the file name the answer gave; rejects with the words to show.
+    function fetchPreview(url) {
+        var unavailable = 'Preview unavailable';
+        function mediaType(response) {
+            return (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+        }
+        function refusal(response) {
+            if (response.status !== 422 || mediaType(response) !== 'application/problem+json') {
+                return Promise.resolve(unavailable);
+            }
+            return response.json().then(function (problem) {
+                return problem && typeof problem.detail === 'string' && problem.detail.trim()
+                    ? problem.detail.trim().slice(0, 500)
+                    : unavailable;
+            }, function () {
+                // A malformed refusal is an unexpected response.
+                return unavailable;
+            });
+        }
+        function attempt(retries) {
+            return fetch(url, { credentials: 'same-origin', headers: { 'X-Pegasus-Document-Preview': '1' } })
+                .then(function (response) {
+                    var seconds = Number(response.headers.get('retry-after'));
+                    if (response.status === 503 && retries < 2 && seconds > 0) {
+                        return new Promise(function (resolve) {
+                            window.setTimeout(resolve, Math.min(seconds, 30) * 1000);
+                        }).then(function () { return attempt(retries + 1); });
+                    }
+                    if (!response.ok || mediaType(response) !== 'application/pdf') {
+                        return refusal(response).then(function (words) { throw { refusal: words }; });
+                    }
+                    var named = /filename="?([^";]+)"?/i.exec(response.headers.get('content-disposition') || '');
+                    return response.blob().then(function (blob) {
+                        return { url: URL.createObjectURL(blob), name: named ? named[1] : '' };
+                    });
+                });
+        }
+        return attempt(0).catch(function (error) {
+            throw new Error(error && error.refusal ? error.refusal : unavailable);
+        });
+    }
+
+    window.pegasusUi = { glyph: glyph, iconHref: iconHref, inertOutside: inertOutside, previewKind: previewKind, onBackdropClick: onBackdropClick, fetchPreview: fetchPreview };
 })();
 
 (function () {
@@ -1486,7 +1532,7 @@
 
         var release = null;
 
-        function open(trigger) {
+        function open(trigger, returnTo) {
             var set = trigger.closest('[data-evidence-set]');
             // Only previewable siblings join the paging set. A document table
             // carries every version, previewable or not; without this filter
@@ -1498,7 +1544,7 @@
                     return previewKind(item.getAttribute('data-media-type')) !== '';
                 });
             var start = items.indexOf(trigger);
-            invoker = trigger;
+            invoker = returnTo || trigger;
             viewer.hidden = false;
             release = inertOutside(viewer);
             document.addEventListener('keydown', onKeydown, true);
@@ -1603,6 +1649,47 @@
         }
         bindEvidenceItems(document);
         (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindEvidenceItems);
+
+        // A document the browser cannot draw (a Word document) is shown as
+        // the PDF rendering its link names. It is fetched first, so a
+        // rendering still being made is a wait on the button rather than an
+        // error page in the frame, and it opens by itself: a detached link
+        // stands in for it, naming the rendering to show and the row's own
+        // file to save.
+        var heldRendering = '';
+        function bindDocumentPreviews(root) {
+            root.querySelectorAll('[data-document-preview]').forEach(function (trigger) {
+                if (trigger.dataset.documentPreviewBound === 'true') {
+                    return;
+                }
+                trigger.dataset.documentPreviewBound = 'true';
+                trigger.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    if (trigger.hasAttribute('data-busy')) {
+                        return;
+                    }
+                    window.pegasusBusy.start(trigger, null, trigger.getAttribute('data-busy-label'));
+                    window.pegasusUi.fetchPreview(trigger.href).then(function (preview) {
+                        var item = document.createElement('a');
+                        item.setAttribute('href', preview.url);
+                        item.setAttribute('data-media-type', 'application/pdf');
+                        item.setAttribute('data-file-name', trigger.getAttribute('data-file-name') || preview.name);
+                        item.setAttribute('data-download-href', trigger.getAttribute('data-download-href') || preview.url);
+                        if (heldRendering) {
+                            URL.revokeObjectURL(heldRendering);
+                        }
+                        heldRendering = preview.url;
+                        open(item, trigger);
+                    }, function (error) {
+                        window.pegasusToast(error.message);
+                    }).then(function () {
+                        window.pegasusBusy.end(trigger);
+                    });
+                });
+            });
+        }
+        bindDocumentPreviews(document);
+        (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindDocumentPreviews);
     })();
 
     (function () {
