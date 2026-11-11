@@ -282,10 +282,12 @@ public sealed partial class StandingCaptureWebTests
         Assert.False(
             (await StandingCaptureDriver.CaptureAsync(factory, capture.Id)).OpenedAtUtc.HasValue,
             "Paperwork sent under the Session token opened the customer's link.");
-        var row = StandingCaptureDriver.ListRow(await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture"), capture.Id);
+        // Standing links lists it (v51 P; R948), and its page still reads it unopened.
+        StandingCaptureDriver.ListRow(
+            await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.StandingLinksKey}"), capture.Id);
         Assert.Contains(
             $">{OperatorLabels.PhotoCapture.State(PhotoCaptureState.SentNotOpened)}</span>",
-            row,
+            await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture/{capture.Id:D}"),
             StringComparison.Ordinal);
         using (var opened = await StandingCaptureDriver.SendAsync(
             client, HttpMethod.Get, $"{Api}/context", StandingCaptureDriver.Capture(customerToken)))

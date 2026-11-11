@@ -43,6 +43,9 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
     /// <summary>The list's page size (<c>IndexModel.PageSize</c>).</summary>
     private const int PageSize = 25;
 
+    /// <summary>The photographs each row shown previews (<c>EfPhotoCaptureQueries.PreviewPhotographs</c>).</summary>
+    private const int PreviewPhotographs = 3;
+
     private const int WarmUpRequests = 2;
     private const int TimedRequests = 20;
     private const int FirstSize = 500;
@@ -242,8 +245,9 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
     /// previews: never whole item rows, and at most
     /// <see cref="ItemRowsReadPerCapture"/> rows for each capture with photos
     /// it evaluates, fewer than its <see cref="ItemsPerCaptureWithPhotos"/>
-    /// items. Standing links also counts Direct links' Awaiting, so its
-    /// ceiling is over both tabs. A ceiling, never an exact total.
+    /// items, and at most <see cref="PreviewPhotographs"/> for each row shown.
+    /// Standing links also counts Direct links' Awaiting, so its ceiling is
+    /// over both tabs. A ceiling, never an exact total.
     /// </summary>
     private static void AssertItemReadsBounded(Reading reading)
     {
@@ -253,7 +257,8 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
             reading.ReadsWholeItemRows,
             $"{where}: a statement read whole item rows." + Environment.NewLine + reading.StatementText);
         var items = reading.Direct ? reading.TabItems : reading.Expected.ComingInItems + reading.Expected.LinksWeSentItems;
-        var ceiling = items / ItemsPerCaptureWithPhotos * ItemRowsReadPerCapture;
+        // The preview read adds at most PreviewPhotographs rows for each row shown.
+        var ceiling = items / ItemsPerCaptureWithPhotos * ItemRowsReadPerCapture + PageSize * PreviewPhotographs;
         Assert.True(
             reading.ItemRowsRead <= ceiling,
             $"{where}: the list read {reading.ItemRowsRead} item rows, more than {ceiling} for {items / ItemsPerCaptureWithPhotos} captures with photos.");
