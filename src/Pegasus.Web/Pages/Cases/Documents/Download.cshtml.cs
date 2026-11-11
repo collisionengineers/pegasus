@@ -326,8 +326,16 @@ public sealed partial class DownloadModel(
                 && !thumbnailUnavailable
                 && thumbnailAddressIsCurrent);
             Response.Headers["X-Content-SHA256"] = sha256;
-            Response.ContentLength = content.ContentLength;
             SetInlineDisposition(fileName);
+            if (VideoSnapshotPolicy.IsSupportedVideoMediaType(mediaType) && content.Content.CanSeek)
+            {
+                var videoResult = File(content.Content, mediaType);
+                videoResult.EntityTag = new EntityTagHeaderValue(ContentETag(sha256));
+                videoResult.EnableRangeProcessing = true;
+                return videoResult;
+            }
+
+            Response.ContentLength = content.ContentLength;
             return File(content.Content, mediaType);
         }
         catch (Exception exception) when (IsMissing(exception))

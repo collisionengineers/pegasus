@@ -1,4 +1,5 @@
 using Pegasus.Core.Documents;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Cases;
@@ -76,6 +77,13 @@ public sealed partial class DetailsModel
     /// </summary>
     public bool MayPrepareImages => CanEditCaseData;
 
+    /// <summary>
+    /// Whether the Case viewer offers Take snapshot on a video: any open,
+    /// non-archived Case, in or out of Edit mode (R727, R964).
+    /// </summary>
+    public bool CanSnapshotVideos =>
+        CurrentWorkflow is { Archive: null } workflow
+        && !CaseLifecycleRules.IsTerminal(workflow.State);
     /// <summary>The inline preview the viewer reads (the original bytes, no history row).</summary>
     public string PreviewUrl(CaseFile file) => CaseFileAddresses.Preview(CurrentCaseId, file);
 

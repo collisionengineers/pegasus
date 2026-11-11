@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -100,6 +101,35 @@ public sealed class CaseDocumentDownloadWebTests
         Assert.True(caching.Private);
         Assert.Equal(TimeSpan.FromDays(7), caching.MaxAge);
         Assert.Contains(caching.Extensions, directive => directive.Name == "immutable");
+        Assert.Equal($"\"{Sha256}\"", response.Headers.ETag!.Tag);
+        Assert.Equal(1, ports.LogicalReads);
+        Assert.Equal(0, ports.AuditedDownloads);
+    }
+
+    [Theory]
+    [InlineData("video/mp4", "walkaround.mp4")]
+    [InlineData("video/quicktime", "walkaround.mov")]
+    public async Task AVideoPreviewAnswersByteRangeRequestsWithoutRecordingAnAuditedDownload(
+        string videoMediaType,
+        string videoFileName)
+    {
+        var ports = new DocumentPorts { PreviewMediaType = videoMediaType, PreviewFileName = videoFileName };
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, PreviewRoute());
+        request.Headers.Range = new RangeHeaderValue(0, 7);
+        using var response = await client.SendAsync(request);
+        var slice = await response.Content.ReadAsByteArrayAsync();
+
+        Assert.Equal(HttpStatusCode.PartialContent, response.StatusCode);
+        Assert.Equal(FullContent[..8], slice);
+        Assert.Equal(videoMediaType, response.Content.Headers.ContentType!.MediaType);
+        Assert.Contains("bytes", response.Headers.AcceptRanges);
+        Assert.Equal(0, response.Content.Headers.ContentRange!.From);
+        Assert.Equal(7, response.Content.Headers.ContentRange.To);
+        Assert.Equal(FullContent.LongLength, response.Content.Headers.ContentRange.Length);
         Assert.Equal($"\"{Sha256}\"", response.Headers.ETag!.Tag);
         Assert.Equal(1, ports.LogicalReads);
         Assert.Equal(0, ports.AuditedDownloads);

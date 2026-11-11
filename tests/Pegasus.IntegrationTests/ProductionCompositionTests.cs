@@ -393,6 +393,7 @@ public sealed class ProductionCompositionTests
         var services = scope.ServiceProvider;
 
         Assert.NotNull(services.GetRequiredService<IAddCaseDocument>());
+        Assert.NotNull(services.GetRequiredService<ISnapshotCaseVideo>());
         Assert.NotNull(services.GetRequiredService<IDownloadCaseDocument>());
         Assert.NotNull(services.GetRequiredService<ILogicallyRemoveDocument>());
         Assert.IsType<SetDocumentType>(services.GetRequiredService<ISetDocumentType>());
@@ -692,6 +693,7 @@ public sealed class ProductionCompositionTests
             scope.ServiceProvider.GetRequiredService<ICaseCustody>());
         Assert.Null(scope.ServiceProvider.GetService<IDocumentContentStore>());
         Assert.Null(scope.ServiceProvider.GetService<IAddCaseDocument>());
+        Assert.Null(scope.ServiceProvider.GetService<ISnapshotCaseVideo>());
     }
 
     [Fact]

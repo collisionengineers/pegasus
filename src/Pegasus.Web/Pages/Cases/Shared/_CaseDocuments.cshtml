@@ -88,6 +88,7 @@ else
                             <a class="btn btn--small"
                                href="@Model.PreviewUrl(entry)"
                                data-evidence-item
+                               data-evidence-occurrence="@occurrence.Id"
                                data-download-href="@Model.DownloadUrl(entry)"
                                data-media-type="@version.MediaType"
                                data-file-name="@version.FileName">
