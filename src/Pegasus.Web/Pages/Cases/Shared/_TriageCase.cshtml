@@ -772,11 +772,11 @@
                         }
                         @if (view.IsOutcomeReply)
                         {
-                            @* Reply with finding alone; the chaser never offers it (R904). *@
+                            @* Reply with finding alone; the chaser never offers it (R904).
+                               Unticked on every open, a refused send's included (R960). *@
                             <div class="field">
                                 <label>
-                                    <input type="checkbox" name="deleteCaseCorrespondence" value="true"
-                                           checked="@view.DeleteCaseCorrespondence" data-delete-case-correspondence />
+                                    <input type="checkbox" name="deleteCaseCorrespondence" value="true" data-delete-case-correspondence />
                                     @OperatorLabels.StaffMail.DeleteCaseCorrespondence
                                 </label>
                             </div>

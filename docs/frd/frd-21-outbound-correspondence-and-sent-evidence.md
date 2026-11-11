@@ -93,9 +93,12 @@ It records what happened on the send: moved, already in Deleted Items, no
 longer in the mailbox, or failed. A move writes the Case history event
 `instruction_moved_to_deleted_items`; each failure writes
 `instruction_move_failed` with a failure code, and after three failures
-Pegasus stops and leaves the instruction where it is. A mailbox asking Pegasus
+Pegasus stops and leaves the instruction where it is. Both are shown on the
+Case's Notes tab, as **Instruction moved to Deleted Items** and
+**Instruction not moved** (11 November 2026, R959). A mailbox asking Pegasus
 to slow down is not a failure: the run stops and the move is tried again later.
-A mailbox that is no longer Approved is left alone. The tidy never moves
+A mailbox that is no longer Approved, or is not activated, is left alone
+(11 November 2026, R961). The tidy never moves
 anything but that instruction, never deletes it permanently, never runs for a
 send that is not a report, a send that is not confirmed Sent, or a report
 sent without a retained instruction, and never changes the Case, its state or
@@ -108,7 +111,8 @@ the Triage Case's Reply with finding each carry one optional tick, **Delete
 case correspondence**, unticked each time the form opens (operator,
 9 November 2026; R902 to R905): a tick left on a dialog that was closed
 without sending is cleared when the dialog next opens (10 November 2026,
-R916). The reply composer offers it exactly where it
+R916), and a refused send comes back with it clear on all three, for staff
+to tick again (11 November 2026, R960). The reply composer offers it exactly where it
 offers Mark query done: on a Reply or Reply all to a message that holds an
 open query on the Case (R904). Forward, Send chaser and the Triage chaser
 never offer it, and a send of any other kind that names it is refused. The
@@ -120,12 +124,18 @@ retained messages linked to the Case now, with the request e-mail a Triage
 Case was opened from, that sit in a mailbox still Approved and activated
 (10 November 2026, R916) and that Pegasus held when the send was prepared; a
 message dismissed in Pegasus is among them. Where one of them is a Collision
-Engineers staff forward held in instructions@ (R586, R651), the original it
-was made from goes too, whether or not that original is linked to the Case: the Inbox message
-of the mailbox that sent the forward which the forward's In-Reply-To and
-References name. An original that stands linked to another Case is left
-(10 November 2026, R917). Pegasus's own Sent items, uploaded `.eml` files and
-mail that arrives after the send are left (R903). The move is recoverable and changes nothing
+Engineers staff forward held in instructions@ (R586, R651) or, on the test
+instance, in pegasustest@ (11 November 2026, R956), the original it
+was made from goes too, whether or not that original is linked to the Case: the
+one Inbox message of the mailbox that sent the forward which the forward
+answers, named by its In-Reply-To, or by the last of its References where it
+has none (10 November 2026, R917). The earlier messages of that thread are
+not the original and go only when they are themselves linked to the Case
+(11 November 2026, R957). An original that stands linked to another Case is
+left (R958). A forward sent as an attachment names no original
+([#2079](https://github.com/collisionengineers/pegasus/issues/2079)).
+Pegasus's own Sent items, uploaded `.eml` files and
+mail that arrives after the send are left (R903, R962). The move is recoverable and changes nothing
 in Pegasus: the retained copies, their links, the Case, its state and its
 correspondence view stay as they are. A send that is not confirmed Sent
 moves nothing. The send records each run. A run with no failure ends the
@@ -135,7 +145,11 @@ were moved, already there and no longer in the mailbox. A run in which a
 message could not be moved writes `correspondence_move_failed` with a
 failure code, and the send is tried again in a later run, which finds the
 messages already moved where they are; after three such runs Pegasus stops
-and leaves the rest. A mailbox asking Pegasus to slow down is not a failure.
+and leaves the rest. Both events are shown on the Case's Notes tab, and on
+the Triage Case's for a Reply with finding, as **Case e-mails moved to
+Deleted Items** and **Case e-mails not moved** with those sentences
+(11 November 2026, R959); neither takes a Case or Triage version. A mailbox
+asking Pegasus to slow down is not a failure.
 Two ticked sends on one Case are tidied one after the other. Web cannot
 perform the move. `pegasus_report_send` and `pegasus_mail_send` take
 `deleteCaseCorrespondence` under the same rule (R905;

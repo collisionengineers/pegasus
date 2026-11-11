@@ -2132,18 +2132,18 @@
 })();
 
 // --- Delete case correspondence ----------------------------------------------
-// The tick is unticked each time its form opens (FRD-21, R902, R916). A dialog
-// closed without sending keeps its fields while the page lives, and the Send
-// report dialog is carried across the Case page's in-place updates, so a tick
-// left on one would ride a later send. Each open puts the tick back as the
-// server drew it: unticked, or as posted on a refused send's redisplay.
+// The tick is unticked each time its form opens, a refused send's redisplay
+// included (FRD-21, R902, R916, R960). A dialog closed without sending keeps
+// its fields while the page lives, and the Send report dialog is carried
+// across the Case page's in-place updates, so a tick left on one would ride a
+// later send. The server never draws it ticked, and each open clears it.
 (function () {
     'use strict';
     document.addEventListener('pegasus:dialog-open', function (event) {
         var dialog = event.target;
         if (!(dialog instanceof Element)) { return; }
         dialog.querySelectorAll('[data-delete-case-correspondence]').forEach(function (tick) {
-            tick.checked = tick.defaultChecked;
+            tick.checked = false;
         });
     });
 })();

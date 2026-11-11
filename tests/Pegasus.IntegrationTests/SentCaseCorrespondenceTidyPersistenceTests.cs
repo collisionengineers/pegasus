@@ -12,9 +12,10 @@ namespace Pegasus.IntegrationTests;
 /// ADR-0071, R902. The send journal lists a confirmed send that carried the Delete
 /// case correspondence tick, names the Case's received e-mails as they stand
 /// linked now (Inbox scope, Approved and activated mailboxes, held when the
-/// send was prepared) with the original of a staff forward held in
-/// instructions@ (R916, R917), records each run under the operation's version
-/// guard, and stops listing after three failed runs.
+/// send was prepared) with the one original of a staff forward held in
+/// instructions@ or pegasustest@ (R916, R917, R956, R957), records each run
+/// under the operation's version guard where the Notes tab reads it (R959),
+/// and stops listing after three failed runs.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class SentCaseCorrespondenceTidyPersistenceTests
@@ -32,6 +33,7 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
     private static readonly DateTimeOffset NowUtc = new(2026, 11, 10, 9, 0, 0, TimeSpan.Zero);
     private static readonly Guid InstructionsMailboxId =
         AdministrationPolicyModelConfiguration.InitialInstructionsMailboxId;
+    private const long WorkflowVersion = 4;
 
     private enum Linking
     {
@@ -211,9 +213,58 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
     }
 
     /// <summary>
-    /// R917's bounds: an original that holds another Case is left, as is one in
-    /// a mailbox that is not activated or that did not send the forward, and
-    /// only a forward held in instructions@ names an original at all.
+    /// A forward held in the test instance's own mailbox, pegasustest@, names
+    /// its original as one held in instructions@ does (operator, 11 November
+    /// 2026; R956).
+    /// </summary>
+    [Fact]
+    public async Task TheOriginalOfAStaffForwardHeldInTheTestInstanceMailboxIsNamed()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var estate = await SeedEstateAsync(database);
+        var original = await ReceiveOriginalAsync(
+            database, estate.CaseId, Linking.None, estate.MailboxId, PreparedAtUtc.AddHours(-6));
+        var forward = await ReceiveForwardAsync(
+            database, estate.CaseId, estate.TestInstanceMailboxId, EngineersAddress, original, PreparedAtUtc.AddHours(-4));
+
+        var messages = await Store(database).ListMessagesAsync(estate.CaseId, PreparedAtUtc, CancellationToken.None);
+
+        Assert.Equal([original, forward], messages.Select(item => item.RetainedMessageId));
+        Assert.Equal(["engineers-mailbox", "pegasustest-mailbox"], messages.Select(item => item.MailboxIdentity));
+    }
+
+    /// <summary>
+    /// One original for each forward (R957): the forward of a later message of
+    /// a thread names the earlier ones too, and those stay in the forwarding
+    /// mailbox unless they are themselves linked to the Case.
+    /// </summary>
+    [Fact]
+    public async Task OnlyTheForwardedMessageGoesWithAForwardNotTheEarlierMessagesOfItsThread()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var estate = await SeedEstateAsync(database);
+        await EnableInstructionsMailboxAsync(database);
+        var root = await ReceiveOriginalAsync(
+            database, estate.CaseId, Linking.None, estate.MailboxId, PreparedAtUtc.AddHours(-9));
+        var linkedEarlier = await ReceiveOriginalAsync(
+            database, estate.CaseId, Linking.AcceptedLink, estate.MailboxId, PreparedAtUtc.AddHours(-8));
+        var forwarded = await ReceiveOriginalAsync(
+            database, estate.CaseId, Linking.None, estate.MailboxId, PreparedAtUtc.AddHours(-7));
+        var forward = await ReceiveForwardAsync(
+            database, estate.CaseId, InstructionsMailboxId, EngineersAddress, forwarded, PreparedAtUtc.AddHours(-4),
+            root, linkedEarlier);
+
+        var messages = await Store(database).ListMessagesAsync(estate.CaseId, PreparedAtUtc, CancellationToken.None);
+
+        Assert.DoesNotContain(root, messages.Select(item => item.RetainedMessageId));
+        Assert.Equal([linkedEarlier, forwarded, forward], messages.Select(item => item.RetainedMessageId));
+    }
+
+    /// <summary>
+    /// R917's bounds: an original that holds another Case is left (R958), as is
+    /// one in a mailbox that is not activated or that did not send the forward,
+    /// and only a forward held in instructions@ or pegasustest@ names an
+    /// original at all.
     /// </summary>
     [Fact]
     public async Task AnOriginalThatHoldsAnotherCaseOrSitsOutsideTheForwardingMailboxIsLeft()
@@ -235,7 +286,7 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
             database, estate.CaseId, InstructionsMailboxId, DeactivatedAddress, notActivated, PreparedAtUtc.AddHours(-3));
         var third = await ReceiveForwardAsync(
             database, estate.CaseId, InstructionsMailboxId, DeactivatedAddress, notTheForwarder, PreparedAtUtc.AddHours(-2));
-        // Held in engineers@, not instructions@: a forward there names no original (R652).
+        // Held in engineers@, not instructions@ or pegasustest@: a forward there names no original (R652).
         var fourth = await ReceiveForwardAsync(
             database, estate.CaseId, estate.MailboxId, EngineersAddress, notInstructions, PreparedAtUtc.AddHours(-1));
 
@@ -331,12 +382,12 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         Assert.Equal(0, row.CorrespondenceMoveAttempts);
         Assert.Null(row.CorrespondenceMovedAtUtc);
         Assert.Equal(operation.Version, row.Version);
-        Assert.Empty(await context.CaseHistory.AsNoTracking().ToArrayAsync());
+        Assert.Empty(await context.CaseWorkflowEvents.AsNoTracking().ToArrayAsync());
         Assert.Equal(operation.Id, Assert.Single(await store.ListDueAsync(10, CancellationToken.None)).OperationId);
     }
 
     [Fact]
-    public async Task AMovedRunIsDoneWithOneCaseHistoryRowAndNoLongerDue()
+    public async Task AMovedRunIsDoneWithOneNotesEntryAndNoLongerDue()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var estate = await SeedEstateAsync(database);
@@ -357,11 +408,19 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         Assert.Equal(NowUtc, row.CorrespondenceMovedAtUtc);
         Assert.Null(row.CorrespondenceMoveFailureCode);
         Assert.Equal(operation.Version + 1, row.Version);
-        // A report send's Case is its generation's.
-        var entry = Assert.Single(await context.CaseHistory.AsNoTracking().ToArrayAsync());
+        // A report send's Case is its generation's. The entry is on the timeline the
+        // Notes tab reads (R959), at the Case's version as it stands.
+        var entry = Assert.Single(await context.CaseWorkflowEvents.AsNoTracking().ToArrayAsync());
         Assert.Equal(estate.CaseId, entry.CaseId);
         Assert.Equal("correspondence_moved_to_deleted_items", entry.EventType);
-        Assert.Equal(Actor, entry.Actor);
+        Assert.Equal(nameof(Pegasus.Core.Identity.ActorKind.SystemWorker), entry.ActorKind);
+        Assert.Equal(Actor, entry.ActorSubjectId);
+        Assert.Equal(WorkflowVersion, entry.BeforeVersion);
+        Assert.Equal(WorkflowVersion, entry.AfterVersion);
+        Assert.Equal(
+            WorkflowVersion,
+            (await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == estate.CaseId)).Version);
+        Assert.Empty(await context.CaseHistory.AsNoTracking().ToArrayAsync());
         Assert.Equal(
             "The Case's received e-mails were moved to Deleted Items after the send: 2 moved, 1 already there, 1 no longer in the mailbox.",
             entry.Reason);
@@ -386,12 +445,48 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         var row = await ReadAsync(context, operation.Id);
         Assert.Equal(EfSentCaseCorrespondenceTidyStore.DoneState, row.CorrespondenceMoveState);
         Assert.Null(row.CorrespondenceMovedAtUtc);
-        var entry = Assert.Single(await context.CaseHistory.AsNoTracking().ToArrayAsync());
+        var entry = Assert.Single(await context.CaseWorkflowEvents.AsNoTracking().ToArrayAsync());
         Assert.Equal(estate.OtherCaseId, entry.CaseId);
         Assert.Equal("correspondence_moved_to_deleted_items", entry.EventType);
         Assert.Equal(
             "The Case's received e-mails were moved to Deleted Items after the send: 0 moved, 2 already there, 0 no longer in the mailbox.",
             entry.Reason);
+    }
+
+    /// <summary>
+    /// A Triage Case has no Case workflow and its Notes tab reads the Triage's
+    /// own history, so a Reply with finding's run is written there, without
+    /// taking a Triage version (R959).
+    /// </summary>
+    [Fact]
+    public async Task ATriageCasesRunIsOnTheTriagesOwnHistoryWithoutAVersion()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var estate = await SeedEstateAsync(database);
+        var (triageCaseId, _) = await SeedTriageAsync(database, estate);
+        var operation = Operation(
+            estate, SentAtUtc, StaffMailPurpose.TriageOutcomeReply, contextId: triageCaseId);
+        await AddAsync(database, operation);
+
+        Assert.True(await Store(database).RecordAsync(
+            operation.Id, operation.Version, new(1, 0, 0, 0), null, NowUtc, CancellationToken.None));
+
+        await using var context = await database.CreateContextAsync();
+        var entry = Assert.Single(await context.TriageHistory.AsNoTracking()
+            .Where(item => item.TriageCaseId == triageCaseId)
+            .ToArrayAsync());
+        Assert.Equal("correspondence_moved_to_deleted_items", entry.EventType);
+        Assert.Equal(Actor, entry.Actor);
+        Assert.Equal(nameof(Pegasus.Core.Identity.ActorKind.SystemWorker), entry.ActorKind);
+        Assert.Equal(
+            "The Case's received e-mails were moved to Deleted Items after the send: 1 moved, 0 already there, 0 no longer in the mailbox.",
+            entry.Reason);
+        Assert.Equal($"correspondence-tidy:{operation.Id:N}:1", entry.OperationKey);
+        Assert.Equal(0L, entry.BeforeVersion);
+        Assert.Equal(0L, entry.AfterVersion);
+        Assert.Equal("open", entry.AfterState);
+        Assert.Equal(0L, (await context.Triage.AsNoTracking().SingleAsync(item => item.CaseId == triageCaseId)).Version);
+        Assert.Empty(await context.CaseWorkflowEvents.AsNoTracking().ToArrayAsync());
     }
 
     /// <summary>
@@ -401,7 +496,7 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
     [Theory]
     [InlineData(2)]
     [InlineData(0)]
-    public async Task ARunThatFoundNothingToMoveIsDoneWithoutCaseHistory(int missing)
+    public async Task ARunThatFoundNothingToMoveIsDoneWithoutANotesEntry(int missing)
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var estate = await SeedEstateAsync(database);
@@ -417,7 +512,7 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         Assert.Equal(EfSentCaseCorrespondenceTidyStore.DoneState, row.CorrespondenceMoveState);
         Assert.Equal(1, row.CorrespondenceMoveAttempts);
         Assert.Null(row.CorrespondenceMovedAtUtc);
-        Assert.Empty(await context.CaseHistory.AsNoTracking().ToArrayAsync());
+        Assert.Empty(await context.CaseWorkflowEvents.AsNoTracking().ToArrayAsync());
         Assert.Empty(await store.ListDueAsync(10, CancellationToken.None));
     }
 
@@ -451,11 +546,13 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         Assert.Equal(TidySentCaseCorrespondence.MaximumAttempts, row.CorrespondenceMoveAttempts);
         Assert.Equal(code, row.CorrespondenceMoveFailureCode);
         Assert.Null(row.CorrespondenceMovedAtUtc);
-        var history = await context.CaseHistory.AsNoTracking()
+        // Three entries at one Case version: the version index leaves these event types out.
+        var history = await context.CaseWorkflowEvents.AsNoTracking()
             .Where(item => item.CaseId == estate.CaseId)
             .OrderBy(item => item.OccurredAtUtc)
             .ToArrayAsync();
         Assert.All(history, entry => Assert.Equal("correspondence_move_failed", entry.EventType));
+        Assert.All(history, entry => Assert.Equal(WorkflowVersion, entry.AfterVersion));
         Assert.Equal(
             Enumerable.Range(1, TidySentCaseCorrespondence.MaximumAttempts)
                 .Select(attempt => $"correspondence-tidy:{operation.Id:N}:{attempt}"),
@@ -495,7 +592,7 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         Assert.Equal(NowUtc.AddMinutes(5), row.CorrespondenceMovedAtUtc);
         Assert.Equal(
             ["correspondence_move_failed", "correspondence_moved_to_deleted_items"],
-            (await context.CaseHistory.AsNoTracking().OrderBy(item => item.OccurredAtUtc).ToArrayAsync())
+            (await context.CaseWorkflowEvents.AsNoTracking().OrderBy(item => item.OccurredAtUtc).ToArrayAsync())
                 .Select(entry => entry.EventType));
     }
 
@@ -611,16 +708,18 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         Guid holdingMailboxId,
         string forwardedFrom,
         Guid original,
-        DateTimeOffset receivedAtUtc) =>
+        DateTimeOffset receivedAtUtc,
+        params Guid[] earlierInThread) =>
         ReceiveAsync(
             database, caseId, Linking.AcceptedLink, holdingMailboxId, receivedAtUtc: receivedAtUtc,
             shape: message =>
             {
                 message.SenderAddress = forwardedFrom;
-                message.InReplyToIdentitiesJson = JsonSerializer.Serialize(new[]
-                {
-                    MailboxMessageIdentity.CanonicalizeInternetMessageIdentity($"{original:N}@example.invalid")
-                });
+                // The message answered first, then the rest of its thread, as the reader retains them.
+                message.InReplyToIdentitiesJson = JsonSerializer.Serialize(earlierInThread
+                    .Prepend(original)
+                    .Select(id => MailboxMessageIdentity.CanonicalizeInternetMessageIdentity($"{id:N}@example.invalid"))
+                    .ToArray());
             });
 
     /// <summary>A ticked send, prepared five minutes before its Sent item was seen.</summary>
@@ -871,7 +970,8 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         Guid GenerationId,
         Guid MailboxId,
         Guid WithdrawnMailboxId,
-        Guid DeactivatedMailboxId);
+        Guid DeactivatedMailboxId,
+        Guid TestInstanceMailboxId);
 
     private static async Task<Estate> SeedEstateAsync(LocalDbTestDatabase database)
     {
@@ -884,6 +984,7 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         var mailboxId = Guid.NewGuid();
         var withdrawnMailboxId = Guid.NewGuid();
         var deactivatedMailboxId = Guid.NewGuid();
+        var testInstanceMailboxId = Guid.NewGuid();
         await using var db = await database.CreateContextAsync();
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"Correspondence tidy test organization"}, {0L})");
@@ -896,6 +997,11 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({otherCaseId}, {principalId}, {lineageId}, {2026}, {2}, {"CCT260002"}, {"inspection"}, {"review"}, {"pending"}, {true}, {true}, {SentAtUtc}, {0L}, {Guid.NewGuid()})");
         await CaseWorkFixture.InsertPrimaryWorksAsync(db);
+        foreach (var workflowCaseId in new[] { caseId, otherCaseId })
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({workflowCaseId}, {"Review"}, {WorkflowVersion}, {Guid.NewGuid()})");
+        }
         db.Set<CaseReportGenerationEntity>().Add(new()
         {
             Id = generationId,
@@ -952,10 +1058,25 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
                 SentFolderIdentity = "sent",
                 ActivatedAtUtc = null,
                 Version = 1
+            },
+            // The hosted test instance's own mailbox (R693), which staff forward into there.
+            new ApprovedMailboxEntity
+            {
+                Id = testInstanceMailboxId,
+                Address = PrincipalMailRoutePolicy.TestInstanceMailboxAddress,
+                AllowIncoming = true,
+                AllowOutgoing = true,
+                MailboxGeneration = 1,
+                State = "Approved",
+                MailboxIdentity = "pegasustest-mailbox",
+                InboxFolderIdentity = "inbox",
+                SentFolderIdentity = "sent",
+                ActivatedAtUtc = SentAtUtc.AddDays(-1),
+                Version = 1
             });
         await db.SaveChangesAsync();
         return new(
             principalId, lineageId, caseId, otherCaseId, generationId, mailboxId, withdrawnMailboxId,
-            deactivatedMailboxId);
+            deactivatedMailboxId, testInstanceMailboxId);
     }
 }
