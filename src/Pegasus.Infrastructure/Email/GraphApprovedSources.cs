@@ -349,6 +349,59 @@ internal sealed class GraphMailClient(
         return RequiredString(document.RootElement, "parentFolderId");
     }
 
+    /// <summary>The most copies of one Message-ID a mailbox is asked for: the original and its filed or deleted copies.</summary>
+    internal const int MaximumMessagesByInternetMessageId = 10;
+
+    /// <summary>
+    /// The messages of the mailbox carrying one Message-ID, across its folders
+    /// (R975). Graph holds the header value with its angle brackets, so a
+    /// reply identity retained without them is given them; a quote in the
+    /// value is doubled for the filter.
+    /// </summary>
+    public Uri MessagesByInternetMessageIdUri(string mailboxId, string internetMessageId)
+    {
+        var value = internetMessageId.Trim();
+        if (value.Length == 0 || value[0] != '<' || value[^1] != '>')
+        {
+            value = $"<{value}>";
+        }
+
+        var filter = $"internetMessageId eq '{value.Replace("'", "''", StringComparison.Ordinal)}'";
+        return new(
+            baseUri,
+            $"users/{Uri.EscapeDataString(mailboxId)}/messages" +
+            $"?$filter={Uri.EscapeDataString(filter)}" +
+            $"&$select=id,parentFolderId&$top={MaximumMessagesByInternetMessageId}");
+    }
+
+    public async Task<IReadOnlyList<MailboxMessageLocation>> FindMessagesByInternetMessageIdAsync(
+        string mailboxId,
+        string internetMessageId,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            MessagesByInternetMessageIdUri(mailboxId, internetMessageId));
+        request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+        using var response = await SendAsync(request, cancellationToken);
+        await ThrowForFailureAsync(response, cancellationToken);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("value", out var value)
+            || value.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidDataException("Microsoft Graph returned an invalid message lookup page.");
+        }
+
+        return value.EnumerateArray()
+            .Select(item => new MailboxMessageLocation(
+                RequiredString(item, "id"),
+                RequiredString(item, "parentFolderId")))
+            .ToArray();
+    }
+
     public async Task<string> ResolveDeletedItemsFolderAsync(
         string mailboxId,
         CancellationToken cancellationToken)
@@ -1405,6 +1458,9 @@ internal sealed class GraphRetainedMessageMover(GraphMailClient client) : IRetai
 
     public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
         client.ResolveDeletedItemsFolderAsync(mailboxIdentity, cancellationToken);
+
+    public Task<IReadOnlyList<MailboxMessageLocation>> FindMessagesAsync(string mailboxIdentity, string internetMessageId, CancellationToken cancellationToken) =>
+        client.FindMessagesByInternetMessageIdAsync(mailboxIdentity, internetMessageId, cancellationToken);
 }
 internal sealed class GraphDeltaResetRequiredException : Exception;
 internal sealed record GraphDeltaItem(

@@ -2040,6 +2040,50 @@ public sealed class ProductionGraphSourceTests
         Assert.Equal(new long[] { bound + 1, bound + 1 }, store.BytesRead);
     }
 
+    /// <summary>
+    /// R975: a staff forward's original Pegasus never retained is looked up in
+    /// the mailbox that forwarded it by its Message-ID. Graph holds the header
+    /// with its angle brackets and compares it without regard to case, so a
+    /// retained reply identity, upper-cased and without brackets, is given
+    /// the brackets and nothing else; a quote is doubled for the filter.
+    /// </summary>
+    [Theory]
+    [InlineData("ABC'1@EXAMPLE.INVALID")]
+    [InlineData("<ABC'1@EXAMPLE.INVALID>")]
+    public async Task AMessageIsFoundInItsMailboxByItsMessageId(string retainedIdentity)
+    {
+        Uri? asked = null;
+        string? prefer = null;
+        using var handler = new DelegateHandler(request =>
+        {
+            asked = request.RequestUri;
+            prefer = request.Headers.TryGetValues("Prefer", out var values) ? string.Join(",", values) : null;
+            return Response(
+                HttpStatusCode.OK,
+                """{"value":[{"id":"immutable-1","parentFolderId":"inbox-folder"},{"id":"immutable-2","parentFolderId":"sent-folder"}]}""");
+        });
+        using var http = new HttpClient(handler);
+        var mover = new GraphRetainedMessageMover(new GraphMailClient(new FixedCredential(), Options().BaseUri, http));
+
+        var found = await mover.FindMessagesAsync("desk@collisionengineers.co.uk", retainedIdentity, CancellationToken.None);
+
+        Assert.Equal(
+            new[]
+            {
+                new MailboxMessageLocation("immutable-1", "inbox-folder"),
+                new MailboxMessageLocation("immutable-2", "sent-folder")
+            },
+            found);
+        Assert.NotNull(asked);
+        Assert.Equal(
+            "/v1.0/users/desk@collisionengineers.co.uk/messages",
+            Uri.UnescapeDataString(asked!.AbsolutePath));
+        var query = Uri.UnescapeDataString(asked.Query);
+        Assert.Contains("$filter=internetMessageId eq '<ABC''1@EXAMPLE.INVALID>'", query, StringComparison.Ordinal);
+        Assert.Contains("$select=id,parentFolderId", query, StringComparison.Ordinal);
+        Assert.Equal("IdType=\"ImmutableId\"", prefer);
+    }
+
     private const string DefaultMailboxId = "mailbox-id";
     private const string DefaultMailboxAddress = "instructions@collisionengineers.co.uk";
     private const string DefaultInboxFolderId = "inbox-folder";

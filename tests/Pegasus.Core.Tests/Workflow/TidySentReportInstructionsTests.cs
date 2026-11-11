@@ -491,5 +491,10 @@ public sealed class TidySentReportInstructionsTests
 
             return DeletedItems;
         }
+
+        // The answered-instruction tidy moves only the instruction Pegasus retained.
+        public Task<IReadOnlyList<MailboxMessageLocation>> FindMessagesAsync(
+            string mailboxIdentity, string internetMessageId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }

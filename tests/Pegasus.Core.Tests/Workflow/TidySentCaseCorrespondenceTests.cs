@@ -441,6 +441,139 @@ public sealed class TidySentCaseCorrespondenceTests
             Assert.Single(store.Recorded, recorded => recorded.OperationId == second.OperationId).Counts);
     }
 
+    /// <summary>
+    /// A staff forward's original Pegasus holds no copy of goes with the
+    /// forward all the same (R975): it is found in the mailbox that forwarded
+    /// it by the Message-ID the forward answers, and moved from the folder it
+    /// sits in.
+    /// </summary>
+    [Fact]
+    public async Task AForwardsOriginalPegasusNeverRetainedIsFoundInItsMailboxAndMoved()
+    {
+        var send = Candidate();
+        var store = new FakeStore(send);
+        store.Link(send.CaseId, Message("forward", Mailbox));
+        store.LinkOriginals(send.CaseId, new UnretainedForwardOriginal(OtherMailbox, "sent-id", "original@sender.example"));
+        var mover = new FakeMover
+        {
+            Parent = "inbox-id",
+            DeletedItems = "deleted-id",
+            Found = new Dictionary<string, MailboxMessageLocation[]>
+            {
+                ["original@sender.example"] = [new("original", "filed-id")]
+            }
+        };
+
+        var result = await Use(store, mover).ExecuteAsync(10, WorkerActor);
+
+        Assert.Equal((OtherMailbox, "original@sender.example"), Assert.Single(mover.Finds));
+        Assert.Equal(
+            [
+                new RetainedMessageMove(Mailbox, "inbox-id", "forward", "deleted-id"),
+                new RetainedMessageMove(OtherMailbox, "filed-id", "original", "deleted-id")
+            ],
+            mover.Moves.ToArray());
+        var recorded = Assert.Single(store.Recorded);
+        Assert.Equal(new SentCaseCorrespondenceCounts(2, 0, 0, 0), recorded.Counts);
+        Assert.Null(recorded.FailureCode);
+        Assert.Equal(new SentCaseCorrespondenceTidyResult(1, 2, 0, 0, 0), result);
+    }
+
+    /// <summary>
+    /// The forwarding mailbox's own Sent Items copy is never touched (R903):
+    /// with a received copy beside it only that one moves, and alone it
+    /// counts as the original no longer being in the mailbox.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TheForwardingMailboxsSentCopyOfAnOriginalIsLeft(bool aReceivedCopyToo)
+    {
+        var send = Candidate();
+        var store = new FakeStore(send);
+        store.LinkOriginals(send.CaseId, new UnretainedForwardOriginal(OtherMailbox, "sent-id", "original@sender.example"));
+        var found = new List<MailboxMessageLocation> { new("sent-copy", "sent-id") };
+        if (aReceivedCopyToo)
+        {
+            found.Add(new("original", "inbox-id"));
+        }
+
+        var mover = new FakeMover
+        {
+            DeletedItems = "deleted-id",
+            Found = new Dictionary<string, MailboxMessageLocation[]> { ["original@sender.example"] = found.ToArray() }
+        };
+
+        await Use(store, mover).ExecuteAsync(10, WorkerActor);
+
+        Assert.DoesNotContain(mover.Moves, move => move.ImmutableMessageId == "sent-copy");
+        var recorded = Assert.Single(store.Recorded);
+        Assert.Equal(
+            aReceivedCopyToo
+                ? new SentCaseCorrespondenceCounts(1, 0, 0, 0)
+                : new SentCaseCorrespondenceCounts(0, 0, 1, 0),
+            recorded.Counts);
+        Assert.Null(recorded.FailureCode);
+    }
+
+    /// <summary>
+    /// An unretained original already in Deleted Items is counted as already
+    /// there, and one the mailbox no longer holds as no longer in the mailbox;
+    /// neither is moved.
+    /// </summary>
+    [Fact]
+    public async Task AnUnretainedOriginalAlreadyDeletedOrGoneIsCountedAndNotMoved()
+    {
+        var send = Candidate();
+        var store = new FakeStore(send);
+        store.LinkOriginals(
+            send.CaseId,
+            new UnretainedForwardOriginal(OtherMailbox, "sent-id", "deleted@sender.example"),
+            new UnretainedForwardOriginal(OtherMailbox, "sent-id", "gone@sender.example"));
+        var mover = new FakeMover
+        {
+            DeletedItems = "deleted-id",
+            Found = new Dictionary<string, MailboxMessageLocation[]>
+            {
+                ["deleted@sender.example"] = [new("deleted-original", "deleted-id")]
+            }
+        };
+
+        await Use(store, mover).ExecuteAsync(10, WorkerActor);
+
+        Assert.Empty(mover.Moves);
+        var recorded = Assert.Single(store.Recorded);
+        Assert.Equal(new SentCaseCorrespondenceCounts(0, 1, 1, 0), recorded.Counts);
+        Assert.Null(recorded.FailureCode);
+    }
+
+    /// <summary>
+    /// A forwarding mailbox the Worker may not read refuses the lookup itself:
+    /// the original counts as one failed message under the mailbox's own
+    /// failure code, and the forward Pegasus holds is still moved.
+    /// </summary>
+    [Fact]
+    public async Task AnUnretainedOriginalInAMailboxTheWorkerMayNotReachIsRecordedAsNotPermitted()
+    {
+        var send = Candidate();
+        var store = new FakeStore(send);
+        store.Link(send.CaseId, Message("forward", Mailbox));
+        store.LinkOriginals(send.CaseId, new UnretainedForwardOriginal(OtherMailbox, "sent-id", "original@sender.example"));
+        var mover = new FakeMover
+        {
+            Parent = "inbox-id",
+            DeletedItems = "deleted-id",
+            FindFailure = new ApprovedMailboxAccessDeniedException("403")
+        };
+
+        await Use(store, mover).ExecuteAsync(10, WorkerActor);
+
+        Assert.Equal("forward", Assert.Single(mover.Moves).ImmutableMessageId);
+        var recorded = Assert.Single(store.Recorded);
+        Assert.Equal(new SentCaseCorrespondenceCounts(1, 0, 0, 1), recorded.Counts);
+        Assert.Equal("mailbox_not_permitted", recorded.FailureCode);
+    }
+
     [Fact]
     public void TheAttemptBoundAndFailureCodesMatchTheInstructionTidy()
     {
@@ -476,6 +609,7 @@ public sealed class TidySentCaseCorrespondenceTests
     private sealed class FakeStore(params SentCaseCorrespondenceCandidate[] due) : ISentCaseCorrespondenceTidyStore
     {
         private readonly ConcurrentDictionary<Guid, CaseCorrespondenceMessage[]> messagesByCase = new();
+        private readonly ConcurrentDictionary<Guid, UnretainedForwardOriginal[]> originalsByCase = new();
 
         public int? RequestedMaximum { get; private set; }
         public ConcurrentQueue<(Guid CaseId, DateTimeOffset RetainedAtOrBeforeUtc)> MessageRequests { get; } = new();
@@ -483,6 +617,9 @@ public sealed class TidySentCaseCorrespondenceTests
 
         public void Link(Guid caseId, params CaseCorrespondenceMessage[] messages) =>
             messagesByCase[caseId] = messages;
+
+        public void LinkOriginals(Guid caseId, params UnretainedForwardOriginal[] originals) =>
+            originalsByCase[caseId] = originals;
 
         public Task<IReadOnlyList<SentCaseCorrespondenceCandidate>> ListDueAsync(
             int maximumItems, CancellationToken cancellationToken)
@@ -498,6 +635,11 @@ public sealed class TidySentCaseCorrespondenceTests
             return Task.FromResult<IReadOnlyList<CaseCorrespondenceMessage>>(
                 messagesByCase.TryGetValue(caseId, out var messages) ? messages : []);
         }
+
+        public Task<IReadOnlyList<UnretainedForwardOriginal>> ListUnretainedForwardOriginalsAsync(
+            Guid caseId, DateTimeOffset retainedAtOrBeforeUtc, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<UnretainedForwardOriginal>>(
+                originalsByCase.TryGetValue(caseId, out var originals) ? originals : []);
 
         public Task<bool> RecordAsync(
             Guid operationId,
@@ -528,6 +670,11 @@ public sealed class TidySentCaseCorrespondenceTests
         public string? Parent { get; init; }
         public Dictionary<string, string?> ParentOf { get; init; } = new();
         public string DeletedItems { get; init; } = "deleted-id";
+
+        // The messages a mailbox holds under a Message-ID, each in the folder it sits in until it is moved.
+        public Dictionary<string, MailboxMessageLocation[]> Found { get; init; } = new();
+        public Exception? FindFailure { get; init; }
+        public ConcurrentQueue<(string Mailbox, string InternetMessageId)> Finds { get; } = new();
 
         // The failure each named message's move meets, every time it is tried.
         public Dictionary<string, Exception> MoveFailures { get; init; } = new();
@@ -610,6 +757,26 @@ public sealed class TidySentCaseCorrespondenceTests
             }
 
             return DeletedItems;
+        }
+
+        public Task<IReadOnlyList<MailboxMessageLocation>> FindMessagesAsync(
+            string mailboxIdentity, string internetMessageId, CancellationToken cancellationToken)
+        {
+            Finds.Enqueue((mailboxIdentity, internetMessageId));
+            if (FindFailure is not null)
+            {
+                throw FindFailure;
+            }
+
+            // A message this mover has moved is found in the folder it was moved to.
+            var located = Found.TryGetValue(internetMessageId, out var found)
+                ? found
+                    .Select(message => movedTo.TryGetValue(message.ImmutableMessageId, out var folder)
+                        ? message with { ParentFolderId = folder }
+                        : message)
+                    .ToArray()
+                : Array.Empty<MailboxMessageLocation>();
+            return Task.FromResult<IReadOnlyList<MailboxMessageLocation>>(located);
         }
     }
 }

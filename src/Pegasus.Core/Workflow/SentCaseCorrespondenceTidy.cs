@@ -26,6 +26,26 @@ public sealed record CaseCorrespondenceMessage(
     string MailboxIdentity,
     string ImmutableMessageId);
 
+/// <summary>
+/// The original of a staff forward among the Case's received e-mails that
+/// Pegasus never retained, because the mailbox that forwarded it is not read
+/// for Incoming mail or the original arrived before it was. It is named by
+/// the forwarding mailbox and the Message-ID the forward answers, and is
+/// found in that mailbox itself, so the original goes with its forward
+/// whether or not the mailbox's Inbox is read (operator, 11 November 2026;
+/// R975). <paramref name="SentFolderIdentity"/> is the mailbox's Sent Items
+/// folder, whose copy is never touched (R903).
+/// </summary>
+public sealed record UnretainedForwardOriginal(
+    string MailboxIdentity,
+    string? SentFolderIdentity,
+    string InternetMessageId);
+
+/// <summary>One message of a mailbox and the folder it sits in now.</summary>
+public sealed record MailboxMessageLocation(
+    string ImmutableMessageId,
+    string ParentFolderId);
+
 /// <summary>What one run did with one send's messages.</summary>
 public sealed record SentCaseCorrespondenceCounts(
     int Moved,
@@ -62,6 +82,19 @@ public interface ISentCaseCorrespondenceTidyStore
     /// linked to the Case or not, unless it holds another Case (R917).
     /// </summary>
     Task<IReadOnlyList<CaseCorrespondenceMessage>> ListMessagesAsync(
+        Guid caseId,
+        DateTimeOffset retainedAtOrBeforeUtc,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The originals of the staff forwards among those e-mails that Pegasus
+    /// holds no Inbox copy of in the mailbox that forwarded them (R975): one
+    /// for each forward, the first message its reply headers name (R957), in
+    /// an Approved, activated mailbox (R916). An original Pegasus retained is
+    /// never among them: it is <see cref="ListMessagesAsync"/>'s, which
+    /// leaves one that holds another Case (R958).
+    /// </summary>
+    Task<IReadOnlyList<UnretainedForwardOriginal>> ListUnretainedForwardOriginalsAsync(
         Guid caseId,
         DateTimeOffset retainedAtOrBeforeUtc,
         CancellationToken cancellationToken);
@@ -196,15 +229,16 @@ public sealed class TidySentCaseCorrespondence(
     {
         var messages = await store.ListMessagesAsync(
             candidate.CaseId, candidate.PreparedAtUtc, cancellationToken);
+        var originals = await store.ListUnretainedForwardOriginalsAsync(
+            candidate.CaseId, candidate.PreparedAtUtc, cancellationToken);
         var moved = 0;
         var alreadyMoved = 0;
         var missing = 0;
         var failed = 0;
         var notPermitted = false;
-        // One message at a time: a send's messages share a mailbox more often than not.
-        foreach (var message in messages)
+        void Tally(MoveOutcome outcome)
         {
-            switch (await MoveOneAsync(message, deletedItemsByMailbox, cancellationToken))
+            switch (outcome)
             {
                 case MoveOutcome.Moved:
                     moved++;
@@ -225,11 +259,97 @@ public sealed class TidySentCaseCorrespondence(
             }
         }
 
+        // One message at a time: a send's messages share a mailbox more often than not.
+        foreach (var message in messages)
+        {
+            Tally(await MoveOneAsync(message, deletedItemsByMailbox, cancellationToken));
+        }
+
+        // Then each forward's original Pegasus never retained, found in the
+        // mailbox that forwarded it (R975).
+        foreach (var original in originals)
+        {
+            foreach (var outcome in await MoveOriginalAsync(original, deletedItemsByMailbox, cancellationToken))
+            {
+                Tally(outcome);
+            }
+        }
+
         var failureCode = failed == 0
             ? null
             : notPermitted ? MailboxNotPermittedFailureCode : MoveFailedFailureCode;
         return (new(moved, alreadyMoved, missing, failed), failureCode);
     }
+
+    /// <summary>
+    /// Moves a forward's unretained original: every message of the forwarding
+    /// mailbox that carries the Message-ID the forward answers, wherever it
+    /// is filed, except the mailbox's own Sent Items copy (R903). None found
+    /// counts as one message no longer in the mailbox.
+    /// </summary>
+    private async Task<IReadOnlyList<MoveOutcome>> MoveOriginalAsync(
+        UnretainedForwardOriginal original,
+        ConcurrentDictionary<string, Lazy<Task<string>>> deletedItemsByMailbox,
+        CancellationToken cancellationToken)
+    {
+        var outcomes = new List<MoveOutcome>();
+        try
+        {
+            var found = await mover.FindMessagesAsync(
+                original.MailboxIdentity,
+                original.InternetMessageId,
+                cancellationToken);
+            var received = found
+                .Where(message => !string.Equals(message.ParentFolderId, original.SentFolderIdentity, StringComparison.Ordinal))
+                .ToArray();
+            if (received.Length == 0)
+            {
+                return [MoveOutcome.Missing];
+            }
+
+            var deleted = await DeletedItemsAsync(original.MailboxIdentity, deletedItemsByMailbox, cancellationToken);
+            foreach (var message in received)
+            {
+                if (string.Equals(message.ParentFolderId, deleted, StringComparison.Ordinal))
+                {
+                    outcomes.Add(MoveOutcome.AlreadyMoved);
+                    continue;
+                }
+
+                await mover.MoveAsync(
+                    new RetainedMessageMove(
+                        original.MailboxIdentity,
+                        message.ParentFolderId,
+                        message.ImmutableMessageId,
+                        deleted),
+                    cancellationToken);
+                outcomes.Add(MoveOutcome.Moved);
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException
+            and not ApprovedSentSourceThrottledException)
+        {
+            outcomes.Add(Refused(exception));
+        }
+
+        return outcomes;
+    }
+
+    // One lookup per mailbox per run, shared by sends in flight together; a
+    // failed lookup is shared too, and each message counts its own failure.
+    private Task<string> DeletedItemsAsync(
+        string mailboxIdentity,
+        ConcurrentDictionary<string, Lazy<Task<string>>> deletedItemsByMailbox,
+        CancellationToken cancellationToken) =>
+        deletedItemsByMailbox.GetOrAdd(
+            mailboxIdentity,
+            mailbox => new Lazy<Task<string>>(
+                () => mover.ResolveDeletedItemsFolderIdAsync(mailbox, cancellationToken))).Value;
+
+    private static MoveOutcome Refused(Exception exception) =>
+        exception is ApprovedMailboxAccessDeniedException or UnauthorizedAccessException
+            ? MoveOutcome.NotPermitted
+            : MoveOutcome.Failed;
 
     private async Task<MoveOutcome> MoveOneAsync(
         CaseCorrespondenceMessage message,
@@ -247,12 +367,7 @@ public sealed class TidySentCaseCorrespondence(
                 return MoveOutcome.Missing;
             }
 
-            // One lookup per mailbox per run, shared by sends in flight together; a
-            // failed lookup is shared too, and each message counts its own failure.
-            var deleted = await deletedItemsByMailbox.GetOrAdd(
-                message.MailboxIdentity,
-                mailbox => new Lazy<Task<string>>(
-                    () => mover.ResolveDeletedItemsFolderIdAsync(mailbox, cancellationToken))).Value;
+            var deleted = await DeletedItemsAsync(message.MailboxIdentity, deletedItemsByMailbox, cancellationToken);
 
             if (string.Equals(parent, deleted, StringComparison.Ordinal))
             {
@@ -271,9 +386,7 @@ public sealed class TidySentCaseCorrespondence(
         catch (Exception exception) when (exception is not OperationCanceledException
             and not ApprovedSentSourceThrottledException)
         {
-            return exception is ApprovedMailboxAccessDeniedException or UnauthorizedAccessException
-                ? MoveOutcome.NotPermitted
-                : MoveOutcome.Failed;
+            return Refused(exception);
         }
     }
 }

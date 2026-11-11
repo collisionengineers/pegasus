@@ -132,7 +132,12 @@ answers, named by its In-Reply-To, or by the last of its References where it
 has none (10 November 2026, R917). The earlier messages of that thread are
 not the original and go only when they are themselves linked to the Case
 (11 November 2026, R957). An original that stands linked to another Case is
-left (R958). A forward sent as an attachment names no original
+left (R958). The original goes whether or not the mailbox that forwarded it
+is read for Incoming mail: where Pegasus holds no copy of it, the Worker
+finds it in that mailbox by the Message-ID the forward answers, wherever it
+is filed, and moves it; the mailbox must still be Approved and activated
+(R916), and its own Sent Items copy is left (R903) (operator, 11 November
+2026; [R975](../rulings.md)). A forward sent as an attachment names no original
 ([#2079](https://github.com/collisionengineers/pegasus/issues/2079)).
 Pegasus's own Sent items, uploaded `.eml` files and
 mail that arrives after the send are left (R903, R962). The move is recoverable and changes nothing
@@ -447,9 +452,14 @@ document never moves a Case by itself.
   tidy ends and writes no history.
 - An e-mail that arrives on the Case after a ticked send was prepared: it
   stays in the Inbox.
-- A staff forward whose original Pegasus never retained, because it arrived
-  before its mailbox was activated or the forward names none: the forward is
-  moved alone.
+- A staff forward whose original Pegasus never retained, because the
+  mailbox that forwarded it is not read for Incoming mail or the original
+  arrived before it was: the original is found in that mailbox by its
+  Message-ID and moved with the forward (R975). One already in Deleted Items
+  counts as already there, and one the mailbox no longer holds as no longer
+  in the mailbox.
+- A staff forward that names no original, or whose forwarding mailbox is not
+  an Approved, activated mailbox: the forward is moved alone.
 - A Case e-mail in a mailbox that is Approved but not activated, as every
   mailbox is on the test instance after a production copy: it is left and
   counted nowhere.
