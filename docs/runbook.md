@@ -824,11 +824,14 @@ and approved provider configuration have been deployed.
    Web and Worker application identities to the intended mailbox scope using
    Exchange Application RBAC. Configure the read permissions for resolution,
    Inbox and Sent observation: `Mail.Read` for the Web and Worker identities.
-   An Incoming mailbox additionally requires scoped `Mail.ReadWrite` for the
-   Worker identity, which moves an answered instruction and a ticked send's
-   Case correspondence to Deleted Items there (ADR-0071; a refusal records
-   `mailbox_not_permitted`). An Outgoing mailbox additionally requires scoped
-   `Mail.ReadWrite` and `Mail.Send` for the Web identity. RBAC and unscoped application grants are
+   Every approved mailbox additionally requires scoped `Mail.ReadWrite` for
+   the Worker identity, which moves an answered instruction and a ticked
+   send's Case correspondence to Deleted Items: in an Incoming mailbox the
+   mail Pegasus retained, and in a mailbox that forwards to instructions@ the
+   original of each forward, found there by its Message-ID (ADR-0071, R975;
+   a refusal records `mailbox_not_permitted`). An Outgoing mailbox
+   additionally requires scoped `Mail.ReadWrite` and `Mail.Send` for the Web
+   identity. RBAC and unscoped application grants are
    additive: remove unintended tenant-wide mail grants and record both a
    permitted-mailbox check and a denied-mailbox check. Record tenant,
    application identities, mailbox scope, administrator and approval time.
@@ -862,7 +865,7 @@ operator has admitted each to the application scope; desk, info and engineers
 are to be added as Incoming and Outgoing, after the separately authorised
 Exchange RBAC scope change that covers them for the Web identity's
 `Mail.Read`, `Mail.ReadWrite` and `Mail.Send` and the Worker identity's
-`Mail.Read`, and its `Mail.ReadWrite` on each that is Incoming (step 2). Unknown sender work still
+`Mail.Read` and `Mail.ReadWrite` (step 2). Unknown sender work still
 fails closed through intake policy; approval of a mailbox is not approval of
 all its senders. Operators do not edit SQL rows or raw environment settings to
 add an already-authorized mailbox.

@@ -295,6 +295,99 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         Assert.Equal([first, second, third, fourth], messages.Select(item => item.RetainedMessageId));
     }
 
+    /// <summary>
+    /// R975: a staff forward's original that Pegasus holds no copy of, as
+    /// when the mailbox that forwarded it is not read for Incoming mail, is
+    /// named by that mailbox and the Message-ID the forward answers, so the
+    /// tidy finds it in the mailbox itself. Only the forwarded message is
+    /// named, not the earlier messages of its thread (R957).
+    /// </summary>
+    [Fact]
+    public async Task AStaffForwardsOriginalPegasusNeverRetainedIsNamedInTheMailboxThatForwardedIt()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var estate = await SeedEstateAsync(database);
+        await EnableInstructionsMailboxAsync(database);
+        var neverRetained = Guid.NewGuid();
+        var earlierNeverRetained = Guid.NewGuid();
+        var forward = await ReceiveForwardAsync(
+            database, estate.CaseId, InstructionsMailboxId, "Engineers@Example.invalid", neverRetained,
+            PreparedAtUtc.AddHours(-4), earlierNeverRetained);
+        var store = Store(database);
+
+        var originals = await store.ListUnretainedForwardOriginalsAsync(estate.CaseId, PreparedAtUtc, CancellationToken.None);
+
+        Assert.Equal(
+            new UnretainedForwardOriginal("engineers-mailbox", "sent", ForwardedIdentity(neverRetained)),
+            Assert.Single(originals));
+        // The forward itself is still the retained path's.
+        Assert.Equal(
+            forward,
+            Assert.Single(await store.ListMessagesAsync(estate.CaseId, PreparedAtUtc, CancellationToken.None)).RetainedMessageId);
+    }
+
+    /// <summary>
+    /// An original Pegasus retained is never looked for in the mailbox: it is
+    /// moved by its own identity, or left because it holds another Case
+    /// (R958), whichever the retained path decides.
+    /// </summary>
+    [Fact]
+    public async Task ARetainedOriginalIsNeverNamedAsUnretained()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var estate = await SeedEstateAsync(database);
+        await EnableInstructionsMailboxAsync(database);
+        var retained = await ReceiveOriginalAsync(
+            database, estate.CaseId, Linking.None, estate.MailboxId, PreparedAtUtc.AddHours(-6));
+        var heldElsewhere = await ReceiveOriginalAsync(
+            database, estate.OtherCaseId, Linking.AcceptedLink, estate.MailboxId, PreparedAtUtc.AddHours(-6));
+        await ReceiveForwardAsync(
+            database, estate.CaseId, InstructionsMailboxId, EngineersAddress, retained, PreparedAtUtc.AddHours(-4));
+        await ReceiveForwardAsync(
+            database, estate.CaseId, InstructionsMailboxId, EngineersAddress, heldElsewhere, PreparedAtUtc.AddHours(-3));
+
+        var originals = await Store(database).ListUnretainedForwardOriginalsAsync(
+            estate.CaseId, PreparedAtUtc, CancellationToken.None);
+
+        Assert.Empty(originals);
+    }
+
+    /// <summary>
+    /// The bounds of an unretained original are the retained one's: only a
+    /// mailbox that is Approved, identified and activated is written to
+    /// (R916), the forwarder must be an approved mailbox, only a forward held
+    /// in instructions@ or pegasustest@ names an original, and only mail held
+    /// when the send was prepared counts.
+    /// </summary>
+    [Fact]
+    public async Task AnUnretainedOriginalIsNamedOnlyForAWritableForwardingMailboxAndAForwardHeldInInstructions()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var estate = await SeedEstateAsync(database);
+        await EnableInstructionsMailboxAsync(database);
+        var viaTestInstance = Guid.NewGuid();
+        await ReceiveForwardAsync(
+            database, estate.CaseId, InstructionsMailboxId, DeactivatedAddress, Guid.NewGuid(), PreparedAtUtc.AddHours(-6));
+        await ReceiveForwardAsync(
+            database, estate.CaseId, InstructionsMailboxId, "withdrawn@example.invalid", Guid.NewGuid(), PreparedAtUtc.AddHours(-5));
+        await ReceiveForwardAsync(
+            database, estate.CaseId, InstructionsMailboxId, "someone@elsewhere.invalid", Guid.NewGuid(), PreparedAtUtc.AddHours(-4));
+        // Held in engineers@, not instructions@ or pegasustest@: a forward there names no original (R652).
+        await ReceiveForwardAsync(
+            database, estate.CaseId, estate.MailboxId, EngineersAddress, Guid.NewGuid(), PreparedAtUtc.AddHours(-3));
+        await ReceiveForwardAsync(
+            database, estate.CaseId, InstructionsMailboxId, EngineersAddress, Guid.NewGuid(), PreparedAtUtc.AddMinutes(1));
+        await ReceiveForwardAsync(
+            database, estate.CaseId, estate.TestInstanceMailboxId, EngineersAddress, viaTestInstance, PreparedAtUtc.AddHours(-2));
+
+        var originals = await Store(database).ListUnretainedForwardOriginalsAsync(
+            estate.CaseId, PreparedAtUtc, CancellationToken.None);
+
+        Assert.Equal(
+            new UnretainedForwardOriginal("engineers-mailbox", "sent", ForwardedIdentity(viaTestInstance)),
+            Assert.Single(originals));
+    }
+
     [Fact]
     public async Task OnlyMailHeldWhenTheSendWasPreparedIsNamed()
     {
@@ -669,6 +762,10 @@ public sealed class SentCaseCorrespondenceTidyPersistenceTests
         context.Set<StaffMailSendOperationEntity>().AsNoTracking().SingleAsync(item => item.Id == operationId);
 
     private static string ImmutableId(Guid retainedMessageId) => $"immutable-{retainedMessageId:N}";
+
+    /// <summary>The Message-ID a forward retains for the original <see cref="ReceiveForwardAsync"/> names.</summary>
+    private static string ForwardedIdentity(Guid original) =>
+        MailboxMessageIdentity.CanonicalizeInternetMessageIdentity($"{original:N}@example.invalid");
 
     /// <summary>The seeded instructions@ row with its Graph identities saved and activated.</summary>
     private static async Task EnableInstructionsMailboxAsync(LocalDbTestDatabase database)

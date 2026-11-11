@@ -28,7 +28,9 @@ Clauses 1 and 3 stand as written. Amended 10 November 2026 (R916, R917):
 clause 5 names the activated mailbox and a staff forward's original.
 Amended 11 November 2026 (R956 to R961): clause 4 says where the outcome is
 shown, and clause 5 names pegasustest@, the one original of a forward and
-the activated mailbox for the automatic move.
+the activated mailbox for the automatic move. Amended the same day (R975):
+clause 5 finds a forward's original in the forwarding mailbox when Pegasus
+holds no copy of it.
 
 ## Context
 
@@ -83,7 +85,10 @@ Pegasus would leave every answered instruction in the Inbox.
    pegasustest@ (11 November 2026, R956), goes the one message it answers in
    the mailbox that forwarded it, linked to the Case or not (10 November
    2026, R917), never the earlier messages of its thread (R957), and not
-   when it stands linked to another Case (R958).
+   when it stands linked to another Case (R958). An original Pegasus holds no
+   copy of, as when the forwarding mailbox is not read for Incoming mail, is
+   found in that mailbox by the Message-ID the forward answers and moved all
+   the same, its Sent Items copy excepted (11 November 2026, R975).
    Pegasus's own Sent items, uploaded files, mail that arrives after the
    send and every other message, folder and mailbox are left
    (9 November 2026, R903).
@@ -91,7 +96,8 @@ Pegasus would leave every answered instruction in the Inbox.
 ## Consequences
 
 - The Worker needs Mail.ReadWrite on every mailbox that receives
-  instructions. A refusal is the likeliest live failure and shows as
+  instructions, and on every approved mailbox that forwards to instructions@,
+  whose original it finds and moves (R975). A refusal is the likeliest live failure and shows as
   `mailbox_not_permitted`.
 - The send operation row gains the tidy state, attempt count, moved time and
   failure code. Existing grants cover them.

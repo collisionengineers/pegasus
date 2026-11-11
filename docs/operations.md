@@ -7,16 +7,24 @@ Release 124 are one line each in [operations history](operations-history.md).
 
 ## Production Worker mail move grant - 11 November 2026
 
-- Read-only, after Release 3.0.0 (#2085): the Worker identity
-  `pegasus-prod-worker-id-252ow37gij` already moves mail in
-  `instructions@collisionengineers.co.uk`. Its answered-instruction tidy
-  (ADR-0071) has 16 `StaffMailSendOperations` rows `Moved`, the latest at
-  12:40 UTC, none failed. Delete case correspondence moves through the same
-  `GraphRetainedMessageMover` under the same identity, and
-  `instructions@` is the only production mailbox holding retained Inbox mail
-  (desk@ and engineers@ hold Sent Items only; info@ is Disabled). No Exchange
-  grant was changed; an Incoming mailbox added later needs the Worker's
-  scoped `Mail.ReadWrite` first ([runbook](runbook.md#runbook-admitting-a-new-mailbox-to-the-tenant)).
+- Read-only, after Release 3.0.0 (#2085). `Test-ServicePrincipalAuthorization`
+  for the Worker identity `pegasus-prod-worker-id-252ow37gij`
+  (`4f4d9606-3634-4c21-a1ee-3238351cfc69`) lists `Application Mail.Read` and
+  `Application Mail.ReadWrite`, `InScope True`, on the management scope
+  `Pegasus Production Instructions Mailbox` for instructions@, desk@,
+  engineers@ and info@; the Web identity holds those two and
+  `Application Mail.Send` on the same four. No Exchange grant was changed.
+- The answered-instruction tidy (ADR-0071) had 16 `StaffMailSendOperations`
+  rows `Moved` in instructions@, none failed. Production retained Inbox mail
+  from instructions@ alone (desk@ and engineers@ are Outgoing only, info@ is
+  Disabled), and 20 of its 22 messages were staff forwards naming an original
+  (19 from desk@, 1 from engineers@) of which Pegasus held none: until R975 a
+  ticked send would have moved each forward and left its original.
+- Graph compares `internetMessageId` without regard to case and needs its
+  angle brackets: 9 of 9 mixed-case Message-IDs in desk@, engineers@ and
+  info@ were found from their upper-cased form, none without the brackets;
+  a mailbox's stored Sent Items identity equals the `parentFolderId` Graph
+  reports for a message there (read with the test instance's identity).
 
 ## Test instance OCR identity admitted - 11 November 2026
 
