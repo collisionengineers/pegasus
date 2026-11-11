@@ -169,7 +169,7 @@ public sealed class VehicleLookupGapFillTests
     /// One MOT reading gives no rate of its own, so the lookup carries it
     /// forward at the vehicle's lifetime rate and fills that as the estimate,
     /// keeping the interval in the observation's evidence (operator, 11
-    /// November 2026; R926).
+    /// November 2026; R941).
     /// </summary>
     [Fact]
     public async Task ASingleMotReadingIsCarriedForwardAtTheLifetimeRate()

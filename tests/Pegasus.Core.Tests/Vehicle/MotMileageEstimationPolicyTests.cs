@@ -420,7 +420,7 @@ public sealed class MotMileageEstimationPolicyTests
         Assert.Equal(MotMileageEstimationPolicy.MethodKey, estimate.MethodKey);
     }
 
-    // Operator, 11 November 2026 (R926): a first odometer with a reading and
+    // Operator, 11 November 2026 (R941): a first odometer with a reading and
     // no rate of its own is carried forward at the vehicle's lifetime rate.
     [Fact]
     public void NoRateProjectsAtTheLifetimeRateFromFirstRegistration()

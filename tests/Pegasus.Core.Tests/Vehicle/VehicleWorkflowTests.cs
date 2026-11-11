@@ -306,7 +306,7 @@ public sealed class VehicleWorkflowTests
 
     /// <summary>
     /// The estimate is derived with the answer's first-registration date, so
-    /// a single MOT reading is carried forward at the lifetime rate (R926).
+    /// a single MOT reading is carried forward at the lifetime rate (R941).
     /// </summary>
     [Fact]
     public void DeriveHandsTheFirstRegistrationDateToTheEstimate()

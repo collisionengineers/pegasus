@@ -97,7 +97,7 @@ public sealed record MotMileageSegment(
 /// rate and holdouts, and the method that assembled them.
 /// <paramref name="Lifetime"/> is the interval from zero miles at first
 /// registration to the latest reading, present only where the forecast had no
-/// rate of its own and weighed it (operator, 11 November 2026; R926). It
+/// rate of its own and weighed it (operator, 11 November 2026; R941). It
 /// belongs to no segment, so it carries no weight.
 /// </summary>
 public sealed record MotMileageEvidence(
@@ -156,7 +156,7 @@ public sealed record MotMileageEstimate(
 /// history with no usable reading gives a qualified range or an abstention.
 /// A first odometer with no clean interval is carried forward at the
 /// vehicle's lifetime rate, the latest reading over the days since first
-/// registration (operator, 11 November 2026; R926).
+/// registration (operator, 11 November 2026; R941).
 /// </summary>
 public static class MotMileageEstimationPolicy
 {
@@ -164,7 +164,7 @@ public static class MotMileageEstimationPolicy
 
     /// <summary>
     /// Changing any tuning constant below bumps this version. Version 3
-    /// carries a history with no rate forward at the lifetime rate (R926).
+    /// carries a history with no rate forward at the lifetime rate (R941).
     /// </summary>
     public const int MethodVersion = 3;
 
@@ -319,7 +319,7 @@ public static class MotMileageEstimationPolicy
         // November 2026): the latest reading carried forward at the segment's
         // rate. Where no clean interval gives one, a first odometer is carried
         // forward at the vehicle's lifetime rate (operator, 11 November 2026;
-        // R926); a later odometer no longer counts from first registration, so
+        // R941); a later odometer no longer counts from first registration, so
         // its reading stands, as does one whose lifetime gives no rate.
         // Holdouts narrow the interval where there are any; otherwise it runs
         // from the latest reading to the plausibility ceiling.

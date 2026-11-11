@@ -83,7 +83,7 @@ public sealed record VehicleLookupFailure(
 /// <summary>
 /// One lookup answer. <paramref name="FirstRegisteredOn"/> is the day DVSA
 /// says the vehicle was first registered, which the MOT mileage estimate
-/// takes as the odometer's zero (operator, 11 November 2026; R926, R927); it
+/// takes as the odometer's zero (operator, 11 November 2026; R941, R942); it
 /// is kept in that estimate's evidence, not as a vehicle fact.
 /// </summary>
 public sealed record VehicleLookupResult(

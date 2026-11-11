@@ -107,7 +107,7 @@ public sealed class ProductionVehicleLookupTests
 
     /// <summary>
     /// The day the vehicle was first registered travels with the answer for
-    /// the MOT mileage estimate (R926): DVSA's <c>firstUsedDate</c>, which it
+    /// the MOT mileage estimate (R941): DVSA's <c>firstUsedDate</c>, which it
     /// documents as that day, else its <c>registrationDate</c>, in either
     /// date shape the API writes. Invented values; none is made up where DVSA
     /// gives neither.

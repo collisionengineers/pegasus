@@ -414,9 +414,9 @@ internal sealed class DvlaDvsaProductionAdapter(
 
     /// <summary>
     /// The day the vehicle was first registered, which the MOT mileage
-    /// estimate takes as the odometer's zero (R926): DVSA's
+    /// estimate takes as the odometer's zero (R941): DVSA's
     /// <c>firstUsedDate</c>, else its <c>registrationDate</c> (operator, 11
-    /// November 2026; R927). DVSA documents the first as "the date the vehicle
+    /// November 2026; R942). DVSA documents the first as "the date the vehicle
     /// was first registered" and the second as "the date the vehicle was
     /// registered"; they differ for an import, whose odometer ran before it
     /// was registered here.
