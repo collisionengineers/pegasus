@@ -125,7 +125,6 @@ internal static class TemplateSampleJobs
                 ? new ReportSettlement(costs.Total)
                 : new ReportSettlement(),
             HistoryCheck: Text(root.GetProperty("narrative"), "history_check"),
-            EngineerComments: null,
             Signatory: new ReportSignatory(
                 Text(engineer, "name"), Optional(engineer, "qualifications"), signature, "image/png"),
             AgreedFee: fee.GetProperty("agreed_fee").GetDecimal(),

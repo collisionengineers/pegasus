@@ -586,6 +586,13 @@ public static class PhotoLinkActs
     public const string CallLogged = "photo_link_call_logged";
     public const string Reminded = "photo_link_reminded";
 
+    /// <summary>
+    /// Staff issued the link, or a fresh token for it, under the form's
+    /// operation key: written with what it made, so the form posted again
+    /// makes nothing more. The link's page does not list it.
+    /// </summary>
+    public const string Issued = "photo_link_issued";
+
     /// <summary>A text was handed to the provider: written before it is, so one operation key sends one text.</summary>
     public const string TextSubmitted = "photo_link_text_submitted";
 
@@ -673,6 +680,36 @@ public interface IPhotoCaptureStore
         string tokenDigest,
         PhotoLinkTokenPurpose purpose,
         Guid? issuedByStaffId,
+        DateTimeOffset issuedAtUtc,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Issues a staff link once per operation key: creates the capture
+    /// with its first token and a <see cref="PhotoLinkActs.Issued"/> act under
+    /// the key, in one save. A key that already issued a link on the same Case
+    /// writes nothing and answers that capture; <c>Issued</c> says which. A key
+    /// already used for anything else is refused.
+    /// </summary>
+    Task<(PhotoCapture Capture, bool Issued)> IssueAsync(
+        NewPhotoCapture capture,
+        string tokenDigest,
+        PhotoLinkTokenPurpose tokenPurpose,
+        ActionActor actor,
+        string operationKey,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A fresh token for the capture, once per operation key: the token
+    /// and a <see cref="PhotoLinkActs.Issued"/> act under the key, in one save.
+    /// False when the key already issued a token for this capture, and nothing
+    /// is written; a key already used for anything else is refused.
+    /// </summary>
+    Task<bool> ReissueAsync(
+        Guid captureId,
+        string tokenDigest,
+        PhotoLinkTokenPurpose purpose,
+        ActionActor actor,
+        string operationKey,
         DateTimeOffset issuedAtUtc,
         CancellationToken cancellationToken);
 

@@ -154,6 +154,50 @@ public sealed class ImmediateIntakeDispatchTests
         Assert.Equal(0, artifacts.StreamStageCalls);
     }
 
+    /// <summary>
+    /// A digest the caller already computed is not computed again: the bytes
+    /// are read once, by the staging copy, which refuses them when they are
+    /// not what the digest names.
+    /// </summary>
+    [Fact]
+    public async Task StreamingUploadWithAKnownDigestIsReadOnlyByStagingWhichRefusesAnotherDigest()
+    {
+        var artifacts = new MemoryArtifactStore();
+        var store = new RecordingStore(Guid.NewGuid(), []);
+        var receiver = new ReceiveIntake(
+            artifacts,
+            store,
+            new FixedTimeProvider(FixedUtcNow),
+            new RecordingCommittedPublisher());
+        byte[] bytes = [0x01, 0x02];
+        var opens = 0;
+        StreamedIntakeSource Source(string token, string sha256) =>
+            StreamedSource(bytes) with
+            {
+                OpenContentAsync = _ =>
+                {
+                    opens++;
+                    return ValueTask.FromResult<Stream>(new MemoryStream(bytes, writable: false));
+                },
+                SourceIdentity = new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, token),
+                ContentSha256 = sha256
+            };
+
+        await receiver.ExecuteStreamedAsync(
+            Source("known-digest", Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant()),
+            "manual-upload-known",
+            CancellationToken.None);
+        var refused = await Assert.ThrowsAsync<IntakeArtifactRetentionException>(() => receiver.ExecuteStreamedAsync(
+            Source("wrong-digest", new string('A', 64)),
+            "manual-upload-wrong",
+            CancellationToken.None));
+
+        Assert.Equal(2, opens);
+        Assert.Equal(2, artifacts.StreamStageCalls);
+        Assert.IsType<IntakeArtifactIntegrityException>(refused.InnerException);
+        Assert.Single(store.ReceivedReceiptIds);
+    }
+
     [Fact]
     public async Task QueueFailureLeavesCommittedReceiptDueForRecoveryWithoutThrowing()
     {

@@ -60,7 +60,6 @@ public static class CaseReportFreshness
     private static readonly IReadOnlySet<string> ReportContentPaths = new HashSet<string>(
         StringComparer.Ordinal)
     {
-        AssessmentVocabulary.EngineersComments,
         AssessmentVocabulary.ReportValuationCommentaryText,
         AssessmentVocabulary.ReportDate,
         AssessmentVocabulary.AgreedFee,

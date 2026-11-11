@@ -89,7 +89,6 @@ public static class AssessmentVocabulary
     public const string SalvageCategory = "assessment.category";
     public const string SalvageValue = "assessment.salvage_value";
     public const string HistoryCheck = "narrative.history_check";
-    public const string EngineersComments = "narrative.engineers_comments";
     public const string ReportDiscloseGuideSource = "report.disclose_guide_source";
     public const string ReportValuationCommentary = "report.valuation_commentary";
 
@@ -232,7 +231,6 @@ public static class AssessmentVocabulary
             Codes: ["A", "B", "S", "N", "N/A"]),
         new(SalvageValue, AssessmentFieldType.Money, 20),
         new(HistoryCheck, AssessmentFieldType.Text, 4000),
-        new(EngineersComments, AssessmentFieldType.Text, 4000),
         new(EngineerName, AssessmentFieldType.Text, 200),
         new(EngineerQualifications, AssessmentFieldType.Text, 200),
         new(EngineerSignature, AssessmentFieldType.Text, 200),

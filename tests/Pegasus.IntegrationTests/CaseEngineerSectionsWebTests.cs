@@ -60,7 +60,9 @@ public sealed class CaseEngineerSectionsWebTests
         }
         Assert.Contains("right_rear", html, StringComparison.Ordinal);
         Assert.Contains("repairable", html, StringComparison.Ordinal);
-        Assert.Contains("Engineer comments recorded", html, StringComparison.Ordinal);
+        // The Engineer's comments are the Engineer's Comments wording block's
+        // alone, with no field of their own (R922).
+        Assert.DoesNotContain("data-field=\"narrative.engineers_comments\"", html, StringComparison.Ordinal);
         Assert.Contains("Estimate 1", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-salvage-range", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-salvage-snap", html, StringComparison.Ordinal);
@@ -241,7 +243,6 @@ public sealed class CaseEngineerSectionsWebTests
                 Field(AssessmentVocabulary.SalvageCategory, "S"),
                 Field(AssessmentVocabulary.SalvageValue, "750.00"),
                 Field(AssessmentVocabulary.CostRecoveryCharge, "120.00"),
-                Field(AssessmentVocabulary.EngineersComments, "Engineer comments recorded"),
                 Field(AssessmentVocabulary.HistoryCheck, "History clear"),
                 Field(AssessmentVocabulary.AgreedFee, "120.00"),
                 Field(AssessmentVocabulary.FeeDescriptionLines, "Engineering assessment"),

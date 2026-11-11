@@ -1097,7 +1097,6 @@ public sealed class AssessmentReportProjectionTests
             Field(AssessmentVocabulary.Outcome, "repairable"),
             Field(AssessmentVocabulary.LegalStatus, "roadworthy"),
             Field(AssessmentVocabulary.HistoryCheck, "History clear"),
-            Field(AssessmentVocabulary.EngineersComments, "No further comments"),
             Field(AssessmentVocabulary.EngineerName, "A Patterson"),
             Field(AssessmentVocabulary.EngineerQualifications, "M.Inst.IAEA"),
             Field(AssessmentVocabulary.EngineerSignature, "andy_patterson"),

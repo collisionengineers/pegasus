@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Caching.Memory;
+using Pegasus.Web.PhotoCapture;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages;
@@ -28,6 +29,13 @@ public class ErrorModel(IMemoryCache cache) : PageModel, IShellFreeGet
 
     public bool ShowReturnPath => !string.IsNullOrEmpty(ReturnPath);
 
+    /// <summary>
+    /// Whether the fault happened on the public capture surface: it is then
+    /// answered in the capture app's own card, with the capture headers, and
+    /// nothing that leads into the staff application.
+    /// </summary>
+    public bool IsCaptureSurface { get; private set; }
+
     public bool IsSignedIn => User.Identity?.IsAuthenticated == true;
 
     public void OnGet() => Initialize();
@@ -45,6 +53,14 @@ public class ErrorModel(IMemoryCache cache) : PageModel, IShellFreeGet
         }
 
         var originalPath = HttpContext.Features.Get<IExceptionHandlerPathFeature>()?.Path;
+        if (!string.IsNullOrWhiteSpace(originalPath)
+            && PhotoCaptureSurface.IsPublicPath(new PathString(originalPath)))
+        {
+            IsCaptureSurface = true;
+            CaptureResponseHeaders.Apply(Response);
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(originalPath)
             && Url.IsLocalUrl(originalPath)
             && !originalPath.StartsWith("/Error", StringComparison.OrdinalIgnoreCase))

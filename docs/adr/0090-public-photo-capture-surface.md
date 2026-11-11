@@ -86,6 +86,9 @@ domain is a separate operator decision (EXT-19 stays retired).
   issuing response, the message that carries it and the phone; its value is
   redacted wherever it would be written to a log or a trace, and the
   credential header and the token and slug path segments are not recorded.
+  An item's operation name is rewritten to the route template as its URL is,
+  and the Web sends no App Service HTTP logs, because the platform's front
+  end writes the raw path before the application runs (R923).
 - **The token in the mail body is staff-initiated delivery.** A photo link
   e-mail is a staff send from an approved mailbox (R773), and a text is a
   staff send through Azure Communication Services from Pegasus's own UK

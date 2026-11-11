@@ -24,7 +24,8 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// <see cref="PhotoLinkActions.ResendAsync"/> makes the link and counts the
 /// reminder (R914, R842). A sent message returns to where it was asked from
 /// with "Link sent to … by e-mail"; a link to copy, or a message whose sending
-/// is not yet settled, is shown here, once. Where a text provider is
+/// is not yet settled, is shown here, once; the form posted again makes,
+/// sends and texts nothing more. Where a text provider is
 /// configured the composer also offers <b>Send by text</b> to the mobile in
 /// To (the link's own, which staff may change) with the Photo link (text)
 /// wording (R918, R919); a text counts as a reminder as an e-mail does.
@@ -214,6 +215,21 @@ public sealed class ResendModel(
             {
                 ModelState.AddModelError(string.Empty, refusal.Message);
                 return Page();
+            }
+
+            // The form posted again (a refresh, or Back and send) made
+            // nothing: its link was shown to the first post only. A text is
+            // refused as a repeated text post is (FRD-28 The photo link
+            // text); otherwise it returns to where it was asked from.
+            if (issued.Replayed)
+            {
+                if (byText)
+                {
+                    ModelState.AddModelError(string.Empty, SendPhotoLinkText.AlreadySent);
+                    return Page();
+                }
+
+                return LocalRedirect(BackHref);
             }
 
             IssuedUrl = _mail.CaptureUrl(issued.Token);

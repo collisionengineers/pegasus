@@ -20,10 +20,14 @@ namespace Pegasus.Web.Pages;
 [IgnoreAntiforgeryToken]
 public sealed class StatusCodeModel : PageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
-    public string Heading { get; private set; } = "We could not complete that request";
+    /// <summary>The heading and line for a fault with no designed answer of its own; the capture card on /Error says the same.</summary>
+    internal const string FaultHeading = "We could not complete that request";
 
-    public string Explanation { get; private set; } =
-        "Try again, and if it keeps failing, tell your administrator.";
+    internal const string FaultExplanation = "Try again, and if it keeps failing, tell your administrator.";
+
+    public string Heading { get; private set; } = FaultHeading;
+
+    public string Explanation { get; private set; } = FaultExplanation;
 
     /// <summary>
     /// Whether the status was reached on the public capture surface (a rate

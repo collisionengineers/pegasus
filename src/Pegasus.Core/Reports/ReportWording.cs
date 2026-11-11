@@ -402,16 +402,17 @@ public static class ReportWordingComposition
         return $"{UnroadworthyOpening} {reason.Trim().TrimEnd('.')}.";
     }
 
+    /// <summary>
+    /// The Engineer's Comments block composes the mileage and unroadworthy
+    /// sentences only; the Engineer's own comments are the block's wording,
+    /// with no separate field (operator, 10 November 2026; R922).
+    /// </summary>
     private static string Comments(AssessmentReportSnapshot snapshot)
     {
         var parts = new List<string> { MileageSentence(snapshot.Vehicle.MileageSource) };
         if (snapshot.IsUnroadworthy)
         {
             parts.Add(UnroadworthySentence(snapshot.UnroadworthyReason ?? string.Empty));
-        }
-        if (!string.IsNullOrWhiteSpace(snapshot.EngineerComments))
-        {
-            parts.Add(snapshot.EngineerComments);
         }
         return string.Join("\n\n", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
     }

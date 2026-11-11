@@ -9,7 +9,7 @@ using Pegasus.Core.Triage;
 
 namespace Pegasus.Core.PhotoCapture;
 
-public sealed record SettlePhotoCapturesResult(int Examined, int Settled, int ReachedCase, int Failures);
+public sealed record SettlePhotoCapturesResult(int Examined, int Settled, int ReachedCase);
 
 /// <summary>
 /// The Worker's settle (FRD-28). A capture's open batch settles once it holds
@@ -40,6 +40,13 @@ public sealed record SettlePhotoCapturesResult(int Examined, int Settled, int Re
 /// the fill and each link are keyed; a re-driven receipt replays its
 /// pipeline. Owed bells and reaches run before the walk, each with its own
 /// bound, so the waiting captures never starve them under the job's budget.
+/// </para>
+/// <para>
+/// A capture whose step fails does not stop the others: the run goes on, and
+/// once every step has run it throws the failures together, each naming its
+/// capture, so the Worker logs them in full and fails the invocation, as a
+/// folded job's failure does. Each failed step is left as it was and is tried
+/// again on the next run.
 /// </para>
 /// </summary>
 public sealed class SettlePhotoCaptures(
@@ -73,33 +80,40 @@ public sealed class SettlePhotoCaptures(
 
     private static readonly ActionActor SettleActor = ActionActor.SystemWorker(PhotoCaptureIntakeRules.SettleActorId);
 
+    /// <summary>
+    /// The most failures one run's exception carries; the rest are counted in
+    /// its message, so a run that fails on every capture stays one bounded
+    /// log entry.
+    /// </summary>
+    public const int MaximumFailuresReported = 10;
+
     public async Task<SettlePhotoCapturesResult> ExecuteAsync(int maximumItems, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         var now = timeProvider.GetUtcNow();
         var cutoff = IntakeEscapeWindow.LatestClosedStart(now);
+        var failures = new SettleFailures();
 
         // The bells earlier runs owed and the reaches first, each bounded on
         // its own, then the walk; the reaches and the walk's closes owe bells
         // this run rings at its end. A run that settled and reached nothing
         // owes none, so it does not read them again: the settle runs every
         // minute, and an idle run is three small reads (R838).
-        var failures = await RingOwedAsync(maximumItems, cancellationToken);
-        var (reached, reachFailures) = await ReachAsync(maximumItems, now, cutoff, cancellationToken);
-        var (examined, settled, walkFailures) = await WalkAsync(maximumItems, now, cutoff, cancellationToken);
-        failures += reachFailures + walkFailures;
+        await RingOwedAsync(maximumItems, failures, cancellationToken);
+        var reached = await ReachAsync(maximumItems, now, cutoff, failures, cancellationToken);
+        var (examined, settled) = await WalkAsync(maximumItems, now, cutoff, failures, cancellationToken);
         if (settled > 0 || reached > 0)
         {
-            failures += await RingOwedAsync(maximumItems, cancellationToken);
+            await RingOwedAsync(maximumItems, failures, cancellationToken);
         }
 
-        return new(examined, settled, reached, failures);
+        failures.ThrowIfAny(examined, settled, reached);
+        return new(examined, settled, reached);
     }
 
     /// <summary>Rings each owed bell, then clears it; a failure leaves it owed for the next run.</summary>
-    private async Task<int> RingOwedAsync(int maximumItems, CancellationToken cancellationToken)
+    private async Task RingOwedAsync(int maximumItems, SettleFailures failures, CancellationToken cancellationToken)
     {
-        var failures = 0;
         foreach (var owed in await captures.ListBellsOwedAsync(maximumItems, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -121,21 +135,19 @@ public sealed class SettlePhotoCaptures(
             }
             catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
             {
-                failures++;
+                failures.Add("bell", owed.CaptureId, owed.Batch, exception);
             }
         }
-
-        return failures;
     }
 
-    private async Task<(int Reached, int Failures)> ReachAsync(
+    private async Task<int> ReachAsync(
         int maximumItems,
         DateTimeOffset now,
         DateTimeOffset cutoff,
+        SettleFailures failures,
         CancellationToken cancellationToken)
     {
         var reached = 0;
-        var failures = 0;
         foreach (var reach in await captures.ListBatchesReachingCaseAsync(maximumItems, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -148,26 +160,26 @@ public sealed class SettlePhotoCaptures(
             }
             catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
             {
-                failures++;
+                failures.Add("reach", reach.Capture.Id, reach.Batch, exception);
             }
         }
 
-        return (reached, failures);
+        return reached;
     }
 
     /// <summary>
     /// Pages on past the captures that wait, so they never keep a ready one
     /// from its settle (F-R6c), until <paramref name="maximumItems"/> settled.
     /// </summary>
-    private async Task<(int Examined, int Settled, int Failures)> WalkAsync(
+    private async Task<(int Examined, int Settled)> WalkAsync(
         int maximumItems,
         DateTimeOffset now,
         DateTimeOffset cutoff,
+        SettleFailures failures,
         CancellationToken cancellationToken)
     {
         var examined = 0;
         var settled = 0;
-        var failures = 0;
         PhotoCaptureSettleCursor? cursor = null;
         while (settled < maximumItems)
         {
@@ -189,7 +201,7 @@ public sealed class SettlePhotoCaptures(
                 }
                 catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
                 {
-                    failures++;
+                    failures.Add("settle", candidate.Capture.Id, candidate.Capture.CurrentBatch, exception);
                 }
             }
 
@@ -201,7 +213,7 @@ public sealed class SettlePhotoCaptures(
             cursor = new(page[^1].Capture.CreatedAtUtc, page[^1].Capture.Id);
         }
 
-        return (examined, settled, failures);
+        return (examined, settled);
     }
 
     private Task<bool> SettleAsync(
@@ -553,6 +565,43 @@ public sealed class SettlePhotoCaptures(
         items.Any(item => item.Batch == batch
             && item.StagedReceiptId is null
             && item.ReceivedAtUtc > now - UploadInFlightGrace);
+
+    /// <summary>
+    /// The run's failed steps, each wrapped to name its step, capture and
+    /// batch; at most <see cref="MaximumFailuresReported"/> are kept and the
+    /// rest only counted. Thrown together once the run has done all it can,
+    /// so one capture's failure neither stops the others nor goes unseen.
+    /// </summary>
+    private sealed class SettleFailures
+    {
+        private readonly List<Exception> kept = [];
+        private int count;
+
+        public void Add(string step, Guid captureId, int batch, Exception exception)
+        {
+            count++;
+            if (kept.Count < MaximumFailuresReported)
+            {
+                kept.Add(new InvalidOperationException(
+                    string.Create(CultureInfo.InvariantCulture, $"The photo capture settle's {step} of capture {captureId:D}, batch {batch}, failed."),
+                    exception));
+            }
+        }
+
+        public void ThrowIfAny(int examined, int settled, int reached)
+        {
+            if (count == 0)
+            {
+                return;
+            }
+
+            throw new AggregateException(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"The photo capture settle examined {examined}, settled {settled} and recorded {reached} reaches; {count} steps failed and are tried again on the next run ({kept.Count} shown)."),
+                kept);
+        }
+    }
 }
 
 /// <summary>

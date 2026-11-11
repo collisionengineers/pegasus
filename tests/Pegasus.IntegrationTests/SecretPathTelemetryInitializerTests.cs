@@ -84,4 +84,49 @@ public sealed class SecretPathTelemetryInitializerTests
 
         Assert.Equal("https://api.box.com/2.0/files/content", telemetry.Data);
     }
+
+    [Fact]
+    public void DependencyAndExceptionRowsLoseTheSecretFromTheirOperationName()
+    {
+        const string token = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        var dependency = new DependencyTelemetry { Name = "SQL" };
+        dependency.Context.Operation.Name = "GET /c/" + token;
+        dependency.Context.Operation.Id = "operation-id";
+        var exception = new ExceptionTelemetry(new InvalidOperationException("x"));
+        exception.Context.Operation.Name = "GET /s/abcdefghjkmn";
+        var callback = new TraceTelemetry("t");
+        callback.Context.Operation.Name = "POST /Integrations/Glass/Callback/secret";
+
+        var initializer = new SecretPathTelemetryInitializer();
+        initializer.Initialize(dependency);
+        initializer.Initialize(exception);
+        initializer.Initialize(callback);
+
+        Assert.Equal("GET /c/{token}", dependency.Context.Operation.Name);
+        Assert.Equal("operation-id", dependency.Context.Operation.Id);
+        Assert.Equal("GET /s/{slug}", exception.Context.Operation.Name);
+        Assert.Equal("POST /Integrations/Glass/Callback/{correlation}", callback.Context.Operation.Name);
+    }
+
+    [Fact]
+    public void ARequestsOwnOperationNameLosesTheSecretToo()
+    {
+        var telemetry = new RequestTelemetry { Url = new Uri("https://pegasus.example/c/secrettoken") };
+        telemetry.Context.Operation.Name = "GET /c/secrettoken";
+
+        new SecretPathTelemetryInitializer().Initialize(telemetry);
+
+        Assert.Equal("GET /c/{token}", telemetry.Context.Operation.Name);
+    }
+
+    [Fact]
+    public void ANonSecretOperationNameIsUntouched()
+    {
+        var dependency = new DependencyTelemetry();
+        dependency.Context.Operation.Name = "GET /Cases/0f8fad5b-d9cb-469f-a165-70867728950e";
+
+        new SecretPathTelemetryInitializer().Initialize(dependency);
+
+        Assert.Equal("GET /Cases/0f8fad5b-d9cb-469f-a165-70867728950e", dependency.Context.Operation.Name);
+    }
 }
