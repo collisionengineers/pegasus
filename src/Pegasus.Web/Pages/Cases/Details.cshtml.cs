@@ -1352,7 +1352,7 @@ public sealed partial class DetailsModel(
             workspace,
             AssetPreparations,
             appliedValuationsLoaded ? AppliedValuations : null,
-            Case.Frame);
+            Case!.Frame);
 
         using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
         // The authors' names depend only on the estimates, so they are read in
