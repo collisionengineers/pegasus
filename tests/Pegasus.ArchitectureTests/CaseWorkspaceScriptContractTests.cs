@@ -652,6 +652,6 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.Contains("body.set('timestampMs', String(timestampMs));", snapshot, StringComparison.Ordinal);
         Assert.Contains("body.set('operationKey', snapshotBaseKey + '-' + snapshotSequence);", snapshot, StringComparison.Ordinal);
         Assert.Contains("done = window.pegasusCaseWorkspaceApplySnapshot(html);", snapshot, StringComparison.Ordinal);
-        Assert.Contains("data-evidence-occurrence=\"' + item.occurrenceId + '\"'", snapshot, StringComparison.Ordinal);
+        Assert.Contains("[data-evidence-occurrence=\"' + item.occurrenceId + '\"]'", snapshot, StringComparison.Ordinal);
     }
 }

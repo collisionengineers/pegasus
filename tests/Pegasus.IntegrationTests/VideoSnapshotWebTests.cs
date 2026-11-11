@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -245,7 +244,7 @@ public sealed class VideoSnapshotWebTests
             $"/Cases/{caseId:D}?handler=Save",
             Form(
                 AntiforgeryValue(editing),
-                CaseSaveFields(editing, caseId, versionBeforeSnapshot, leaseToken, vehicleMake: "Toyota"))))
+                CaseSaveFields(caseId, versionBeforeSnapshot, leaseToken, ("vehicleMake", "Toyota")))))
         {
             Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
         }
@@ -436,11 +435,12 @@ public sealed class VideoSnapshotWebTests
             Form(
                 AntiforgeryValue(editing),
                 CaseSaveFields(
-                    editing,
                     caseId,
                     InputValue(editing, "expectedVersion"),
                     leaseToken,
-                    vehicleMileage: mileage.ToString(CultureInfo.InvariantCulture)))))
+                    ("vehicleRegistration", "AB12CDE"),
+                    ("vehicleMileage", mileage.ToString(CultureInfo.InvariantCulture)),
+                    ("vehicleMileageUnit", "miles")))))
         {
             Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
         }
@@ -464,7 +464,10 @@ public sealed class VideoSnapshotWebTests
             .GetAsync(caseId, CancellationToken.None)
             ?? throw new InvalidOperationException("The seeded Case has no workflow.");
         var lease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
-            new(caseId, workflow.Version, Administrator, $"close-lease:{Guid.NewGuid():N}"),
+            new(caseId, workflow.Version, Administrator, $"close-lease:{Guid.NewGuid():N}")
+            {
+                TakeOver = true
+            },
             CancellationToken.None);
         await services.GetRequiredService<ICloseCase>().ExecuteAsync(
             new(
@@ -511,74 +514,18 @@ public sealed class VideoSnapshotWebTests
     }
 
     private static (string Name, string Value)[] CaseSaveFields(
-        string html,
         Guid caseId,
         string expectedVersion,
         string editLeaseToken,
-        string? vehicleMake = null,
-        string? vehicleMileage = null) =>
+        params (string Name, string Value)[] changes) =>
     [
         ("id", caseId.ToString("D")),
         ("expectedVersion", expectedVersion),
         ("operationKey", $"save:{Guid.NewGuid():N}"),
         ("editLeaseToken", editLeaseToken),
         ("reason", "Updated vehicle details during video snapshot test."),
-        ("claimantName", InputValue(html, "claimantName")),
-        ("claimantContactNumber", InputValue(html, "claimantContactNumber")),
-        ("claimantAddress", InputValue(html, "claimantAddress")),
-        ("claimNumber", InputValue(html, "claimNumber")),
-        ("vehicleRegistration", InputValue(html, "vehicleRegistration")),
-        ("vehicleMake", vehicleMake ?? InputValue(html, "vehicleMake")),
-        ("vehicleModel", InputValue(html, "vehicleModel")),
-        ("vehicleMileage", vehicleMileage ?? InputValue(html, "vehicleMileage")),
-        ("vehicleMileageUnit", SelectOptionValue(html, "vehicleMileageUnit")),
-        ("accidentCircumstances", TextareaContent(html, "accidentCircumstances")),
-        ("incidentDate", InputValue(html, "incidentDate")),
-        ("dueBy", InputValue(html, "dueBy")),
-        ("claimSourceContactName", InputValue(html, "claimSourceContactName")),
-        ("claimSourceContactTelephone", InputValue(html, "claimSourceContactTelephone")),
-        ("claimSourceContactEmail", InputValue(html, "claimSourceContactEmail")),
-        ("vatStatus", InputValue(html, "vatStatus")),
-        ("inspectionDate", InputValue(html, "inspectionDate")),
-        ("inspectionDeadline", InputValue(html, "inspectionDeadline")),
-        ("inspectionAddress", InputValue(html, "inspectionAddress")),
-        ("inspectionMode", InputValue(html, "inspectionMode")),
-        ("storageLocation", InputValue(html, "storageLocation"))
+        .. changes
     ];
-
-    private static string SelectOptionValue(string html, string name)
-    {
-        var select = Regex.Match(
-            html,
-            $"<select[^>]*name=\\\"{Regex.Escape(name)}\\\"[^>]*>.*?</select>",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
-        Assert.True(select.Success, $"Expected select '{name}'.");
-        var selected = Regex.Match(
-            select.Value,
-            "<option[^>]*\\sselected(?:=\\\"[^\\\"]*\\\")?[^>]*value=\\\"(?<value>[^\\\"]*)\\\"",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        if (selected.Success)
-        {
-            return WebUtility.HtmlDecode(selected.Groups["value"].Value);
-        }
-
-        var valueFirst = Regex.Match(
-            select.Value,
-            "<option[^>]*value=\\\"(?<value>[^\\\"]*)\\\"[^>]*\\sselected",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        return valueFirst.Success
-            ? WebUtility.HtmlDecode(valueFirst.Groups["value"].Value)
-            : "Miles";
-    }
-
-    private static string TextareaContent(string html, string name)
-    {
-        var match = Regex.Match(
-            html,
-            $"<textarea[^>]*name=\\\"{Regex.Escape(name)}\\\"[^>]*>(?<value>.*?)</textarea>",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
-        return match.Success ? WebUtility.HtmlDecode(match.Groups["value"].Value) : string.Empty;
-    }
 
     private static byte[] SampleJpegBytes(SKColor color)
     {
