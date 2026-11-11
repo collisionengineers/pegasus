@@ -282,10 +282,12 @@ public sealed partial class StandingCaptureWebTests
         Assert.False(
             (await StandingCaptureDriver.CaptureAsync(factory, capture.Id)).OpenedAtUtc.HasValue,
             "Paperwork sent under the Session token opened the customer's link.");
-        var row = StandingCaptureDriver.ListRow(await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture"), capture.Id);
-        Assert.Contains(
-            $">{OperatorLabels.PhotoCapture.State(PhotoCaptureState.SentNotOpened)}</span>",
-            row,
+        // Standing links lists it (v51 P; R948), and its History has no Opened line.
+        StandingCaptureDriver.ListRow(
+            await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.StandingLinksKey}"), capture.Id);
+        Assert.DoesNotContain(
+            $"<span>{OperatorLabels.PhotoCapture.Opened}</span>",
+            await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture/{capture.Id:D}"),
             StringComparison.Ordinal);
         using (var opened = await StandingCaptureDriver.SendAsync(
             client, HttpMethod.Get, $"{Api}/context", StandingCaptureDriver.Capture(customerToken)))
@@ -987,7 +989,7 @@ public sealed partial class StandingCaptureWebTests
     private static async Task AssertRecordShowsThePhotoLinkAsync(HttpClient client, Guid recordId, Guid captureId)
     {
         var page = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{recordId:D}");
-        Assert.Contains("id=\"image-intake-photo-link-title\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-image-photo-link", page, StringComparison.Ordinal);
         Assert.Contains($"/PhotoCapture/{captureId:D}", page, StringComparison.OrdinalIgnoreCase);
     }
 

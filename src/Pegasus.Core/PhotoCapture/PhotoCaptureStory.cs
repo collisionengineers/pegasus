@@ -239,6 +239,32 @@ public static class PhotoCaptureStory
     public static bool IsPhotographKind(PhotoCaptureItemKind kind) => kind is not (PhotoCaptureItemKind.Paperwork or PhotoCaptureItemKind.Video);
 
     /// <summary>
+    /// The order a Case's photo links stand in on its Files → Images
+    /// (operator, 11 November 2026; v51 J; R948): first the primary link, the
+    /// latest that holds a photograph and is not cancelled, or else the
+    /// latest; then the others, latest first. The Images bar shows the first
+    /// and folds the rest under it, and the Case's images stand in the links'
+    /// stories in this order.
+    /// </summary>
+    public static IReadOnlyList<CasePhotoCaptureStory> CaseOrder(IReadOnlyList<CasePhotoCaptureStory> stories)
+    {
+        ArgumentNullException.ThrowIfNull(stories);
+        var latestFirst = stories
+            .OrderByDescending(story => story.Capture.CreatedAtUtc)
+            .ThenByDescending(story => story.Capture.Id)
+            .ToArray();
+        if (latestFirst.Length == 0)
+        {
+            return [];
+        }
+
+        var primary = Array.Find(latestFirst, story =>
+                !story.Capture.IsRevoked && story.Items.Any(item => IsPhotographKind(item.Kind)))
+            ?? latestFirst[0];
+        return [primary, .. latestFirst.Where(story => !ReferenceEquals(story, primary))];
+    }
+
+    /// <summary>
     /// The name a photo's full-size original takes as the next version of the
     /// same Case image (FRD-28 Routing and filing): the photo's own name, with
     /// the original's extension when its type differs.

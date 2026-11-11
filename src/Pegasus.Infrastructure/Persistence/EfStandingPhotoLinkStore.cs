@@ -431,36 +431,63 @@ public sealed class EfStandingPhotoLinkStore(
         Expression<Func<StandingPhotoLinkEntity, bool>> predicate,
         CancellationToken cancellationToken)
     {
-        var row = await (
-            from link in context.StandingPhotoLinks.AsNoTracking().Where(predicate)
-            join contact in context.Organizations.AsNoTracking() on link.OrganizationId equals (Guid?)contact.Id into contacts
-            from contact in contacts.DefaultIfEmpty()
-            select new
-            {
-                Link = link,
-                OrganizationName = contact == null ? null : contact.Name,
-                Role = contact == null ? null : contact.Role,
-                // The website link has no contact, so it is never stopped by one (R796).
-                ContactActive = contact == null || contact.Active,
-                PrincipalId = context.Principals
-                    .Where(item => (Guid?)item.OrganizationId == link.OrganizationId)
-                    .OrderByDescending(item => item.IsActive)
-                    .ThenBy(item => item.SuccessorId == null ? 0 : 1)
-                    .ThenBy(item => item.Id)
-                    .Select(item => (Guid?)item.Id)
-                    .FirstOrDefault()
-            })
+        var row = await Read(context, predicate)
             .OrderByDescending(item => item.Link.CreatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
-        return row is null
-            ? null
-            : Map(
-                row.Link,
-                row.OrganizationName,
-                row.PrincipalId,
-                string.Equals(row.Role, RepairerRole, StringComparison.Ordinal),
-                row.ContactActive);
+        return row is null ? null : Map(row);
     }
+
+    /// <summary>Every link <paramref name="predicate"/> keeps, with its contact, in one statement (v51 P; R948).</summary>
+    internal static async Task<IReadOnlyList<StandingPhotoLink>> ReadAllAsync(
+        PegasusDbContext context,
+        Expression<Func<StandingPhotoLinkEntity, bool>> predicate,
+        CancellationToken cancellationToken) =>
+        (await Read(context, predicate).ToListAsync(cancellationToken)).Select(Map).ToArray();
+
+    // A member-initialised row, not a positional record, so EF composes
+    // ReadOneAsync's ordering over it.
+    private sealed class LinkRow
+    {
+        public required StandingPhotoLinkEntity Link { get; init; }
+
+        public string? OrganizationName { get; init; }
+
+        public string? Role { get; init; }
+
+        public bool ContactActive { get; init; }
+
+        public Guid? PrincipalId { get; init; }
+    }
+
+    private static IQueryable<LinkRow> Read(
+        PegasusDbContext context,
+        Expression<Func<StandingPhotoLinkEntity, bool>> predicate) =>
+        from link in context.StandingPhotoLinks.AsNoTracking().Where(predicate)
+        join contact in context.Organizations.AsNoTracking() on link.OrganizationId equals (Guid?)contact.Id into contacts
+        from contact in contacts.DefaultIfEmpty()
+        select new LinkRow
+        {
+            Link = link,
+            OrganizationName = contact == null ? null : contact.Name,
+            Role = contact == null ? null : contact.Role,
+            // The website link has no contact, so it is never stopped by one (R796).
+            ContactActive = contact == null || contact.Active,
+            PrincipalId = context.Principals
+                .Where(item => (Guid?)item.OrganizationId == link.OrganizationId)
+                .OrderByDescending(item => item.IsActive)
+                .ThenBy(item => item.SuccessorId == null ? 0 : 1)
+                .ThenBy(item => item.Id)
+                .Select(item => (Guid?)item.Id)
+                .FirstOrDefault()
+        };
+
+    private static StandingPhotoLink Map(LinkRow row) =>
+        Map(
+            row.Link,
+            row.OrganizationName,
+            row.PrincipalId,
+            string.Equals(row.Role, RepairerRole, StringComparison.Ordinal),
+            row.ContactActive);
 
     private Task<StandingPhotoLink> UpdateAsync(
         Guid id,

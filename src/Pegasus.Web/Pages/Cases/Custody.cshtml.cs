@@ -275,7 +275,7 @@ public sealed class CustodyModel(
 
     /// <summary>
     /// Files a still JPEG or PNG frame captured from a Case video onto the
-    /// Case's Images set without requiring or breaking an edit lease (R945).
+    /// Case's Images set without requiring or breaking an edit lease (R964).
     /// </summary>
     public async Task<IActionResult> OnPostSnapshotVideoAsync(
         Guid id,

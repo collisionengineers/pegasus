@@ -625,7 +625,7 @@ public sealed class CaseWorkspaceScriptContractTests
     /// Taking a snapshot of a Case video updates Files, notices, ribbon and Case
     /// version in place while keeping the video viewer open at its playback
     /// timestamp so several frames can be captured in one pass (operator,
-    /// 11 November 2026; R945).
+    /// 11 November 2026; R964).
     /// </summary>
     [Fact]
     public void TakingAVideoSnapshotUpdatesFilesAndVersionWhileKeepingTheViewerOpen()

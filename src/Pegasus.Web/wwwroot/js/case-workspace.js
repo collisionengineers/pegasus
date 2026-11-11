@@ -2357,7 +2357,7 @@
     };
     // Updates the Case workspace in place after the viewer files a video
     // snapshot, keeping [data-case-viewer-host] untouched so playback stays at
-    // its current timestamp (R945).
+    // its current timestamp (R964).
     window.pegasusCaseWorkspaceApplySnapshot = function (html) {
         var parsed = new DOMParser().parseFromString(html, 'text/html');
         var incoming = parsed.querySelector('[data-case-record]');

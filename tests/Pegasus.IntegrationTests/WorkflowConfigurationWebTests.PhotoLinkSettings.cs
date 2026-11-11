@@ -203,7 +203,7 @@ public sealed partial class WorkflowConfigurationWebTests
         var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
         var send = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture/Send/{caseId:D}");
 
-        Assert.Contains($"name=\"Mode\" value=\"{nameof(PhotoCaptureMode.Quick)}\" checked=\"checked\"", send, StringComparison.Ordinal);
+        Assert.Matches($"<option[^>]*value=\"{nameof(PhotoCaptureMode.Quick)}\"[^>]*selected", SelectElement(send, "name=\"Mode\""));
         Assert.DoesNotContain("checked", FirstInput(send, "LiveCameraOnly"), StringComparison.Ordinal);
         Assert.DoesNotContain("checked", FirstInput(send, "OriginalsInBackground"), StringComparison.Ordinal);
         var days = SelectElement(send, "name=\"Days\"");

@@ -8,9 +8,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// The staff reads of photo links (FRD-28). A capture's status is derived
 /// on read and never stored, so a list reads its whole tab's captures and
 /// evaluates each one's missing items and status in memory, once per request:
-/// that one evaluation gives the left pane's counts by state, before any
-/// filter, and the rows the From, "No case yet", state and search filters
-/// keep, which are then paged. Of the items it reads only what the required
+/// that one evaluation gives the Direct links scopes' counts, before any
+/// filter, and the rows the scope, standing link and search filters keep,
+/// which are then paged (v51 N, P; R948). Of the items it reads only what the required
 /// items rule and the photograph count use, grouped in SQL
 /// (<see cref="ItemFactsAsync"/>), so a repeated photo of the same thing adds
 /// to a count and not a row; issue #2020 measured the lists at scale before
@@ -19,7 +19,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// their item facts, their contacts, which quick Case links were handed on,
 /// their Vehicle images records, the issuers' names (kept in
 /// <see cref="StaffAccountReads"/>) and which of their Cases are archived.
-/// The rows shown then read their From and pairing (<see cref="ShownAsync"/>).
+/// The rows shown then read their From and their preview photographs
+/// (<see cref="ShownAsync"/>).
 /// </summary>
 public sealed class EfPhotoCaptureQueries(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -31,7 +32,7 @@ public sealed class EfPhotoCaptureQueries(
 
     private static readonly string[] SentByUsOrigins = [PhotoCaptureCodes.ToCode(PhotoCaptureOrigin.CaseLink)];
 
-    private static readonly string[] ComingInOrigins =
+    private static readonly string[] StandingOrigins =
     [
         PhotoCaptureCodes.ToCode(PhotoCaptureOrigin.StandingStaff),
         PhotoCaptureCodes.ToCode(PhotoCaptureOrigin.StandingForwarded),
@@ -49,17 +50,23 @@ public sealed class EfPhotoCaptureQueries(
     public async Task<PhotoCaptureListPage> ListAsync(PhotoCaptureListFilter filter, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(filter);
-        // One evaluation of the whole tab gives both the left pane's counts,
-        // before any filter, and the rows the filters keep (#2020).
-        var evaluated = await EvaluateTabAsync(filter.SentByUs, cancellationToken);
-        var countsByState = evaluated
-            .GroupBy(row => row.State)
-            .ToDictionary(group => group.Key, group => group.Count());
+        // One evaluation of the whole tab gives both the Direct links scopes'
+        // counts, before any filter, and the rows the filters keep (#2020).
+        var now = timeProvider.GetUtcNow();
+        var evaluated = await EvaluateTabAsync(filter.Direct, cancellationToken);
+        var countsByScope = new Dictionary<PhotoCaptureScope, int>();
+        if (filter.Direct)
+        {
+            foreach (var scope in Enum.GetValues<PhotoCaptureScope>())
+            {
+                countsByScope[scope] = evaluated.Count(row => InScope(row, scope, now));
+            }
+        }
+
         var search = filter.Search?.Trim();
         var matching = evaluated
-            .Where(row => filter.Origin is null || row.Row.Capture.Origin == filter.Origin)
-            .Where(row => filter.State is null || row.State == filter.State)
-            .Where(row => !filter.NoCaseYet || row.Row.Capture.CaseId is null)
+            .Where(row => !filter.Direct || InScope(row, filter.Scope, now))
+            .Where(row => filter.Direct || filter.StandingLinkId is null || row.Row.Capture.StandingLinkId == filter.StandingLinkId)
             .Where(row => string.IsNullOrEmpty(search) || Matches(row.Row, search))
             .ToArray();
         var pageSize = Math.Max(1, filter.PageSize);
@@ -71,12 +78,19 @@ public sealed class EfPhotoCaptureQueries(
             .ToArray();
         if (rows.Length == 0)
         {
-            return new(rows, matching.Length, countsByState);
+            return new(rows, matching.Length, countsByScope);
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return new(await ShownAsync(context, rows, cancellationToken), matching.Length, countsByState);
+        return new(await ShownAsync(context, rows, cancellationToken), matching.Length, countsByScope);
     }
+
+    private static bool InScope(EvaluatedRow row, PhotoCaptureScope scope, DateTimeOffset now) =>
+        PhotoCaptureStatus.InScope(
+            scope,
+            row.State,
+            PhotoCaptureStatus.DueReminder(row.Row, now),
+            PhotoCaptureAccess.IsLive(row.Row.Capture, now, row.Row.CaseArchived));
 
     public async Task<PhotoCaptureListRow?> GetRowAsync(Guid captureId, CancellationToken cancellationToken)
     {
@@ -131,17 +145,43 @@ public sealed class EfPhotoCaptureQueries(
             .Where(member => member.GroupId == record.SubmissionGroupId)
             .Select(member => (Guid?)member.StagedReceiptId));
 
-    public async Task<PhotoCaptureTabCounts> CountByTabAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<StandingPhotoLinkListing>> ListStandingLinksAsync(CancellationToken cancellationToken)
     {
-        // One grouped count in SQL, not the tabs' evaluation (R806).
+        // Two statements: the links with their contacts, and one grouped
+        // count of the captures each started (v51 P; R948).
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var byOrigin = await context.PhotoCaptures.AsNoTracking()
-            .GroupBy(capture => capture.Origin)
-            .Select(group => new { Origin = group.Key, Count = group.Count() })
+        var links = await EfStandingPhotoLinkStore.ReadAllAsync(context, link => link.RetiredAtUtc == null, cancellationToken);
+        if (links.Count == 0)
+        {
+            return [];
+        }
+
+        var submissions = await context.PhotoCaptures.AsNoTracking()
+            .Where(capture => capture.StandingLinkId != null)
+            .GroupBy(capture => capture.StandingLinkId!.Value)
+            .Select(group => new { LinkId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.LinkId, item => item.Count, cancellationToken);
+        return links
+            .OrderBy(link => link.Kind == StandingPhotoLinkKind.Website ? 1 : 0)
+            .ThenBy(link => link.OrganizationName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(link => link.Id)
+            .Select(link => new StandingPhotoLinkListing(link, submissions.GetValueOrDefault(link.Id)))
+            .ToArray();
+    }
+
+    public async Task<int> CountAwaitingAsync(CancellationToken cancellationToken)
+    {
+        // Awaiting is a live link not yet complete, so only the Direct links
+        // that have not expired and are not cancelled are evaluated.
+        var now = timeProvider.GetUtcNow();
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var captures = await context.PhotoCaptures.AsNoTracking()
+            .Where(capture => SentByUsOrigins.Contains(capture.Origin)
+                && capture.RevokedAtUtc == null
+                && capture.ExpiresAtUtc > now)
             .ToListAsync(cancellationToken);
-        return new(
-            byOrigin.Where(item => ComingInOrigins.Contains(item.Origin, StringComparer.Ordinal)).Sum(item => item.Count),
-            byOrigin.Where(item => SentByUsOrigins.Contains(item.Origin, StringComparer.Ordinal)).Sum(item => item.Count));
+        var evaluated = await EvaluateAsync(context, captures, cancellationToken);
+        return evaluated.Count(row => InScope(row, PhotoCaptureScope.Awaiting, now));
     }
 
     public async Task<IReadOnlyList<PhotoLinkAct>> ListHistoryAsync(Guid captureId, CancellationToken cancellationToken)
@@ -178,9 +218,9 @@ public sealed class EfPhotoCaptureQueries(
     private sealed record EvaluatedRow(PhotoCaptureListRow Row, PhotoCaptureState State);
 
     /// <summary>Every capture of the tab, newest first, each with its missing items and status.</summary>
-    private async Task<IReadOnlyList<EvaluatedRow>> EvaluateTabAsync(bool sentByUs, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<EvaluatedRow>> EvaluateTabAsync(bool direct, CancellationToken cancellationToken)
     {
-        var origins = sentByUs ? SentByUsOrigins : ComingInOrigins;
+        var origins = direct ? SentByUsOrigins : StandingOrigins;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var captures = await context.PhotoCaptures.AsNoTracking()
             .Where(capture => origins.Contains(capture.Origin))
@@ -277,7 +317,6 @@ public sealed class EfPhotoCaptureQueries(
                     record?.Id,
                     missing.Select(item => item.Label).ToArray(),
                     capture.IssuedByStaffId is { } issuer && issuers.TryGetValue(issuer, out var name) ? name : null,
-                    PhotoCapturePairing.None,
                     caseArchived,
                     photographs,
                     SentOnToCustomer: handedOn.Contains(capture.Id)),
@@ -367,11 +406,14 @@ public sealed class EfPhotoCaptureQueries(
         return facts;
     }
 
+    /// <summary>The photographs a list row previews (v51 N; R948).</summary>
+    private const int PreviewPhotographs = 3;
+
     /// <summary>
     /// What only the rows being shown carry, read after the page is cut and
     /// never for the whole tab: a Case link's From, which is the Case's
     /// Principal read now (R805), so a corrected Principal shows at once; and
-    /// how a standing or website capture reached its Case. At most two
+    /// the first photographs each row previews (v51 N; R948). At most two
     /// statements, each for the page's rows.
     /// </summary>
     private static async Task<PhotoCaptureListRow[]> ShownAsync(
@@ -391,62 +433,62 @@ public sealed class EfPhotoCaptureQueries(
                 .Select(caseEntity => new { caseEntity.Id, caseEntity.Principal.Organization.Name })
                 .ToDictionaryAsync(item => item.Id, item => item.Name, cancellationToken);
 
-        var pairedGroupIds = rows
-            .Where(row => row.Capture.Origin != PhotoCaptureOrigin.CaseLink
-                && row.Capture.CaseId is not null
-                && row.Capture.SubmissionGroupId is not null)
-            .Select(row => row.Capture.SubmissionGroupId!.Value)
-            .Distinct()
+        var withPhotographs = rows
+            .Where(row => row.Photographs > 0)
+            .Select(row => row.Capture.Id)
             .ToArray();
-        var chosenByStaff = new Dictionary<(Guid GroupId, Guid CaseId), bool>();
-        if (pairedGroupIds.Length > 0)
+        var previews = new Dictionary<Guid, List<PhotoCapturePreview>>();
+        if (withPhotographs.Length > 0)
         {
-            // The record's origin association owns the pairing decision, as
-            // the merge itself reads it (EfImageIntakeStore), whoever ran the
-            // merge step.
-            var staff = nameof(ActorKind.Staff);
-            var merged = await context.ImageIntakes.AsNoTracking()
-                .Where(record => record.SubmissionGroupId != null
-                    && record.MergedIntoCaseId != null
-                    && EF.Parameter(pairedGroupIds).Contains(record.SubmissionGroupId.Value))
-                .Select(record => new
-                {
-                    GroupId = record.SubmissionGroupId!.Value,
-                    CaseId = record.MergedIntoCaseId!.Value,
-                    ChosenByStaff = context.IntakeManualAssociations.Any(association =>
-                        association.IntakeReceiptId == record.OriginReceiptId && association.ActorKind == staff)
-                })
+            // At most PreviewPhotographs rows per capture, cut in SQL (one
+            // CROSS APPLY), so a long capture costs the page no more than a short one.
+            var items = await context.PhotoCaptures.AsNoTracking()
+                .Where(capture => EF.Parameter(withPhotographs).Contains(capture.Id))
+                .SelectMany(capture => context.PhotoCaptureItems.AsNoTracking()
+                    .Where(item => item.CaptureId == capture.Id
+                        && EF.Parameter(PhotographKinds).Contains(item.Kind)
+                        && (item.IntakeReceiptId != null || item.StagedReceiptId != null))
+                    .OrderBy(item => item.StoryGroup)
+                    .ThenBy(item => item.StorySequence)
+                    .ThenBy(item => item.Ordinal)
+                    .Take(PreviewPhotographs)
+                    .Select(item => new
+                    {
+                        item.CaptureId,
+                        item.StoryGroup,
+                        item.StorySequence,
+                        item.Ordinal,
+                        item.IntakeReceiptId,
+                        item.IntakeAssetId,
+                        item.StagedReceiptId,
+                        item.FileName,
+                        item.MediaType,
+                        item.ContentHash
+                    }))
                 .ToListAsync(cancellationToken);
-            foreach (var record in merged)
+            foreach (var item in items
+                .OrderBy(item => item.StoryGroup)
+                .ThenBy(item => item.StorySequence)
+                .ThenBy(item => item.Ordinal))
             {
-                chosenByStaff.TryAdd((record.GroupId, record.CaseId), record.ChosenByStaff);
+                var shown = previews.TryGetValue(item.CaptureId, out var list) ? list : previews[item.CaptureId] = [];
+
+                // A settled photograph is its intake asset; before the settle it is the staged receipt.
+                shown.Add(item.IntakeReceiptId is { } receiptId && item.IntakeAssetId is { } assetId
+                    ? new PhotoCapturePreview(receiptId, assetId, item.FileName, item.MediaType, item.ContentHash)
+                    : new PhotoCapturePreview(item.StagedReceiptId!.Value, null, item.FileName, item.MediaType, item.ContentHash));
             }
         }
 
-        return rows.Select(row => Shown(row, principals, chosenByStaff)).ToArray();
-    }
-
-    private static PhotoCaptureListRow Shown(
-        PhotoCaptureListRow row,
-        Dictionary<Guid, string> principals,
-        Dictionary<(Guid GroupId, Guid CaseId), bool> chosenByStaff)
-    {
-        var capture = row.Capture;
-        bool? recordChosenByStaff = capture.SubmissionGroupId is { } groupId
-            && capture.CaseId is { } caseId
-            && chosenByStaff.TryGetValue((groupId, caseId), out var byStaff)
-                ? byStaff
-                : null;
-        var organizationName = capture.Origin == PhotoCaptureOrigin.CaseLink
-            && capture.CaseId is { } linkCaseId
-            && principals.TryGetValue(linkCaseId, out var principal)
-                ? principal
-                : row.OrganizationName;
-        return row with
+        return rows.Select(row => row with
         {
-            OrganizationName = organizationName,
-            Pairing = PhotoCaptureStatus.Pairing(capture, recordChosenByStaff)
-        };
+            OrganizationName = row.Capture.Origin == PhotoCaptureOrigin.CaseLink
+                && row.Capture.CaseId is { } linkCaseId
+                && principals.TryGetValue(linkCaseId, out var principal)
+                    ? principal
+                    : row.OrganizationName,
+            Preview = previews.TryGetValue(row.Capture.Id, out var preview) ? preview : []
+        }).ToArray();
     }
 
     private static async Task<IReadOnlyList<CasePhotoCaptureStory>> StoriesAsync(

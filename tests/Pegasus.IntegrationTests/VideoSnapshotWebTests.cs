@@ -19,7 +19,7 @@ using static Pegasus.IntegrationTests.CaseWebTestSupport;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// Case video snapshot end-to-end evidence (operator, 11 November 2026; R945):
+/// Case video snapshot end-to-end evidence (operator, 11 November 2026; R964):
 /// viewer toolbar gating on open Standard and Audit Cases, read-mode and
 /// edit-mode filing without breaking a live edit lease, JPEG In report filing
 /// with millisecond and ordinal collision disambiguation, and automatic
@@ -240,7 +240,7 @@ public sealed class VideoSnapshotWebTests
         Assert.Contains("clip-frame-01m02s.jpg", afterSnapshot, StringComparison.Ordinal);
 
         // The Case save sent with the lease token (even using the version loaded before
-        // the snapshot) lands because Case filing advances the version under the lease (R727, R945).
+        // the snapshot) lands because Case filing advances the version under the lease (R727, R964).
         using (var save = await client.PostAsync(
             $"/Cases/{caseId:D}?handler=Save",
             Form(

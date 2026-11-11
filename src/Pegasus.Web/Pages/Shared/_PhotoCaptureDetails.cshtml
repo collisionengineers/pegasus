@@ -1,22 +1,29 @@
 @*
-    What a photo link's sender told us (FRD-28; R783): every typed detail with
-    the label the capture app's own summary gives it, blank ones left out, and
-    the customer's note. One partial for the Case's Files → Images, the link's
-    page and the Vehicle images record. Nothing renders when the sender typed
-    nothing.
+    What a photo link's sender told us (FRD-28; R783): the customer's note
+    first, then their answers in short labels, blank ones and the damaged
+    areas left out (operator, 11 November 2026; v51 F; R948). One partial for
+    the Case's Files → Images, the link's page and the Vehicle images record.
+    Nothing renders when the sender typed nothing.
 
     Model: the capture.
 *@
 @model Pegasus.Core.PhotoCapture.PhotoCapture
 @using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture
 @{
-    var facts = Labels.Details(Model);
+    var facts = Labels.KeyAnswers(Model);
     var note = string.IsNullOrWhiteSpace(Model.Note) ? null : Model.Note.Trim();
 }
 @if (facts.Count > 0 || note is not null)
 {
     <section class="sub-panel photo-capture-told" data-photo-capture-details="@Model.Id" aria-label="@Labels.WhatTheyToldUs">
         <h3>@Labels.WhatTheyToldUs</h3>
+        @if (note is not null)
+        {
+            <figure class="photo-capture-note">
+                <figcaption class="section-label">@Labels.CustomersNote</figcaption>
+                <blockquote>@note</blockquote>
+            </figure>
+        }
         @if (facts.Count > 0)
         {
             <dl class="definition-list">
@@ -25,13 +32,6 @@
                     <div class="definition"><dt>@label</dt><dd>@value</dd></div>
                 }
             </dl>
-        }
-        @if (note is not null)
-        {
-            <figure class="photo-capture-note">
-                <figcaption class="section-label">@Labels.CustomersNote</figcaption>
-                <blockquote>@note</blockquote>
-            </figure>
         }
     </section>
 }

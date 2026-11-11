@@ -4,7 +4,7 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Core.Tests.Documents;
 
 /// <summary>
-/// Case video snapshot rules (operator, 11 November 2026; R945): supported video
+/// Case video snapshot rules (operator, 11 November 2026; R964): supported video
 /// media types, JPEG/PNG magic-byte verification, replay-stable per-operation
 /// occurrence identities, and custody-safe 120-character file naming with
 /// millisecond and ordinal collision disambiguation.

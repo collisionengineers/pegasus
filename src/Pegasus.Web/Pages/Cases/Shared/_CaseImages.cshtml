@@ -44,14 +44,17 @@
     IHtmlContent? PreparationMetadata(CaseAssetPreparation? item, PreparedReportImage? placed, bool placeFixed, string previewHref) =>
         item is null || !mayPrepareImages ? null : new HtmlString($"""data-preparation-card="" data-preparation-occurrence="{item.OccurrenceId:D}" data-preparation-version="{item.PreparationVersion}" data-preparation-in-report="{(item.InReport ? "true" : "false")}" data-preparation-order="{placed?.Order?.ToString(CultureInfo.InvariantCulture) ?? string.Empty}" data-preparation-fixed="{(placeFixed ? "true" : "false")}" data-preparation-rotation="{(int)item.Rotation}" data-preparation-crop-left="{item.Crop.Left.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-top="{item.Crop.Top.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-width="{item.Crop.Width.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-height="{item.Crop.Height.ToString(CultureInfo.InvariantCulture)}" data-preparation-full-page="{(item.FullPage ? "true" : "false")}" data-preparation-preview="{previewHref}""" + "\"");
 
-    // Photo links (FRD-28; R774): the Case's images stand in each link's
-    // story, matched to their occurrence by the intake asset the occurrence
-    // was filed from, directly or through a Vehicle images record's fold;
-    // everything else follows under Other images. The story
-    // block is the one ordering scope the grid otherwise is: a drop or a
-    // typed order renumbers the report's places and moves no tile out of
-    // its story group (case-workspace.js, the images binder).
-    var stories = Model.PhotoCaptureStories;
+    // Photo links (FRD-28; R774): every Case image stands in one grid
+    // (operator, 11 November 2026; v51 H; R948). A link's images come first,
+    // in its story's order, matched to their occurrence by the intake asset
+    // the occurrence was filed from, directly or through a Vehicle images
+    // record's fold; the links stand in Core's Case order (the primary link,
+    // then the others latest first; v51 J); every other image follows in
+    // report order. Tiles in story order are not in report order, so such a
+    // grid is a [data-image-story] block: a drop or a typed order renumbers
+    // the report's places from the order boxes and moves no tile
+    // (case-workspace.js, the images binder). Order keeps its meaning.
+    var stories = Pegasus.Core.PhotoCapture.PhotoCaptureStory.CaseOrder(Model.PhotoCaptureStories);
     var imagesByAsset = new Dictionary<Guid, Pegasus.Core.Documents.CaseFile>();
     foreach (var image in images)
     {
@@ -60,7 +63,6 @@
             imagesByAsset.TryAdd(assetId, image);
         }
     }
-    var storyImages = new HashSet<Guid>();
 
     // A story item drawn among the images: a photograph on the Case, or one
     // still filing (no intake asset yet). Paperwork and video file as
@@ -69,6 +71,107 @@
     bool IsStoryImage(Pegasus.Core.PhotoCapture.PhotoCaptureItem item) =>
         item.MediaType is "image/jpeg" or "image/png"
         && (item.IntakeAssetId is not { } assetId || imagesByAsset.ContainsKey(assetId));
+
+    // The grid's entries: a Case image, or a link's photo still filing.
+    var gridEntries = new List<(Pegasus.Core.Documents.CaseFile? File, Pegasus.Core.PhotoCapture.PhotoCaptureItem? Filing)>();
+    var drawnOccurrences = new HashSet<Guid>();
+    foreach (var story in stories)
+    {
+        foreach (var group in PhotoCaptureStoryView.Groups(story.Items, story.Capture.Details.MarkedAreas))
+        {
+            foreach (var item in group.Stages.SelectMany(stage => stage.Items).Where(IsStoryImage))
+            {
+                if (item.IntakeAssetId is not { } itemAssetId)
+                {
+                    gridEntries.Add((null, item));
+                }
+                else if (imagesByAsset.TryGetValue(itemAssetId, out var storyFile) && drawnOccurrences.Add(storyFile.Occurrence.Id))
+                {
+                    gridEntries.Add((storyFile, null));
+                }
+            }
+        }
+    }
+    foreach (var image in images)
+    {
+        if (drawnOccurrences.Add(image.Occurrence.Id))
+        {
+            gridEntries.Add((image, null));
+        }
+    }
+
+    // A link's photo that has arrived and is not on the Case yet (no intake
+    // asset): its staged image, live, under its short story name. It is not
+    // a Case image yet, so it has no tile tools (v51 H; R948). One with no
+    // staged receipt yet draws as the placeholder.
+    async Task FilingTile(Pegasus.Core.PhotoCapture.PhotoCaptureItem item)
+    {
+        await Task.CompletedTask;
+        var itemLabel = OperatorLabels.PhotoCapture.ItemLabel(item);
+        if (item.StagedReceiptId is { } receiptId)
+        {
+            var stagedHref = Url.Page("/Intake/Image", new { id = receiptId })!;
+            <li class="image-tile" data-story-item="@item.Id">
+                <a href="@stagedHref"
+                   class="th"
+                   data-evidence-item
+                   data-download-href="@stagedHref"
+                   data-media-type="@item.MediaType"
+                   data-file-name="@item.FileName"
+                   data-thumb="@stagedHref">
+                    <img src="@stagedHref" alt="@itemLabel" loading="lazy" data-gallery-image />
+                    <span class="th-name">@itemLabel</span>
+                </a>
+            </li>
+            return;
+        }
+
+        <li class="image-tile" data-story-item="@item.Id">
+            <span class="gallery-item th th--placeholder" data-gallery-placeholder>
+                <span class="gallery-caption">
+                    <strong>@itemLabel</strong>
+                    <small>@OperatorLabels.CustodyState(DocumentCustodyStatus.Pending)</small>
+                </span>
+            </span>
+        </li>
+    }
+
+    async Task GridTiles()
+    {
+        foreach (var (file, filing) in gridEntries)
+        {
+            if (file is not null)
+            {
+                await Tile(file);
+            }
+            else if (filing is not null)
+            {
+                await FilingTile(filing);
+            }
+        }
+    }
+
+    // A photo link's chip and count, the bar's and a folded row's alike. A
+    // Case link's status is derived the lists' way (R806); a standing or
+    // website link's photos read Uploading until they settle, then Received,
+    // and are not graded against the guided checklist (v51 Q; R948).
+    (string Chip, string Tone, string Count) LinkSummary(Pegasus.Core.PhotoCapture.CasePhotoCaptureStory story, bool folded)
+    {
+        var photographs = story.Items.Count(item => Pegasus.Core.PhotoCapture.PhotoCaptureStory.IsPhotographKind(item.Kind));
+        if (story.Capture.Origin != Pegasus.Core.PhotoCapture.PhotoCaptureOrigin.CaseLink && photographs > 0)
+        {
+            var uploading = Pegasus.Core.PhotoCapture.PhotoCaptureStatus.IsUploading(story.Capture);
+            return uploading
+                ? (OperatorLabels.PhotoCapture.Uploading, "amber", OperatorLabels.PhotoCapture.PhotoCount(photographs, complete: false))
+                : (OperatorLabels.PhotoCapture.Received, "green", OperatorLabels.PhotoCapture.PhotoCount(photographs, complete: true));
+        }
+
+        var linkState = Model.PhotoLinkState(story);
+        var count = photographs > 0
+            ? OperatorLabels.PhotoCapture.PhotoCount(photographs, linkState == Pegasus.Core.PhotoCapture.PhotoCaptureState.Complete)
+            : folded ? OperatorLabels.PhotoCapture.NoPhotos : OperatorLabels.PhotoCapture.NoPhotosYet;
+        return (OperatorLabels.PhotoCapture.State(linkState), OperatorLabels.PhotoCapture.StateTone(linkState), count);
+    }
 
     // One image tile: the same tile wherever the image stands.
     async Task Tile(Pegasus.Core.Documents.CaseFile file)
@@ -286,7 +389,114 @@
     }
 }
 
-@if (images.Count == 0 && Model.ImageIntakes.Count == 0 && stories.Count == 0)
+@if (stories.Count > 0)
+{
+    @* The Images bar (operator, 11 November 2026; v51 I, J; R948): the
+       primary photo link in one line above the grid, its status, count, the
+       sender's key answers in short labels and the customer's note, Resend
+       (the composer, since no button sends an e-mail on its own, R915) and
+       More with Link details and Cancel link last (R795, R912, R913); every
+       other link on the Case folds under it. Resend and Cancel return to this
+       Case's Files in the view they were asked from. *@
+    var primary = stories[0];
+    var capture = primary.Capture;
+    var isCaseLink = capture.Origin == Pegasus.Core.PhotoCapture.PhotoCaptureOrigin.CaseLink;
+    var linkLive = Model.IsPhotoLinkLive(capture);
+    var primarySummary = LinkSummary(primary, folded: false);
+    var answers = OperatorLabels.PhotoCapture.KeyAnswers(capture).Take(4).ToArray();
+    var note = string.IsNullOrWhiteSpace(capture.Note) ? null : capture.Note.Trim();
+    // A Case link with something missing names it in one line (v51 C, I).
+    var missingLine = isCaseLink && Model.PhotoLinkState(primary) == Pegasus.Core.PhotoCapture.PhotoCaptureState.SomethingMissing
+        ? OperatorLabels.PhotoCapture.MissingSummary([.. Model.PhotoLinkMissing(primary).Select(missing => missing.Label)])
+        : null;
+    var standingSource = isCaseLink
+        ? null
+        : primary.OrganizationName
+            ?? (capture.Origin == Pegasus.Core.PhotoCapture.PhotoCaptureOrigin.Website ? OperatorLabels.PhotoCapture.Website : null);
+    var linkReturn = Pegasus.Core.Notifications.StaffNotificationPolicy.CaseRoute(workflow.CaseId, "files")
+        + (Model.ViewRoute is { } linkView ? "&view=" + linkView : string.Empty);
+    <div class="pc-case-bar" data-photo-link-bar="@capture.Id">
+        <span class="pc-case-bar-lead">
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-camera")" /></svg>
+            @if (isCaseLink)
+            {
+                <span>@OperatorLabels.PhotoCapture.DirectLink</span>
+            }
+            else
+            {
+                @* A standing or website link names its source (v51 E; R948). *@
+                <span>@OperatorLabels.PhotoCapture.StandingLink</span>
+                @if (standingSource is not null)
+                {
+                    <span class="pc-case-bar-source">@standingSource</span>
+                }
+            }
+            <partial name="Shared/_StatusChip" model="@primarySummary.Chip" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = primarySummary.Tone }' />
+            <span>@primarySummary.Count</span>
+        </span>
+        @if (answers.Length > 0)
+        {
+            <span class="pc-case-bar-facts">
+                @foreach (var (answerLabel, answerValue) in answers)
+                {
+                    <span>@answerLabel: <strong>@answerValue</strong></span>
+                }
+            </span>
+        }
+        @if (!string.IsNullOrEmpty(missingLine))
+        {
+            <span class="muted" data-photo-link-missing>@OperatorLabels.PhotoCapture.MissingLead @missingLine</span>
+        }
+        <span class="pc-case-bar-end">
+            @if (isCaseLink && linkLive)
+            {
+                <a class="btn btn--small" href="@Pegasus.Web.Pages.PhotoCapture.IndexModel.ResendHref(capture.Id, linkReturn)" data-photo-link-resend="@capture.Id" data-photo-link-composer>@OperatorLabels.PhotoCapture.Resend</a>
+            }
+            @if (linkLive)
+            {
+                <details class="menu" data-menu data-photo-link-menu>
+                    <summary class="btn btn--small"><span>@CaseWorkspaceLabels.Frame.More</span><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-down")" /></svg></summary>
+                    <div class="menu-body">
+                        <a class="btn" asp-page="/PhotoCapture/Details" asp-route-id="@capture.Id" data-photo-link-details>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-external-link")" /></svg>
+                            <span>@OperatorLabels.PhotoCapture.LinkDetails</span>
+                        </a>
+                        <div class="menu-sep"></div>
+                        <partial name="/Pages/PhotoCapture/_CancelLinkForm.cshtml" model="@((capture.Id, linkReturn, true))" />
+                    </div>
+                </details>
+            }
+            else
+            {
+                @* A dead link has Link details alone, its own button (R912). *@
+                <a class="btn btn--small" asp-page="/PhotoCapture/Details" asp-route-id="@capture.Id" data-photo-link-details>@OperatorLabels.PhotoCapture.LinkDetails</a>
+            }
+        </span>
+        @if (note is not null)
+        {
+            <blockquote class="pc-case-note"><strong>@OperatorLabels.PhotoCapture.CustomersNote:</strong> @note</blockquote>
+        }
+        @if (stories.Count > 1)
+        {
+            <details class="pc-other-links" data-photo-link-others>
+                <summary><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-right")" /></svg><span>@OperatorLabels.PhotoCapture.OtherPhotoLinksOnThisCase(stories.Count - 1)</span></summary>
+                <ul class="pc-other-links-rows">
+                    @foreach (var other in stories.Skip(1))
+                    {
+                        var otherSummary = LinkSummary(other, folded: true);
+                        <li data-photo-link-other="@other.Capture.Id">
+                            <partial name="Shared/_StatusChip" model="@otherSummary.Chip" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = otherSummary.Tone }' />
+                            <span>@otherSummary.Count</span>
+                            <span class="muted">@OperatorLabels.PhotoCapture.Created @OperatorLabels.OfficeTime(other.Capture.CreatedAtUtc)</span>
+                            <span class="pc-ol-end"><a class="btn btn--small" asp-page="/PhotoCapture/Details" asp-route-id="@other.Capture.Id">@OperatorLabels.PhotoCapture.OtherLinkDetails</a></span>
+                        </li>
+                    }
+                </ul>
+            </details>
+        }
+    </div>
+}
+@if (gridEntries.Count == 0 && Model.ImageIntakes.Count == 0)
 {
     <p class="muted" data-images-empty>@FilesLabels.NoImages</p>
 }
@@ -295,120 +505,14 @@ else
     @if (stories.Count == 0)
     {
         <ul class="thumbs image-grid" data-evidence-set data-image-grid>
-            @foreach (var file in images)
-            {
-                await Tile(file);
-            }
+            @{ await GridTiles(); }
         </ul>
     }
     else
     {
-        <div class="photo-story" data-image-story data-evidence-set>
-            @foreach (var story in stories)
-            {
-                var capture = story.Capture;
-                <section class="photo-story-capture" data-photo-capture-story="@capture.Id" aria-label="@OperatorLabels.PhotoCapture.PhotoLink">
-                    @{
-                        // Beside the photo link: its derived status in the Photo capture
-                        // pages' words with the photo count, or, while a live link has
-                        // nothing yet, "No photos yet" and Resend the link (R806).
-                        var linkState = Model.PhotoLinkState(story);
-                        var linkLive = Model.IsPhotoLinkLive(capture);
-                        // Photographs only, as the lists count them: paperwork or video alone is not photos.
-                        var linkPhotographs = story.Items.Count(item => Pegasus.Core.PhotoCapture.PhotoCaptureStory.IsPhotographKind(item.Kind));
-                    }
-                    <div class="button-row" data-photo-link-status>
-                        <partial name="Shared/_StatusChip" model="@OperatorLabels.PhotoCapture.State(linkState)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.PhotoCapture.StateTone(linkState) }' />
-                        @if (linkPhotographs > 0)
-                        {
-                            <span>@OperatorLabels.PhotoCapture.PhotoCount(linkPhotographs, linkState == Pegasus.Core.PhotoCapture.PhotoCaptureState.Complete)</span>
-                        }
-                        else if (linkLive)
-                        {
-                            <strong>@OperatorLabels.PhotoCapture.NoPhotosYet</strong>
-                            @if (capture.Origin == Pegasus.Core.PhotoCapture.PhotoCaptureOrigin.CaseLink)
-                            {
-                                @* Resend through the composer, since no button sends an e-mail on
-                                   its own (R915), back to this Case's Files in the view it was
-                                   asked from. *@
-                                var resendReturn = Pegasus.Core.Notifications.StaffNotificationPolicy.CaseRoute(workflow.CaseId, "files")
-                                    + (Model.ViewRoute is { } resendView ? "&view=" + resendView : string.Empty);
-                                <a class="btn btn--small" href="@Pegasus.Web.Pages.PhotoCapture.IndexModel.ResendHref(capture.Id, resendReturn)" data-photo-link-resend>@OperatorLabels.PhotoCapture.ResendTheLink</a>
-                            }
-                        }
-                        @if (linkLive)
-                        {
-                            @* Cancel beside the photo link (R795): the link page's own act and
-                               refusal, back to this Case's Files in the view it was asked from. *@
-                            var cancelReturn = Pegasus.Core.Notifications.StaffNotificationPolicy.CaseRoute(workflow.CaseId, "files")
-                                + (Model.ViewRoute is { } cancelView ? "&view=" + cancelView : string.Empty);
-                            <form method="post" asp-page="/PhotoCapture/Details" asp-page-handler="Cancel" asp-route-id="@capture.Id">
-                                <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
-                                <input type="hidden" name="returnUrl" value="@cancelReturn" />
-                                <button type="submit" class="btn btn--small btn--danger" data-busy-label="@OperatorLabels.Busy.Revoking">@OperatorLabels.PhotoCapture.CancelLink</button>
-                            </form>
-                        }
-                    </div>
-                    <partial name="Shared/_PhotoCaptureDetails" model="capture" />
-                    @foreach (var group in PhotoCaptureStoryView.Groups(story.Items, capture.Details.MarkedAreas))
-                    {
-                        var groupTiles = group.Stages.SelectMany(stage => stage.Items).Where(IsStoryImage).ToArray();
-                        if (groupTiles.Length == 0)
-                        {
-                            continue;
-                        }
-                        <h3 class="section-label photo-story-heading" data-story-group="@group.Group">@group.Label</h3>
-                        @foreach (var stage in group.Stages)
-                        {
-                            var stageItems = stage.Items.Where(IsStoryImage).ToArray();
-                            if (stageItems.Length == 0)
-                            {
-                                continue;
-                            }
-                            @if (stage.Label is { } stageLabel)
-                            {
-                                <h4 class="photo-story-stage">@stageLabel</h4>
-                            }
-                            <ul class="thumbs image-grid">
-                                @foreach (var item in stageItems)
-                                {
-                                    if (item.IntakeAssetId is { } assetId && imagesByAsset.TryGetValue(assetId, out var storyFile))
-                                    {
-                                        storyImages.Add(storyFile.Occurrence.Id);
-                                        await Tile(storyFile);
-                                    }
-                                    else
-                                    {
-                                        @* Still filing: the photo has arrived and is not on the Case yet. *@
-                                        <li class="image-tile" data-story-item="@item.Id">
-                                            <span class="gallery-item th th--placeholder" data-gallery-placeholder>
-                                                <span class="gallery-caption">
-                                                    <strong>@OperatorLabels.PhotoCapture.ItemLabel(item)</strong>
-                                                    <small>@OperatorLabels.CustodyState(DocumentCustodyStatus.Pending)</small>
-                                                </span>
-                                            </span>
-                                        </li>
-                                    }
-                                }
-                            </ul>
-                        }
-                    }
-                </section>
-            }
-            @{
-                var otherImages = images.Where(image => !storyImages.Contains(image.Occurrence.Id)).ToArray();
-            }
-            @if (otherImages.Length > 0)
-            {
-                <h3 class="section-label photo-story-heading">@OperatorLabels.PhotoCapture.OtherImages</h3>
-                <ul class="thumbs image-grid">
-                    @foreach (var file in otherImages)
-                    {
-                        await Tile(file);
-                    }
-                </ul>
-            }
-        </div>
+        <ul class="thumbs image-grid" data-image-story data-evidence-set>
+            @{ await GridTiles(); }
+        </ul>
     }
     <p class="muted image-grid-count"><b data-image-report-count>@ReportImageLabels.InReportCount(includedCount, printableCount)</b></p>
 

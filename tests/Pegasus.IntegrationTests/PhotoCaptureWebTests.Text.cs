@@ -134,7 +134,7 @@ public sealed partial class PhotoCaptureWebTests
         var texts = new RecordingPhotoLinkTextSend();
         using var factory = WithTexts(baseFactory, texts);
         using var client = IntakeWebDriver.CreateClient(factory);
-        var listPath = $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}";
+        var listPath = "/PhotoCapture?scope=all";
         var composer = $"/PhotoCapture/{link.Capture.Id:D}/Resend";
 
         var html = await IntakeWebDriver.GetHtmlAsync(client, $"{composer}?returnUrl={Uri.EscapeDataString(listPath)}");

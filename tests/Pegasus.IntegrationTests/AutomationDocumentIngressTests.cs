@@ -746,7 +746,7 @@ public sealed class AutomationDocumentIngressTests
     /// <summary>
     /// Adding an extracted video frame or photograph through <c>pegasus_document_add</c>
     /// as <c>Image</c> enforces JPEG or PNG bytes, marks the Case's images complete,
-    /// and moves an eligible Not ready Case with mileage to Review (R945).
+    /// and moves an eligible Not ready Case with mileage to Review (R964).
     /// </summary>
     [Fact]
     public async Task AddingAnImageCompletesCaseImagesAndRefusesNonImageMediaTypes()

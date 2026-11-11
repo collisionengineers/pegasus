@@ -1,5 +1,7 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @using Pegasus.Core.Cases
+@using Pegasus.Core.Lifecycle
 @using Pegasus.Core.Documents
 @using Pegasus.Web.Pages.Cases
 @using Pegasus.Web.Presentation
@@ -24,6 +26,13 @@
     // window, offered once one of them can be read; an image still arriving
     // brings the button with it when it confirms. Absent, never disabled.
     var hasReadableImage = Model.HasReadableImage;
+    // Send photo link beside Add evidence on an open Case (operator,
+    // 11 November 2026; v51 K; R948), as well as in the ribbon's Actions:
+    // the ribbon's own condition and page (FRD-28; R773). It navigates, so
+    // it needs no lease and is offered reading and editing alike.
+    var filesWorkflow = Model.CurrentWorkflow!;
+    var canSendPhotoLink = !CaseLifecycleRules.IsTerminal(filesWorkflow.State) && filesWorkflow.Archive is null
+        && ShellRail.PhotoCaptureEnabled(Configuration);
 }
 
 @* Files (v26 § Files): one panel, three tabs — Documents, Images and
@@ -59,6 +68,13 @@
                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-upload")" /></svg>
                 <span>@OperatorLabels.CaseWorkspace.AddEvidence</span>
             </a>
+            @if (canSendPhotoLink)
+            {
+                <a class="btn btn--small" asp-page="/PhotoCapture/Send" asp-route-caseId="@filesWorkflow.CaseId" asp-route-returnUrl="@Pegasus.Core.Notifications.StaffNotificationPolicy.CaseRoute(filesWorkflow.CaseId, "files")" data-send-photo-link data-photo-link-composer>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-camera")" /></svg>
+                    <span>@OperatorLabels.PhotoCapture.SendPhotoLink</span>
+                </a>
+            }
             @if (hasReadableImage)
             {
                 <a class="btn btn--small" href="@CaseFileAddresses.ImagesWindow(Model.CurrentWorkflow!.CaseId)" target="_blank" rel="noopener" data-images-popout>

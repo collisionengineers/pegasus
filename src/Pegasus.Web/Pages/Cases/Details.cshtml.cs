@@ -231,14 +231,23 @@ public sealed partial class DetailsModel(
     public Pegasus.Core.PhotoCapture.PhotoCaptureState PhotoLinkState(Pegasus.Core.PhotoCapture.CasePhotoCaptureStory story)
     {
         ArgumentNullException.ThrowIfNull(story);
+        var photographs = story.Items.Count(item => Pegasus.Core.PhotoCapture.PhotoCaptureStory.IsPhotographKind(item.Kind));
+        return Pegasus.Core.PhotoCapture.PhotoCaptureStatus.Evaluate(
+            story.Capture, PhotoLinkMissing(story), photographs, clock.GetUtcNow(), CurrentWorkflow?.Archive is not null);
+    }
+
+    /// <summary>
+    /// What a photo link on the Case still lacks, in the lists' words: what
+    /// decides its status, and the Images bar's Missing line (v51 I; R948).
+    /// </summary>
+    public IReadOnlyList<Pegasus.Core.PhotoCapture.MissingCaptureItem> PhotoLinkMissing(Pegasus.Core.PhotoCapture.CasePhotoCaptureStory story)
+    {
+        ArgumentNullException.ThrowIfNull(story);
         var capture = story.Capture;
-        var missing = Pegasus.Core.PhotoCapture.PhotoCaptureRequiredItems.Evaluate(
+        return Pegasus.Core.PhotoCapture.PhotoCaptureRequiredItems.Evaluate(
             capture,
             Pegasus.Core.PhotoCapture.PhotoCaptureItemPresence.Of(story.Items),
             Pegasus.Core.PhotoCapture.PhotoCaptureRequiredItems.VinRequired(capture, story.StandingLinkIsRepairer, story.HandedOn));
-        var photographs = story.Items.Count(item => Pegasus.Core.PhotoCapture.PhotoCaptureStory.IsPhotographKind(item.Kind));
-        return Pegasus.Core.PhotoCapture.PhotoCaptureStatus.Evaluate(
-            capture, missing, photographs, clock.GetUtcNow(), CurrentWorkflow?.Archive is not null);
     }
 
     /// <summary>

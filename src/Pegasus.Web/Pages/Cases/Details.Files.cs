@@ -81,7 +81,7 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// Whether the Case viewer offers Take snapshot on a video: any open,
-    /// non-archived Case, in or out of Edit mode (R727, R945).
+    /// non-archived Case, in or out of Edit mode (R727, R964).
     /// </summary>
     public bool CanSnapshotVideos =>
         CurrentWorkflow is { Archive: null } workflow

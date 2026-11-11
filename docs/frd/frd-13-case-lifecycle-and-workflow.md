@@ -155,7 +155,7 @@ later record of the same capture does not complete them again (operator,
 Case as an `Image` — from a Case video snapshot, `pegasus_document_add`, or
 retyping a confirmed document to `Image` — likewise completes the Case's images
 once confirmed in Box custody (operator, 11 November 2026,
-[R945](../rulings.md);
+[R964](../rulings.md);
 [FRD-05](frd-05-documents-extraction-and-custody.md#document-types)). It does not clear other
 blockers, assign an Engineer, or skip Review.
 

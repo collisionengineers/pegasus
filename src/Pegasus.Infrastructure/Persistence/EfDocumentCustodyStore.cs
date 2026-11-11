@@ -157,7 +157,7 @@ internal sealed class EfDocumentCustodyStore(
         }
 
         var workflow = await RequireWorkflowAsync(context, command.CaseId, cancellationToken);
-        // Case filing neither waits on nor breaks a live edit lease (R727, R945).
+        // Case filing neither waits on nor breaks a live edit lease (R727, R964).
         CaseMutationGuard.RequireOpen(workflow, command.Actor);
 
         var sourceVideo = await (
@@ -285,7 +285,7 @@ internal sealed class EfDocumentCustodyStore(
     /// <summary>
     /// Marks the Case's images complete once a confirmed JPEG or PNG image is
     /// added or retyped on the Case, re-evaluating readiness when a Case data
-    /// snapshot is present so an eligible Not ready Case moves to Review (FRD-05, R945).
+    /// snapshot is present so an eligible Not ready Case moves to Review (FRD-05, R964).
     /// </summary>
     private static async Task CompleteAddedImageIfNeededAsync(
         PegasusDbContext context,

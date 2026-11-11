@@ -20,7 +20,15 @@
 
 <header class="page-header">
     <div class="page-title">
-        <p class="eyebrow"><a class="mono" asp-page="/Cases/Details" asp-route-id="@facts.CaseId">@facts.Reference</a></p>
+        @* The Case, its registration and its Principal, rather than read-only
+           boxes (operator, 11 November 2026; v51 L; R948). *@
+        <p class="eyebrow">
+            <a class="mono" asp-page="/Cases/Details" asp-route-id="@facts.CaseId">@facts.Reference</a> · <span class="mono">@registration</span>
+            @if (facts.PrincipalName is { Length: > 0 } principal)
+            {
+                <text> · @principal</text>
+            }
+        </p>
         <h1>@Labels.SendAPhotoLink</h1>
     </div>
 </header>
@@ -96,133 +104,11 @@ else if (facts.IsClosed)
 }
 else
 {
-    <form method="post" asp-route-caseId="@facts.CaseId" class="photo-link-send">
-        <input type="hidden" asp-for="OperationKey" />
-        <div class="stack">
-            <section class="panel" aria-labelledby="photo-link-who-title">
-                <div class="panel-head"><h2 id="photo-link-who-title">@Labels.WhoItsFor</h2></div>
-                <div class="panel-body form-grid form-grid--2">
-                    <div class="field"><label for="photo-link-case">@Labels.Case</label><input id="photo-link-case" class="mono" value="@facts.Reference · @registration" readonly /></div>
-                    <div class="field"><label for="photo-link-principal">@Labels.InstructedBy</label><input id="photo-link-principal" value="@facts.PrincipalName" readonly /></div>
-                    <div class="field"><label asp-for="CustomerName">@Labels.CustomerName</label><input asp-for="CustomerName" autocomplete="off" /><span asp-validation-for="CustomerName"></span></div>
-                    <div class="field"><label for="AccidentDate">@Labels.AccidentDate</label><input id="AccidentDate" name="AccidentDate" type="date" value="@Model.AccidentDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" /></div>
-                    <div class="field"><label asp-for="Mobile">@Labels.Mobile</label><input asp-for="Mobile" type="tel" inputmode="tel" autocomplete="off" /><span asp-validation-for="Mobile"></span></div>
-                    <div class="field"><label asp-for="Email">@Labels.Email</label><input asp-for="Email" type="email" autocomplete="off" /><span asp-validation-for="Email"></span></div>
-                </div>
-            </section>
-
-            @if (Model.CanEmail || Model.CanText)
-            {
-                <section class="panel" aria-labelledby="photo-link-how-title">
-                    <div class="panel-head"><h2 id="photo-link-how-title">@Labels.HowToSendIt</h2></div>
-                    <div class="panel-body stack">
-                        @if (Model.CanEmail)
-                        {
-                            <div class="form-grid form-grid--2">
-                                <div class="field">
-                                    <label asp-for="FromMailboxId">@Labels.FromMailbox</label>
-                                    <select asp-for="FromMailboxId">
-                                        <option value=""></option>
-                                        @foreach (var mailbox in Model.Senders.Mailboxes)
-                                        {
-                                            <option value="@mailbox.Id" selected="@(Model.FromMailboxId == mailbox.Id)">@mailbox.Address</option>
-                                        }
-                                    </select>
-                                    <span asp-validation-for="FromMailboxId"></span>
-                                </div>
-                                <div class="field"><label asp-for="Subject">@Labels.Subject</label><input asp-for="Subject" /><span asp-validation-for="Subject"></span></div>
-                            </div>
-                            <div class="field" data-photo-link-wording>
-                                <label asp-for="Body">@Labels.Message</label>
-                                @* The standard wording with the name, registration, Principal and expiry
-                                   filled in; {photo link} stays until the link exists (R806). *@
-                                <textarea asp-for="Body" rows="9" data-photo-link-message></textarea>
-                                <span asp-validation-for="Body"></span>
-                                <input type="hidden" asp-for="StandardBody" data-photo-link-standard />
-                                <p class="field-hint" data-photo-link-edited hidden="@(!Model.BodyEdited)">
-                                    @Labels.EditedForThisOneOnly
-                                    <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.SendModel.StandardWording" class="btn btn--small" formnovalidate data-photo-link-reset data-busy-label="@OperatorLabels.Busy.Restoring">@Labels.PutTheStandardWordingBack</button>
-                                </p>
-                            </div>
-                        }
-                        @if (Model.CanText)
-                        {
-                            @* The Photo link (text) wording, sent to the mobile above (R918, R919). *@
-                            <div class="field" data-photo-link-wording>
-                                <label asp-for="TextBody">@Labels.TextMessage</label>
-                                <textarea asp-for="TextBody" rows="5" data-photo-link-message></textarea>
-                                <span asp-validation-for="TextBody"></span>
-                                <input type="hidden" asp-for="StandardTextBody" data-photo-link-standard />
-                                <p class="field-hint" data-photo-link-edited hidden="@(!Model.TextBodyEdited)">
-                                    @Labels.EditedForThisOneOnly
-                                    <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.SendModel.StandardTextWording" class="btn btn--small" formnovalidate data-photo-link-reset data-busy-label="@OperatorLabels.Busy.Restoring">@Labels.PutTheStandardWordingBack</button>
-                                </p>
-                            </div>
-                        }
-                    </div>
-                </section>
-            }
+    @* The composer, one channel at a time (v51 L; R948): the page the Case's
+       dialog falls back to without script, and answers a refusal with. *@
+    <div class="panel pc-composer-page">
+        <div class="panel-body">
+            <partial name="_PhotoLinkComposer" model="Model" view-data="@(new ViewDataDictionary(ViewData) { ["PhotoLinkComposerOnPage"] = true })" />
         </div>
-
-        <div class="stack">
-            <section class="panel" aria-labelledby="photo-link-settings-title">
-                <div class="panel-head"><h2 id="photo-link-settings-title">@Labels.LinkSettings</h2></div>
-                <div class="panel-body stack">
-                    <fieldset class="field fieldset-plain">
-                        <legend>@Labels.PhotoGuidance</legend>
-                        <div class="cluster">
-                            @foreach (var mode in Enum.GetValues<PhotoCaptureMode>())
-                            {
-                                <label class="choice"><input type="radio" name="Mode" value="@mode" checked="@(Model.Mode == mode)" /> <span>@Labels.Mode(mode)</span></label>
-                            }
-                        </div>
-                    </fieldset>
-                    @* Asked, and required, only when Quick is chosen (R808); photo-link-send.js follows the choice. *@
-                    <fieldset class="field fieldset-plain" data-photo-link-type hidden="@(Model.Mode != PhotoCaptureMode.Quick)">
-                        <legend>@Labels.QuickLinkType</legend>
-                        <div class="cluster">
-                            @foreach (var quickLinkFor in Enum.GetValues<PhotoCaptureQuickLinkFor>())
-                            {
-                                <label class="choice"><input type="radio" name="QuickLinkFor" value="@quickLinkFor" checked="@(Model.QuickLinkFor == quickLinkFor)" required="@(Model.Mode == PhotoCaptureMode.Quick)" /> <span>@Labels.QuickLinkFor(quickLinkFor)</span></label>
-                            }
-                        </div>
-                        @* A Quick link sent without a Type is refused here (R868). *@
-                        <span asp-validation-for="QuickLinkFor"></span>
-                    </fieldset>
-                    <label class="choice"><input asp-for="LiveCameraOnly" /> <span>@Labels.LiveCameraOnly</span></label>
-                    <div class="field field--narrow">
-                        <label asp-for="Days">@Labels.LinkLasts</label>
-                        <select asp-for="Days">
-                            @foreach (var days in Model.LifetimesOffered)
-                            {
-                                <option value="@days" selected="@(Model.Days == days)">@Labels.Days(days)</option>
-                            }
-                        </select>
-                    </div>
-                    <label class="choice"><input asp-for="OriginalsInBackground" /> <span>@Labels.FullSizeOriginals</span></label>
-                </div>
-            </section>
-            <div class="button-row photo-link-send-actions">
-                <a class="btn" asp-page="/Cases/Details" asp-route-id="@facts.CaseId">Cancel</a>
-                <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.SendModel.ToCopy" class="btn" data-busy-label="@OperatorLabels.Busy.Creating">
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
-                    <span>@Labels.CreateLinkToCopy</span>
-                </button>
-                @if (Model.CanText)
-                {
-                    <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.SendModel.ByText" class="btn@(Model.CanEmail ? "" : " btn--primary")" data-busy-label="@OperatorLabels.Busy.Sending">
-                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
-                        <span>@Labels.SendByText</span>
-                    </button>
-                }
-                @if (Model.CanEmail)
-                {
-                    <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.SendModel.ByEmail" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Sending">
-                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
-                        <span>@Labels.SendByEmail</span>
-                    </button>
-                }
-            </div>
-        </div>
-    </form>
+    </div>
 }

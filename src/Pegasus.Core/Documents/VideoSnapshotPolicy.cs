@@ -9,7 +9,7 @@ namespace Pegasus.Core.Documents;
 /// <summary>
 /// Captures one still image from a confirmed Case video and files it on the
 /// Case as a staff-uploaded <see cref="DocumentSemanticRole.Image"/> in the
-/// report set (operator, 11 November 2026; R945).
+/// report set (operator, 11 November 2026; R964).
 /// </summary>
 public sealed record SnapshotCaseVideoCommand(
     Guid CaseId,
@@ -29,7 +29,7 @@ public interface ISnapshotCaseVideo
 
 /// <summary>
 /// Validation, replay-stable occurrence identity, and bounded custody-safe file
-/// naming for still frames captured from a Case video (R945).
+/// naming for still frames captured from a Case video (R964).
 /// </summary>
 public static class VideoSnapshotPolicy
 {
@@ -141,7 +141,7 @@ public static class VideoSnapshotPolicy
     /// Formats a snapshot file name as <c>{video-stem}-frame-{mm}m{ss}s.jpg</c>
     /// (or <c>.png</c>), disambiguating collisions on the Case first with
     /// <c>{ms}ms</c> and then with <c> (2)</c>, <c> (3)</c> while keeping the
-    /// full name custody-safe and within <see cref="MaximumFileNameLength"/> (R895, R896, R945).
+    /// full name custody-safe and within <see cref="MaximumFileNameLength"/> (R895, R896, R964).
     /// </summary>
     public static string FileNameFor(
         string? sourceVideoFileName,

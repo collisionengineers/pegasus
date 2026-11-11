@@ -21,7 +21,7 @@
 - Inspection images arrive In report; additional information (the scene,
   the other vehicle, paperwork and video) does not. Files go flat into the
   Case's Box folder under story-order names.
-- Pegasus never sends a reminder by itself. **Links we sent** shows what is
+- Pegasus never sends a reminder by itself. **Direct links** shows what is
   due and a member of staff resends through the composer, which sends nothing
   until **Send by e-mail** or **Send by text**.
 
@@ -52,11 +52,17 @@ public boundary is [ADR-0090](../adr/0090-public-photo-capture-surface.md).
 
 ### Photo links
 
-Staff send a photo link from a Case: the ribbon's **Send photo link** opens
-`/PhotoCapture/Send/{caseId}`. A closed Case cannot send one: the button is
+Staff send a photo link from a Case: the ribbon's **Send photo link**, and
+the same button in the Files head, opens the composer over the Case, whose
+page without script is `/PhotoCapture/Send/{caseId}` (operator, 11 November
+2026; v51 K, M; [R948](../rulings.md)). A closed Case cannot send one: the button is
 hidden and the Send page refuses it with "The Case cannot take a photo
 link."; links sent before the Case closed keep working (operator,
-10 November 2026; R847). The Case and its registration are read-only.
+10 November 2026; R847). The Case, its registration and its Principal stand
+in the composer's eyebrow. The composer shows one channel at a time,
+**Email**, **Text message** or **Link to copy**, each with only its own
+recipient, wording and button; Mode, its Type when Quick, and Lasts share
+one row (R948).
 The customer's name, accident date and mobile start from the Case and may
 be changed; the e-mail is typed, because a Case holds no customer e-mail.
 Staff choose the mode, **guided** (a page per step, for a customer) or
@@ -189,9 +195,9 @@ link for good: its address answers like an unknown one, it cannot be
 resumed, and the contact, or the website, may be given a new link
 (operator, 9 November 2026; R796, R805).
 
-On **Coming in**, a capture's From names the contact and how the photos
-came: **Their staff took them**, **Sent on to their customer**, or
-**Customer, from our website**.
+On **Standing links**, a capture's Standing link names the contact and how
+the photos came: **Their staff took them**, **Sent on to their customer**,
+or **Customer, from our website** (R948).
 
 ### Public surface
 
@@ -436,7 +442,7 @@ A reminder is due, and shown, when a link is not opened after 24 hours and
 again after 48; when it was started but not finished after 4 quiet hours;
 when something is missing once it was sent; and when it is about to expire,
 within one day. Pegasus never sends a reminder (R773; MAIL-19 stands):
-**Links we sent** shows what is due, and a member of staff sends the link
+**Direct links** shows what is due, and a member of staff sends the link
 again with **Resend**. Resend and the former Remind sent the same message, so
 they are one act: a Case link's Resend counts as a reminder only when one was
 due (operator, 10 November 2026; [R914](../rulings.md)). No button sends an
@@ -445,10 +451,10 @@ To, Subject and Message in the standard wording, and nothing is sent until
 **Send by e-mail**; **Create link to copy** makes the link without sending
 (operator, 10 November 2026: "any email sending always needs a dialogue box -
 a button cannot just send an email on its own"; [R915](../rulings.md)).
-**Log call** records a phone call. On **Coming in**, **Ask for it** is the
-same act for a capture not sent from a Case: it makes a fresh link (operator,
-9 November 2026; R806, R816) and counts as a reminder (operator, 10 November
-2026; R842).
+**Log call** records a phone call. Only a link sent from a Case is sent
+again: **Ask for it**, which made a fresh link for a capture a standing or
+website link started (R806, R816, R842), is retired (operator, 11 November
+2026; R948).
 
 ### The photo link e-mail
 
@@ -503,8 +509,8 @@ digits, or the same written +44 7…, 0044 7… or 44 7…, spaces, dashes, dots
 and brackets ignored; any other number is refused with "Enter a UK mobile
 number to send by text." beside it. Replies are not read.
 
-**Send by text** sits beside **Send by e-mail** on Send a photo link and in
-the Resend / Ask for it composer (R920); no button texts on its own (R915).
+**Text message** is one of the composer's channels on Send a photo link and
+in the Resend composer (R920, R948); no button texts on its own (R915).
 On the Send page the text goes to the form's **Mobile**; in the composer, to
 the link's mobile, which staff may change there. The message is the
 template purpose **Photo link (text)**
@@ -559,73 +565,89 @@ the Case, and only that (operator, 10 November 2026; R843;
 
 **Photo capture** (`/PhotoCapture`) is a rail item under Work, after Cases,
 with no count (R774;
-[FRD-12](frd-12-operator-experience.md#shell-and-routes)). It has two tabs:
+[FRD-12](frd-12-operator-experience.md#shell-and-routes)). It has two tabs,
+named for the two kinds of link Collision Engineers runs (operator, 11
+November 2026, approving the [v51 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v51-photo-capture/v51_planning)
+as drawn; [R948](../rulings.md)):
 
-- **Coming in**: standing and website captures, with Vehicle, From,
-  Customer, Case, Status, Photos and Received. The Case column reads
-  **Awaiting instruction** for a capture with no Case (operator, 9 November
-  2026; R805). Under the reference of a Case a member of staff chose with
-  Match to a case it reads **Matched by staff**, beside **Matched
-  automatically** for one Pegasus matched (operator, 10 November 2026;
-  R864). The From filter also offers **No case yet**, the captures
-  with no Case. **Ask for it**, on a live row whose status is Something
-  missing, makes a fresh link for that capture: when the capture is on a
-  Case and holds an e-mail address it opens the composer, as Resend does;
-  otherwise it shows the link for staff to copy and send themselves
-  (operator, 9 November 2026; R806, R816; R915);
-- **Links we sent**: Case links, with Vehicle, Customer and mobile, Case,
-  From, Status, Photos and Next reminder, which is blank when nothing is due.
-  Sent by is on the link's page and in its history, not the list. From is the
-  Case's Principal (operator, 9 November 2026; R805), with **Sent on to their
-  customer** under it once a quick link's firm has handed it on (operator,
-  9 November 2026; R798).
+- **Direct links**, the default: the links HQ sent for a Case, with Vehicle
+  (and up to three of its first photographs), Case (with its Principal, read
+  when the page is shown; R805), Recipient (with the mobile, or **Forwarded to
+  customer** once a quick link's firm has handed it on; R798), Status (with
+  "Reminder due · …" when a reminder is due, else how many were sent), Photos
+  (with what is missing) and Sent. Its scopes, each with its count, are
+  **Awaiting** (a live link not yet complete), **Needs chase** (a live link
+  with a reminder due, or one that needs a phone call), **Complete**,
+  **Closed** (a dead link not complete) and **All**; the tab counts its
+  Awaiting links. A row carries only the act its state calls for: **Resend**
+  while the link is live and a reminder is due or it is unopened, opened or
+  missing something, else **Log call** when it needs a phone call. Cancel
+  link and Extend stay on the link's page and the Case. Log call from a row
+  returns to the list with "Call logged".
+- **Standing links**: the directory of the standing links that are not
+  retired, the contacts' by name and the website's last, each with its
+  contact's type (the website's reads **Private customers**), Paused or
+  Contact inactive where it is, and how many captures it started; beside it
+  the submissions, all of them or one link's, with Vehicle, Standing link
+  (and how the photos came: **Their staff took them**, **Sent on to their
+  customer** or **Customer, from our website**), Customer, Destination,
+  Photos and Received. Any member of staff may copy a link or show its QR
+  code and download it; an Administrator also has **Defaults**, to
+  Administration › Photo links, and on a chosen link **Manage**, to its
+  contact's Photo links tab or, for the website's, to Photo links. The tab
+  counts the standing links.
 
-Each tab shows how many captures it holds, on the tab and on All (operator,
-9 November 2026; R806). A row is one line: a long name, firm or missing item
-ends in an ellipsis with the full text on hover. Each row leads with the act
-its state calls for: on Links we sent, **Resend** while the link is live and a
-reminder is due or it is unopened, **Log call** when it needs a phone call,
-else **View photos**; on Coming in, **Ask for it**, else **View photos** on a
-Case or **Match to a case** on a Vehicle images record. One other act stands
-beside it as its own button, two or more go in a **More** menu with **Cancel
-link** last; More never holds a single act, and **Cancel link** stays on each
-live row (R795). Log call from a row returns to the list with "Call logged".
-Narrower windows drop columns rather than scroll: from 1480px down Next
-reminder and Received, from 1300px Links we sent's From and Coming
-in's Customer, and from 1180px Coming in's From, the mobile and the missing
-item, every one of them still on the link's page (operator, 10 November 2026,
-approving the [v50 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v50-config-and-photo-capture/v50_planning) as drawn; [R912](../rulings.md)).
+A capture a standing or website link started is never sent again: **Ask for
+it** is retired. It reads **Uploading**, with its photos so far, until its
+photos settle, and then its photo count, and its status is not graded
+against the guided checklist. **Match to a case**, **No case yet**,
+**Matched automatically** and **Matched by staff** are retired too: a
+submission's Destination is its Case, or the Vehicle images record Pegasus
+made for it, **Awaiting instruction**, which pairs as any Vehicle images
+record does ([FRD-19](frd-19-image-led-intake-and-pairing.md)) (R948). A row
+is one line: a long name, firm or missing item ends in an ellipsis with the
+full text on hover, and narrower windows drop columns rather than scroll:
+from 1460px Sent and Received, from 1300px the Principal, the Customer and
+the photographs, and from 1180px Recipient, Standing link and the missing
+items, every one of them still on the link's page (R912, R948).
 
 `/PhotoCapture/Send/{caseId}` sends a link ([Photo links](#photo-links)).
-`/PhotoCapture/{id}` is a link's detail: its facts, the typed details, the
-note, the status, the missing items, the items by story group and the
-history, with Resend, Log call, Extend and Cancel. Its status stands beside
-the registration; its one primary act is Resend when a reminder is due, Log
-call when the link needs a phone call, else Resend while it is live; View
-photos stands beside it, and the rest, Extend by 3, 7 or 14 days among them,
-go in More, Cancel link last. The missing items, the photos and the history
-form its main column, and its facts and what the sender told us a 360px aside
-(operator, 10 November 2026; [R913](../rulings.md)). The history names
-who acted: "Cancelled · name", "Link extended · name" and "Call logged ·
-name" (operator, 9 November 2026; R805), and "Reminded · name", one line for
-each reminder (operator, 10 November 2026; R870). Resend on an
+`/PhotoCapture/{id}` is a link's detail (operator, 11 November 2026; v51
+A to G; [R948](../rulings.md)). Its eyebrow names its tab and its status
+stands beside the registration: a Case link's state, or for a standing or
+website capture Uploading, then Received. Its one primary act is Resend when
+a reminder is due, Log call when the link needs a phone call, else Resend
+while it is live, on a Case link only; then **Open case**, to the Case's
+Files, or **Open Vehicle images**; and More with the rest, Extend by 3, 7 or
+14 days among them, Cancel link last (R913). Its main column is **Photos**:
+on a Case link with something missing one Missing line, filters All,
+Overview, Damage and Vehicle ID, and the photographs as tiles that open in
+the viewer, each named once, a repeated name numbered, with paperwork and
+video as files below. Its 320px aside is one **Summary**: for a Case link
+Case, Recipient, Principal, Sent by, Accident, Expires and Chase; for a
+standing capture Destination, Standing link, Customer, Accident and
+Received; then what the sender told us, the note first and the answers in
+short labels; then the folded **History**, which names who acted:
+"Cancelled · name", "Link extended · name", "Call logged · name" (operator,
+9 November 2026; R805), "Reminded · name", one line for each reminder
+(operator, 10 November 2026; R870), and "Sent by text · name" or "Text not
+sent · name" (R921). Resend on an
 expired link is refused with "The link has expired; extend it first.", and
 on a cancelled link with "The link was cancelled; send a new one from the
 Case." (operator, 10 November 2026; R863). A live link on a Case also offers
-**Cancel link** beside it in the Case's Files → Images. Cancel is the same
-act wherever it is offered, with the same refusal, and a repeated click
-cancels once (operator, 9 November 2026; R795). Beside a photo link in the
-Case's Files → Images stand its status, in the words above, and its photo
-count; while a live link has nothing yet, **No photos yet** and, on a link
-sent from the Case, **Resend the link**, which opens the composer and returns
-to the Case's Files (operator, 9 November 2026; R806; R915). Paperwork and video a capture with no
+**Cancel link** in the More of its bar in the Case's Files → Images
+([FRD-16](frd-16-case-record-workspace.md)). Cancel is the same act wherever
+it is offered, with the same refusal, and a repeated click cancels once
+(operator, 9 November 2026; R795). Paperwork and video a capture with no
 Case received stay kept and unfiled, and each opens from the link's page as
 any received file opens; nothing new is filed, chased or deleted, and a
-capture that sent only paperwork stays on Coming in (operator, 9 November
-2026; R807). The Vehicle images record page shows the source **Photo link**
-with the details and the note, on the record of every batch the capture
-made, not only its latest; and the Case shows the capture's story once any
-of those records has reached it.
+capture that sent only paperwork stays on Standing links (operator, 9 November
+2026; R807). The Vehicle images record page, headed **Vehicle images**,
+shows its Images first beside a Summary with the source **Photo link**, the
+details and the note, on the record of every batch the capture made, not
+only its latest, and lists under Retained files only what the Images do not
+show (R948); the Case shows the capture's photos once any of those records
+has reached it.
 
 ### Limits
 
@@ -717,7 +739,7 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
   before sign-in, and the rail item, Send photo link and the Photo links tab
   are absent
   ([configuration](../engineering/configuration.md#photo-capture)).
-- **A staff form posted again.** A Send, Resend or Ask for it posted again
+- **A staff form posted again.** A Send or Resend posted again
   under the same operation key (a refresh, or Back and send) issues, sends
   and texts nothing more. The link was shown to the first post alone, as
   only its digest is kept ([ADR-0090](../adr/0090-public-photo-capture-surface.md)):
@@ -760,14 +782,14 @@ Integration tests hold the rest:
   name, baskets, the issuer's decision, a report-sent Case, images not
   completed by the first photo, the loose damage photo, originals and their
   bytes, the ignored typed registration, one link's token not reaching
-  another's items), an archived Case's dead link, and the staff pages (From,
-  Resend through the composer and Cancel on live rows, who acted, Retire,
-  the website link's typed address and defaults on Administration › Photo
-  links, the tab counts, No case yet, Ask for it, the Case page's status and
-  Resend, a kept file opening, a closed Case's Send
-  page, the refusal sentences beside their forms, Matched by staff,
-  Contact inactive, Reminded · name, and a standing link's changes written
-  to the action history);
+  another's items), an archived Case's dead link, and the staff pages (the
+  Principal, Resend through the composer and no Cancel on Direct links rows,
+  who acted, Retire, the website link's typed address and defaults on
+  Administration › Photo links, the tab counts, Standing links' submissions
+  with no Ask for it or Match to a case, the Case page's status and Resend, a
+  kept file opening, a closed Case's Send page, the refusal sentences beside
+  their forms, Contact inactive, Reminded · name, and a standing link's
+  changes written to the action history);
 - `WorkflowConfigurationWebTests`: the Photo links settings' refusals;
 - `StandingCaptureWebTests`: a standing capture opened as it starts, waiting
   with no Case and never Unidentified, taking paperwork with no Case, routed

@@ -55,8 +55,9 @@ Case at the same route renders as the Triage Case page instead
   reads "Held · review on {date}" when the hold has a review date;
 - **Edit Case**, or while editing the Editing badge, its status word
   (Saving…, Saved {time}, or why the last change was not saved) and **Done**;
-- **Send photo link**, which opens `/PhotoCapture/Send/{caseId}` to send a
-  photo link for this Case, to the customer or, as a quick link, to a firm
+- **Send photo link**, which opens the photo link composer over the Case
+  (operator, 11 November 2026; [R948](../rulings.md)) to send a photo link
+  for this Case, to the customer or, as a quick link, to a firm
   (operator, 9 November 2026; R808), absent while `Features:PhotoCapture`
   is off (operator, 9 November 2026; R773;
   [FRD-28](frd-28-guided-photo-capture.md#photo-links)) and on a closed
@@ -895,17 +896,24 @@ photographs below the grid, under its Image reference. When the merge
 completes they are Case images and the record's group goes, so each
 photograph shows once
 ([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)). A
-Case with photo link photos shows, for each capture, a **What they told us**
-card with the details the sender typed and their note, then its photos in
-story order under their story groups (the overview all the way round, each
-damaged area, the number plate, the VIN, the dashboard, then the additional
-information) (operator, 9 November 2026; R774;
-[FRD-28](frd-28-guided-photo-capture.md#baskets-and-names)). Beside each
-capture stand its status and photo count, **Cancel link** while it is live,
-and, while a live link has nothing yet, **No photos yet** and **Resend the
-link** (operator, 9 November 2026; R795, R806;
-[FRD-28](frd-28-guided-photo-capture.md#staff-pages)). Each
-tile shows:
+Case with photo link photos keeps them in the same one grid, each link's in
+story order (the overview all the way round, each damaged area, the number
+plate, the VIN, the dashboard, then the additional information;
+[FRD-28](frd-28-guided-photo-capture.md#baskets-and-names)), before the
+Case's other images; a photo still filing shows from the staged image with
+its short name and no tile tools until it is a Case image. Above the grid
+one photo link bar shows the link that leads, the latest with a photograph
+that is not cancelled, else the latest: **Direct link** or **Standing link**
+and its source, its status and photo count, the sender's short answers, what
+is missing, the customer's note, **Resend** on a live Direct link, which
+opens the composer, and **More** with **Link details** and **Cancel link**,
+last. The Case's other links fold under **Other photo links on this case
+(N)**, each with its status, its count or **No photos**, when it was created
+and **Details** (operator, 11 November 2026, approving the v51 round as
+drawn; [R948](../rulings.md); R795;
+[FRD-28](frd-28-guided-photo-capture.md#staff-pages)). The Files head
+offers **Send photo link** beside Add evidence on the same terms as the
+ribbon's (R948). Each tile shows:
 
 - a lazy-loaded thumbnail that expands to the full image, with the original
   filename as the accessible name. It is served only by an authorised staff
@@ -950,7 +958,7 @@ the current video frame at its intrinsic resolution, files it in Box as a JPEG
 to 120 characters), updates Files and Case readiness in place while keeping the
 video open at its playback timestamp, and shows `"Snapshot added to Images."` or
 `"The video snapshot could not be saved."` (operator, 11 November 2026,
-[R945](../rulings.md)). A crop is a stored rectangle: the tile and the report show
+[R964](../rulings.md)). A crop is a stored rectangle: the tile and the report show
 the cropped region and Download returns the original.
 
 **Pop out** (operator, 9 October 2026) opens the Case's images in their own

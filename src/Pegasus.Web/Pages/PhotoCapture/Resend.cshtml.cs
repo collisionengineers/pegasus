@@ -29,6 +29,9 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// configured the composer also offers <b>Send by text</b> to the mobile in
 /// To (the link's own, which staff may change) with the Photo link (text)
 /// wording (R918, R919); a text counts as a reminder as an e-mail does.
+/// The composer shows one channel at a time and opens as a dialog over the
+/// page it was asked from (<c>?handler=Composer</c>; operator, 11 November
+/// 2026; v51 L, M; R948).
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -42,77 +45,44 @@ public sealed class ResendModel(
     ResolveCaseMailSender senders,
     RenderEmailTemplate renderTemplate,
     IOptions<PhotoCaptureOptions> options,
-    ILogger<ResendModel> logger) : PhotoCapturePageModel
+    ILogger<ResendModel> logger) : PhotoLinkComposerPageModel
 {
-    public const string ByEmail = "email";
-    public const string ByText = "text";
-    public const string ToCopy = "copy";
-    public const string StandardWording = "standard";
-    public const string StandardTextWording = "standard-text";
-
     private readonly PhotoLinkMail _mail = new(staffMailSend, getCaseHeader, senders, renderTemplate, options);
     private string? _principalName;
+    private string? _caseReference;
 
     [BindProperty(SupportsGet = true)]
     public Guid Id { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    public string? ReturnUrl { get; set; }
-
-    [BindProperty]
-    public Guid? FromMailboxId { get; set; }
-
-    [BindProperty, Display(Name = Labels.Subject), StringLength(998)]
-    public string? Subject { get; set; }
-
-    [BindProperty, Display(Name = Labels.Message), StringLength(EmailTemplates.MaximumBodyLength)]
-    public string? Body { get; set; }
-
-    /// <summary>The standard wording as the page last drew it, so a post knows whether staff edited the message.</summary>
-    [BindProperty]
-    public string? StandardBody { get; set; }
-
-    /// <summary>The mobile a text goes to: the link's own until staff change it.</summary>
-    [BindProperty, Display(Name = Labels.Mobile), StringLength(CaptureLimits.MobileLength)]
-    public string? Mobile { get; set; }
-
-    [BindProperty, Display(Name = Labels.TextMessage), StringLength(SendPhotoLinkText.MaximumLength)]
-    public string? TextBody { get; set; }
-
-    /// <summary>The text's standard wording as the page last drew it (R919).</summary>
-    [BindProperty]
-    public string? StandardTextBody { get; set; }
-
-    [BindProperty]
-    public string OperationKey { get; set; } = NewOperationKey();
-
-    /// <summary>Which button sent the form: <see cref="ByEmail"/>, <see cref="ByText"/>, <see cref="ToCopy"/>, <see cref="StandardWording"/> or <see cref="StandardTextWording"/>.</summary>
-    [BindProperty]
-    public string? Submit { get; set; }
 
     public PhotoCaptureListRow Row { get; private set; } = null!;
 
     public Pegasus.Core.PhotoCapture.PhotoCapture Capture => Row.Capture;
 
     /// <summary>The composer's title: the act it was opened as (v50 R).</summary>
-    public string Title => Capture.Origin == PhotoCaptureOrigin.CaseLink ? Labels.Resend : Labels.AskForIt;
-
-    public CaseMailSenderOptions Senders { get; private set; } = CaseMailSenderOptions.None;
+    public string Title => Labels.Resend;
 
     /// <summary>Whether the link can go by e-mail: a staff send, a sending mailbox, a Case and an address.</summary>
-    public bool CanEmail => _mail.Available && Senders.Mailboxes.Count > 0
+    public override bool CanEmail => _mail.Available && Senders.Mailboxes.Count > 0
         && Capture.CaseId is not null && !string.IsNullOrWhiteSpace(Capture.Email);
 
     /// <summary>Whether the link can go by text: a text provider is configured (R918).</summary>
-    public bool CanText => sendText.Available;
+    public override bool CanText => sendText.Available;
 
-    /// <summary>Whether staff edited the message: "Edited for this one only." (R806).</summary>
-    public bool BodyEdited => Body is not null && StandardBody is not null
-        && !string.Equals(Normalized(Body), Normalized(StandardBody), StringComparison.Ordinal);
+    public override string ComposerTitle => Title;
 
-    /// <summary>Whether staff edited the text (R806, R919).</summary>
-    public bool TextBodyEdited => TextBody is not null && StandardTextBody is not null
-        && !string.Equals(Normalized(TextBody), Normalized(StandardTextBody), StringComparison.Ordinal);
+    public override string? EyebrowReference => _caseReference;
+
+    public override string EyebrowRegistration => Labels.Registration(Capture.NormalizedRegistration);
+
+    public override string? EyebrowPrincipal => _principalName;
+
+    public override string ComposerPage => "/PhotoCapture/Resend";
+
+    public override IDictionary<string, string> ComposerRoute =>
+        new Dictionary<string, string>(StringComparer.Ordinal) { ["id"] = Id.ToString("D") };
+
+    /// <summary>Cancel and a sent message return to the link's page when no page asked.</summary>
+    protected override string DefaultBackHref => $"/PhotoCapture/{Id:D}";
 
     /// <summary>What the text provider answered when it did not accept the text just sent.</summary>
     public PhotoLinkTextOutcome? TextOutcome { get; private set; }
@@ -123,10 +93,21 @@ public sealed class ResendModel(
     /// <summary>The e-mail just sent when its sending is not settled, read off as the Send chaser reads its own.</summary>
     public StaffMailOperation? Operation { get; private set; }
 
-    /// <summary>Where Cancel and a sent message go: the page it was opened from, else the link's page.</summary>
-    public string BackHref => !string.IsNullOrEmpty(ReturnUrl) && Url.IsLocalUrl(ReturnUrl) ? ReturnUrl : $"/PhotoCapture/{Id:D}";
+    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
+        await StartAsync(cancellationToken) ?? Page();
 
-    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// The composer as a dialog over the page Resend was pressed on (v51 M;
+    /// R948); its form posts to this page.
+    /// </summary>
+    public async Task<IActionResult> OnGetComposerAsync(CancellationToken cancellationToken)
+    {
+        InDialog = true;
+        return await StartAsync(cancellationToken) ?? Partial(ComposerDialog, this);
+    }
+
+    /// <summary>The composer as it opens; null when it is drawn, else the answer instead.</summary>
+    private async Task<IActionResult?> StartAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
         if (!await LoadAsync(cancellationToken)) return NotFound();
@@ -146,7 +127,7 @@ public sealed class ResendModel(
             return Forbid();
         }
 
-        return Page();
+        return null;
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
@@ -159,6 +140,7 @@ public sealed class ResendModel(
         var byText = Submit == ByText;
         if ((Submit is ByEmail or StandardWording) && !CanEmail) return BadRequest();
         if ((Submit is ByText or StandardTextWording) && !CanText) return BadRequest();
+        SetAsideOtherChannels();
         try
         {
             // Put the standard wording back, without script.
@@ -254,7 +236,7 @@ public sealed class ResendModel(
 
                 if (TextOutcome.Accepted)
                 {
-                    TempData["Notice"] = Labels.LinkTextedTo(capture.CustomerName);
+                    LeaveSentNotice(Labels.LinkTextedTo(capture.CustomerName));
                     return LocalRedirect(BackHref);
                 }
 
@@ -294,7 +276,7 @@ public sealed class ResendModel(
 
             if (Operation.State == StaffMailState.Sent)
             {
-                TempData["Notice"] = Labels.LinkSentTo(capture.CustomerName);
+                LeaveSentNotice(Labels.LinkSentTo(capture.CustomerName));
                 return LocalRedirect(BackHref);
             }
 
@@ -344,12 +326,22 @@ public sealed class ResendModel(
         }
     }
 
-    private static string Normalized(string text) =>
-        text.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
+    /// <summary>Resend's mobile is the text's alone, so it rides along unchecked on any other post.</summary>
+    protected override void SetAsideOtherChannels()
+    {
+        base.SetAsideOtherChannels();
+        if (Submit is not (ByText or StandardTextWording))
+        {
+            ModelState.Remove(nameof(Mobile));
+        }
+    }
 
     private async Task<bool> LoadAsync(CancellationToken cancellationToken)
     {
-        if (await queries.GetRowAsync(Id, cancellationToken) is not { } row)
+        // Only a link sent from a Case is sent again: a standing or website
+        // capture has no composer (v51 Q; R948).
+        if (await queries.GetRowAsync(Id, cancellationToken) is not { } row
+            || row.Capture.Origin != PhotoCaptureOrigin.CaseLink)
         {
             return false;
         }
@@ -362,6 +354,7 @@ public sealed class ResendModel(
             var senderOptions = _mail.SendersAsync(caseId, cancellationToken);
             await Task.WhenAll(facts, senderOptions);
             _principalName = facts.Result?.PrincipalName;
+            _caseReference = facts.Result?.Reference;
             Senders = senderOptions.Result;
         }
 

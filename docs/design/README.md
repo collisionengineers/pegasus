@@ -496,10 +496,10 @@ prototype's effective media queries:
 
 | Max width | Reflow |
 | --- | --- |
-| 1480px | The Photo capture lists drop Next reminder and Received ([R912](../rulings.md)) |
+| 1460px | The Photo capture lists drop Sent and Received ([R912](../rulings.md), [R948](../rulings.md)) |
 | 1360px | `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns. The Work Centre ledgers keep their columns to 600px, tightening their padding and folding Owner and Received into the task cell below 980px |
-| 1300px | The Photo capture lists drop Links we sent's From and Coming in's Customer (R912) |
-| 1180px | The Photo capture lists drop Coming in's From, the mobile and the missing item, and a row's More shows only its chevron (R912); `queue-layout` rail narrows to 170px; the advanced search grid drops to three columns; `checks-grid` two columns; `case-overview-grid` stacks |
+| 1300px | The Photo capture lists drop the Principal, the Customer and the row's photographs (R912, R948) |
+| 1180px | The Photo capture lists drop Recipient, Standing link and the missing items (R912, R948); `queue-layout` rail narrows to 170px; the advanced search grid drops to three columns; `checks-grid` two columns; `case-overview-grid` stacks |
 | 1100px | `pane-layout--3` drops its first pane; metric strips to three columns; the identity ribbon to three columns |
 | 980px | The rail lies down into a horizontal bar; `admin-nav` becomes a horizontal scroller; `--content-max` is released |
 | 900px | Repair-spec form two columns; `checks-grid` one column |
@@ -689,7 +689,7 @@ symbols: the fifty-three above plus these twenty-two.
 | — | `file-image` | `DAE10E1CDF7EE095323DC27D60CF5A113ADB9830B2A02A2A90BF11FAEEED3808` | Image tile: Print on its own page (Full page) |
 | — | `mail-open` | `02B6080FE619C000EA414770A608F38F623664387E60F227B185C134641C1A10` | Administration nav and hub: E-mail templates |
 | — | `camera` | `08402EEB94664F771FCAFBDDF9E0D122B27CA3113245262C898599F72F60BB0C` | Photo links (`Send photo link`, Administration nav and hub) |
-| — | `aperture` | `876FA54FB306FC79253303BBA33CFFF3544B66EA6B038DDD4B61F87C9692D242` | Case viewer: Take snapshot on video evidence (R945) |
+| — | `aperture` | `876FA54FB306FC79253303BBA33CFFF3544B66EA6B038DDD4B61F87C9692D242` | Case viewer: Take snapshot on video evidence (R964) |
 
 The v26 rail no longer draws the prototype's rail glyphs for two routes:
 Cases uses `list-checks` and Administration `settings` (`list` and
@@ -1001,7 +1001,7 @@ deleted in wave 5.
 | `up-sheet`, `up-drop`, `up-evidence`, `up-declared`, `up-file-list` (`upload.css`) | Upload's initial sheet (v42 E): its head states the destination and the limits, its body is the drop target, and **Selected files** with the one action bar appear under it once files are chosen; the file rows are the same list on the review |
 | `up-surface`, `up-workspace`, `up-inspector`, `up-filmstrip`, `up-decision`, `up-case` (`upload.css`) | Upload's review: the inspector beside the one Case decision (v30 E) |
 | `report-preview` | Report draft preview dialog body |
-| `photo-capture-queue`, `photo-capture-list`, `photo-capture-filters`, `photo-capture-table`, `photo-capture-sub` (`photo-capture.css`) | Photo capture (FRD-28; R774): the Coming in and Links we sent tabs as a `nav.tabs`, the tab's headline states as `scope-button`s with their counts, the From select and search in the list head, and the table with its small second lines |
+| `pc-toolbar`, `pc-pills`, `pc-pill`, `pc-search-form`, `pc-oneline`, `pc-mini-thumbs`, `pc-standing-layout`, `pc-partner-list`, `pc-partner-bar`, `pc-qr-stage`, `photo-capture-table`, `photo-capture-sub` (`photo-capture.css`) | Photo capture (FRD-28; R774, R948): the Direct links and Standing links tabs as a `nav.tabs`; Direct links' scope pills with their counts and the search on one toolbar; Standing links' 288px directory beside the submissions, with the chosen link's bar and its QR code dialog; one-line tables whose rows preview their first photographs |
 | `photo-link-box`, `photo-link-url`, `photo-link-standing`, `photo-link-qr`, `photo-link-send`, `photo-link-grid` (`photo-capture.css`) | A photo link shown once to copy (`data-copy-target`), a standing link beside its QR code (the website link on Photo capture, a contact's on its Photo links tab), the Send a photo link form and a link's page |
 | `photo-capture-told`, `photo-capture-note` (`Shared/_PhotoCaptureDetails`) | What they told us: the sender's typed details as a `definition-list` and the Customer's note, on Files → Images, a link's page and the Vehicle images record |
 | `photo-story`, `photo-story-capture`, `photo-story-heading`, `photo-story-stage` (`[data-image-story]`) | Files → Images on a Case with photo links: each link's What they told us, then its images in story groups (damage by stage) on the same tiles, then Other images; the block is the evidence set and is redrawn whole after a tile's In report or tag |
@@ -1018,8 +1018,7 @@ deleted in wave 5.
 Every e-mail Pegasus sends for a member of staff goes through a composer; no
 button sends one on its own (operator, 10 November 2026: "any email sending
 always needs a dialogue box - a button cannot just send an email on its own";
-[R915](../rulings.md)). A photo link's Resend and Ask for it open the Send
-chaser's composer page (`/PhotoCapture/{id}/Resend`).
+[R915](../rulings.md)). A photo link's Send and Resend open its composer.
 
 A **More** menu holds two or more acts; one act is its own button beside the
 primary, and More takes the size of the buttons beside it (operator, 10

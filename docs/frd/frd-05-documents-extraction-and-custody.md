@@ -160,7 +160,7 @@ repeat every minute.
   may capture the current video frame as a JPEG `Image` (`StaffUpload`,
   `InReport = true` by default), named `{video-stem}-frame-{mm}m{ss}s.jpg` (with
   `{ms}ms` at the same second and `" (2)"`, `" (3)"` at the same millisecond,
-  up to 120 characters; operator, 11 November 2026; [R945](../rulings.md)).
+  up to 120 characters; operator, 11 November 2026; [R964](../rulings.md)).
   Taking a snapshot is Case filing under [R727](../rulings.md) and neither
   waits on nor ends an active edit lease
   ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)).
@@ -496,7 +496,7 @@ research is part of Valuation Evidence and is no longer a type of its own
 (operator, 22 October 2026; R220). There are no staff-added custom types, and
 `pegasus_document_add` takes every type (operator, 22 October 2026; R222);
 adding a document as `Image` requires JPEG or PNG bytes and, once confirmed in
-Box custody, marks the Case's images complete ([R945](../rulings.md);
+Box custody, marks the Case's images complete ([R964](../rulings.md);
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)).
 
 Staff and the Automation Actor may change a filed document's type to any
@@ -504,7 +504,7 @@ type but Original source, with a typed reason of up to 500 characters; an
 issued report's documents and an Audit report document may be retyped, and
 only a JPEG or PNG file may become an Image (operator, 22 October 2026;
 R204), which likewise marks a confirmed Case's images complete
-([R945](../rulings.md)). A change to Audit report is Mark as original report's act
+([R964](../rulings.md)). A change to Audit report is Mark as original report's act
 ([FRD-16](frd-16-case-record-workspace.md#files)): the Documents tab's
 Change type never lists Audit report and the Automation Actor's `set_type`
 may name it (operator, 30 October 2026; R562). An Audit report
