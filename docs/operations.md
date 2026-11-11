@@ -504,7 +504,7 @@ Release 3.0.0 deployed `dev` at the merge of PR 2082: the range of #2028, from g
 | Settings read back | `Features__PhotoCapture=true` on Web and Worker; `PhotoCapture__PublicOrigin` the Web's origin; `TextMessages__Endpoint` the ACS host, `TextMessages__From` empty (texting off); the five Worker `Disabled` settings `false` |
 | Smoke | passed at 14:50:39Z; intake liveness last poll 14:50:00Z, subscription expires 2026-11-16 08:30Z; photo capture's unknown link answers its designed 404; the test instance served the candidate (R684) |
 | Evidence | `artifacts/releases/release-3.0.0-55dd3f0c` and `artifacts/releases/logs/release-3.0.0-*.log` on `cemattypc-1` |
-| Owed | #2085 (Exchange `Mail.ReadWrite`), #2086 (SMS number and R919 wording), #2087 (live checks), #2088 (Standing links budget), #2009, #2054 |
+| Owed | #2085 (a forward's original is left where its mailbox is not Incoming; the Exchange grant is in place), #2086 (SMS number and R919 wording), #2087 (live checks), #2088 (Standing links budget), #2009, #2054 |
 
 ## Release 2.4.1 - 9 November 2026 (deployment live)
 
