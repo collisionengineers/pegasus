@@ -117,7 +117,9 @@ with the requirement **Vehicle mileage incomplete**, which opens the Vehicle
 section; while the instruction is incomplete its row lists the mileage among
 its missing items instead. The automatic route still waives every other
 instruction item. A vehicle lookup or a staff edit that records the mileage
-moves the Case on to Review by itself when nothing else is missing. The gate
+moves the Case on to Review by itself when nothing else is missing, and so
+does a recognised original report that states the mileage of an Audit with
+none (operator, 11 November 2026, [R930](../rulings.md)). The gate
 stands only on the way in: a Case already in Review or later is not sent back
 for its mileage, and clearing a mileage does not block a Case again (as R631).
 

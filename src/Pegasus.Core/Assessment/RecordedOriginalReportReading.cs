@@ -64,13 +64,17 @@ public sealed class RecordedOriginalReportReading(
         }
 
         var rows = analysis.Candidates;
+        var mileage = First(rows, ThirdPartyReportFields.Mileage);
+        var mileageUnit = First(rows, ThirdPartyReportFields.MileageUnit);
         return OriginalReportPrefillPolicy.Read(
             asset.ContentHash.ToLowerInvariant(),
             Usable(First(rows, ThirdPartyReportFields.Issuer)),
             InstructionFieldEngine.ParseDate(Usable(First(rows, ThirdPartyReportFields.ReportDate))),
             Usable(First(rows, ThirdPartyReportFields.Roadworthiness)),
             Printed(First(rows, ThirdPartyReportFields.Outcome)),
-            Printed(First(rows, ThirdPartyReportFields.Repairability)));
+            Printed(First(rows, ThirdPartyReportFields.Repairability)),
+            InstructionFieldEngine.ParseMileage(Usable(mileage)),
+            OriginalReportPrefillPolicy.MileageUnit(Usable(mileageUnit), mileageUnit?.Disposition, mileage?.Unit));
     }
 
     private static RetainedInstructionCandidate? First(

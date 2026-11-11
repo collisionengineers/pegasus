@@ -1,4 +1,5 @@
 using Pegasus.Core.Custody;
+using System.Globalization;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -517,6 +518,168 @@ public sealed class DocumentCustodyDurabilityTests
                 Directory.Delete(root, recursive: true);
             }
         }
+    }
+
+    /// <summary>
+    /// A Not ready Audit waiting only for its mileage moves to Review by itself
+    /// when the report marked as its original states one (R930): the mileage
+    /// fills the empty Case mileage, sourced to the report, and the history
+    /// lists it beside the cells.
+    /// </summary>
+    [Fact]
+    public async Task MarkingAReportThatStatesAMileageMovesAMileageOnlyAuditToReview()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database, "audit");
+            await SeedCompleteButForMileageAsync(database, caseId, instructionMileage: null);
+            var occurrenceId = await SeedCurrentDocumentAsync(database, caseId, 0, "connexus-report.pdf");
+            var versionId = await VersionIdAsync(database, occurrenceId);
+
+            await MarkWithMileageAsync(database, caseId, occurrenceId, versionId);
+
+            await using var verification = await database.CreateContextAsync();
+            Assert.Equal(
+                nameof(CaseLifecycleState.Review),
+                (await verification.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).State);
+            var fields = await verification.CaseDataFields
+                .Where(item => item.WorkId == caseId)
+                .ToDictionaryAsync(item => item.FieldName);
+            var mileage = fields[CaseDataFieldNames.VehicleMileage];
+            Assert.Equal("28136", mileage.Value);
+            Assert.Equal(CaseDataCodes.Fact, mileage.ValueKind);
+            Assert.Equal(CaseDataCodes.IntakeEvidence, mileage.SourceKind);
+            Assert.Equal(versionId.ToString("D"), mileage.SourceIdentity);
+            Assert.Equal("connexus-report.pdf", mileage.SourceLabel);
+            Assert.Equal("miles", fields[CaseDataFieldNames.VehicleMileageUnit].Value);
+            var history = await verification.ActionHistory
+                .SingleAsync(item => item.EventKind == "original_report_recorded");
+            Assert.Contains("\"vehicle_mileage\":null", history.BeforeJson, StringComparison.Ordinal);
+            Assert.Contains("\"vehicle_mileage\":\"28136\"", history.AfterJson, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A mileage the Case already holds is never replaced by the report's
+    /// (R930), and a fill that does not happen re-checks nothing.
+    /// </summary>
+    [Fact]
+    public async Task AReportsMileageNeverReplacesTheCasesOwn()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database, "audit");
+            await SeedCompleteButForMileageAsync(database, caseId, instructionMileage: 41200);
+            var occurrenceId = await SeedCurrentDocumentAsync(database, caseId, 0, "connexus-report.pdf");
+
+            await MarkWithMileageAsync(database, caseId, occurrenceId, await VersionIdAsync(database, occurrenceId));
+
+            await using var verification = await database.CreateContextAsync();
+            var mileage = Assert.Single(await verification.CaseDataFields
+                .Where(item => item.WorkId == caseId && item.FieldName == CaseDataFieldNames.VehicleMileage)
+                .ToListAsync());
+            Assert.Equal("41200", mileage.Value);
+            Assert.Equal("instruction-fixture", mileage.SourceIdentity);
+            Assert.Equal(
+                nameof(CaseLifecycleState.NotReady),
+                (await verification.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).State);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The Case's instruction and images complete and its data snapshot
+    /// recorded, with the instruction's mileage or none, so only the mileage
+    /// gate keeps it Not ready (R759).
+    /// </summary>
+    private static async Task SeedCompleteButForMileageAsync(
+        LocalDbTestDatabase database,
+        Guid caseId,
+        long? instructionMileage)
+    {
+        await using var context = await database.CreateContextAsync();
+        var caseEntity = await context.Cases.SingleAsync(item => item.Id == caseId);
+        caseEntity.InstructionComplete = true;
+        caseEntity.ImagesComplete = true;
+        var snapshot = new CaseDataSnapshotEntity
+        {
+            WorkId = caseId,
+            CompletenessPolicyKey = "case-workflow",
+            CompletenessPolicyVersion = 1,
+            CompletenessPolicySatisfied = false,
+            AcceptedAtUtc = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero)
+        };
+        if (instructionMileage is { } miles)
+        {
+            AddInstructionFact(CaseDataFieldNames.VehicleMileage, CaseDataCodes.Integer, miles.ToString(CultureInfo.InvariantCulture));
+            AddInstructionFact(CaseDataFieldNames.VehicleMileageUnit, CaseDataCodes.Text, "miles");
+        }
+
+        context.CaseDataSnapshots.Add(snapshot);
+        await context.SaveChangesAsync();
+
+        void AddInstructionFact(string fieldName, string valueType, string value) =>
+            snapshot.Fields.Add(new()
+            {
+                WorkId = caseId,
+                Snapshot = snapshot,
+                FieldName = fieldName,
+                ValueKind = CaseDataCodes.Fact,
+                ValueType = valueType,
+                Value = value,
+                SourceKind = CaseDataCodes.IntakeEvidence,
+                SourceIdentity = "instruction-fixture",
+                SourceLabel = "instructions.pdf",
+                PolicyKey = "qdos_instruction",
+                PolicyVersion = 1
+            });
+    }
+
+    /// <summary>Marks the document as the original report with a reading that states 28,136 miles.</summary>
+    private static async Task MarkWithMileageAsync(
+        LocalDbTestDatabase database,
+        Guid caseId,
+        Guid occurrenceId,
+        Guid versionId)
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        await using var scope = database.CreateAsyncScope();
+        var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+            .ClaimAsync(
+                new(caseId, 0, actor, $"report-mileage-lease:{Guid.NewGuid():N}"),
+                CancellationToken.None);
+        await scope.ServiceProvider.GetRequiredService<IMarkAsOriginalReportStore>()
+            .MarkAsOriginalReportAsync(
+                new MarkAsOriginalReportCommand(
+                    caseId,
+                    lease.Version,
+                    actor,
+                    $"report-mileage:{Guid.NewGuid():N}",
+                    lease.Token,
+                    occurrenceId,
+                    versionId),
+                new OriginalReportReading(
+                    new string('a', 64), "Connexus Vehicle Assessors", "2026-03-09", null, null, false, 28136, "miles"),
+                CancellationToken.None);
     }
 
     [Fact]

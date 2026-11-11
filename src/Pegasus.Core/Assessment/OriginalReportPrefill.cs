@@ -14,7 +14,9 @@ namespace Pegasus.Core.Assessment;
 /// report did print an outcome but not one the cells can hold — a conflict,
 /// an unrecognised word, or an outcome and a status that disagree — which is
 /// different from printing none, because only printing none lets the intake
-/// verdict stand in.
+/// verdict stand in. <paramref name="Mileage"/> and <paramref name="MileageUnit"/>
+/// are the odometer reading the report states, in the Case's own unit words, or
+/// both null: it fills an empty Case mileage (R930).
 /// </summary>
 public sealed record OriginalReportReading(
     string Sha256,
@@ -22,7 +24,9 @@ public sealed record OriginalReportReading(
     string? ReportDate,
     string? Roadworthiness,
     string? Outcome,
-    bool OutcomeUnreadable);
+    bool OutcomeUnreadable,
+    long? Mileage = null,
+    string? MileageUnit = null);
 
 /// <summary>
 /// A printed outcome or status as the report's reading left it: the usable
@@ -50,6 +54,10 @@ public sealed record PrintedOutcome(string? Value, SourceCandidateDisposition Di
 /// recorded takes the newer reading (<see cref="AssessmentPolicy.FillLands"/>).
 /// There is no per-field review (operator, 25 September 2026): a filled cell
 /// is the Case's value, tagged Extracted until staff change it.
+///
+/// The mileage the report states is not a cell: it fills the Case's own
+/// mileage where the Case holds none, so a Case that waits only for its
+/// mileage moves to Review by itself (operator, 11 November 2026; R930).
 /// </summary>
 public static class OriginalReportPrefillPolicy
 {
@@ -58,6 +66,10 @@ public static class OriginalReportPrefillPolicy
     /// value read from the filed report from any other automation's.
     /// </summary>
     public const string RecorderId = "original-report-extraction";
+
+    /// <summary>The policy a Case mileage filled from the report records (R930).</summary>
+    public const string MileagePolicyKey = "original-report-mileage";
+    public const int MileagePolicyVersion = 1;
 
     private static readonly Regex Whitespace = new(
         @"\s+", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
@@ -115,13 +127,19 @@ public static class OriginalReportPrefillPolicy
             candidate.Identity.ReportDate?.Value,
             candidate.Damage.Roadworthiness?.Value,
             Printed(candidate.Damage.Outcome),
-            Printed(candidate.Damage.Repairability));
+            Printed(candidate.Damage.Repairability),
+            (long?)candidate.Vehicle.Mileage?.Value,
+            MileageUnit(
+                candidate.Vehicle.MileageUnit?.Value,
+                candidate.Vehicle.MileageUnit?.Source.Disposition,
+                candidate.Vehicle.Mileage?.Source.Unit));
     }
 
     /// <summary>
     /// The same reading from the printed values themselves: what a recorded
     /// reading keeps of a report, which a standalone Audit's acceptance seeds
-    /// from instead of reading the report again.
+    /// from instead of reading the report again. A mileage whose unit is not
+    /// known is not read: the Case saves a mileage only with its unit.
     /// </summary>
     public static OriginalReportReading Read(
         string sha256,
@@ -129,21 +147,46 @@ public static class OriginalReportPrefillPolicy
         DateOnly? reportDate,
         string? roadworthiness,
         PrintedOutcome? printedOutcome,
-        PrintedOutcome? printedStatus)
+        PrintedOutcome? printedStatus,
+        long? mileage = null,
+        string? mileageUnit = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sha256);
         var outcome = Outcome(printedOutcome);
         var status = Outcome(printedStatus);
         var unreadable = outcome.Unreadable || status.Unreadable
             || (outcome.Code is not null && status.Code is not null && outcome.Code != status.Code);
+        long? odometer = null;
+        string? odometerUnit = null;
+        if (mileage is >= 0 && CaseOdometer.TryParseUnit(mileageUnit, out var unit))
+        {
+            odometer = mileage;
+            odometerUnit = CaseOdometer.Format(unit);
+        }
+
         return new(
             sha256,
             issuer,
             reportDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             RoadworthinessCode(roadworthiness),
             unreadable ? null : outcome.Code ?? status.Code,
-            unreadable);
+            unreadable,
+            odometer,
+            odometerUnit);
     }
+
+    /// <summary>
+    /// The unit a report's mileage is in: the unit printed beside it, else the
+    /// unit the report family's reading rule states for its mileage. A printed
+    /// unit the reader could not settle is no unit, never the stated one.
+    /// </summary>
+    public static string? MileageUnit(
+        string? printedUnit,
+        SourceCandidateDisposition? printedDisposition,
+        string? statedUnit) =>
+        printedDisposition is null or SourceCandidateDisposition.Missing
+            ? statedUnit
+            : printedUnit;
 
     /// <summary>
     /// The cell values one reading fills, keyed by path, each in the
