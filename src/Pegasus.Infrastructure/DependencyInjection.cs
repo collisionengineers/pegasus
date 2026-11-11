@@ -543,6 +543,8 @@ public static class DependencyInjection
         services.AddScoped<IRepairSpecificationSnapshotStore, EfRepairSpecificationSnapshotStore>();
         services.AddScoped<IUnroadworthyReasonBankStore, EfUnroadworthyReasonBankStore>();
         services.AddScoped<ISaveUnroadworthyReason, SaveUnroadworthyReason>();
+        services.AddScoped<RewordUnroadworthyReason>();
+        services.AddScoped<RemoveUnroadworthyReason>();
         services.AddScoped<IScaleRepairSpecification, ScaleRepairSpecification>();
         services.AddScoped<RemoveRepairSpecificationScaling>();
         services.AddScoped<RestoreRepairSpecificationSnapshot>();

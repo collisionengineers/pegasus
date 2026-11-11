@@ -8103,11 +8103,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("PrincipalCode")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -8115,7 +8110,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PrincipalCode", "Text")
+                    b.HasIndex("Text")
                         .IsUnique();
 
                     b.ToTable("UnroadworthyReasons", null, t =>

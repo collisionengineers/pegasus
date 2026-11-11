@@ -162,12 +162,20 @@ internal sealed class DatabaseLessCaseReads :
         Refused<LabourRateCard>(nameof(ILabourRateCardStore));
 
     Task<IReadOnlyList<UnroadworthyReason>> IUnroadworthyReasonBankStore.ListAsync(
-        string principalCode, CancellationToken cancellationToken) =>
+        CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<UnroadworthyReason>>([]);
 
     Task<UnroadworthyReason?> IUnroadworthyReasonBankStore.AddAsync(
         SaveUnroadworthyReasonRequest request, string normalized, CancellationToken cancellationToken) =>
         Refused<UnroadworthyReason?>(nameof(IUnroadworthyReasonBankStore));
+
+    Task<UnroadworthyReasonChange> IUnroadworthyReasonBankStore.RewordAsync(
+        Guid id, string renderedText, string normalized, CancellationToken cancellationToken) =>
+        Refused<UnroadworthyReasonChange>(nameof(IUnroadworthyReasonBankStore));
+
+    Task<UnroadworthyReasonChange> IUnroadworthyReasonBankStore.RemoveAsync(
+        Guid id, string renderedText, CancellationToken cancellationToken) =>
+        Refused<UnroadworthyReasonChange>(nameof(IUnroadworthyReasonBankStore));
 
     Task<SalvageMatrix?> IPrincipalSalvageMatrixQueries.GetForCaseAsync(
         Guid caseId, CancellationToken cancellationToken) =>
