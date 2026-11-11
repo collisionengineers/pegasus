@@ -107,11 +107,27 @@ export interface IntakeDetail {
   caseId: string | null;
   caseReference: string | null;
   classifiedCaseType: string | null;
+  /** The Principal the item established: its draft's, else its accepted mail route's (R966). */
+  establishedPrincipalCode: string | null;
+  /**
+   * With none established: the one active Principal Contact the sender
+   * belongs to by the Contacts directory, which accept takes as principalCode
+   * (R969). Pegasus works it out; the model never names a Principal.
+   */
+  senderDirectoryPrincipalCode: string | null;
+  /** The firm's website form sent it: a private customer's enquiry (R972). */
+  websiteEnquiry: boolean;
   draft: InstructionDraft | null;
   missingIdentityFields: string[];
   inspectionAddressState: string;
   inspectionAddressSuggestion: string | null;
   inspectionAddressSuggestionFingerprint: string | null;
+}
+
+/** What pegasus_case_create answers. */
+export interface CaseCreateResult {
+  caseId: string;
+  reference: string;
 }
 
 /** What pegasus_intake_action answers. */
@@ -227,7 +243,8 @@ export class PegasusMail {
   }
 
   /**
-   * accept: Create case on the received item, as staff do (R714).
+   * accept: Create case on the received item, as staff do (R714). principalCode
+   * is given only as pegasus_intake_get's senderDirectoryPrincipalCode (R969).
    * resolve_inspection_address: accept Pegasus's own suggested address, no other.
    * open_triage: Open the Triage on a Triage request, with the registration read.
    */
@@ -236,6 +253,7 @@ export class PegasusMail {
     action: "accept" | "resolve_inspection_address" | "open_triage";
     expectedReceiptVersion: number;
     operationKey: string;
+    principalCode?: string;
     claimantName?: string;
     claimNumber?: string;
     vehicleRegistration?: string;
@@ -243,6 +261,22 @@ export class PegasusMail {
     addressSuggestionFingerprint?: string;
   }): Promise<IntakeActionResult> {
     return this.call("pegasus_intake_action", args);
+  }
+
+  /**
+   * A one-off Case for a private customer, as staff New case with the Private
+   * customer tick makes it (R577): the route a website enquiry takes, since a
+   * received item is never accepted for PRIVATE (R581, R972).
+   */
+  caseCreate(args: {
+    caseType: string;
+    privateCustomer: true;
+    claimantName: string;
+    vehicleRegistration: string;
+    incidentDate?: string;
+    operationKey: string;
+  }): Promise<CaseCreateResult> {
+    return this.call("pegasus_case_create", args);
   }
 
   correct(args: {

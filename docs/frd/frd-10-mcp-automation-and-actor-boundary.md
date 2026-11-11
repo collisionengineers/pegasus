@@ -556,7 +556,10 @@ replays by its operation key.
   query to find a Case to link, and `pegasus_intake_get` and
   `pegasus_intake_action` (`accept`, and `resolve_inspection_address` with
   Pegasus's own suggestion only) to create the Case for an unlinked e-mail it
-  classifies New instruction (operator, 5 November 2026, R714), and
+  classifies New instruction (operator, 5 November 2026, R714),
+  `pegasus_case_create` with `privateCustomer` and then
+  `pegasus_mail_link_case` for a website enquiry (operator, 11 November 2026,
+  R972), and
   `pegasus_intake_action` `open_triage` to open the Triage for an unlinked
   Triage request whose registration it read (operator, 4 and 6 November
   2026, R731, R732).

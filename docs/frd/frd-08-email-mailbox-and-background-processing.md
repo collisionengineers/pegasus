@@ -114,9 +114,9 @@ later corrections.
 | Category | Positive criteria and exclusions | Method | What it does |
 | --- | --- | --- | --- |
 | New instruction | Accepted Principal Audit, diminution or Inspection instruction evidence; initial work from a client with no accepted route; website-origin evidence meeting the accepted independent fingerprints. A body keyword or quoted old instruction is not enough | route predicate or staff | Carries a work type: Inspection, Audit, or Inspection and Audit. Offers **Create case**; automatic case allocation goes by the work type |
-| Triage request | Accepted Triage request; with a missing VRM it waits in No Case Found under FRD-03 | route predicate or staff | No automatic case: opens the Triage workflow on its accepted Triage match evidence ([FRD-03](frd-03-triage.md)); it gets no Unidentified item |
+| Triage request | Accepted Triage request; with a missing VRM it waits in No Case Found under FRD-03. A request for a report is not one, nor is a website enquiry (R967, R972) | route predicate or staff | No automatic case: opens the Triage workflow on its accepted Triage match evidence ([FRD-03](frd-03-triage.md)); it gets no Unidentified item |
 | Cancellation | Explicit cancellation; it wins over quoted old instructions | route predicate or staff | The Case aside's Cancellation received row and the Cancellation received staff notice |
-| Pre-Pegasus case | Mail about a case still run in the old system, which has no Case in Pegasus: the e-mail chases or refers to a case Pegasus does not hold, and earlier mail about it in the approved mailboxes is evidence enough (operator, 30 October and 2 November 2026, [R561](../rulings.md), R583) | staff, the Automation actor or the classifier agent; no predicate assigns it | Leaves No Case Found and is listed in All with its Type chip; the message record's outcome chip reads Pre-Pegasus case; Link to case, Create case and the other acts are unchanged ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)) |
+| Pre-Pegasus case | Mail about a case still run in the old system, which has no Case in Pegasus: the e-mail chases or refers to a case Pegasus does not hold, and other mail about it in the approved mailboxes, in its own conversation or another, is evidence enough (operator, 30 October, 2 and 11 November 2026, [R561](../rulings.md), R583, R968) | staff, the Automation actor or the classifier agent; no predicate assigns it | Leaves No Case Found and is listed in All with its Type chip; the message record's outcome chip reads Pre-Pegasus case; Link to case, Create case and the other acts are unchanged ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)) |
 | Correspondence | Everything else. Not a category. Garage allocation, repairs authorised, report chase and automatic replies are correspondence | route predicate or staff | Linked, it is Case correspondence. Unlinked, it is No Case Found, and its Type reads No Case Found until it is linked (operator, 30 October 2026, [R571](../rulings.md)). Register images is offered only while the message is unlinked, image-only and has no category ([FRD-19](frd-19-image-led-intake-and-pairing.md)) |
 
 Unclassified is the explicit abstention when no accepted predicate matches
@@ -175,23 +175,39 @@ a decision by staff, an Automation caller or a Principal alone (operator,
 does (`pegasus_mail_link_destinations` with a query). For an unlinked e-mail it
 classifies New instruction, it creates the Case as staff **Create case** does on
 the received item (`pegasus_intake_action` `accept`), with the classified work
-type, the draft's suggested Principal, and identity facts the instruction states
-only where the draft lacks them; it accepts the inspection address Pegasus
-suggested and never supplies or corrects one. When Pegasus refuses the Case
-for a missing fact or an unsettled address, the e-mail stays New instruction
-in No Case Found for staff (operator, 5 November 2026, [R714](../rulings.md)). It may set Pre-Pegasus case
+type, the Principal the item established, and identity facts the instruction
+states only where the draft lacks them; it accepts the inspection address
+Pegasus suggested and never supplies or corrects one. When Pegasus refuses
+the Case for a missing fact, the e-mail stays New instruction in No Case
+Found for staff (operator, 5 November 2026, [R714](../rulings.md)). An
+unsettled inspection address does not refuse the Case: it starts Not ready
+with Inspection address named as missing (operator, 11 November 2026,
+[R965](../rulings.md)). The Principal is never the model's choice. Where the
+item established none, the agent gives `accept` the one active Principal
+Contact the sender belongs to by the Contacts directory, as
+`pegasus_intake_get` names it; where that names none, the e-mail waits for
+staff (operator, 11 November 2026, [R969](../rulings.md)). An enquiry from
+the firm's website form that asks for work is a New instruction and never a
+Triage request. When it writes the customer's name and the vehicle's
+registration the agent creates the private customer's one-off Case with
+`pegasus_case_create` and links the e-mail to it; an enquiry without both
+waits for staff (operator, 11 November 2026, [R972](../rulings.md)). An
+e-mail that asks for a report is not a Triage request: reports come from
+standard Cases, never from a Triage (operator, 11 November 2026,
+[R967](../rulings.md)). It may set Pre-Pegasus case
 when the e-mail chases or refers to a case Pegasus does not hold, and it has
 two read-only lookups for that: `pegasus_mail_mailbox_search` over the
 approved mailboxes and `pegasus_old_system_folder_search` under the
 old-system Box folder (operator, 30 October 2026, R561;
 [FRD-10](frd-10-mcp-automation-and-actor-boundary.md#tool-inventory)). An
 e-mail that chases or refers to a case by reference, registration, claimant
-or claim number, matches no suggested Case, and has earlier mail about it in
-the approved mailboxes is a Pre-Pegasus case; the lookups are supporting
-evidence, not a precondition (operator, 2 November 2026, R583). Earlier mail
-is the firm's own dealings with the job from before this conversation; the
-conversation's own messages and the run's other e-mails do not count
-(operator, 6 November 2026, [R737](../rulings.md)). The
+or claim number, matches no Case, and has other mail about it in the
+approved mailboxes is a Pre-Pegasus case; the lookups are supporting
+evidence, not a precondition (operator, 2 November 2026, R583). Other mail
+about the job counts wherever it sits, the e-mail's own conversation
+included; the e-mail itself and text quoted inside it are not evidence
+(operator, 11 November 2026, [R968](../rulings.md), which supersedes R737's
+exclusion of the conversation). The
 old-system folders are named by the firm's own Case reference, so the folder
 search is made with that reference, which for a PRIVATE one-off is the
 registration, and a reference-shaped term matches a folder name only as a

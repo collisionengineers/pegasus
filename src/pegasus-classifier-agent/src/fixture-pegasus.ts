@@ -20,11 +20,12 @@
 //                  number containing it, case-insensitively. Absent: none.
 //   intake         per intakeReceiptId, what pegasus_intake_get returns for
 //                  create_case and open_triage. Absent: a draft with every
-//                  identity fact and a settled inspection address, so
-//                  create_case succeeds.
+//                  identity fact, an established Principal and a settled
+//                  inspection address, so create_case succeeds.
 
 import { randomUUID } from "node:crypto";
 import type {
+  CaseCreateResult,
   IntakeActionResult,
   IntakeDetail,
   LinkDestination,
@@ -58,7 +59,7 @@ export interface Fixture {
 }
 
 export interface Write {
-  kind: "classify" | "link" | "query" | "case" | "triage";
+  kind: "classify" | "link" | "query" | "case" | "one-off" | "triage";
   messageId: string;
   detail: string;
 }
@@ -67,6 +68,8 @@ export class FixturePegasus implements ClassifierPegasus {
   readonly writes: Write[] = [];
   private readonly details = new Map<string, MailDetail>();
   private readonly created = new Map<string, string>();
+  private readonly oneOffs: (LinkDestination & { claimNumber?: string | null })[] = [];
+  private readonly oneOffKeys = new Map<string, CaseCreateResult>();
 
   constructor(private readonly fixture: Fixture) {
     for (const candidate of fixture.candidates) {
@@ -129,7 +132,8 @@ export class FixturePegasus implements ClassifierPegasus {
     const candidate = this.fixture.candidates.find((item) => item.detail.summary.id === args.messageId);
     const destination = candidate?.destinations.find((item) => item.caseId === args.caseId)
       ?? candidate?.found?.find((item) => item.caseId === args.caseId)
-      ?? this.fixture.cases?.find((item) => item.caseId === args.caseId);
+      ?? this.fixture.cases?.find((item) => item.caseId === args.caseId)
+      ?? this.oneOffs.find((item) => item.caseId === args.caseId);
     if (!destination) {
       throw new Error("That Case is not a link destination for the message.");
     }
@@ -206,7 +210,7 @@ export class FixturePegasus implements ClassifierPegasus {
     if (!wanted) {
       return [];
     }
-    return (this.fixture.cases ?? [])
+    return [...(this.fixture.cases ?? []), ...this.oneOffs]
       .filter((item) => [item.reference, item.registration, item.claimant, item.claimNumber]
         .some((value) => (value ?? "").toLowerCase().includes(wanted)))
       .map(({ claimNumber: _claimNumber, ...item }) => item);
@@ -222,6 +226,9 @@ export class FixturePegasus implements ClassifierPegasus {
       caseId: created ?? null,
       caseReference: created ? `REPLAY-${created.slice(0, 8)}` : null,
       classifiedCaseType: null,
+      establishedPrincipalCode: "REPLAY",
+      senderDirectoryPrincipalCode: null,
+      websiteEnquiry: false,
       draft: { claimantName: "Replay", claimNumber: "Replay", vehicleRegistration: "AB12CDE", dateOfIncident: "2026-01-01" },
       missingIdentityFields: [],
       inspectionAddressState: "Accepted",
@@ -236,6 +243,7 @@ export class FixturePegasus implements ClassifierPegasus {
     action: "accept" | "resolve_inspection_address" | "open_triage";
     expectedReceiptVersion: number;
     operationKey: string;
+    principalCode?: string;
     claimantName?: string;
     claimNumber?: string;
     vehicleRegistration?: string;
@@ -261,6 +269,9 @@ export class FixturePegasus implements ClassifierPegasus {
     if (intake.missingIdentityFields.length > 0 && !args.claimantName && !args.claimNumber && !args.vehicleRegistration) {
       throw new Error(`The draft lacks ${intake.missingIdentityFields.join(", ")}.`);
     }
+    if (!(args.principalCode ?? intake.establishedPrincipalCode)) {
+      throw new Error("A principal code is required.");
+    }
     const caseId = randomUUID();
     this.created.set(args.receiptId, caseId);
     const detail = [...this.details.values()].find((item) => item.summary.intakeReceiptId === args.receiptId);
@@ -271,10 +282,46 @@ export class FixturePegasus implements ClassifierPegasus {
       this.writes.push({
         kind: "case",
         messageId: detail.summary.id,
-        detail: JSON.stringify({ claimantName: args.claimantName, claimNumber: args.claimNumber, vehicleRegistration: args.vehicleRegistration, incidentDate: args.incidentDate }),
+        detail: JSON.stringify({
+          ...(args.principalCode ? { principalCode: args.principalCode } : {}),
+          claimantName: args.claimantName, claimNumber: args.claimNumber, vehicleRegistration: args.vehicleRegistration, incidentDate: args.incidentDate,
+        }),
       });
     }
     return { receiptId: args.receiptId, action: args.action, allocationStatus: "Succeeded", caseId, caseReference: `REPLAY-${caseId.slice(0, 8)}`, safeReason: null };
+  }
+
+  /** A one-off Case, referenced by its registration, and at once a link destination. */
+  async caseCreate(args: {
+    caseType: string;
+    privateCustomer: true;
+    claimantName: string;
+    vehicleRegistration: string;
+    incidentDate?: string;
+    operationKey: string;
+  }): Promise<CaseCreateResult> {
+    const replayed = this.oneOffKeys.get(args.operationKey);
+    if (replayed) {
+      return replayed;
+    }
+    const created = { caseId: randomUUID(), reference: args.vehicleRegistration };
+    this.oneOffKeys.set(args.operationKey, created);
+    this.oneOffs.push({
+      caseId: created.caseId,
+      reference: created.reference,
+      registration: args.vehicleRegistration,
+      claimant: args.claimantName,
+      principal: "PRIVATE",
+      state: "NotReady",
+      triageState: null,
+      isTriageCase: false,
+      version: 1,
+    });
+    // The key names its message without the dashes (tools.ts operationKey).
+    const keyed = args.operationKey.split(":")[2] ?? "";
+    const messageId = [...this.details.keys()].find((id) => id.replaceAll("-", "") === keyed) ?? keyed;
+    this.writes.push({ kind: "one-off", messageId, detail: `${args.caseType} ${args.vehicleRegistration} ${args.claimantName}` });
+    return created;
   }
 
   private async require(messageId: string): Promise<MailDetail> {
