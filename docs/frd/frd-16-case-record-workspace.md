@@ -552,6 +552,12 @@ declared verdict fills the cell when the Case is created, before any report
 is filed. When the report and the verdict disagree, a later report fills
 nothing: the cell stays as it was, blank or holding the verdict.
 
+The same reading fills the Case's vehicle mileage, with its unit, when the
+report states one and the Case holds no mileage: a mileage from the
+instruction, a lookup or staff is never replaced, and a Not ready Case that
+waited only for it moves to Review (operator, 11 November 2026,
+[R930](../rulings.md); [FRD-13](frd-13-case-lifecycle-and-workflow.md)).
+
 ### Inspection
 
 Inspection shows the recorded inspect-at value with its fast-update choice:

@@ -111,9 +111,13 @@ higher-tier value exists, so it never replaces a photo link's mileage
 on a photo link replaces a DVSA estimate already on the Case, and only
 that: a value from the instruction, a confirmed value, one staff entered or
 an exact MOT reading is never replaced (operator, 10 November 2026,
-[R843](../rulings.md), with R783 and R810 as they stand). The odometer-vision
-capability does not imply an activated AI caller before its own accepted
-evaluation and integration contract. The estimate method is owned by
+[R843](../rulings.md), with R783 and R810 as they stand). The mileage a
+recognised original report states fills an empty Case mileage, with its unit,
+sourced to the report, whether the report is recorded when the Case is
+created or later; it never replaces a mileage the Case holds, a lookup's
+included (operator, 11 November 2026, [R930](../rulings.md)). The
+odometer-vision capability does not imply an activated AI caller before its
+own accepted evaluation and integration contract. The estimate method is owned by
 [FRD-06](frd-06-vehicle-and-engineering-evidence.md#conservative-mot-mileage-estimation).
 
 ### Instruction field meanings

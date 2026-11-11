@@ -1,5 +1,6 @@
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Assessment;
 
@@ -107,6 +108,55 @@ public sealed class OriginalReportPrefillPolicyTests
             new Dictionary<string, string> { ["original_report.outcome"] = "total_loss" },
             OriginalReportPrefillPolicy.Writes(null, AuditAssessment.TotalLoss));
         Assert.Empty(OriginalReportPrefillPolicy.Writes(null, null));
+    }
+
+    /// <summary>
+    /// A recorded reading carries the report's mileage in the Case's own unit
+    /// words, and only with a unit it knows: the Case saves a mileage only
+    /// with its unit (R930).
+    /// </summary>
+    [Theory]
+    [InlineData(28136L, "Miles", 28136L, "miles")]
+    [InlineData(2000L, "miles", 2000L, "miles")]
+    [InlineData(52000L, "Km", 52000L, "kilometres")]
+    [InlineData(28136L, null, null, null)]
+    [InlineData(28136L, "Furlongs", null, null)]
+    [InlineData(null, "Miles", null, null)]
+    public void TheReadingCarriesTheReportsMileageWithItsUnit(
+        long? printed,
+        string? unit,
+        long? expectedMileage,
+        string? expectedUnit)
+    {
+        var reading = OriginalReportPrefillPolicy.Read(Sha256, null, null, null, null, null, printed, unit);
+
+        Assert.Equal(expectedMileage, reading.Mileage);
+        Assert.Equal(expectedUnit, reading.MileageUnit);
+    }
+
+    [Theory]
+    // No unit printed: the unit the report family's rule states.
+    [InlineData(null, null, "miles", "miles")]
+    [InlineData(null, SourceCandidateDisposition.Missing, "miles", "miles")]
+    // A printed unit wins over the stated one.
+    [InlineData("Km", SourceCandidateDisposition.Usable, "miles", "Km")]
+    // A printed unit the reader could not settle is no unit.
+    [InlineData(null, SourceCandidateDisposition.Conflicting, "miles", null)]
+    public void ThePrintedUnitWinsAndAnUnsettledOneIsNoUnit(
+        string? printed,
+        SourceCandidateDisposition? disposition,
+        string? stated,
+        string? expected) =>
+        Assert.Equal(expected, OriginalReportPrefillPolicy.MileageUnit(printed, disposition, stated));
+
+    [Fact]
+    public void TheMileageFillsNoOriginalReportCell()
+    {
+        var writes = OriginalReportPrefillPolicy.Writes(
+            new(Sha256, null, null, null, null, false, 28136, "miles"),
+            intakeVerdict: null);
+
+        Assert.Empty(writes);
     }
 
     [Fact]

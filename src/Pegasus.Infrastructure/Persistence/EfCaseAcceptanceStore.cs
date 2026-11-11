@@ -250,13 +250,14 @@ public sealed class EfCaseAcceptanceStore(
         };
         context.Cases.Add(caseEntity);
         NewCaseAssessmentDefaults.Apply(context, caseId, principal, acceptedAtUtc);
+        Pegasus.Core.Assessment.OriginalReportReading? reportReading = null;
         if (standaloneAuditEvidence is not null)
         {
             // A standalone Audit is created with its Original report cells
             // filled from the retained report (v28 P51). A reading of any other
             // bytes is ignored, which leaves the intake verdict alone to fill
             // Repairable status.
-            var reading = request.OriginalReport is { } read
+            reportReading = request.OriginalReport is { } read
                 && string.Equals(
                     read.Sha256,
                     standaloneAuditEvidence.OriginalReportAsset.ContentHash,
@@ -264,7 +265,7 @@ public sealed class EfCaseAcceptanceStore(
                     ? read
                     : null;
             await OriginalReportPrefillWriter.ApplyAsync(
-                context, caseId, reading, standaloneAuditAssessment, acceptedAtUtc, cancellationToken);
+                context, caseId, reportReading, standaloneAuditAssessment, acceptedAtUtc, cancellationToken);
         }
         else if (declaredAuditVerdict is not null)
         {
@@ -275,9 +276,20 @@ public sealed class EfCaseAcceptanceStore(
                 context, caseId, null, declaredAuditVerdict, acceptedAtUtc, cancellationToken);
         }
         var dataSnapshot = CaseDataSnapshotFactory.Create(caseEntity, receipt, request, acceptedAtUtc);
+        // The mileage the original report states fills the accepted data's
+        // empty mileage before the gate reads it (R930).
+        if (standaloneAuditEvidence is not null)
+        {
+            OriginalReportPrefillWriter.FillMileage(
+                dataSnapshot,
+                reportReading,
+                standaloneAuditEvidence.OriginalReportAssetId.ToString("D"),
+                standaloneAuditEvidence.OriginalReportAsset.FileName);
+        }
         // A new Case with no mileage is created Not ready on every route, the
         // automatic one included (R759): the accepted data answers it, not
-        // the command. A lookup or staff edit that fills it moves the Case on.
+        // the command. A lookup, a staff edit or the original report's stated
+        // mileage (R930) that fills it moves the Case on.
         var completenessEvaluation = CaseCompletenessPolicy.Evaluate(
             request.Completeness,
             workflowConfiguration,
