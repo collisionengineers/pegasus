@@ -70,12 +70,95 @@ internal sealed class EfSentCaseCorrespondenceTidyStore(
         CancellationToken cancellationToken)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var received = await ListReceivedAsync(db, caseId, retainedAtOrBeforeUtc, cancellationToken);
+        var originals = await ListForwardOriginalsAsync(
+            db, caseId, received, retainedAtOrBeforeUtc, cancellationToken);
+        return received
+            .Where(IsWritable)
+            .Concat(originals)
+            .DistinctBy(row => row.Id)
+            .OrderBy(row => row.ReceivedAtUtc)
+            .ThenBy(row => row.Id)
+            .Select(row => new CaseCorrespondenceMessage(row.Id, row.MailboxIdentity!, row.ImmutableMessageId))
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyList<UnretainedForwardOriginal>> ListUnretainedForwardOriginalsAsync(
+        Guid caseId,
+        DateTimeOffset retainedAtOrBeforeUtc,
+        CancellationToken cancellationToken)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var received = await ListReceivedAsync(db, caseId, retainedAtOrBeforeUtc, cancellationToken);
+        var forwards = StaffForwards(received);
+        if (forwards.Length == 0)
+        {
+            return [];
+        }
+
+        // An original Pegasus holds an Inbox copy of in the forwarding mailbox,
+        // whenever it was retained, is the retained path's: it is moved by its
+        // own identity, or left because it holds another Case (R958).
+        var inbox = EfRetainedMailboxMessageStore.ToCode(MailFolderScope.Inbox);
+        var named = forwards.SelectMany(forward => forward.Named).Distinct(StringComparer.Ordinal).ToArray();
+        var retained = await db.RetainedMailboxMessages.AsNoTracking()
+            .Where(message => message.FolderScope == inbox
+                && message.MailboxId != null
+                && message.CanonicalInternetMessageIdentity != null
+                && named.Contains(message.CanonicalInternetMessageIdentity))
+            .Join(
+                db.ApprovedMailboxes.AsNoTracking(),
+                message => message.MailboxId!.Value,
+                mailbox => mailbox.Id,
+                (message, mailbox) => new { mailbox.Address, Identity = message.CanonicalInternetMessageIdentity! })
+            .ToArrayAsync(cancellationToken);
+        // The approved mailboxes are a handful of rows; the forwarding address is
+        // matched as the retained path matches it, ignoring case.
+        var mailboxes = await db.ApprovedMailboxes.AsNoTracking()
+            .Select(mailbox => new
+            {
+                mailbox.Address,
+                mailbox.MailboxIdentity,
+                mailbox.SentFolderIdentity,
+                mailbox.State,
+                mailbox.ActivatedAtUtc
+            })
+            .ToArrayAsync(cancellationToken);
+        return forwards
+            .Where(forward => !retained.Any(row => SameAddress(row.Address, forward.ForwardingAddress)
+                && forward.Named.Contains(row.Identity, StringComparer.Ordinal)))
+            .Select(forward => new
+            {
+                forward.Original,
+                Mailbox = mailboxes.FirstOrDefault(mailbox => SameAddress(mailbox.Address, forward.ForwardingAddress)
+                    && IsWritable(mailbox.MailboxIdentity, mailbox.State, mailbox.ActivatedAtUtc))
+            })
+            .Where(item => item.Mailbox is not null)
+            .Select(item => new UnretainedForwardOriginal(
+                item.Mailbox!.MailboxIdentity!,
+                item.Mailbox!.SentFolderIdentity,
+                item.Original))
+            .Distinct()
+            .ToArray();
+    }
+
+    /// <summary>
+    /// The Case's received e-mails as they stand linked now, Inbox scope,
+    /// retained at or before the cut-off, each with the approved mailbox it
+    /// sits in, writable or not.
+    /// </summary>
+    private static async Task<MessageRow[]> ListReceivedAsync(
+        PegasusDbContext db,
+        Guid caseId,
+        DateTimeOffset retainedAtOrBeforeUtc,
+        CancellationToken cancellationToken)
+    {
         var mailboxChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
         var inbox = EfRetainedMailboxMessageStore.ToCode(MailFolderScope.Inbox);
         var linked = CurrentIntakeAssociations.ReceiptIdsLinkedTo(db, caseId);
         // A Triage Case's request e-mail is linked by the Triage itself, not by an
         // association row, as the Correspondence tab reads it.
-        var received = await db.IntakeReceipts.AsNoTracking()
+        return await db.IntakeReceipts.AsNoTracking()
             .Where(receipt => receipt.SourceChannel == mailboxChannel
                 && (linked.Contains(receipt.Id)
                     || db.Triage.Any(triage => triage.CaseId == caseId && triage.OriginReceiptId == receipt.Id)))
@@ -104,17 +187,32 @@ internal sealed class EfSentCaseCorrespondenceTidyStore(
                     mailbox.State,
                     mailbox.ActivatedAtUtc))
             .ToArrayAsync(cancellationToken);
-        var originals = await ListForwardOriginalsAsync(
-            db, caseId, received, retainedAtOrBeforeUtc, cancellationToken);
-        return received
-            .Where(IsWritable)
-            .Concat(originals)
-            .DistinctBy(row => row.Id)
-            .OrderBy(row => row.ReceivedAtUtc)
-            .ThenBy(row => row.Id)
-            .Select(row => new CaseCorrespondenceMessage(row.Id, row.MailboxIdentity!, row.ImmutableMessageId))
-            .ToArray();
     }
+
+    /// <summary>
+    /// The staff forwards among <paramref name="received"/>: held in
+    /// instructions@ or pegasustest@ (R586, R651, R956), with the address
+    /// that forwarded each and the one message it was made from, the first
+    /// identity it retained (R957), as retained and in the forms an identity
+    /// column is compared with.
+    /// </summary>
+    private static StaffForward[] StaffForwards(MessageRow[] received) =>
+        received
+            .Where(row => PrincipalMailRoutePolicy.HoldsStaffForwards(row.MailboxAddress)
+                && !string.IsNullOrWhiteSpace(row.SenderAddress))
+            .Select(row => new
+            {
+                ForwardingAddress = row.SenderAddress!,
+                Original = EfIntakeMutationStore.DeserializeReplyIdentities(row.InReplyToIdentitiesJson).FirstOrDefault()
+            })
+            .Where(forward => !string.IsNullOrWhiteSpace(forward.Original))
+            .Select(forward => new StaffForward(
+                forward.ForwardingAddress,
+                forward.Original!,
+                EfIntakeMutationStore.ReplyIdentityLookup([forward.Original!])))
+            .ToArray();
+
+    private sealed record StaffForward(string ForwardingAddress, string Original, string[] Named);
 
     /// <summary>
     /// The original each Collision Engineers staff forward among
@@ -136,17 +234,7 @@ internal sealed class EfSentCaseCorrespondenceTidyStore(
         DateTimeOffset retainedAtOrBeforeUtc,
         CancellationToken cancellationToken)
     {
-        var forwards = received
-            .Where(row => PrincipalMailRoutePolicy.HoldsStaffForwards(row.MailboxAddress)
-                && !string.IsNullOrWhiteSpace(row.SenderAddress))
-            .Select(row => new
-            {
-                ForwardingAddress = row.SenderAddress!,
-                Named = EfIntakeMutationStore.ReplyIdentityLookup(
-                    EfIntakeMutationStore.DeserializeReplyIdentities(row.InReplyToIdentitiesJson).Take(1))
-            })
-            .Where(forward => forward.Named.Length > 0)
-            .ToArray();
+        var forwards = StaffForwards(received);
         if (forwards.Length == 0)
         {
             return [];
@@ -206,9 +294,12 @@ internal sealed class EfSentCaseCorrespondenceTidyStore(
     /// on the test instance (operator, 10 November 2026; R916, R627).
     /// </summary>
     private static bool IsWritable(MessageRow row) =>
-        row.MailboxIdentity is not null
-        && row.MailboxActivatedAtUtc is not null
-        && string.Equals(row.MailboxState, ApprovedMailboxState.Approved.ToString(), StringComparison.Ordinal);
+        IsWritable(row.MailboxIdentity, row.MailboxState, row.MailboxActivatedAtUtc);
+
+    private static bool IsWritable(string? mailboxIdentity, string mailboxState, DateTimeOffset? activatedAtUtc) =>
+        mailboxIdentity is not null
+        && activatedAtUtc is not null
+        && string.Equals(mailboxState, ApprovedMailboxState.Approved.ToString(), StringComparison.Ordinal);
 
     private static bool SameAddress(string? left, string? right) =>
         string.Equals(left?.Trim(), right?.Trim(), StringComparison.OrdinalIgnoreCase);

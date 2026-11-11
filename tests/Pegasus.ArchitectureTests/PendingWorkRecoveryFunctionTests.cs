@@ -582,6 +582,9 @@ public sealed class PendingWorkRecoveryFunctionTests
 
         public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<IReadOnlyList<MailboxMessageLocation>> FindMessagesAsync(string mailboxIdentity, string internetMessageId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     /// <summary>A clock stopped at one minute past ten on a fixed day, whose timers fire when a test says.</summary>

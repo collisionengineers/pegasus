@@ -84,6 +84,17 @@ public interface IRetainedMessageMover
         string mailboxIdentity,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The messages of the mailbox that carry this Message-ID, in whichever
+    /// folders they sit: how the original of a staff forward is found when
+    /// Pegasus holds no copy of it (R975). The Message-ID is given with or
+    /// without its angle brackets.
+    /// </summary>
+    Task<IReadOnlyList<MailboxMessageLocation>> FindMessagesAsync(
+        string mailboxIdentity,
+        string internetMessageId,
+        CancellationToken cancellationToken);
+
     Task MoveAsync(
         RetainedMessageMove move,
         CancellationToken cancellationToken);
@@ -98,6 +109,9 @@ public sealed class UnavailableRetainedMessageMover : IRetainedMessageMover
 
     public Task<string> ResolveDeletedItemsFolderIdAsync(string mailboxIdentity, CancellationToken cancellationToken) =>
         throw new InvalidOperationException("Outlook moves are unavailable in this runtime.");
+
+    public Task<IReadOnlyList<MailboxMessageLocation>> FindMessagesAsync(string mailboxIdentity, string internetMessageId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<MailboxMessageLocation>>([]);
 
     public Task MoveAsync(RetainedMessageMove move, CancellationToken cancellationToken) =>
         throw new InvalidOperationException("Outlook moves are unavailable in this runtime.");
