@@ -81,6 +81,7 @@ together, with a ruling.
 | Graph identity | a Microsoft 365 administrator (the operator) | the existing `CollisionSpike Graph Intake` registration and scope `CollisionSpike-Intake-Prod`; adds the one role it lacks (`Application Mail.Send`) and the secret; recorded in operations |
 | `tailscale funnel` of the webhook path | the operator | the webhook's public path on the machine |
 | `tailscale funnel` of `/c`, `/s` and `/capture` | the operator, with `Features__PhotoCapture` on | the photo capture paths, public while photo capture is on (R785) |
+| Seeding the Brego session (section 2) | the operator's word, and a blob read role on `pegcustody252ow37gij` for their `az` account | reads production's `authentication-ring/brego-session.json` (R933) |
 | `Copy-ProductionDatabaseToRun.ps1 -Approve` | the operator's word per copy | a live read of production SQL, into this run on this host alone |
 | `Invoke-LocalDevelopment.ps1 -Action Reset -Approve` | the operator's word for this run | removes the database and the run root; nothing brings the data back (R696) |
 | Serving a branch or pull request | the operator names it | the instance leaves `dev`'s tip (R695, section 6) |
@@ -140,6 +141,28 @@ Graph__ClientSecret=<its secret>
 Graph__ChangeNotificationUrl=https://<host>.<tailnet>.ts.net:8443/hooks/microsoft-graph/mail
 Graph__ChangeNotificationClientState=<at most 128 characters the operator chooses, not production's>
 ```
+
+Brego's session lives in the run's Azurite account, at
+`authentication-ring/brego-session.json`, as production's lives in custody
+storage (R933). Seed it once per run with production's cookie, so the instance
+never signs in through Brego's device-approval challenge. That challenge
+e-mails a verify-browser code, and a second session could sign production out.
+Never verify such a code for the instance. Once the run is started:
+
+```bash
+manifest=artifacts/local-development/<run>/run-manifest.json
+azurite="DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFeqCnf2w+X8m0y0V3O52SxG9uM91m0YF/XwoK+WkKzQAE3WZcX0Dne6ZaZR7sCMZ8DlQ==;BlobEndpoint=$(jq -r .endpoints.azuriteBlob "$manifest")"
+seed=$(mktemp -d)
+az storage blob download --account-name pegcustody252ow37gij -c authentication-ring \
+  -n brego-session.json -f "$seed/brego-session.json" --auth-mode login
+az storage container create -n authentication-ring --connection-string "$azurite"
+az storage blob upload -c authentication-ring -n brego-session.json \
+  -f "$seed/brego-session.json" --overwrite --connection-string "$azurite"
+rm -r "$seed"
+```
+
+The first Brego press after a Web start then shows no `device-approval` call
+in `web-*.stdout.log`. Record no cookie value.
 
 For photo capture, when the operator turns it on there, also append:
 

@@ -153,6 +153,48 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
         Assert.Single(scope.ServiceProvider.GetServices<Pegasus.Core.Operations.IStaffReportSend>());
     }
 
+    /// <summary>
+    /// Features:LiveGuideValuation keeps Brego's session cookie in the run's
+    /// Azurite account, as Production keeps it in custody storage, so a Web
+    /// start reuses it instead of signing in through Brego's device-approval
+    /// challenge (R933, #2062).
+    /// </summary>
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public async Task LiveGuideValuationKeepsTheBregoSessionInABlobStore()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Development",
+            new Dictionary<string, string?>
+            {
+                ["Runtime:Profile"] = "DevelopmentOffline",
+                ["ConnectionStrings:Pegasus"] = database.ConnectionString,
+                ["Intake:LocalArtifactPath"] = Path.Combine(Path.GetTempPath(), $"pegasus-live-guide-valuation-{Guid.NewGuid():N}"),
+                ["Features:LocalIntake"] = "false",
+                ["Features:LiveGlass"] = "true",
+                ["Features:LiveGuideValuation"] = "true",
+                ["Glass:MarketValueAssessorBaseUri"] = "https://mva.test/",
+                ["Glass:EstimatorBaseUri"] = "https://ere.test/",
+                ["Glass:CallbackBaseUri"] = "https://pegasus.test/",
+                ["Glass:RepairProfileId"] = "4063",
+                ["Glass:ValuationAccount:Username"] = "valuation-test",
+                ["Glass:ValuationAccount:Password"] = "synthetic-password",
+                ["Cazana:CompanionAccount:Email"] = "companion@example.test",
+                ["Cazana:CompanionAccount:Password"] = "synthetic-cazana-password",
+                ["Brego:ValuationAccount:Email"] = "brego@example.test",
+                ["Brego:ValuationAccount:Password"] = "synthetic-brego-password"
+            });
+
+        await using var scope = factory.Services.CreateAsyncScope();
+
+        Assert.IsType<Pegasus.Infrastructure.Brego.AzureBlobBregoSessionStore>(
+            scope.ServiceProvider.GetRequiredService<Pegasus.Infrastructure.Brego.IBregoSessionStore>());
+        Assert.Contains(
+            scope.ServiceProvider.GetServices<Pegasus.Core.Assessment.IGuideValuationProvider>(),
+            provider => provider is Pegasus.Infrastructure.Brego.BregoGuideValuationProvider);
+    }
+
     [Fact]
     public void LiveGraphMailWithoutAClientSecretFailsAtStartNamingTheKey()
     {

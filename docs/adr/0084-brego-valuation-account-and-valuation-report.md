@@ -126,7 +126,11 @@ setting's key instead.
 - Creating `brego-valuation-email` and `brego-valuation-password` in Key Vault
   with secret-scoped grants to the Web identity and setting the two azd
   variables are release steps.
-- Hosts that do not run the Production profile compose no Brego provider.
+- Production and the hosted test instance (`Features:LiveGuideValuation`,
+  [R709](../rulings.md)) compose the Brego provider; any other host does not.
+  The test instance keeps its `brego-session` cookie in its own Azurite
+  `authentication-ring/brego-session.json`, seeded with production's cookie, so
+  it never signs in through device approval ([R933](../rulings.md), 11 November 2026).
 
 ## Links
 
