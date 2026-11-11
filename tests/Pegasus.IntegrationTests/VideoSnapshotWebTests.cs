@@ -10,6 +10,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Authentication;
 using Pegasus.Web.Presentation;
 using SkiaSharp;
 
@@ -473,8 +474,17 @@ public sealed class VideoSnapshotWebTests
                 $"close-case:{Guid.NewGuid():N}",
                 "Principal cancelled before inspection.",
                 lease.Token,
-                ClosedCaseDisposition.PrincipalCancelled),
+                CaseClosureOutcome.PrincipalCancelled),
             CancellationToken.None);
+    }
+
+    private static void AssertPrgToFilesImages(HttpResponseMessage response, Guid caseId)
+    {
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var location = response.Headers.Location?.OriginalString ?? string.Empty;
+        Assert.StartsWith($"/Cases/{caseId:D}", location, StringComparison.Ordinal);
+        Assert.Contains("section=files", location, StringComparison.Ordinal);
+        Assert.EndsWith("#case-files-images", location, StringComparison.Ordinal);
     }
 
     private static Task<HttpResponseMessage> PostSnapshotAsync(
