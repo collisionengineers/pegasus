@@ -337,6 +337,20 @@ else
                 "transient-intake",
                 new BlobClientOptions(BlobClientOptions.ServiceVersion.V2025_11_05)));
     }
+    if (liveGuideValuation)
+    {
+        // The test instance keeps its Brego session where Production does, in
+        // the run's Azurite account, seeded with production's cookie (R933).
+        // Without it every Web start signed in afresh into Brego's
+        // device-approval challenge (#2062).
+        builder.Services.AddSingleton<Pegasus.Infrastructure.Brego.IBregoSessionStore>(
+            new Pegasus.Infrastructure.Brego.AzureBlobBregoSessionStore(
+                new BlobClient(
+                    queueConnectionString,
+                    "authentication-ring",
+                    "brego-session.json",
+                    new BlobClientOptions(BlobClientOptions.ServiceVersion.V2025_11_05))));
+    }
 }
 builder.Services.AddSingleton<ICursorProtector, DataProtectionCursorProtector>();
 var localDocumentCustodyConfigured =
@@ -814,7 +828,7 @@ builder.Services.AddPegasusStaffIdentity();
 // Production, and the hosted test instance under Features:LiveGuideValuation
 // (R709); any other offline host reaches no vendor. Each credential is read on
 // each valuation for the same unresolved-Key-Vault-reference reason as Box's.
-// Offline there is no Brego session store, so each valuation signs in afresh.
+// Both keep Brego's session cookie in a blob store (R933).
 if (productionProfile || liveGuideValuation)
 {
     builder.Services.AddGlassGuideValuation(

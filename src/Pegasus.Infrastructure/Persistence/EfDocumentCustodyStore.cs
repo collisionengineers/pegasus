@@ -849,9 +849,9 @@ internal sealed class EfDocumentCustodyStore(
     /// <summary>
     /// Records <paramref name="occurrence"/> as the Case's original report —
     /// the one body a staff Mark, a recognition and a change of type to Audit
-    /// report share: the role, the Original report cells filled from its own
-    /// reading, the Case version and the history line, which a change of type
-    /// gives as the reason typed for it.
+    /// report share: the role, the Original report cells and the empty Case
+    /// mileage filled from its own reading, the Case version and the history
+    /// line, which a change of type gives as the reason typed for it.
     /// </summary>
     private static async Task<OriginalReportRecorded> RecordOriginalReportAsync(
         PegasusDbContext context,
@@ -873,16 +873,25 @@ internal sealed class EfDocumentCustodyStore(
         // The marked document fills the Original report cells staff have not
         // confirmed (v28 P51). A reading of any other bytes fills nothing from
         // the report.
-        var filled = await OriginalReportPrefillWriter.ApplyAsync(
-            context,
-            await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken),
-            reading is not null
-                && string.Equals(reading.Sha256, version.Sha256, StringComparison.OrdinalIgnoreCase)
-                    ? reading
-                    : null,
-            workflow.Case.StandaloneAuditAssessment is { } verdict ? AuditAssessmentCode.Parse(verdict) : null,
-            now,
-            cancellationToken);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
+        var markedReading = reading is not null
+            && string.Equals(reading.Sha256, version.Sha256, StringComparison.OrdinalIgnoreCase)
+                ? reading
+                : null;
+        var filled = (await OriginalReportPrefillWriter.ApplyAsync(
+                context,
+                workId,
+                markedReading,
+                workflow.Case.StandaloneAuditAssessment is { } verdict ? AuditAssessmentCode.Parse(verdict) : null,
+                now,
+                cancellationToken))
+            .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal);
+        // The history lists the mileage it filled beside the cells, empty before (R930).
+        foreach (var (fieldName, value) in await FillReportMileageAsync(
+                     context, workflow, workId, version, markedReading, now, cancellationToken))
+        {
+            filled[fieldName] = (null, value);
+        }
         // A Mark by staff or the Automation Actor is made under the lease and
         // ends it; a recognition is system work and leaves whoever is editing
         // their lease.
@@ -927,6 +936,51 @@ internal sealed class EfDocumentCustodyStore(
             item.CaseId == workflow.CaseId
             && item.OperationKey == operationKey).ResultJson = JsonSerializer.Serialize(result);
         return result;
+    }
+
+    /// <summary>
+    /// Fills the work's empty mileage from the mileage the recorded report
+    /// states (R930), and returns the fields filled. A Not ready Case whose own
+    /// work it filled has its readiness re-checked, as a lookup's mileage does
+    /// (R759): the mileage was empty before, so the Case moves to Review by
+    /// itself when nothing else is missing. Only a Not ready Case is
+    /// re-checked, so a Case past it is never sent back (R631).
+    /// </summary>
+    private static async Task<Dictionary<string, string>> FillReportMileageAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        Guid workId,
+        DocumentVersionEntity version,
+        OriginalReportReading? reading,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (reading is not { Mileage: not null })
+        {
+            return new Dictionary<string, string>();
+        }
+
+        // Tracked, so the fields the fill adds join it.
+        var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: true)
+            .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken);
+        if (snapshot is null)
+        {
+            return new Dictionary<string, string>();
+        }
+
+        var filled = OriginalReportPrefillWriter.FillMileage(
+            snapshot, reading, version.Id.ToString("D"), version.FileName);
+        if (filled.Count > 0
+            && workId == workflow.CaseId
+            && workflow.State == nameof(CaseLifecycleState.NotReady))
+        {
+            // The mileage is a required instruction item as well (FRD-13).
+            CaseInstructionCompleteness.CompleteIfPresent(snapshot);
+            await CaseInstructionCompleteness.ApplyReadinessAsync(
+                context, workflow, snapshot, now, cancellationToken);
+        }
+
+        return filled;
     }
 
     /// <summary>The Case's current, not removed document with the Audit report role.</summary>

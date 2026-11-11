@@ -907,8 +907,9 @@ public sealed class CasesIndexWebTests
     /// <summary>
     /// R155: a Not ready Audit kept without its original report names Original
     /// report missing first, as the Case page's aside lists it, ahead of its
-    /// incomplete images. Only the Audit reads whether its report is filed, in
-    /// one document query; an Inspection Case in the same queue reads none.
+    /// incomplete images. The queue reads whether its Audits' reports are
+    /// filed in one document query for the page (R929); selecting a Case, an
+    /// Audit or an Inspection, adds none.
     /// </summary>
     [Fact]
     public async Task AnAuditWithoutItsOriginalReportNamesItAsTheAsideDoes()
@@ -931,11 +932,66 @@ public sealed class CasesIndexWebTests
 
         Assert.Matches(CurrentWork(Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete("Images")), inspection);
         Assert.Matches(CurrentWork(Pegasus.Web.Presentation.OperatorLabels.OriginalReportMissing), audit);
-        Assert.Equal(0, inspectionDocumentReads);
-        Assert.Equal(1, auditDocumentReads);
+        // The Not ready queue reads what holds its Cases once for the page
+        // (R929), so neither selection adds a document read of its own.
+        Assert.InRange(inspectionDocumentReads, 0, 1);
+        Assert.InRange(auditDocumentReads, 0, inspectionDocumentReads);
         Assert.Contains(
             AsideStep(Pegasus.Web.Presentation.OperatorLabels.OriginalReportMissing),
             await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{auditId:D}"),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// R929: a Not ready Case that has its instruction and its images is held
+    /// by something else, and the quick detail and the Case page's aside name
+    /// it: its missing mileage (R759), or its failed document storage, which
+    /// comes first whatever else the Case lacks.
+    /// </summary>
+    [Fact]
+    public async Task TheQuickDetailNamesWhatHoldsACaseThatHasItsInstructionAndImages()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var noMileageId = await SeedImagesIncompleteCaseAsync(
+            factory, client, "QD21 MIL", "QUICK-DETAIL-07", CaseLifecycleState.NotReady);
+        var storageFailedId = await SeedImagesIncompleteCaseAsync(
+            factory, client, "QD21 STO", "QUICK-DETAIL-08", CaseLifecycleState.NotReady);
+        await using (var context = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            var cases = await context.Cases
+                .Where(item => item.Id == noMileageId || item.Id == storageFailedId)
+                .ToListAsync();
+            foreach (var item in cases)
+            {
+                item.ImagesComplete = true;
+            }
+            cases.Single(item => item.Id == storageFailedId).CustodyState = "failed";
+            context.CaseDataFields.RemoveRange(await context.CaseDataFields
+                .Where(item => item.WorkId == noMileageId
+                    && (item.FieldName == CaseDataFieldNames.VehicleMileage
+                        || item.FieldName == CaseDataFieldNames.VehicleMileageUnit))
+                .ToListAsync());
+            await context.SaveChangesAsync();
+        }
+        var mileageStep = Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete(
+            CaseWorkflowConfiguration.VehicleMileageRequirement);
+        var storageStep = Pegasus.Web.Presentation.OperatorLabels.DocumentStorageFailed;
+
+        Assert.Matches(
+            CurrentWork(mileageStep),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=not_ready&selected={noMileageId:D}"));
+        Assert.Contains(
+            AsideStep(mileageStep),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{noMileageId:D}"),
+            StringComparison.Ordinal);
+        Assert.Matches(
+            CurrentWork(storageStep),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=not_ready&selected={storageFailedId:D}"));
+        Assert.Contains(
+            AsideStep(storageStep),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{storageFailedId:D}"),
             StringComparison.Ordinal);
     }
 

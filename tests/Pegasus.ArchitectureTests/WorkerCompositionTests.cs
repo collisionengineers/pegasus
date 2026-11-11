@@ -559,6 +559,118 @@ public sealed class WorkerCompositionTests
     }
 
     /// <summary>
+    /// Features:LiveOcr composes Production's OCR adapter and processor against
+    /// the endpoint it names, over the instance's Graph app registration handed
+    /// to the adapter alone: no credential is registered for the other clients,
+    /// and the Graph mail side stays as its own opt-in leaves it (ADR-0088 as
+    /// amended, R931).
+    /// </summary>
+    [Fact]
+    public void DevelopmentOfflineWithLiveOcrComposesProductionsOcrAdapter()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = CreateDevelopmentOfflineValues(root);
+            AddLiveOcrValues(values);
+            var services = CreateWorkerServices(Build(values), new TestHostEnvironment(root));
+
+            using var provider = services.BuildServiceProvider(validateScopes: true);
+            using var scope = provider.CreateScope();
+
+            Assert.IsType<AzureDocumentIntelligenceOcr>(
+                scope.ServiceProvider.GetRequiredService<IIntakeOcrProvider>());
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<IProcessIntakeOcr>());
+            Assert.Equal(
+                new Uri("https://ocr.example.test/"),
+                provider.GetRequiredService<AzureDocumentIntelligenceOptions>().Endpoint);
+            Assert.Null(provider.GetService<Azure.Core.TokenCredential>());
+            Assert.Equal(
+                "Pegasus.Infrastructure.Intake.LocalDurableApprovedInboxSource",
+                provider.GetRequiredService<IApprovedInboxSource>().GetType().FullName);
+            WorkerFunctionSet.AssertEveryFunctionActivates(scope.ServiceProvider);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>The OCR opt-in without its endpoint fails at build, naming the key, before any registration.</summary>
+    [Fact]
+    public void DevelopmentOfflineWithLiveOcrFailsAtBuildWithoutTheEndpoint()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = CreateDevelopmentOfflineValues(root);
+            AddLiveOcrValues(values);
+            values["DocumentIntelligence:Endpoint"] = null;
+            var services = new ServiceCollection();
+
+            var error = Assert.Throws<InvalidOperationException>(() =>
+                services.AddPegasusWorker(Build(values), new TestHostEnvironment(root)));
+
+            Assert.Equal("DocumentIntelligence:Endpoint is required for Features:LiveOcr.", error.Message);
+            Assert.Empty(services);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>A missing Graph key fails the OCR opt-in at build, naming the key and the opt-in.</summary>
+    [Fact]
+    public void DevelopmentOfflineWithLiveOcrFailsAtBuildWhenTheSecretIsMissing()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = CreateDevelopmentOfflineValues(root);
+            AddLiveOcrValues(values);
+            values["Graph:ClientSecret"] = null;
+            var services = new ServiceCollection();
+
+            var error = Assert.Throws<InvalidOperationException>(() =>
+                services.AddPegasusWorker(Build(values), new TestHostEnvironment(root)));
+
+            Assert.Equal("Graph:ClientSecret is required for Features:LiveOcr.", error.Message);
+            Assert.Empty(services);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>With the OCR opt-in off, the endpoint is still a Production-only key offline.</summary>
+    [Fact]
+    public void DevelopmentOfflineWithLiveOcrOffStillRefusesTheEndpoint()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var values = CreateDevelopmentOfflineValues(root);
+            AddLiveOcrValues(values);
+            values["Features:LiveOcr"] = "false";
+            var services = new ServiceCollection();
+
+            var error = Assert.Throws<InvalidOperationException>(() =>
+                services.AddPegasusWorker(Build(values), new TestHostEnvironment(root)));
+
+            Assert.Equal(
+                "DocumentIntelligence:Endpoint is a Production-only setting and is not permitted for Runtime:Profile DevelopmentOffline.",
+                error.Message);
+            Assert.Empty(services);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// Features:LiveBoxCustody composes the production storage shape over the
     /// run's Azurite container with the development Box root, not the local
     /// artifact folder: Web and Worker then share one storage truth.
@@ -627,6 +739,7 @@ public sealed class WorkerCompositionTests
     [InlineData("Features:LiveVehicleLookup")]
     [InlineData("Features:LiveBoxCustody")]
     [InlineData("Features:LiveGraphMail")]
+    [InlineData("Features:LiveOcr")]
     public void ProductionRefusesTheLocalLiveOptIns(string key)
     {
         var root = CreateTemporaryRoot();
@@ -832,6 +945,15 @@ public sealed class WorkerCompositionTests
     {
         values["Features:LiveGraphMail"] = "true";
         values["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/";
+        values["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94";
+        values["Graph:ClientId"] = "4f0d4c7e-1b2a-4c3d-9e8f-0a1b2c3d4e5f";
+        values["Graph:ClientSecret"] = "local-test-instance-secret";
+    }
+
+    private static void AddLiveOcrValues(Dictionary<string, string?> values)
+    {
+        values["Features:LiveOcr"] = "true";
+        values["DocumentIntelligence:Endpoint"] = "https://ocr.example.test/";
         values["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94";
         values["Graph:ClientId"] = "4f0d4c7e-1b2a-4c3d-9e8f-0a1b2c3d4e5f";
         values["Graph:ClientSecret"] = "local-test-instance-secret";

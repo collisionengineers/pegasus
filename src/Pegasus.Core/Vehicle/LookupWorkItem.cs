@@ -39,7 +39,8 @@ public sealed record VehicleLookupProcessedOutcome(
             result.HasEvidence
                 ? MotMileageEstimationPolicy.Estimate(
                     result.MotTests,
-                    DateOnly.FromDateTime(result.RetrievedAtUtc.UtcDateTime))
+                    DateOnly.FromDateTime(result.RetrievedAtUtc.UtcDateTime),
+                    result.FirstRegisteredOn)
                 : null);
     }
 }

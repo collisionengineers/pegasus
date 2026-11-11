@@ -232,6 +232,38 @@ public sealed partial class ThirdPartyReportExtractionTests
             OriginalReportPrefillPolicy.Writes(reading, AuditAssessment.TotalLoss));
     }
 
+    /// <summary>
+    /// The speedo reading the narrative prints is the report's mileage, in the
+    /// Case's own unit words, so it can fill an empty Case mileage (R930).
+    /// </summary>
+    [Fact]
+    public void TheNarrativesSpeedoReadingIsTheReportsMileage()
+    {
+        var reading = Cells(ConnexusHeader);
+
+        Assert.Equal(46954L, reading.Mileage);
+        Assert.Equal("miles", reading.MileageUnit);
+    }
+
+    [Fact]
+    public void AReportStatingKilometresKeepsItsUnit()
+    {
+        var reading = Cells(ConnexusHeader.Replace(
+            "Speedo: 46954     Miles", "Speedo: 46954     Km", StringComparison.Ordinal));
+
+        Assert.Equal(46954L, reading.Mileage);
+        Assert.Equal("kilometres", reading.MileageUnit);
+    }
+
+    [Fact]
+    public void AReportPrintingNoMileageStatesNone()
+    {
+        var reading = Cells(LairdAssessment);
+
+        Assert.Null(reading.Mileage);
+        Assert.Null(reading.MileageUnit);
+    }
+
     [Fact]
     public void EveryFilledAssessorIsOneTheSectionOffers()
     {

@@ -42,6 +42,7 @@ in the same folder by the operator.
 | MAIL-14 | Sent-item evidence | `*.sent.json` seeded into `<run>/mailbox/sent` attach as report-sent evidence; with `Features__LiveGraphMail`, the production Sent Items are polled | folder adapter, or Graph |
 | MAIL-12 | Staff send and report send | with `Features__LiveGraphMail`, a send to an address the operator names leaves the enabled production mailbox, and the Sent-evidence poll settles it to Sent | a real e-mail (R677); send only to addresses the operator names; production remains the proof of record |
 | MAIL-25 | Answered-instruction move, and the Delete case correspondence move | after a report send on the instance, the Worker moves the answered instruction to Deleted Items and the log shows the `/move` request; after a send ticked Delete case correspondence, it moves the Case's received e-mails and the Case history shows `correspondence_moved_to_deleted_items` (R902) | a real move in the shared mailbox (R677); a production copy closes production's pending tidies first (R680) |
+| INT-16 | OCR of a scanned PDF | with `Features__LiveOcr`, the Worker's `intake_ocr` work for a scanned page completes instead of ending `queue_poisoned`, and the scanned report is read and re-filed as in production | a charged call to production's Document Intelligence account over the instance's Graph app registration (ADR-0088 as amended, R931); production remains the proof of record |
 | INT-13, INT-17 | Image intake and plate reading | uploaded vehicle photos read their registration and group | in-process ONNX |
 | TRI-01 | Triage Case lifecycle | a Triage Case walks its states | the outcome reply cannot send |
 | RPT-01, RPT-03 | Report rendering | the Inspection and Audit PDFs render and download | in-process renderer |
@@ -57,6 +58,6 @@ in the same folder by the operator.
 | --- | --- | --- |
 | Staff mail send, report send, Triage reply, without `Features__LiveGraphMail` | `Unavailable` under the folder mailbox adapters; the hosted test instance composes them (ADR-0088 as amended, R675), and production remains the proof of record (R677) | [FRD-21](../frd/README.md) |
 | Graph subscriptions, webhooks, the answered-instruction move, without `Features__LiveGraphMail` and the webhook keys | not composed under the folder adapters; the recovery poll stands in for the subscription | [FRD-26](../frd/README.md) |
-| OCR (INT-16) | Document Intelligence needs the Worker managed identity | [ADR-0040](../adr/0040-qualified-document-intelligence-ocr.md) |
+| OCR (INT-16), without `Features__LiveOcr` | no OCR provider is composed, so the OCR work fails closed; the hosted test instance composes Production's adapter against production's account (ADR-0088 as amended, R931), and production remains the proof of record | [ADR-0040](../adr/0040-qualified-document-intelligence-ocr.md) |
 | Problem-report issue creation | a real token would file issues in the production repository | [ADR-0055](../adr/0055-github-issues-as-the-problem-report-sink.md) |
 | Durable cloud behaviour, RBAC, deployment | the local run proves the process graph and these flows only | [runbook](../runbook.md#status-and-smoke) |

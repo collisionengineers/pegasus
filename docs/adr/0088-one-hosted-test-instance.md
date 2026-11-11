@@ -30,6 +30,10 @@ there, Funnel on 8443 also exposes the photo capture paths `/c`, `/s` and
 Amended 10 November 2026 (R899): Funnel on 443 exposes the whole origin,
 behind password sign-in, and the Automation MCP offers the
 authorization-code flow to a claude.ai custom connector; see Decision.
+Amended 11 November 2026 (R931, amending R677): the Worker opt-in
+`Features:LiveOcr` reads scanned pages on the instance with production's
+Document Intelligence account, as a rehearsal; production remains the
+proof of record; see Decision.
 
 Accepted on the operator's rulings of 2 November 2026 (R623 to R628). It
 supersedes one clause of [ADR-0014](0014-local-to-production-deployment.md),
@@ -126,12 +130,20 @@ their Tailscale network, at no Azure cost (R623).
   Funnelled public origin, and the MCP's one connector redirect is
   `https://claude.ai/api/mcp/auth_callback`, so a claude.ai custom connector
   reaches it through the authorization-code flow (R899).
+- OCR runs on the instance under `Features:LiveOcr` (11 November 2026,
+  R931): the Worker composes Production's Document Intelligence adapter and
+  OCR processor against production's account, named by
+  `DocumentIntelligence:Endpoint`, which DevelopmentOffline otherwise
+  refuses. It authenticates with the same `CollisionSpike Graph Intake`
+  registration and secret as the Graph mail side, granted `Cognitive
+  Services User` on that account (`pegasus-prod-ocr-252ow37gij`) alone, so
+  scanned reports are read and re-filed on the instance as in production.
 - The instance proves local behaviour at the Linux runtime production uses.
   The evidence tiers in [engineering](../engineering.md#required-evidence-tiers)
-  are unchanged: staff send and Graph subscriptions can be rehearsed on the
-  instance, but they, OCR and deployment remain production proofs, as the
+  are unchanged: staff send, Graph subscriptions and OCR can be rehearsed on
+  the instance, but they and deployment remain production proofs, as the
   [verification matrix](../engineering/local-live-verification.md) states and
-  the operator kept (R677).
+  the operator kept (R677, R931).
 
 ## Consequences
 
@@ -145,8 +157,9 @@ their Tailscale network, at no Azure cost (R623).
 - The procedure is the [`pegasus-test-instance`](../../.agents/skills/pegasus-test-instance/SKILL.md)
   skill. Its tooling is the lifecycle's `-PublicOrigin` and Reset's
   `-Approve`, the host gate in `scripts/PegasusPlatform.ps1`, the
-  `Features:LiveGraphMail` opt-in with the two webhook keys, Funnel on the
-  webhook path and the photo capture paths, and
+  `Features:LiveGraphMail` opt-in with the two webhook keys, the
+  `Features:LiveOcr` opt-in with its endpoint, Funnel on the webhook path and
+  the photo capture paths, and
   `scripts/Copy-ProductionDatabaseToRun.ps1`.
 - The fences are no longer in the grant. They are the test mailbox being
   the instance's own, the operator enabling any production mailbox on the
@@ -160,6 +173,6 @@ their Tailscale network, at no Azure cost (R623).
 
 - Superseded clause: [ADR-0014](0014-local-to-production-deployment.md).
 - Workstations: [ADR-0039](0039-windows-and-linux-release-workstations.md).
-- Rulings: R623 to R629, R675 to R680, R693 to R696 and R785 in
+- Rulings: R623 to R629, R675 to R680, R693 to R696, R785 and R931 in
   [rulings](../rulings.md).
 - Procedure: [runbook, local live-integration run](../runbook.md#local-live-integration-run).

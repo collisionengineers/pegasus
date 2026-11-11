@@ -191,7 +191,10 @@ e-mail is treated as a document too, never Unidentified. An e-mail carrying a
 PDF is a document carrier: its loose photograph attachments open no Image
 Intake or Unidentified item and are filed with it once the Case is matched;
 with no Case the e-mail waits in No Case Found. The PDF's images become Case
-images after filing (operator, 22 October 2026).
+images after filing (operator, 22 October 2026). An e-mail carrying a Word
+document is a document carrier in the same way, and the photographs inside
+the Word document are read with those inside a PDF (operator, 11 November
+2026, R940).
 
 One item covers one source occurrence or one inseparable submission group.
 Group membership is permanent: the group gets one `U<n>` reference, and each

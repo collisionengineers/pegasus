@@ -304,6 +304,28 @@ public sealed class VehicleWorkflowTests
         };
     }
 
+    /// <summary>
+    /// The estimate is derived with the answer's first-registration date, so
+    /// a single MOT reading is carried forward at the lifetime rate (R941).
+    /// </summary>
+    [Fact]
+    public void DeriveHandsTheFirstRegistrationDateToTheEstimate()
+    {
+        // Invented: one test, 1,000 days after first registration.
+        var retrievedOn = DateOnly.FromDateTime(FixedUtcNow.UtcDateTime);
+        var testedOn = retrievedOn.AddDays(-200);
+        MotTestObservation[] history = [new(testedOn, "PASSED", null, 30_000, VehicleMileageUnit.Miles)];
+        var result = Result(
+            VehicleLookupOutcome.Current,
+            vehicle: new("Example", "Model", 2020, 1600, "Petrol"),
+            motTests: history) with { FirstRegisteredOn = testedOn.AddDays(-1_000) };
+
+        var estimate = Assert.IsType<MotMileageEstimate>(VehicleLookupProcessedOutcome.Derive(result).Estimate);
+
+        Assert.Equal(36_000L, estimate.Miles);
+        Assert.Equal(testedOn.AddDays(-1_000), estimate.Evidence.Lifetime?.StartedOn);
+    }
+
     private static VehicleLookupResult Result(
         VehicleLookupOutcome outcome,
         VehicleDetails? vehicle = null,

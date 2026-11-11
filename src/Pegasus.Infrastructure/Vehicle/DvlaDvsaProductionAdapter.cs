@@ -114,7 +114,8 @@ internal sealed class DvlaDvsaProductionAdapter(
                 retrievedAtUtc - sourceAge,
                 vehicle,
                 dvsa.Tests,
-                failure);
+                failure,
+                dvsa.FirstRegisteredOn);
         }
         else if (dvla.NotFound && dvsa.NotFound)
         {
@@ -151,7 +152,11 @@ internal sealed class DvlaDvsaProductionAdapter(
         using var request = new HttpRequestMessage(HttpMethod.Post, uri);
         request.Headers.TryAddWithoutValidation("x-api-key", options.DvlaApiKey);
         request.Content = JsonContent.Create(new { registrationNumber = registration });
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await SendOrUnreachedAsync(request, cancellationToken);
+        if (response is null)
+        {
+            return new(null, false, new("dvla_unavailable", Retryable: true), "dvla-unreached", TimeSpan.Zero);
+        }
         var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
         var identity = Hash(body);
         if (response.StatusCode == HttpStatusCode.NotFound)
@@ -209,7 +214,11 @@ internal sealed class DvlaDvsaProductionAdapter(
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
         request.Headers.TryAddWithoutValidation("X-API-Key", options.DvsaApiKey);
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await SendOrUnreachedAsync(request, cancellationToken);
+        if (response is null)
+        {
+            return new(null, [], false, new("dvsa_unavailable", Retryable: true), "dvsa-unreached", TimeSpan.Zero);
+        }
         var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
         var identity = Hash(body);
         if (response.StatusCode == HttpStatusCode.NotFound)
@@ -267,7 +276,8 @@ internal sealed class DvlaDvsaProductionAdapter(
                 false,
                 null,
                 identity,
-                response.Headers.Age ?? TimeSpan.Zero);
+                response.Headers.Age ?? TimeSpan.Zero,
+                vehicles.Select(ParseFirstRegistration).FirstOrDefault(item => item is not null));
         }
         catch (JsonException)
         {
@@ -298,7 +308,11 @@ internal sealed class DvlaDvsaProductionAdapter(
                     ["scope"] = options.DvsaScope
                 })
             };
-            using var response = await httpClient.SendAsync(request, cancellationToken);
+            using var response = await SendOrUnreachedAsync(request, cancellationToken);
+            if (response is null)
+            {
+                return new(null, new("dvsa_auth_unavailable", Retryable: true), "dvsa-auth-unreached");
+            }
             var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
             var identity = Hash(body);
             if (!response.IsSuccessStatusCode)
@@ -397,6 +411,19 @@ internal sealed class DvlaDvsaProductionAdapter(
                     Text(value, "primaryColour"),
                     null),
                 null);
+
+    /// <summary>
+    /// The day the vehicle was first registered, which the MOT mileage
+    /// estimate takes as the odometer's zero (R941): DVSA's
+    /// <c>firstUsedDate</c>, else its <c>registrationDate</c> (operator, 11
+    /// November 2026; R942). DVSA documents the first as "the date the vehicle
+    /// was first registered" and the second as "the date the vehicle was
+    /// registered"; they differ for an import, whose odometer ran before it
+    /// was registered here.
+    /// </summary>
+    private static DateOnly? ParseFirstRegistration(JsonElement value) =>
+        ParseProviderDate(Text(value, "firstUsedDate"))
+        ?? ParseProviderDate(Text(value, "registrationDate"));
 
     /// <summary>
     /// The MOT History API writes <c>manufactureDate</c> as a full instant for
@@ -582,6 +609,30 @@ internal sealed class DvlaDvsaProductionAdapter(
         }
     }
 
+    /// <summary>
+    /// Sends one provider request, answering null when no HTTP response came
+    /// back at all (connection, TLS or DNS). The caller reports that provider
+    /// unavailable and retryable, the failure a 5xx gives, so the queued
+    /// lookup takes its own back-off. Thrown out of the adapter, it was not a
+    /// failure the lookup knows: when DVSA refused the TLS handshake for 35
+    /// minutes on 9 November 2026 the queue redelivered within minutes and
+    /// poisoned the work with no observation and no later retry. The caller's
+    /// own cancellation still surfaces.
+    /// </summary>
+    private async Task<HttpResponseMessage?> SendOrUnreachedAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await httpClient.SendAsync(request, cancellationToken);
+        }
+        catch (HttpRequestException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+    }
+
     private static VehicleLookupFailure ProviderFailure(string provider, HttpResponseMessage response)
     {
         var retryAfter = response.Headers.RetryAfter?.Delta;
@@ -644,6 +695,7 @@ internal sealed class DvlaDvsaProductionAdapter(
         bool NotFound,
         VehicleLookupFailure? Failure,
         string Identity,
-        TimeSpan ResponseAge);
+        TimeSpan ResponseAge,
+        DateOnly? FirstRegisteredOn = null);
     private sealed record TokenResult(string? Token, VehicleLookupFailure? Failure, string Identity);
 }

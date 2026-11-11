@@ -343,7 +343,7 @@ from where the Case mileage came from; it is not recorded separately.
 | Extracted from the instruction, including a third-party engineer report supplied with it | `principal` |
 | DVSA lookup | `online_data` |
 | Staff-entered: the Case page reads Custom, and nothing is picked (operator, 12 October 2026) | `online_data` |
-| Estimated from the MOT history: the Case page reads Estimated | `estimated` |
+| Estimated from the MOT history: the Case page reads Estimated (operator, 11 November 2026; R944) | `online_data` |
 | No mileage on the Case | `tbc` |
 
 A Case cannot reach Review without a mileage ([FRD-13](frd-13-case-lifecycle-and-workflow.md);
@@ -392,9 +392,22 @@ When DVSA history must estimate a Case mileage, Pegasus:
   its sample checks;
 - returns the exact observation on an exact MOT date, interpolates only
   inside a compatible segment, forecasts from the latest reading at the rate
-  of whatever clean intervals there are, even one, and with none gives the
-  latest reading itself (operator, 5 November 2026; R699), and
+  of whatever clean intervals there are, even one (operator, 5 November
+  2026; R699), and with none at the vehicle's lifetime rate (operator, 11
+  November 2026; R941), and
   gives calibrated intervals only with eligible chronological holdouts.
+
+**Lifetime rate.** A history with a usable reading and no clean interval has
+no rate of its own: one MOT on record, tests under 90 days apart, or an
+earlier day whose readings disagree. Its latest reading is carried forward at
+that reading divided by the days from first registration to that test (R941).
+First registration is DVSA's `firstUsedDate`, else its `registrationDate`
+(R942). The interval answers to the limits every interval does, so one under
+90 days or over 300 miles a day is set aside. The latest reading stands
+unchanged where DVSA gives no date, the date is not before the reading, the
+interval is set aside, or the reading follows a corroborated odometer drop.
+Only a new lookup follows this rule; a Case mileage already filled is left as
+it is (R943).
 
 Any usable reading gives a figure. A qualified range is left only where the
 odometer history disagrees with itself: across a corroborated odometer drop,

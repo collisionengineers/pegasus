@@ -420,6 +420,90 @@ public sealed class MotMileageEstimationPolicyTests
         Assert.Equal(MotMileageEstimationPolicy.MethodKey, estimate.MethodKey);
     }
 
+    // Operator, 11 November 2026 (R941): a first odometer with a reading and
+    // no rate of its own is carried forward at the vehicle's lifetime rate.
+    [Fact]
+    public void NoRateProjectsAtTheLifetimeRateFromFirstRegistration()
+    {
+        // One reading of 30,000 at 1,000 days old is 30 a day.
+        var single = MotMileageEstimationPolicy.Estimate([Passed(0, 30_000)], On(200), On(-1_000));
+
+        Assert.Equal(MotMileageEstimateKind.Estimate, single.Kind);
+        Assert.Equal(36_000L, single.Miles);
+        Assert.Equal(30_000L, single.Low);
+        Assert.Equal(30_000L + (200 * MotMileageEstimationPolicy.MaxPlausibleMilesPerDay), single.High);
+        Assert.Equal(MotMileageEstimationPolicy.MethodKey, single.MethodKey);
+        Assert.Equal(
+            new MotMileageInterval(On(-1_000), 0, On(0), 30_000, 1_000, 30m, null, null),
+            single.Evidence.Lifetime);
+        Assert.Null(Assert.Single(single.Evidence.Segments).MilesPerDay);
+
+        // Two readings 60 days apart give no rate of their own; the lifetime
+        // runs to the later one: 31,800 over 1,060 days is 30 a day.
+        var shortPair = MotMileageEstimationPolicy.Estimate(
+            [Passed(0, 30_000), Passed(60, 31_800)],
+            On(260),
+            On(-1_000));
+
+        Assert.Equal(MotMileageSetAsideReason.ShortSpan, Assert.Single(shortPair.Evidence.Intervals).SetAsideReason);
+        Assert.Equal(37_800L, shortPair.Miles);
+        Assert.Equal(On(60), shortPair.Evidence.Lifetime?.EndedOn);
+    }
+
+    [Fact]
+    public void TheLatestReadingStandsWhereTheLifetimeGivesNoRate()
+    {
+        // No first-registration date, or one that is not before the reading.
+        var undated = MotMileageEstimationPolicy.Estimate([Passed(0, 30_000)], On(200));
+        var registeredLater = MotMileageEstimationPolicy.Estimate([Passed(0, 30_000)], On(200), On(0));
+
+        Assert.Equal(30_000L, undated.Miles);
+        Assert.Null(undated.Evidence.Lifetime);
+        Assert.Equal(30_000L, registeredLater.Miles);
+        Assert.Null(registeredLater.Evidence.Lifetime);
+
+        // A lifetime answers to the limits every interval does: 89 days is
+        // too short and 301 a day too steep. Each is kept, set aside.
+        var young = MotMileageEstimationPolicy.Estimate([Passed(0, 3_000)], On(200), On(-89));
+        var steep = MotMileageEstimationPolicy.Estimate([Passed(0, 30_100)], On(200), On(-100));
+
+        Assert.Equal(3_000L, young.Miles);
+        Assert.Equal(MotMileageSetAsideReason.ShortSpan, young.Evidence.Lifetime?.SetAsideReason);
+        Assert.Equal(30_100L, steep.Miles);
+        Assert.Equal(MotMileageSetAsideReason.ImplausibleRate, steep.Evidence.Lifetime?.SetAsideReason);
+    }
+
+    [Fact]
+    public void TheLifetimeRateIsOnlyForAFirstOdometerWithNoRate()
+    {
+        // A clean interval's rate answers and the date takes no part.
+        Assert.Equal(
+            Json(MotMileageEstimationPolicy.Estimate(Steady, On(1_825))),
+            Json(MotMileageEstimationPolicy.Estimate(Steady, On(1_825), On(-1_000))));
+
+        // A replaced odometer no longer counts from first registration: its
+        // two readings 30 days apart give no rate, and the latest stands.
+        var replaced = MotMileageEstimationPolicy.Estimate(
+            [Passed(0, 50_000), Passed(365, 60_000), Passed(730, 5_000), Passed(760, 6_000)],
+            On(960),
+            On(-1_000));
+
+        Assert.Equal(2, replaced.Evidence.Segments.Count);
+        Assert.Equal(MotMileageEstimateKind.Estimate, replaced.Kind);
+        Assert.Equal(6_000L, replaced.Miles);
+        Assert.Null(replaced.Evidence.Lifetime);
+
+        // A latest drop nothing confirms still gives bounds, not a figure (R700).
+        var dropped = MotMileageEstimationPolicy.Estimate(
+            [Passed(0, 50_000), Passed(60, 6_000)],
+            On(200),
+            On(-1_000));
+
+        Assert.Equal(MotMileageEstimateKind.QualifiedRange, dropped.Kind);
+        Assert.Null(dropped.Miles);
+        Assert.Null(dropped.Evidence.Lifetime);
+    }
+
     [Fact]
     public void NoHistoryAndConflictsAbstain()
     {

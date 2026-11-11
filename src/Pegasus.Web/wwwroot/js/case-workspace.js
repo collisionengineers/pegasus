@@ -3027,6 +3027,16 @@
 
     var VAT_FIELD = 'assessmentFields[settlement.claimant_vat_registered]';
 
+    // What the Engineer set on the calculator that the Save records nowhere:
+    // an Other row ticked and still short of its name or its amount (R934),
+    // and every control while no card is chosen (R936). A section drawn
+    // afresh from the Case comes back without them, so they are kept here
+    // and put back as the section binds. Leaving the edit lets them go.
+    var kept = null;
+    document.addEventListener('pegasus:case-swapped', function () {
+        if (!document.querySelector('[data-valuation-form]')) { kept = null; }
+    });
+
     // The Case form's own fields that a request carries, chosen by name.
     function caseFields(keep) {
         var body = new FormData();
@@ -3229,6 +3239,7 @@
             function clearUse() {
                 if (useInput) { useInput.disabled = true; }
                 if (sourceInput) { sourceInput.disabled = true; sourceInput.value = ''; }
+                remember();
             }
 
             function paintAdditions() {
@@ -3236,6 +3247,118 @@
                     var toggle = row.querySelector('input[type="checkbox"]');
                     row.classList.toggle('on', !!(toggle && toggle.checked));
                 });
+            }
+
+            // An Other row is a value increase once it is ticked and has a
+            // name and an amount above zero (R934): the Save leaves it out
+            // until then.
+            function rowParts(row) {
+                return {
+                    toggle: row.querySelector('[data-preset-toggle]'),
+                    name: row.querySelector('input[type="text"]'),
+                    amount: row.querySelector('input[type="number"]')
+                };
+            }
+            function otherState(row) {
+                var parts = rowParts(row);
+                var ticked = !!parts.toggle && parts.toggle.checked;
+                var named = !!parts.name && parts.name.value.trim() !== '';
+                var amount = parts.amount ? parts.amount.value : '';
+                return {
+                    counts: ticked && named && parseFloat(amount) > 0,
+                    typing: ticked && !(named && parseFloat(amount) > 0),
+                    blank: !ticked && !named && amount === ''
+                };
+            }
+            function rows(selector) {
+                return Array.prototype.slice.call(section.querySelectorAll(selector));
+            }
+
+            // Keeps what the Save records nowhere, as the screen now has it.
+            function remember() {
+                var deduction = section.querySelector('#f-valuation-deduction');
+                var vat = section.querySelector('#f-valuation-vat');
+                var ptl = section.querySelector('[data-valuation-ptl]:checked');
+                var set = !!ptl || (!!vat && vat.checked) || (!!deduction && deduction.value !== '')
+                    || !!section.querySelector('[data-preset-toggle]:checked');
+                kept = {
+                    typing: rows('[data-valuation-other]')
+                        .filter(function (row) { return otherState(row).typing; })
+                        .map(function (row) {
+                            var parts = rowParts(row);
+                            return { name: parts.name.value, amount: parts.amount.value };
+                        }),
+                    unplaced: chosenCard() || !set ? null : {
+                        rows: rows('[data-valuation-add]').map(function (row) {
+                            var parts = rowParts(row);
+                            return {
+                                ticked: !!parts.toggle && parts.toggle.checked,
+                                name: parts.name ? parts.name.value : null,
+                                amount: parts.amount ? parts.amount.value : ''
+                            };
+                        }),
+                        vat: !!vat && vat.checked,
+                        ptl: ptl ? ptl.value : '',
+                        deduction: deduction ? deduction.value : ''
+                    }
+                };
+            }
+
+            // A control put back holds what a commit already sent, so it is
+            // its own default and the section stands as holding nothing unsent.
+            function tick(box, on) {
+                if (box) { box.checked = on; box.defaultChecked = on; }
+            }
+            function type(box, value) {
+                if (box && value !== null) { box.value = value; box.defaultValue = value; }
+            }
+
+            // Puts back what was kept into a section drawn afresh. With no
+            // card chosen when it was kept, every control returns as it was
+            // set; if the Case has a card to start from now, the calculation
+            // is worked out at once, unless Engineer's Value holds a figure
+            // that would be replaced. Otherwise each Other row still being
+            // typed returns to a blank Other row: the recorded ones are
+            // drawn first.
+            function putBack() {
+                if (!kept) { return; }
+                var unplaced = kept.unplaced;
+                var all = rows('[data-valuation-add]');
+                if (unplaced && unplaced.rows.length === all.length) {
+                    all.forEach(function (row, index) {
+                        var parts = rowParts(row);
+                        tick(parts.toggle, unplaced.rows[index].ticked);
+                        type(parts.name, unplaced.rows[index].name);
+                        type(parts.amount, unplaced.rows[index].amount);
+                    });
+                    var vat = section.querySelector('#f-valuation-vat');
+                    tick(vat && !vat.disabled ? vat : null, unplaced.vat);
+                    rows('[data-valuation-ptl]').forEach(function (radio) { tick(radio, radio.value === unplaced.ptl); });
+                    tick(ptlToggle, unplaced.ptl !== '');
+                    type(section.querySelector('#f-valuation-deduction'), unplaced.deduction);
+                    var value = section.querySelector('[data-valuation-value="engineer"]');
+                    if (chosenCard() && value && value.value === '') { schedule(); }
+                } else if (!unplaced) {
+                    var blanks = rows('[data-valuation-other]').filter(function (row) { return otherState(row).blank; });
+                    kept.typing.forEach(function (was, index) {
+                        if (!blanks[index]) { return; }
+                        var parts = rowParts(blanks[index]);
+                        tick(parts.toggle, true);
+                        type(parts.name, was.name);
+                        type(parts.amount, was.amount);
+                    });
+                }
+            }
+
+            // An Other row changes the calculation as it starts to count,
+            // while it counts and as it stops. A row still being typed
+            // changes nothing, so no figure is worked out for it.
+            function stillTyping(control) {
+                var row = control.closest('[data-valuation-other]');
+                if (!row) { return false; }
+                var counted = row.pegasusCounts === true;
+                row.pegasusCounts = otherState(row).counts;
+                return !counted && !row.pegasusCounts;
             }
 
             // Previous total loss: the tick box offers −10 % and −20 %, the
@@ -3249,6 +3372,10 @@
             }
             if (ptlToggle) {
                 ptlToggle.addEventListener('change', function () {
+                    // The tick box is no field of the Case form: its radios
+                    // carry the value, so it never stands as a change not
+                    // yet sent, which would keep the section from redrawing.
+                    ptlToggle.defaultChecked = ptlToggle.checked;
                     var radios = section.querySelectorAll('[data-valuation-ptl]');
                     var picked = section.querySelector('[data-valuation-ptl]:checked');
                     if (ptlToggle.checked && !picked && radios.length) {
@@ -3308,6 +3435,7 @@
                 }
                 markChosen(card, radio ? radio.getAttribute('data-source-name') : (title ? title.textContent : null));
                 useInput.disabled = false;
+                remember();
                 // The decision is a change to the Case form: the frame commits
                 // it, and the calculation follows the new basis.
                 useInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -3325,6 +3453,10 @@
                 }
                 if (control.matches('[data-preset-toggle]') || control.matches('#f-valuation-vat')) {
                     paintAdditions();
+                }
+                remember();
+                if (stillTyping(control)) {
+                    return;
                 }
                 schedule();
             });
@@ -3346,6 +3478,18 @@
                     return;
                 }
                 if (belongs(typed)) {
+                    // A name or an amount typed into a row is the decision
+                    // to apply it (R935); unticking stays a click.
+                    var row = typed.closest('[data-valuation-add]');
+                    var toggle = row ? row.querySelector('[data-preset-toggle]') : null;
+                    if (toggle && typed !== toggle && event.isTrusted && typed.value !== '' && !toggle.checked) {
+                        toggle.checked = true;
+                        paintAdditions();
+                    }
+                    remember();
+                    if (stillTyping(typed)) {
+                        return;
+                    }
                     schedule();
                     return;
                 }
@@ -3419,13 +3563,18 @@
                         addVat.disabled = registered;
                         if (registered) { addVat.checked = false; }
                         paintAdditions();
+                        remember();
                     }
                     schedule();
                 });
             }
 
+            putBack();
             paintAdditions();
             paintPriorTotalLoss();
+            rows('[data-valuation-other]').forEach(function (row) {
+                row.pegasusCounts = otherState(row).counts;
+            });
         });
 
         // Get valuation (23 September 2026): the source's figures come back as

@@ -552,6 +552,12 @@ declared verdict fills the cell when the Case is created, before any report
 is filed. When the report and the verdict disagree, a later report fills
 nothing: the cell stays as it was, blank or holding the verdict.
 
+The same reading fills the Case's vehicle mileage, with its unit, when the
+report states one and the Case holds no mileage: a mileage from the
+instruction, a lookup or staff is never replaced, and a Not ready Case that
+waited only for it moves to Review (operator, 11 November 2026,
+[R930](../rulings.md); [FRD-13](frd-13-case-lifecycle-and-workflow.md)).
+
 ### Inspection
 
 Inspection shows the recorded inspect-at value with its fast-update choice:
@@ -713,6 +719,16 @@ are. There is no Use this value button and no Apply (operator, 23 September
 The value increases are one list in two columns: every active preset with
 its figure, then **Add 20 % VAT** with its amount, then two **Other…** rows; a
 VAT-registered claimant's VAT row is disabled with that reason beside it.
+An **Other…** row is a value increase once it is ticked and has a name and an
+amount above zero. Until then the Save records nothing for it and refuses
+nothing because of it, and the page keeps the row as typed (operator, 11
+November 2026; R934). A name or an amount typed into an Other row, or a
+preset's amount changed, ticks that row; unticking is a click (R935). With no
+card chosen the Save records no calculation, so the page keeps the controls
+as the Engineer set them and they are applied once a card is chosen (R936).
+The two Other rows' controls are spoken as "Other increase 1", "Other
+increase 1 name" and "Other increase 1 amount", and the same for 2; the rows
+show only the "Other…" placeholder (R938).
 Reading lists only what the recorded calculation applied, each with a tick,
 and the calculator opens on that applied selection while the Engineer's Value
 holds that calculation's figure. The deductions are the **Condition

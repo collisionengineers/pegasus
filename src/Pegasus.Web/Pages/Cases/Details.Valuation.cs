@@ -244,7 +244,10 @@ public sealed partial class DetailsModel
         !ClaimantVatRegistered && RecordedValuation is { Calculation.CommercialVatApplied: true },
         RecordedValuation?.Calculation.PriorTotalLossPercentage,
         [.. ValuationIncreaseRows
-            .Where(row => row.Selected)
+            // The same test the posted rows pass (R934), so an Other line
+            // recorded with no amount is no difference from what is posted.
+            .Where(row => row.Selected
+                && (row.PresetId != Guid.Empty || ValuationSelectionForm.OtherRowCounts(row.Label, row.Amount ?? 0m)))
             .Select(row => new ValuationAdditionSelection(
                 row.PresetId,
                 row.PresetVersion,
@@ -377,9 +380,8 @@ public sealed partial class DetailsModel
                 }
                 var amount = AdditionAmount is { } amounts && index < amounts.Length ? amounts[index] ?? 0m : 0m;
                 var label = AdditionLabel is { } labels && index < labels.Length ? labels[index] : null;
-                if (ids[index] == Guid.Empty && amount <= 0m && string.IsNullOrWhiteSpace(label))
+                if (ids[index] == Guid.Empty && !OtherRowCounts(label, amount))
                 {
-                    // A custom row left blank is no addition.
                     continue;
                 }
                 additions.Add(new(
@@ -399,6 +401,15 @@ public sealed partial class DetailsModel
                 Use = Use,
             };
         }
+
+        /// <summary>
+        /// Whether an Other row is a value increase yet: it has a name and an
+        /// amount above zero (operator, 11 November 2026; R934). A ticked row
+        /// short of either is still being typed, so it is left out of the
+        /// calculation and refuses nothing.
+        /// </summary>
+        public static bool OtherRowCounts(string? label, decimal amount) =>
+            amount > 0m && !string.IsNullOrWhiteSpace(label);
 
         /// <summary>
         /// One calculation written the one way, so the one the page opened on

@@ -113,9 +113,10 @@ public static class ImageIntakeLifecycleRules
     /// The retained source can be an image, a PDF of photographs, or an email
     /// carrying photographs; it is preserved alongside the selected images and
     /// does not itself disqualify the route. A source carrying a recognised
-    /// report or a PDF is a document carrier, never Image Intake or
-    /// Unidentified material; its photographs are still selected, so they are
-    /// filed with it once its Case is matched (operator, 22 October 2026).
+    /// report, a PDF or a Word document is a document carrier, never Image
+    /// Intake or Unidentified material; its photographs are still selected, so
+    /// they are filed with it once its Case is matched (operator, 22 October
+    /// 2026; a Word document, 11 November 2026, R940).
     /// This is the one owner of the rule; the automation, intake surface and
     /// registration write path all consume it.
     /// </summary>
@@ -197,12 +198,13 @@ public static class ImageIntakeLifecycleRules
 
     /// <summary>
     /// The assets an e-mail's photograph read selects from: the images the
-    /// reader took from a PDF's pages and the attachments (R474, R733).
+    /// reader took from a PDF's pages (R474, R733) or from a Word document
+    /// (R940: a set of photographs is saved as a .docx as readily as a PDF),
+    /// and the attachments. An image in the e-mail's body is not among them.
     /// </summary>
     internal static IEnumerable<IntakeAssetRecord> MailedPhotographCandidates(IntakeReceipt receipt) =>
         receipt.AssetRecords.Where(asset =>
-            asset is { Kind: IntakeAssetKind.EmbeddedImage, PageNumber: not null }
-                or { Kind: IntakeAssetKind.Attachment });
+            asset.Kind is IntakeAssetKind.EmbeddedImage or IntakeAssetKind.Attachment);
 
     private static bool HasMailedPhotographs(IntakeReceipt receipt) =>
         InstructionEvidenceImages.Select(MailedPhotographCandidates(receipt)).Count != 0;

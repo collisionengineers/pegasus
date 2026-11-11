@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Authentication;
 using System.Text;
 using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure.Vehicle;
@@ -102,6 +103,39 @@ public sealed class ProductionVehicleLookupTests
         Assert.Equal(new DateOnly(2026, 5, 14), latest.TestDate);
         Assert.Equal(113068, latest.Mileage);
         Assert.Equal(VehicleMileageUnit.Kilometres, latest.MileageUnit);
+    }
+
+    /// <summary>
+    /// The day the vehicle was first registered travels with the answer for
+    /// the MOT mileage estimate (R941): DVSA's <c>firstUsedDate</c>, which it
+    /// documents as that day, else its <c>registrationDate</c>, in either
+    /// date shape the API writes. Invented values; none is made up where DVSA
+    /// gives neither.
+    /// </summary>
+    [Fact]
+    public async Task DvsaFirstRegistrationDateTravelsWithTheAnswer()
+    {
+        Assert.Equal(
+            new DateOnly(2007, 6, 29),
+            await FirstRegisteredOnAsync(
+                """{"make":"TOYOTA","model":"ALPHARD","firstUsedDate":"2007-06-29T00:00:00.000Z","registrationDate":"2019-01-07","motTests":[]}"""));
+        Assert.Equal(
+            new DateOnly(2023, 1, 17),
+            await FirstRegisteredOnAsync(
+                """{"make":"FORD","model":"FOCUS","registrationDate":"2023-01-17","motTests":[]}"""));
+        Assert.Null(await FirstRegisteredOnAsync("""{"make":"FORD","model":"FOCUS","motTests":[]}"""));
+
+        static async Task<DateOnly?> FirstRegisteredOnAsync(string dvsaBody)
+        {
+            using var adapter = Create(request =>
+                request.RequestUri!.Host == "driver-vehicle-licensing.api.gov.uk"
+                    ? Json(HttpStatusCode.OK, """{"make":"FORD","yearOfManufacture":2023}""")
+                    : request.RequestUri.Host == "login.microsoftonline.com"
+                        ? Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""")
+                        : Json(HttpStatusCode.OK, dvsaBody));
+            var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+            return result.FirstRegisteredOn;
+        }
     }
 
     [Fact]
@@ -533,8 +567,10 @@ public sealed class ProductionVehicleLookupTests
     {
         if (request.RequestUri!.Host == DvlaHost)
         {
+            // Not an HttpRequestException: the adapter reports that as the
+            // provider unavailable rather than letting it surface.
             return dvlaThrows
-                ? throw new HttpRequestException("dvla transport")
+                ? throw new IOException("dvla transport")
                 : Json(HttpStatusCode.OK, """{"make":"FORD"}""");
         }
         if (request.RequestUri.Host == "login.microsoftonline.com")
@@ -562,7 +598,7 @@ public sealed class ProductionVehicleLookupTests
     {
         using var adapter = Create(request => PairedProviders(request, dvlaThrows: true, dvsaThrows: false));
 
-        var thrown = await Assert.ThrowsAsync<HttpRequestException>(() =>
+        var thrown = await Assert.ThrowsAsync<IOException>(() =>
             adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None));
 
         Assert.Equal("dvla transport", thrown.Message);
@@ -584,10 +620,110 @@ public sealed class ProductionVehicleLookupTests
     {
         using var adapter = Create(request => PairedProviders(request, dvlaThrows: true, dvsaThrows: true));
 
-        var thrown = await Assert.ThrowsAsync<HttpRequestException>(() =>
+        var thrown = await Assert.ThrowsAsync<IOException>(() =>
             adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None));
 
         Assert.Equal("dvla transport", thrown.Message);
+    }
+
+    /// <summary>
+    /// DVSA refusing the TLS handshake (9 November 2026): no HTTP response at
+    /// all. It is DVSA unavailable and retryable, as a 5xx is, so the queued
+    /// lookup backs off instead of being poisoned; DVLA's answer stands as a
+    /// partial result.
+    /// </summary>
+    [Fact]
+    public async Task ADvsaTransportFailureBesideDvlaEvidenceIsARetryablePartial()
+    {
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == DvlaHost)
+            {
+                return Json(HttpStatusCode.OK, """{"make":"FORD"}""");
+            }
+            if (request.RequestUri.Host == "login.microsoftonline.com")
+            {
+                return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+            }
+            throw new HttpRequestException(
+                "The SSL connection could not be established, see inner exception.",
+                new AuthenticationException("Authentication failed because the remote party sent a TLS alert."));
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+
+        Assert.Equal(VehicleLookupOutcome.Partial, result.Outcome);
+        Assert.Equal("dvsa_unavailable", result.Failure?.Code);
+        Assert.True(result.Failure!.Retryable);
+        Assert.Equal("FORD", result.Vehicle?.Make);
+    }
+
+    [Fact]
+    public async Task ADvlaTransportFailureBesideDvsaEvidenceIsARetryablePartial()
+    {
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == DvlaHost)
+            {
+                throw new HttpRequestException("No such host is known.");
+            }
+            if (request.RequestUri.Host == "login.microsoftonline.com")
+            {
+                return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+            }
+            return Json(HttpStatusCode.OK, """{"make":"FORD","model":"FOCUS","motTests":[]}""");
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+
+        Assert.Equal(VehicleLookupOutcome.Partial, result.Outcome);
+        Assert.Equal("dvla_unavailable", result.Failure?.Code);
+        Assert.True(result.Failure!.Retryable);
+        Assert.Equal("FOCUS", result.Vehicle?.Model);
+    }
+
+    [Fact]
+    public async Task ADvsaTokenTransportFailureBesideDvlaEvidenceIsARetryablePartial()
+    {
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == DvlaHost)
+            {
+                return Json(HttpStatusCode.OK, """{"make":"FORD"}""");
+            }
+            if (request.RequestUri.Host == "login.microsoftonline.com")
+            {
+                throw new HttpRequestException("Connection refused");
+            }
+            return Json(HttpStatusCode.OK, """{"make":"FORD","model":"FOCUS","motTests":[]}""");
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+
+        Assert.Equal(VehicleLookupOutcome.Partial, result.Outcome);
+        Assert.Equal("dvsa_auth_unavailable", result.Failure?.Code);
+        Assert.True(result.Failure!.Retryable);
+        Assert.Equal("FORD", result.Vehicle?.Make);
+    }
+
+    [Fact]
+    public async Task TransportFailuresAtBothProvidersAreARetryableUnavailableLookup()
+    {
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == "login.microsoftonline.com")
+            {
+                return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+            }
+            throw new HttpRequestException("Connection refused");
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+
+        Assert.Equal(VehicleLookupOutcome.Unavailable, result.Outcome);
+        Assert.Equal("dvla_unavailable", result.Failure?.Code);
+        Assert.True(result.Failure!.Retryable);
+        Assert.Null(result.Vehicle);
     }
 
     private static DvlaDvsaProductionAdapter Create(Func<HttpRequestMessage, HttpResponseMessage> handler)

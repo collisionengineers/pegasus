@@ -452,6 +452,38 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
+    public async Task AMailedWordDocumentsPhotographsAreReadForMailLinking()
+    {
+        // A set of photographs is saved as a .docx as readily as a PDF
+        // (operator, 11 November 2026, R940). The e-mail carrying it is filed
+        // as a file, and the plate the photographs inside the Word document
+        // read is a mail-linking signal as a PDF's is. A Word picture has no
+        // page, which is what once kept it out of the read.
+        var email = Asset("vehicle-images.eml", "message/rfc822", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var word = Asset(
+            "vehicle-images.docx",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            IntakeAssetKind.Attachment,
+            IntakeAssetDisposition.Attachment);
+        var photograph = Asset(
+            "image1.jpeg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 26_700, width: 576, height: 768);
+        var harness = new Harness(
+            sourceChannel: IntakeSourceChannel.Mailbox,
+            retainedAssets: [email, word, photograph],
+            evidence: [FiledDocument()]);
+        harness.Engine.Enqueue(Suggested("SH65HTL", 0.95));
+
+        var registration = await harness.ReadMailedPhotographsAsync();
+
+        Assert.Equal("SH65HTL", registration);
+        Assert.Equal(1, harness.Engine.Calls);
+        Assert.Equal(photograph.Id, Assert.Single(harness.SuggestionStore.Records).IntakeAssetId);
+        Assert.Empty(harness.Register.Requests);
+        Assert.Empty(harness.AssociationStore.Requests);
+    }
+
+    [Fact]
     public async Task APhotographBesideAMailedPdfThatReadsAnotherPlateLeavesNoRegistration()
     {
         // The beside photograph joins the PDF's in the one agreement (R733):

@@ -34,7 +34,10 @@ public sealed class TriageQueuesWebTests
 
     /// <summary>
     /// The Not ready list has no Missing filter: every Case is listed whatever
-    /// it lacks, and each row's Missing column says what that is.
+    /// it lacks, and each row's Missing column says what that is: the
+    /// requirements the configuration names, the mileage among them (R759),
+    /// or what else holds a Case that lacks none of those, a failed document
+    /// storage first (R929). "Review pending" is left for a Case nothing holds.
     /// </summary>
     [Fact]
     public async Task NotReadyListsEveryCaseAndNamesWhatEachLacks()
@@ -48,6 +51,10 @@ public sealed class TriageQueuesWebTests
         var instructionOnly = $"QDOSA{ticks}";
         var imagesOnly = $"QDOSB{ticks}";
         var bothMissing = $"QDOSC{ticks}";
+        var mileageOnly = $"QDOSD{ticks}";
+        var mileageAndImages = $"QDOSE{ticks}";
+        var storageFailed = $"QDOSF{ticks}";
+        var nothingMissing = $"QDOSG{ticks}";
         await SeedNotReadyCaseAsync(
             services,
             await StoreMinimalReceiptAsync(services, "instruction-only.pdf"),
@@ -59,13 +66,33 @@ public sealed class TriageQueuesWebTests
             await StoreMinimalReceiptAsync(services, "images-only.pdf"),
             imagesOnly,
             instructionComplete: true,
-            imagesComplete: false);
+            imagesComplete: false,
+            mileageRecorded: true);
         await SeedNotReadyCaseAsync(
             services,
             await StoreMinimalReceiptAsync(services, "both-missing.pdf"),
             bothMissing,
             instructionComplete: false,
             imagesComplete: false);
+        await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "mileage-only.pdf"),
+            mileageOnly);
+        await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "mileage-and-images.pdf"),
+            mileageAndImages,
+            imagesComplete: false);
+        await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "storage-failed.pdf"),
+            storageFailed,
+            custodyState: "failed");
+        await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "nothing-missing.pdf"),
+            nothingMissing,
+            mileageRecorded: true);
 
         using var response = await client.GetAsync("/Cases?tab=not_ready");
         var html = await response.Content.ReadAsStringAsync();
@@ -78,6 +105,22 @@ public sealed class TriageQueuesWebTests
         Assert.Contains("Images", imagesOnlyRow, StringComparison.Ordinal);
         Assert.DoesNotContain("Instructions", imagesOnlyRow, StringComparison.Ordinal);
         Assert.Contains("Instructions and images", RowOf(html, bothMissing), StringComparison.Ordinal);
+        var mileageOnlyRow = RowOf(html, mileageOnly);
+        Assert.Contains(CaseWorkflowConfiguration.VehicleMileageRequirement, mileageOnlyRow, StringComparison.Ordinal);
+        Assert.DoesNotContain(" and images", mileageOnlyRow, StringComparison.Ordinal);
+        Assert.Contains("Vehicle mileage and images", RowOf(html, mileageAndImages), StringComparison.Ordinal);
+        var storageFailedRow = RowOf(html, storageFailed);
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.DocumentStorageFailed, storageFailedRow, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            CaseWorkflowConfiguration.VehicleMileageRequirement, storageFailedRow, StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Pages.Cases.IndexModel.ReviewPending, RowOf(html, nothingMissing), StringComparison.Ordinal);
+        foreach (var named in new[] { instructionOnly, imagesOnly, bothMissing, mileageOnly, mileageAndImages, storageFailed })
+        {
+            Assert.DoesNotContain(
+                Pegasus.Web.Pages.Cases.IndexModel.ReviewPending, RowOf(html, named), StringComparison.Ordinal);
+        }
 
         static string RowOf(string page, string reference)
         {
@@ -1507,7 +1550,9 @@ public sealed class TriageQueuesWebTests
         Guid originReceiptId,
         string reference,
         bool instructionComplete = true,
-        bool imagesComplete = true)
+        bool imagesComplete = true,
+        bool mileageRecorded = false,
+        string custodyState = "pending")
     {
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -1524,12 +1569,32 @@ public sealed class TriageQueuesWebTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {reference}, {lineageId}, {true}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {"inspection"}, {nameof(CaseLifecycleState.NotReady)}, {"pending"}, {originReceiptId}, {instructionComplete}, {imagesComplete}, {now}, {0L}, {Guid.NewGuid()})");
+            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {"inspection"}, {nameof(CaseLifecycleState.NotReady)}, {custodyState}, {originReceiptId}, {instructionComplete}, {imagesComplete}, {now}, {0L}, {Guid.NewGuid()})");
         await CaseWorkFixture.InsertPrimaryWorksAsync(context);
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {originReceiptId}, {"manual_upload"}, {reference}, {1.ToString("X64", CultureInfo.InvariantCulture)}, {now}, {"not-ready-fixture-reader"}, {"1"}, {"not-ready-fixture"}, {1}, {reference}, {1}, {true}, {now})");
+        if (mileageRecorded)
+        {
+            context.CaseDataFields.Add(new()
+            {
+                WorkId = caseId, FieldName = Pegasus.Core.Cases.CaseDataFieldNames.VehicleMileage, ValueKind = CaseDataCodes.Confirmed,
+                ValueType = CaseDataCodes.Integer, Value = "41200", SourceKind = "intake_evidence",
+                SourceIdentity = "mileage", SourceLabel = "not ready fixture",
+                PolicyKey = "not-ready-fixture", PolicyVersion = 1,
+                ConfirmedByActor = "staff", ConfirmedAtUtc = now
+            });
+            context.CaseDataFields.Add(new()
+            {
+                WorkId = caseId, FieldName = Pegasus.Core.Cases.CaseDataFieldNames.VehicleMileageUnit, ValueKind = CaseDataCodes.Confirmed,
+                ValueType = CaseDataCodes.Text, Value = "miles", SourceKind = "intake_evidence",
+                SourceIdentity = "mileage-unit", SourceLabel = "not ready fixture",
+                PolicyKey = "not-ready-fixture", PolicyVersion = 1,
+                ConfirmedByActor = "staff", ConfirmedAtUtc = now
+            });
+            await context.SaveChangesAsync();
+        }
         return caseId;
     }
 }

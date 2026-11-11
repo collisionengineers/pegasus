@@ -4,6 +4,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
@@ -78,6 +79,97 @@ public sealed class OriginalReportPrefillAcceptanceTests
             new FixedReader(new(new string('d', 64), "Montgomery Assessors", "2026-08-14", "unroadworthy", null, false)));
 
         Assert.Equal(AssessmentVocabulary.OriginalReportOutcome, Assert.Single(cells).FieldPath);
+    }
+
+    /// <summary>
+    /// The mileage the report states fills the Audit's empty mileage before
+    /// its gate is read, so an Audit missing nothing else is created in
+    /// Review (R930), sourced to the report.
+    /// </summary>
+    [Fact]
+    public async Task AReportStatingAMileageCreatesTheAuditInReviewWithThatMileage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "PREFILL");
+        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(factory.Services, CaseType.Audit, "PREFILL");
+        var evidenceId = await AllocationTestData.SeedAutomaticAuditEvidenceAsync(factory.Services, receipt.Id);
+
+        var caseId = await AcceptCompleteAuditAsync(
+            factory,
+            receipt,
+            evidenceId,
+            new(SeededReportHash, "Connexus Vehicle Assessors", "2026-03-09", null, null, false, 28136, "miles"));
+
+        await using var context = await (await factory.DatabaseAsync).CreateContextAsync();
+        Assert.Equal(
+            nameof(CaseLifecycleState.Review),
+            await context.CaseWorkflows.Where(item => item.CaseId == caseId).Select(item => item.State).SingleAsync());
+        var fields = await context.CaseDataFields
+            .Where(item => item.WorkId == caseId
+                && (item.FieldName == CaseDataFieldNames.VehicleMileage
+                    || item.FieldName == CaseDataFieldNames.VehicleMileageUnit))
+            .ToDictionaryAsync(item => item.FieldName);
+        var reportAssetId = await context.Set<StandaloneAuditEvidenceEntity>()
+            .Where(item => item.Id == evidenceId)
+            .Select(item => item.OriginalReportAssetId)
+            .SingleAsync();
+        var mileage = fields[CaseDataFieldNames.VehicleMileage];
+        Assert.Equal("28136", mileage.Value);
+        Assert.Equal(CaseDataCodes.Fact, mileage.ValueKind);
+        Assert.Equal(CaseDataCodes.IntakeEvidence, mileage.SourceKind);
+        Assert.Equal(reportAssetId.ToString("D"), mileage.SourceIdentity);
+        Assert.Equal("Bodyshopreport-V1.pdf", mileage.SourceLabel);
+        Assert.Equal(OriginalReportPrefillPolicy.MileagePolicyKey, mileage.PolicyKey);
+        Assert.Equal("miles", fields[CaseDataFieldNames.VehicleMileageUnit].Value);
+    }
+
+    [Fact]
+    public async Task AReportStatingNoMileageLeavesTheAuditNotReady()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "PREFILL");
+        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(factory.Services, CaseType.Audit, "PREFILL");
+        var evidenceId = await AllocationTestData.SeedAutomaticAuditEvidenceAsync(factory.Services, receipt.Id);
+
+        var caseId = await AcceptCompleteAuditAsync(
+            factory,
+            receipt,
+            evidenceId,
+            new(SeededReportHash, "Connexus Vehicle Assessors", "2026-03-09", null, null, false));
+
+        await using var context = await (await factory.DatabaseAsync).CreateContextAsync();
+        Assert.Equal(
+            nameof(CaseLifecycleState.NotReady),
+            await context.CaseWorkflows.Where(item => item.CaseId == caseId).Select(item => item.State).SingleAsync());
+        Assert.False(await context.CaseDataFields.AnyAsync(item =>
+            item.WorkId == caseId && item.FieldName == CaseDataFieldNames.VehicleMileage));
+    }
+
+    /// <summary>
+    /// A standalone Audit accepted with its instruction and images complete,
+    /// seeded from <paramref name="reading"/>, so only its mileage decides
+    /// whether it is created in Review.
+    /// </summary>
+    private static async Task<Guid> AcceptCompleteAuditAsync(
+        IntakeWebApplicationFactory factory,
+        IntakeReceipt receipt,
+        Guid evidenceId,
+        OriginalReportReading reading)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var acceptance = ActivatorUtilities.CreateInstance<AcceptIntake>(scope.ServiceProvider, new FixedReader(reading));
+        var outcome = await acceptance.ExecuteAsync(
+            new(
+                receipt.Id,
+                receipt.Version,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+                $"accept-report-mileage:{Guid.NewGuid():N}",
+                CaseType.Audit,
+                "PREFILL",
+                new(true, true),
+                StandaloneAuditEvidenceId: evidenceId),
+            CancellationToken.None);
+        return outcome.Identity.CaseId;
     }
 
     private static async Task<List<CaseAssessmentFieldEntity>> AllocateAsync(

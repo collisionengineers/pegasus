@@ -166,6 +166,58 @@ public sealed class VehicleLookupGapFillTests
     }
 
     /// <summary>
+    /// One MOT reading gives no rate of its own, so the lookup carries it
+    /// forward at the vehicle's lifetime rate and fills that as the estimate,
+    /// keeping the interval in the observation's evidence (operator, 11
+    /// November 2026; R941).
+    /// </summary>
+    [Fact]
+    public async Task ASingleMotReadingIsCarriedForwardAtTheLifetimeRate()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        // Invented: 30,000 miles at a first test 1,000 days after first
+        // registration, looked up 200 days later. 30 a day adds 6,000.
+        var testedOn = FixtureRetrievedOn.AddDays(-200);
+        MotTestObservation[] history = [new(testedOn, "PASSED", null, 30_000, VehicleMileageUnit.Miles)];
+
+        await RecordLookupAsync(
+            database,
+            caseId,
+            motHistory: history,
+            firstRegisteredOn: testedOn.AddDays(-1_000));
+
+        Assert.Equal("36000", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
+        Assert.Equal(MotMileageEstimationPolicy.MethodKey, await database.ScalarAsync<string>(
+            $"SELECT PolicyKey FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
+        var estimate = Assert.IsType<MotMileageEstimate>((await LatestObservationAsync(database, caseId)).Estimate);
+        Assert.Equal(36_000L, estimate.Miles);
+        Assert.Equal(testedOn.AddDays(-1_000), estimate.Evidence.Lifetime?.StartedOn);
+    }
+
+    /// <summary>
+    /// An observation recorded before the lifetime interval existed holds an
+    /// estimate without that member, and still reads.
+    /// </summary>
+    [Fact]
+    public async Task AnEstimateStoredBeforeTheLifetimeIntervalStillReads()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId);
+
+        await database.ExecuteAsync(
+            """UPDATE VehicleLookupObservations SET MileageEstimateJson = REPLACE(MileageEstimateJson, ',"lifetime":null', '')""");
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM VehicleLookupObservations WHERE MileageEstimateJson LIKE '%lifetime%'"));
+        var estimate = Assert.IsType<MotMileageEstimate>((await LatestObservationAsync(database, caseId)).Estimate);
+        Assert.Null(estimate.Evidence.Lifetime);
+        Assert.Equal(MotMileageEstimationPolicy.Estimate(FixtureMotHistory(), FixtureRetrievedOn).Miles, estimate.Miles);
+    }
+
+    /// <summary>
     /// The store derives the estimate again and refuses one that differs,
     /// recording nothing.
     /// </summary>
@@ -1213,7 +1265,8 @@ public sealed class VehicleLookupGapFillTests
         DateTimeOffset? recordedAtUtc = null,
         IVehicleLookupWorkStore? store = null,
         IReadOnlyList<MotTestObservation>? motHistory = null,
-        Func<VehicleLookupProcessedOutcome, VehicleLookupProcessedOutcome>? supplied = null)
+        Func<VehicleLookupProcessedOutcome, VehicleLookupProcessedOutcome>? supplied = null,
+        DateOnly? firstRegisteredOn = null)
     {
         var now = recordedAtUtc ?? FixedUtcNow;
         var workItemId = Guid.NewGuid();
@@ -1261,7 +1314,8 @@ public sealed class VehicleLookupGapFillTests
             FixedUtcNow,
             vehicle,
             motTests,
-            failure);
+            failure,
+            firstRegisteredOn);
         var derived = VehicleLookupProcessedOutcome.Derive(result);
         await workStore.RecordOutcomeAsync(
             workItemId,
