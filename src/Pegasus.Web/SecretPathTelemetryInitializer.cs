@@ -36,9 +36,9 @@ public sealed class SecretPathTelemetryInitializer : ITelemetryInitializer
 
         if (telemetry is ISupportProperties { Properties: { } properties }
             && properties.TryGetValue(RequestPathProperty, out var requestPath)
-            && ScrubPath(requestPath) is { } template)
+            && ScrubPath(requestPath) is { } scrubbedPath)
         {
-            properties[RequestPathProperty] = template;
+            properties[RequestPathProperty] = scrubbedPath;
         }
 
         if (telemetry is not RequestTelemetry { Url: { IsAbsoluteUri: true } url } request)
