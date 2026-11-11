@@ -578,4 +578,46 @@ public sealed class CaseWorkspaceScriptContractTests
             Regex.Count(script, @"\n\s*bindHeartbeat\(\);\r?\n\s*bindEditWatch\(\);"),
             Regex.Count(script, @"\n\s*bindHeartbeat\(\);"));
     }
+
+    /// <summary>
+    /// The valuation calculator keeps what the Save records nowhere (operator, 11 November
+    /// 2026): an Other row ticked and still short of its name or amount (R934) and every control
+    /// while no card is chosen (R936) are put back into a section drawn afresh, so a tick no
+    /// longer disappears a second after it is made. Typing into a row ticks it (R935), a row
+    /// still being typed asks for no figure, and the Previous total loss tick box, which is no
+    /// field of the Case form, never stands as a change not yet sent.
+    /// </summary>
+    [Fact]
+    public void TheValuationCalculatorPutsBackWhatTheSaveRecordsNowhere()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var state = FunctionBody(script, "function otherState(row) {", "            ");
+        Assert.Contains("counts: ticked && named && parseFloat(amount) > 0,", state, StringComparison.Ordinal);
+        Assert.Contains("typing: ticked && !(named && parseFloat(amount) > 0),", state, StringComparison.Ordinal);
+
+        var remember = FunctionBody(script, "function remember() {", "            ");
+        Assert.Contains(".filter(function (row) { return otherState(row).typing; })", remember, StringComparison.Ordinal);
+        Assert.Contains("unplaced: chosenCard() || !set ? null : {", remember, StringComparison.Ordinal);
+
+        var putBack = FunctionBody(script, "function putBack() {", "            ");
+        Assert.Contains("if (unplaced && unplaced.rows.length === all.length) {", putBack, StringComparison.Ordinal);
+        Assert.Contains("filter(function (row) { return otherState(row).blank; });", putBack, StringComparison.Ordinal);
+        // A card that arrived is worked out at once only into an empty Engineer's Value.
+        Assert.Contains("if (chosenCard() && value && value.value === '') { schedule(); }", putBack, StringComparison.Ordinal);
+        // What is put back was already sent, so it is the control's default.
+        Assert.Contains("if (box) { box.checked = on; box.defaultChecked = on; }", script, StringComparison.Ordinal);
+        Assert.Contains("if (box && value !== null) { box.value = value; box.defaultValue = value; }", script, StringComparison.Ordinal);
+        Assert.Matches(new Regex(@"\n\s*putBack\(\);\r?\n\s*paintAdditions\(\);\r?\n\s*paintPriorTotalLoss\(\);"), script);
+        // Leaving the edit lets go of what was kept.
+        Assert.Contains("if (!document.querySelector('[data-valuation-form]')) { kept = null; }", script, StringComparison.Ordinal);
+
+        Assert.Contains(
+            "if (toggle && typed !== toggle && event.isTrusted && typed.value !== '' && !toggle.checked) {",
+            script,
+            StringComparison.Ordinal);
+        Assert.Equal(2, Regex.Count(script, @"remember\(\);\r?\n\s*if \(stillTyping\((control|typed)\)\) \{\r?\n\s*return;"));
+        Assert.Contains("ptlToggle.defaultChecked = ptlToggle.checked;", script, StringComparison.Ordinal);
+    }
 }
