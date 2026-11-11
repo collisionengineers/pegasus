@@ -61,6 +61,12 @@ public static partial class OperatorLabels
     public const string OriginalReportMissing = "Original report missing";
 
     /// <summary>
+    /// A Case's failed document storage, as its history names it and as the
+    /// Not ready queue and the Next action name what holds the Case (R929).
+    /// </summary>
+    public const string DocumentStorageFailed = "Document storage failed";
+
+    /// <summary>
     /// The known principal on a pre-case record — an Image Intake or a Triage.
     /// One pair owns the concept for both surfaces: `Not known` is the absent
     /// principal and is never reused as a generic empty label elsewhere.
@@ -920,7 +926,7 @@ public static partial class OperatorLabels
         "case_document_removed" => "File removed",
         "case_document_type_set" => "Document type changed",
         "custody_confirmed" => "Document stored",
-        "custody_failed" => "Document storage failed",
+        "custody_failed" => DocumentStorageFailed,
         "principal_inspection_mode_applied" => "Inspection mode taken from the principal",
         "principal_guidance_applied" => "Principal guidance applied",
         "case_guidance_applied" => "Guidance applied",

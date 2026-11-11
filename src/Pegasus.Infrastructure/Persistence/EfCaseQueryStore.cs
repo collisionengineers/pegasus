@@ -14,7 +14,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfCaseQueryStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ICaseQueryStore, ICaseKindQueries, ICaseCircumstancesQueries, ICaseWorkQueries, ICaseDocumentQueries, IAvailableReportSentEvidenceQueries
+    TimeProvider timeProvider) : ICaseQueryStore, ICaseKindQueries, ICaseCircumstancesQueries, ICaseWorkQueries, ICaseDocumentQueries, INotReadyCaseQueries, IAvailableReportSentEvidenceQueries
 {
     /// <inheritdoc />
     async Task<IReadOnlyList<CaseDocument>> ICaseDocumentQueries.ListAsync(Guid caseId, CancellationToken cancellationToken)
@@ -28,6 +28,55 @@ public sealed class EfCaseQueryStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         return await EfDocumentCustodyStore.CurrentAuditReports(context, caseId).AnyAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    async Task<IReadOnlyDictionary<Guid, NotReadyCaseBlockers>> INotReadyCaseQueries.GetBlockersAsync(
+        IReadOnlyCollection<Guid> caseIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(caseIds);
+        if (caseIds.Count == 0)
+        {
+            return new Dictionary<Guid, NotReadyCaseBlockers>();
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var ids = caseIds.Distinct().ToArray();
+        // The mileage is the Case's own work's accepted value, confirmed or
+        // fact, as the gate reads it (CaseInstructionCompleteness.Mileage);
+        // the report is the current one CurrentAuditReports names.
+        var rows = await context.Set<CaseEntity>()
+            .AsNoTracking()
+            .Where(item => ids.Contains(item.Id))
+            .Select(item => new
+            {
+                item.Id,
+                item.Type,
+                item.CustodyState,
+                item.StandaloneAuditEvidenceId,
+                MileageRecorded = context.CaseDataFields.Any(field =>
+                    field.WorkId == item.Id
+                    && field.FieldName == CaseDataFieldNames.VehicleMileage
+                    && (field.ValueKind == CaseDataCodes.Confirmed || field.ValueKind == CaseDataCodes.Fact)),
+                HasCurrentAuditReport = context.Set<DocumentOccurrenceEntity>().Any(occurrence =>
+                    occurrence.CaseId == item.Id
+                    && occurrence.SemanticRole == DocumentSemanticRole.AuditReport
+                    && context.Set<DocumentVersionEntity>().Any(version =>
+                        version.Id == occurrence.VersionId
+                        && version.IsCurrent
+                        && !version.IsLogicallyRemoved))
+            })
+            .ToArrayAsync(cancellationToken);
+        return rows.ToDictionary(
+            item => item.Id,
+            item => new NotReadyCaseBlockers(
+                ParseCustodyState(item.CustodyState) == CaseCustodyState.Failed,
+                item.MileageRecorded,
+                OriginalReportPolicy.IsMissing(
+                    CaseTypeCodes.Parse(item.Type),
+                    item.StandaloneAuditEvidenceId,
+                    item.HasCurrentAuditReport)));
     }
 
     /// <inheritdoc />

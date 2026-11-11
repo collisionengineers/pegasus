@@ -362,6 +362,16 @@ public sealed partial class DetailsModel(
                 ? Pegasus.Web.Presentation.OperatorLabels.ChaseReason(dueWork.MissingMaterialReason)
                 : null;
             var requirements = new List<CaseRequirement>();
+            // A failed document storage holds the Case Not ready whatever else
+            // it has, so it is the first requirement and Files clears it (R929).
+            if (Case.Frame.CustodyState == CaseCustodyState.Failed)
+            {
+                requirements.Add(new(
+                    Labels.DocumentStorageFailed,
+                    Labels.CaseWorkspace.Sections.First(section => section.Key == "files").Label,
+                    null,
+                    "files"));
+            }
             if (OriginalReportMissing)
             {
                 requirements.Add(new(Labels.OriginalReportMissing, "Audit", null, "files"));
