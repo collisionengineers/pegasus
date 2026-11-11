@@ -115,7 +115,7 @@ the current-estate part of [operations](operations.md):
 | Work Centre, Inbox list, Cases list, Case page open, Photo capture lists (R882) | 500 ms |
 | Save, handler fetches, dialog loads, refresh | 300 ms |
 | Everything else (administration, reports, logs) | 1 second |
-| Report PDF render, exports | 3 seconds, behind a busy state |
+| Report PDF render, exports, first Preview of a Word document (R951) | 3 seconds, behind a busy state |
 
 A page within budget gets no efficiency work. A change is built only when it
 brings a page under its budget or saves at least 100 ms at p95 on one, and

@@ -862,7 +862,11 @@ confirmed**, **Box audit folder: preparing** while it is being created, or
 
 **Documents** lists every live file as a row: filename, role, size, origin,
 recorded time and custody-state chip, with Preview, Save as and, while
-editing, delete. A market research findings file carries the Valuation
+editing, delete. A Word document (.doc or .docx) previews in the same viewer
+as a PDF rendering of its stored version, and Save as and the viewer's
+Download give the Word document itself (operator, 11 November 2026, R949;
+[FRD-05](frd-05-documents-extraction-and-custody.md#custody-and-derived-reads)).
+A market research findings file carries the Valuation
 Evidence role ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)),
 and Valuation Evidence the Automation Actor filed wears the AI tint
 ([FRD-05](frd-05-documents-extraction-and-custody.md#document-types);

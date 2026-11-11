@@ -43,6 +43,17 @@ public sealed class CaseDocumentDownloadWebTests
     private static readonly byte[] FullContent = Encoding.UTF8.GetBytes("the full photograph");
     private static readonly byte[] ThumbnailContent = Encoding.UTF8.GetBytes("the rendering");
 
+    private const string DocxMediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    private const string WordFileName = "letter.docx";
+    private const string DocumentPreviewHeader = "X-Pegasus-Document-Preview";
+    private static readonly byte[] RenderingContent = Encoding.UTF8.GetBytes("%PDF-1.7 the PDF rendering");
+
+    /// <summary>
+    /// A Word document's PDF rendering is validated as the source and the
+    /// rendering it was made by, never as the source's own hash.
+    /// </summary>
+    private static readonly string RenditionValidator = $"\"{Sha256}-{CaseDocumentPreviews.RenditionVariant}\"";
+
     [Fact]
     public async Task AnInlinePreviewIsCacheableByContentHashAndIsNotAnAuditedDownload()
     {
@@ -432,8 +443,356 @@ public sealed class CaseDocumentDownloadWebTests
         Assert.Equal(TimeSpan.FromSeconds(5), response.Headers.RetryAfter!.Delta);
     }
 
+    /// <summary>
+    /// A Word document's View is a PDF rendering of its stored version, served
+    /// inline under its own name with a .pdf extension. It is a view, so it
+    /// never reaches the audited download, and the source hash is not claimed
+    /// for the rendered bytes.
+    /// </summary>
+    [Theory]
+    [InlineData("application/msword", "letter.doc", "letter.pdf")]
+    [InlineData(DocxMediaType, "letter.docx", "letter.pdf")]
+    [InlineData("application/octet-stream", "report.docx", "report.pdf")]
+    public async Task AWordDocumentViewIsAPdfRenderingAndNotAnAuditedDownload(
+        string mediaType,
+        string fileName,
+        string renderedFileName)
+    {
+        var ports = new DocumentPorts { PreviewMediaType = mediaType, PreviewFileName = fileName };
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, WordViewRoute());
+        request.Headers.TryAddWithoutValidation(DocumentPreviewHeader, "1");
+        using var response = await client.SendAsync(request);
+        var body = await response.Content.ReadAsByteArrayAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(RenderingContent, body);
+        Assert.Equal("application/pdf", response.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("inline", response.Content.Headers.ContentDisposition!.DispositionType);
+        Assert.Equal(renderedFileName, response.Content.Headers.ContentDisposition.FileName);
+        Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
+        Assert.False(response.Headers.Contains("X-Content-SHA256"));
+        var caching = response.Headers.CacheControl!;
+        Assert.True(caching.Private);
+        Assert.Equal(TimeSpan.FromDays(7), caching.MaxAge);
+        Assert.Contains(caching.Extensions, directive => directive.Name == "immutable");
+        Assert.Equal(RenditionValidator, response.Headers.ETag!.Tag);
+        var rendered = Assert.Single(ports.RenderedPreviews);
+        Assert.Equal(VersionId, rendered.VersionId);
+        Assert.Equal(DocumentId, rendered.DocumentId);
+        Assert.Equal(Sha256, rendered.Sha256);
+        Assert.Equal(0, ports.AuditedDownloads);
+        Assert.Equal(0, ports.LogicalReads);
+        Assert.Equal(0, ports.ThumbnailReads);
+    }
+
+    /// <summary>
+    /// Without a script the View link is still a real link, and it shows the
+    /// same rendering.
+    /// </summary>
+    [Fact]
+    public async Task AWordDocumentViewFromAPlainLinkIsTheSameRendering()
+    {
+        var ports = new DocumentPorts { PreviewMediaType = DocxMediaType, PreviewFileName = WordFileName };
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync(WordViewRoute());
+        var body = await response.Content.ReadAsByteArrayAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(RenderingContent, body);
+        Assert.Equal("application/pdf", response.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("inline", response.Content.Headers.ContentDisposition!.DispositionType);
+        Assert.Equal(1, ports.Renderings);
+        Assert.Equal(0, ports.AuditedDownloads);
+    }
+
+    /// <summary>
+    /// Like a thumbnail, a rendering is kept by the browser only when its
+    /// address names the current rendering: an address without it, or naming
+    /// an earlier one, is answered afresh and kept by nobody, even when the
+    /// browser offers the current validator.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("p0")]
+    public async Task AWordDocumentViewWithoutTheCurrentRenditionIsNeverCacheableOrNotModified(string? renderer)
+    {
+        var ports = new DocumentPorts { PreviewMediaType = DocxMediaType, PreviewFileName = WordFileName };
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, WordViewRoute(renderer));
+        request.Headers.TryAddWithoutValidation("If-None-Match", RenditionValidator);
+        using var response = await client.SendAsync(request);
+        var body = await response.Content.ReadAsByteArrayAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(RenderingContent, body);
+        Assert.Equal("application/pdf", response.Content.Headers.ContentType!.MediaType);
+        Assert.True(response.Headers.CacheControl!.Private);
+        Assert.True(response.Headers.CacheControl.NoStore);
+        Assert.Null(response.Headers.CacheControl.MaxAge);
+        Assert.Null(response.Headers.ETag);
+        Assert.Equal(1, ports.Renderings);
+        Assert.Equal(0, ports.AuditedDownloads);
+    }
+
+    [Fact]
+    public async Task AWordDocumentRenditionTheBrowserAlreadyHoldsIsAnsweredWithNotModifiedWithoutRendering()
+    {
+        var ports = new DocumentPorts { PreviewMediaType = DocxMediaType, PreviewFileName = WordFileName };
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, WordViewRoute());
+        request.Headers.TryAddWithoutValidation("If-None-Match", RenditionValidator);
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NotModified, response.StatusCode);
+        Assert.Equal(RenditionValidator, response.Headers.ETag!.Tag);
+        Assert.True(response.Headers.CacheControl!.Private);
+        Assert.Equal(TimeSpan.FromDays(7), response.Headers.CacheControl.MaxAge);
+        // Nothing was rendered or read: the validator is the whole answer.
+        Assert.Equal(0, ports.Renderings);
+        Assert.Equal(0, ports.LogicalReads);
+        Assert.Equal(0, ports.AuditedDownloads);
+    }
+
+    /// <summary>
+    /// The source's own validator is not the rendering's: a browser holding
+    /// the Word document's hash is sent the rendering.
+    /// </summary>
+    [Fact]
+    public async Task AWordDocumentRenditionIsNotSatisfiedByTheSourceValidator()
+    {
+        var ports = new DocumentPorts { PreviewMediaType = DocxMediaType, PreviewFileName = WordFileName };
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, WordViewRoute());
+        request.Headers.TryAddWithoutValidation("If-None-Match", $"\"{Sha256}\"");
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(RenditionValidator, response.Headers.ETag!.Tag);
+        Assert.Equal(1, ports.Renderings);
+    }
+
+    /// <summary>
+    /// A rendering still being made, or a read Box refused for now, is a wait
+    /// the viewer retries, never a missing file and never a download.
+    /// </summary>
+    [Theory]
+    [InlineData("timeout")]
+    [InlineData("io")]
+    [InlineData("throttled")]
+    [InlineData("unavailable")]
+    public async Task AWordDocumentRenditionThatIsNotReadyYetIsRetriable(string failure)
+    {
+        var ports = new DocumentPorts
+        {
+            PreviewMediaType = DocxMediaType,
+            PreviewFileName = WordFileName,
+            RenderFailure = failure switch
+            {
+                "timeout" => new TimeoutException("The rendering is still being made."),
+                "io" => new IOException("The rendering read did not complete."),
+                "throttled" => new HttpRequestException(
+                    "Box representation returned 429.", null, HttpStatusCode.TooManyRequests),
+                _ => new HttpRequestException(
+                    "Box representation returned 503.", null, HttpStatusCode.ServiceUnavailable)
+            }
+        };
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, WordViewRoute());
+        request.Headers.TryAddWithoutValidation(DocumentPreviewHeader, "1");
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal(TimeSpan.FromSeconds(5), response.Headers.RetryAfter!.Delta);
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        Assert.Null(response.Headers.ETag);
+        Assert.Equal(1, ports.Renderings);
+        Assert.Equal(0, ports.AuditedDownloads);
+    }
+
+    /// <summary>
+    /// The viewer's script asks with its header, so a document no rendering
+    /// can be made of is a refusal it can show rather than a file it did not
+    /// ask to save.
+    /// </summary>
+    [Fact]
+    public async Task AWordDocumentThatCannotBeRenderedIsARefusalForTheViewer()
+    {
+        var ports = new DocumentPorts
+        {
+            PreviewMediaType = DocxMediaType,
+            PreviewFileName = WordFileName,
+            Rendering = null
+        };
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, WordViewRoute());
+        request.Headers.TryAddWithoutValidation(DocumentPreviewHeader, "1");
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType!.MediaType);
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        Assert.Null(response.Headers.ETag);
+        Assert.Null(response.Content.Headers.ContentDisposition);
+        Assert.Equal(1, ports.Renderings);
+        Assert.Equal(0, ports.AuditedDownloads);
+        Assert.Equal(0, ports.LogicalReads);
+    }
+
+    /// <summary>
+    /// A plain link has no script to show a refusal, so a document no
+    /// rendering can be made of is the file itself: the audited saved
+    /// download, history row included.
+    /// </summary>
+    [Fact]
+    public async Task AWordDocumentThatCannotBeRenderedIsTheAuditedSaveForAPlainLink()
+    {
+        var ports = new DocumentPorts
+        {
+            PreviewMediaType = DocxMediaType,
+            PreviewFileName = WordFileName,
+            Rendering = null
+        };
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync(WordViewRoute());
+        var body = await response.Content.ReadAsByteArrayAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(FullContent, body);
+        Assert.Equal(DocxMediaType, response.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("attachment", response.Content.Headers.ContentDisposition!.DispositionType);
+        Assert.Equal(WordFileName, response.Content.Headers.ContentDisposition.FileName);
+        Assert.Equal(Sha256, Assert.Single(response.Headers.GetValues("X-Content-SHA256")));
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        Assert.Null(response.Headers.ETag);
+        Assert.Equal(1, ports.Renderings);
+        // One audited read, which is the ActionHistory row.
+        Assert.Equal(1, ports.AuditedDownloads);
+        Assert.Equal(0, ports.LogicalReads);
+    }
+
+    /// <summary>
+    /// A Word document still reaching custody is a wait, and one whose custody
+    /// failed is missing; neither asks for a rendering.
+    /// </summary>
+    [Theory]
+    [InlineData(DocumentCustodyStatus.Pending, HttpStatusCode.ServiceUnavailable)]
+    [InlineData(DocumentCustodyStatus.Failed, HttpStatusCode.NotFound)]
+    public async Task AWordDocumentNotYetInCustodyIsNeverRendered(
+        DocumentCustodyStatus custody,
+        HttpStatusCode expected)
+    {
+        var ports = new DocumentPorts
+        {
+            PreviewMediaType = DocxMediaType,
+            PreviewFileName = WordFileName,
+            CustodyStatus = custody
+        };
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, WordViewRoute());
+        request.Headers.TryAddWithoutValidation(DocumentPreviewHeader, "1");
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(expected, response.StatusCode);
+        Assert.Null(response.Headers.ETag);
+        Assert.Equal(0, ports.Renderings);
+        Assert.Equal(0, ports.AuditedDownloads);
+        Assert.Equal(0, ports.LogicalReads);
+    }
+
+    /// <summary>
+    /// Save as of a Word document is unchanged: the audited read of the Word
+    /// document itself, never cached, and nothing is rendered.
+    /// </summary>
+    [Fact]
+    public async Task SavingAWordDocumentStaysTheAuditedReadOfTheDocumentItself()
+    {
+        var ports = new DocumentPorts { PreviewMediaType = DocxMediaType, PreviewFileName = WordFileName };
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync(DownloadRoute());
+        var body = await response.Content.ReadAsByteArrayAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(FullContent, body);
+        Assert.Equal(DocxMediaType, response.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("attachment", response.Content.Headers.ContentDisposition!.DispositionType);
+        Assert.Equal(WordFileName, response.Content.Headers.ContentDisposition.FileName);
+        Assert.Equal(Sha256, Assert.Single(response.Headers.GetValues("X-Content-SHA256")));
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        Assert.Null(response.Headers.ETag);
+        Assert.Equal(1, ports.AuditedDownloads);
+        Assert.Equal(0, ports.Renderings);
+        Assert.Equal(0, ports.LogicalReads);
+    }
+
+    /// <summary>
+    /// A file the viewer does not show is never displayed from this origin:
+    /// an inline request for it is the audited download it always was, and it
+    /// is not offered to the renderer.
+    /// </summary>
+    [Fact]
+    public async Task AnInlineRequestForAPlainTextFileIsStillTheAuditedDownload()
+    {
+        var ports = new DocumentPorts { PreviewMediaType = "text/plain", PreviewFileName = "notes.txt" };
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, WordViewRoute());
+        request.Headers.TryAddWithoutValidation(DocumentPreviewHeader, "1");
+        using var response = await client.SendAsync(request);
+        var body = await response.Content.ReadAsByteArrayAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(FullContent, body);
+        Assert.Equal("text/plain", response.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("attachment", response.Content.Headers.ContentDisposition!.DispositionType);
+        Assert.Equal("notes.txt", response.Content.Headers.ContentDisposition.FileName);
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        Assert.Null(response.Headers.ETag);
+        Assert.Equal(1, ports.AuditedDownloads);
+        Assert.Equal(0, ports.Renderings);
+        Assert.Equal(0, ports.LogicalReads);
+    }
+
     private static string DownloadRoute() =>
         $"/Cases/{CaseId:D}/Documents/{OccurrenceId:D}/Download?versionId={VersionId:D}";
+
+    /// <summary>The Word View's address: the preview naming the current rendering, as the page writes it.</summary>
+    private static string WordViewRoute(string? renderer = CaseDocumentPreviews.RenditionIdentity) =>
+        DownloadRoute()
+        + "&inline=true"
+        + (renderer is null ? string.Empty : $"&renderer={Uri.EscapeDataString(renderer)}");
 
     private static string PreviewRoute(
         bool thumbnail = false,
@@ -482,6 +841,7 @@ public sealed class CaseDocumentDownloadWebTests
                 Substitute<IReadCaseDocumentPreview>(services, ports);
                 Substitute<IReadLogicalDocumentVersion>(services, ports);
                 Substitute<IReadCaseDocumentThumbnail>(services, ports);
+                Substitute<IRenderDocumentAsPdf>(services, ports);
                 Substitute<IDownloadCaseDocument>(services, ports);
                 Substitute<ICaseAssetPreparationQueries>(services, ports);
             }));
@@ -508,6 +868,7 @@ public sealed class CaseDocumentDownloadWebTests
         IReadCaseDocumentPreview,
         IReadLogicalDocumentVersion,
         IReadCaseDocumentThumbnail,
+        IRenderDocumentAsPdf,
         IDownloadCaseDocument,
         ICaseAssetPreparationQueries
     {
@@ -515,7 +876,9 @@ public sealed class CaseDocumentDownloadWebTests
         private int thumbnailReads;
         private int auditedDownloads;
         private int preparationReads;
+        private int renderings;
         private readonly List<CaseDocumentThumbnailRequest> thumbnailRequests = [];
+        private readonly List<CaseDocumentPreview> renderedPreviews = [];
 
         public DocumentCustodyStatus CustodyStatus { get; init; } =
             DocumentCustodyStatus.Confirmed;
@@ -532,7 +895,16 @@ public sealed class CaseDocumentDownloadWebTests
 
         public string PreviewFileName { get; init; } = FileName;
 
+        /// <summary>The PDF rendering of a Word document; null when none can be made.</summary>
+        public byte[]? Rendering { get; init; } = RenderingContent;
+
+        public Exception? RenderFailure { get; init; }
+
         public int LogicalReads => Volatile.Read(ref logicalReads);
+
+        public int Renderings => Volatile.Read(ref renderings);
+
+        public IReadOnlyList<CaseDocumentPreview> RenderedPreviews => renderedPreviews;
 
         public int ThumbnailReads => Volatile.Read(ref thumbnailReads);
 
@@ -626,6 +998,20 @@ public sealed class CaseDocumentDownloadWebTests
                     Sha256));
         }
 
+        Task<byte[]?> IRenderDocumentAsPdf.RenderAsync(
+            Pegasus.Core.Identity.ActionActor actor,
+            CaseDocumentPreview preview,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref renderings);
+            renderedPreviews.Add(preview);
+            if (RenderFailure is not null)
+            {
+                throw RenderFailure;
+            }
+            return Task.FromResult(Rendering);
+        }
+
         Task<DocumentDownload?> IDownloadCaseDocument.ExecuteAsync(
             DownloadCaseDocumentQuery query,
             CancellationToken cancellationToken)
@@ -639,8 +1025,8 @@ public sealed class CaseDocumentDownloadWebTests
             Assert.False(string.IsNullOrWhiteSpace(query.OperationKey));
             return Task.FromResult<DocumentDownload?>(new(
                 new MemoryStream(FullContent, writable: false),
-                FileName,
-                MediaType,
+                PreviewFileName,
+                PreviewMediaType,
                 FullContent.LongLength,
                 Sha256));
         }

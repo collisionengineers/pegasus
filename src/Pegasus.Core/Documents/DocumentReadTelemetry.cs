@@ -63,7 +63,9 @@ public static class DocumentReadTelemetry
         "document.thumbnail.cache.write",
         "document.thumbnail.render",
         "document.thumbnail.render.gate",
-        "document.thumbnail.decode.gate"
+        "document.thumbnail.decode.gate",
+        "document.rendition.open",
+        "document.rendition.render.gate"
     };
 
     public static Activity? Start(string phase)
