@@ -1,5 +1,10 @@
 using System.Net;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Intake;
+using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Mcp;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
@@ -19,7 +24,7 @@ namespace Pegasus.IntegrationTests;
 public sealed class AutomationQueueIngressTests
 {
     [Fact]
-    public async Task TheActorReadsAndAcceptsAReceivedItemOnlyOnceItsAddressIsSettled()
+    public async Task TheActorReadsAndAcceptsAReceivedItem()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
@@ -43,23 +48,6 @@ public sealed class AutomationQueueIngressTests
             version = detail.GetProperty("version").GetInt64();
         }
 
-        // A physical-address Principal needs its address settled first
-        // (resolve_inspection_address): accept refuses and writes nothing.
-        await (await factory.DatabaseAsync).ExecuteAsync(
-            $"UPDATE Principals SET InspectionMode = N'{PrincipalInspectionModePolicy.PhysicalAddressCode}' WHERE Code = N'{QdosPrincipal.Code}'");
-        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_intake_action", new
-        {
-            receiptId = receipt.Id,
-            action = "accept",
-            expectedReceiptVersion = version,
-            claimantName = "Automation Claimant",
-            claimNumber = "AUTO-1",
-            operationKey = "mcp:intake-accept-address"
-        })))
-        {
-            Assert.Contains("inspection address", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
-        }
-
         // allocate takes no draft field: it retries the recorded command.
         using (var refused = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_intake_action", new
         {
@@ -75,7 +63,8 @@ public sealed class AutomationQueueIngressTests
             Assert.Contains("recorded command", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
 
-        // An image-based Principal settles the address by its own mode.
+        // An image-based Principal needs no address settled, so its Case's
+        // instruction is not held back for one.
         await (await factory.DatabaseAsync).ExecuteAsync(
             $"UPDATE Principals SET InspectionMode = N'{PrincipalInspectionModePolicy.ImageBasedAssessmentCode}' WHERE Code = N'{QdosPrincipal.Code}'");
 
@@ -122,6 +111,271 @@ public sealed class AutomationQueueIngressTests
               AND EventType = N'case_accepted'
               AND Actor = N'{ClientId}'
             """));
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"SELECT CAST(InstructionComplete AS int) FROM Cases WHERE Id = '{caseId:D}'"));
+    }
+
+    /// <summary>
+    /// R965: an unsettled inspection address does not refuse the Case. A
+    /// physical-address Principal's Case is created with the address blank and
+    /// starts Not ready, its instruction naming Inspection address as missing,
+    /// as a Case made from New case with a blank address does.
+    /// </summary>
+    [Fact]
+    public async Task AnUnsettledInspectionAddressDoesNotRefuseTheCaseWhichStartsNotReadyNamingIt()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        _ = await SeedAcceptedCaseAsync(mcpFactory);
+        await (await factory.DatabaseAsync).ExecuteAsync(
+            $"UPDATE Principals SET InspectionMode = N'{PrincipalInspectionModePolicy.PhysicalAddressCode}' WHERE Code = N'{QdosPrincipal.Code}'");
+        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            mcpFactory.Services,
+            CaseType.Inspection,
+            QdosPrincipal.Code);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, "automation.intake");
+
+        long version;
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_intake_get", new { receiptId = receipt.Id })))
+        {
+            var detail = await ReadStructuredContentAsync(response);
+            Assert.Equal("Unresolved", detail.GetProperty("inspectionAddressState").GetString());
+            Assert.Equal(QdosPrincipal.Code, detail.GetProperty("establishedPrincipalCode").GetString());
+            version = detail.GetProperty("version").GetInt64();
+        }
+
+        Guid caseId;
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_intake_action", new
+        {
+            receiptId = receipt.Id,
+            action = "accept",
+            expectedReceiptVersion = version,
+            claimantName = "Automation Claimant",
+            claimNumber = "AUTO-2",
+            operationKey = "mcp:intake-accept-no-address"
+        })))
+        {
+            var accepted = await ReadStructuredContentAsync(response);
+            Assert.Equal("Succeeded", accepted.GetProperty("allocationStatus").GetString());
+            caseId = accepted.GetProperty("caseId").GetGuid();
+        }
+
+        var database = await factory.DatabaseAsync;
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT CAST(InstructionComplete AS int) FROM Cases WHERE Id = '{caseId:D}'"));
+        await using var scope = mcpFactory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        Assert.Equal(
+            nameof(CaseLifecycleState.NotReady),
+            (await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId)).State);
+        var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
+            .SingleAsync(item => item.WorkId == caseId);
+        Assert.Contains("Inspection address", CaseInstructionCompleteness.Missing(snapshot));
+    }
+
+    /// <summary>
+    /// R966: an accepted mail route establishes the item's Principal with no
+    /// draft, so accept needs no principalCode; an instruction profile that
+    /// conflicts with the route leaves the item with none.
+    /// </summary>
+    [Fact]
+    public async Task AnAcceptedRouteWithNoDraftGivesAcceptItsPrincipalUnlessTheProfileConflicts()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        _ = await SeedAcceptedCaseAsync(mcpFactory);
+        var route = Route(MailRouteDisposition.Accepted, QdosPrincipal.Code, "handler@qdos-route.example");
+        var informal = await StoreUnprofiledReceiptAsync(mcpFactory.Services, route, []);
+        var conflicting = await StoreUnprofiledReceiptAsync(
+            mcpFactory.Services,
+            route,
+            [
+                new(
+                    IntakeEvidenceSource.SystemDefault,
+                    IntakeEvidenceStrength.Strong,
+                    IntakeEvidenceFinding.Information,
+                    IntakeEvidenceSignals.ConflictingInstructionSelection,
+                    "Another Principal's instruction profile was selected.")
+            ]);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, "automation.intake");
+
+        long version;
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_intake_get", new { receiptId = informal.Id })))
+        {
+            var detail = await ReadStructuredContentAsync(response);
+            Assert.Equal(QdosPrincipal.Code, detail.GetProperty("establishedPrincipalCode").GetString());
+            Assert.True(IsAbsent(detail, "senderDirectoryPrincipalCode"));
+            Assert.False(detail.GetProperty("websiteEnquiry").GetBoolean());
+            version = detail.GetProperty("version").GetInt64();
+        }
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_intake_action", new
+        {
+            receiptId = informal.Id,
+            action = "accept",
+            expectedReceiptVersion = version,
+            claimantName = "Route Claimant",
+            claimNumber = "ROUTE-1",
+            vehicleRegistration = "RT12UTE",
+            operationKey = "mcp:intake-accept-route-principal"
+        })))
+        {
+            var accepted = await ReadStructuredContentAsync(response);
+            Assert.Equal("Succeeded", accepted.GetProperty("allocationStatus").GetString());
+            Assert.StartsWith(QdosPrincipal.Code, accepted.GetProperty("caseReference").GetString(), StringComparison.Ordinal);
+        }
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_intake_get", new { receiptId = conflicting.Id })))
+        {
+            var detail = await ReadStructuredContentAsync(response);
+            Assert.True(IsAbsent(detail, "establishedPrincipalCode"));
+            version = detail.GetProperty("version").GetInt64();
+        }
+
+        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_intake_action", new
+        {
+            receiptId = conflicting.Id,
+            action = "accept",
+            expectedReceiptVersion = version,
+            claimantName = "Route Claimant",
+            claimNumber = "ROUTE-2",
+            vehicleRegistration = "RT13UTE",
+            operationKey = "mcp:intake-accept-conflicting-profile"
+        })))
+        {
+            Assert.Contains("principal code is required", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// R969 and R972: for an item whose sender matched no route, the read
+    /// names the one active Principal Contact the sender belongs to, a code
+    /// accept then takes; two Principals on one domain name neither, and the
+    /// website form's sender is a website enquiry with no Principal.
+    /// </summary>
+    [Fact]
+    public async Task ASenderWithNoRouteIsNamedItsOneDirectoryPrincipal()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        _ = await SeedAcceptedCaseAsync(mcpFactory);
+        var database = await factory.DatabaseAsync;
+        _ = await AllocationTestData.SeedPrincipalAsync(mcpFactory.Services, "ZSEND");
+        await database.ExecuteAsync(
+            "UPDATE Organizations SET Email = N'desk@zsend-law.example' WHERE Id = (SELECT OrganizationId FROM Principals WHERE Code = N'ZSEND')");
+        var fromThePrincipal = await StoreUnprofiledReceiptAsync(
+            mcpFactory.Services, Route(MailRouteDisposition.NoMatch, null, "fee.earner@zsend-law.example"), []);
+        var afterASecondPrincipal = await StoreUnprofiledReceiptAsync(
+            mcpFactory.Services, Route(MailRouteDisposition.NoMatch, null, "another@zsend-law.example"), []);
+        var fromTheWebsite = await StoreUnprofiledReceiptAsync(
+            mcpFactory.Services, Route(MailRouteDisposition.NoMatch, null, WebsiteEnquiryMail.SenderAddress), []);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, "automation.intake");
+
+        long version;
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_intake_get", new { receiptId = fromThePrincipal.Id })))
+        {
+            var detail = await ReadStructuredContentAsync(response);
+            Assert.True(IsAbsent(detail, "establishedPrincipalCode"));
+            Assert.Equal("ZSEND", detail.GetProperty("senderDirectoryPrincipalCode").GetString());
+            version = detail.GetProperty("version").GetInt64();
+        }
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_intake_action", new
+        {
+            receiptId = fromThePrincipal.Id,
+            action = "accept",
+            expectedReceiptVersion = version,
+            principalCode = "ZSEND",
+            claimantName = "Directory Claimant",
+            claimNumber = "DIR-1",
+            vehicleRegistration = "DR12ECT",
+            operationKey = "mcp:intake-accept-directory-principal"
+        })))
+        {
+            var accepted = await ReadStructuredContentAsync(response);
+            Assert.Equal("Succeeded", accepted.GetProperty("allocationStatus").GetString());
+            Assert.StartsWith("ZSEND", accepted.GetProperty("caseReference").GetString(), StringComparison.Ordinal);
+        }
+
+        _ = await AllocationTestData.SeedPrincipalAsync(mcpFactory.Services, "ZSEN2");
+        await database.ExecuteAsync(
+            "UPDATE Organizations SET Email = N'accounts@zsend-law.example' WHERE Id = (SELECT OrganizationId FROM Principals WHERE Code = N'ZSEN2')");
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_intake_get", new { receiptId = afterASecondPrincipal.Id })))
+        {
+            var detail = await ReadStructuredContentAsync(response);
+            Assert.True(IsAbsent(detail, "senderDirectoryPrincipalCode"));
+            Assert.False(detail.GetProperty("websiteEnquiry").GetBoolean());
+        }
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_intake_get", new { receiptId = fromTheWebsite.Id })))
+        {
+            var detail = await ReadStructuredContentAsync(response);
+            Assert.True(detail.GetProperty("websiteEnquiry").GetBoolean());
+            Assert.True(IsAbsent(detail, "establishedPrincipalCode"));
+            Assert.True(IsAbsent(detail, "senderDirectoryPrincipalCode"));
+        }
+    }
+
+    private static bool IsAbsent(System.Text.Json.JsonElement element, string property) =>
+        !element.TryGetProperty(property, out var value) || value.ValueKind == System.Text.Json.JsonValueKind.Null;
+
+    private static MailRouteEvaluationResult Route(MailRouteDisposition disposition, string? principalCode, string sender) => new(
+        disposition,
+        principalCode is null ? null : new MailRouteSelection(principalCode, MailRouteKind.DirectPrincipal, principalCode),
+        [],
+        "Queue ingress test route.",
+        "queue-ingress-test-route",
+        1,
+        [new(sender, "outer message")],
+        [],
+        new(sender, "outer message"));
+
+    /// <summary>
+    /// A mailbox item no instruction profile was selected for: no draft, no
+    /// extracted field, waiting for sorting, typed New instruction as the
+    /// classifier leaves it before Create case.
+    /// </summary>
+    private static async Task<IntakeReceipt> StoreUnprofiledReceiptAsync(
+        IServiceProvider services,
+        MailRouteEvaluationResult route,
+        IReadOnlyList<IntakeEvidence> evidence)
+    {
+        var token = Guid.NewGuid().ToString("N");
+        await using var scope = services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>().StoreAsync(
+            new(
+                "informal-message.eml",
+                "message/rfc822",
+                100,
+                Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token))),
+                new(IntakeSourceChannel.Mailbox, token),
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow,
+                "system-worker:approved-inbox-poller",
+                IntakeDecision.NeedsSorting,
+                "No agreeing instruction profile was identified.",
+                evidence,
+                [],
+                null,
+                [],
+                null,
+                null,
+                "queue-ingress-test-reader",
+                "1",
+                null,
+                null,
+                MailRouteDecision: route,
+                MailClassificationDecision: MailClassificationResult.Classified(
+                    MailCategory.NewInstruction,
+                    [],
+                    "The sender asks for an inspection.",
+                    "queue_ingress_test_classification",
+                    1,
+                    CaseType.Inspection)),
+            CancellationToken.None);
     }
 
     /// <summary>

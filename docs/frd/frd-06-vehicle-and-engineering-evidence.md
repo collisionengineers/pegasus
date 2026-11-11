@@ -67,6 +67,11 @@ read from text.
 - Where the source has no address at all, a staff member types the physical
   location at Case creation. It is kept with that person as its source. The
   ban is on Pegasus inferring an address, not on a person stating one.
+- A missing address does not stop the Automation actor's Create case on a
+  received item: the Case is created with the address blank and starts Not
+  ready, its instruction naming Inspection address as missing
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md)), until staff
+  record it on the Case (operator, 11 November 2026, [R965](../rulings.md)).
 - The Automation actor settles an address as staff do: it accepts or
   corrects the extracted suggestion, or supplies the location where there
   is none (operator, 7 October 2026;

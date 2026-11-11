@@ -681,13 +681,15 @@ public sealed class EfTriageStore(
     }
 
     /// <summary>
-    /// The principal the receipt already established, taken from the
-    /// originating instruction draft's suggested principal code and accepted
-    /// only when it resolves to exactly one active principal. Anything else —
-    /// no draft, no code, an unknown code, a deactivated principal — leaves the
-    /// receipt without one, and it is not classified into a Triage Case.
-    /// Nothing is inferred from the vehicle registration or from a later
-    /// linked Case.
+    /// The principal the receipt already established
+    /// (<see cref="EstablishedIntakePrincipal"/>): the originating instruction
+    /// draft's suggested principal code, else the accepted mail route's when
+    /// the instruction profile selection neither conflicts with it nor is
+    /// ambiguous (R966). It is accepted only when it resolves to exactly one
+    /// active principal. Anything else, such as no route, an unknown code or
+    /// a deactivated principal, leaves the receipt without one, and it is not
+    /// classified into a Triage Case. Nothing is inferred from the vehicle
+    /// registration or from a later linked Case.
     /// </summary>
     private static async Task<Guid?> ResolveEstablishedPrincipalAsync(
         PegasusDbContext context,
@@ -698,18 +700,38 @@ public sealed class EfTriageStore(
             .Where(draft => draft.IntakeReceiptId == originReceiptId)
             .Select(draft => draft.SuggestedPrincipalCode)
             .SingleOrDefaultAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(suggestedCode))
+        var code = string.IsNullOrWhiteSpace(suggestedCode)
+            ? await AcceptedRoutePrincipalAsync(context, originReceiptId, cancellationToken)
+            : suggestedCode.Trim();
+        if (code is null)
         {
             return null;
         }
 
-        var code = suggestedCode.Trim();
         var candidates = await context.Principals.AsNoTracking()
             .Where(principal => principal.Code == code && principal.IsActive)
             .Select(principal => principal.Id)
             .Take(2)
             .ToArrayAsync(cancellationToken);
         return candidates.Length == 1 ? candidates[0] : null;
+    }
+
+    private static async Task<string?> AcceptedRoutePrincipalAsync(
+        PegasusDbContext context,
+        Guid originReceiptId,
+        CancellationToken cancellationToken)
+    {
+        const string accepted = "accepted";
+        var route = await context.IntakeMailRouteDecisions.AsNoTracking()
+            .Where(decision => decision.IntakeReceiptId == originReceiptId
+                && decision.Disposition == accepted
+                && decision.PrincipalCode != null)
+            .Select(decision => new { decision.PrincipalCode, decision.IntakeReceipt.EvidenceJson })
+            .SingleOrDefaultAsync(cancellationToken);
+        return route is null
+            || EstablishedIntakePrincipal.SelectionConflicts(EfIntakeReceiptStore.DeserializeEvidence(route.EvidenceJson))
+                ? null
+                : EstablishedIntakePrincipal.Normalize(route.PrincipalCode);
     }
 
     public async Task<TriageRecord> AssignAsync(AssignTriageRequest request, CancellationToken cancellationToken)

@@ -284,6 +284,7 @@ public static class DependencyInjection
         services.AddScoped<ISentEvidencePollOutcomeQueries, EfSentEvidencePollOutcomeQueries>();
         services.AddSingleton<IMailRoutePolicy, PrincipalMailRoutePolicy>();
         services.AddScoped<IIntermediaryRegistry, EfIntermediaryRegistry>();
+        services.AddScoped<IPrincipalSenderDirectory, EfPrincipalSenderDirectory>();
         services.AddSingleton<IEnumerable<IMailClassificationPolicy>>(provider =>
             provider.GetServices<IInstructionExtractionPolicy>()
                 .Select(policy => (IMailClassificationPolicy)new PrincipalMailClassificationPolicy(policy.PrincipalCode))

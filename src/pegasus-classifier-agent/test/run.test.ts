@@ -48,7 +48,7 @@ describe("eligibility", () => {
       { scanPages: 1, batch: 20 },
       {
         list: async (): Promise<MailPage> => ({ items: decided.map((detail) => detail.summary), continuation: null, awaitingDecisionCount: 0 }),
-        get: async () => { reads++; return decided[0]; },
+        get: async () => { reads++; return mail(); },
         linkDestinations: async () => [],
       },
       new MemoryReviewedStore());
