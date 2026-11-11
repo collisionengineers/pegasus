@@ -6,6 +6,7 @@ using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.IntegrationTests.DocumentExtraction;
 using SkiaSharp;
@@ -206,6 +207,117 @@ public sealed class StructuredIntakeSourceReaderTests
             0,
             4);
     }
+
+    /// <summary>
+    /// U76 on the hosted test instance (11 November 2026, R939, R940): an
+    /// instruction letter sent as a .docx whose header lays its letterhead
+    /// behind the text. The reader states where each picture sits, and that
+    /// the source carries a Word document, and decides nothing itself:
+    /// retention drops the header picture and keeps the one in the body. A
+    /// Word document that is itself the source is not one a source carries.
+    /// </summary>
+    [Fact]
+    public async Task AWordDocumentsHeaderPictureIsStatedAndOnlyItsBodyPictureIsKept()
+    {
+        var word = BuildDocxWithHeaderAndBodyPictures(
+            Picture(SKEncodedImageFormat.Png),
+            Picture(SKEncodedImageFormat.Jpeg));
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Sender", "sender@example.test"));
+        message.To.Add(new MimeKit.MailboxAddress("Intake", "intake@example.test"));
+        message.Subject = "Instructing repairs";
+        message.Body = new MimeKit.Multipart("mixed")
+        {
+            new MimeKit.TextPart("plain") { Text = "See attached" },
+            new MimeKit.MimePart("application", "vnd.openxmlformats-officedocument.wordprocessingml.document")
+            {
+                FileName = "Instructing_Repairer.docx",
+                ContentDisposition = new MimeKit.ContentDisposition(MimeKit.ContentDisposition.Attachment),
+                ContentTransferEncoding = MimeKit.ContentEncoding.Base64,
+                Content = new MimeKit.MimeContent(new MemoryStream(word))
+            }
+        };
+        using var serialized = new MemoryStream();
+        message.WriteTo(serialized);
+
+        var mailed = await ReadAsync(new TestEmail("letter.eml", "message/rfc822", serialized.ToArray()));
+        var uploaded = await ReadAsync(new TestEmail(
+            "Instructing_Repairer.docx",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            word));
+
+        Assert.True(mailed.CarriesWordDocument);
+        Assert.False(uploaded.CarriesWordDocument);
+        foreach (var result in new[] { mailed, uploaded })
+        {
+            var pictures = result.AssetCandidates
+                .Where(asset => asset.Kind == IntakeAssetKind.EmbeddedImage)
+                .ToArray();
+            var header = Assert.Single(pictures, picture => picture.InHeaderOrFooter);
+            var body = Assert.Single(pictures, picture => !picture.InHeaderOrFooter);
+            Assert.Equal("image/png", header.MediaType);
+            Assert.Equal("image/jpeg", body.MediaType);
+            Assert.All(pictures, picture =>
+            {
+                Assert.Equal(640, picture.WidthPixels);
+                Assert.Equal(480, picture.HeightPixels);
+            });
+            Assert.Same(
+                body,
+                Assert.Single(
+                    InstructionEvidenceImages.RetentionCandidates(result, VehicleCaptureImages.Designate(result)),
+                    candidate => candidate.Kind == IntakeAssetKind.EmbeddedImage));
+        }
+    }
+
+    /// <summary>
+    /// A Word letter with one picture in its header and another in its body,
+    /// each placed as Word places a picture: a drawing whose blip names the
+    /// image part by relationship.
+    /// </summary>
+    private static byte[] BuildDocxWithHeaderAndBodyPictures(byte[] headerPicture, byte[] bodyPicture)
+    {
+        using var stream = new MemoryStream();
+        using (var document = WordprocessingDocument.Create(
+            stream,
+            WordprocessingDocumentType.Document,
+            autoSave: true))
+        {
+            var main = document.AddMainDocumentPart();
+            var bodyImage = main.AddNewPart<ImagePart>("image/jpeg");
+            using (var content = new MemoryStream(bodyPicture))
+            {
+                bodyImage.FeedData(content);
+            }
+
+            main.Document = new Document(new Body(
+                new Paragraph(new Run(new Text("Instructing repairer"))),
+                PictureParagraph(main.GetIdOfPart(bodyImage))));
+
+            var header = main.AddNewPart<HeaderPart>();
+            var headerImage = header.AddNewPart<ImagePart>("image/png");
+            using (var content = new MemoryStream(headerPicture))
+            {
+                headerImage.FeedData(content);
+            }
+
+            header.Header = new Header(PictureParagraph(header.GetIdOfPart(headerImage)));
+        }
+
+        return stream.ToArray();
+    }
+
+    private static Paragraph PictureParagraph(string relationshipId) =>
+        new(new Run(new Drawing(
+            new DocumentFormat.OpenXml.Drawing.Wordprocessing.Inline(
+                new DocumentFormat.OpenXml.Drawing.Graphic(
+                    new DocumentFormat.OpenXml.Drawing.GraphicData(
+                        new DocumentFormat.OpenXml.Drawing.Pictures.Picture(
+                            new DocumentFormat.OpenXml.Drawing.Pictures.BlipFill(
+                                new DocumentFormat.OpenXml.Drawing.Blip { Embed = relationshipId })))
+                    {
+                        Uri = "http://schemas.openxmlformats.org/drawingml/2006/picture"
+                    })))));
 
     /// <summary>A 640x480 picture: a left-to-right gradient crossed by a dark band.</summary>
     private static byte[] Picture(SKEncodedImageFormat format)

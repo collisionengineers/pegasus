@@ -298,6 +298,33 @@ public sealed class InstructionEvidenceImagesTests
         Assert.Equal(retained ? pages.Length + 1 : 1, kept.Length);
     }
 
+    /// <summary>
+    /// U76 on the hosted test instance (11 November 2026, R939): an
+    /// instruction letter sent as a .docx whose header lays a 1112x1414
+    /// letterhead behind the text. The size rule keeps that shape, so where
+    /// the document places it decides: a picture in a header or footer is
+    /// letterhead art, and the same picture in the body is judged by its
+    /// shape and kept.
+    /// </summary>
+    [Fact]
+    public void APictureInAWordHeaderOrFooterIsLetterheadArt()
+    {
+        const string wordLabel = "uploaded mail.eml, attachment 2: Instructing_Repairer.docx";
+        var letterhead = WordImage(wordLabel, 1, 1112, 1414, inHeaderOrFooter: true);
+        var footerBanner = WordImage(wordLabel, 2, 800, 600, inHeaderOrFooter: true);
+        var bodyPhotograph = WordImage(wordLabel, 3, 1112, 1414, inHeaderOrFooter: false);
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [],
+            [],
+            [],
+            false,
+            Assets: [letterhead, footerBanner, bodyPhotograph],
+            CarriesWordDocument: true);
+
+        Assert.Same(bodyPhotograph, Assert.Single(RetentionCandidates(read)));
+    }
+
     [Fact]
     public void OnePhotographCarriedTwiceAppearsOncePreferringTheAttachedCopy()
     {
@@ -789,6 +816,22 @@ public sealed class InstructionEvidenceImagesTests
         },
         WidthPixels: width,
         HeightPixels: height);
+
+    private static IntakeAssetCandidate WordImage(
+        string wordLabel,
+        int image,
+        int width,
+        int height,
+        bool inHeaderOrFooter) => new(
+        $"{wordLabel}, embedded image {image}",
+        $"image{image}.png",
+        "image/png",
+        new byte[60_000 + image],
+        IntakeAssetKind.EmbeddedImage,
+        IntakeAssetDisposition.Embedded,
+        WidthPixels: width,
+        HeightPixels: height,
+        InHeaderOrFooter: inHeaderOrFooter);
 
     private static IntakeAssetCandidate PdfImage(
         string pdfLabel,

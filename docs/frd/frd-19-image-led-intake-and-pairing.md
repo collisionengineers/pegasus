@@ -309,7 +309,11 @@ source-identity rules apply to both.
   a PDF is a document carrier: its loose photograph attachments open no
   Image Intake or Unidentified item and are filed with it once the Case is
   matched; with no Case the e-mail waits in No Case Found (operator,
-  22 October 2026). OCR and technical failures keep
+  22 October 2026). An e-mail carrying a Word document is one too, and the
+  photographs inside the Word document are read on mail as a PDF's are,
+  because a set of photographs is saved as a .docx as readily as a PDF
+  (operator, 11 November 2026, R940); a Word document uploaded on its own
+  is unchanged. OCR and technical failures keep
   their own outcomes. The original PDF, the selected photographs, and for
   email the original message stay on their parent receipt with one
   destination; no child image receipts are made. Manual-upload confirmation
@@ -349,7 +353,10 @@ source-identity rules apply to both.
   replaces dropped real photographs saved small. An image whose size cannot
   be read is kept. These are image heuristics, not a logo classifier. An
   image object that appears on every page of a multi-page PDF is letterhead
-  art (operator, 22 October 2026). Graphics that recur across many senders'
+  art (operator, 22 October 2026), and so is a picture a Word document
+  places in its header or footer; a picture in the body of a Word document
+  is judged by its size (operator, 11 November 2026, R939). Graphics that
+  recur across many senders'
   documents but pass the size rule (logos, a seal, report charts, a
   signature) are named in a fixed list and matched by their appearance, so
   a re-encoded or resized copy is still caught; a new entry needs operator

@@ -858,16 +858,16 @@ public sealed class ProcessIntake(
         if (readResult.IsIncomplete)
         {
             // An incomplete read never enters image automation (ADR-0005 item
-            // 11). A source carrying a PDF is a document carrier whether or
-            // not its read completed: a PDF a limit stopped is still a PDF it
-            // carries (operator, 22 October 2026).
+            // 11). A source carrying a PDF or a Word document is a document
+            // carrier whether or not its read completed: a PDF a limit stopped
+            // is still a PDF it carries (operator, 22 October 2026; R940).
             return new(
                 IntakeDecision.NeedsSorting,
                 IncompleteReadReason,
                 [
                     .. AppendImageAutomationBlockerEvidence(
                         readerEvidence,
-                        ThirdPartyReportProfiles.CarriesPdfDocument(readResult, capture)
+                        ThirdPartyReportProfiles.CarriesDocument(readResult, capture)
                             ? IntakeEvidenceSignals.RecognizedNonImageDocument
                             : null),
                     IncompleteReadEvidence()
@@ -1190,7 +1190,8 @@ public sealed class ProcessIntake(
 
     /// <summary>
     /// The whole-source document-carrier signal, or null when the source
-    /// carries no recognised report and no PDF (operator, 22 October 2026).
+    /// carries no recognised report, no PDF (operator, 22 October 2026) and
+    /// no Word document (R940).
     /// </summary>
     private static string? NonImageDocumentSignal(
         IntakeSourceReadResult readResult,

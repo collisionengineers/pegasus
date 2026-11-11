@@ -109,6 +109,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                     isRoot,
                     cancellationToken);
             case SourceFormat.Docx:
+                result.CarriesWordDocument |= !isRoot;
                 return ReadDocx(bytes, sourceLabel, result, isRoot);
             case SourceFormat.Image:
                 if (isRoot)
@@ -131,6 +132,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
                 return ReadOutcome.Readable;
             case SourceFormat.Doc:
+                result.CarriesWordDocument |= !isRoot;
                 return ReadDoc(bytes, sourceLabel, result, cancellationToken);
             case SourceFormat.Msg:
                 return await ReadMsgAsync(
@@ -992,7 +994,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                     imagePart.ContentType,
                     content,
                     IntakeAssetKind.EmbeddedImage,
-                    IntakeAssetDisposition.Embedded));
+                    IntakeAssetDisposition.Embedded,
+                    InHeaderOrFooter: placement.InHeaderOrFooter));
             }
 
             result.Issues.Add(new(
@@ -1159,7 +1162,10 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                         "The DOCX contains an invalid embedded-image relationship.");
                 }
 
-                yield return new(imagePart, ++placementNumber);
+                yield return new(
+                    imagePart,
+                    ++placementNumber,
+                    contentRoot.Part is HeaderPart or FooterPart);
             }
         }
     }
@@ -1788,6 +1794,12 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
         public List<IntakePdfReading> Pdfs { get; } = [];
 
+        /// <summary>
+        /// Set when the walk reaches a Word document the source carries,
+        /// before it is opened, as a carried PDF is stated before it is read.
+        /// </summary>
+        public bool CarriesWordDocument { get; set; }
+
         public MimeLimitState? MimeLimits { get; set; }
 
         public PdfLimitState PdfLimits { get; } = new(timeProvider);
@@ -1824,7 +1836,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 ReaderVersion,
                 Attachments,
                 RootEmail: RootEmail,
-                Pdfs: Pdfs);
+                Pdfs: Pdfs,
+                CarriesWordDocument: CarriesWordDocument);
     }
 
     private sealed class MimeLimitState
@@ -1985,7 +1998,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
     }
 
     private readonly record struct DocxContentRoot(OpenXmlPart Part, OpenXmlElement Root);
-    private readonly record struct DocxImagePlacement(ImagePart Part, int Number);
+    private readonly record struct DocxImagePlacement(ImagePart Part, int Number, bool InHeaderOrFooter);
 
     private sealed class DocxLimitExceededException : Exception
     {

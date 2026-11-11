@@ -1105,6 +1105,66 @@ public sealed class ProcessIntakeTests
         Assert.False(ProcessIntake.IsUnidentifiedEligible(receipt));
     }
 
+    /// <summary>
+    /// R939 and R940 (operator, 11 November 2026), from U76: an instruction
+    /// letter sent as a .docx whose header picture was its only "photograph".
+    /// A source carrying a Word document is a document carrier as one carrying
+    /// a PDF is, whether or not its read completed, and a picture in the
+    /// document's header or footer is letterhead art and is not kept. A .docx
+    /// of photographs keeps them, selected and among the photographs the mail
+    /// read reads. A Word document that is itself the source is unchanged.
+    /// </summary>
+    [Theory]
+    [InlineData("letter-with-letterhead", true, "header", false, true, 0)]
+    [InlineData("photographs-in-docx", true, "body", false, true, 1)]
+    [InlineData("docx-beside-a-photograph", true, "attached", false, true, 1)]
+    [InlineData("docx-a-limit-stopped", true, "body", true, true, 1)]
+    [InlineData("docx-is-the-source", false, "body", false, false, 1)]
+    public async Task AWordDocumentMakesItsSourceADocumentCarrier(
+        string shape,
+        bool carried,
+        string placement,
+        bool incomplete,
+        bool carrier,
+        int photographs)
+    {
+        const string wordLabel = "outer message, attachment 1: Instructing_Repairer.docx";
+        var picture = placement == "attached"
+            ? new IntakeAssetCandidate(
+                "outer message, attachment 2: damage.jpg", "damage.jpg", "image/jpeg", new byte[121_652],
+                IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment,
+                WidthPixels: 547, HeightPixels: 650)
+            : new IntakeAssetCandidate(
+                $"{wordLabel}, embedded image 1", "image1.png", "image/png", new byte[845_593],
+                IntakeAssetKind.EmbeddedImage, IntakeAssetDisposition.Embedded,
+                WidthPixels: 1112, HeightPixels: 1414,
+                InHeaderOrFooter: placement == "header");
+        var readResult = Readable(transportEvidence: []) with
+        {
+            IsIncomplete = incomplete,
+            Assets = [picture],
+            CarriesWordDocument = carried
+        };
+        var source = CreateSource() with
+        {
+            SourceIdentity = new(IntakeSourceChannel.ManualUpload, $"word-carrier-{shape}")
+        };
+
+        var receipt = await CreateSut(new StubReader(readResult), new RecordingStore())
+            .ExecuteAsync(source);
+
+        var imageMaterial = !carrier && photographs != 0;
+        Assert.Equal(
+            carrier,
+            receipt.Evidence.Any(item => item.Signal == IntakeEvidenceSignals.RecognizedNonImageDocument));
+        Assert.Equal(photographs, InstructionEvidenceImages.Select(receipt.AssetRecords).Count);
+        Assert.Equal(
+            photographs,
+            InstructionEvidenceImages.Select(ImageIntakeLifecycleRules.MailedPhotographCandidates(receipt)).Count);
+        Assert.Equal(imageMaterial, ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
+        Assert.Equal(imageMaterial, ProcessIntake.BecomesUnidentified(receipt));
+    }
+
     [Fact]
     public async Task ConflictingInstructionSelectionWithPhotographRemainsOnItsOriginalRoute()
     {
