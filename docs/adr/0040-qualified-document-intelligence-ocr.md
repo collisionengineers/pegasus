@@ -22,6 +22,13 @@ The source qualification and estimate-import clauses below are superseded by
 operator decision. The provider, model, API, managed identity and custody
 decisions remain in force.
 
+Amended 11 November 2026 (R931): the hosted test instance's opt-in
+`Features:LiveOcr` calls the production account with the instance's Graph
+app registration in place of a managed identity
+([ADR-0088](0088-one-hosted-test-instance.md#decision)); Production keeps
+the Worker's managed identity, and ordinary local composition still makes no
+OCR call.
+
 ## Context
 
 Pegasus already has one page-restricted Azure OCR adapter, a durable operation

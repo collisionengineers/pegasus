@@ -10,7 +10,7 @@ Tailscale network. It is the `DevelopmentOffline` lifecycle the runbook owns
 ([local live-integration run](../../../docs/runbook.md#local-live-integration-run))
 with every opt-in on, so the procedure here is the order of the runbook's
 commands and the approvals between them. [ADR-0088](../../../docs/adr/0088-one-hosted-test-instance.md)
-and rulings R623 to R629, R675 to R680, R693 to R696, R708 and R709 decided its shape; this skill
+and rulings R623 to R629, R675 to R680, R693 to R696, R708, R709 and R931 decided its shape; this skill
 invents none of it.
 
 What it is for (R624): the operator's and agents' QA walks, staff UAT rounds,
@@ -51,9 +51,11 @@ together, with a ruling.
   mail while a production mailbox is enabled on both. Send only to addresses
   the operator names, and enable a production mailbox on the instance for
   the window the operator names.
-- **No Azure spend.** Key Vault secret reads, Graph calls and the SqlPackage
-  extract to a local file are the only Azure touches (R623). A step that would
-  create or run anything in Azure is a question to the operator first.
+- **No Azure spend but OCR.** Key Vault secret reads, Graph calls, the
+  SqlPackage extract to a local file and, with `Features__LiveOcr`, the OCR
+  calls charged to production's Document Intelligence account (R931) are the
+  only Azure touches (R623). A step that would create or run anything else in
+  Azure is a question to the operator first.
 - **Funnel for the public origin, the Graph webhook path and, with photo
   capture on, its three paths.** `tailscale funnel` on 443 exposes the whole
   origin, behind password sign-in, so a claude.ai custom connector reaches
@@ -80,6 +82,7 @@ together, with a ruling.
 | `New-LocalLiveSettings.ps1 -Approve` | the operator's `az` sign-in and their word | reads twelve Key Vault secrets from `pegasusprodkv252ow37g` (names printed first) |
 | Graph identity | a Microsoft 365 administrator (the operator) | the existing `CollisionSpike Graph Intake` registration and scope `CollisionSpike-Intake-Prod`; adds the one role it lacks (`Application Mail.Send`) and the secret; recorded in operations |
 | `tailscale funnel` of the webhook path | the operator | the webhook's public path on the machine |
+| OCR role assignment, once | the operator; approved 11 November 2026 (R931) | `Cognitive Services User` on production's Document Intelligence resource `pegasus-prod-ocr-252ow37gij` for the `CollisionSpike Graph Intake` registration, the one Azure write OCR needs; recorded in operations |
 | `tailscale funnel` of `/c`, `/s` and `/capture` | the operator, with `Features__PhotoCapture` on | the photo capture paths, public while photo capture is on (R785) |
 | `Copy-ProductionDatabaseToRun.ps1 -Approve` | the operator's word per copy | a live read of production SQL, into this run on this host alone |
 | `Invoke-LocalDevelopment.ps1 -Action Reset -Approve` | the operator's word for this run | removes the database and the run root; nothing brings the data back (R696) |
@@ -151,6 +154,19 @@ PhotoCapture__PublicOrigin=https://<host>.<tailnet>.ts.net:8443/
 `PhotoCapture__PublicOrigin` is the `:8443` Funnel origin, so the links the
 instance prints open from a phone off the tailnet (R785); the three capture
 paths are Funnelled in section 3 before the line goes in.
+
+For OCR of scanned pages (R931), once the OCR role assignment in Approvals
+exists and the Graph lines are in, also append:
+
+```text
+Features__LiveOcr=true
+DocumentIntelligence__Endpoint=https://pegasus-prod-ocr-252ow37gij.cognitiveservices.azure.com/
+```
+
+The Worker reads production's Document Intelligence account with the Graph
+registration's secret; a missing endpoint or Graph key fails the start
+naming it. Without the flag, the endpoint line is refused as a
+Production-only setting.
 
 The Graph lines wait until the identity exists (section 4); start without
 them if it does not yet, and the run uses the folder mailbox adapters. The two
