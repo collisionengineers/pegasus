@@ -165,7 +165,9 @@ public sealed class MessageModel(
     /// The reply composer's Delete case correspondence tick, offered exactly
     /// where Mark query done is (operator, 9 November 2026; R904): once the
     /// Sent item is observed, the Worker moves the Case's received e-mails to
-    /// Deleted Items. Never set by a link, so it is unticked on every open.
+    /// Deleted Items. Never set by a link and never drawn from what was
+    /// posted, so it is unticked on every open and after a refused send
+    /// (11 November 2026; R960).
     /// </summary>
     [BindProperty]
     public bool DeleteCaseCorrespondence { get; set; }

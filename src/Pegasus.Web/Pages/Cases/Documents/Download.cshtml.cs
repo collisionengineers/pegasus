@@ -27,6 +27,10 @@ namespace Pegasus.Web.Pages.Cases.Documents;
 /// — the load that produced the broken tiles this route now avoids: a
 /// throttled or unavailable read is a 503 with <c>Retry-After</c>, which the
 /// page retries, instead of a 404, which the browser draws as a broken image.
+///
+/// A Word document is never served inline itself. Its preview is a PDF
+/// rendering of the stored version (<see cref="IRenderDocumentAsPdf"/>), a
+/// view like any other preview; the saved download stays the Word document.
 /// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -35,6 +39,7 @@ public sealed partial class DownloadModel(
     IReadCaseDocumentPreview readCaseDocumentPreview,
     IReadLogicalDocumentVersion readLogicalDocumentVersion,
     IReadCaseDocumentThumbnail readCaseDocumentThumbnail,
+    IRenderDocumentAsPdf renderDocumentAsPdf,
     ICaseAssetPreparationQueries assetPreparations,
     ILogger<DownloadModel> logger) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
@@ -49,6 +54,12 @@ public sealed partial class DownloadModel(
     /// How long a caller waits before retrying a read Box refused for now.
     /// </summary>
     private const int TransientRetrySeconds = 5;
+
+    /// <summary>
+    /// What the viewer's script sends with a preview it fetches, so a refusal
+    /// is an answer it can show rather than a file it did not ask to save.
+    /// </summary>
+    private const string DocumentPreviewHeader = "X-Pegasus-Document-Preview";
 
     public async Task<IActionResult> OnGetAsync(
         Guid caseId,
@@ -173,7 +184,8 @@ public sealed partial class DownloadModel(
             LogUnsafeDocumentResponse(logger, caseId, occurrenceId, versionId);
             return NotFound();
         }
-        if (!IsInlineSafe(mediaType))
+        var kind = CaseDocumentPreviews.KindOf(mediaType, fileName);
+        if (kind == CaseDocumentPreviewKind.None)
         {
             // Never displayed from this origin, so an inline request for it is
             // the saved download it always was — audit row included.
@@ -187,6 +199,11 @@ public sealed partial class DownloadModel(
             return preview.CustodyStatus == DocumentCustodyStatus.Pending
                 ? TransientlyUnavailable()
                 : NotFound();
+        }
+        if (kind == CaseDocumentPreviewKind.WordAsPdf)
+        {
+            return await PdfRenditionAsync(
+                preview with { Sha256 = sha256 }, fileName, actor, renderer, cancellationToken);
         }
 
         var wantsThumbnail = string.Equals(
@@ -237,11 +254,12 @@ public sealed partial class DownloadModel(
                     StringComparison.Ordinal);
         }
         if (thumbnailAddressIsCurrent
-            && TryMatchHeldRepresentation(sha256, wantsThumbnail, variant, out var held))
+            && HoldsRepresentation(wantsThumbnail ? ThumbnailETag(sha256, variant) : ContentETag(sha256)))
         {
             // The bytes are already held. Restate the caching terms, because a
             // 304 refreshes them, and send nothing else.
-            SetPreviewCaching(held, cacheable: true);
+            SetPreviewCaching(
+                wantsThumbnail ? ThumbnailETag(sha256, variant) : ContentETag(sha256), cacheable: true);
             return StatusCode(StatusCodes.Status304NotModified);
         }
 
@@ -325,6 +343,77 @@ public sealed partial class DownloadModel(
     }
 
     /// <summary>
+    /// The viewer's PDF rendering of a Word document. It is derived, so the
+    /// custody hash of the source is not claimed for these bytes; the ETag
+    /// says which source and which rendering. Like a thumbnail, it is kept by
+    /// the browser only when the address names the current rendering.
+    /// </summary>
+    private async Task<IActionResult> PdfRenditionAsync(
+        CaseDocumentPreview preview,
+        string fileName,
+        ActionActor actor,
+        string? renderer,
+        CancellationToken cancellationToken)
+    {
+        var etag = $"\"{preview.Sha256}-{CaseDocumentPreviews.RenditionVariant}\"";
+        var addressIsCurrent = string.Equals(
+            renderer, CaseDocumentPreviews.RenditionIdentity, StringComparison.Ordinal);
+        if (addressIsCurrent && HoldsRepresentation(etag))
+        {
+            SetPreviewCaching(etag, cacheable: true);
+            return StatusCode(StatusCodes.Status304NotModified);
+        }
+
+        try
+        {
+            byte[]? rendering;
+            using (DocumentReadTelemetry.Start("document.rendition.open"))
+            {
+                rendering = await renderDocumentAsPdf.RenderAsync(actor, preview, cancellationToken);
+            }
+            if (rendering is null)
+            {
+                if (!Request.Headers.ContainsKey(DocumentPreviewHeader))
+                {
+                    // A plain link, with no script to show a refusal: it gives
+                    // the file, as it did before there was a rendering.
+                    return await SaveAsync(
+                        preview.CaseId, preview.OccurrenceId, preview.VersionId, actor, cancellationToken);
+                }
+                Response.Headers.CacheControl = "private, no-store";
+                var refusal = new ObjectResult(new ProblemDetails
+                {
+                    Status = StatusCodes.Status422UnprocessableEntity,
+                })
+                {
+                    StatusCode = StatusCodes.Status422UnprocessableEntity,
+                };
+                refusal.ContentTypes.Add("application/problem+json");
+                return refusal;
+            }
+
+            SetPreviewCaching(etag, cacheable: addressIsCurrent);
+            Response.ContentLength = rendering.LongLength;
+            // Named as what these bytes are, so a copy saved from the browser's
+            // own viewer opens; the Word document is the saved download.
+            SetInlineDisposition(Path.ChangeExtension(fileName, ".pdf"));
+            return File(rendering, CaseDocumentPreviews.RenditionMediaType);
+        }
+        catch (Exception exception) when (IsMissing(exception))
+        {
+            LogDocumentDownloadDenied(
+                logger, preview.CaseId, preview.OccurrenceId, preview.VersionId, exception);
+            return NotFound();
+        }
+        catch (Exception exception) when (IsTransient(exception))
+        {
+            LogTransientDocumentRead(
+                logger, preview.CaseId, preview.OccurrenceId, preview.VersionId, exception);
+            return TransientlyUnavailable();
+        }
+    }
+
+    /// <summary>
     /// The same authorised read, dispositioned for a preview rather
     /// than a save. Naming the file to <c>File(...)</c> is what forces
     /// <c>attachment</c>, so the inline branch sets the header itself and
@@ -401,20 +490,9 @@ public sealed partial class DownloadModel(
     /// rendering can be produced is served uncached for that one request and
     /// must not become the tile's permanent answer.
     /// </summary>
-    private bool TryMatchHeldRepresentation(
-        string sha256,
-        bool wantsThumbnail,
-        DocumentThumbnailCacheVariant variant,
-        out string held)
+    private bool HoldsRepresentation(string expected)
     {
-        held = string.Empty;
-        var offered = Request.Headers.IfNoneMatch;
-        if (offered.Count == 0)
-        {
-            return false;
-        }
-        string[] accepted = [wantsThumbnail ? ThumbnailETag(sha256, variant) : ContentETag(sha256)];
-        foreach (var header in offered)
+        foreach (var header in Request.Headers.IfNoneMatch)
         {
             foreach (var candidate in (header ?? string.Empty).Split(','))
             {
@@ -423,12 +501,8 @@ public sealed partial class DownloadModel(
                 {
                     value = value[2..];
                 }
-                var match = Array.Find(
-                    accepted,
-                    expected => string.Equals(expected, value, StringComparison.Ordinal));
-                if (match is not null)
+                if (string.Equals(expected, value, StringComparison.Ordinal))
                 {
-                    held = match;
                     return true;
                 }
             }
@@ -487,25 +561,6 @@ public sealed partial class DownloadModel(
             && sha256.Length == 64
             && sha256.All(char.IsAsciiHexDigit);
     }
-
-    /// <summary>
-    /// Which media types may be rendered inline from this origin. A case
-    /// document is arbitrary operator-supplied content, so retained HTML served
-    /// inline would execute as same-origin script; only images, PDFs and the
-    /// two admitted video media types are ever dispositioned for display. This restates
-    /// for custody content the rule the retained-image routes already apply.
-    /// Everything else keeps the attachment disposition.
-    /// </summary>
-    private static bool IsInlineSafe(string mediaType) =>
-        MediaTypeHeaderValue.TryParse(mediaType, out var parsed)
-        && (parsed.MediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
-            || parsed.MediaType.Equals(Pegasus.Core.Intake.IntakeUploadFilePolicy.Mp4MediaType, StringComparison.OrdinalIgnoreCase)
-            || parsed.MediaType.Equals(Pegasus.Core.Intake.IntakeUploadFilePolicy.MovMediaType, StringComparison.OrdinalIgnoreCase)
-            || (parsed.Type.Equals("image", StringComparison.OrdinalIgnoreCase)
-                // SVG is an image that executes script when it is navigated to,
-                // and the document link this route now serves is navigable --
-                // with no script, or on a middle-click. It stays a download.
-                && !parsed.MediaType.Equals("image/svg+xml", StringComparison.OrdinalIgnoreCase)));
 
     private static bool IsSafeFileName(string original, string fileName) =>
         !string.IsNullOrWhiteSpace(fileName)

@@ -47,6 +47,9 @@ public static partial class OperatorLabels
         public const string ReleaseNotes = "Release notes";
         public const string ProblemReports = "Problem reports";
 
+        /// <summary>The unroadworthy reason bank's area, in the operator's words (11 November 2026; R952).</summary>
+        public const string UnroadworthyReasons = "Unroadworthy reasons";
+
         /// <summary>The website link and Send a photo link's starting values, while photo capture is on (v50 F; R911).</summary>
         public const string PhotoLinks = "Photo links";
     }

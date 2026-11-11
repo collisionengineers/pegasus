@@ -530,11 +530,12 @@ public sealed partial class QdosTriageIntegrationTests
     }
 
     /// <summary>
-    /// A refused Reply with finding redisplays the Delete case correspondence
-    /// tick as it was posted.
+    /// A refused Reply with finding comes back with the Delete case
+    /// correspondence tick clear, though it was posted ticked (operator,
+    /// 11 November 2026; R960).
     /// </summary>
     [Fact]
-    public async Task ARefusedReplyWithFindingKeepsTheDeleteCaseCorrespondenceTick()
+    public async Task ARefusedReplyWithFindingComesBackWithTheDeleteCaseCorrespondenceTickClear()
     {
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -563,7 +564,7 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("The triage record changed while this was being prepared.", html, StringComparison.Ordinal);
-        Assert.Contains("checked=\"checked\"", DeleteCaseCorrespondenceTick(html), StringComparison.Ordinal);
+        Assert.DoesNotContain("checked", DeleteCaseCorrespondenceTick(html), StringComparison.Ordinal);
         Assert.Equal(0, send.SendCalls);
     }
 

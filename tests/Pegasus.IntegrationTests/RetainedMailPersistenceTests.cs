@@ -114,6 +114,23 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             display.InReplyToIdentities ?? []);
     }
 
+    /// <summary>
+    /// The first identity is the message answered directly, which for a forward
+    /// is the message forwarded (R957): where a client sent no In-Reply-To it is
+    /// the last of References, not the root of the thread.
+    /// </summary>
+    [Fact]
+    public async Task WithoutInReplyToTheLastReferenceIsTheFirstReplyIdentity()
+    {
+        var display = await ReadDisplayAsync(message => message.Headers.Add(
+            HeaderId.References,
+            "<root@example.invalid> <middle@example.invalid> <answered@example.invalid>"));
+
+        Assert.Equal(
+            ["ANSWERED@EXAMPLE.INVALID", "ROOT@EXAMPLE.INVALID", "MIDDLE@EXAMPLE.INVALID"],
+            display.InReplyToIdentities ?? []);
+    }
+
     [Fact]
     public async Task NamelessAttachmentsKeepTheirOccurrenceSoLaterAttachmentIdentityDoesNotShift()
     {

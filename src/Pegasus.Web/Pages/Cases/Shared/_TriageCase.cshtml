@@ -376,7 +376,9 @@
                                         var occurrence = entry.Occurrence;
                                         var version = entry.Version;
                                         var mayRead = version.CustodyStatus == DocumentCustodyStatus.Confirmed;
-                                        var viewable = mayRead && DetailsModel.IsViewable(version.MediaType);
+                                        var previewKind = mayRead
+                                            ? CaseDocumentPreviews.KindOf(version.MediaType, version.FileName)
+                                            : CaseDocumentPreviewKind.None;
                                         var isMail = occurrence.SemanticRole == DocumentSemanticRole.Correspondence
                                             || occurrence.Source == DocumentSource.ExternalCorrespondence;
                                         <div class="doc-row" data-document-row="@occurrence.Id">
@@ -395,7 +397,21 @@
                                             <span class="doc-row-actions">
                                                 @if (mayRead)
                                                 {
-                                                    @if (viewable)
+                                                    @if (previewKind == CaseDocumentPreviewKind.WordAsPdf)
+                                                    {
+                                                        @* As on the Case page: the viewer fetches
+                                                           the PDF rendering first, and its Save as
+                                                           gives this row's own file. *@
+                                                        <a class="btn btn--small"
+                                                           href="@CaseFileAddresses.PdfRendition(record.CaseId, entry)"
+                                                           data-document-preview data-busy-label="@OperatorLabels.Busy.Loading"
+                                                           data-download-href="@view.DownloadUrl(entry)"
+                                                           data-file-name="@version.FileName">
+                                                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg>
+                                                            <span>@FilesLabels.View</span>
+                                                        </a>
+                                                    }
+                                                    else if (previewKind != CaseDocumentPreviewKind.None)
                                                     {
                                                         <a class="btn btn--small"
                                                            href="@view.PreviewUrl(entry)"
@@ -756,11 +772,11 @@
                         }
                         @if (view.IsOutcomeReply)
                         {
-                            @* Reply with finding alone; the chaser never offers it (R904). *@
+                            @* Reply with finding alone; the chaser never offers it (R904).
+                               Unticked on every open, a refused send's included (R960). *@
                             <div class="field">
                                 <label>
-                                    <input type="checkbox" name="deleteCaseCorrespondence" value="true"
-                                           checked="@view.DeleteCaseCorrespondence" data-delete-case-correspondence />
+                                    <input type="checkbox" name="deleteCaseCorrespondence" value="true" data-delete-case-correspondence />
                                     @OperatorLabels.StaffMail.DeleteCaseCorrespondence
                                 </label>
                             </div>

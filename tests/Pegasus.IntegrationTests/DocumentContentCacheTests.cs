@@ -656,6 +656,223 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// A Word document is viewed as Box's PDF representation of its stored
+    /// version. The first view asks Box for it; the next is answered from the
+    /// cache's own rendition variant without a single Box request.
+    /// </summary>
+    [Fact]
+    public async Task AWordDocumentIsViewedAsBoxsPdfAndTheNextViewIsAnsweredFromTheCache()
+    {
+        var word = "a Word letter as filed"u8.ToArray();
+        var estate = await Estate.CreateDocumentAsync(word, IntakeUploadFilePolicy.DocMediaType);
+        await using (estate)
+        {
+            var box = WordRepresentationBox();
+            await using var scope = estate.Database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var reader = new CaseDocumentPdfRenditionReader(
+                PdfRepresentationStore(estate, factory, box),
+                new DocumentThumbnailCache(factory, new CacheContainer(estate.Blob), estate.Clock));
+            var preview = WordPreview(estate, IntakeUploadFilePolicy.DocMediaType, "letter.doc");
+
+            Assert.Equal(box.Rendering, await reader.RenderAsync(estate.Request.Actor, preview, CancellationToken.None));
+            Assert.Equal(1, box.CountOf(ScriptedBoxRequestKind.RepresentationContent));
+            var asked = box.Requests.Count;
+
+            // The second view waits for the first view's write and reads its copy.
+            Assert.Equal(box.Rendering, await reader.RenderAsync(estate.Request.Actor, preview, CancellationToken.None));
+            Assert.Equal(asked, box.Requests.Count);
+            Assert.Equal(1, estate.Blob.UploadCount);
+            await using var db = await estate.Database.CreateContextAsync();
+            var entry = Assert.Single(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+            Assert.Equal(CaseDocumentPreviews.RenditionVariant, entry.Variant);
+            Assert.Equal(estate.Request.VersionId, entry.DocumentVersionId);
+        }
+    }
+
+    /// <summary>
+    /// A mailed Word attachment often arrives as <c>application/octet-stream</c>
+    /// and is known by its name; anything that is not a Word document has no
+    /// rendering and costs Box nothing.
+    /// </summary>
+    [Fact]
+    public async Task AnOctetStreamWordFileIsRenderedAndPlainTextAsksBoxNothing()
+    {
+        var word = "a Word letter mailed as octet-stream"u8.ToArray();
+        var estate = await Estate.CreateDocumentAsync(word);
+        await using (estate)
+        {
+            var box = WordRepresentationBox();
+            await using var scope = estate.Database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var reader = new CaseDocumentPdfRenditionReader(
+                PdfRepresentationStore(estate, factory, box),
+                new DocumentThumbnailCache(factory, new CacheContainer(estate.Blob), estate.Clock));
+
+            Assert.Null(await reader.RenderAsync(
+                estate.Request.Actor, WordPreview(estate, "text/plain", "notes.txt"), CancellationToken.None));
+            Assert.Empty(box.Requests);
+
+            var mailed = WordPreview(estate, "application/octet-stream", "letter.docx");
+            Assert.Equal(box.Rendering, await reader.RenderAsync(estate.Request.Actor, mailed, CancellationToken.None));
+            // The second view waits for the first view's write and reads its copy.
+            Assert.Equal(box.Rendering, await reader.RenderAsync(estate.Request.Actor, mailed, CancellationToken.None));
+            Assert.Equal(1, box.CountOf(ScriptedBoxRequestKind.RepresentationContent));
+            Assert.Equal(1, estate.Blob.UploadCount);
+        }
+    }
+
+    [Fact]
+    public async Task ARepresentationThatIsNotAPdfIsNeitherServedNorCached()
+    {
+        var word = "a Word letter Box answers wrongly for"u8.ToArray();
+        var estate = await Estate.CreateDocumentAsync(word, IntakeUploadFilePolicy.DocMediaType);
+        await using (estate)
+        {
+            var box = WordRepresentationBox();
+            box.Rendering = "<html>not a pdf</html>"u8.ToArray();
+            await using var scope = estate.Database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var reader = new CaseDocumentPdfRenditionReader(
+                PdfRepresentationStore(estate, factory, box),
+                new DocumentThumbnailCache(factory, new CacheContainer(estate.Blob), estate.Clock));
+
+            Assert.Null(await reader.RenderAsync(
+                estate.Request.Actor,
+                WordPreview(estate, IntakeUploadFilePolicy.DocMediaType, "letter.doc"),
+                CancellationToken.None));
+
+            Assert.Equal(1, box.CountOf(ScriptedBoxRequestKind.RepresentationContent));
+            Assert.Equal(0, estate.Blob.UploadAttempts);
+            await using var db = await estate.Database.CreateContextAsync();
+            Assert.Empty(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+        }
+    }
+
+    /// <summary>
+    /// A Word document's PDF rendering is kept, unviewed, as long as a plain
+    /// thumbnail: thirty days from its last view.
+    /// </summary>
+    [Fact]
+    public async Task AWordDocumentsPdfIsKeptThirtyDaysFromItsLastView()
+    {
+        var word = "a Word letter kept as a PDF"u8.ToArray();
+        var estate = await Estate.CreateDocumentAsync(word, IntakeUploadFilePolicy.DocMediaType);
+        await using (estate)
+        {
+            var box = WordRepresentationBox();
+            await using var scope = estate.Database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var cache = new DocumentThumbnailCache(factory, new CacheContainer(estate.Blob), estate.Clock);
+            var reader = new CaseDocumentPdfRenditionReader(PdfRepresentationStore(estate, factory, box), cache);
+            var preview = WordPreview(estate, IntakeUploadFilePolicy.DocMediaType, "letter.doc");
+            var versionId = estate.Request.VersionId!.Value;
+
+            Assert.NotNull(await reader.RenderAsync(estate.Request.Actor, preview, CancellationToken.None));
+            // The second view waits for the first view's write, so the entry exists.
+            Assert.NotNull(await reader.RenderAsync(estate.Request.Actor, preview, CancellationToken.None));
+            Assert.Equal(estate.Clock.GetUtcNow().Add(DocumentThumbnailCache.PlainIdleLifetime), await ExpiryAsync(estate));
+
+            estate.Clock.Advance(TimeSpan.FromHours(5));
+            Assert.Equal(
+                box.Rendering,
+                await cache.TryReadAsync(
+                    estate.Request.Actor, versionId, CaseDocumentPreviews.RenditionVariant, CancellationToken.None));
+            Assert.Equal(estate.Clock.GetUtcNow().Add(DocumentThumbnailCache.PlainIdleLifetime), await ExpiryAsync(estate));
+
+            estate.Clock.Advance(DocumentThumbnailCache.PlainIdleLifetime);
+            Assert.Null(await cache.TryReadAsync(
+                estate.Request.Actor, versionId, CaseDocumentPreviews.RenditionVariant, CancellationToken.None));
+        }
+    }
+
+    /// <summary>
+    /// Two first views of one Word document at once ask Box for its PDF once:
+    /// the second waits at the render gate and reads the copy the first made.
+    /// </summary>
+    [Fact]
+    public async Task ConcurrentFirstViewsOfAWordDocumentAskBoxForItsPdfOnce()
+    {
+        var word = "a Word letter two engineers open at once"u8.ToArray();
+        var estate = await Estate.CreateDocumentAsync(word, IntakeUploadFilePolicy.DocxMediaType);
+        await using (estate)
+        {
+            var box = WordRepresentationBox();
+            box.HoldMetadata = true;
+            await using var scope = estate.Database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var reader = new CaseDocumentPdfRenditionReader(
+                PdfRepresentationStore(estate, factory, box),
+                new DocumentThumbnailCache(factory, new CacheContainer(estate.Blob), estate.Clock));
+            var preview = WordPreview(estate, IntakeUploadFilePolicy.DocxMediaType, "letter.docx");
+
+            using var renderScope = new Activity(nameof(ConcurrentFirstViewsOfAWordDocumentAskBoxForItsPdfOnce));
+            renderScope.Start();
+            var secondGateEntry = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var listener = new ActivityListener
+            {
+                ShouldListenTo = activitySource => activitySource.Name == "Pegasus.Documents",
+                Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+                ActivityStarted = activity =>
+                {
+                    if (activity.TraceId == renderScope.TraceId
+                        && activity.DisplayName == "document.rendition.render.gate")
+                    {
+                        secondGateEntry.TrySetResult();
+                    }
+                }
+            };
+            ActivitySource.AddActivityListener(listener);
+
+            var first = reader.RenderAsync(estate.Request.Actor, preview, CancellationToken.None);
+            Task<byte[]?> second;
+            try
+            {
+                await box.MetadataReached.WaitAsync(TimeSpan.FromSeconds(30));
+                second = reader.RenderAsync(estate.Request.Actor, preview, CancellationToken.None);
+                await secondGateEntry.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            }
+            finally
+            {
+                box.ReleaseMetadata();
+            }
+
+            Assert.Equal(box.Rendering, await first);
+            Assert.Equal(box.Rendering, await second);
+            Assert.Equal(1, box.CountOf(ScriptedBoxRequestKind.FileMetadata));
+            Assert.Equal(1, box.CountOf(ScriptedBoxRequestKind.RepresentationContent));
+            Assert.Equal(1, estate.Blob.UploadCount);
+        }
+    }
+
+    /// <summary>The Box the estate's Word version is filed in, with Box's PDF of it.</summary>
+    private static ScriptedPdfRepresentationBox WordRepresentationBox() =>
+        new("405543781910", "holding", "box-file-1", "box-version-1");
+
+    /// <summary>A store over the estate's database and cache blob that asks the given Box.</summary>
+    private static CachedDocumentContentStore PdfRepresentationStore(
+        Estate estate,
+        IDbContextFactory<PegasusDbContext> factory,
+        ScriptedPdfRepresentationBox box) =>
+        new(
+            factory,
+            new CacheContainer(estate.Blob),
+            new BoxContentClient(BoxOptions(), new HttpClient(box), new Header(), estate.Clock, TimeProviderMemoryCache.Create(estate.Clock)),
+            estate.Clock);
+
+    private static CaseDocumentPreview WordPreview(Estate estate, string mediaType, string fileName) =>
+        new(
+            estate.Request.CaseId!.Value,
+            Guid.NewGuid(),
+            estate.Request.DocumentId!.Value,
+            estate.Request.VersionId!.Value,
+            fileName,
+            mediaType,
+            estate.Request.ExpectedContentLength,
+            estate.Request.ExpectedSha256,
+            DocumentCustodyStatus.Confirmed);
+
     [Fact]
     public async Task PlainThumbnailScalesAnOrientedLargeJpegToTheDisplayed480PixelEdge()
     {
@@ -2228,6 +2445,52 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             Assert.Equal(
                 [CaseAssetRotation.None],
                 (await candidates.ListAsync(5, CancellationToken.None)).Select(candidate => candidate.Rotation));
+        }
+    }
+
+    /// <summary>
+    /// A Word document's cached PDF rendering shares the thumbnails' table but
+    /// is not a thumbnail: the Word version is never a thumbnail candidate, and
+    /// the rendition entry is not read as an image version's plain thumbnail.
+    /// </summary>
+    [Fact]
+    public async Task AWordDocumentsCachedPdfIsNeverAThumbnailCandidateNorAPlainThumbnail()
+    {
+        var estate = await Estate.CreateDocumentAsync(
+            "a Word letter with its PDF cached"u8.ToArray(), IntakeUploadFilePolicy.DocMediaType);
+        await using (estate)
+        {
+            var now = estate.Clock.GetUtcNow();
+            var versionId = estate.Request.VersionId!.Value;
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Set<DocumentVersionEntity>().SingleAsync()).CreatedAtUtc = now.AddHours(-1);
+                db.Add(new DocumentContentCacheEntryEntity
+                {
+                    Id = Guid.NewGuid(), DocumentVersionId = versionId,
+                    Variant = CaseDocumentPreviews.RenditionVariant,
+                    BlobIdentity = "pdf-rendition", VerifiedSha256 = estate.Request.ExpectedSha256,
+                    VerifiedSize = 64, ExpiresAtUtc = now.Add(DocumentThumbnailCache.PlainIdleLifetime),
+                    ConcurrencyToken = Guid.NewGuid()
+                });
+                await db.SaveChangesAsync();
+            }
+            await using var scope = estate.Database.CreateAsyncScope();
+            var candidates = new EfDocumentThumbnailCandidates(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                estate.Clock);
+
+            Assert.Empty(await candidates.ListAsync(5, CancellationToken.None));
+
+            // The same version as an image: its rendition entry is no plain thumbnail.
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Set<DocumentVersionEntity>().SingleAsync()).MediaType = "image/png";
+                await db.SaveChangesAsync();
+            }
+            var listed = Assert.Single(await candidates.ListAsync(5, CancellationToken.None));
+            Assert.Equal(versionId, listed.VersionId);
+            Assert.Equal(CaseAssetRotation.None, listed.Rotation);
         }
     }
 

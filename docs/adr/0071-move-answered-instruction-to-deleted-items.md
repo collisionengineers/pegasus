@@ -26,6 +26,9 @@ Amended 9 November 2026 (R902 to R905): clauses 2 and 5 and the clause 4
 record are edited in place for the **Delete case correspondence** tick.
 Clauses 1 and 3 stand as written. Amended 10 November 2026 (R916, R917):
 clause 5 names the activated mailbox and a staff forward's original.
+Amended 11 November 2026 (R956 to R961): clause 4 says where the outcome is
+shown, and clause 5 names pegasustest@, the one original of a forward and
+the activated mailbox for the automatic move.
 
 ## Context
 
@@ -65,16 +68,22 @@ Pegasus would leave every answered instruction in the Inbox.
    operation: a run with no failure ends it and writes
    `correspondence_moved_to_deleted_items` with its counts; a run with a
    failure writes `correspondence_move_failed`, and the third such run ends
-   it (9 November 2026, R902).
+   it (9 November 2026, R902). The four events are written where the Notes
+   tab reads them, the Case's workflow events or the Triage Case's own
+   history, at the version as it stands; `CaseHistory`, which nothing shows,
+   no longer receives them (11 November 2026, R959).
 5. **Only those messages.** The automatic move's candidate is the retained
    instruction the report send answered, matched by the send's recorded
-   original message. A ticked send's candidates are the Case's received
+   original message, in a mailbox that is Approved and activated
+   (11 November 2026, R961). A ticked send's candidates are the Case's received
    e-mails: the Inbox-scope retained messages currently linked to the Case,
    in a mailbox that is still Approved and activated (10 November 2026,
    R916), that Pegasus held when the send was prepared. With a Collision
-   Engineers staff forward held in instructions@ goes the original its reply
-   headers name in the mailbox that forwarded it, linked to the Case or not,
-   unless it stands linked to another Case (10 November 2026, R917).
+   Engineers staff forward held in instructions@, or in the test instance's
+   pegasustest@ (11 November 2026, R956), goes the one message it answers in
+   the mailbox that forwarded it, linked to the Case or not (10 November
+   2026, R917), never the earlier messages of its thread (R957), and not
+   when it stands linked to another Case (R958).
    Pegasus's own Sent items, uploaded files, mail that arrives after the
    send and every other message, folder and mailbox are left
    (9 November 2026, R903).

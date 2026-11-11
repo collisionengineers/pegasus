@@ -10,6 +10,8 @@ public static class IntakeUploadFilePolicy
 {
     public const string Mp4MediaType = "video/mp4";
     public const string MovMediaType = "video/quicktime";
+    public const string DocxMediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    public const string DocMediaType = "application/msword";
 
     private static readonly byte[] JpegSignature = [0xFF, 0xD8, 0xFF];
     private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
@@ -22,8 +24,8 @@ public static class IntakeUploadFilePolicy
     private static readonly (string Extension, string MediaType)[] SupportedTypes =
     [
         (".pdf", "application/pdf"),
-        (".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-        (".doc", "application/msword"),
+        (".docx", DocxMediaType),
+        (".doc", DocMediaType),
         (".msg", EmailSourceFormat.OutlookMediaType),
         (".eml", EmailSourceFormat.MediaType),
         (".jpg", "image/jpeg"),

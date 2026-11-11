@@ -22,6 +22,24 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
     public const string StaffForwardMailboxAddress = "instructions@" + StaffTransportDomain;
 
     /// <summary>
+    /// The hosted test instance's own mailbox (R693), never approved on
+    /// production. Staff forward into it as they do into instructions@, and
+    /// the Delete case correspondence tidy treats a forward it holds the same
+    /// way (operator, 11 November 2026; R956). It is answered as itself:
+    /// R651 names instructions@ alone.
+    /// </summary>
+    public const string TestInstanceMailboxAddress = "pegasustest@" + StaffTransportDomain;
+
+    /// <summary>
+    /// Whether the mailbox at <paramref name="address"/> is one staff forward
+    /// received mail into, so that the original of a forward it holds goes
+    /// with the forward when a Case's correspondence is tidied (R917, R956).
+    /// </summary>
+    public static bool HoldsStaffForwards(string? address) =>
+        string.Equals(address?.Trim(), StaffForwardMailboxAddress, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(address?.Trim(), TestInstanceMailboxAddress, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Exact direct sender identities from the supplied reference and original
     /// instructions. An identity containing @ is one mailbox, never its domain.
     /// This is the one runtime list of the direct routes, also read by customer
