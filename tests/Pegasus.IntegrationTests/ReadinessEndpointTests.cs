@@ -60,6 +60,7 @@ public sealed class WebCompositionTests
         Assert.IsType<BoxDocumentContentStore>(
             services.GetRequiredService<IDocumentContentStore>());
         Assert.NotNull(services.GetRequiredService<IAddCaseDocument>());
+        Assert.NotNull(services.GetRequiredService<ISnapshotCaseVideo>());
         Assert.NotNull(services.GetRequiredService<IDownloadCaseDocument>());
         Assert.NotNull(services.GetRequiredService<IExportCaseBundle>());
     }

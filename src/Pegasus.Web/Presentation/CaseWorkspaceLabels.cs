@@ -1473,6 +1473,9 @@ public static class CaseWorkspaceLabels
         public const string AspectSquare = "Square";
         public const string SaveCrop = "Save crop";
         public const string Cancel = "Cancel";
+        public const string TakeSnapshot = "Take snapshot";
+        public const string SnapshotAdded = "Snapshot added to Images.";
+        public const string SnapshotFailed = "The video snapshot could not be saved.";
     }
 
     /// <summary>

@@ -232,7 +232,8 @@ dragging and kept as drawn (no wider than half the vehicle, unnumbered and
 unclipped), Clear markers under it while editing, and beside it the impacts
 staff enter, one row each: Impact · Severity · Location · Note · ×, with Add
 impact (v46, 3 November 2026, R642–R646). Images open in a
-full-screen **viewer** (title, tag, position, Rotate, Zoom, Download, Pop
+full-screen **viewer** (title, tag, position, Rotate, Zoom, Download, Take
+snapshot with `aperture` when viewing a video on an open Case, Pop
 out, In report while editing, and a filmstrip with excluded images greyed);
 crop happens on the viewer stage itself (drag, handles, move, Aspect, Rotate
 left and right, Full frame, Reset, Save crop). A crop is a stored rectangle:
@@ -687,6 +688,8 @@ symbols: the fifty-three above plus these twenty-two.
 | — | `tag` | `DD7CD667273A81E81C0901A77A43153FC8A1C8FC51FDFB98F5CFDF2AB7AC4596` | Image tile: Tag |
 | — | `file-image` | `DAE10E1CDF7EE095323DC27D60CF5A113ADB9830B2A02A2A90BF11FAEEED3808` | Image tile: Print on its own page (Full page) |
 | — | `mail-open` | `02B6080FE619C000EA414770A608F38F623664387E60F227B185C134641C1A10` | Administration nav and hub: E-mail templates |
+| — | `camera` | `08402EEB94664F771FCAFBDDF9E0D122B27CA3113245262C898599F72F60BB0C` | Photo links (`Send photo link`, Administration nav and hub) |
+| — | `aperture` | `876FA54FB306FC79253303BBA33CFFF3544B66EA6B038DDD4B61F87C9692D242` | Case viewer: Take snapshot on video evidence (R945) |
 
 The v26 rail no longer draws the prototype's rail glyphs for two routes:
 Cases uses `list-checks` and Administration `settings` (`list` and

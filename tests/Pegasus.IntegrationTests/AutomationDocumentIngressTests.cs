@@ -743,6 +743,99 @@ public sealed class AutomationDocumentIngressTests
         Assert.Equal(payloads.Length, await AutomationMcpTestSupport.CountScopeDenialsAsync(factory));
     }
 
+    /// <summary>
+    /// Adding an extracted video frame or photograph through <c>pegasus_document_add</c>
+    /// as <c>Image</c> enforces JPEG or PNG bytes, marks the Case's images complete,
+    /// and moves an eligible Not ready Case with mileage to Review (R945).
+    /// </summary>
+    [Fact]
+    public async Task AddingAnImageCompletesCaseImagesAndRefusesNonImageMediaTypes()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = AutomationMcpTestSupport.WithAutomationMcp(factory);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(
+            mcpFactory,
+            new(InstructionComplete: true, ImagesComplete: false));
+        using var client = mcpFactory.CreateClient();
+        var token = await AutomationMcpTestSupport.RequestTokenAsync(
+            client,
+            AutomationMcpTestSupport.AllScopes);
+        var (version, leaseToken) = await AutomationMcpTestSupport.BeginEditAsync(
+            client, token, caseId, expectedVersion: 0, rpcId: 91);
+
+        using (var details = await AutomationMcpTestSupport.PostMcpAsync(
+            client,
+            token,
+            AutomationMcpTestSupport.ToolCallPayload(92, "pegasus_case_update_details", new
+            {
+                caseId,
+                expectedVersion = version,
+                editLeaseToken = leaseToken,
+                operationKey = "mcp:image-readiness-mileage",
+                reason = "Recorded vehicle mileage before filing video frame.",
+                vehicleRegistration = "AB12CDE",
+                vehicleMileage = 44_200,
+                vehicleMileageUnit = "miles"
+            })))
+        {
+            version = (await AutomationMcpTestSupport.ReadStructuredContentAsync(details))
+                .GetProperty("caseVersion")
+                .GetInt64();
+        }
+
+        // Mileage and instruction are present, so only Images keeps the Case Not ready.
+        Assert.Equal(
+            "NotReady",
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
+                $"SELECT State FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+
+        using (var refused = await AutomationMcpTestSupport.PostMcpAsync(
+            client,
+            token,
+            AutomationMcpTestSupport.ToolCallPayload(93, "pegasus_document_add", new
+            {
+                caseId,
+                fileName = "frame.txt",
+                mediaType = "text/plain",
+                contentBase64 = Convert.ToBase64String("not-a-photograph"u8.ToArray()),
+                semanticRole = "Image",
+                expectedCaseVersion = version,
+                editLeaseToken = leaseToken,
+                operationKey = "mcp:image-readiness-refused"
+            })))
+        {
+            var error = await AutomationMcpTestSupport.ReadErrorTextAsync(refused);
+            Assert.Contains("JPEG or PNG", error, StringComparison.OrdinalIgnoreCase);
+        }
+
+        using (var added = await AutomationMcpTestSupport.PostMcpAsync(
+            client,
+            token,
+            AutomationMcpTestSupport.ToolCallPayload(94, "pegasus_document_add", new
+            {
+                caseId,
+                fileName = "walkaround-frame-00m14s.png",
+                mediaType = "image/png",
+                contentBase64 = Convert.ToBase64String(GreyPixelPng()),
+                semanticRole = "Image",
+                expectedCaseVersion = version,
+                editLeaseToken = leaseToken,
+                operationKey = "mcp:image-readiness-added"
+            })))
+        {
+            _ = await AutomationMcpTestSupport.ReadStructuredContentAsync(added);
+        }
+
+        Assert.Equal(
+            1,
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
+                $"SELECT COUNT(*) FROM Cases WHERE Id = '{caseId:D}' AND ImagesComplete = 1"));
+        Assert.Equal(
+            "Review",
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
+                $"SELECT State FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+    }
+
     private static async Task<(Guid OccurrenceId, Guid VersionId)> AddWithoutLeaseAsync(
         HttpClient client,
         string token,

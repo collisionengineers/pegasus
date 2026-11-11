@@ -151,7 +151,12 @@ back (operator, 10 November 2026, [R840](../rulings.md);
 images record reaches a Case completes them through the record's merge, as
 above, only when the capture has not completed a Case's images before: a
 later record of the same capture does not complete them again (operator,
-10 November 2026, [R841](../rulings.md)). It does not clear other
+10 November 2026, [R841](../rulings.md)). A JPEG or PNG filed directly onto the
+Case as an `Image` — from a Case video snapshot, `pegasus_document_add`, or
+retyping a confirmed document to `Image` — likewise completes the Case's images
+once confirmed in Box custody (operator, 11 November 2026,
+[R945](../rulings.md);
+[FRD-05](frd-05-documents-extraction-and-custody.md#document-types)). It does not clear other
 blockers, assign an Engineer, or skip Review.
 
 **Saving does not unlock.** An action is available exactly when its stated

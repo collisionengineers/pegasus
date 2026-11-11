@@ -739,6 +739,8 @@ public static class DependencyInjection
             services.AddScoped<EfDocumentCustodyStore>();
             services.AddScoped<IAddCaseDocument>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<ISnapshotCaseVideo>(provider =>
+                provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IDownloadCaseDocument>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IGetCaseDocumentMetadata>(provider =>

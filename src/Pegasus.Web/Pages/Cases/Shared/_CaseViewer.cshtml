@@ -42,6 +42,20 @@
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-crop")" /></svg>
                     <span>@ReportImageLabels.Crop</span>
                 </button>
+                @if (!Model.Standalone && Model.CanSnapshotVideos)
+                {
+                    <button type="button"
+                            class="btn btn--small"
+                            data-viewer-snapshot
+                            data-busy-label="@OperatorLabels.Busy.Saving"
+                            data-busy-done="@OperatorLabels.Busy.Done.Saved"
+                            data-snapshot-error="@ViewerLabels.SnapshotFailed"
+                            hidden
+                            disabled>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-aperture")" /></svg>
+                        <span>@ViewerLabels.TakeSnapshot</span>
+                    </button>
+                }
                 <a class="btn btn--small" data-viewer-download download>
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg>
                     <span data-viewer-download-label>@ViewerLabels.Download</span>
@@ -109,4 +123,16 @@
         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-right")" /></svg>
     </button>
     <div class="case-viewer-strip" data-viewer-strip></div>
+    @if (!Model.Standalone && Model.CanSnapshotVideos)
+    {
+        <form method="post"
+              asp-page="/Cases/Custody"
+              asp-page-handler="SnapshotVideo"
+              asp-route-id="@Model.CaseId"
+              data-viewer-snapshot-form
+              data-no-inplace
+              hidden>
+            <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+        </form>
+    }
 </div>

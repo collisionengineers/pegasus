@@ -104,6 +104,7 @@ internal static partial class CaseWebTestSupport
 
     internal sealed partial class RecordingCaseDetailsStore :
         IAddCaseDocument,
+        ISnapshotCaseVideo,
         ILogicallyRemoveDocument,
         ITagCaseImage,
         IUntagCaseImage,
@@ -116,6 +117,7 @@ internal static partial class CaseWebTestSupport
         public IReadOnlyList<CaseDocument> CaseDocuments { get; set; } = [];
 
         public List<AddCaseDocumentCommand> DocumentUploads { get; } = [];
+        public List<SnapshotCaseVideoCommand> VideoSnapshots { get; } = [];
         public List<LogicallyRemoveDocumentCommand> DocumentRemovals { get; } = [];
         public List<TagCaseImageCommand> ImageTagsApplied { get; } = [];
         public List<UntagCaseImageCommand> ImageTagsRemoved { get; } = [];
@@ -153,6 +155,47 @@ internal static partial class CaseWebTestSupport
                     command.Content.Length,
                     new string('c', 64),
                     DocumentCustodyStatus.Pending,
+                    _now,
+                    command.Actor.SubjectId,
+                    true,
+                    false,
+                    null),
+                IsReplay: false));
+        }
+
+        Task<AddCaseDocumentResult> ISnapshotCaseVideo.ExecuteAsync(
+            SnapshotCaseVideoCommand command,
+            CancellationToken cancellationToken)
+        {
+            ThrowNextFailure();
+            VideoSnapshots.Add(command with { Content = command.Content.ToArray() });
+            CaseVersion++;
+            var documentId = Guid.NewGuid();
+            var versionId = Guid.NewGuid();
+            var fileName = VideoSnapshotPolicy.FileNameFor("walkaround.mp4", command.TimestampMs, command.MediaType);
+            return Task.FromResult(new AddCaseDocumentResult(
+                new(
+                    Guid.NewGuid(),
+                    CaseId,
+                    documentId,
+                    versionId,
+                    DocumentSemanticRole.Image,
+                    DocumentSource.StaffUpload,
+                    VideoSnapshotPolicy.SourceOccurrenceIdentityFor(
+                        command.VideoOccurrenceId,
+                        command.TimestampMs,
+                        command.OperationKey),
+                    _now,
+                    []),
+                new(
+                    versionId,
+                    documentId,
+                    1,
+                    fileName,
+                    VideoSnapshotPolicy.NormalizeImageMediaType(command.MediaType),
+                    command.Content.Length,
+                    new string('d', 64),
+                    DocumentCustodyStatus.Confirmed,
                     _now,
                     command.Actor.SubjectId,
                     true,

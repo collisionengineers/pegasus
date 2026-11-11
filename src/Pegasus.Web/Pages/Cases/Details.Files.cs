@@ -1,6 +1,7 @@
 using Microsoft.Net.Http.Headers;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Cases;
@@ -77,6 +78,14 @@ public sealed partial class DetailsModel
     /// preparation and not only for an Engineer.
     /// </summary>
     public bool MayPrepareImages => CanEditCaseData;
+
+    /// <summary>
+    /// Whether the Case viewer offers Take snapshot on a video: any open,
+    /// non-archived Case, in or out of Edit mode (R727, R945).
+    /// </summary>
+    public bool CanSnapshotVideos =>
+        CurrentWorkflow is { Archive: null } workflow
+        && !CaseLifecycleRules.IsTerminal(workflow.State);
 
     /// <summary>
     /// Which files the viewer displays over the page: images, PDFs and the two

@@ -2355,6 +2355,54 @@
             watchGlassEditor();
         });
     };
+    // Updates the Case workspace in place after the viewer files a video
+    // snapshot, keeping [data-case-viewer-host] untouched so playback stays at
+    // its current timestamp (R945).
+    window.pegasusCaseWorkspaceApplySnapshot = function (html) {
+        var parsed = new DOMParser().parseFromString(html, 'text/html');
+        var incoming = parsed.querySelector('[data-case-record]');
+        if (!incoming) { throw new Error('The server did not return the Case.'); }
+        var alert = parsed.querySelector('[data-case-notices] [role="alert"]');
+        ['[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '[data-case-aside]'].forEach(function (selector) {
+            var current = document.querySelector(selector);
+            var next = parsed.querySelector(selector);
+            if (current && next) { current.replaceWith(next); bindMounted(next); }
+        });
+        var currentFiles = sectionFor('files');
+        var nextFiles = parsed.getElementById('section-files');
+        if (currentFiles && nextFiles && !nextFiles.hasAttribute('data-lazy')) {
+            var activeTab = currentFiles.getAttribute('data-file-tabs-active');
+            if (window.pegasusCasePreparation && window.pegasusCasePreparation.adopt) {
+                Array.prototype.forEach.call(nextFiles.querySelectorAll('[data-preparation-card]'), function (tile) {
+                    window.pegasusCasePreparation.adopt(tile.getAttribute('data-preparation-occurrence'), tile);
+                });
+            }
+            var part = sectionPart(currentFiles);
+            var incomingPart = sectionPart(nextFiles);
+            part.slice(1).forEach(function (dialog) { dialog.remove(); });
+            currentFiles.replaceWith.apply(currentFiles, incomingPart);
+            bindMounted(main);
+            if (activeTab) { openSubTab(nextFiles, activeTab); }
+        }
+        var previousVersion = record.getAttribute('data-case-version');
+        var nextVersion = incoming.getAttribute('data-case-version');
+        var nextLease = incoming.querySelector('[name="editLeaseToken"]');
+        if (nextVersion !== null && nextVersion !== previousVersion) {
+            Array.prototype.forEach.call(document.querySelectorAll('form'), function (form) {
+                var version = form.querySelector('[name="expectedVersion"], [name="expectedCaseVersion"]');
+                if (version && version.value === previousVersion) { version.value = nextVersion; }
+                var lease = form.querySelector('[name="editLeaseToken"]');
+                if (lease && nextLease && incoming.getAttribute('data-case-editing') === 'true') {
+                    lease.value = nextLease.value;
+                }
+            });
+            record.setAttribute('data-case-version', nextVersion);
+        }
+        if (incoming.getAttribute('data-case-editing') === 'true') { redrawWanted = true; }
+        measure();
+        announceNotices();
+        return !alert;
+    };
     window.pegasusGlassReturn = function (url) {
         if (!samePage(url) || new URL(url, window.location.href).origin !== window.location.origin) {
             return Promise.reject(new Error('The Glass return does not belong to this Case.'));
@@ -5670,6 +5718,12 @@
         var zoomButton = host.querySelector('[data-viewer-zoom]');
         var zoomLabel = host.querySelector('[data-viewer-zoom-label]');
         var cropButton = host.querySelector('[data-viewer-crop]');
+        var snapshotButton = host.querySelector('[data-viewer-snapshot]');
+        var snapshotForm = host.querySelector('[data-viewer-snapshot-form]');
+        var snapshotKeyInput = snapshotForm ? snapshotForm.querySelector('input[name="operationKey"]') : null;
+        var snapshotBaseKey = snapshotKeyInput ? snapshotKeyInput.value : '';
+        var snapshotSequence = 0;
+        var snapshotBusy = false;
         var download = host.querySelector('[data-viewer-download]');
         var downloadLabel = host.querySelector('[data-viewer-download-label]');
         var inReportWrap = host.querySelector('[data-viewer-in-report-wrap]');
@@ -5780,6 +5834,10 @@
             zoomButton.hidden = kind !== 'image';
             if (zoomLabel) { zoomLabel.textContent = state.zoom ? 'Fit' : 'Zoom'; }
             cropButton.hidden = kind !== 'image' || !value;
+            if (snapshotButton) {
+                snapshotButton.hidden = kind !== 'video' || !item.occurrenceId || !snapshotForm;
+                syncSnapshotButton();
+            }
             if (popout) {
                 popout.hidden = kind !== 'image' || !item.occurrenceId;
                 if (item.occurrenceId) { popout.setAttribute('href', popoutBase + '?image=' + encodeURIComponent(item.occurrenceId)); }
@@ -5891,6 +5949,93 @@
             if (state.kind !== 'image' || state.crop) { return; }
             state.zoom = !state.zoom;
             render();
+        }
+        function syncSnapshotButton() {
+            if (!snapshotButton || snapshotBusy) { return; }
+            snapshotButton.disabled = state.kind !== 'video'
+                || video.readyState < 2
+                || !video.videoWidth
+                || !video.videoHeight;
+        }
+        function snapshotFailureMessage() {
+            return (snapshotButton && snapshotButton.getAttribute('data-snapshot-error'))
+                || 'The video snapshot could not be saved.';
+        }
+        function snapshotVideo() {
+            var item = current();
+            if (!snapshotButton || !snapshotForm || snapshotBusy || state.kind !== 'video'
+                || !item || !item.occurrenceId || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+                return;
+            }
+            video.pause();
+            var timestampMs = Math.max(0, Math.round((video.currentTime || 0) * 1000));
+            var sourceWidth = video.videoWidth;
+            var sourceHeight = video.videoHeight;
+            var maxDimension = 4096;
+            var scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+            var canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+            canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+            var context2d = canvas.getContext('2d');
+            if (!context2d) {
+                if (typeof window.pegasusToast === 'function') { window.pegasusToast(snapshotFailureMessage(), 'danger'); }
+                return;
+            }
+            try {
+                context2d.drawImage(video, 0, 0, canvas.width, canvas.height);
+            } catch (_) {
+                if (typeof window.pegasusToast === 'function') { window.pegasusToast(snapshotFailureMessage(), 'danger'); }
+                return;
+            }
+            snapshotBusy = true;
+            if (window.pegasusBusy) { window.pegasusBusy.start(snapshotButton); }
+            snapshotButton.disabled = true;
+            canvas.toBlob(function (blob) {
+                if (!blob) {
+                    snapshotBusy = false;
+                    if (window.pegasusBusy) { window.pegasusBusy.end(snapshotButton); }
+                    syncSnapshotButton();
+                    if (typeof window.pegasusToast === 'function') { window.pegasusToast(snapshotFailureMessage(), 'danger'); }
+                    return;
+                }
+                snapshotSequence += 1;
+                var body = new FormData(snapshotForm);
+                body.set('videoOccurrenceId', item.occurrenceId);
+                body.set('timestampMs', String(timestampMs));
+                body.set('operationKey', snapshotBaseKey + '-' + snapshotSequence);
+                var leaseInput = document.querySelector('#case-edit-form [name="editLeaseToken"]');
+                if (leaseInput && leaseInput.value) { body.set('editLeaseToken', leaseInput.value); }
+                body.set('snapshot', blob, 'snapshot.jpg');
+                var done = false;
+                var serverAnnounced = false;
+                var action = snapshotForm.getAttribute('action') || window.location.href;
+                fetch(action, {
+                    method: 'POST', body: body, credentials: 'same-origin', redirect: 'follow',
+                    headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' }
+                }).then(function (response) {
+                    if (!response.ok) { throw new Error(snapshotFailureMessage()); }
+                    return response.text();
+                }).then(function (html) {
+                    if (typeof window.pegasusCaseWorkspaceApplySnapshot !== 'function') {
+                        throw new Error(snapshotFailureMessage());
+                    }
+                    serverAnnounced = true;
+                    done = window.pegasusCaseWorkspaceApplySnapshot(html);
+                    if (item.occurrenceId && (!state.invoker || !state.invoker.isConnected)) {
+                        var refreshed = document.querySelector('#section-files [data-evidence-item][data-evidence-occurrence="' + item.occurrenceId + '"]');
+                        if (refreshed) { state.invoker = refreshed; item.element = refreshed; }
+                    }
+                }).catch(function () {
+                    done = false;
+                    if (!serverAnnounced && typeof window.pegasusToast === 'function') {
+                        window.pegasusToast(snapshotFailureMessage(), 'danger');
+                    }
+                }).finally(function () {
+                    snapshotBusy = false;
+                    if (window.pegasusBusy) { window.pegasusBusy.end(snapshotButton, done ? { done: true } : undefined); }
+                    syncSnapshotButton();
+                });
+            }, 'image/jpeg', 0.92);
         }
 
         // ---- crop on the stage ----
@@ -6101,6 +6246,10 @@
         rotateButton.addEventListener('click', rotate);
         zoomButton.addEventListener('click', zoom);
         cropButton.addEventListener('click', beginCrop);
+        if (snapshotButton) { snapshotButton.addEventListener('click', snapshotVideo); }
+        ['loadeddata', 'canplay', 'seeked', 'emptied'].forEach(function (eventName) {
+            video.addEventListener(eventName, syncSnapshotButton);
+        });
         stage.addEventListener('click', function (event) {
             if (event.target === stage || event.target === image) { if (!state.crop) { zoom(); } }
         });
