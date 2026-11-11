@@ -16,6 +16,7 @@ public sealed class SentReportInstructionTidyPersistenceTests
 {
     private static readonly DateTimeOffset SentAtUtc = new(2026, 10, 5, 8, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset NowUtc = new(2026, 10, 5, 9, 0, 0, TimeSpan.Zero);
+    private const long WorkflowVersion = 4;
 
     [Fact]
     public async Task OnlyAConfirmedReportSendThatAnsweredARetainedInstructionIsDueOldestFirst()
@@ -81,6 +82,31 @@ public sealed class SentReportInstructionTidyPersistenceTests
         Assert.Equal(operation.Id, Assert.Single(await store.ListDueAsync(10, CancellationToken.None)).OperationId);
     }
 
+    /// <summary>
+    /// Nor is a mailbox that is not enabled, as a production copy leaves every
+    /// mailbox on the test instance (R916, R961): the instance's own report
+    /// send that answers a copied instruction moves nothing there.
+    /// </summary>
+    [Fact]
+    public async Task ASendWhoseMailboxIsNotActivatedIsNotDue()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var estate = await SeedEstateAsync(database);
+        var operation = Operation(estate, SentAtUtc);
+        await AddAsync(database, operation);
+        var store = Store(database);
+
+        await database.ExecuteAsync(
+            $"UPDATE ApprovedMailboxes SET ActivatedAtUtc = NULL WHERE Id = '{estate.MailboxId:D}'");
+
+        Assert.Empty(await store.ListDueAsync(10, CancellationToken.None));
+
+        await database.ExecuteAsync(
+            $"UPDATE ApprovedMailboxes SET ActivatedAtUtc = SYSUTCDATETIME() WHERE Id = '{estate.MailboxId:D}'");
+
+        Assert.Equal(operation.Id, Assert.Single(await store.ListDueAsync(10, CancellationToken.None)).OperationId);
+    }
+
     [Fact]
     public async Task AMovedInstructionIsRecordedOnceWithItsHistoryAndNoLongerListed()
     {
@@ -103,10 +129,19 @@ public sealed class SentReportInstructionTidyPersistenceTests
         Assert.Equal(NowUtc, row.InstructionMovedAtUtc);
         Assert.Null(row.InstructionMoveFailureCode);
         Assert.Equal(operation.Version + 1, row.Version);
-        var history = await context.CaseHistory.AsNoTracking().Where(item => item.CaseId == estate.CaseId).ToArrayAsync();
+        // On the timeline the Notes tab reads (R959), at the Case's version as it stands.
+        var history = await context.CaseWorkflowEvents.AsNoTracking().Where(item => item.CaseId == estate.CaseId).ToArrayAsync();
         var entry = Assert.Single(history);
         Assert.Equal("instruction_moved_to_deleted_items", entry.EventType);
+        Assert.Equal("sent-report-instruction-tidy", entry.ActorSubjectId);
+        Assert.Equal("The answered instruction was moved to Deleted Items after the report was sent.", entry.Reason);
         Assert.Equal(NowUtc, entry.OccurredAtUtc);
+        Assert.Equal(WorkflowVersion, entry.BeforeVersion);
+        Assert.Equal(WorkflowVersion, entry.AfterVersion);
+        Assert.Equal(
+            WorkflowVersion,
+            (await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == estate.CaseId)).Version);
+        Assert.Empty(await context.CaseHistory.AsNoTracking().ToArrayAsync());
         Assert.Empty(await store.ListDueAsync(10, CancellationToken.None));
     }
 
@@ -127,7 +162,7 @@ public sealed class SentReportInstructionTidyPersistenceTests
         Assert.Null(row.InstructionMovedAtUtc);
         Assert.Equal(
             "instruction_moved_to_deleted_items",
-            Assert.Single(await context.CaseHistory.AsNoTracking().ToArrayAsync()).EventType);
+            Assert.Single(await context.CaseWorkflowEvents.AsNoTracking().ToArrayAsync()).EventType);
     }
 
     [Fact]
@@ -144,7 +179,7 @@ public sealed class SentReportInstructionTidyPersistenceTests
         await using var context = await database.CreateContextAsync();
         var row = await context.Set<StaffMailSendOperationEntity>().AsNoTracking().SingleAsync(item => item.Id == operation.Id);
         Assert.Equal("MessageMissing", row.InstructionMoveState);
-        Assert.Empty(await context.CaseHistory.AsNoTracking().ToArrayAsync());
+        Assert.Empty(await context.CaseWorkflowEvents.AsNoTracking().ToArrayAsync());
         Assert.Empty(await Store(database).ListDueAsync(10, CancellationToken.None));
     }
 
@@ -177,8 +212,10 @@ public sealed class SentReportInstructionTidyPersistenceTests
         Assert.Equal(3, row.InstructionMoveAttempts);
         Assert.Equal("mailbox_not_permitted", row.InstructionMoveFailureCode);
         Assert.Null(row.InstructionMovedAtUtc);
-        var history = await context.CaseHistory.AsNoTracking().Where(item => item.CaseId == estate.CaseId).ToArrayAsync();
+        // Three entries at one Case version: the version index leaves these event types out.
+        var history = await context.CaseWorkflowEvents.AsNoTracking().Where(item => item.CaseId == estate.CaseId).ToArrayAsync();
         Assert.Equal(3, history.Length);
+        Assert.All(history, entry => Assert.Equal(WorkflowVersion, entry.AfterVersion));
         Assert.All(history, entry => Assert.Equal("instruction_move_failed", entry.EventType));
         Assert.Equal(3, history.Select(entry => entry.OperationKey).Distinct().Count());
     }
@@ -265,6 +302,8 @@ public sealed class SentReportInstructionTidyPersistenceTests
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2026}, {1}, {"TDY260001"}, {"inspection"}, {"review"}, {"pending"}, {true}, {true}, {SentAtUtc}, {0L}, {Guid.NewGuid()})");
         await CaseWorkFixture.InsertPrimaryWorksAsync(db);
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {"Review"}, {WorkflowVersion}, {Guid.NewGuid()})");
         db.Set<CaseReportGenerationEntity>().Add(new()
         {
             Id = generationId,

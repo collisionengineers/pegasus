@@ -155,6 +155,15 @@ public static partial class OperatorLabels
         /// </summary>
         public const string DeleteCaseCorrespondence = "Delete case correspondence";
 
+        /// <summary>
+        /// The Notes labels for what the tick's tidy and the answered-instruction
+        /// tidy did in the mailbox (operator, 11 November 2026; R959).
+        /// </summary>
+        public const string CaseEmailsMoved = "Case e-mails moved to Deleted Items";
+        public const string CaseEmailsNotMoved = "Case e-mails not moved";
+        public const string InstructionMoved = "Instruction moved to Deleted Items";
+        public const string InstructionNotMoved = "Instruction not moved";
+
         public static string State(Pegasus.Core.Operations.StaffMailState state) => state switch
         {
             Pegasus.Core.Operations.StaffMailState.Prepared => "Preparing",

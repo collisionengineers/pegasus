@@ -114,10 +114,12 @@
                         @OperatorLabels.StaffMail.MarkQueryDone
                     </label>
                 </div>
-                @* Offered exactly where Mark query done is (R904); unticked on every open. *@
+                @* Offered exactly where Mark query done is (R904). A plain input, not
+                   bound to what was posted, so it is unticked on every open and after
+                   a refused send (R960). *@
                 <div class="field">
                     <label>
-                        <input type="checkbox" asp-for="DeleteCaseCorrespondence" data-delete-case-correspondence />
+                        <input type="checkbox" name="DeleteCaseCorrespondence" value="true" data-delete-case-correspondence />
                         @OperatorLabels.StaffMail.DeleteCaseCorrespondence
                     </label>
                 </div>

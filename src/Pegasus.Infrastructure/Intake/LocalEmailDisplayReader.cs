@@ -104,14 +104,20 @@ public static partial class LocalEmailDisplayReader
 
     /// <summary>
     /// The exact messages this one answers, from its In-Reply-To and References
-    /// headers, in the one comparison representation storage uses. A header
+    /// headers, in the one comparison representation storage uses. The first
+    /// is the message it answers directly, which for a forward is the message
+    /// forwarded (R957): In-Reply-To, or the last of References where a
+    /// client sent none. The rest of the thread follows. A header
     /// value outside the identity bound is dropped rather than poisoning the
     /// whole message, and the list is capped because it becomes a query bound.
     /// </summary>
     private static string[] ReplyIdentities(MimeMessage message)
     {
         var identities = new List<string>();
-        foreach (var value in message.References.Prepend(message.InReplyTo))
+        var answered = string.IsNullOrWhiteSpace(message.InReplyTo)
+            ? message.References.LastOrDefault()
+            : message.InReplyTo;
+        foreach (var value in message.References.Prepend(answered))
         {
             if (string.IsNullOrWhiteSpace(value))
             {

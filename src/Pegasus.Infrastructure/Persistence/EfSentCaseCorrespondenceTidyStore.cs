@@ -119,11 +119,15 @@ internal sealed class EfSentCaseCorrespondenceTidyStore(
     /// <summary>
     /// The original each Collision Engineers staff forward among
     /// <paramref name="received"/> was made from (operator, 10 November 2026;
-    /// R917): the forward is held in instructions@ (R586, R651), an approved
-    /// mailbox sent it, and its In-Reply-To and References name that
-    /// mailbox's own Inbox message. The original goes with the forward
-    /// whether or not it is linked to the Case; one that holds another Case
-    /// is left, since the tidy never touches another Case's message.
+    /// R917): the forward is held in instructions@ (R586, R651) or, on the
+    /// test instance, pegasustest@ (11 November 2026; R956), an approved
+    /// mailbox sent it, and the message it answers is that mailbox's own
+    /// Inbox message. That is one message, the first identity the forward
+    /// retained (<c>LocalEmailDisplayReader.ReplyIdentities</c>), never the
+    /// earlier messages of its thread (R957). The original goes with the
+    /// forward whether or not it is linked to the Case; one that holds
+    /// another Case is left, since the tidy never touches another Case's
+    /// message (R958).
     /// </summary>
     private static async Task<List<MessageRow>> ListForwardOriginalsAsync(
         PegasusDbContext db,
@@ -133,13 +137,13 @@ internal sealed class EfSentCaseCorrespondenceTidyStore(
         CancellationToken cancellationToken)
     {
         var forwards = received
-            .Where(row => SameAddress(row.MailboxAddress, PrincipalMailRoutePolicy.StaffForwardMailboxAddress)
+            .Where(row => PrincipalMailRoutePolicy.HoldsStaffForwards(row.MailboxAddress)
                 && !string.IsNullOrWhiteSpace(row.SenderAddress))
             .Select(row => new
             {
                 ForwardingAddress = row.SenderAddress!,
                 Named = EfIntakeMutationStore.ReplyIdentityLookup(
-                    EfIntakeMutationStore.DeserializeReplyIdentities(row.InReplyToIdentitiesJson))
+                    EfIntakeMutationStore.DeserializeReplyIdentities(row.InReplyToIdentitiesJson).Take(1))
             })
             .Where(forward => forward.Named.Length > 0)
             .ToArray();
@@ -269,7 +273,7 @@ internal sealed class EfSentCaseCorrespondenceTidyStore(
             {
                 operation.CorrespondenceMoveState = FailedState;
             }
-            eventType = "correspondence_move_failed";
+            eventType = SentMailTidyHistory.CorrespondenceMoveFailed;
             reason = $"{counts.Failed} of the Case's received e-mails could not be moved to Deleted Items ({operation.CorrespondenceMoveFailureCode}); attempt {operation.CorrespondenceMoveAttempts} of {TidySentCaseCorrespondence.MaximumAttempts}.";
         }
         else
@@ -280,7 +284,7 @@ internal sealed class EfSentCaseCorrespondenceTidyStore(
             // e-mail, changed nothing on the Case, so that is recorded on the send row alone.
             if (counts.Moved + counts.AlreadyMoved > 0)
             {
-                eventType = "correspondence_moved_to_deleted_items";
+                eventType = SentMailTidyHistory.CorrespondenceMoved;
                 reason = $"The Case's received e-mails were moved to Deleted Items after the send: {counts.Moved} moved, {counts.AlreadyMoved} already there, {counts.Missing} no longer in the mailbox.";
             }
         }
@@ -294,20 +298,15 @@ internal sealed class EfSentCaseCorrespondenceTidyStore(
             : operation.ContextId;
         if (eventType is not null && caseId is { } id)
         {
-            db.CaseHistory.Add(new CaseHistoryEntity
-            {
-                Id = Guid.NewGuid(),
-                CaseId = id,
-                EventType = eventType,
-                Actor = Actor,
-                Reason = reason,
-                OccurredAtUtc = nowUtc,
-                // CaseHistory.OperationKey is unique across the table, so this never
-                // shares the instruction tidy's prefix.
-                OperationKey = $"correspondence-tidy:{operation.Id:N}:{operation.CorrespondenceMoveAttempts}",
-                BeforeVersion = null,
-                AfterVersion = 0
-            });
+            await SentMailTidyHistory.AddAsync(
+                db,
+                id,
+                eventType,
+                Actor,
+                reason,
+                $"correspondence-tidy:{operation.Id:N}:{operation.CorrespondenceMoveAttempts}",
+                nowUtc,
+                cancellationToken);
         }
 
         try

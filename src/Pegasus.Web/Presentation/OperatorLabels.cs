@@ -943,6 +943,11 @@ public static partial class OperatorLabels
         "case_query_resolved" => "Query marked done",
         "case_query_reopened" => "Query reopened",
         "case_query_assigned" => "Query assigned",
+        // What the two sent-mail tidies did (operator, 11 November 2026; R959).
+        "correspondence_moved_to_deleted_items" => StaffMail.CaseEmailsMoved,
+        "correspondence_move_failed" => StaffMail.CaseEmailsNotMoved,
+        "instruction_moved_to_deleted_items" => StaffMail.InstructionMoved,
+        "instruction_move_failed" => StaffMail.InstructionNotMoved,
         _ => Humanise(eventType)
     };
 
