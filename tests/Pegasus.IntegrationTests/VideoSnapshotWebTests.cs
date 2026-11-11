@@ -451,7 +451,7 @@ public sealed class VideoSnapshotWebTests
             Form(
                 AntiforgeryValue(saved),
                 ("id", caseId.ToString("D")),
-                ("operationKey", $"release:{Guid.NewGuid():N}"),
+                ("operationKey", Guid.NewGuid().ToString("N")),
                 ("editLeaseToken", InputValue(saved, "editLeaseToken"))));
         Assert.Equal(HttpStatusCode.Redirect, release.StatusCode);
     }
@@ -521,7 +521,7 @@ public sealed class VideoSnapshotWebTests
     [
         ("id", caseId.ToString("D")),
         ("expectedVersion", expectedVersion),
-        ("operationKey", $"save:{Guid.NewGuid():N}"),
+        ("operationKey", Guid.NewGuid().ToString("N")),
         ("editLeaseToken", editLeaseToken),
         ("reason", "Updated vehicle details during video snapshot test."),
         .. changes
