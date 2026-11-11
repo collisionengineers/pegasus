@@ -22,6 +22,8 @@
     else
     {
         <link rel="stylesheet" href="~/css/case-workspace.css" asp-append-version="true" />
+        @* The photo-link composer opens over the Case (v51 M; R948). *@
+        <link rel="stylesheet" href="~/css/photo-capture.css" asp-append-version="true" />
     }
 }
 
@@ -29,6 +31,7 @@
     @if (Model.TriageCase is null)
     {
         <script src="~/js/case-workspace.js" asp-append-version="true"></script>
+        <script src="~/js/photo-link-send.js" asp-append-version="true"></script>
     }
     else
     {

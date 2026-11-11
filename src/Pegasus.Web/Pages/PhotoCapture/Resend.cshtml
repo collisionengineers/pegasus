@@ -22,7 +22,18 @@
              aria-modal="true" aria-labelledby="mail-compose-title" tabindex="-1" data-photo-link-compose>
         <header class="dialog-head">
             <div>
-                <p class="eyebrow mono">@registration</p>
+                @* The Case, its registration and its Principal (v51 L; R948). *@
+                <p class="eyebrow">
+                    @if (Model.EyebrowReference is { Length: > 0 } reference)
+                    {
+                        <span class="mono">@reference</span><text> · </text>
+                    }
+                    <span class="mono">@registration</span>
+                    @if (Model.EyebrowPrincipal is { Length: > 0 } principal)
+                    {
+                        <text> · @principal</text>
+                    }
+                </p>
                 <h1 id="mail-compose-title">@Model.Title</h1>
             </div>
             <a class="dialog-close" href="@Model.BackHref" aria-label="Close composer">
@@ -70,89 +81,8 @@
             }
             else
             {
-                <form method="post" asp-route-id="@Model.Id" class="mail-compose-form">
-                    <input type="hidden" asp-for="OperationKey" />
-                    <input type="hidden" asp-for="ReturnUrl" />
-                    @if (Model.CanEmail)
-                    {
-                        <div class="mail-compose-form-fields">
-                            <div class="mail-compose-addresses">
-                                <div class="field mail-compose-from">
-                                    <label asp-for="FromMailboxId">@Labels.FromMailbox</label>
-                                    <select asp-for="FromMailboxId" data-dialog-initial-focus>
-                                        <option value=""></option>
-                                        @foreach (var mailbox in Model.Senders.Mailboxes)
-                                        {
-                                            <option value="@mailbox.Id" selected="@(Model.FromMailboxId == mailbox.Id)">@mailbox.Address</option>
-                                        }
-                                    </select>
-                                    <span asp-validation-for="FromMailboxId"></span>
-                                </div>
-                                <div class="field mail-compose-to">
-                                    <label for="photo-link-to">To</label>
-                                    <input id="photo-link-to" type="text" value="@Model.Capture.Email" readonly />
-                                </div>
-                            </div>
-                            <div class="field mail-compose-subject">
-                                <label asp-for="Subject">@Labels.Subject</label>
-                                <input asp-for="Subject" type="text" />
-                                <span asp-validation-for="Subject"></span>
-                            </div>
-                            <div class="field mail-compose-message" data-photo-link-wording>
-                                <label asp-for="Body">@Labels.Message</label>
-                                <textarea asp-for="Body" rows="9" data-photo-link-message></textarea>
-                                <span asp-validation-for="Body"></span>
-                                <input type="hidden" asp-for="StandardBody" data-photo-link-standard />
-                                <p class="field-hint" data-photo-link-edited hidden="@(!Model.BodyEdited)">
-                                    @Labels.EditedForThisOneOnly
-                                    <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.ResendModel.StandardWording" class="btn btn--small" formnovalidate data-photo-link-reset data-busy-label="@OperatorLabels.Busy.Restoring">@Labels.PutTheStandardWordingBack</button>
-                                </p>
-                            </div>
-                        </div>
-                    }
-                    @if (Model.CanText)
-                    {
-                        @* The text: to the link's mobile, which staff may change, in the Photo link (text) wording (R918, R919). *@
-                        <div class="mail-compose-form-fields">
-                            <div class="field mail-compose-to">
-                                <label asp-for="Mobile">@Labels.Mobile</label>
-                                <input asp-for="Mobile" type="tel" inputmode="tel" autocomplete="off" data-dialog-initial-focus="@(!Model.CanEmail)" />
-                                <span asp-validation-for="Mobile"></span>
-                            </div>
-                            <div class="field mail-compose-message" data-photo-link-wording>
-                                <label asp-for="TextBody">@Labels.TextMessage</label>
-                                <textarea asp-for="TextBody" rows="5" data-photo-link-message></textarea>
-                                <span asp-validation-for="TextBody"></span>
-                                <input type="hidden" asp-for="StandardTextBody" data-photo-link-standard />
-                                <p class="field-hint" data-photo-link-edited hidden="@(!Model.TextBodyEdited)">
-                                    @Labels.EditedForThisOneOnly
-                                    <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.ResendModel.StandardTextWording" class="btn btn--small" formnovalidate data-photo-link-reset data-busy-label="@OperatorLabels.Busy.Restoring">@Labels.PutTheStandardWordingBack</button>
-                                </p>
-                            </div>
-                        </div>
-                    }
-                    <footer class="mail-compose-footer">
-                        <a class="btn" href="@Model.BackHref">Cancel</a>
-                        <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.ResendModel.ToCopy" class="btn" formnovalidate data-busy-label="@OperatorLabels.Busy.Creating">
-                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
-                            <span>@Labels.CreateLinkToCopy</span>
-                        </button>
-                        @if (Model.CanText)
-                        {
-                            <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.ResendModel.ByText" class="btn@(Model.CanEmail ? "" : " btn--primary")" data-busy-label="@OperatorLabels.Busy.Sending">
-                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
-                                <span>@Labels.SendByText</span>
-                            </button>
-                        }
-                        @if (Model.CanEmail)
-                        {
-                            <button type="submit" name="Submit" value="@Pegasus.Web.Pages.PhotoCapture.ResendModel.ByEmail" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Sending">
-                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
-                                <span>@Labels.SendByEmail</span>
-                            </button>
-                        }
-                    </footer>
-                </form>
+                @* One channel at a time (v51 L; R948); the dialog the pages open is this composer too. *@
+                <partial name="_PhotoLinkComposer" model="Model" />
             }
         </div>
     </section>

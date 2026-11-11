@@ -1,0 +1,12 @@
+@* A list row's first photographs beside its registration (v51 N; R948):
+   decoration only, since the row's link opens the photos themselves. *@
+@model (Pegasus.Web.Pages.PhotoCapture.IndexModel Page, IReadOnlyList<Pegasus.Core.PhotoCapture.PhotoCapturePreview> Preview)
+@if (Model.Preview.Count > 0)
+{
+    <span class="pc-mini-thumbs" aria-hidden="true">
+        @foreach (var preview in Model.Preview)
+        {
+            <img src="@Model.Page.PreviewHref(preview)" alt="" loading="lazy" />
+        }
+    </span>
+}

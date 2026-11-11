@@ -1,28 +1,32 @@
 using System.Globalization;
+using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Options;
 using Pegasus.Core.Identity;
 using Pegasus.Core.PhotoCapture;
+using Pegasus.Web.PhotoCapture;
 using Pegasus.Web.Presentation;
 using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture;
 
 namespace Pegasus.Web.Pages.PhotoCapture;
 
 /// <summary>
-/// Photo capture (FRD-28 Staff pages; R774): <b>Coming in</b>, the captures
-/// standing and website links started, and <b>Links we sent</b>, the links
-/// HQ sent from a Case. The left pane is the tab's headline states with their
-/// queried counts, as the Cases list's scopes are; the list and those counts
-/// are one query (<see cref="IPhotoCaptureQueries.ListAsync"/>), newest first. The
-/// website link is managed on Administration › Photo links (v50 F; R911).
+/// Photo capture (FRD-28 Staff pages), in the two kinds of link Collision
+/// Engineers runs (operator, 11 November 2026; v51 N, P; R948):
+/// <b>Direct links</b>, the links HQ sent for a Case, filtered by workflow
+/// scope; and <b>Standing links</b>, the directory of standing and website
+/// links, which any member of staff may copy or show as a QR code, beside the
+/// captures they started. The list and the scopes' counts are one query
+/// (<see cref="IPhotoCaptureQueries.ListAsync"/>), newest first.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed class IndexModel(
     IPhotoCaptureQueries queries,
-    IPhotoLinkTextSend textSend,
-    TimeProvider timeProvider) : PhotoCapturePageModel
+    TimeProvider timeProvider,
+    IOptions<PhotoCaptureOptions>? options = null) : PhotoCapturePageModel
 {
     private const int PageSize = 25;
 
@@ -36,14 +40,20 @@ public sealed class IndexModel(
         public Pegasus.Core.PhotoCapture.PhotoCapture Capture => Source.Capture;
     }
 
+    /// <summary>One standing link of the directory with its address.</summary>
+    public sealed record StandingLink(StandingPhotoLinkListing Listing, string? Url)
+    {
+        public StandingPhotoLink Link => Listing.Link;
+    }
+
     [BindProperty(SupportsGet = true, Name = "tab")]
     public string? Tab { get; set; }
 
-    [BindProperty(SupportsGet = true, Name = "state")]
-    public string? StateFilter { get; set; }
+    [BindProperty(SupportsGet = true, Name = "scope")]
+    public string? ScopeKey { get; set; }
 
-    [BindProperty(SupportsGet = true, Name = "origin")]
-    public string? OriginFilter { get; set; }
+    [BindProperty(SupportsGet = true, Name = "link")]
+    public Guid? LinkFilter { get; set; }
 
     [BindProperty(SupportsGet = true, Name = "q")]
     public string? Query { get; set; }
@@ -57,24 +67,27 @@ public sealed class IndexModel(
     [TempData]
     public string? Notice { get; set; }
 
-    public bool SentByUs => Tab == Labels.LinksWeSentKey;
+    /// <summary>The Direct links tab, the default; otherwise Standing links.</summary>
+    public bool Direct => Tab != Labels.StandingLinksKey;
 
-    public PhotoCaptureState? State => Labels.StateFromKey(StateFilter);
-
-    public PhotoCaptureOrigin? Origin => SentByUs ? null : Labels.OriginFromKey(OriginFilter);
-
-    /// <summary>Coming in's "No case yet": only the captures with no Case (R806), chosen where the From filter is.</summary>
-    public bool NoCaseYet => !SentByUs && OriginFilter == Labels.NoCaseYetKey;
-
-    /// <summary>How many captures each tab holds, shown on the tabs (R806).</summary>
-    public PhotoCaptureTabCounts? TabCounts { get; private set; }
+    public PhotoCaptureScope Scope => Labels.ScopeFromKey(ScopeKey);
 
     public IReadOnlyList<Row> Rows { get; private set; } = [];
 
     public int TotalCount { get; private set; }
 
-    public IReadOnlyDictionary<PhotoCaptureState, int> Counts { get; private set; } =
-        new Dictionary<PhotoCaptureState, int>();
+    public IReadOnlyDictionary<PhotoCaptureScope, int> Counts { get; private set; } =
+        new Dictionary<PhotoCaptureScope, int>();
+
+    /// <summary>The Direct links tab's count: its Awaiting links.</summary>
+    public int? AwaitingCount { get; private set; }
+
+    public IReadOnlyList<StandingLink> StandingLinks { get; private set; } = [];
+
+    /// <summary>The standing link the Standing links tab is narrowed to, if any.</summary>
+    public StandingLink? SelectedLink { get; private set; }
+
+    public int StandingSubmissions => StandingLinks.Sum(link => link.Listing.Submissions);
 
     public DateTimeOffset? LoadedAtUtc { get; private set; }
 
@@ -86,14 +99,17 @@ public sealed class IndexModel(
 
     public DateTimeOffset Now { get; private set; }
 
+    /// <summary>Whether the reader manages standing links: Defaults and Manage lead to Administration.</summary>
+    public bool ManagesLinks { get; private set; }
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        if (!TryGetActor(out _))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
 
-        Tab = Tab is Labels.LinksWeSentKey ? Labels.LinksWeSentKey : Labels.ComingInKey;
+        Tab = Direct ? null : Labels.StandingLinksKey;
         if (CurrentPage is < 1 or > 10_000)
         {
             return NotFound();
@@ -105,18 +121,24 @@ public sealed class IndexModel(
             Query = Query[..100];
         }
 
+        ManagesLinks = StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ManageOrganizationsAndPrincipals);
         Now = timeProvider.GetUtcNow();
         try
         {
-            var page = queries.ListAsync(
-                new(SentByUs, Query, State, Origin, NoCaseYet, PageSize, CurrentPage),
+            var links = await queries.ListStandingLinksAsync(cancellationToken);
+            StandingLinks = [.. links.Select(listing => new StandingLink(listing, AddressOf(listing.Link)))];
+            SelectedLink = Direct || LinkFilter is not { } linkId
+                ? null
+                : StandingLinks.FirstOrDefault(link => link.Link.Id == linkId);
+            var page = await queries.ListAsync(
+                new(Direct, Query, Scope, SelectedLink?.Link.Id, PageSize, CurrentPage),
                 cancellationToken);
-            var tabCounts = queries.CountByTabAsync(cancellationToken);
-            await Task.WhenAll(page, tabCounts);
-            TotalCount = page.Result.TotalCount;
-            Rows = [.. page.Result.Rows.Select(row => Derive(row, Now))];
-            Counts = page.Result.CountsByState;
-            TabCounts = tabCounts.Result;
+            TotalCount = page.TotalCount;
+            Rows = [.. page.Rows.Select(row => Derive(row, Now))];
+            Counts = page.CountsByScope;
+            AwaitingCount = Direct
+                ? Counts.GetValueOrDefault(PhotoCaptureScope.Awaiting)
+                : await queries.CountAwaitingAsync(cancellationToken);
             LoadedAtUtc = Now;
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
@@ -128,6 +150,31 @@ public sealed class IndexModel(
 
         return Page();
     }
+
+    /// <summary>A standing link's QR code (R780), shown in its dialog and saved by Download QR, for any member of staff (v51 P; R948).</summary>
+    public async Task<IActionResult> OnGetQrAsync(Guid id, bool download, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out _))
+        {
+            return Forbid();
+        }
+
+        var link = (await queries.ListStandingLinksAsync(cancellationToken))
+            .Select(listing => listing.Link)
+            .FirstOrDefault(link => link.Id == id);
+        if (link is null || AddressOf(link) is not { } url)
+        {
+            return NotFound();
+        }
+
+        var svg = Encoding.UTF8.GetBytes(PhotoLinkQr.Svg(url));
+        return download
+            ? File(svg, "image/svg+xml", PhotoLinkQr.FileName(link.Slug))
+            : File(svg, "image/svg+xml");
+    }
+
+    private string? AddressOf(StandingPhotoLink link) =>
+        options?.Value is { } value ? PhotoLinkMail.StandingUrl(value, link.Slug) : null;
 
     /// <summary>
     /// The state and due reminder a row derives, from its own record and
@@ -143,20 +190,23 @@ public sealed class IndexModel(
             PhotoCaptureAccess.IsLive(row.Capture, now, row.CaseArchived));
     }
 
-    /// <summary>The headline states this tab counts, in the order the left pane lists them.</summary>
-    public IReadOnlyList<PhotoCaptureState> CountedStates =>
-        [.. Enum.GetValues<PhotoCaptureState>().Where(Counts.ContainsKey)];
-
-    public string Href(string? tab = null, string? state = null, bool keepState = true, int? page = null)
+    /// <summary>
+    /// This list's address with what is given changed: <paramref name="direct"/>
+    /// picks the tab, <paramref name="scope"/> the Direct links scope and
+    /// <paramref name="link"/> the standing link; the search stays on its tab.
+    /// </summary>
+    public string Href(bool? direct = null, string? scope = null, Guid? link = null, bool keepLink = true, bool keepQuery = true, int? page = null)
     {
-        var target = tab ?? Tab ?? Labels.ComingInKey;
-        var sameTab = target == (Tab ?? Labels.ComingInKey);
+        var toDirect = direct ?? Direct;
+        var sameTab = toDirect == Direct;
         var values = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
-            ["tab"] = target == Labels.ComingInKey ? null : target,
-            ["state"] = state ?? (keepState && sameTab ? StateFilter : null),
-            ["origin"] = sameTab && target == Labels.ComingInKey ? OriginFilter : null,
-            ["q"] = sameTab ? Query : null,
+            ["tab"] = toDirect ? null : Labels.StandingLinksKey,
+            ["scope"] = toDirect ? scope ?? (sameTab ? ScopeKey : null) : null,
+            ["link"] = toDirect
+                ? null
+                : (link ?? (keepLink && sameTab ? SelectedLink?.Link.Id : null))?.ToString("D"),
+            ["q"] = sameTab && keepQuery ? Query : null,
             ["page"] = page is > 1 ? page.Value.ToString(CultureInfo.InvariantCulture) : null
         };
         return QueryHelpers.AddQueryString(
@@ -164,53 +214,28 @@ public sealed class IndexModel(
             values.Where(item => !string.IsNullOrWhiteSpace(item.Value)));
     }
 
-    /// <summary>Where a row's photos are: the Case's Files section, else the Vehicle images record.</summary>
-    public static string? PhotosHref(PhotoCaptureListRow row)
-    {
-        ArgumentNullException.ThrowIfNull(row);
-        if (row.Capture.CaseId is { } caseId)
-        {
-            return Pegasus.Core.Notifications.StaffNotificationPolicy.CaseRoute(caseId, "files");
-        }
-
-        return row.ImageIntakeId is { } recordId ? $"/VehicleImages/{recordId:D}" : null;
-    }
-
     /// <summary>
-    /// How a Coming in capture reached its Case: it was already instructed,
-    /// it was matched when the instruction came, or a member of staff chose
-    /// it with Match to a case (operator, 10 November 2026; R864). A capture
-    /// with no Case shows none.
-    /// </summary>
-    public static string? CaseHow(PhotoCaptureListRow row)
-    {
-        ArgumentNullException.ThrowIfNull(row);
-        return row.Pairing switch
-        {
-            PhotoCapturePairing.FiledAsItArrived => Labels.AlreadyInstructed,
-            PhotoCapturePairing.MatchedAutomatically => Labels.MatchedAutomatically,
-            PhotoCapturePairing.ChosenByStaff => Labels.MatchedByStaff,
-            _ => null
-        };
-    }
-
-    /// <summary>
-    /// Where Resend, and Ask for it on a capture that can be e-mailed, open:
-    /// the composer, since no button sends an e-mail on its own (operator, 10
-    /// November 2026; R915). It returns to <paramref name="returnUrl"/>.
+    /// Where Resend opens: the composer, since no button sends an e-mail or a
+    /// text on its own (operator, 10 November 2026; R915). It returns to
+    /// <paramref name="returnUrl"/>.
     /// </summary>
     public static string ResendHref(Guid captureId, string returnUrl) =>
         QueryHelpers.AddQueryString($"/PhotoCapture/{captureId:D}/Resend", "returnUrl", returnUrl);
 
-    /// <summary>
-    /// Whether Ask for it opens the composer: the capture can be e-mailed, a
-    /// capture on a Case that holds an address (R816), or texted, one that
-    /// holds a mobile where texting is configured (R920).
-    /// </summary>
-    public bool CanSend(Pegasus.Core.PhotoCapture.PhotoCapture capture)
+    /// <summary>A row's preview photograph: the settled asset's tile, else the staged image.</summary>
+    public string PreviewHref(PhotoCapturePreview preview)
     {
-        ArgumentNullException.ThrowIfNull(capture);
-        return (capture.CaseId is not null && !string.IsNullOrWhiteSpace(capture.Email))
-            || (textSend.Available && !string.IsNullOrWhiteSpace(capture.Mobile));
+        ArgumentNullException.ThrowIfNull(preview);
+        var href = preview.AssetId is { } assetId
+            ? Url.Page("/Intake/Asset", new { id = preview.ReceiptId, assetId, v = preview.ContentHash })!
+            : Url.Page("/Intake/Image", new { id = preview.ReceiptId })!;
+        return new GalleryImage(
+            href,
+            href,
+            preview.FileName,
+            preview.MediaType,
+            IntakeAssetId: preview.AssetId,
+            IntakeReceiptId: preview.AssetId is null ? null : preview.ReceiptId,
+            ContentHash: preview.ContentHash).TileHref;
     }
 }

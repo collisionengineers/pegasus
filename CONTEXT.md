@@ -53,7 +53,7 @@ The lasting link of a Principal, Claim Source or Repairer contact, kept on Whats
 _Avoid_: profile, QR link
 
 **Photo capture**:
-The guided capture surface as a whole, and the staff page of that name in the rail, where captures Coming in and Links we sent are followed ([FRD-28](docs/frd/frd-28-guided-photo-capture.md#staff-pages)).
+The guided capture surface as a whole, and the staff page of that name in the rail, where Direct links, sent for a Case, and Standing links, with what they bring in, are followed ([FRD-28](docs/frd/frd-28-guided-photo-capture.md#staff-pages)).
 _Avoid_: guided capture tool
 
 **Inspection images / Additional information**:

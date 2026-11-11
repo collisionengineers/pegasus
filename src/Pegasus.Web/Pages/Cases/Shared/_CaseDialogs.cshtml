@@ -14,6 +14,7 @@
 @using Pegasus.Web.Presentation
 @using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
 @model Pegasus.Web.Pages.Cases.DetailsModel
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @{
     var details = Model.Case!;
     var workflow = details.Workflow;
@@ -512,4 +513,12 @@
 @if (Model.CanSendReport && Model.ReportDeliveryRead)
 {
     <partial name="Cases/Shared/_CaseSendReportDialog" model="Model" />
+}
+
+@* Send photo link and Resend (operator, 11 November 2026; v51 M; R948): one
+   empty backdrop that photo-link-send.js fills from the pressed link's
+   address with ?handler=Composer; the composer's form posts to its own page. *@
+@if (ShellRail.PhotoCaptureEnabled(Configuration))
+{
+    <div class="dialog-backdrop" data-dialog="photo-link-compose" hidden></div>
 }

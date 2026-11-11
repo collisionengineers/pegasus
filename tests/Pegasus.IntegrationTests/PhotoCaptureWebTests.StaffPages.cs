@@ -16,7 +16,7 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// The staff pages of guided photo capture after the product owner's answers
 /// of 10 November 2026: standing link changes write action history (R846),
-/// "Matched by staff" (R864), the "Contact inactive" chip (R865), the Website
+/// the "Contact inactive" chip (R865), the Website
 /// link panel's own pause words (R867), the four labels (R869), one
 /// "Reminded · name" line per reminder (R870), and the refusal sentences
 /// shown beside their forms (R868); and after the v50 design round: the
@@ -196,24 +196,6 @@ public sealed partial class PhotoCaptureWebTests
         Assert.Contains(">Website photo link<", LogRow(logs, "Photo link paused"), StringComparison.Ordinal);
     }
 
-    /// <summary>A Case a member of staff chose with Match to a case reads "Matched by staff" beside "Matched automatically" (R864).</summary>
-    [Fact]
-    public async Task ACaseChosenByStaffReadsMatchedByStaff()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var link = await StandingCaptureDriver.CreateContactLinkAsync(factory);
-        var started = await StandingCaptureDriver.StartAsync(factory, client, link, "ZZ99 QQQ");
-
-        string? How(PhotoCapturePairing pairing) => Pegasus.Web.Pages.PhotoCapture.IndexModel.CaseHow(
-            new PhotoCaptureListRow(started.Capture, null, null, null, [], null, pairing, false, 0, false));
-
-        Assert.Equal("Matched by staff", How(PhotoCapturePairing.ChosenByStaff));
-        Assert.Equal(OperatorLabels.PhotoCapture.MatchedAutomatically, How(PhotoCapturePairing.MatchedAutomatically));
-        Assert.Equal(OperatorLabels.PhotoCapture.AlreadyInstructed, How(PhotoCapturePairing.FiledAsItArrived));
-        Assert.Null(How(PhotoCapturePairing.None));
-    }
-
     /// <summary>
     /// An inactive contact's standing link carries the amber chip "Contact
     /// inactive", paused or not; an active contact's reads Active or Paused
@@ -313,26 +295,27 @@ public sealed partial class PhotoCaptureWebTests
 
     /// <summary>
     /// A link's History shows one "Reminded · name" line for each reminder
-    /// (R870). Ask for it on a Coming in capture, here the link page's Resend
-    /// that makes a link to copy, always counts as one (R842, R914).
+    /// (R870), folded in its Summary (v51 G; R948).
     /// </summary>
     [Fact]
     public async Task EachReminderIsItsOwnHistoryLineWithItsSender()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var standing = await StandingCaptureDriver.CreateContactLinkAsync(factory);
-        var started = await StandingCaptureDriver.StartAsync(factory, client, standing, "ZZ99 QQQ");
-        var page = $"/PhotoCapture/{started.Capture.Id:D}";
-
-        for (var reminder = 0; reminder < 2; reminder++)
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var link = await IssueLinkAsync(factory, caseId);
+        var page = $"/PhotoCapture/{link.Capture.Id:D}";
+        await using (var scope = factory.Services.CreateAsyncScope())
         {
-            using var resent = await PostStaffFormAsync(client, $"{page}?handler=Resend", NewOperationKey());
-            Assert.Equal(HttpStatusCode.OK, resent.StatusCode);
-            Assert.Contains("data-photo-link-issued", await resent.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+            var actions = scope.ServiceProvider.GetRequiredService<PhotoLinkActions>();
+            for (var reminder = 0; reminder < 2; reminder++)
+            {
+                await actions.ReissueAsync(
+                    Issuer, link.Capture.Id, PhotoLinkTokenPurpose.Copy, isReminder: true, NewOperationKey(), CancellationToken.None);
+            }
         }
 
-        Assert.Equal(2, (await StandingCaptureDriver.CaptureAsync(factory, started.Capture.Id)).ReminderCount);
+        Assert.Equal(2, (await StandingCaptureDriver.CaptureAsync(factory, link.Capture.Id)).ReminderCount);
         var name = await StaffNameAsync(factory, DevelopmentOfflineIdentity.AdministratorId);
         var details = await IntakeWebDriver.GetHtmlAsync(client, page);
         var line = HtmlEncoder.Default.Encode($"Reminded · {name}");
@@ -358,7 +341,7 @@ public sealed partial class PhotoCaptureWebTests
         }
 
         var details = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture/{link.Capture.Id:D}");
-        var list = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}");
+        var list = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture?scope=all");
 
         foreach (var html in new[] { details, list })
         {
@@ -367,7 +350,7 @@ public sealed partial class PhotoCaptureWebTests
         }
 
         Assert.Contains(
-            $"<a class=\"btn btn--primary\" href=\"/PhotoCapture/{link.Capture.Id:D}/Resend?returnUrl=%2FPhotoCapture%2F{link.Capture.Id:D}\">",
+            $"<a class=\"btn btn--primary\" href=\"/PhotoCapture/{link.Capture.Id:D}/Resend?returnUrl=%2FPhotoCapture%2F{link.Capture.Id:D}\" data-photo-link-composer>",
             details,
             StringComparison.Ordinal);
     }
@@ -392,7 +375,7 @@ public sealed partial class PhotoCaptureWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
             CaseWebTestSupport.Substitute<Pegasus.Core.Operations.IStaffMailSend>(services, mail)));
         using var client = IntakeWebDriver.CreateClient(factory);
-        var listPath = $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}";
+        var listPath = "/PhotoCapture?scope=all";
         var composer = $"/PhotoCapture/{link.Capture.Id:D}/Resend";
 
         var html = await IntakeWebDriver.GetHtmlAsync(client, $"{composer}?returnUrl={Uri.EscapeDataString(listPath)}");
@@ -490,7 +473,7 @@ public sealed partial class PhotoCaptureWebTests
                 .SetProperty(value => value.ReminderCount, PhotoCaptureStatus.RemindersBeforeCall)
                 .SetProperty(value => value.LastRemindedAtUtc, (DateTimeOffset?)now.AddHours(-1)));
         }
-        var listPath = $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}";
+        var listPath = "/PhotoCapture?scope=all";
 
         var row = ListRow(await IntakeWebDriver.GetHtmlAsync(client, listPath), link.Capture.Id);
         Assert.Contains(
@@ -513,15 +496,13 @@ public sealed partial class PhotoCaptureWebTests
     }
 
     /// <summary>
-    /// A Links we sent row leads with the act its state calls for and then
-    /// one other act as its own button; More appears only for two or more,
-    /// with Cancel link last (R912). An unopened link reads Resend and Cancel
-    /// link; an opened one with photos reads Resend and More holding View
-    /// photos and Cancel link. Next reminder is blank when nothing is due, and
-    /// the list has no Sent by column.
+    /// A Direct links row carries at most the one act its state calls for, as
+    /// its own button: Resend on a live link still waiting, with no More, no
+    /// Cancel link and no View photos (v51 N; R948; R912). The list has no
+    /// Sent by and no Next reminder column; a link with photos previews them.
     /// </summary>
     [Fact]
-    public async Task AMoreMenuOnLinksWeSentNeverHoldsASingleAct()
+    public async Task ADirectLinksRowCarriesOneActAndNoMore()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -536,29 +517,16 @@ public sealed partial class PhotoCaptureWebTests
                 .SetProperty(value => value.AcceptedItemCount, 1));
         }
 
-        var list = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture?tab={OperatorLabels.PhotoCapture.LinksWeSentKey}");
+        var list = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture?scope=all");
 
         Assert.DoesNotContain($">{OperatorLabels.PhotoCapture.SentBy}</th>", list, StringComparison.Ordinal);
-        var plain = ListRow(list, unopened.Capture.Id);
-        Assert.Contains($">{OperatorLabels.PhotoCapture.Resend}</a>", plain, StringComparison.Ordinal);
-        Assert.Contains("handler=Cancel", plain, StringComparison.Ordinal);
-        Assert.DoesNotContain("<details", plain, StringComparison.Ordinal);
-        Assert.Contains("<td class=\"photo-capture-col--wide\"></td>", plain, StringComparison.Ordinal);
-
-        var menu = ListRow(list, withPhotos.Capture.Id);
-        Assert.Contains($">{OperatorLabels.PhotoCapture.Resend}</a>", menu, StringComparison.Ordinal);
-        var body = MenuBody(menu);
-        var viewPhotos = body.IndexOf(OperatorLabels.PhotoCapture.ViewPhotos, StringComparison.Ordinal);
-        var cancel = body.IndexOf(OperatorLabels.PhotoCapture.CancelLink, StringComparison.Ordinal);
-        Assert.True(viewPhotos >= 0 && cancel > viewPhotos, "More holds View photos, then Cancel link last.");
-
-        var rows = Regex.Match(list, "<table class=\"table photo-capture-rows\">[\\s\\S]*?</table>");
-        Assert.True(rows.Success, "Links we sent draws no rows.");
-        foreach (Match details in Regex.Matches(rows.Value, "<details class=\"menu\"[\\s\\S]*?</details>"))
+        Assert.DoesNotContain($">{OperatorLabels.PhotoCapture.NextReminder}</th>", list, StringComparison.Ordinal);
+        foreach (var row in new[] { ListRow(list, unopened.Capture.Id), ListRow(list, withPhotos.Capture.Id) })
         {
-            Assert.True(
-                Regex.Count(MenuBody(details.Value), "class=\"btn[ \"]") >= 2,
-                "A More menu holds a single act: " + details.Value);
+            Assert.Contains($">{OperatorLabels.PhotoCapture.Resend}</a>", row, StringComparison.Ordinal);
+            Assert.DoesNotContain("<details", row, StringComparison.Ordinal);
+            Assert.DoesNotContain("handler=Cancel", row, StringComparison.Ordinal);
+            Assert.DoesNotContain(OperatorLabels.PhotoCapture.ViewPhotos, row, StringComparison.Ordinal);
         }
     }
 
@@ -819,14 +787,6 @@ public sealed partial class PhotoCaptureWebTests
         var tag = Regex.Match(html, "<input[^>]*name=\"" + Regex.Escape(name) + "\"[^>]*>");
         Assert.True(tag.Success, $"The page draws no {name} box.");
         return WebUtility.HtmlDecode(Regex.Match(tag.Value, "value=\"([^\"]*)\"").Groups[1].Value);
-    }
-
-    /// <summary>A More menu's items, after its summary.</summary>
-    private static string MenuBody(string html)
-    {
-        var start = html.IndexOf("<div class=\"menu-body\">", StringComparison.Ordinal);
-        Assert.True(start >= 0, "The row has no More menu.");
-        return html[start..];
     }
 
     /// <summary>The form whose action carries the marker, from its tag to its end.</summary>

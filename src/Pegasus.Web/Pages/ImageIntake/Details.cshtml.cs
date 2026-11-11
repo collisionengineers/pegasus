@@ -68,19 +68,29 @@ public sealed class DetailsModel(
 
     /// <summary>
     /// Originals for every represented receipt, plus non-image e-mail
-    /// attachments such as a PDF submitted with selected photographs.
+    /// attachments such as a PDF submitted with selected photographs, less
+    /// every image the Images gallery already shows: the list holds only what
+    /// the gallery does not, and is empty when it shows everything (operator,
+    /// 11 November 2026; v51 O; R948).
     /// </summary>
     public IReadOnlyList<RetainedIntakeFile> RetainedFiles => RetainedReceipts
         .SelectMany(receipt => IntakeFileIdentity.Ordered(receipt)
-            .Where(asset => asset.Kind == IntakeAssetKind.Source
-                || (receipt.SourceIdentity.Channel == IntakeSourceChannel.Mailbox
-                    && asset.Kind == IntakeAssetKind.Attachment
-                    && !InstructionEvidenceImages.IsImage(asset.MediaType)))
+            .Where(asset => (asset.Kind == IntakeAssetKind.Source
+                    || (receipt.SourceIdentity.Channel == IntakeSourceChannel.Mailbox
+                        && asset.Kind == IntakeAssetKind.Attachment
+                        && !InstructionEvidenceImages.IsImage(asset.MediaType)))
+                && !InGallery(receipt.Id, asset))
             .Select(asset => new RetainedIntakeFile(
                 receipt.Id,
                 asset,
                 asset.Kind == IntakeAssetKind.Source)))
         .ToArray();
+
+    /// <summary>Whether an image file is one the gallery shows: its own asset, or its receipt's source where the gallery names no asset.</summary>
+    private bool InGallery(Guid receiptId, IntakeAssetRecord asset) =>
+        InstructionEvidenceImages.IsImage(asset.MediaType)
+        && Images.Any(image => image.ReceiptId == receiptId
+            && (image.AssetId == asset.Id || (image.AssetId is null && asset.Kind == IntakeAssetKind.Source)));
 
     /// <summary>Open file: the retained original through the kept source route, never the receipt page.</summary>
     public string? OpenFileHref => IsSourceStored

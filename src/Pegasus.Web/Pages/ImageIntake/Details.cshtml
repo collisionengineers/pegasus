@@ -5,7 +5,7 @@
 @using Pegasus.Web.Presentation
 @using Record = Pegasus.Web.Pages.ImageIntake.DetailsModel
 @{
-    ViewData["Title"] = $"Image-initiated Case {Model.Detail.Record.ImageIntakeReference}";
+    ViewData["Title"] = $"{OperatorLabels.PhotoCapture.VehicleImages} {Model.Detail.Record.ImageIntakeReference}";
     var awaiting = Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction;
 
     // The Cases the record can be added to: under the bar that offers Add to an
@@ -44,6 +44,8 @@
 @section Styles {
     <link rel="stylesheet" href="~/css/image-record.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pre-case-images.css" asp-append-version="true" />
+    @* The Summary card is the photo link page's (v51 O; R948). *@
+    <link rel="stylesheet" href="~/css/photo-capture.css" asp-append-version="true" />
 }
 
 @section Scripts {
@@ -52,7 +54,7 @@
 
 <header class="page-header">
     <div class="page-title">
-        <p class="eyebrow">Image-initiated Case</p>
+        <p class="eyebrow">@OperatorLabels.PhotoCapture.VehicleImages</p>
         <h1>@Model.Detail.Record.ImageIntakeReference</h1>
     </div>
     <div class="page-actions">
@@ -69,7 +71,7 @@
 <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
 
 <article class="record image-record" data-image-record data-image-record-state="@Model.Detail.State">
-    <div class="ribbon" aria-label="Image-initiated Case">
+    <div class="ribbon" aria-label="@OperatorLabels.PhotoCapture.VehicleImagesRecord">
         <div class="ribbon-facts">
             <div class="ribbon-item ribbon-ref"><span class="ribbon-label">Image reference</span><span class="ribbon-value mono">@Model.Detail.Record.ImageIntakeReference</span></div>
             <div class="ribbon-item"><span class="ribbon-label">Registration</span><span class="ribbon-value mono">@Model.Detail.Record.NormalizedVehicleRegistration</span></div>
@@ -162,203 +164,228 @@
         {
             await EligibleCandidates();
         }
-        <div class="image-record-grid">
-            <section class="panel" aria-labelledby="image-intake-record-title">
-                <div class="panel-head"><h2 id="image-intake-record-title">Record</h2></div>
-                <dl class="fact-grid image-record-facts">
-                    <div class="fact"><dt>Source</dt><dd>@OperatorLabels.SourceChannel(Model.Detail.Record.Origin.SourceIdentity.Channel)</dd></div>
-                    @if (Model.SourceAsset is { } sourceAsset)
-                    {
-                        <div class="fact"><dt>Original file</dt><dd>@sourceAsset.FileName · @Record.CustodyLabel(sourceAsset.CustodyState)</dd></div>
-                    }
-                    <div class="fact">
-                        <dt>Case association</dt>
-                        <dd>
-                            @if (Model.Detail.AssociatedCaseId is { } caseId)
-                            {
-                                <a asp-page="/Cases/Details" asp-route-id="@caseId">@(Model.Detail.AssociatedCaseReference ?? caseId.ToString())</a>
+        @* The images first, beside one 320px Summary of the record, the photo
+           link and what they told us; the Principal is the ribbon's, edited in
+           the Summary (operator, 11 November 2026; v51 O; R948). *@
+        <div class="photo-link-layout">
+            <div class="stack">
+                @if (Model.Images.Count > 0)
+                {
+                    <section class="panel" aria-labelledby="image-initiated-images-title">
+                        <div class="panel-head">
+                            <h2 id="image-initiated-images-title">@OperatorLabels.PhotoCapture.Counted("Images", Model.Images.Count)</h2>
+                        </div>
+                        <div class="panel-section">
+                            @{
+                                var gallery = Model.Images
+                                    .Select(item =>
+                                    {
+                                        var href = item.AssetId is { } assetId
+                                            ? Url.Page("/Intake/Asset", new { id = item.ReceiptId, assetId, v = item.ContentHash })!
+                                            : Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
+                                        return new GalleryImage(
+                                            href,
+                                            href,
+                                            item.FileName,
+                                            item.MediaType,
+                                            IsStored: item.CustodyState == Pegasus.Core.Intake.IncomingArtifactCustodyState.Confirmed,
+                                            IntakeAssetId: item.AssetId,
+                                            IntakeReceiptId: item.ReceiptId,
+                                            Preparation: item.AssetId is { } preparationAssetId ? Model.Preparations.GetValueOrDefault(preparationAssetId) : null,
+                                            CustodyState: item.CustodyState,
+                                            ContentHash: item.ContentHash);
+                                    })
+                                    .ToArray();
+                                ViewData["PreCaseImageTags"] = Model.ImageTags;
                             }
-                            else
-                            {
-                                <text>None — @OperatorLabels.ImageIntakeLifecycleStateContinuation(Model.Detail.State)</text>
-                            }
-                        </dd>
-                    </div>
-                    @if (Model.Detail.State == ImageInitiatedCaseState.StaffClosed)
-                    {
-                        <div class="fact"><dt>Closure reason</dt><dd>@Model.Detail.ClosureReason</dd></div>
-                    }
-                </dl>
-            </section>
+                            <partial name="Shared/_ImageGallery" model="gallery" />
+                        </div>
+                    </section>
+                }
+                else
+                {
+                    <p class="muted">@OperatorLabels.PhotoCapture.NoImagesRecorded</p>
+                }
 
-            @if (Model.PhotoCaptures.Count > 0)
-            {
-                @* The photos came by photo link (FRD-28): who sent them and what they told us. *@
-                <section class="panel" aria-labelledby="image-intake-photo-link-title" data-image-photo-link>
-                    <div class="panel-head"><h2 id="image-intake-photo-link-title">@OperatorLabels.PhotoCapture.PhotoLink</h2></div>
-                    <div class="panel-section stack">
-                        @foreach (var story in Model.PhotoCaptures)
+                @if (!awaiting)
+                {
+                    await EligibleCandidates();
+                }
+
+                @if (Model.RetainedFiles.Count > 0)
+                {
+                    <section class="panel" aria-labelledby="image-intake-files-title" data-image-retained-files>
+                        <div class="panel-head"><h2 id="image-intake-files-title">Retained files</h2></div>
+                        <div class="panel-section stack">
+                            @foreach (var file in Model.RetainedFiles)
+                            {
+                                <p>
+                                    <strong>@(file.IsSource ? "Original file" : "Attached file")</strong> ·
+                                    @if (file.IsStored)
+                                    {
+                                        <a href="@file.Href" target="_blank" rel="noopener">@file.Asset.FileName</a>
+                                    }
+                                    else
+                                    {
+                                        <span>@file.Asset.FileName</span>
+                                    }
+                                    · @Record.CustodyLabel(file.Asset.CustodyState)
+                                </p>
+                            }
+                        </div>
+                    </section>
+                }
+
+                @if (Model.Suggestions.Count > 0)
+                {
+                    <section class="panel" aria-labelledby="image-intake-suggestions-title">
+                        <div class="panel-head"><h2 id="image-intake-suggestions-title">Registration reading</h2></div>
+                        <table class="table table--compact">
+                            <thead><tr><th scope="col">Read</th><th scope="col">Result</th><th scope="col">Decision</th></tr></thead>
+                            <tbody>
+                                @foreach (var suggestion in Model.Suggestions)
+                                {
+                                    <tr>
+                                        <td class="nowrap">@OperatorLabels.OfficeTime(suggestion.OccurredAtUtc)</td>
+                                        <td class="@(suggestion.Outcome == VrmRecognitionOutcomeKind.Suggested ? "mono" : null)">@Pegasus.Web.Pages.Unidentified.DetailsModel.ReadingLabel(suggestion)</td>
+                                        <td>@Pegasus.Web.Pages.Unidentified.DetailsModel.DispositionLabel(suggestion.Disposition)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </section>
+                }
+
+                @if (Model.History.Count > 0)
+                {
+                    <section class="panel" aria-labelledby="image-initiated-history-title">
+                        <div class="panel-head"><h2 id="image-initiated-history-title">History</h2></div>
+                        <div class="panel-section">
+                            <div class="timeline">
+                                @foreach (var entry in Model.History.OrderByDescending(history => history.OccurredAtUtc))
+                                {
+                                    <div class="timeline-item">
+                                        <div class="timeline-title">@OperatorLabels.HistoryEvent(entry.EventType)</div>
+                                        <div class="timeline-meta">@OperatorLabels.OfficeTime(entry.OccurredAtUtc) · @entry.Reason</div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </section>
+                }
+            </div>
+
+            <aside class="stack">
+                <section class="panel photo-link-summary" aria-labelledby="image-intake-summary-title" data-image-summary>
+                    <div class="panel-head">
+                        <h2 id="image-intake-summary-title">@OperatorLabels.PhotoCapture.Summary</h2>
+                        @if (Model.PhotoCaptureEnabled && Model.PhotoCaptures.Count == 1)
                         {
-                            var capture = story.Capture;
-                            <dl class="fact-grid image-record-facts">
-                                <div class="fact">
-                                    <dt>@OperatorLabels.PhotoCapture.From</dt>
-                                    <dd>@(story.OrganizationName ?? (capture.Origin == Pegasus.Core.PhotoCapture.PhotoCaptureOrigin.Website ? OperatorLabels.PhotoCapture.Website : null)) <small class="muted">@OperatorLabels.PhotoCapture.Source(capture.Origin)</small></dd>
+                            <a class="btn btn--small" asp-page="/PhotoCapture/Details" asp-route-id="@Model.PhotoCaptures[0].Capture.Id" data-image-photo-link>@OperatorLabels.PhotoCapture.PhotoLink</a>
+                        }
+                    </div>
+                    <dl class="photo-link-summary-list">
+                        @if (Model.PhotoCaptures.Count > 0)
+                        {
+                            @* The photos came by photo link (FRD-28): whose standing link, and the customer. *@
+                            @foreach (var story in Model.PhotoCaptures)
+                            {
+                                var capture = story.Capture;
+                                var linkName = story.OrganizationName ?? OperatorLabels.PhotoCapture.Website;
+                                var contacts = string.Join(" · ", new[] { capture.Mobile, capture.Email }.Where(value => !string.IsNullOrWhiteSpace(value)));
+                                <div>
+                                    <dt>@OperatorLabels.PhotoCapture.StandingLink</dt>
+                                    <dd>
+                                        @if (Model.PhotoCaptureEnabled && Model.PhotoCaptures.Count > 1)
+                                        {
+                                            <a asp-page="/PhotoCapture/Details" asp-route-id="@capture.Id">@linkName</a>
+                                        }
+                                        else
+                                        {
+                                            @linkName
+                                        }
+                                        <span class="photo-link-sub">@OperatorLabels.PhotoCapture.Source(capture.Origin)</span>
+                                    </dd>
                                 </div>
-                                <div class="fact"><dt>@OperatorLabels.PhotoCapture.Customer</dt><dd>@(capture.CustomerName ?? OperatorLabels.PhotoCapture.NotGiven)</dd></div>
-                                @if (capture.Mobile is { Length: > 0 } mobile)
-                                {
-                                    <div class="fact"><dt>@OperatorLabels.PhotoCapture.Mobile</dt><dd>@mobile</dd></div>
-                                }
-                                @if (capture.Email is { Length: > 0 } email)
-                                {
-                                    <div class="fact"><dt>@OperatorLabels.PhotoCapture.Email</dt><dd>@email</dd></div>
-                                }
+                                <div>
+                                    <dt>@OperatorLabels.PhotoCapture.Customer</dt>
+                                    <dd>
+                                        @if (capture.CustomerName is { Length: > 0 } customer)
+                                        {
+                                            @customer
+                                        }
+                                        else
+                                        {
+                                            <span class="muted">@OperatorLabels.PhotoCapture.NotGiven</span>
+                                        }
+                                        @if (contacts.Length > 0)
+                                        {
+                                            <span class="photo-link-sub">@contacts</span>
+                                        }
+                                    </dd>
+                                </div>
                                 @if (capture.IncidentDate is { } incidentDate)
                                 {
-                                    <div class="fact"><dt>@OperatorLabels.PhotoCapture.AccidentDate</dt><dd>@incidentDate.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</dd></div>
+                                    <div><dt>@OperatorLabels.PhotoCapture.Accident</dt><dd>@incidentDate.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</dd></div>
                                 }
-                                <div class="fact"><dt>@OperatorLabels.PhotoCapture.Photos</dt><dd>@if (Model.PhotoCaptureEnabled) { <a asp-page="/PhotoCapture/Details" asp-route-id="@capture.Id">@OperatorLabels.PhotoCapture.PhotoCount(capture.AcceptedItemCount, complete: true)</a> } else { @OperatorLabels.PhotoCapture.PhotoCount(capture.AcceptedItemCount, complete: true) }</dd></div>
-                            </dl>
-                            <partial name="Shared/_PhotoCaptureDetails" model="capture" />
+                            }
                         }
-                    </div>
+                        else
+                        {
+                            <div><dt>Source</dt><dd>@OperatorLabels.SourceChannel(Model.Detail.Record.Origin.SourceIdentity.Channel)</dd></div>
+                            @if (Model.SourceAsset is { } sourceAsset)
+                            {
+                                <div><dt>Original file</dt><dd>@sourceAsset.FileName · @Record.CustodyLabel(sourceAsset.CustodyState)</dd></div>
+                            }
+                        }
+                        <div>
+                            <dt>@OperatorLabels.PhotoCapture.Association</dt>
+                            <dd>
+                                @if (Model.Detail.AssociatedCaseId is { } caseId)
+                                {
+                                    <a asp-page="/Cases/Details" asp-route-id="@caseId">@(Model.Detail.AssociatedCaseReference ?? caseId.ToString())</a>
+                                }
+                                else
+                                {
+                                    <text>None — @OperatorLabels.ImageIntakeLifecycleStateContinuation(Model.Detail.State)</text>
+                                }
+                            </dd>
+                        </div>
+                        @if (Model.Detail.State == ImageInitiatedCaseState.StaffClosed)
+                        {
+                            <div><dt>Closure reason</dt><dd>@Model.Detail.ClosureReason</dd></div>
+                        }
+                        @if (Model.IsEditing)
+                        {
+                            <div>
+                                <dt><label for="image-intake-principal">@OperatorLabels.Principal</label></dt>
+                                <dd>
+                                    <form method="post" asp-page-handler="Principal" asp-route-id="@Model.Detail.Record.Id" class="cluster">
+                                        @* "Not known" is a real, selectable state, not a
+                                           placeholder: clearing a recorded principal is a
+                                           legitimate staff decision. *@
+                                        <select id="image-intake-principal" name="principalId">
+                                            <option value="" selected="@(Model.Detail.Record.PrincipalId is null ? "selected" : null)">@OperatorLabels.PrincipalNotKnown</option>
+                                            @foreach (var principal in Model.PrincipalOptions)
+                                            {
+                                                <option value="@principal.Id" selected="@(Model.Detail.Record.PrincipalId == principal.Id ? "selected" : null)">@principal.Code</option>
+                                            }
+                                        </select>
+                                        <input type="hidden" name="expectedVersion" value="@Model.Detail.LifecycleVersion" />
+                                        <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" />
+                                        <button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button>
+                                    </form>
+                                </dd>
+                            </div>
+                        }
+                    </dl>
+                    @foreach (var story in Model.PhotoCaptures)
+                    {
+                        <partial name="Shared/_PhotoCaptureDetails" model="story.Capture" />
+                    }
                 </section>
-            }
-
-            <section class="panel" aria-labelledby="image-intake-principal-title">
-                <div class="panel-head"><h2 id="image-intake-principal-title">@OperatorLabels.Principal</h2></div>
-                <div class="panel-section">
-                    @if (Model.IsEditing)
-                    {
-                        <form method="post" asp-page-handler="Principal" asp-route-id="@Model.Detail.Record.Id" class="stack">
-                            <div class="field">
-                                <label for="image-intake-principal">@OperatorLabels.Principal</label>
-                                @* "Not known" is a real, selectable state, not a
-                                   placeholder: clearing a recorded principal is a
-                                   legitimate staff decision. *@
-                                <select id="image-intake-principal" name="principalId">
-                                    <option value="" selected="@(Model.Detail.Record.PrincipalId is null ? "selected" : null)">@OperatorLabels.PrincipalNotKnown</option>
-                                    @foreach (var principal in Model.PrincipalOptions)
-                                    {
-                                        <option value="@principal.Id" selected="@(Model.Detail.Record.PrincipalId == principal.Id ? "selected" : null)">@principal.Code</option>
-                                    }
-                                </select>
-                            </div>
-                            <input type="hidden" name="expectedVersion" value="@Model.Detail.LifecycleVersion" />
-                            <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" />
-                            <div class="button-row"><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
-                        </form>
-                    }
-                    else
-                    {
-                        <p class="image-record-value">@(Model.Detail.PrincipalCode ?? OperatorLabels.PrincipalNotKnown)</p>
-                    }
-                </div>
-            </section>
+            </aside>
         </div>
-
-        @if (Model.RetainedFiles.Count > 0)
-        {
-            <section class="panel" aria-labelledby="image-intake-files-title" data-image-retained-files>
-                <div class="panel-head"><h2 id="image-intake-files-title">Retained files</h2></div>
-                <div class="panel-section stack">
-                    @foreach (var file in Model.RetainedFiles)
-                    {
-                        <p>
-                            <strong>@(file.IsSource ? "Original file" : "Attached file")</strong> ·
-                            @if (file.IsStored)
-                            {
-                                <a href="@file.Href" target="_blank" rel="noopener">@file.Asset.FileName</a>
-                            }
-                            else
-                            {
-                                <span>@file.Asset.FileName</span>
-                            }
-                            · @Record.CustodyLabel(file.Asset.CustodyState)
-                        </p>
-                    }
-                </div>
-            </section>
-        }
-
-        @if (Model.Suggestions.Count > 0)
-        {
-            <section class="panel" aria-labelledby="image-intake-suggestions-title">
-                <div class="panel-head"><h2 id="image-intake-suggestions-title">Registration reading</h2></div>
-                <table class="table table--compact">
-                    <thead><tr><th scope="col">Read</th><th scope="col">Result</th><th scope="col">Decision</th></tr></thead>
-                    <tbody>
-                        @foreach (var suggestion in Model.Suggestions)
-                        {
-                            <tr>
-                                <td class="nowrap">@OperatorLabels.OfficeTime(suggestion.OccurredAtUtc)</td>
-                                <td class="@(suggestion.Outcome == VrmRecognitionOutcomeKind.Suggested ? "mono" : null)">@Pegasus.Web.Pages.Unidentified.DetailsModel.ReadingLabel(suggestion)</td>
-                                <td>@Pegasus.Web.Pages.Unidentified.DetailsModel.DispositionLabel(suggestion.Disposition)</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </section>
-        }
-
-        @if (Model.Images.Count > 0)
-        {
-            <section class="panel" aria-labelledby="image-initiated-images-title">
-                <div class="panel-head">
-                    <h2 id="image-initiated-images-title">Images</h2>
-                    <span class="meta">@Model.Images.Count image@(Model.Images.Count == 1 ? string.Empty : "s")</span>
-                </div>
-                <div class="panel-section">
-                    @{
-                        var gallery = Model.Images
-                            .Select(item =>
-                            {
-                                var href = item.AssetId is { } assetId
-                                    ? Url.Page("/Intake/Asset", new { id = item.ReceiptId, assetId, v = item.ContentHash })!
-                                    : Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
-                                return new GalleryImage(
-                                    href,
-                                    href,
-                                    item.FileName,
-                                    item.MediaType,
-                                    IsStored: item.CustodyState == Pegasus.Core.Intake.IncomingArtifactCustodyState.Confirmed,
-                                    IntakeAssetId: item.AssetId,
-                                    IntakeReceiptId: item.ReceiptId,
-                                    Preparation: item.AssetId is { } preparationAssetId ? Model.Preparations.GetValueOrDefault(preparationAssetId) : null,
-                                    CustodyState: item.CustodyState,
-                                    ContentHash: item.ContentHash);
-                            })
-                            .ToArray();
-                        ViewData["PreCaseImageTags"] = Model.ImageTags;
-                    }
-                    <partial name="Shared/_ImageGallery" model="gallery" />
-                </div>
-            </section>
-        }
-
-        @if (!awaiting)
-        {
-            await EligibleCandidates();
-        }
-
-        @if (Model.History.Count > 0)
-        {
-            <section class="panel" aria-labelledby="image-initiated-history-title">
-                <div class="panel-head"><h2 id="image-initiated-history-title">History</h2></div>
-                <div class="panel-section">
-                    <div class="timeline">
-                        @foreach (var entry in Model.History.OrderByDescending(history => history.OccurredAtUtc))
-                        {
-                            <div class="timeline-item">
-                                <div class="timeline-title">@OperatorLabels.HistoryEvent(entry.EventType)</div>
-                                <div class="timeline-meta">@OperatorLabels.OfficeTime(entry.OccurredAtUtc) · @entry.Reason</div>
-                            </div>
-                        }
-                    </div>
-                </div>
-            </section>
-        }
     </div>
 </article>
 
@@ -367,7 +394,7 @@
     <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
     {
         ["DialogId"] = "image-intake-close-dialog",
-        ["DialogTitle"] = "Close Image-initiated Case",
+        ["DialogTitle"] = OperatorLabels.PhotoCapture.CloseVehicleImagesRecord,
         ["DialogConsequence"] = "Use only when formal instructions will not arrive; the record becomes read-only.",
         ["DialogActionUrl"] = Url.Page("/ImageIntake/Details", "Close", new { id = Model.Detail.Record.Id }),
         ["DialogHiddenFields"] = new Dictionary<string, string?>

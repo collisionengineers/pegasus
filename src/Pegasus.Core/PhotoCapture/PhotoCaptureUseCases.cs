@@ -838,12 +838,13 @@ public sealed class PhotoLinkActions(
     }
 
     /// <summary>
-    /// Resend: the one staff act that sends a link again, from Links we sent,
-    /// the link's page, the Case or, as Ask for it, Coming in. Resend and
-    /// Remind sent the same message, so they are one act (operator, 10
-    /// November 2026; R914): a Case link's resend counts as a reminder only
-    /// when one was due, and Ask for it on a capture not sent from a Case
-    /// always counts (R842).
+    /// Resend: the one staff act that sends a link again, from Direct links,
+    /// the link's page or the Case. Resend and Remind sent the same message,
+    /// so they are one act (operator, 10 November 2026; R914), and a resend
+    /// counts as a reminder only when one was due. Only a link HQ sent from a
+    /// Case is sent again: Ask for it, which minted a fresh link for a
+    /// standing or website capture, is retired (operator, 11 November 2026;
+    /// v51 Q; R948).
     /// </summary>
     public async Task<IssuedPhotoLink> ResendAsync(
         ActionActor actor,
@@ -855,8 +856,12 @@ public sealed class PhotoLinkActions(
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         var row = await queries.GetRowAsync(captureId, cancellationToken)
             ?? throw new KeyNotFoundException("The photo link was not found.");
-        var countsAsReminder = row.Capture.Origin != PhotoCaptureOrigin.CaseLink
-            || PhotoCaptureStatus.DueReminder(row, timeProvider.GetUtcNow()) is not null;
+        if (row.Capture.Origin != PhotoCaptureOrigin.CaseLink)
+        {
+            throw new KeyNotFoundException("Only a link sent from a Case is sent again.");
+        }
+
+        var countsAsReminder = PhotoCaptureStatus.DueReminder(row, timeProvider.GetUtcNow()) is not null;
         return await ReissueAsync(actor, captureId, purpose, countsAsReminder, operationKey, cancellationToken);
     }
 

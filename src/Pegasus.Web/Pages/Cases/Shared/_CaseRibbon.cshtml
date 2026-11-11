@@ -49,7 +49,7 @@
     // Send chaser is offered on any open Case (operator, 5 October 2026). It
     // navigates to the composer, so it needs no lease.
     var canSendChaser = Model.StaffMailAvailable && !isClosed && workflow.Archive is null;
-    // Send photo link opens its own page (FRD-28; R773) on the same open
+    // Send photo link opens its composer (FRD-28; R773; v51 M) on the same open
     // Cases as Send chaser; Copy link needs no mailbox, and it is absent
     // while photo capture is not composed.
     var canSendPhotoLink = !isClosed && workflow.Archive is null
@@ -376,7 +376,10 @@
                 }
                 @if (canSendPhotoLink)
                 {
-                    <a class="btn" asp-page="/PhotoCapture/Send" asp-route-caseId="@summary.CaseId" data-send-photo-link>
+                    @* Opens the composer as a dialog over the Case, and returns here
+                       with its notice (operator, 11 November 2026; v51 M; R948);
+                       without script it is the Send page. *@
+                    <a class="btn" asp-page="/PhotoCapture/Send" asp-route-caseId="@summary.CaseId" asp-route-returnUrl="@Pegasus.Core.Notifications.StaffNotificationPolicy.CaseRoute(summary.CaseId)" data-send-photo-link data-photo-link-composer>
                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-camera")" /></svg>
                         <span>@OperatorLabels.PhotoCapture.SendPhotoLink</span>
                     </a>

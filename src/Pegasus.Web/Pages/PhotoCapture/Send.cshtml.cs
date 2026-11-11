@@ -30,7 +30,10 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// (text) wording, edited or not, through <see cref="SendPhotoLinkText"/>
 /// (R918, R919), where a text provider is configured. The form's operation
 /// key issues one link: the form posted again issues, sends and texts
-/// nothing more.
+/// nothing more. The composer shows one channel at a time and opens as a
+/// dialog over the Case (<c>?handler=Composer</c>); opened from a page it
+/// returns to, a sent message or text goes back there with its notice
+/// (operator, 11 November 2026; v51 L, M; R948).
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -45,14 +48,8 @@ public sealed class SendModel(
     IOptions<PhotoCaptureOptions> options,
     TimeProvider timeProvider,
     Pegasus.Core.Workflow.ICaseWorkflowConfiguration workflowConfiguration,
-    ILogger<SendModel> logger) : PhotoCapturePageModel
+    ILogger<SendModel> logger) : PhotoLinkComposerPageModel
 {
-    public const string ByEmail = "email";
-    public const string ByText = "text";
-    public const string ToCopy = "copy";
-    public const string StandardWording = "standard";
-    public const string StandardTextWording = "standard-text";
-
     private readonly PhotoLinkMail _mail = new(staffMailSend, getCaseHeader, senders, renderTemplate, options);
 
     /// <summary>The Administrators' settings Send starts from (R813) and the lifetimes it offers (R817).</summary>
@@ -69,9 +66,6 @@ public sealed class SendModel(
 
     [BindProperty, Display(Name = Labels.AccidentDate)]
     public DateOnly? AccidentDate { get; set; }
-
-    [BindProperty, Display(Name = Labels.Mobile), StringLength(CaptureLimits.MobileLength)]
-    public string? Mobile { get; set; }
 
     [BindProperty, Display(Name = Labels.Email), StringLength(CaptureLimits.EmailLength)]
     public string? Email { get; set; }
@@ -92,50 +86,29 @@ public sealed class SendModel(
     [BindProperty]
     public bool OriginalsInBackground { get; set; } = true;
 
-    [BindProperty]
-    public Guid? FromMailboxId { get; set; }
-
-    [BindProperty, Display(Name = Labels.Subject), StringLength(998)]
-    public string? Subject { get; set; }
-
-    [BindProperty, Display(Name = Labels.Message), StringLength(EmailTemplates.MaximumBodyLength)]
-    public string? Body { get; set; }
-
-    /// <summary>The standard wording as the page last drew it, carried so a post knows whether staff edited the message.</summary>
-    [BindProperty]
-    public string? StandardBody { get; set; }
-
-    /// <summary>Whether staff edited the message: "Edited for this one only." (R806).</summary>
-    public bool BodyEdited => Body is not null && StandardBody is not null
-        && !string.Equals(Normalized(Body), Normalized(StandardBody), StringComparison.Ordinal);
-
-    [BindProperty, Display(Name = Labels.TextMessage), StringLength(SendPhotoLinkText.MaximumLength)]
-    public string? TextBody { get; set; }
-
-    /// <summary>The text's standard wording as the page last drew it (R919).</summary>
-    [BindProperty]
-    public string? StandardTextBody { get; set; }
-
-    /// <summary>Whether staff edited the text: "Edited for this one only." (R806, R919).</summary>
-    public bool TextBodyEdited => TextBody is not null && StandardTextBody is not null
-        && !string.Equals(Normalized(TextBody), Normalized(StandardTextBody), StringComparison.Ordinal);
-
-    [BindProperty]
-    public string OperationKey { get; set; } = NewOperationKey();
-
-    /// <summary>Which button sent the form: <see cref="ByEmail"/>, <see cref="ByText"/>, <see cref="ToCopy"/>, <see cref="StandardWording"/> or <see cref="StandardTextWording"/>.</summary>
-    [BindProperty]
-    public string? Submit { get; set; }
-
     public PhotoCaptureCaseFacts? Facts { get; private set; }
 
-    public CaseMailSenderOptions Senders { get; private set; } = CaseMailSenderOptions.None;
-
     /// <summary>Whether the link can go by e-mail here: a staff send and a mailbox that can send.</summary>
-    public bool CanEmail => _mail.Available && Senders.Mailboxes.Count > 0;
+    public override bool CanEmail => _mail.Available && Senders.Mailboxes.Count > 0;
 
     /// <summary>Whether the link can go by text here: a text provider is configured (R918).</summary>
-    public bool CanText => sendText.Available;
+    public override bool CanText => sendText.Available;
+
+    public override string ComposerTitle => Labels.SendAPhotoLink;
+
+    public override string? EyebrowReference => Facts?.Reference;
+
+    public override string EyebrowRegistration => Labels.Registration(Facts?.NormalizedRegistration);
+
+    public override string? EyebrowPrincipal => Facts?.PrincipalName;
+
+    public override string ComposerPage => "/PhotoCapture/Send";
+
+    public override IDictionary<string, string> ComposerRoute =>
+        new Dictionary<string, string>(StringComparer.Ordinal) { ["caseId"] = CaseId.ToString("D") };
+
+    /// <summary>Cancel returns to the Case.</summary>
+    protected override string DefaultBackHref => $"/Cases/{CaseId:D}";
 
     /// <summary>What the text provider answered for the text just sent; null when none was sent.</summary>
     public PhotoLinkTextOutcome? TextOutcome { get; private set; }
@@ -146,7 +119,21 @@ public sealed class SendModel(
 
     public StaffMailOperation? Operation { get; private set; }
 
-    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
+        await StartAsync(cancellationToken) ?? Page();
+
+    /// <summary>
+    /// The composer as a dialog over the Case (v51 M; R948), fetched when Send
+    /// photo link is pressed; its form posts to this page.
+    /// </summary>
+    public async Task<IActionResult> OnGetComposerAsync(CancellationToken cancellationToken)
+    {
+        InDialog = true;
+        return await StartAsync(cancellationToken) ?? Partial(ComposerDialog, this);
+    }
+
+    /// <summary>The form as Send opens it; null when it is drawn, else the answer instead.</summary>
+    private async Task<IActionResult?> StartAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
@@ -161,7 +148,7 @@ public sealed class SendModel(
         // A closed Case shows the refusal and no form (R847).
         if (Facts!.IsClosed)
         {
-            return Page();
+            return null;
         }
 
         var facts = Facts!;
@@ -184,7 +171,7 @@ public sealed class SendModel(
             return Forbid();
         }
 
-        return Page();
+        return null;
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
@@ -213,6 +200,8 @@ public sealed class SendModel(
         {
             return BadRequest();
         }
+
+        SetAsideOtherChannels();
 
         // Put the standard wording back, without script: the page returns with
         // the standard wording for what the form holds now.
@@ -379,6 +368,12 @@ public sealed class SendModel(
                     ? PhotoLinkMail.Complete(TextBody!, values, IssuedUrl)
                     : PhotoLinkMail.Complete(await _mail.RenderTextAsync(actor, values, cancellationToken), values, IssuedUrl);
                 TextOutcome = await sendText.ExecuteAsync(actor, capture.Id, Mobile, message, OperationKey, cancellationToken);
+                if (TextOutcome.Accepted && HasReturnUrl)
+                {
+                    // Opened from a page (the Case): back there with the notice (v51 M; R948).
+                    LeaveSentNotice(Labels.LinkTextedTo(capture.CustomerName));
+                    return LocalRedirect(BackHref);
+                }
             }
             catch (StaffAuthorizationException)
             {
@@ -415,6 +410,13 @@ public sealed class SendModel(
                     message,
                     OperationKey,
                     cancellationToken);
+                if (Operation.State == StaffMailState.Sent && HasReturnUrl)
+                {
+                    // Opened from a page (the Case): back there with the notice (v51 M; R948).
+                    LeaveSentNotice(Labels.LinkSentTo(capture.CustomerName));
+                    return LocalRedirect(BackHref);
+                }
+
                 if (Operation.State == StaffMailState.Failed)
                 {
                     Pegasus.Web.Pages.Mail.StaffMailSendLog.Refused(logger, Operation.Id, Operation.ApprovedMailboxId, Operation.FailureCode);
@@ -467,9 +469,6 @@ public sealed class SendModel(
             ModelState.Remove(nameof(StandardTextBody));
         }
     }
-
-    private static string Normalized(string text) =>
-        text.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
 
     private async Task<bool> LoadAsync(CancellationToken cancellationToken)
     {
