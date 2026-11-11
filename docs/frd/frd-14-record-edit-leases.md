@@ -113,10 +113,10 @@ edits the Audit
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#create-audit)).
 
 **System work keeps the session.** Automatic processing that changes the
-Case (custody confirmed or failed, filing, a vehicle lookup filling empty
+Case (custody confirmed or failed, filing, a Case video snapshot, a vehicle lookup filling empty
 fields, a mail correction or association raising a query, a flagged reply
 resolving one, an automatic mail link) advances the Case version and leaves the
-editor's lease standing (operator, 6 October 2026; filing, R727, R728). The holder's next change, sent with the version they loaded, lands. The
+editor's lease standing (operator, 6 October 2026; filing, R727, R728, R964). The holder's next change, sent with the version they loaded, lands. The
 one exception is a value the system filled: the Case save sends every field
 the page shows, so a field still showing what it held before a lookup filled
 it keeps the lookup's value, and a different value typed over it is refused

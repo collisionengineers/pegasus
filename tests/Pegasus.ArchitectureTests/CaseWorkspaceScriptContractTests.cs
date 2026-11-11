@@ -652,4 +652,38 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.Equal(2, Regex.Count(script, @"remember\(\);\r?\n\s*if \(stillTyping\((control|typed)\)\) \{\r?\n\s*return;"));
         Assert.Contains("ptlToggle.defaultChecked = ptlToggle.checked;", script, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Taking a snapshot of a Case video updates Files, notices, ribbon and Case
+    /// version in place while keeping the video viewer open at its playback
+    /// timestamp so several frames can be captured in one pass (operator,
+    /// 11 November 2026; R964).
+    /// </summary>
+    [Fact]
+    public void TakingAVideoSnapshotUpdatesFilesAndVersionWhileKeepingTheViewerOpen()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var applyStart = script.IndexOf("window.pegasusCaseWorkspaceApplySnapshot = function (html) {", StringComparison.Ordinal);
+        Assert.True(applyStart >= 0, "window.pegasusCaseWorkspaceApplySnapshot is missing from case-workspace.js.");
+        var applyEnd = script.IndexOf("\n    };", applyStart, StringComparison.Ordinal);
+        var apply = script[applyStart..applyEnd];
+        Assert.Contains("['[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '[data-case-aside]']", apply, StringComparison.Ordinal);
+        Assert.Contains("var nextFiles = parsed.getElementById('section-files');", apply, StringComparison.Ordinal);
+        Assert.Contains("if (activeTab) { openSubTab(nextFiles, activeTab); }", apply, StringComparison.Ordinal);
+        Assert.Contains("var version = form.querySelector('[name=\"expectedVersion\"], [name=\"expectedCaseVersion\"]');", apply, StringComparison.Ordinal);
+        Assert.Contains("if (incoming.getAttribute('data-case-editing') === 'true') { redrawWanted = true; }", apply, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-viewer-host", apply, StringComparison.Ordinal);
+
+        var snapshot = FunctionBody(script, "function snapshotVideo() {", "        ");
+        Assert.Contains("video.pause();", snapshot, StringComparison.Ordinal);
+        Assert.Contains("context2d.drawImage(video, 0, 0, canvas.width, canvas.height);", snapshot, StringComparison.Ordinal);
+        Assert.Contains("canvas.toBlob(function (blob) {", snapshot, StringComparison.Ordinal);
+        Assert.Contains("body.set('videoOccurrenceId', item.occurrenceId);", snapshot, StringComparison.Ordinal);
+        Assert.Contains("body.set('timestampMs', String(timestampMs));", snapshot, StringComparison.Ordinal);
+        Assert.Contains("body.set('operationKey', snapshotBaseKey + '-' + snapshotSequence);", snapshot, StringComparison.Ordinal);
+        Assert.Contains("done = window.pegasusCaseWorkspaceApplySnapshot(html);", snapshot, StringComparison.Ordinal);
+        Assert.Contains("[data-evidence-occurrence=\"' + item.occurrenceId + '\"]'", snapshot, StringComparison.Ordinal);
+    }
 }

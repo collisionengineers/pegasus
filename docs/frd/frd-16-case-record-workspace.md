@@ -951,7 +951,18 @@ Review-state or Report sent Case shows Crop. Images open
 in a full-screen viewer (title, tag, position, Rotate, Zoom, Download, Pop
 out, In report while editing, which is the tile's own In report, and a
 filmstrip). Crop happens on the viewer stage. Opening a document brings the
-viewer into view. A crop is a stored rectangle: the tile and the report show
+viewer into view. When a confirmed MP4 or MOV video is open in the viewer on an
+open (non-closed, non-archived) Standard or Audit Case, the viewer toolbar
+offers **Take snapshot** (`icon-aperture`) in or out of Edit mode without
+waiting on or ending any live edit lease
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); pressing it captures
+the current video frame at its intrinsic resolution, files it in Box as a JPEG
+`Image` (`InReport = true` by default, named
+`{video-stem}-frame-{mm}m{ss}s.jpg` with `{ms}ms` and `" (2)"` disambiguation up
+to 120 characters), updates Files and Case readiness in place while keeping the
+video open at its playback timestamp, and shows `"Snapshot added to Images."` or
+`"The video snapshot could not be saved."` (operator, 11 November 2026,
+[R964](../rulings.md)). A crop is a stored rectangle: the tile and the report show
 the cropped region and Download returns the original.
 
 **Pop out** (operator, 9 October 2026) opens the Case's images in their own
@@ -960,7 +971,7 @@ Case is worked on: the Files head offers it once one image can be read, and
 the viewer's Pop out opens the window on the image in view and closes the
 viewer here. The window is the read-mode Images tab under the same viewer
 (Rotate, Zoom, Download, the filmstrip); it holds no edit lease and posts
-nothing, so it offers no Crop, Tag or In report, and opening it does not end
+nothing, so it offers no Crop, Tag, In report or Take snapshot, and opening it does not end
 an edit session on the Case page ([FRD-14](frd-14-record-edit-leases.md)).
 One window per Case: Pop out pressed again brings it forward on the chosen
 image. An image added to the Case appears in the window when it is reloaded.

@@ -15,8 +15,10 @@ namespace Pegasus.Web.Pages.Cases;
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
+[RequestSizeLimit(VideoSnapshotPolicy.MaximumSnapshotBytes + 64 * 1024)]
 public sealed class CustodyModel(
     ILogicallyRemoveDocument logicallyRemoveDocument,
+    ISnapshotCaseVideo snapshotCaseVideo,
     MarkAsOriginalReport markAsOriginalReport,
     ISetDocumentType setDocumentType,
     ITagCaseImage tagCaseImage,
@@ -266,6 +268,75 @@ public sealed class CustodyModel(
             LogCaseCommandFailed(logger, id, "create_image_tag", exception);
             PreserveLeaseState(id, editLeaseToken);
             TempData["CaseError"] = CaseWorkspaceLabels.ImageTags.NotCreated;
+        }
+
+        return RedirectToDetailsFilesImages(id);
+    }
+
+    /// <summary>
+    /// Files a still JPEG or PNG frame captured from a Case video onto the
+    /// Case's Images set without requiring or breaking an edit lease (R964).
+    /// </summary>
+    public async Task<IActionResult> OnPostSnapshotVideoAsync(
+        Guid id,
+        Guid videoOccurrenceId,
+        long timestampMs,
+        string operationKey,
+        IFormFile? snapshot,
+        string? editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (snapshot is null
+            || snapshot.Length <= 0
+            || snapshot.Length > VideoSnapshotPolicy.MaximumSnapshotBytes)
+        {
+            PreserveLeaseState(id, editLeaseToken);
+            TempData["CaseError"] = CaseWorkspaceLabels.Viewer.SnapshotFailed;
+            return RedirectToDetailsFilesImages(id);
+        }
+
+        try
+        {
+            using var buffer = new MemoryStream(
+                (int)Math.Min(snapshot.Length, 16 * 1024 * 1024));
+            await using (var stream = snapshot.OpenReadStream())
+            {
+                await stream.CopyToAsync(buffer, cancellationToken);
+            }
+            if (buffer.Length <= 0 || buffer.Length > VideoSnapshotPolicy.MaximumSnapshotBytes)
+            {
+                PreserveLeaseState(id, editLeaseToken);
+                TempData["CaseError"] = CaseWorkspaceLabels.Viewer.SnapshotFailed;
+                return RedirectToDetailsFilesImages(id);
+            }
+
+            await snapshotCaseVideo.ExecuteAsync(
+                new(
+                    id,
+                    videoOccurrenceId,
+                    timestampMs,
+                    snapshot.ContentType ?? string.Empty,
+                    new ReadOnlyMemory<byte>(buffer.GetBuffer(), 0, (int)buffer.Length),
+                    actor,
+                    operationKey),
+                cancellationToken);
+            PreserveLeaseState(id, editLeaseToken);
+            TempData["CaseStatus"] = CaseWorkspaceLabels.Viewer.SnapshotAdded;
+        }
+        catch (StaffAuthorizationException)
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "snapshot_case_video", exception);
+            PreserveLeaseState(id, editLeaseToken);
+            TempData["CaseError"] = CaseWorkspaceLabels.Viewer.SnapshotFailed;
         }
 
         return RedirectToDetailsFilesImages(id);

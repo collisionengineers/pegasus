@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -21,6 +22,7 @@ internal sealed class EfDocumentCustodyStore(
     IMemoryCache cache,
     IDocumentContentCachePublisher? cachePublisher = null) :
     IAddCaseDocument,
+    ISnapshotCaseVideo,
     IDownloadCaseDocument,
     IGetCaseDocumentMetadata,
     IOpenCaseDocumentBatch,
@@ -44,6 +46,7 @@ internal sealed class EfDocumentCustodyStore(
     /// <summary>The history words for putting an image in the report or taking it out.</summary>
     internal const string ImageInReportEventKind = "case_image_in_report";
     internal const string ImageOutOfReportEventKind = "case_image_out_of_report";
+    internal const string ImagesCompletedFromAddedImageEventKind = "case_images_completed_from_added_image";
 
     public async Task<AddCaseDocumentResult> ExecuteAsync(
         AddCaseDocumentCommand command,
@@ -54,6 +57,7 @@ internal sealed class EfDocumentCustodyStore(
 
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, command.CaseId, cancellationToken);
 
         var replayOccurrence = await context.Set<DocumentOccurrenceEntity>()
             .SingleOrDefaultAsync(
@@ -81,52 +85,28 @@ internal sealed class EfDocumentCustodyStore(
             context, contentStore, workflow, command, contentHash, now, cancellationToken);
         try
         {
+            var beforeVersion = workflow.Version;
             CaseMutationGuard.Complete(workflow);
+            if (command.SemanticRole == DocumentSemanticRole.Image)
+            {
+                await CompleteAddedImageIfNeededAsync(
+                    context,
+                    workflow,
+                    command.Actor,
+                    command.OperationKey.Trim(),
+                    "Confirmed image addition completed the Case's images.",
+                    beforeVersion,
+                    now,
+                    writeHistory: true,
+                    cancellationToken);
+            }
             await context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
         catch (Exception exception)
         {
-            Exception? rollbackFailure = null;
-            try
-            {
-                await transaction.RollbackAsync(CancellationToken.None);
-            }
-            catch (Exception caught)
-            {
-                rollbackFailure = caught;
-            }
-
-            try
-            {
-                if (pending.ContentWrite.Disposition == DocumentContentWriteDisposition.Created)
-                {
-                    await DocumentContentRollback.RemoveOrphanAsync(
-                        dbContextFactory,
-                        contentStore,
-                        command.CaseId,
-                        workflow.Case.Reference,
-                        pending.Version.Id,
-                        exception);
-                }
-            }
-            catch (Exception cleanupFailure) when (rollbackFailure is not null)
-            {
-                throw new AggregateException(
-                    "The document database write failed, its rollback could not be confirmed, and custody cleanup did not complete.",
-                    exception,
-                    rollbackFailure,
-                    cleanupFailure);
-            }
-
-            if (rollbackFailure is not null)
-            {
-                throw new AggregateException(
-                    "The document database transaction failed and its rollback could not be confirmed.",
-                    exception,
-                    rollbackFailure);
-            }
-
+            await RollbackFailedAddAsync(
+                transaction, command.CaseId, workflow.Case.Reference, pending, exception);
             throw;
         }
 
@@ -134,6 +114,225 @@ internal sealed class EfDocumentCustodyStore(
         // last, outside the catch above, so it can never undo the add.
         await PublishAddedAsync(cachePublisher, pending, command.Content, cancellationToken);
         return pending.Result with { IsReplay = false };
+    }
+
+    async Task<AddCaseDocumentResult> ISnapshotCaseVideo.ExecuteAsync(
+        SnapshotCaseVideoCommand command,
+        CancellationToken cancellationToken)
+    {
+        VideoSnapshotPolicy.Validate(command);
+        var mediaType = VideoSnapshotPolicy.NormalizeImageMediaType(command.MediaType);
+        var operationKey = command.OperationKey.Trim();
+        var sourceOccurrenceIdentity = VideoSnapshotPolicy.SourceOccurrenceIdentityFor(
+            command.VideoOccurrenceId,
+            command.TimestampMs,
+            operationKey);
+        var contentHash = ComputeSha256(command.Content.Span);
+
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, command.CaseId, cancellationToken);
+
+        var replayOccurrence = await context.Set<DocumentOccurrenceEntity>()
+            .SingleOrDefaultAsync(
+                occurrence => occurrence.CaseId == command.CaseId
+                    && occurrence.OperationKey == operationKey,
+                cancellationToken);
+        if (replayOccurrence is not null)
+        {
+            var replayVersion = await context.Set<DocumentVersionEntity>()
+                .SingleAsync(version => version.Id == replayOccurrence.VersionId, cancellationToken);
+            var filedRole = await FiledRoleAsync(context, replayOccurrence, cancellationToken);
+            if (filedRole != DocumentSemanticRole.Image
+                || replayOccurrence.Source != DocumentSource.StaffUpload
+                || !string.Equals(replayOccurrence.SourceOccurrenceIdentity, sourceOccurrenceIdentity, StringComparison.Ordinal)
+                || !string.Equals(replayVersion.MediaType, mediaType, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(replayVersion.Sha256, contentHash, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "The document operation key was reused with different content or metadata.");
+            }
+
+            return new(ToOccurrence(replayOccurrence), ToVersion(replayVersion), true);
+        }
+
+        var workflow = await RequireWorkflowAsync(context, command.CaseId, cancellationToken);
+        // Case filing neither waits on nor breaks a live edit lease (R727, R964).
+        CaseMutationGuard.RequireOpen(workflow, command.Actor);
+
+        var sourceVideo = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == command.CaseId
+                    && occurrence.Id == command.VideoOccurrenceId
+                    && version.DocumentId == occurrence.DocumentId
+                    && version.IsCurrent
+                    && !version.IsLogicallyRemoved
+                    && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                select new { version.FileName, version.MediaType })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (sourceVideo is null || !VideoSnapshotPolicy.IsSupportedVideoMediaType(sourceVideo.MediaType))
+        {
+            throw new InvalidOperationException("The source video is unavailable.");
+        }
+
+        var existingFileNames = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == command.CaseId
+                    && version.IsCurrent
+                    && !version.IsLogicallyRemoved
+                select version.FileName)
+            .ToListAsync(cancellationToken);
+        var fileName = VideoSnapshotPolicy.FileNameFor(
+            sourceVideo.FileName,
+            command.TimestampMs,
+            mediaType,
+            existingFileNames);
+        var now = timeProvider.GetUtcNow();
+        var addCommand = new AddCaseDocumentCommand(
+            command.CaseId,
+            fileName,
+            mediaType,
+            command.Content,
+            DocumentSemanticRole.Image,
+            DocumentSource.StaffUpload,
+            sourceOccurrenceIdentity,
+            command.Actor,
+            operationKey,
+            workflow.Version,
+            string.Empty);
+        var pending = await PrepareAddAsync(
+            context, contentStore, workflow, addCommand, contentHash, now, cancellationToken);
+        try
+        {
+            var beforeVersion = workflow.Version;
+            CaseMutationGuard.Advance(workflow);
+            await CompleteAddedImageIfNeededAsync(
+                context,
+                workflow,
+                command.Actor,
+                operationKey,
+                $"Snapshot from {sourceVideo.FileName} completed the Case's images.",
+                beforeVersion,
+                now,
+                writeHistory: true,
+                cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            await RollbackFailedAddAsync(
+                transaction, command.CaseId, workflow.Case.Reference, pending, exception);
+            throw;
+        }
+
+        await PublishAddedAsync(cachePublisher, pending, command.Content, cancellationToken);
+        return pending.Result with { IsReplay = false };
+    }
+
+    private async Task RollbackFailedAddAsync(
+        IDbContextTransaction transaction,
+        Guid caseId,
+        string caseReference,
+        PendingDocumentAdd pending,
+        Exception exception)
+    {
+        Exception? rollbackFailure = null;
+        try
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+        }
+        catch (Exception caught)
+        {
+            rollbackFailure = caught;
+        }
+
+        try
+        {
+            if (pending.ContentWrite.Disposition == DocumentContentWriteDisposition.Created)
+            {
+                await DocumentContentRollback.RemoveOrphanAsync(
+                    dbContextFactory,
+                    contentStore,
+                    caseId,
+                    caseReference,
+                    pending.Version.Id,
+                    exception);
+            }
+        }
+        catch (Exception cleanupFailure) when (rollbackFailure is not null)
+        {
+            throw new AggregateException(
+                "The document database write failed, its rollback could not be confirmed, and custody cleanup did not complete.",
+                exception,
+                rollbackFailure,
+                cleanupFailure);
+        }
+
+        if (rollbackFailure is not null)
+        {
+            throw new AggregateException(
+                "The document database transaction failed and its rollback could not be confirmed.",
+                exception,
+                rollbackFailure);
+        }
+    }
+
+    /// <summary>
+    /// Marks the Case's images complete once a confirmed JPEG or PNG image is
+    /// added or retyped on the Case, re-evaluating readiness when a Case data
+    /// snapshot is present so an eligible Not ready Case moves to Review (FRD-05, R964).
+    /// </summary>
+    private static async Task CompleteAddedImageIfNeededAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        ActionActor actor,
+        string operationKey,
+        string reason,
+        long beforeVersion,
+        DateTimeOffset now,
+        bool writeHistory,
+        CancellationToken cancellationToken)
+    {
+        if (workflow.Case.ImagesComplete)
+        {
+            return;
+        }
+
+        var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: true)
+            .SingleOrDefaultAsync(item => item.WorkId == workflow.CaseId, cancellationToken);
+        if (snapshot is null)
+        {
+            workflow.Case.ImagesComplete = true;
+            return;
+        }
+
+        var (before, after, evaluation) = await EfCaseArtifactCustody.CompleteCaseImagesAsync(
+            context, workflow, now, cancellationToken);
+        if (!writeHistory)
+        {
+            return;
+        }
+
+        var historyKey = $"images-complete:{CaseOperationReplay.Hash(operationKey)[..32]}";
+        CaseMutationHistory.Add(
+            context,
+            workflow,
+            actor,
+            historyKey,
+            reason,
+            ImagesCompletedFromAddedImageEventKind,
+            CaseOperationReplay.Hash(historyKey),
+            beforeVersion,
+            workflow.Version,
+            JsonSerializer.Serialize(before),
+            JsonSerializer.Serialize(after),
+            $"{evaluation.PolicyKey}/v{evaluation.PolicyVersion}",
+            now);
     }
     async Task<CaseDocumentMetadata?> IGetCaseDocumentMetadata.ExecuteAsync(
         GetCaseDocumentMetadataQuery query,
@@ -815,6 +1014,20 @@ internal sealed class EfDocumentCustodyStore(
         var beforeVersion = workflow.Version;
         var beforeRole = occurrence.SemanticRole;
         occurrence.SemanticRole = command.NewRole;
+        if (command.NewRole == DocumentSemanticRole.Image
+            && version.CustodyStatus == DocumentCustodyStatus.Confirmed)
+        {
+            await CompleteAddedImageIfNeededAsync(
+                context,
+                workflow,
+                command.Actor,
+                operationKey,
+                reason,
+                beforeVersion,
+                now,
+                writeHistory: false,
+                cancellationToken);
+        }
         CaseMutationGuard.Complete(workflow);
         CaseMutationHistory.Add(
             context,
@@ -1477,6 +1690,11 @@ internal sealed class EfDocumentCustodyStore(
         if (command.Content.IsEmpty)
         {
             throw new ArgumentException("Document content is required.", nameof(command));
+        }
+        if (command.SemanticRole == DocumentSemanticRole.Image
+            && !IsSupportedImageMediaType(command.MediaType.Trim()))
+        {
+            throw new InvalidOperationException("Only a JPEG or PNG file may have the Image type.");
         }
     }
 
