@@ -28,7 +28,9 @@ namespace Pegasus.Web.Pages.PhotoCapture;
 /// photo link." and no form (operator, 10 November 2026; R847).
 /// <b>Send by text</b> issues it and texts the form's mobile the Photo link
 /// (text) wording, edited or not, through <see cref="SendPhotoLinkText"/>
-/// (R918, R919), where a text provider is configured.
+/// (R918, R919), where a text provider is configured. The form's operation
+/// key issues one link: the form posted again issues, sends and texts
+/// nothing more.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -329,7 +331,8 @@ public sealed class SendModel(
                     Days,
                     byEmail ? PhotoLinkTokenPurpose.Email
                         : byText ? PhotoLinkTokenPurpose.Text
-                        : PhotoLinkTokenPurpose.Copy),
+                        : PhotoLinkTokenPurpose.Copy,
+                    OperationKey),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -340,6 +343,21 @@ public sealed class SendModel(
         {
             ModelState.AddModelError(string.Empty, refusal.Message);
             return Page();
+        }
+
+        // The form posted again (a refresh, or Back and send) made nothing:
+        // its link was shown to the first post only. A text is refused as a
+        // repeated text post is (FRD-28 The photo link text); otherwise the
+        // link's own page shows the link as it is.
+        if (issued.Replayed)
+        {
+            if (byText)
+            {
+                ModelState.AddModelError(string.Empty, SendPhotoLinkText.AlreadySent);
+                return Page();
+            }
+
+            return RedirectToPage("/PhotoCapture/Details", new { id = issued.Capture.Id });
         }
 
         Issued = issued.Capture;

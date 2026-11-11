@@ -35,6 +35,31 @@ public sealed class EfPhotoCaptureStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(tokenDigest);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        var entity = await AddCaptureAsync(context, capture, tokenDigest, tokenPurpose, cancellationToken);
+        if (sessionTokenDigest is not null)
+        {
+            context.PhotoCaptureTokens.Add(new()
+            {
+                TokenDigest = sessionTokenDigest,
+                CaptureId = entity.Id,
+                Purpose = PhotoCaptureCodes.ToCode(PhotoLinkTokenPurpose.Session),
+                IssuedAtUtc = capture.CreatedAtUtc,
+                IssuedByStaffId = capture.IssuedByStaffId
+            });
+        }
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(entity);
+    }
+
+    /// <summary>The capture row and its first token, added to the context, unsaved.</summary>
+    private static async Task<PhotoCaptureEntity> AddCaptureAsync(
+        PegasusDbContext context,
+        NewPhotoCapture capture,
+        string tokenDigest,
+        PhotoLinkTokenPurpose tokenPurpose,
+        CancellationToken cancellationToken)
+    {
         string? caseReference = null;
         if (capture.CaseId is { } caseId)
         {
@@ -79,20 +104,7 @@ public sealed class EfPhotoCaptureStore(
             IssuedAtUtc = capture.CreatedAtUtc,
             IssuedByStaffId = capture.IssuedByStaffId
         });
-        if (sessionTokenDigest is not null)
-        {
-            context.PhotoCaptureTokens.Add(new()
-            {
-                TokenDigest = sessionTokenDigest,
-                CaptureId = entity.Id,
-                Purpose = PhotoCaptureCodes.ToCode(PhotoLinkTokenPurpose.Session),
-                IssuedAtUtc = capture.CreatedAtUtc,
-                IssuedByStaffId = capture.IssuedByStaffId
-            });
-        }
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return Map(entity);
+        return entity;
     }
 
     public async Task<PhotoCapture?> GetAsync(Guid captureId, CancellationToken cancellationToken)
@@ -152,6 +164,120 @@ public sealed class EfPhotoCaptureStore(
             IssuedByStaffId = issuedByStaffId
         });
         await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<(PhotoCapture Capture, bool Issued)> IssueAsync(
+        NewPhotoCapture capture,
+        string tokenDigest,
+        PhotoLinkTokenPurpose tokenPurpose,
+        Pegasus.Core.Identity.ActionActor actor,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tokenDigest);
+        var key = IssueKey(operationKey);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        if (await IssuedUnderAsync(context, key, cancellationToken) is { } issuedCaptureId)
+        {
+            var issued = await context.PhotoCaptures.AsNoTracking()
+                .SingleAsync(item => item.Id == issuedCaptureId, cancellationToken);
+            if (issued.CaseId != capture.CaseId)
+            {
+                throw new InvalidOperationException("The operation key was already used for a different photo link.");
+            }
+
+            return (Map(issued), false);
+        }
+
+        var entity = await AddCaptureAsync(context, capture, tokenDigest, tokenPurpose, cancellationToken);
+        context.ActionHistory.Add(DocumentActionHistory.Succeeded(
+            HistoryAggregateType, entity.Id.ToString("D"), PhotoLinkActs.Issued, actor, capture.CreatedAtUtc, key));
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return (Map(entity), true);
+    }
+
+    public async Task<bool> ReissueAsync(
+        Guid captureId,
+        string tokenDigest,
+        PhotoLinkTokenPurpose purpose,
+        Pegasus.Core.Identity.ActionActor actor,
+        string operationKey,
+        DateTimeOffset issuedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tokenDigest);
+        var key = IssueKey(operationKey);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        if (await IssuedUnderAsync(context, key, cancellationToken) is { } issuedCaptureId)
+        {
+            if (issuedCaptureId != captureId)
+            {
+                throw new InvalidOperationException("The operation key was already used for a different photo link.");
+            }
+
+            return false;
+        }
+
+        context.PhotoCaptureTokens.Add(new()
+        {
+            TokenDigest = tokenDigest,
+            CaptureId = captureId,
+            Purpose = PhotoCaptureCodes.ToCode(purpose),
+            IssuedAtUtc = issuedAtUtc,
+            IssuedByStaffId = Guid.TryParse(actor.SubjectId, out var staffId) ? staffId : null
+        });
+        context.ActionHistory.Add(DocumentActionHistory.Succeeded(
+            HistoryAggregateType, captureId.ToString("D"), PhotoLinkActs.Issued, actor, issuedAtUtc, key));
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// The correlation a staff issue is recorded under: the form's key with
+    /// its own suffix, apart from the form's other acts under the same key (a
+    /// Resend's reminder, a text's acts).
+    /// </summary>
+    private static string IssueKey(string operationKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        return operationKey.Trim() + ":link";
+    }
+
+    /// <summary>
+    /// The capture an issue under <paramref name="key"/> made, null when none
+    /// did. The key's range is held <c>UPDLOCK, HOLDLOCK</c> as the
+    /// transaction's first statement (ADR-0074), so a second post with the
+    /// key waits for the first to commit and then finds its act. One recorded
+    /// for anything but an issue is refused.
+    /// </summary>
+    private static async Task<Guid?> IssuedUnderAsync(PegasusDbContext context, string key, CancellationToken cancellationToken)
+    {
+        await context.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [ActionHistory] WITH (UPDLOCK, HOLDLOCK) WHERE [AggregateType] = {HistoryAggregateType} AND [CorrelationId] = {key}",
+            cancellationToken);
+        var recorded = await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == HistoryAggregateType && item.CorrelationId == key)
+            .Select(item => new { item.AggregateId, item.EventKind })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (recorded is null)
+        {
+            return null;
+        }
+
+        if (!string.Equals(recorded.EventKind, PhotoLinkActs.Issued, StringComparison.Ordinal)
+            || !Guid.TryParse(recorded.AggregateId, out var captureId))
+        {
+            throw new InvalidOperationException("The operation key was already used for a different photo link action.");
+        }
+
+        return captureId;
     }
 
     public async Task<bool> IsHandedOnAsync(Guid captureId, CancellationToken cancellationToken)
@@ -335,7 +461,12 @@ public sealed class EfPhotoCaptureStore(
                 // A retry of an upload that never reached intake, whose batch
                 // has settled since: it joins the open batch, declaring the
                 // capture's Case as it is now. One that did reach intake keeps
-                // its batch, so its retry finds the receipt it staged.
+                // its batch: intake knows its receipt by the member token that
+                // names the batch and ordinal, so a move would stage the photo
+                // twice. Its receipt is recorded before the batch can close
+                // (the close and the receipt's evaluation adopt it,
+                // EfPhotoCaptureItemProcessing.ReceiveAsync), so its retry
+                // finds the receipt it staged in the batch that holds it.
                 existing.Batch = openBatch;
                 existing.Ordinal = await NextOrdinalAsync(context, item.CaptureId, openBatch, cancellationToken);
                 existing.DeclaredCaseId = current.DeclaredCaseId;
@@ -453,7 +584,20 @@ public sealed class EfPhotoCaptureStore(
         };
     }
 
-    public async Task RecordItemReceiptAsync(
+    /// <summary>
+    /// Records the receipt an item's upload became, retried whole on a lost
+    /// race: the item counts its receipt once however often this runs
+    /// (<see cref="EfPhotoCaptureItemProcessing.ReceiveAsync"/>).
+    /// </summary>
+    public Task RecordItemReceiptAsync(
+        Guid itemId,
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(
+            token => RecordItemReceiptOnceAsync(itemId, stagedReceiptId, token),
+            cancellationToken);
+
+    private async Task RecordItemReceiptOnceAsync(
         Guid itemId,
         Guid stagedReceiptId,
         CancellationToken cancellationToken)
@@ -471,40 +615,9 @@ public sealed class EfPhotoCaptureStore(
         var item = await context.PhotoCaptureItems
             .SingleOrDefaultAsync(value => value.Id == itemId, cancellationToken)
             ?? throw new KeyNotFoundException("The photo link item was not found.");
-        if (item.StagedReceiptId is null)
-        {
-            // The item is received now: the capture's accepted count, bytes
-            // and item times move with the receipt, not the row.
-            await context.Database.ExecuteSqlAsync(
-                $"SELECT 1 FROM [PhotoCaptures] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {item.CaptureId}",
-                cancellationToken);
-            var capture = await context.PhotoCaptures
-                .SingleOrDefaultAsync(value => value.Id == item.CaptureId, cancellationToken)
-                ?? throw new KeyNotFoundException("The photo link was not found.");
-            capture.AcceptedItemCount++;
-            capture.AcceptedBytes += item.ContentLength;
-            capture.FirstItemAtUtc ??= item.ReceivedAtUtc;
-            if (capture.LastItemAtUtc is null || capture.LastItemAtUtc < item.ReceivedAtUtc)
-            {
-                capture.LastItemAtUtc = item.ReceivedAtUtc;
-            }
-
-            capture.Version++;
-        }
-
-        item.StagedReceiptId = stagedReceiptId;
+        await EfPhotoCaptureItemProcessing.ReceiveAsync(context, item, stagedReceiptId, cancellationToken);
+        await EfPhotoCaptureItemProcessing.RecordProcessedAsync(context, item, stagedReceiptId, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
-        var processedReceiptId = await context.IntakeWorkItems.AsNoTracking()
-            .Where(work => work.StagedReceiptId == stagedReceiptId)
-            .Select(work => work.ProcessedReceiptId)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (processedReceiptId is { } processed && item.IntakeReceiptId is null)
-        {
-            item.IntakeReceiptId = processed;
-            item.IntakeAssetId = await EfPhotoCaptureItemProcessing.SourceAssetIdAsync(context, processed, cancellationToken);
-            await context.SaveChangesAsync(cancellationToken);
-        }
-
         await transaction.CommitAsync(cancellationToken);
     }
 
@@ -646,6 +759,7 @@ public sealed class EfPhotoCaptureStore(
             throw new InvalidOperationException("Only the capture's open batch can close.");
         }
 
+        await AdoptStagedReceiptsAsync(context, captureId, batch, cancellationToken);
         var filings = await BatchFilingsAsync(context, captureId, batch, request.CaseId, cancellationToken);
         var inFlightSince = request.NowUtc - SettlePhotoCaptures.UploadInFlightGrace;
         var waiting = await context.PhotoCaptureItems.AsNoTracking().AnyAsync(
@@ -723,6 +837,55 @@ public sealed class EfPhotoCaptureStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(PhotoCaptureBatchClose.Closed, Map(capture), members);
+    }
+
+    /// <summary>
+    /// Under the capture's lock, records the receipt of each item of the
+    /// batch whose upload intake staged but whose item never recorded it: its
+    /// request failed after the staging, and its phone has not retried or
+    /// will retry only after the close. Adopted, it holds the batch as any
+    /// received item does, so the batch never closes without it (FRD-28). No
+    /// work item's lock is taken here, so the lock order stays the work
+    /// item's, then the capture's. Most batches have no such item, and this
+    /// is one read of the batch's unrecorded rows.
+    /// </summary>
+    private static async Task AdoptStagedReceiptsAsync(
+        PegasusDbContext context,
+        Guid captureId,
+        int batch,
+        CancellationToken cancellationToken)
+    {
+        var unrecorded = await context.PhotoCaptureItems
+            .Where(item => item.CaptureId == captureId && item.Batch == batch && item.StagedReceiptId == null)
+            .ToListAsync(cancellationToken);
+        if (unrecorded.Count == 0)
+        {
+            return;
+        }
+
+        var byToken = unrecorded.ToDictionary(
+            item => PhotoCaptureIntakeRules.MemberToken(captureId, batch, item.Ordinal),
+            StringComparer.Ordinal);
+        var channel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.PhotoCapture);
+        var tokens = byToken.Keys.ToArray();
+        var staged = await context.IntakeStagedReceipts.AsNoTracking()
+            .Where(receipt => receipt.SourceChannel == channel && EF.Parameter(tokens).Contains(receipt.ExternalReceiptToken))
+            .Select(receipt => new { receipt.Id, receipt.ExternalReceiptToken })
+            .ToListAsync(cancellationToken);
+        if (staged.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var receipt in staged)
+        {
+            var item = byToken[receipt.ExternalReceiptToken];
+            await EfPhotoCaptureItemProcessing.ReceiveAsync(context, item, receipt.Id, cancellationToken);
+            await EfPhotoCaptureItemProcessing.RecordProcessedAsync(context, item, receipt.Id, cancellationToken);
+        }
+
+        // Saved before the batch's filing is read, in this transaction.
+        await context.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -968,7 +1131,11 @@ public sealed class EfPhotoCaptureStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         // A received photograph in the open batch, and PhotoCapture.IsDueToSettle
         // as SQL: a Send since the last settle, an expiry or a cancellation
-        // (R792, R794), as a cancelled link's photos still settle.
+        // (R792, R794), as a cancelled link's photos still settle. The OR
+        // cannot seek, so the page is read in (created, id) order from the
+        // cursor on IX_PhotoCaptures_CreatedAtUtc_Id, which includes the
+        // columns it tests, and stops once the page is full; the open batch
+        // is sought in IX_PhotoCaptureItems_CaptureId_Batch_Ordinal.
         var listed = context.PhotoCaptures.AsNoTracking()
             .Where(capture => context.PhotoCaptureItems.Any(item => item.CaptureId == capture.Id
                     && item.Batch == capture.SettledBatches + 1
@@ -998,7 +1165,9 @@ public sealed class EfPhotoCaptureStore(
                     workflow.CaseId == capture.CaseId)
             })
             .ToListAsync(cancellationToken);
-        var items = await ItemsByCaptureAsync(context, rows.Select(row => row.Capture.Id).ToArray(), cancellationToken);
+        // Every row, received or not: an upload still on its way holds the
+        // batch (SettlePhotoCaptures.UploadInFlightGrace).
+        var items = await ItemsByCaptureAsync(context, rows.Select(row => row.Capture.Id).ToArray(), receivedOnly: false, cancellationToken);
         return rows
             .Select(row => new PhotoCaptureSettleCandidate(
                 Map(row.Capture),
@@ -1266,7 +1435,12 @@ public sealed class EfPhotoCaptureStore(
             .ThenBy(item => item.StorySequence)
             .ThenBy(item => item.Ordinal);
 
-    /// <summary>The captures with their items, read in one statement for all of them.</summary>
+    /// <summary>
+    /// The captures with their received items, those whose upload reached
+    /// intake, read in one statement for all of them: a row whose upload
+    /// failed after it was written is not a photo the link has, as the phone
+    /// and the Send count them.
+    /// </summary>
     internal static async Task<IReadOnlyList<PhotoCaptureWithItems>> WithItemsAsync(
         PegasusDbContext context,
         IReadOnlyList<PhotoCaptureEntity> captures,
@@ -1277,7 +1451,7 @@ public sealed class EfPhotoCaptureStore(
             return [];
         }
 
-        var items = await ItemsByCaptureAsync(context, captures.Select(capture => capture.Id).ToArray(), cancellationToken);
+        var items = await ItemsByCaptureAsync(context, captures.Select(capture => capture.Id).ToArray(), receivedOnly: true, cancellationToken);
         return captures
             .Select(capture => new PhotoCaptureWithItems(
                 Map(capture),
@@ -1285,21 +1459,26 @@ public sealed class EfPhotoCaptureStore(
             .ToArray();
     }
 
-    internal static async Task<IReadOnlyDictionary<Guid, IReadOnlyList<PhotoCaptureItem>>> ItemsByCaptureAsync(
+    private static async Task<IReadOnlyDictionary<Guid, IReadOnlyList<PhotoCaptureItem>>> ItemsByCaptureAsync(
         PegasusDbContext context,
-        IReadOnlyCollection<Guid> captureIds,
+        Guid[] ids,
+        bool receivedOnly,
         CancellationToken cancellationToken)
     {
-        if (captureIds.Count == 0)
+        if (ids.Length == 0)
         {
             return new Dictionary<Guid, IReadOnlyList<PhotoCaptureItem>>();
         }
 
         // One JSON parameter, so no page of captures can reach the parameter limit.
-        var ids = captureIds.ToArray();
-        var rows = await StoryOrdered(context.PhotoCaptureItems.AsNoTracking()
-                .Where(item => EF.Parameter(ids).Contains(item.CaptureId)))
-            .ToListAsync(cancellationToken);
+        var items = context.PhotoCaptureItems.AsNoTracking()
+            .Where(item => EF.Parameter(ids).Contains(item.CaptureId));
+        if (receivedOnly)
+        {
+            items = items.Where(item => item.StagedReceiptId != null);
+        }
+
+        var rows = await StoryOrdered(items).ToListAsync(cancellationToken);
         return rows
             .GroupBy(item => item.CaptureId)
             .ToDictionary(
@@ -1440,10 +1619,14 @@ internal static class EfPhotoCaptureItemProcessing
             && PhotoCaptureIntakeRules.TryReadMemberToken(memberToken, out var captureId, out var batch, out var ordinal))
         {
             // The item records its staged receipt just after intake accepts
-            // it. When this evaluation wins that race the item is found by the
-            // member token its receipt carries, so it knows its asset before
-            // its Case filing reads the basket it arrives in (FRD-28);
-            // RecordItemReceiptAsync still records and counts the receipt.
+            // it. When this evaluation wins that race, or the upload failed
+            // after the staging and its phone never retried, the item is
+            // found by the member token its receipt carries and records the
+            // receipt here, counted once with RecordItemReceiptAsync, so it
+            // knows its asset before its Case filing reads the basket it
+            // arrives in, and its capture settles with it (FRD-28). The work
+            // item's lock is held, so the capture's is taken after it, in the
+            // order RecordItemReceiptAsync takes them.
             item = await context.PhotoCaptureItems
                 .SingleOrDefaultAsync(
                     value => value.CaptureId == captureId
@@ -1451,6 +1634,10 @@ internal static class EfPhotoCaptureItemProcessing
                         && value.Ordinal == ordinal
                         && value.StagedReceiptId == null,
                     cancellationToken);
+            if (item is not null)
+            {
+                await ReceiveAsync(context, item, stagedReceiptId, cancellationToken);
+            }
         }
 
         if (item is null)
@@ -1460,5 +1647,72 @@ internal static class EfPhotoCaptureItemProcessing
 
         item.IntakeReceiptId = processedReceiptId;
         item.IntakeAssetId = sourceAssetId;
+    }
+
+    /// <summary>
+    /// Records that <paramref name="item"/>'s upload reached intake as
+    /// <paramref name="stagedReceiptId"/>, counting it on its capture once:
+    /// the accepted count, bytes and item times move with the receipt, not
+    /// the row. An item not yet received is read again under the capture
+    /// row's lock, the one an item add and a close take, so the upload, the
+    /// receipt's evaluation and a close count it once whichever records it
+    /// first. Call it before any other change to the item; the caller saves.
+    /// </summary>
+    public static async Task ReceiveAsync(
+        PegasusDbContext context,
+        PhotoCaptureItemEntity item,
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken)
+    {
+        if (item.StagedReceiptId is null)
+        {
+            await context.Database.ExecuteSqlAsync(
+                $"SELECT 1 FROM [PhotoCaptures] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {item.CaptureId}",
+                cancellationToken);
+            await context.Entry(item).ReloadAsync(cancellationToken);
+            if (item.StagedReceiptId is null)
+            {
+                var capture = await context.PhotoCaptures
+                    .SingleOrDefaultAsync(value => value.Id == item.CaptureId, cancellationToken)
+                    ?? throw new KeyNotFoundException("The photo link was not found.");
+                capture.AcceptedItemCount++;
+                capture.AcceptedBytes += item.ContentLength;
+                capture.FirstItemAtUtc ??= item.ReceivedAtUtc;
+                if (capture.LastItemAtUtc is null || capture.LastItemAtUtc < item.ReceivedAtUtc)
+                {
+                    capture.LastItemAtUtc = item.ReceivedAtUtc;
+                }
+
+                capture.Version++;
+            }
+        }
+
+        item.StagedReceiptId = stagedReceiptId;
+    }
+
+    /// <summary>
+    /// When the receipt has been evaluated already, records its processed
+    /// receipt and source asset on an item that has none yet. The caller saves.
+    /// </summary>
+    public static async Task RecordProcessedAsync(
+        PegasusDbContext context,
+        PhotoCaptureItemEntity item,
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken)
+    {
+        if (item.IntakeReceiptId is not null)
+        {
+            return;
+        }
+
+        var processedReceiptId = await context.IntakeWorkItems.AsNoTracking()
+            .Where(work => work.StagedReceiptId == stagedReceiptId)
+            .Select(work => work.ProcessedReceiptId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (processedReceiptId is { } processed)
+        {
+            item.IntakeReceiptId = processed;
+            item.IntakeAssetId = await SourceAssetIdAsync(context, processed, cancellationToken);
+        }
     }
 }

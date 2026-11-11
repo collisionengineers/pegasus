@@ -21,6 +21,7 @@ public static class PhotoCaptureSurface
     public const string StandingPathPrefix = "/s";
     public const string AssetPathPrefix = "/capture";
     public const string StaffPathPrefix = "/PhotoCapture";
+    public const string AdministrationPathPrefix = "/Administration/PhotoLinks";
     public const string CredentialHeader = "X-Capture-Link";
 
     public const string CapturePagePolicy = "CapturePage";
@@ -51,7 +52,9 @@ public static class PhotoCaptureSurface
 
     /// <summary>Every path the gate closes when the flag is off, the staff pages included.</summary>
     public static bool IsGatedPath(PathString path) =>
-        IsPublicPath(path) || path.StartsWithSegments(StaffPathPrefix);
+        IsPublicPath(path)
+        || path.StartsWithSegments(StaffPathPrefix)
+        || path.StartsWithSegments(AdministrationPathPrefix);
 }
 
 /// <summary>

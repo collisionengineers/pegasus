@@ -808,7 +808,8 @@ public sealed partial class PhotoCaptureWebTests
                 LiveCameraOnly: false,
                 OriginalsInBackground: false,
                 CaptureLimits.DefaultLifetimeDays,
-                PhotoLinkTokenPurpose.Copy),
+                PhotoLinkTokenPurpose.Copy,
+                NewOperationKey()),
             CancellationToken.None);
     }
 

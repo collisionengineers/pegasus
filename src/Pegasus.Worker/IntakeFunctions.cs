@@ -157,10 +157,12 @@ public sealed partial class PendingWorkRecoveryFunction(
 
     private async Task RunPhotoCaptureSettleAsync(CancellationToken cancellationToken)
     {
+        // A failed step throws once the run has done all it can, naming each
+        // capture; the folded job logs it in full and fails the invocation.
         var result = await settlePhotoCaptures!.ExecuteAsync(maximumItems: 50, cancellationToken);
-        if (result.Examined > 0 || result.ReachedCase > 0 || result.Failures > 0)
+        if (result.Examined > 0 || result.ReachedCase > 0)
         {
-            LogPhotoCaptureSettle(logger, result.Examined, result.Settled, result.ReachedCase, result.Failures);
+            LogPhotoCaptureSettle(logger, result.Examined, result.Settled, result.ReachedCase);
         }
     }
 
@@ -266,13 +268,12 @@ public sealed partial class PendingWorkRecoveryFunction(
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "Photo capture settle: examined {ExaminedCount}, settled {SettledCount}, {ReachedCaseCount} reached a Case, {FailureCount} failed.")]
+        Message = "Photo capture settle: examined {ExaminedCount}, settled {SettledCount}, {ReachedCaseCount} reached a Case.")]
     private static partial void LogPhotoCaptureSettle(
         ILogger logger,
         int examinedCount,
         int settledCount,
-        int reachedCaseCount,
-        int failureCount);
+        int reachedCaseCount);
 
     [LoggerMessage(
         Level = LogLevel.Information,

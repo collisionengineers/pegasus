@@ -2,49 +2,58 @@
 @model ErrorModel
 @{
     ViewData["Title"] = "Something went wrong";
-    Layout = "Shared/_LayoutAuth";
+    Layout = Model.IsCaptureSurface ? null : "Shared/_LayoutAuth";
 }
 
-@* One card, one statement of the fault. *@
-<div role="alert">
-    <h1>We could not complete that request</h1>
-    <p>What you submitted may not have been saved. Try again, and if it keeps failing, tell your administrator the reference below.</p>
-    <div class="button-row">
-        @if (Model.ShowReturnPath)
+@* One card, one statement of the fault. On the public capture surface it is
+   the capture app's own card (the wording StatusCode gives the same fault). *@
+@if (Model.IsCaptureSurface)
+{
+    <partial name="/Pages/Capture/_CaptureUnavailable.cshtml"
+             model="new Pegasus.Web.Pages.Capture.CaptureCardView(StatusCodeModel.FaultHeading, StatusCodeModel.FaultExplanation)" />
+}
+else
+{
+    <div role="alert">
+        <h1>We could not complete that request</h1>
+        <p>What you submitted may not have been saved. Try again, and if it keeps failing, tell your administrator the reference below.</p>
+        <div class="button-row">
+            @if (Model.ShowReturnPath)
+            {
+                @* Never a POST replay: the return path is the page the operator was
+                   reading, re-requested as a GET. *@
+                <a class="btn btn--primary" href="@Model.ReturnPath">Try again</a>
+            }
+            <a class="btn" asp-page="/Index">Return to @OperatorLabels.Nav.WorkCentre</a>
+        </div>
+        @if (Model.IsSignedIn)
         {
-            @* Never a POST replay: the return path is the page the operator was
-               reading, re-requested as a GET. *@
-            <a class="btn btn--primary" href="@Model.ReturnPath">Try again</a>
+            <form method="post" asp-page="/ProblemReports" asp-page-handler="Report" class="stack" data-problem-form>
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                <input type="hidden" name="returnUrl" value="@(Model.ReturnPath ?? "/")" />
+                <input type="hidden" name="route" value="@(Model.ReturnPath ?? string.Empty)" />
+                <input type="hidden" name="method" value="@HttpContext.Request.Method" />
+                <input type="hidden" name="traceId" value="@Model.RequestId" />
+                <input type="hidden" name="caseReference" value="" data-problem-case />
+                <input type="hidden" name="viewport" value="" data-problem-viewport />
+                <input type="hidden" name="editing" value="false" data-problem-editing />
+                <input type="hidden" name="errors" value="" data-problem-errors />
+                <div class="field">
+                    <label for="problem-description">@OperatorLabels.ProblemReports.WhatHappened</label>
+                    <textarea id="problem-description" name="description" rows="4" maxlength="@Pegasus.Core.Support.ProblemReportPolicy.MaximumDescriptionLength" required></textarea>
+                </div>
+                <div class="button-row"><button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Sending">@OperatorLabels.Shell.ReportProblem</button></div>
+            </form>
         }
-        <a class="btn" asp-page="/Index">Return to @OperatorLabels.Nav.WorkCentre</a>
+        @if (Model.ShowRequestId)
+        {
+            <p class="auth-foot muted">
+                Support reference
+                <span class="auth-reference">
+                    <code id="support-reference">@Model.RequestId</code>
+                    <button type="button" class="btn btn--small" data-copy-target="support-reference" hidden>Copy</button>
+                </span>
+            </p>
+        }
     </div>
-    @if (Model.IsSignedIn)
-    {
-        <form method="post" asp-page="/ProblemReports" asp-page-handler="Report" class="stack" data-problem-form>
-            <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
-            <input type="hidden" name="returnUrl" value="@(Model.ReturnPath ?? "/")" />
-            <input type="hidden" name="route" value="@(Model.ReturnPath ?? string.Empty)" />
-            <input type="hidden" name="method" value="@HttpContext.Request.Method" />
-            <input type="hidden" name="traceId" value="@Model.RequestId" />
-            <input type="hidden" name="caseReference" value="" data-problem-case />
-            <input type="hidden" name="viewport" value="" data-problem-viewport />
-            <input type="hidden" name="editing" value="false" data-problem-editing />
-            <input type="hidden" name="errors" value="" data-problem-errors />
-            <div class="field">
-                <label for="problem-description">@OperatorLabels.ProblemReports.WhatHappened</label>
-                <textarea id="problem-description" name="description" rows="4" maxlength="@Pegasus.Core.Support.ProblemReportPolicy.MaximumDescriptionLength" required></textarea>
-            </div>
-            <div class="button-row"><button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Sending">@OperatorLabels.Shell.ReportProblem</button></div>
-        </form>
-    }
-    @if (Model.ShowRequestId)
-    {
-        <p class="auth-foot muted">
-            Support reference
-            <span class="auth-reference">
-                <code id="support-reference">@Model.RequestId</code>
-                <button type="button" class="btn btn--small" data-copy-target="support-reference" hidden>Copy</button>
-            </span>
-        </p>
-    }
-</div>
+}

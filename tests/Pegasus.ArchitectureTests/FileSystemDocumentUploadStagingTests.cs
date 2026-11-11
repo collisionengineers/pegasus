@@ -77,5 +77,40 @@ public sealed class FileSystemDocumentUploadStagingTests : IDisposable
         Assert.False(Directory.Exists(Path.Combine(root, "uploads", UploadId.ToString("D"))));
     }
 
+    /// <summary>
+    /// A part streams back as it was written, and once its call has kept the
+    /// upload, the manifest and every part go at once whatever their age,
+    /// with the upload's folder; a part already gone is no error.
+    /// </summary>
+    [Fact]
+    public async Task APartStreamsBackAndTheWholeUploadIsDeletedAtOnce()
+    {
+        var staging = new FileSystemDocumentUploadStaging(root);
+        await staging.CreateManifestAsync(
+            new DocumentUploadManifest(UploadId, "photo-capture", 5, string.Empty, DateTimeOffset.UtcNow),
+            default);
+        byte[] first = [1, 2, 3];
+        byte[] second = [4, 5];
+        await staging.CreatePartAsync(UploadId, 1, first, Sha256Of(first), default);
+        await staging.CreatePartAsync(UploadId, 2, second, Sha256Of(second), default);
+
+        await using (var stream = await staging.OpenPartAsync(UploadId, 1, default))
+        {
+            using var copy = new MemoryStream();
+            await stream!.CopyToAsync(copy);
+            Assert.Equal(first, copy.ToArray());
+        }
+
+        Assert.Null(await staging.OpenPartAsync(UploadId, 3, default));
+        Assert.Null(await staging.OpenPartAsync(Guid.NewGuid(), 1, default));
+
+        await staging.DeleteUploadAsync(UploadId, 3, default);
+
+        Assert.Null(await staging.ReadManifestAsync(UploadId, default));
+        Assert.Empty(await staging.ListPartNumbersAsync(UploadId, default));
+        Assert.False(Directory.Exists(Path.Combine(root, "uploads", UploadId.ToString("D"))));
+        await staging.DeleteUploadAsync(UploadId, 3, default);
+    }
+
     private static string Sha256Of(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
 }

@@ -198,6 +198,34 @@ public sealed class ProblemReportsWebTests
         Assert.Single(Regex.Matches(list, "data-problem-report="));
     }
 
+    [Theory]
+    [InlineData("/c/secrettoken")]
+    [InlineData("/s/abcdefghjkmn")]
+    [InlineData("/capture/api/v1/context")]
+    public void ErrorOnTheCaptureSurfaceKeepsCaptureHeadersAndNoStaffReturnPath(string originalPath)
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var http = new DefaultHttpContext();
+        var feature = new ExceptionHandlerFeature { Path = originalPath, Error = new InvalidOperationException("x") };
+        http.Features.Set<IExceptionHandlerFeature>(feature);
+        http.Features.Set<IExceptionHandlerPathFeature>(feature);
+        var actionContext = new ActionContext(
+            http, new Microsoft.AspNetCore.Routing.RouteData(), new ActionDescriptor());
+        var model = new ErrorModel(cache)
+        {
+            PageContext = new PageContext(actionContext),
+            Url = new UrlHelper(actionContext)
+        };
+
+        model.OnGet();
+
+        Assert.True(model.IsCaptureSurface);
+        Assert.Null(model.ReturnPath);
+        Assert.Equal(
+            Pegasus.Web.PhotoCapture.CaptureResponseHeaders.ContentSecurityPolicy,
+            http.Response.Headers.ContentSecurityPolicy.ToString());
+    }
+
     [Fact]
     public void ErrorPostInitializationRetainsOriginatingFaultContext()
     {

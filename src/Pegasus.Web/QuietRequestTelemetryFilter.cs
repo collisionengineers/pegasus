@@ -12,7 +12,7 @@ namespace Pegasus.Web;
 /// daily telemetry cap is spent on staff pages: the readiness probes (one a
 /// minute; once the schema has been found current, one SQL call each), the
 /// diagnostics version endpoint, static files, the App Service Always On
-/// ping (<c>GET /</c> answered with a redirect), the SQL calls of the
+/// ping (<c>GET /</c> answered with a redirect), the capture app's static files (not its API), the SQL calls of the
 /// keep-warm passes, and the Case page's request-to-edit long poll
 /// (<c>WatchEditRequest</c>, held up to about 25 seconds, R551) and its
 /// once-a-minute lease beat (<c>HeartbeatLease</c>) with their SQL calls, so
@@ -34,7 +34,10 @@ public sealed class QuietRequestTelemetryFilter(
         "/js",
         "/fonts",
         "/images",
-        "/diagnostics"
+        "/diagnostics",
+        "/capture/capture.css",
+        "/capture/capture.js",
+        "/capture/img"
     ];
 
     public void Process(ITelemetry item)

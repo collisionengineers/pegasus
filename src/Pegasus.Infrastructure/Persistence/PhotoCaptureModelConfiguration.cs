@@ -12,6 +12,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </summary>
 internal static class PhotoCaptureModelConfiguration
 {
+    /// <summary>The grouped batches whose record has not yet reached a Case, which the settle's reach reads every run.</summary>
+    internal const string UnreachedGroupIndex = "IX_PhotoCaptureBatches_SubmissionGroupId_Unreached";
+
     public static void Configure(ModelBuilder builder)
     {
         builder.Entity<StandingPhotoLinkEntity>(entity =>
@@ -84,8 +87,23 @@ internal static class PhotoCaptureModelConfiguration
             // The standing link's daily mint cap counts its captures since a time.
             entity.HasIndex(item => new { item.StandingLinkId, item.CreatedAtUtc });
             entity.HasIndex(item => item.SubmissionGroupId);
-            // The settle sweep: a send or an expiry no settle has recorded yet.
+            // The settle listing's former index: its OR of a send, an expiry
+            // and a cancellation cannot seek on it, so it reads the next one.
             entity.HasIndex(item => new { item.SettledAtUtc, item.SentAtUtc, item.ExpiresAtUtc });
+            // The settle's listing pages by (created, id) from its cursor and
+            // tests a send, an expiry or a cancellation no settle has recorded
+            // yet on the columns included here, so it reads the index in order
+            // and stops at its page, seeking each capture's open batch in
+            // IX_PhotoCaptureItems_CaptureId_Batch_Ordinal.
+            entity.HasIndex(item => new { item.CreatedAtUtc, item.Id })
+                .IncludeProperties(item => new
+                {
+                    item.SettledBatches,
+                    item.SentAtUtc,
+                    item.SettledAtUtc,
+                    item.ExpiresAtUtc,
+                    item.RevokedAtUtc
+                });
             entity.HasOne<CaseEntity>()
                 .WithMany()
                 .HasForeignKey(item => item.CaseId)
@@ -147,11 +165,16 @@ internal static class PhotoCaptureModelConfiguration
         {
             entity.ToTable("PhotoCaptureBatches");
             entity.HasKey(item => new { item.CaptureId, item.Batch });
-            // The reach finds a batch by its group's record; a bell still owed
-            // is read on every run, so only those rows are indexed.
+            // A group is one batch's; the record's merge finds its batch by it.
+            // The reach reads only the grouped batches not yet reached, and a
+            // bell still owed is read on every run, so only those rows are
+            // indexed for them.
             entity.HasIndex(item => item.SubmissionGroupId)
                 .IsUnique()
                 .HasFilter("[SubmissionGroupId] IS NOT NULL");
+            entity.HasIndex(item => item.SubmissionGroupId, UnreachedGroupIndex)
+                .HasFilter("[SubmissionGroupId] IS NOT NULL AND [ReachedAtUtc] IS NULL")
+                .IncludeProperties(item => new { item.ClosedAtUtc });
             entity.HasIndex(item => item.BellOwedAtUtc).HasFilter("[BellOwedAtUtc] IS NOT NULL");
             entity.HasOne<PhotoCaptureEntity>()
                 .WithMany()

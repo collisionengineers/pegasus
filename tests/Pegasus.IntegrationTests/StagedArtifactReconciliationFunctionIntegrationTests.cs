@@ -692,6 +692,18 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) =>
             throw Unreachable();
 
+        public Task<Stream?> OpenPartAsync(
+            Guid uploadId,
+            int partNumber,
+            CancellationToken cancellationToken) =>
+            throw Unreachable();
+
+        public Task DeleteUploadAsync(
+            Guid uploadId,
+            int partCount,
+            CancellationToken cancellationToken) =>
+            throw Unreachable();
+
         public Task<bool> DeleteAsync(
             string name,
             DateTimeOffset createdAtOrBeforeUtc,

@@ -306,11 +306,13 @@ public sealed class EfPhotoCaptureQueries(
     /// grouped by capture and kind with only the columns the rule reads of
     /// that kind, a damage photo's area and stage and an overview's position,
     /// so a repeated photo of the same thing adds to its group's count and not
-    /// a row; the counts summed are the capture's photographs, every item row
-    /// of a photograph kind, as the lists counted them when they read every
-    /// row. The capture's own <c>PhotoCount</c> is not read instead: it is the
-    /// caps' counter, kept by the item add alone, and nothing holds it equal
-    /// to the rows.
+    /// a row; the counts summed are the capture's photographs, every received
+    /// item row of a photograph kind. An item is received once its upload
+    /// reached intake (<c>StagedReceiptId</c>): a row whose upload failed
+    /// after it was written is not a photo the link has, as the phone and the
+    /// Send count them. The capture's own <c>PhotoCount</c> is not read
+    /// instead: it is the caps' counter, kept by the item add alone, and
+    /// nothing holds it equal to the rows.
     /// </summary>
     private static async Task<Dictionary<Guid, ItemFacts>> ItemFactsAsync(
         PegasusDbContext context,
@@ -324,7 +326,9 @@ public sealed class EfPhotoCaptureQueries(
         var overview = PhotoCaptureCodes.ToCode(PhotoCaptureItemKind.Overview);
         var damage = PhotoCaptureCodes.ToCode(PhotoCaptureItemKind.Damage);
         var groups = await context.PhotoCaptureItems.AsNoTracking()
-            .Where(item => EF.Parameter(ids).Contains(item.CaptureId) && photographKinds.Contains(item.Kind))
+            .Where(item => EF.Parameter(ids).Contains(item.CaptureId)
+                && item.StagedReceiptId != null
+                && photographKinds.Contains(item.Kind))
             .GroupBy(item => new
             {
                 item.CaptureId,

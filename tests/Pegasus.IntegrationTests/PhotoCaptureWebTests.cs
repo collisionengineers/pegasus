@@ -625,7 +625,8 @@ public sealed partial class PhotoCaptureWebTests
         {
             var aggregateId = link.Capture.Id.ToString("D");
             var acts = await db.ActionHistory.AsNoTracking()
-                .Where(item => item.AggregateType == "photo_capture" && item.AggregateId == aggregateId)
+                .Where(item => item.AggregateType == "photo_capture" && item.AggregateId == aggregateId
+                    && item.EventKind != PhotoLinkActs.Issued)
                 .ToListAsync();
             Assert.Equal(3, acts.Count);
             foreach (var (key, kind) in new[]
@@ -1591,7 +1592,8 @@ public sealed partial class PhotoCaptureWebTests
                 LiveCameraOnly: false,
                 OriginalsInBackground: false,
                 CaptureLimits.DefaultLifetimeDays,
-                PhotoLinkTokenPurpose.Copy),
+                PhotoLinkTokenPurpose.Copy,
+                NewOperationKey()),
             CancellationToken.None);
     }
 
@@ -1615,7 +1617,8 @@ public sealed partial class PhotoCaptureWebTests
                 LiveCameraOnly: false,
                 originalsInBackground,
                 CaptureLimits.DefaultLifetimeDays,
-                PhotoLinkTokenPurpose.Copy),
+                PhotoLinkTokenPurpose.Copy,
+                NewOperationKey()),
             CancellationToken.None);
     }
 
@@ -1766,7 +1769,11 @@ public sealed partial class PhotoCaptureWebTests
             SourceSha256 = new string('A', 64), MimeSha256 = new string('B', 64),
             SentAtUtc = DateTimeOffset.UtcNow, DiscoveredAtUtc = DateTimeOffset.UtcNow,
             DiscoveredByKind = nameof(ActorKind.SystemWorker), DiscoveredBySubjectId = "test",
-            RetentionOperationKey = "retained-sent-test", RetentionRequestHash = new string('C', 64)
+            RetentionOperationKey = "retained-sent-test", RetentionRequestHash = new string('C', 64),
+            // Linked evidence carries who linked it, as the sent poll records
+            // it; without it the Case's reads refuse the row.
+            LinkedAtUtc = DateTimeOffset.UtcNow, LinkedByKind = nameof(ActorKind.SystemWorker),
+            LinkedBySubjectId = "approved-mailbox-sent-poll", LinkedByRolesJson = "[]"
         };
         db.Add(workflow.ReportSentEvidence);
         await db.SaveChangesAsync();
@@ -1928,7 +1935,8 @@ public sealed partial class PhotoCaptureWebTests
                 LiveCameraOnly: false,
                 OriginalsInBackground: false,
                 CaptureLimits.DefaultLifetimeDays,
-                PhotoLinkTokenPurpose.Copy),
+                PhotoLinkTokenPurpose.Copy,
+                NewOperationKey()),
             CancellationToken.None);
     }
 

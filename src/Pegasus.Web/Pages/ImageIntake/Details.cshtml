@@ -218,7 +218,7 @@
                                 {
                                     <div class="fact"><dt>@OperatorLabels.PhotoCapture.AccidentDate</dt><dd>@incidentDate.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</dd></div>
                                 }
-                                <div class="fact"><dt>@OperatorLabels.PhotoCapture.Photos</dt><dd><a asp-page="/PhotoCapture/Details" asp-route-id="@capture.Id">@OperatorLabels.PhotoCapture.PhotoCount(capture.AcceptedItemCount, complete: true)</a></dd></div>
+                                <div class="fact"><dt>@OperatorLabels.PhotoCapture.Photos</dt><dd>@if (Model.PhotoCaptureEnabled) { <a asp-page="/PhotoCapture/Details" asp-route-id="@capture.Id">@OperatorLabels.PhotoCapture.PhotoCount(capture.AcceptedItemCount, complete: true)</a> } else { @OperatorLabels.PhotoCapture.PhotoCount(capture.AcceptedItemCount, complete: true) }</dd></div>
                             </dl>
                             <partial name="Shared/_PhotoCaptureDetails" model="capture" />
                         }

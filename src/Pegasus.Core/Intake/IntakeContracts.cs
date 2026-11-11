@@ -396,12 +396,19 @@ public sealed record IntakeSource(
     Guid? DeclaredCaseId = null,
     DocumentSemanticRole? DeclaredDocumentType = null);
 
+/// <param name="ContentSha256">
+/// The SHA-256 of exactly the bytes <paramref name="OpenContentAsync"/>
+/// returns, when the caller has already read them through to compute it, so
+/// they are not read again only to hash them. The staging copy still hashes
+/// what it keeps and refuses bytes that differ from it. Null to hash here.
+/// </param>
 public sealed record StreamedIntakeSource(
     string FileName, string MediaType, long ContentLength,
     Func<CancellationToken, ValueTask<Stream>> OpenContentAsync,
     DateTimeOffset ReceivedAtUtc, string Actor, IntakeSourceIdentity SourceIdentity,
     Guid? DeclaredCaseId = null,
-    DocumentSemanticRole? DeclaredDocumentType = null);
+    DocumentSemanticRole? DeclaredDocumentType = null,
+    string? ContentSha256 = null);
 
 /// <summary>One uploaded source whose immutable bytes can be reopened without materialising them in Web memory.</summary>
 

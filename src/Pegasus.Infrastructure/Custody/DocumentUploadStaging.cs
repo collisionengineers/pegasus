@@ -149,6 +149,40 @@ public sealed class AzureBlobDocumentUploadStaging(
         CancellationToken cancellationToken) =>
         TryDownloadAsync(DocumentUploadNames.Part(uploadId, partNumber), cancellationToken);
 
+    /// <summary>The part's response body, read from the service as the caller reads it.</summary>
+    public async Task<Stream?> OpenPartAsync(
+        Guid uploadId,
+        int partNumber,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var download = await container.GetBlobClient(DocumentUploadNames.Part(uploadId, partNumber))
+                .DownloadStreamingAsync(cancellationToken: cancellationToken);
+            return download.Value.Content;
+        }
+        catch (RequestFailedException exception) when (exception.Status == 404)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Every object deleted at once and unconditionally, whatever its age: the call that used them has kept their bytes.</summary>
+    public async Task DeleteUploadAsync(
+        Guid uploadId,
+        int partCount,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(partCount);
+        await Task.WhenAll(
+            Enumerable.Range(1, partCount)
+                .Select(partNumber => DocumentUploadNames.Part(uploadId, partNumber))
+                .Prepend(DocumentUploadNames.Manifest(uploadId))
+                .Select(name => container.GetBlobClient(name).DeleteIfExistsAsync(
+                    DeleteSnapshotsOption.IncludeSnapshots,
+                    cancellationToken: cancellationToken)));
+    }
+
     public async Task<DocumentUploadStagedPage> ListAsync(
         int maximumItems,
         string? continuation,
@@ -322,6 +356,61 @@ public sealed class FileSystemDocumentUploadStaging(string rootPath) : IDocument
         int partNumber,
         CancellationToken cancellationToken) =>
         TryReadAsync(DocumentUploadNames.Part(uploadId, partNumber), cancellationToken);
+
+    public Task<Stream?> OpenPartAsync(
+        Guid uploadId,
+        int partNumber,
+        CancellationToken cancellationToken)
+    {
+        var path = PathOf(DocumentUploadNames.Part(uploadId, partNumber));
+        try
+        {
+            return Task.FromResult<Stream?>(new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 64 * 1024,
+                FileOptions.Asynchronous | FileOptions.SequentialScan));
+        }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return Task.FromResult<Stream?>(null);
+        }
+    }
+
+    public Task DeleteUploadAsync(
+        Guid uploadId,
+        int partCount,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(partCount);
+        var directory = PathOf(DocumentUploadNames.Prefix(uploadId));
+        if (!Directory.Exists(directory))
+        {
+            return Task.CompletedTask;
+        }
+
+        File.Delete(PathOf(DocumentUploadNames.Manifest(uploadId)));
+        for (var partNumber = 1; partNumber <= partCount; partNumber++)
+        {
+            File.Delete(PathOf(DocumentUploadNames.Part(uploadId, partNumber)));
+        }
+
+        try
+        {
+            if (!Directory.EnumerateFileSystemEntries(directory).Any())
+            {
+                Directory.Delete(directory);
+            }
+        }
+        catch (IOException)
+        {
+            // A part written meanwhile keeps its folder; the sweep empties it.
+        }
+
+        return Task.CompletedTask;
+    }
 
     public Task<DocumentUploadStagedPage> ListAsync(
         int maximumItems,

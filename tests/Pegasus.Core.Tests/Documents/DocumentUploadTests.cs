@@ -278,6 +278,22 @@ internal sealed class InMemoryDocumentUploadStaging : IDocumentUploadStaging
         return Task.FromResult(part);
     }
 
+    public Task<Stream?> OpenPartAsync(Guid uploadId, int partNumber, CancellationToken cancellationToken) =>
+        Task.FromResult<Stream?>(Parts.TryGetValue((uploadId, partNumber), out var bytes)
+            ? new MemoryStream(bytes, writable: false)
+            : null);
+
+    public Task DeleteUploadAsync(Guid uploadId, int partCount, CancellationToken cancellationToken)
+    {
+        Manifests.Remove(uploadId);
+        for (var partNumber = 1; partNumber <= partCount; partNumber++)
+        {
+            Parts.Remove((uploadId, partNumber));
+        }
+
+        return Task.CompletedTask;
+    }
+
     public Task<DocumentUploadStagedPage> ListAsync(int maximumItems, string? continuation, CancellationToken cancellationToken)
     {
         Continuations.Add(continuation);

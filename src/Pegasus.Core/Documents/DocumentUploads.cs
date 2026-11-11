@@ -85,7 +85,7 @@ public sealed record DocumentUploadStagedPage(
 /// <summary>
 /// Where staged parts wait for the call that uses them. Nothing here is
 /// custody: the manifest and each part are written once and never replaced,
-/// and the sweep deletes them by age.
+/// and the sweep deletes them by age, or the call that kept them does.
 /// </summary>
 public interface IDocumentUploadStaging
 {
@@ -108,6 +108,20 @@ public interface IDocumentUploadStaging
     Task<IReadOnlyList<int>> ListPartNumbersAsync(Guid uploadId, CancellationToken cancellationToken);
 
     Task<ReadOnlyMemory<byte>?> ReadPartAsync(Guid uploadId, int partNumber, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The part's bytes as a stream the caller disposes, read as they arrive
+    /// rather than held whole; null when the part is not stored.
+    /// </summary>
+    Task<Stream?> OpenPartAsync(Guid uploadId, int partNumber, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes the upload's manifest and its parts 1 to
+    /// <paramref name="partCount"/> whatever their age, once the call that
+    /// used them has kept their bytes elsewhere; one already gone is not an
+    /// error. Anything a failure leaves the sweep deletes by age.
+    /// </summary>
+    Task DeleteUploadAsync(Guid uploadId, int partCount, CancellationToken cancellationToken);
 
     /// <summary>One page of every staged object, in name order from the continuation.</summary>
     Task<DocumentUploadStagedPage> ListAsync(

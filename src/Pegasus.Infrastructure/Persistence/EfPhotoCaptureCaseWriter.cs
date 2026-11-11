@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -23,10 +22,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// sender's details, as <see cref="EfVehicleCaptureFill"/> fills from a
 /// capture document. A closed, archived or Triage Case records nothing.
 /// </summary>
-public sealed partial class EfPhotoCaptureCaseWriter(
+public sealed class EfPhotoCaptureCaseWriter(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider,
-    ILogger<EfPhotoCaptureCaseWriter> logger,
     IEnumerable<IPrincipalCaseMatchPolicy>? caseMatchPolicies = null) : IPhotoCaptureCaseWriter
 {
     public const string ImagesCompletedEventType = "case_images_completed_from_photo_link";
@@ -107,7 +105,13 @@ public sealed partial class EfPhotoCaptureCaseWriter(
         await transaction.CommitAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<string>> FillEmptyFieldsAsync(
+    /// <summary>
+    /// Fills the Case's empty fields, retried on a lost race. A closed,
+    /// archived or Triage Case takes nothing; any other failure propagates, so
+    /// the settle leaves the batch open and the next run fills it, rather
+    /// than closing the batch with the sender's details unwritten.
+    /// </summary>
+    public Task<IReadOnlyList<string>> FillEmptyFieldsAsync(
         Guid caseId,
         IReadOnlyDictionary<string, string> values,
         Guid captureId,
@@ -118,103 +122,106 @@ public sealed partial class EfPhotoCaptureCaseWriter(
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceLabel);
         if (values.Count == 0)
         {
+            return Task.FromResult<IReadOnlyList<string>>([]);
+        }
+
+        return StoreConcurrencyRetry.ExecuteAsync(
+            token => FillOnceAsync(caseId, values, captureId, sourceLabel, token),
+            cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<string>> FillOnceAsync(
+        Guid caseId,
+        IReadOnlyDictionary<string, string> values,
+        Guid captureId,
+        string sourceLabel,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, caseId, cancellationToken);
+        var workflow = await context.CaseWorkflows
+            .Include(item => item.Case)
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+        if (workflow is null
+            || workflow.ArchivedAtUtc is not null
+            || !Enum.TryParse<CaseLifecycleState>(workflow.State, ignoreCase: false, out var state)
+            || CaseLifecycleRules.IsTerminal(state))
+        {
             return [];
         }
 
-        try
+        var now = timeProvider.GetUtcNow();
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        var caseDataFields = await context.CaseDataFields
+            .Where(item => item.WorkId == workId)
+            .ToListAsync(cancellationToken);
+        var (filled, replaced) = FillCaseData(context, caseDataFields, workId, values, captureId, sourceLabel);
+        if (filled.Count == 0)
         {
-            await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-            await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
-            await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, caseId, cancellationToken);
-            var workflow = await context.CaseWorkflows
-                .Include(item => item.Case)
-                .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
-            if (workflow is null
-                || workflow.ArchivedAtUtc is not null
-                || !Enum.TryParse<CaseLifecycleState>(workflow.State, ignoreCase: false, out var state)
-                || CaseLifecycleRules.IsTerminal(state))
-            {
-                return [];
-            }
-
-            var now = timeProvider.GetUtcNow();
-            var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
-            var caseDataFields = await context.CaseDataFields
-                .Where(item => item.WorkId == workId)
-                .ToListAsync(cancellationToken);
-            var (filled, replaced) = FillCaseData(context, caseDataFields, workId, values, captureId, sourceLabel);
-            if (filled.Count == 0)
-            {
-                return [];
-            }
-
-            var beforeVersion = workflow.Version;
-            CaseMutationGuard.Advance(workflow);
-            var resultJson = JsonSerializer.Serialize(new { Facts = filled }, JsonOptions);
-            // A replaced DVSA estimate keeps its value in the history (R843);
-            // a fill into empty fields replaced nothing.
-            var beforeJson = replaced.Count == 0 ? null : JsonSerializer.Serialize(new { Facts = replaced }, JsonOptions);
-            const string reason = "The photo link's details filled the Case's empty fields.";
-            var operationKey = $"photo-link-fill:{captureId:N}:{caseId:N}";
-            context.CaseWorkflowEvents.Add(new()
-            {
-                Id = Guid.NewGuid(),
-                CaseId = caseId,
-                Workflow = workflow,
-                EventType = FilledEventType,
-                OperationKey = $"{operationKey}:{beforeVersion}",
-                RequestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(resultJson))),
-                ActorKind = ActorKind.Automation.ToString(),
-                ActorSubjectId = FillRecorderId,
-                ActorRolesJson = "[]",
-                Reason = reason,
-                OccurredAtUtc = now,
-                BeforeVersion = beforeVersion,
-                AfterVersion = workflow.Version,
-                ResultJson = resultJson
-            });
-            context.ActionHistory.Add(new()
-            {
-                Id = Guid.NewGuid(),
-                AggregateType = "case",
-                AggregateId = caseId.ToString("D"),
-                EventKind = FilledEventType,
-                ActorKind = ActorKind.Automation.ToString(),
-                ActorSubjectId = FillRecorderId,
-                ActorRolesJson = "[]",
-                OccurredAtUtc = now,
-                Outcome = "Succeeded",
-                CorrelationId = operationKey,
-                Reason = reason,
-                BeforeJson = beforeJson,
-                AfterJson = resultJson,
-                PolicyVersion = $"{PhotoCaptureCaseFields.PolicyKey}/v{PhotoCaptureCaseFields.PolicyVersion}"
-            });
-
-            // The claimant's name and the incident date are case-match keys,
-            // so the index follows the filled facts as a staff edit's does.
-            if (caseMatchPolicies is not null
-                && (filled.Contains(CaseDataFieldNames.ClaimantName) || filled.Contains(CaseDataFieldNames.IncidentDate)))
-            {
-                CaseMatchIndexProjector.Apply(
-                    context,
-                    await context.CaseMatchIndex.SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken),
-                    CaseMatchIndexProjector.Project(workflow.Case, caseDataFields, caseMatchPolicies, now));
-            }
-
-            // Every field the fill writes prints on the report.
-            await EfCaseReportGenerationStore.MarkWorkStaleAsync(
-                context, caseId, workId, CaseReportStaleReasons.AssessmentFactsChanged, now, cancellationToken);
-            await context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return filled;
-        }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            // The filing stands without the fill.
-            LogNotFilled(logger, caseId, exception.GetType().Name);
             return [];
         }
+
+        var beforeVersion = workflow.Version;
+        CaseMutationGuard.Advance(workflow);
+        var resultJson = JsonSerializer.Serialize(new { Facts = filled }, JsonOptions);
+        // A replaced DVSA estimate keeps its value in the history (R843);
+        // a fill into empty fields replaced nothing.
+        var beforeJson = replaced.Count == 0 ? null : JsonSerializer.Serialize(new { Facts = replaced }, JsonOptions);
+        const string reason = "The photo link's details filled the Case's empty fields.";
+        var operationKey = $"photo-link-fill:{captureId:N}:{caseId:N}";
+        context.CaseWorkflowEvents.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseId,
+            Workflow = workflow,
+            EventType = FilledEventType,
+            OperationKey = $"{operationKey}:{beforeVersion}",
+            RequestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(resultJson))),
+            ActorKind = ActorKind.Automation.ToString(),
+            ActorSubjectId = FillRecorderId,
+            ActorRolesJson = "[]",
+            Reason = reason,
+            OccurredAtUtc = now,
+            BeforeVersion = beforeVersion,
+            AfterVersion = workflow.Version,
+            ResultJson = resultJson
+        });
+        context.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = "case",
+            AggregateId = caseId.ToString("D"),
+            EventKind = FilledEventType,
+            ActorKind = ActorKind.Automation.ToString(),
+            ActorSubjectId = FillRecorderId,
+            ActorRolesJson = "[]",
+            OccurredAtUtc = now,
+            Outcome = "Succeeded",
+            CorrelationId = operationKey,
+            Reason = reason,
+            BeforeJson = beforeJson,
+            AfterJson = resultJson,
+            PolicyVersion = $"{PhotoCaptureCaseFields.PolicyKey}/v{PhotoCaptureCaseFields.PolicyVersion}"
+        });
+
+        // The claimant's name and the incident date are case-match keys,
+        // so the index follows the filled facts as a staff edit's does.
+        if (caseMatchPolicies is not null
+            && (filled.Contains(CaseDataFieldNames.ClaimantName) || filled.Contains(CaseDataFieldNames.IncidentDate)))
+        {
+            CaseMatchIndexProjector.Apply(
+                context,
+                await context.CaseMatchIndex.SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken),
+                CaseMatchIndexProjector.Project(workflow.Case, caseDataFields, caseMatchPolicies, now));
+        }
+
+        // Every field the fill writes prints on the report.
+        await EfCaseReportGenerationStore.MarkWorkStaleAsync(
+            context, caseId, workId, CaseReportStaleReasons.AssessmentFactsChanged, now, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return filled;
     }
 
     public async Task<Guid?> AssignedEngineerAsync(Guid caseId, CancellationToken cancellationToken)
@@ -311,9 +318,4 @@ public sealed partial class EfPhotoCaptureCaseWriter(
 
         return (filled, replaced);
     }
-
-    [LoggerMessage(
-        Level = LogLevel.Warning,
-        Message = "The photo link's details for case {CaseId} were not recorded: {Reason}")]
-    private static partial void LogNotFilled(ILogger logger, Guid caseId, string reason);
 }

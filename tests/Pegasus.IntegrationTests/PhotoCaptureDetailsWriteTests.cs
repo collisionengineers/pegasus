@@ -37,7 +37,8 @@ public sealed class PhotoCaptureDetailsWriteTests
                 LiveCameraOnly: false,
                 OriginalsInBackground: false,
                 CaptureLimits.DefaultLifetimeDays,
-                PhotoLinkTokenPurpose.Copy),
+                PhotoLinkTokenPurpose.Copy,
+                OperationKey: Guid.NewGuid().ToString("N")),
             CancellationToken.None);
         var read = issued.Capture;
 

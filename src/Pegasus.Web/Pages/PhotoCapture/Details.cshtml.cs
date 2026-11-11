@@ -258,6 +258,13 @@ public sealed class DetailsModel(
             return Page();
         }
 
+        // The form posted again made nothing: its link was shown to the first
+        // post only, so the page is drawn as it is.
+        if (issued.Replayed)
+        {
+            return RedirectToPage(new { id = Id });
+        }
+
         IssuedUrl = PhotoLinkUrls.CaptureUrl(options.Value.PublicOrigin, issued.Token);
         // The page draws the record as the resend left it.
         await LoadAsync(cancellationToken);
@@ -281,7 +288,11 @@ public sealed class DetailsModel(
         var derived = IndexModel.Derive(found, Now);
         State = derived.State;
         Due = derived.Due;
-        Story = PhotoCaptureStoryView.Groups(items.Result, found.Capture.Details.MarkedAreas);
+        // Only the items whose upload reached intake are photos the link has,
+        // as the phone and the Send count them.
+        Story = PhotoCaptureStoryView.Groups(
+            items.Result.Where(item => item.StagedReceiptId is not null).ToArray(),
+            found.Capture.Details.MarkedAreas);
         Acts = acts.Result;
         return true;
     }

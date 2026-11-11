@@ -214,6 +214,8 @@ function New-Estate {
         # any check, and the rulesets gh reads back (R691).
         [string] $DevRunConclusion = 'success',
         [bool] $PullHasChecks = $true,
+        # The pull request's rollup as gh returns it, when a case needs more than one green check.
+        [string] $PullChecksJson = '',
         [string[]] $Rulesets = @('dev', 'main', 'release tags'),
         [Parameter(Mandatory)][string] $NewSha
     )
@@ -222,6 +224,7 @@ function New-Estate {
         instance = [ordered]@{ sourceSha = $(if ($InstanceSourceSha) { $InstanceSourceSha } else { $NewSha }) }
         pullClosesIssue = $PullClosesIssue
         pullHasChecks = $PullHasChecks
+        pullChecksJson = $PullChecksJson
         issueLabels = @($IssueLabels)
         devRunConclusion = $DevRunConclusion
         rulesets = @($Rulesets)
@@ -368,7 +371,7 @@ if ($Arguments[0] -eq 'issue') { @{ labels = @(@($state.issueLabels) | ForEach-O
 # A pull request into dev carries no linked closing reference (GitHub links
 # them on the default branch alone); its body says what it closes.
 $body = if ($state.pullClosesIssue) { 'Summary. Closes #7' } else { 'Summary.' }
-$checks = if ($state.pullHasChecks) { '[{"name":"unit","conclusion":"SUCCESS"}]' } else { '[]' }
+$checks = if ($state.pullChecksJson) { $state.pullChecksJson } elseif ($state.pullHasChecks) { '[{"name":"unit","conclusion":"SUCCESS"}]' } else { '[]' }
 "{`"number`":1,`"title`":`"fixture`",`"state`":`"MERGED`",`"body`":`"$body`",`"statusCheckRollup`":$checks,`"closingIssuesReferences`":[]}"
 exit 0
 '@
@@ -1247,6 +1250,29 @@ try {
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -PullHasChecks $false) -MigrationHead $identity
     $case = 'Preflight with a pull request reporting no check'
     Assert-True ($result.Output.Contains('#1 fixture: 0 checks, 0 not successful (no check reported: not green)')) $case 'did not count the check-less pull request.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('1 run(s) are not green: the candidate waits; nothing is waived (R691)')) $case 'did not report the candidate as waiting.' $result.Diagnostic
+
+    # R924: a run that a later run superseded is not judged; the latest run is.
+    $runA = 'https://github.com/o/r/actions/runs/100/job/1'
+    $runB = 'https://github.com/o/r/actions/runs/101/job/2'
+    $superseded = (@(
+        @{ name = 'changes'; conclusion = 'CANCELLED'; workflowName = 'repository-check'; detailsUrl = $runA; startedAt = '2026-11-10T02:42:47Z' },
+        @{ name = 'sql-integration-result'; conclusion = 'FAILURE'; workflowName = 'repository-check'; detailsUrl = $runA; startedAt = '2026-11-10T02:42:48Z' },
+        @{ name = 'changes'; conclusion = 'SUCCESS'; workflowName = 'repository-check'; detailsUrl = $runB; startedAt = '2026-11-10T02:43:02Z' },
+        @{ name = 'sql-integration-result'; conclusion = 'SUCCESS'; workflowName = 'repository-check'; detailsUrl = $runB; startedAt = '2026-11-10T03:10:00Z' }
+    ) | ConvertTo-Json -Compress -AsArray)
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -PullChecksJson $superseded) -MigrationHead $identity
+    $case = 'Preflight with a superseded run on a pull request'
+    Assert-True ($result.Output.Contains('#1 fixture: 2 checks, 0 not successful')) $case 'judged the superseded run.' $result.Diagnostic
+    Assert-True (-not $result.Output.Contains('run(s) are not green')) $case 'reported the candidate as waiting.' $result.Diagnostic
+
+    $failedLatest = (@(
+        @{ name = 'unit'; conclusion = 'SUCCESS'; workflowName = 'repository-check'; detailsUrl = $runA; startedAt = '2026-11-10T02:42:47Z' },
+        @{ name = 'unit'; conclusion = 'FAILURE'; workflowName = 'repository-check'; detailsUrl = $runB; startedAt = '2026-11-10T02:43:02Z' }
+    ) | ConvertTo-Json -Compress -AsArray)
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -PullChecksJson $failedLatest) -MigrationHead $identity
+    $case = 'Preflight with a failed latest run on a pull request'
+    Assert-True ($result.Output.Contains('#1 fixture: 1 checks, 1 not successful')) $case 'did not count the failed latest run.' $result.Diagnostic
     Assert-True ($result.Output.Contains('1 run(s) are not green: the candidate waits; nothing is waived (R691)')) $case 'did not report the candidate as waiting.' $result.Diagnostic
 
     # #1931: a deployable candidate's approval is given on a complete azd
