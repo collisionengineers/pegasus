@@ -129,4 +129,27 @@ public sealed class SecretPathTelemetryInitializerTests
 
         Assert.Equal("GET /Cases/0f8fad5b-d9cb-469f-a165-70867728950e", dependency.Context.Operation.Name);
     }
+
+    [Fact]
+    public void ALogWrittenDuringASecretRequestLosesTheSecretFromItsRequestPath()
+    {
+        const string token = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        var exception = new ExceptionTelemetry(new InvalidOperationException("x"));
+        exception.Properties["RequestPath"] = "/c/" + token;
+        exception.Properties["RequestId"] = "request-id";
+        var trace = new TraceTelemetry("t");
+        trace.Properties["RequestPath"] = "/s/abcdefghjkmn/items";
+        var other = new TraceTelemetry("t");
+        other.Properties["RequestPath"] = "/Cases/0f8fad5b-d9cb-469f-a165-70867728950e";
+
+        var initializer = new SecretPathTelemetryInitializer();
+        initializer.Initialize(exception);
+        initializer.Initialize(trace);
+        initializer.Initialize(other);
+
+        Assert.Equal("/c/{token}", exception.Properties["RequestPath"]);
+        Assert.Equal("request-id", exception.Properties["RequestId"]);
+        Assert.Equal("/s/{slug}", trace.Properties["RequestPath"]);
+        Assert.Equal("/Cases/0f8fad5b-d9cb-469f-a165-70867728950e", other.Properties["RequestPath"]);
+    }
 }

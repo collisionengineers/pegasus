@@ -1275,6 +1275,15 @@ try {
     Assert-True ($result.Output.Contains('#1 fixture: 1 checks, 1 not successful')) $case 'did not count the failed latest run.' $result.Diagnostic
     Assert-True ($result.Output.Contains('1 run(s) are not green: the candidate waits; nothing is waived (R691)')) $case 'did not report the candidate as waiting.' $result.Diagnostic
 
+    $queuedRerun = (@(
+        @{ name = 'unit'; status = 'COMPLETED'; conclusion = 'SUCCESS'; workflowName = 'repository-check'; detailsUrl = $runB; startedAt = '2026-11-10T02:43:02Z' },
+        @{ name = 'unit'; status = 'QUEUED'; conclusion = ''; workflowName = 'repository-check'; detailsUrl = $runB; startedAt = '0001-01-01T00:00:00Z' }
+    ) | ConvertTo-Json -Compress -AsArray)
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -PullChecksJson $queuedRerun) -MigrationHead $identity
+    $case = 'Preflight with a re-run still queued on a pull request'
+    Assert-True ($result.Output.Contains('#1 fixture: 1 checks, 1 not successful')) $case 'passed on the finished attempt the re-run replaces.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('1 run(s) are not green: the candidate waits; nothing is waived (R691)')) $case 'did not report the candidate as waiting.' $result.Diagnostic
+
     # #1931: a deployable candidate's approval is given on a complete azd
     # environment; the read-only run refuses before the version and the
     # approval request, and writes nothing.

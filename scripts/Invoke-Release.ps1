@@ -929,8 +929,13 @@ function Get-CheckValue {
 }
 
 function Get-CheckTime {
-    # ConvertFrom-Json turns gh's ISO timestamps into DateTime values.
+    # ConvertFrom-Json turns gh's ISO timestamps into DateTime values. A check
+    # run still queued or running is the newest attempt of its name whatever
+    # its times say: a re-run's queued attempt has no start yet, and must not
+    # lose to the finished attempt it replaces.
     param([Parameter(Mandatory)][object] $Check)
+    $status = Get-CheckValue -Check $Check -Names @('status')
+    if ($status -and $status -cne 'COMPLETED') { return [datetimeoffset]::MaxValue }
     foreach ($name in 'startedAt', 'completedAt', 'createdAt') {
         $property = $Check.PSObject.Properties[$name]
         if ($null -eq $property -or $null -eq $property.Value) { continue }

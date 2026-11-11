@@ -344,9 +344,14 @@ public static partial class CaptureEndpoints
         // writes and refuses anything but this digest.
         string actual;
         byte[] header;
-        await using (var parts = new ConcatenatedPartsStream(staging, uploadId, manifest.TotalBytes))
+        try
         {
+            await using var parts = new ConcatenatedPartsStream(staging, uploadId, manifest.TotalBytes);
             (actual, header) = await HashAsync(parts, cancellationToken);
+        }
+        catch (UploadPartGoneException)
+        {
+            return await ReplayAfterPartsGoneAsync(receive, capture, itemId, query.Original, sha256, commit.TotalBytes, cancellationToken);
         }
 
         // The parts were sent under the file's own type; the commit is JSON,
@@ -359,16 +364,24 @@ public static partial class CaptureEndpoints
             throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.ItemConflict, DocumentUploadRefusals.Sha256Mismatch);
         }
 
-        var result = await receive.ExecuteAsync(
-            capture,
-            query.ToRequest(
-                itemId,
-                mediaType,
-                manifest.TotalBytes,
-                Bound(commit.Name) ?? query.Name,
-                _ => ValueTask.FromResult<Stream>(new ConcatenatedPartsStream(staging, uploadId, manifest.TotalBytes)),
-                actual),
-            cancellationToken);
+        ReceivedPhotoCaptureItem result;
+        try
+        {
+            result = await receive.ExecuteAsync(
+                capture,
+                query.ToRequest(
+                    itemId,
+                    mediaType,
+                    manifest.TotalBytes,
+                    Bound(commit.Name) ?? query.Name,
+                    _ => ValueTask.FromResult<Stream>(new ConcatenatedPartsStream(staging, uploadId, manifest.TotalBytes)),
+                    actual),
+                cancellationToken);
+        }
+        catch (UploadPartGoneException)
+        {
+            return await ReplayAfterPartsGoneAsync(receive, capture, itemId, query.Original, sha256, commit.TotalBytes, cancellationToken);
+        }
 
         // The item is kept, so its parts are no longer needed; a retry is
         // answered from the item. A delete that fails is left to the sweep.
@@ -383,6 +396,24 @@ public static partial class CaptureEndpoints
 
         return ItemResult(itemId, result);
     }
+
+    /// <summary>
+    /// A retry that overlapped the commit that kept the item finds the parts
+    /// that commit cleared: it is answered as that commit was, or as not ready
+    /// when nothing was kept, never as a different file.
+    /// </summary>
+    private static async Task<IResult> ReplayAfterPartsGoneAsync(
+        ReceivePhotoCaptureItem receive,
+        CaptureRecord capture,
+        Guid itemId,
+        bool original,
+        string sha256,
+        long totalBytes,
+        CancellationToken cancellationToken) =>
+        ItemResult(
+            itemId,
+            await receive.FindReplayAsync(capture, itemId, original, sha256, totalBytes, cancellationToken)
+                ?? throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.NotReady, DocumentUploadRefusals.Unavailable));
 
     private static async Task<IResult> CompleteAsync(
         HttpContext context,

@@ -7,7 +7,10 @@ namespace Pegasus.Web.PhotoCapture;
 /// A staged upload's parts read back in order as one forward-only stream,
 /// each part streamed from staging as it is read, never held whole. Each part
 /// must have the length <see cref="CaptureLimits.PartLength"/> gives it; a
-/// missing or misfit part is the same file sent differently, an item conflict.
+/// misfit part is the same file sent differently, an item conflict. A part
+/// that is gone when it is opened was cleared by a commit that kept the item,
+/// or by the sweep, and is a <see cref="UploadPartGoneException"/> for the caller
+/// to answer as a retry.
 /// </summary>
 public sealed class ConcatenatedPartsStream : Stream
 {
@@ -60,7 +63,7 @@ public sealed class ConcatenatedPartsStream : Stream
                     return 0;
                 }
 
-                current = await staging.OpenPartAsync(uploadId, nextPart, cancellationToken) ?? throw Misfit();
+                current = await staging.OpenPartAsync(uploadId, nextPart, cancellationToken) ?? throw new UploadPartGoneException();
                 currentRemaining = CaptureLimits.PartLength(totalBytes, nextPart);
                 nextPart++;
             }

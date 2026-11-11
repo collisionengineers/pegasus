@@ -9,7 +9,9 @@ namespace Pegasus.Web;
 /// telemetry: Glass's one-use callback correlation and the provider's query,
 /// and a photo link's token or a standing link's slug (ADR-0090). The
 /// recorded URL is the route template and nothing more, and a request name
-/// that carries the raw path is renamed to the template too.
+/// that carries the raw path is renamed to the template too. The logging
+/// scope's <c>RequestPath</c>, which every log written during the request
+/// carries as a property, is rewritten the same way.
 /// </summary>
 public sealed class SecretPathTelemetryInitializer : ITelemetryInitializer
 {
@@ -20,6 +22,9 @@ public sealed class SecretPathTelemetryInitializer : ITelemetryInitializer
         ("/s/", "/s/{slug}")
     ];
 
+    // ASP.NET Core's hosting log scope names the raw request path so.
+    private const string RequestPathProperty = "RequestPath";
+
     public void Initialize(ITelemetry telemetry)
     {
         // Whatever the item, its operation name may carry the raw path: a row
@@ -27,6 +32,13 @@ public sealed class SecretPathTelemetryInitializer : ITelemetryInitializer
         if (telemetry.Context.Operation.Name is { Length: > 0 } operationName)
         {
             telemetry.Context.Operation.Name = Scrub(operationName);
+        }
+
+        if (telemetry is ISupportProperties { Properties: { } properties }
+            && properties.TryGetValue(RequestPathProperty, out var requestPath)
+            && ScrubPath(requestPath) is { } scrubbedPath)
+        {
+            properties[RequestPathProperty] = scrubbedPath;
         }
 
         if (telemetry is not RequestTelemetry { Url: { IsAbsoluteUri: true } url } request)
@@ -57,19 +69,32 @@ public sealed class SecretPathTelemetryInitializer : ITelemetryInitializer
         }
     }
 
+    /// <summary>The template for a secret path, or null for any other path.</summary>
+    private static string? ScrubPath(string? path)
+    {
+        if (path is null)
+        {
+            return null;
+        }
+
+        foreach (var (prefix, template) in SecretPaths)
+        {
+            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return template;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>An operation name such as <c>GET /c/token</c> with a secret path rewritten to its template.</summary>
     private static string Scrub(string operationName)
     {
         var space = operationName.IndexOf(' ', StringComparison.Ordinal);
         var path = space < 0 ? operationName : operationName[(space + 1)..];
-        foreach (var (prefix, template) in SecretPaths)
-        {
-            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                return space < 0 ? template : operationName[..(space + 1)] + template;
-            }
-        }
-
-        return operationName;
+        return ScrubPath(path) is not { } template
+            ? operationName
+            : space < 0 ? template : operationName[..(space + 1)] + template;
     }
 }
