@@ -556,9 +556,20 @@
         commitWaiters = [];
         waiters.forEach(function (waiter) { if (waiter.abandon) { waiter.abandon(); } });
     }
+    // A choice that only says the value will be typed (Manual entry at
+    // Inspect at, a Custom labour rate) is not a value. Nothing is saved
+    // until what is typed is: a save here changes nothing on the Case, and
+    // the redraw that follows it would put the choice back on whichever one
+    // the record matches. Left unsent, the choice holds its section.
+    function typedChoice(control) {
+        var chosen = control.tagName === 'SELECT' ? control.options[control.selectedIndex]
+            : control.checked ? control : null;
+        return !!chosen && chosen.hasAttribute('data-typed-choice');
+    }
     document.addEventListener('change', function (event) {
         var control = event.target;
         if (!editorFor(control)) { return; }
+        if (typedChoice(control)) { return; }
         if (compositeOf(control)) { scheduleCommit(); return; }
         // A simple cell commits as it is left. A value the browser cannot
         // accept is said so there and then, and nothing is sent.
@@ -568,6 +579,9 @@
     document.addEventListener('input', function (event) {
         var control = event.target;
         if (!editorFor(control)) { return; }
+        // A press on a radio is an input too, and a composite's would wait
+        // out the idle and then save.
+        if (typedChoice(control)) { return; }
         // Typing waits for the cell to be left; a script's fill (the damage
         // plan, a bank wording, a slider's figure) and a composite's typing
         // commit after the idle.
@@ -1151,8 +1165,20 @@
         return !!host.querySelector('[data-busy]')
             || Array.prototype.some.call(host.querySelectorAll('input, select, textarea'), unsentControl);
     }
+    // A helper control with no form of its own (an impact row, the salvage
+    // slider, the rate box, the Contract tick) sends its value through a
+    // hidden field of the Case form, so the commit that carried the field
+    // sent the helper too. Left out, it stayed unsent for good once touched
+    // and its section was never drawn again: Settlement kept an Engineer's
+    // Value the Case had moved on from. The scale preview's slider is
+    // applied by its own form, never by a commit, and keeps holding.
+    function helperControls() {
+        return Array.prototype.filter.call(main.querySelectorAll('input, select, textarea'), function (control) {
+            return !control.form && !control.closest('[data-estimate-scale]');
+        });
+    }
     function sendingState(form) {
-        return Array.prototype.map.call(form.elements, function (control) {
+        return Array.prototype.slice.call(form.elements).concat(helperControls()).map(function (control) {
             return {
                 control: control,
                 value: control.value,
@@ -1282,6 +1308,15 @@
             if (!response.ok || !samePage(response.url || window.location.href)) { throw new Error('catch up: ' + response.status); }
             return response.text();
         }).then(function (html) {
+            // A change made while this read was in flight waits to be sent,
+            // and a hidden field a script filled does not hold its section:
+            // drawn now, the section would lose the change and the commit
+            // would send the page as it was. The commit goes first and the
+            // page catches up after it.
+            if (commitTimer !== null || commitPending) {
+                if (afterSave) { redrawWanted = true; } else { catchUpWanted = true; }
+                return;
+            }
             // The control the operator is in now, not when the read began:
             // they may have moved on while it was in flight.
             var focused = focusedControl();
@@ -4213,21 +4248,41 @@
     // Contract repair (v28 P35): the tick is the outcome in Decisions; ticking
     // seeds the agreed sum from the specification, a different sum sets the
     // scaling target.
+    // The bar's partners are Decisions' own controls, in another section.
+    // That section is drawn again after a save while this one may stay as
+    // it is, so the partners are found as they are used, and heard by one
+    // listener on the document, added once, that answers to whichever bar
+    // is current. A control held from when the bar was bound would be one
+    // no longer on the page, and a sum the bar wrote to it would be sent
+    // nowhere. The listener captures, so the bar has filled the sum before
+    // the commit that the same event starts reads the form.
+    var contractBar = null;
+    ['input', 'change'].forEach(function (name) {
+        document.addEventListener(name, function (event) {
+            var bar = contractBar;
+            if (!bar || !bar.host.isConnected || !event.target || !event.target.id) { return; }
+            if (name === 'input' && event.target.id === bar.sumId) { bar.sumTyped(); }
+            if (name === 'change' && event.target.id === bar.outcomeId) { bar.outcomeChosen(); }
+        }, true);
+    });
     function bindContract(form) {
         var bar = form.querySelector('[data-estimate-contract]');
         if (!bar) {
             return;
         }
         var tick = bar.querySelector('[data-contract-agreed]');
-        var sum = document.getElementById(bar.getAttribute('data-estimate-contract-sum-control') || '');
+        var sumId = bar.getAttribute('data-estimate-contract-sum-control') || '';
+        var outcomeId = bar.getAttribute('data-estimate-outcome-control') || '';
+        function sum() { return sumId ? document.getElementById(sumId) : null; }
+        function outcome() { return outcomeId ? document.getElementById(outcomeId) : null; }
         var read = bar.querySelector('[data-contract-sum-read]');
         var box = bar.querySelector('[data-contract-sum]');
         var rescale = bar.querySelector('[data-contract-rescale]');
         var scaleBar = form.querySelector('[data-estimate-scale]');
         var engineerValue = scaleBar ? parseFloat(scaleBar.getAttribute('data-scale-engineer-value') || '') : NaN;
-        var outcome = document.getElementById(bar.getAttribute('data-estimate-outcome-control') || '');
         var grossCell = form.querySelector('[data-estimate-gross]');
-        var previous = outcome && outcome.value !== 'contract_repair' ? outcome.value : 'repairable';
+        var opened = outcome();
+        var previous = opened && opened.value !== 'contract_repair' ? opened.value : 'repairable';
         function gross() { return grossCell ? (parseFloat((grossCell.textContent || '').replace(/[^0-9.]/g, '')) || 0) : 0; }
         // The bar's own box mirrors Decisions' cell (one Case field); typing
         // in it previews the scaling to the sum, as the slider does.
@@ -4238,72 +4293,85 @@
         }
         if (box) {
             box.addEventListener('input', function () {
-                if (sum) {
-                    sum.value = box.value;
-                    sum.dispatchEvent(new Event('input', { bubbles: true }));
+                var partner = sum();
+                if (partner) {
+                    partner.value = box.value;
+                    partner.dispatchEvent(new Event('input', { bubbles: true }));
                 }
                 if (Number(box.value) > 0 && Math.abs(Number(box.value) - gross()) > 0.5) { previewSum(); }
             });
         }
         if (rescale) {
             rescale.addEventListener('click', function () {
-                if (box && sum && !box.value && sum.value) { box.value = sum.value; }
+                var partner = sum();
+                if (box && partner && !box.value && partner.value) { box.value = partner.value; }
                 previewSum();
             });
         }
         function setOutcome(contract) {
-            if (!outcome) { return; }
+            var chosen = outcome();
+            if (!chosen) { return; }
             var wanted = contract ? 'contract_repair' : previous;
-            if (outcome.value !== wanted) {
-                outcome.value = wanted;
-                outcome.dispatchEvent(new Event('input', { bubbles: true }));
-                outcome.dispatchEvent(new Event('change', { bubbles: true }));
+            if (chosen.value !== wanted) {
+                chosen.value = wanted;
+                chosen.dispatchEvent(new Event('input', { bubbles: true }));
+                chosen.dispatchEvent(new Event('change', { bubbles: true }));
             }
         }
         if (tick) {
             tick.addEventListener('change', function () {
+                var partner = sum();
+                var chosen = outcome();
                 if (tick.checked) {
-                    if (outcome && outcome.value !== 'contract_repair') { previous = outcome.value; }
-                    if (sum && !sum.value && gross() > 0) { sum.value = gross().toFixed(2); sum.dispatchEvent(new Event('input', { bubbles: true })); }
+                    if (chosen && chosen.value !== 'contract_repair') { previous = chosen.value; }
+                    if (partner && !partner.value && gross() > 0) { partner.value = gross().toFixed(2); partner.dispatchEvent(new Event('input', { bubbles: true })); }
                     setOutcome(true);
                 } else {
-                    if (sum) { sum.value = ''; sum.dispatchEvent(new Event('input', { bubbles: true })); }
+                    if (partner) { partner.value = ''; partner.dispatchEvent(new Event('input', { bubbles: true })); }
                     setOutcome(false);
                 }
                 paintSum();
             });
         }
         function paintSum() {
-            var agreed = sum ? parseFloat(sum.value) : NaN;
+            var partner = sum();
+            var chosen = outcome();
+            var agreed = partner ? parseFloat(partner.value) : NaN;
             if (box) {
-                box.disabled = !(outcome ? outcome.value === 'contract_repair' : tick && tick.checked);
-                if (document.activeElement !== box) { box.value = sum && sum.value ? sum.value : ''; }
+                box.disabled = !(chosen ? chosen.value === 'contract_repair' : tick && tick.checked);
+                if (document.activeElement !== box) { box.value = partner && partner.value ? partner.value : ''; }
             }
             if (!read) { return; }
-            read.textContent = isNaN(agreed) || !sum.value ? '\u2014' : '\u00a3' + agreed.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            read.textContent = isNaN(agreed) || !partner || !partner.value ? '—' : '£' + agreed.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
-        if (sum) {
-            sum.addEventListener('input', function () {
-                if (outcome && Number(sum.value) > 0 && outcome.value !== 'contract_repair') {
-                    previous = outcome.value;
+        contractBar = {
+            host: bar,
+            sumId: sumId,
+            outcomeId: outcomeId,
+            sumTyped: function () {
+                var partner = sum();
+                var chosen = outcome();
+                if (chosen && partner && Number(partner.value) > 0 && chosen.value !== 'contract_repair') {
+                    previous = chosen.value;
                     setOutcome(true);
                 }
                 paintSum();
-            });
-        }
-        if (outcome) {
-            outcome.addEventListener('change', function () {
-                var is = outcome.value === 'contract_repair';
+            },
+            outcomeChosen: function () {
+                var partner = sum();
+                var chosen = outcome();
+                if (!chosen) { return; }
+                var is = chosen.value === 'contract_repair';
                 if (tick) { tick.checked = is; }
                 if (is) {
-                    if (sum && !sum.value && gross() > 0) { sum.value = gross().toFixed(2); }
+                    if (partner && !partner.value && gross() > 0) { partner.value = gross().toFixed(2); }
                 } else {
-                    previous = outcome.value;
-                    if (sum) { sum.value = ''; }
+                    previous = chosen.value;
+                    if (partner) { partner.value = ''; }
                 }
                 paintSum();
-            });
-        }
+            }
+        };
     }
 
     // Compare (v28 P19): choosing From and To reloads the dialog with both.
@@ -4413,9 +4481,12 @@
                     hidden.value = card.getAttribute('data-rate') || hidden.value;
                     post();
                 } else if (display.value) {
+                    // Custom with the card's own figure is still the card
+                    // (RetainEditorRate): only a figure that moved is sent.
+                    var moved = Number(hidden.value) !== Number(display.value);
                     hidden.value = display.value;
                     if (uplift && uplift.checked) { uplift.checked = false; uplift.dispatchEvent(new Event('change', { bubbles: true })); }
-                    post();
+                    if (moved) { post(); }
                     display.focus();
                     display.select();
                 }
@@ -4951,6 +5022,11 @@
 (function () {
     'use strict';
 
+    // The tab the operator is on. A save redraws the section, and the
+    // section drawn again opens on the same tab: a fee typed on Fee is not
+    // answered by the Report pane.
+    var shown = 'report';
+
     function bind(root) {
         root.querySelectorAll('[data-report-tabs]').forEach(function (tabs) {
             if (tabs.dataset.reportTabsBound === 'true') {
@@ -4965,6 +5041,7 @@
             }
             tabs.hidden = false;
             function show(name) {
+                shown = name;
                 panes.forEach(function (pane) {
                     pane.hidden = pane.getAttribute('data-report-pane') !== name;
                 });
@@ -4986,7 +5063,7 @@
                 show(to.getAttribute('data-report-tab'));
                 to.focus();
             });
-            show('report');
+            show(panes.some(function (pane) { return pane.getAttribute('data-report-pane') === shown; }) ? shown : 'report');
         });
     }
 

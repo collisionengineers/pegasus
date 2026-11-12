@@ -850,8 +850,12 @@
                 var option = select.options[select.selectedIndex];
                 if (!option) return;
                 if (option.value === 'ManualEntry') {
-                    if (input.value.toLowerCase() === 'image based assessment') input.value = '';
-                    mode.value = input.value.trim() ? 'PhysicalAddress' : '';
+                    // Manual entry is no address of its own: the box keeps
+                    // what it holds, selected to type over, and nothing is
+                    // saved until an address is typed (R1020). Emptying the
+                    // box here would save the Case with no address.
+                    input.focus();
+                    input.select();
                     return;
                 }
                 input.value = option.dataset.address || '';
@@ -1824,6 +1828,61 @@
             privateCustomer.addEventListener('change', sync);
         }
         sync();
+    });
+
+    // Create case: the Claim Source list follows the typed Principal. The
+    // Claim Sources linked to it come first under its code and the others
+    // under their own heading, each in name order, as the Case record draws
+    // them (R1013, R1016); a Principal with none linked, and a one-off for a
+    // private customer, keep the one plain list. Each option carries the codes
+    // it is linked to and its place in name order. Without script the list
+    // stays as the server drew it for the code the form opened with.
+    document.querySelectorAll('select[data-linked-choices]').forEach(function (select) {
+        var form = select.closest('form');
+        var principal = form && form.querySelector(select.getAttribute('data-linked-choices'));
+        if (!principal) {
+            return;
+        }
+        var othersLabel = select.getAttribute('data-others-label') || '';
+        var options = Array.prototype.slice.call(select.querySelectorAll('option[data-principals]'));
+        options.sort(function (first, second) {
+            return Number(first.getAttribute('data-order')) - Number(second.getAttribute('data-order'));
+        });
+        function group(label, members) {
+            var element = document.createElement('optgroup');
+            element.label = label;
+            members.forEach(function (option) {
+                element.appendChild(option);
+            });
+            return element;
+        }
+        function sync() {
+            var code = principal.closest('[hidden]') ? '' : principal.value.trim().toUpperCase();
+            var chosen = select.value;
+            var linked = [];
+            var others = [];
+            options.forEach(function (option) {
+                var codes = (option.getAttribute('data-principals') || '').toUpperCase().split(' ');
+                (code && codes.indexOf(code) >= 0 ? linked : others).push(option);
+                option.remove();
+            });
+            select.querySelectorAll('optgroup').forEach(function (element) {
+                element.remove();
+            });
+            if (linked.length === 0) {
+                others.forEach(function (option) {
+                    select.appendChild(option);
+                });
+            } else {
+                select.appendChild(group(code, linked));
+                if (others.length > 0) {
+                    select.appendChild(group(othersLabel, others));
+                }
+            }
+            select.value = chosen;
+        }
+        principal.addEventListener('input', sync);
+        form.addEventListener('change', sync);
     });
 })();
 

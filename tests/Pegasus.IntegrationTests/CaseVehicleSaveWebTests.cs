@@ -14,6 +14,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Vehicle;
 using Pegasus.Web.Authentication;
+using Pegasus.Web.Presentation;
 using Pegasus.Infrastructure.Persistence;
 using Xunit.Abstractions;
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
@@ -291,7 +292,10 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// #1950: the Repairer list the edit-session page reads is one statement
     /// whatever its length. Each seed goes through the contact writer, which
     /// evicts the kept list, so both measured opens read it cold and growth
-    /// with the rows would show; the open after them reads it kept.
+    /// with the rows would show; the open after them reads it kept. The second
+    /// three are linked to the Case's Principal, read in that same statement,
+    /// and are drawn first under its code with the others under their own
+    /// heading (R1015, R1016).
     /// </summary>
     [Fact]
     public async Task TheCasePageInAnEditSessionReadsTheSameForThreeRepairersAndSix()
@@ -313,7 +317,8 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         var withThree = counter.Count;
         var withThreeDescription = counter.Describe();
 
-        await SeedRepairersAsync(factory.Services, repairerIds[3..]);
+        var (principalId, principalCode) = await CasePrincipalAsync(factory.Services, caseId);
+        await SeedRepairersAsync(factory.Services, repairerIds[3..], principalId);
         counter.Reset();
         var withSixHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
         var withSix = counter.Count;
@@ -338,13 +343,48 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         {
             Assert.Contains($"value=\"{repairerId:D}\"", repairerSelect.Value, StringComparison.Ordinal);
         }
+        var linkedHeading = repairerSelect.Value.IndexOf(
+            $"<optgroup label=\"{principalCode}\">", StringComparison.Ordinal);
+        var othersHeading = repairerSelect.Value.IndexOf(
+            $"<optgroup label=\"{OperatorLabels.CaseWorkspace.OtherRepairers}\">", StringComparison.Ordinal);
+        Assert.True(
+            linkedHeading >= 0 && othersHeading > linkedHeading,
+            "The Repairers linked to the Case's Principal come first under its code, then the others.");
+        foreach (var linkedId in repairerIds[3..])
+        {
+            Assert.InRange(
+                repairerSelect.Value.IndexOf($"value=\"{linkedId:D}\"", StringComparison.Ordinal),
+                linkedHeading,
+                othersHeading);
+        }
+        foreach (var otherId in repairerIds[..3])
+        {
+            Assert.True(
+                repairerSelect.Value.IndexOf($"value=\"{otherId:D}\"", StringComparison.Ordinal) > othersHeading,
+                "A Repairer not linked to the Case's Principal is drawn under the others' heading.");
+        }
         Assert.True(
             warm < withSix,
             $"The Case page sent {warm} SQL commands with the directory lists kept, no fewer than the {withSix} it sent reading them."
             + Environment.NewLine + warmDescription);
     }
 
-    private static async Task SeedRepairersAsync(IServiceProvider services, IEnumerable<Guid> repairerIds)
+    private static async Task<(Guid Id, string Code)> CasePrincipalAsync(IServiceProvider services, Guid caseId)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var principal = await context.Cases.AsNoTracking()
+            .Where(item => item.Id == caseId)
+            .Select(item => new { item.Principal.Id, item.Principal.Code })
+            .SingleAsync();
+        return (principal.Id, principal.Code);
+    }
+
+    private static async Task SeedRepairersAsync(
+        IServiceProvider services,
+        IEnumerable<Guid> repairerIds,
+        Guid? linkedPrincipalId = null)
     {
         await using var scope = services.CreateAsyncScope();
         var administration = scope.ServiceProvider.GetRequiredService<IContactDirectoryAdministration>();
@@ -357,7 +397,9 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             await administration.SaveAsync(
                 new(
                     actor, repairerId, 0, name, null, null, null, null, null, true, ContactRole.Repairer, null,
-                    CaseInspectionMode.PhysicalAddress, [], $"case-repairer-rows:{repairerId:N}"),
+                    CaseInspectionMode.PhysicalAddress,
+                    linkedPrincipalId is { } principalId ? [principalId] : [],
+                    $"case-repairer-rows:{repairerId:N}"),
                 CancellationToken.None);
         }
     }
@@ -774,6 +816,50 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         Assert.Null(data.Vehicle.MileageUnit.Fact);
     }
 
+    /// <summary>
+    /// A registration staff record on a Case that came from an instruction
+    /// reads on the ribbon and is what Search finds the Case by: the confirmed
+    /// value reads before the instruction draft's (MP26001-p, 12 November 2026).
+    /// </summary>
+    [Fact]
+    public async Task ARegistrationStaffRecordReadsOnTheRibbonAndInSearch()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            useIntegrationTestAuthentication: true);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-vehicle-registration-recorded", withMileage: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Contains(">AB12CDE</span>", RibbonRegistrationCell(editing), StringComparison.Ordinal);
+
+        using (var save = await client.PostAsync(
+                   $"/Cases/{caseId:D}?handler=Save",
+                   Form(
+                       AntiforgeryValue(editing),
+                       CurrentCaseSaveValues(
+                           editing,
+                           caseId,
+                           vehicleMake: InputValue(editing, "vehicleMake"),
+                           reason: "Corrected the registration from the vehicle's plate.",
+                           vehicleRegistration: "CD34EFG"))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
+        }
+
+        var saved = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Contains(">CD34EFG</span>", RibbonRegistrationCell(saved), StringComparison.Ordinal);
+        var search = await GetHtmlAsync(client, "/Search?registration=CD34EFG");
+        Assert.Contains(caseId.ToString("D"), search, StringComparison.Ordinal);
+    }
+
+    private static string RibbonRegistrationCell(string html)
+    {
+        var start = html.IndexOf("<div class=\"ribbon-item ribbon-registration\">", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The ribbon has a Registration cell.");
+        return html[start..html.IndexOf("<div class=\"ribbon-item\">", start, StringComparison.Ordinal)];
+    }
+
     private static async Task<Guid> AcceptCaseAsync(
         IntakeWebApplicationFactory factory,
         string operationKey,
@@ -981,7 +1067,8 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         string vehicleMake = "Ford",
         string reason = "Corrected vehicle make from retained instruction.",
         string? vehicleMileage = null,
-        string? vehicleMileageUnit = null) =>
+        string? vehicleMileageUnit = null,
+        string? vehicleRegistration = null) =>
     [
         ("id", caseId.ToString("D")),
         ("expectedVersion", InputValue(html, "expectedVersion")),
@@ -992,7 +1079,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         ("claimantContactNumber", InputValue(html, "claimantContactNumber")),
         ("claimantAddress", InputValue(html, "claimantAddress")),
         ("claimNumber", InputValue(html, "claimNumber")),
-        ("vehicleRegistration", InputValue(html, "vehicleRegistration")),
+        ("vehicleRegistration", vehicleRegistration ?? InputValue(html, "vehicleRegistration")),
         ("vehicleMake", vehicleMake),
         ("vehicleModel", InputValue(html, "vehicleModel")),
         ("vehicleMileage", vehicleMileage ?? InputValue(html, "vehicleMileage")),

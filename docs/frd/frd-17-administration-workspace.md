@@ -148,11 +148,12 @@ mailboxes that can send, with Not set. Send to, Cc, Never cc and Reminders are r
 inputs with an Add button; Send to only, Reply all, Garage figures and the
 six Attach choices are ticks; Hold is text, with no length limit. Rules are repeated rows, each with
 Match (All or Any condition), three condition lines (a kind, then a Contact
-list, the four outcomes, the Case types, or text for Images from,
-Instruction mentions, Bodyshop mentions, Sender is not and Reference prefix;
+list, the four outcomes, the Case types, or text for
+Instruction mentions, Sender is not and Reference prefix;
 Previous job takes no value; the kinds, in order, are Claim Source,
-Repairer, Images from, Instruction mentions, Sender is not, Outcome,
-Bodyshop mentions, Case type, Reference prefix and Previous job), and the
+Repairer, Instruction mentions, Sender is not, Outcome,
+Case type, Reference prefix and Previous job; Images from and Bodyshop
+mentions are retired, 12 November 2026, R1023), and the
 actions Cc add, Cc remove, Remind, Hold, Stop, a Rate card tick and the five
 Attach choices other than report images, each As the Principal, Attach or
 Do not attach (Report Sending SOP v8; operator, 16 October 2026). A

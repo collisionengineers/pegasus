@@ -37,8 +37,14 @@ Engineers. Every Contact has one type: Principal, Claim Source, Repairer,
 Storage provider or Third Party Engineer (operator, 13 October 2026). A
 Principal never links to another Principal. A Contact of any other type may
 link to several Principals; the links are shown on the Contacts list and the
-Contact's page, and they do not narrow a Case's Claim Source or Repairer
-choices (operator, 13 October 2026). A Claim Source's links also make it an
+Contact's page. A Case's Claim Source list and its Repairer list draw the
+contacts linked to the Case's Principal first, under that Principal's code,
+then the others under "Other claim sources" or "Other repairers", each part
+in name order. Nothing is hidden: a Principal with no linked contact, and a
+Case that names no Principal, keep the one list (operator, 12 November 2026;
+[R1013](../rulings.md), [R1015](../rulings.md), [R1016](../rulings.md),
+replacing "they do not narrow a Case's Claim Source or Repairer choices",
+operator, 13 October 2026). A Claim Source's links also make it an
 intermediary for those Principals' mail (operator, 15 October 2026;
 [FRD-09](frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association)).
 A Storage or Third Party Engineer Contact is directory information only: no
@@ -66,10 +72,22 @@ several Repairers. These directory links never rewrite the address or
 party-role copy an existing Case already holds.
 
 A Case records its own repairer: the name and address the instruction gave,
-kept as ordinary Case facts with their extraction provenance. Staff either
-confirm that text or link the Case to an active Repairer-role Contact. Linking
+kept as ordinary Case facts with their extraction provenance. A Case made
+from a received item is also linked to the active Repairer-role Contact whose
+name is the one its instruction gives, ignoring capitals: exactly one such
+Contact, otherwise none, and a name that is not a Contact never creates one.
+The link copies the Contact's identity, version and name, and the address
+stays the instruction's. It is recorded as a choice on the Case is, so staff
+change or clear it; Cases made before the change are not linked (operator, 12
+November 2026; [R1027](../rulings.md), as [R1017](../rulings.md) and
+[R1018](../rulings.md) for a Claim Source). Staff otherwise either
+confirm that text or link the Case to an active Repairer-role Contact, chosen
+from a list that draws the Principal's linked Repairers first (R1015). Linking
 copies that Contact's identity, version, name and address onto the Case, so
-a later directory edit never changes the Case. The confirmed repairer address
+a later directory edit never changes the Case. A save keeps the link the Case
+holds as it is, whether or not the Contact is still active, and a name or
+address typed while it is linked is saved as the Case's own (operator,
+12 November 2026, [R1022](../rulings.md)). The confirmed repairer address
 is one of the Inspect-at options beside the claimant address, the storage
 location and the Principal's own default. The option names the repairer it
 came from.
@@ -238,19 +256,19 @@ The Principal section of a Contact carries:
     Case's Claim Source or Repairer (a Contact of that type), the recorded
     outcome, the Case type (Inspection, Audit or Inspection and audit;
     operator, 13 October 2026), who sent the instruction, or words: "Instruction mentions" is
-    searched for in the instruction e-mail and asked only when the Case
-    holds no instruction text. Reference prefix holds when the report's
+    searched for in the instruction e-mail. Reference prefix holds when the report's
     reference starts with its letters and a dot (`a.PCH26118` has the
     prefix `a`). Previous job holds when another Case of the same Principal
-    with the same vehicle registration already has a sent report. Neither is
-    asked (operator, 16 October 2026). Several values in one condition are
+    with the same vehicle registration already has a sent report
+    (operator, 16 October 2026). Several values in one condition are
     alternatives. A Case type of Inspection or Audit matches the report being
     sent, which on an Inspection + Audit Case is its Inspection or Audit view
     (a send carrying both reports is the view it is sent from), and Inspection
-    and audit matches either report (operator, 13 October 2026). "Images
-    from" and "Bodyshop mentions" have no Case fact. A
-    rule whose fact is not yet known is undecided, and the delivery form
-    asks staff at delivery.
+    and audit matches either report (operator, 13 October 2026). Every
+    condition reads a fact the Case holds, and a fact the Case has not set
+    means the condition does not hold; the delivery form asks staff nothing
+    (operator, 12 November 2026; R1023, R1024). "Images from" and "Bodyshop
+    mentions" had no Case fact and are retired (R1025, R1026).
 
   No text in the rules has a length limit. A refused save names the rule and
   the problem and keeps what was typed. A Principal the SOP does not name,
@@ -282,7 +300,13 @@ show the Claim source notes read-only in the Claim source card and the
 Principal notes read-only in the Principal panel, each beside that Case's own
 editable notes, and show nothing when the record has none (R618, R619). A Triage Case shows the Principal's notes too, read-only and absent when
 the Principal has none (operator ruling, 22 October 2026). The Claim source is chosen on the Case from the active Claim Source
-contacts, or none. The Case keeps a copy of the chosen name and contact, its
+contacts, or none. A Case made from a received item is created with one where the item establishes it: the claim source its
+instruction names (DFD's Claim source, SBL's and OAK's Introducer), when that name is an active Claim Source's, ignoring
+capitals; otherwise, for mail accepted through an intermediary, the one active Claim Source linked to the route's Principal
+that the sender matches, by the rule that made it an intermediary. Two or more matches, or none, fill nothing, and a name
+that is not a Contact never creates one. It is recorded as a choice on the Case is, so staff change or clear it; Cases made
+before the change are not filled (operator, 12 November 2026; [R1014](../rulings.md), [R1017](../rulings.md),
+[R1018](../rulings.md)). The Case keeps a copy of the chosen name and contact, its
 notes follow the chosen record, and a changed choice must still be an active
 Claim Source when the Case is saved. The Case may override the chosen
 source's contact name, telephone and e-mail for that Case alone. The override

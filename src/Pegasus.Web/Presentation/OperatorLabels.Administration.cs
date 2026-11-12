@@ -410,11 +410,9 @@ public static partial class OperatorLabels
         {
             Pegasus.Core.Reports.ReportSendingConditionKind.ClaimSource => "Claim Source",
             Pegasus.Core.Reports.ReportSendingConditionKind.Repairer => "Repairer",
-            Pegasus.Core.Reports.ReportSendingConditionKind.ImagesFrom => "Images from",
             Pegasus.Core.Reports.ReportSendingConditionKind.Mentions => "Instruction mentions",
             Pegasus.Core.Reports.ReportSendingConditionKind.SenderNot => "Sender is not",
             Pegasus.Core.Reports.ReportSendingConditionKind.Outcome => "Outcome",
-            Pegasus.Core.Reports.ReportSendingConditionKind.BodyshopMentions => "Bodyshop mentions",
             Pegasus.Core.Reports.ReportSendingConditionKind.CaseType => "Case type",
             Pegasus.Core.Reports.ReportSendingConditionKind.RefPrefix => "Reference prefix",
             Pegasus.Core.Reports.ReportSendingConditionKind.PreviousJob => "Previous job",

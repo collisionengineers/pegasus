@@ -91,9 +91,9 @@ public sealed class EfCaseQueryStore(
     }
 
     /// <summary>
-    /// One Case's accident circumstances: the draft's when the Case came from
-    /// an instruction draft, else the confirmed field. Only the Search preview
-    /// shows them, so the shared search rows leave them out.
+    /// One Case's accident circumstances: the value staff confirmed, else the
+    /// instruction draft's. Only the Search preview shows them, so the shared
+    /// search rows leave them out.
     /// </summary>
     async Task<string?> ICaseCircumstancesQueries.GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
@@ -109,7 +109,7 @@ public sealed class EfCaseQueryStore(
                         && item.ValueKind == CaseDataCodes.Confirmed)
                 on caseEntity.Id equals confirmedCandidate.WorkId into confirmedRows
             from confirmed in confirmedRows.DefaultIfEmpty()
-            select draft == null ? confirmed!.Value : draft.AccidentCircumstances)
+            select confirmed != null ? confirmed.Value : draft!.AccidentCircumstances)
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -1246,11 +1246,11 @@ public sealed class EfCaseQueryStore(
             EngineerId = workflow == null ? null : workflow.AssignedEngineerId,
             Registration = triage != null
                 ? triage.NormalizedVehicleRegistration
-                : draft == null ? confirmedRegistration!.Value : draft.VehicleRegistration,
-            Claimant = draft == null ? confirmedClaimant!.Value : draft.ClaimantName,
-            ClaimNumber = draft == null ? confirmedClaimNumber!.Value : draft.ClaimNumber,
-            VehicleMake = draft == null ? confirmedMake!.Value : draft.VehicleMake,
-            VehicleModel = draft == null ? confirmedModel!.Value : draft.VehicleModel,
+                : confirmedRegistration != null ? confirmedRegistration.Value : draft!.VehicleRegistration,
+            Claimant = confirmedClaimant != null ? confirmedClaimant.Value : draft!.ClaimantName,
+            ClaimNumber = confirmedClaimNumber != null ? confirmedClaimNumber.Value : draft!.ClaimNumber,
+            VehicleMake = confirmedMake != null ? confirmedMake.Value : draft!.VehicleMake,
+            VehicleModel = confirmedModel != null ? confirmedModel.Value : draft!.VehicleModel,
             ReceivedAtUtc = receipt == null ? caseEntity.CreatedAtUtc : receipt.ReceivedAtUtc,
             Origin = receipt == null ? "manual" : receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,
@@ -1270,6 +1270,11 @@ public sealed class EfCaseQueryStore(
             TriageVersion = triage == null ? null : triage.Version
         };
 
+    /// <summary>
+    /// Every Case with a Case workflow. A fact staff confirmed on the Case
+    /// reads before the instruction draft's, as the Case's own sections read
+    /// it; the draft answers only where nothing is confirmed.
+    /// </summary>
     private static IQueryable<SearchRow> SearchRows(PegasusDbContext context) =>
         from workflow in context.CaseWorkflows.AsNoTracking()
         join caseEntity in context.Set<CaseEntity>().AsNoTracking()
@@ -1316,11 +1321,11 @@ public sealed class EfCaseQueryStore(
             Principal = principal.Code,
             State = workflow.State,
             EngineerId = workflow.AssignedEngineerId,
-            Registration = draft == null ? confirmedRegistration!.Value : draft.VehicleRegistration,
-            Claimant = draft == null ? confirmedClaimant!.Value : draft.ClaimantName,
-            ClaimNumber = draft == null ? confirmedClaimNumber!.Value : draft.ClaimNumber,
-            VehicleMake = draft == null ? confirmedMake!.Value : draft.VehicleMake,
-            VehicleModel = draft == null ? confirmedModel!.Value : draft.VehicleModel,
+            Registration = confirmedRegistration != null ? confirmedRegistration.Value : draft!.VehicleRegistration,
+            Claimant = confirmedClaimant != null ? confirmedClaimant.Value : draft!.ClaimantName,
+            ClaimNumber = confirmedClaimNumber != null ? confirmedClaimNumber.Value : draft!.ClaimNumber,
+            VehicleMake = confirmedMake != null ? confirmedMake.Value : draft!.VehicleMake,
+            VehicleModel = confirmedModel != null ? confirmedModel.Value : draft!.VehicleModel,
             ReceivedAtUtc = receipt == null ? caseEntity.CreatedAtUtc : receipt.ReceivedAtUtc,
             Origin = receipt == null ? "manual" : receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,

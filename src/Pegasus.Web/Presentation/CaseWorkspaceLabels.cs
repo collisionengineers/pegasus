@@ -152,6 +152,8 @@ public static class CaseWorkspaceLabels
         public const string ClaimSourceNotesThisCase = "Claim source notes · this Case";
         public const string AccidentCircumstances = "Accident circumstances";
         public const string NoClaimSource = "None";
+        // The heading over the Claim sources not linked to the Case's Principal (R1016).
+        public const string OtherClaimSources = "Other claim sources";
         public const string ReportSent = "Report sent";
     }
 
@@ -1185,9 +1187,6 @@ public static class CaseWorkspaceLabels
         public const string From = "From";
         public const string Stopped = "Stopped";
         public const string OverrideReason = "Override reason";
-        public const string Questions = "Answer before sending";
-        public const string Yes = "Yes";
-        public const string No = "No";
         public const string RequiredForPrincipal = "(required for this Principal)";
         public const string FiledEstimate = "Filed estimate";
         public const string AfterSending = "After sending";

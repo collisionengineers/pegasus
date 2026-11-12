@@ -986,6 +986,9 @@ internal static partial class CaseWebTestSupport
         public List<SaveCaseWorkspaceRequest> Saves { get; } = [];
         public CaseDataProjection? DataOverride { get; set; }
         public CaseWorkspaceClaimSource? ClaimSource { get; set; }
+
+        /// <summary>The directory Repairer the Case is linked to, as the Case copied it.</summary>
+        public CaseWorkspaceRepairer? Repairer { get; set; }
         public List<ManualChaseRecord> ManualChases { get; } = [];
         public List<PutCaseOnHoldRequest> Holds { get; } = [];
         public List<CaseMutationRequest> Releases { get; } = [];
@@ -1240,9 +1243,9 @@ internal static partial class CaseWebTestSupport
                     Confirmed("14 Storage Lane"),
                     RepairerAddress is null ? Empty<string>() : Confirmed(RepairerAddress),
                     RepairerName is null ? null : Confirmed(RepairerName)),
-                Workspace: ClaimSource is null
+                Workspace: ClaimSource is null && Repairer is null
                     ? null
-                    : new(ClaimSource, null, null, null, null, null, null, null, null, null, null),
+                    : new(ClaimSource, null, null, null, null, null, null, null, null, null, null, Repairer),
                 StandaloneAuditEvidenceId: StandaloneAuditEvidenceId,
                 AiDraftTargetDays: 1);
 

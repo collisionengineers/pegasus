@@ -3797,7 +3797,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
     }
 
     [Fact]
-    public async Task AnInstructionDraftsAccidentCircumstancesWinOverTheConfirmedField()
+    public async Task ConfirmedAccidentCircumstancesReadBeforeTheInstructionDrafts()
     {
         await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         await using (var context = await harness.Factory.CreateDbContextAsync())
@@ -3812,7 +3812,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         }
         ICaseCircumstancesQueries circumstances = harness.QueryStore;
 
-        Assert.Equal("Struck on the roundabout", await circumstances.GetAsync(harness.CaseId, default));
+        Assert.Equal("Rear-ended at lights", await circumstances.GetAsync(harness.CaseId, default));
     }
 
     private static Task<int> InsertConfirmedCircumstancesAsync(PegasusDbContext context, Guid caseId, string text) =>
@@ -4335,7 +4335,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
             ObservedSentAtUtc = now.AddMinutes(-1),
             // What the send recorded, as the staff-mail store writes it.
             ReportDispatchJson = System.Text.Json.JsonSerializer.Serialize(
-                new Pegasus.Core.Reports.ReportDispatchRecord([], [], null, null, afterSendTasks),
+                new Pegasus.Core.Reports.ReportDispatchRecord([], null, null, afterSendTasks),
                 System.Text.Json.JsonSerializerOptions.Web),
             Version = 3,
             ConcurrencyToken = Guid.NewGuid()

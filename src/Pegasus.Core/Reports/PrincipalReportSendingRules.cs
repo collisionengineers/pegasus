@@ -12,10 +12,11 @@ namespace Pegasus.Core.Reports;
 /// <see cref="Outcome"/> compares the Case's recorded assessment outcome code.
 /// <see cref="SenderNot"/> holds when the originating instruction's effective
 /// sender is none of the addresses. <see cref="Mentions"/> is searched for in
-/// the instruction e-mail's subject and text, ignoring case and spaces, and is
-/// asked only when the Case holds no instruction text. <see cref="ImagesFrom"/>
-/// and <see cref="BodyshopMentions"/> have no Case fact of their own, so they
-/// stay undecided until staff answer them on the delivery form.
+/// the instruction e-mail's subject and text, ignoring case and spaces.
+/// Every kind reads a fact the Case holds, and a fact the Case has not set
+/// means the condition does not hold: staff are asked nothing (operator, 12
+/// November 2026; R1023, R1024). "Images from" and "Bodyshop mentions" had no
+/// Case fact and were retired with that decision.
 /// <see cref="CaseType"/> compares the Case's type (<see cref="Cases.CaseType"/>:
 /// Inspection, Audit or InspectionAndAudit; operator, 13 October 2026).
 /// Inspection and Audit name the report being sent, so on an Inspection +
@@ -25,18 +26,16 @@ namespace Pegasus.Core.Reports;
 /// of its values and a dot (<c>a.PCH26118</c> has the prefix <c>a</c>).
 /// <see cref="PreviousJob"/> takes no value and holds when another Case of the
 /// same Principal with the same vehicle registration already has a sent
-/// report (<see cref="ReportDispatchFacts.PreviousJob"/>). Neither is ever
-/// asked (Report Sending SOP v8, 15 October 2026).
+/// report (<see cref="ReportDispatchFacts.PreviousJob"/>; Report Sending SOP
+/// v8, 15 October 2026).
 /// </remarks>
 public enum ReportSendingConditionKind
 {
     ClaimSource,
     Repairer,
-    ImagesFrom,
     Mentions,
     SenderNot,
     Outcome,
-    BodyshopMentions,
     CaseType,
     RefPrefix,
     PreviousJob

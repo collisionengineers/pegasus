@@ -26,11 +26,85 @@ internal static class CaseDataSnapshotFactory
         };
     }
 
+    /// <summary>
+    /// The Claim Source the received item establishes for its Case
+    /// (<see cref="EstablishedIntakeClaimSource"/>; R1014, R1017). The active
+    /// Claim Sources are read only for an item that names one or came through
+    /// an intermediary.
+    /// </summary>
+    public static async Task<EstablishedClaimSource?> EstablishClaimSourceAsync(
+        PegasusDbContext context,
+        IntakeReceiptEntity receipt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(receipt);
+        // The review fields are read only where the snapshot itself reads
+        // them, for an item with an instruction draft.
+        InstructionReviewField[] fields = receipt.InstructionDraft is null
+            ? []
+            : EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson);
+        var route = receipt.MailRouteDecision;
+        var intermediaryPrincipalCode = route is not null
+            && string.Equals(route.Disposition, "accepted", StringComparison.Ordinal)
+            && string.Equals(
+                route.RouteKind,
+                EfIntakeReceiptStore.ToCode(MailRouteKind.Intermediary),
+                StringComparison.Ordinal)
+                ? route.PrincipalCode
+                : null;
+        if (!EstablishedIntakeClaimSource.HasEvidence(fields, intermediaryPrincipalCode))
+        {
+            return null;
+        }
+
+        var claimSources = await EfContactDirectoryAdministration.ReadActiveByRoleAsync(
+            context,
+            ContactRole.ClaimSource,
+            cancellationToken);
+        return EstablishedIntakeClaimSource.For(
+            fields,
+            intermediaryPrincipalCode,
+            route?.EffectiveSenderAddress,
+            claimSources);
+    }
+
+    /// <summary>
+    /// The Repairer the received item establishes for its Case
+    /// (<see cref="EstablishedIntakeRepairer"/>; R1027). The active Repairers
+    /// are read only for an item whose instruction names one.
+    /// </summary>
+    public static async Task<EstablishedRepairer?> EstablishRepairerAsync(
+        PegasusDbContext context,
+        IntakeReceiptEntity receipt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(receipt);
+        // The review fields are read only where the snapshot itself reads
+        // them, for an item with an instruction draft.
+        InstructionReviewField[] fields = receipt.InstructionDraft is null
+            ? []
+            : EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson);
+        if (EstablishedIntakeRepairer.NamedIn(fields) is null)
+        {
+            return null;
+        }
+
+        var repairers = await EfContactDirectoryAdministration.ReadActiveByRoleAsync(
+            context,
+            ContactRole.Repairer,
+            cancellationToken);
+        return EstablishedIntakeRepairer.For(fields, repairers);
+    }
+
     public static CaseDataSnapshotEntity Create(
         CaseEntity caseEntity,
         IntakeReceiptEntity receipt,
         CaseAcceptanceRequest request,
-        DateTimeOffset acceptedAtUtc)
+        DateTimeOffset acceptedAtUtc,
+        EstablishedClaimSource? claimSource = null,
+        EstablishedRepairer? repairer = null)
     {
         ArgumentNullException.ThrowIfNull(caseEntity);
         ArgumentNullException.ThrowIfNull(receipt);
@@ -70,6 +144,8 @@ internal static class CaseDataSnapshotFactory
 
         AddPrincipalFact(snapshot, receipt, request, acceptedAtUtc);
         AddInstructionSuggestions(snapshot, receipt);
+        AddClaimSource(snapshot, receipt, request, claimSource, acceptedAtUtc);
+        AddRepairer(snapshot, receipt, request, repairer, acceptedAtUtc);
         AddResolvedInspection(
             snapshot,
             receipt,
@@ -346,8 +422,8 @@ internal static class CaseDataSnapshotFactory
         // The repairer the instruction named. No typed draft member
         // carries it, so the review field itself is the source — the same
         // route the vehicle description takes above. Unambiguous extracted
-        // text becomes the Case's working repairer facts; linking it to a
-        // Contacts directory organisation stays a staff decision.
+        // text becomes the Case's working repairer facts; AddRepairer links
+        // it to the Contacts directory Repairer of that name (R1027).
         AddExtractedRepairerFact(snapshot, receipt, fields, CaseDataFieldNames.RepairerName);
         AddExtractedRepairerFact(snapshot, receipt, fields, CaseDataFieldNames.RepairerAddress);
 
@@ -365,6 +441,150 @@ internal static class CaseDataSnapshotFactory
                 CaseDataCodes.Text,
                 "miles");
         }
+    }
+
+    /// <summary>
+    /// The Claim Source the received item established, copied onto the new
+    /// Case as a staff choice on the Case is: the directory record's identity,
+    /// version, name and contact, as confirmed rows a later edit replaces or
+    /// clears. Its provenance is the instruction that named it or the mail
+    /// route that proved its sender (R1014, R1017).
+    /// </summary>
+    private static void AddClaimSource(
+        CaseDataSnapshotEntity snapshot,
+        IntakeReceiptEntity receipt,
+        CaseAcceptanceRequest request,
+        EstablishedClaimSource? established,
+        DateTimeOffset acceptedAtUtc)
+    {
+        if (established is null)
+        {
+            return;
+        }
+
+        string sourceKind;
+        string sourceLabel;
+        string? evidencePolicyKey;
+        int? evidencePolicyVersion;
+        if (established.Origin == IntakeClaimSourceOrigin.Instruction)
+        {
+            var named = established.Field?.SuggestedValue;
+            var candidates = established.Field?.Candidates ?? [];
+            var candidate = candidates.FirstOrDefault(item =>
+                    string.Equals(item.Value, named, StringComparison.OrdinalIgnoreCase))
+                ?? (candidates.Count > 0 ? candidates[0] : null);
+            sourceKind = CaseDataCodes.IntakeEvidence;
+            sourceLabel = candidate is null
+                ? "instruction claim source"
+                : $"{candidate.Source}:{candidate.SourceLabel}";
+            evidencePolicyKey = receipt.ExtractionPolicyKey;
+            evidencePolicyVersion = receipt.ExtractionPolicyVersion;
+        }
+        else
+        {
+            var route = receipt.MailRouteDecision;
+            var routeOwner = route?.RouteOwnerCode;
+            sourceKind = CaseDataCodes.MailRoute;
+            sourceLabel = string.IsNullOrWhiteSpace(routeOwner) ? "accepted mail route" : routeOwner;
+            evidencePolicyKey = route?.PolicyKey;
+            evidencePolicyVersion = route?.PolicyVersion;
+        }
+        // A fill is an addition to the Case, never a condition of it: evidence
+        // with no policy identity fills nothing rather than refusing the Case.
+        if (string.IsNullOrWhiteSpace(evidencePolicyKey) || evidencePolicyVersion is not >= 1)
+        {
+            return;
+        }
+
+        string policyKey = evidencePolicyKey;
+        int policyVersion = evidencePolicyVersion.Value;
+        var contact = established.ClaimSource;
+        void Confirm(string fieldName, string valueType, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            UpsertConfirmed(
+                snapshot,
+                fieldName,
+                valueType,
+                value,
+                request.Actor.SubjectId,
+                acceptedAtUtc,
+                policyKey,
+                policyVersion,
+                sourceKind,
+                sourceLabel,
+                inheritUnderlying: false);
+        }
+
+        Confirm(CaseDataFieldNames.ClaimSourceId, CaseDataCodes.Text, contact.OrganizationId.ToString("D"));
+        Confirm(
+            CaseDataFieldNames.ClaimSourceVersion,
+            CaseDataCodes.Integer,
+            contact.Version.ToString(CultureInfo.InvariantCulture));
+        Confirm(CaseDataFieldNames.ClaimSourceName, CaseDataCodes.Text, contact.Name);
+        Confirm(CaseDataFieldNames.ClaimSourceContactName, CaseDataCodes.Text, contact.ContactPerson);
+        Confirm(CaseDataFieldNames.ClaimSourceContactTelephone, CaseDataCodes.Text, contact.Telephone);
+        Confirm(CaseDataFieldNames.ClaimSourceContactEmailAddress, CaseDataCodes.Text, contact.Email);
+    }
+
+    /// <summary>
+    /// The Repairer the instruction established, linked on the new Case as a
+    /// staff choice on the Case is: the directory record's identity, version
+    /// and name, as confirmed rows a later edit replaces or clears. The
+    /// address stays the one the instruction gave. Its provenance is the
+    /// instruction line that named it (R1027).
+    /// </summary>
+    private static void AddRepairer(
+        CaseDataSnapshotEntity snapshot,
+        IntakeReceiptEntity receipt,
+        CaseAcceptanceRequest request,
+        EstablishedRepairer? established,
+        DateTimeOffset acceptedAtUtc)
+    {
+        // A fill is an addition to the Case, never a condition of it: evidence
+        // with no policy identity fills nothing rather than refusing the Case.
+        if (established is null
+            || string.IsNullOrWhiteSpace(receipt.ExtractionPolicyKey)
+            || receipt.ExtractionPolicyVersion is not >= 1)
+        {
+            return;
+        }
+
+        string policyKey = receipt.ExtractionPolicyKey;
+        int policyVersion = receipt.ExtractionPolicyVersion.Value;
+        var named = established.Field.SuggestedValue;
+        var candidates = established.Field.Candidates;
+        var candidate = candidates.FirstOrDefault(item =>
+                string.Equals(item.Value, named, StringComparison.OrdinalIgnoreCase))
+            ?? (candidates.Count > 0 ? candidates[0] : null);
+        var sourceLabel = candidate is null
+            ? "instruction repairer"
+            : $"{candidate.Source}:{candidate.SourceLabel}";
+        var contact = established.Repairer;
+        void Confirm(string fieldName, string valueType, string value) =>
+            UpsertConfirmed(
+                snapshot,
+                fieldName,
+                valueType,
+                value,
+                request.Actor.SubjectId,
+                acceptedAtUtc,
+                policyKey,
+                policyVersion,
+                CaseDataCodes.IntakeEvidence,
+                sourceLabel,
+                inheritUnderlying: false);
+
+        Confirm(CaseDataFieldNames.RepairerId, CaseDataCodes.Text, contact.OrganizationId.ToString("D"));
+        Confirm(
+            CaseDataFieldNames.RepairerVersion,
+            CaseDataCodes.Integer,
+            contact.Version.ToString(CultureInfo.InvariantCulture));
+        Confirm(CaseDataFieldNames.RepairerName, CaseDataCodes.Text, contact.Name);
     }
 
     private static void AddExtractedRepairerFact(

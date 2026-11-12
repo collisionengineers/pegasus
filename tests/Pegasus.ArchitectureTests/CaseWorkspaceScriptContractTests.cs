@@ -686,4 +686,151 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.Contains("done = window.pegasusCaseWorkspaceApplySnapshot(html);", snapshot, StringComparison.Ordinal);
         Assert.Contains("[data-evidence-occurrence=\"' + item.occurrenceId + '\"]'", snapshot, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// A choice that only says the value will be typed is not a value
+    /// (operator, 12 November 2026, R1020). Picking Manual entry at Inspect at,
+    /// or a Custom labour rate, used to commit a save that changed nothing;
+    /// the redraw after it drew the choice the record matched, so the pick
+    /// jumped back. The commit passes a typed choice by, the choice left
+    /// unsent holds its section, and Manual entry no longer empties the
+    /// address: the box is selected to type over.
+    /// </summary>
+    [Fact]
+    public void ATypedChoiceCommitsNothingUntilItsValueIsTyped()
+    {
+        var root = RepositoryRoot.Find();
+        var script = File.ReadAllText(Path.Combine(root, "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var handler = FunctionBody(script, "    document.addEventListener('change', function (event) {", "    ");
+        var passedBy = handler.IndexOf("if (typedChoice(control)) { return; }", StringComparison.Ordinal);
+        Assert.True(passedBy >= 0, "The commit must pass a typed choice by.");
+        Assert.True(passedBy < handler.IndexOf("if (compositeOf(control)) { scheduleCommit(); return; }", StringComparison.Ordinal));
+        Assert.True(passedBy < handler.IndexOf("commitNow();", StringComparison.Ordinal));
+        // A press on a radio is an input as well as a change, and a
+        // composite's input waits out the idle and saves.
+        var typing = FunctionBody(script, "    document.addEventListener('input', function (event) {", "    ");
+        Assert.True(
+            typing.IndexOf("if (typedChoice(control)) { return; }", StringComparison.Ordinal)
+                < typing.IndexOf("scheduleCommit();", StringComparison.Ordinal),
+            "A typed choice's input must schedule no commit.");
+        Assert.Contains("if (typedChoice(control)) { return; }", typing, StringComparison.Ordinal);
+        Assert.Contains("return !!chosen && chosen.hasAttribute('data-typed-choice');", script, StringComparison.Ordinal);
+
+        var shared = Path.Combine(root, "src", "Pegasus.Web", "Pages", "Cases", "Shared");
+        Assert.Contains(
+            "data-typed-choice=\"@(choice.Kind == InspectionAddressChoiceKind.ManualEntry ? string.Empty : null)\"",
+            File.ReadAllText(Path.Combine(shared, "_CaseInspectionAddress.cshtml")),
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "data-rate-custom data-typed-choice />",
+            File.ReadAllText(Path.Combine(shared, "_CaseEstimate.cshtml")),
+            StringComparison.Ordinal);
+
+        // Custom with the card's own figure is still the card: only a figure
+        // that moved is sent.
+        var rate = FunctionBody(script, "    function bindRate(form) {", "    ");
+        Assert.Contains("var moved = Number(hidden.value) !== Number(display.value);", rate, StringComparison.Ordinal);
+        Assert.Contains("if (moved) { post(); }", rate, StringComparison.Ordinal);
+
+        var site = File.ReadAllText(Path.Combine(root, "src", "Pegasus.Web", "wwwroot", "js", "site.js"));
+        var manualStart = site.IndexOf("if (option.value === 'ManualEntry') {", StringComparison.Ordinal);
+        Assert.True(manualStart >= 0, "site.js must keep its Manual entry branch.");
+        var manual = site[manualStart..site.IndexOf("input.value = option.dataset.address || '';", manualStart, StringComparison.Ordinal)];
+        Assert.Contains("input.select();", manual, StringComparison.Ordinal);
+        Assert.DoesNotContain("input.value =", manual, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A save redraws the Report section, and the binder used to open every
+    /// redrawn section on the Report tab: a fee typed on the Fee tab was
+    /// answered by the Report pane. The section drawn again opens on the tab
+    /// the operator was on.
+    /// </summary>
+    [Fact]
+    public void TheReportSectionDrawnAgainOpensOnTheTabTheOperatorWasOn()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        Assert.Contains("    var shown = 'report';", script, StringComparison.Ordinal);
+        Assert.Contains("                shown = name;", script, StringComparison.Ordinal);
+        Assert.Contains(
+            "show(panes.some(function (pane) { return pane.getAttribute('data-report-pane') === shown; }) ? shown : 'report');",
+            script,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("            show('report');", script, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A section is drawn again after a save only while it holds nothing
+    /// unsent, and a landed commit made only the Case form's own controls
+    /// sent. A helper control with no form (an impact row, the salvage
+    /// slider, the rate box, the Contract tick) sends its value through a
+    /// hidden field, so once touched it read as unsent for the rest of the
+    /// session and its section never followed a save again: Settlement kept
+    /// an Engineer's Value the Case had moved on from. The commit samples the
+    /// helpers with the form. The scale preview's slider is applied by its
+    /// own form and keeps holding.
+    /// </summary>
+    [Fact]
+    public void ALandedCommitMakesTheHelperControlsSentWithTheForm()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var helpers = FunctionBody(script, "    function helperControls() {", "    ");
+        Assert.Contains("main.querySelectorAll('input, select, textarea')", helpers, StringComparison.Ordinal);
+        Assert.Contains("return !control.form && !control.closest('[data-estimate-scale]');", helpers, StringComparison.Ordinal);
+        Assert.Contains(
+            "return Array.prototype.slice.call(form.elements).concat(helperControls()).map(function (control) {",
+            script,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A hidden field a script fills (a damage marker, a rotation, a removed
+    /// line) does not hold its section. A catch up answered while such a
+    /// change waited to be sent drew the section as the server had it, and
+    /// the commit then sent the page without the change. The answer is let
+    /// go and the page catches up after the commit.
+    /// </summary>
+    [Fact]
+    public void ACatchUpNeverDrawsOverAChangeWaitingToBeSent()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var catchUp = FunctionBody(script, "function catchUp(options) {", "    ");
+        var waits = catchUp.IndexOf("if (commitTimer !== null || commitPending) {", StringComparison.Ordinal);
+        Assert.True(waits >= 0, "A catch up must look for a change waiting to be sent.");
+        Assert.True(waits < catchUp.IndexOf("swap(html, null, null, { catchUp: true, afterSave: afterSave })", StringComparison.Ordinal));
+        Assert.Contains("if (afterSave) { redrawWanted = true; } else { catchUpWanted = true; }", catchUp, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Estimate's Contract repair bar writes Decisions' outcome and agreed
+    /// sum, which live in another section. It held both from when it was
+    /// bound; after a save drew Decisions again while the Estimate stayed, the
+    /// bar wrote the sum into a control no longer on the page and nothing was
+    /// saved. The partners are found as they are used and heard through one
+    /// capturing listener on the document.
+    /// </summary>
+    [Fact]
+    public void TheContractBarFindsDecisionsControlsAsItUsesThem()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var bar = FunctionBody(script, "    function bindContract(form) {", "    ");
+        Assert.Contains("function sum() { return sumId ? document.getElementById(sumId) : null; }", bar, StringComparison.Ordinal);
+        Assert.Contains("function outcome() { return outcomeId ? document.getElementById(outcomeId) : null; }", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("var sum = document.getElementById(", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("var outcome = document.getElementById(", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("sum.addEventListener(", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("outcome.addEventListener(", bar, StringComparison.Ordinal);
+        Assert.Contains("if (!bar || !bar.host.isConnected || !event.target || !event.target.id) { return; }", script, StringComparison.Ordinal);
+        Assert.Contains("if (name === 'input' && event.target.id === bar.sumId) { bar.sumTyped(); }", script, StringComparison.Ordinal);
+        Assert.Contains("if (name === 'change' && event.target.id === bar.outcomeId) { bar.outcomeChosen(); }", script, StringComparison.Ordinal);
+    }
 }

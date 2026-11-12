@@ -46,7 +46,7 @@ public sealed class CaseReportDeliveryTests
     /// <summary>Addressing as the send path derives it: the plan seeds the review the send addresses.</summary>
     private static CaseReportDeliveryAddressing AddressedByPlan(ReportDispatchFacts facts) =>
         CaseReportDeliveryPolicy.ReviewedAddress(
-            facts, CaseReportDeliveryPolicy.SuggestedReview(ReportDispatchPolicy.Plan(facts, [], GeneratedAtUtc)));
+            facts, CaseReportDeliveryPolicy.SuggestedReview(ReportDispatchPolicy.Plan(facts, GeneratedAtUtc)));
 
     [Fact]
     public void AddressingFollowsThePrincipalsRules()
@@ -116,7 +116,7 @@ public sealed class CaseReportDeliveryTests
         var plan = ReportDispatchPolicy.Plan(
             Facts(PrincipalReportSendingRules.Default with { Cc = ["copy@principal.example"] },
                 Instruction(cc: ["a@insurer.example"])),
-            [], GeneratedAtUtc);
+            GeneratedAtUtc);
 
         var review = CaseReportDeliveryPolicy.SuggestedReview(plan);
 
@@ -134,7 +134,7 @@ public sealed class CaseReportDeliveryTests
     public void AChangedFingerprintRefusesBeforeAnythingElse()
     {
         var facts = DecidingFacts();
-        var plan = ReportDispatchPolicy.Plan(facts, [], GeneratedAtUtc);
+        var plan = ReportDispatchPolicy.Plan(facts, GeneratedAtUtc);
 
         var stale = Assert.Throws<InvalidOperationException>(() => CaseReportDeliveryPolicy.RequireDispatchDecided(
             facts, plan, "stale", null, null));
@@ -146,22 +146,10 @@ public sealed class CaseReportDeliveryTests
     }
 
     [Fact]
-    public void AnUnansweredQuestionRefusesBeforeAStopOrAHold()
-    {
-        var facts = DecidingFacts();
-        var plan = ReportDispatchPolicy.Plan(facts, [], GeneratedAtUtc);
-
-        var refused = Assert.Throws<InvalidOperationException>(() => CaseReportDeliveryPolicy.RequireDispatchDecided(
-            facts, plan, facts.Fingerprint, null, null));
-
-        Assert.Contains("Answer every question", refused.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void ARulesStopNeedsAReasonBeforeTheHoldsAreChecked()
     {
         var facts = DecidingFacts();
-        var plan = ReportDispatchPolicy.Plan(facts, [new(1, 0, false)], GeneratedAtUtc);
+        var plan = ReportDispatchPolicy.Plan(facts, GeneratedAtUtc);
 
         var refused = Assert.Throws<InvalidOperationException>(() => CaseReportDeliveryPolicy.RequireDispatchDecided(
             facts, plan, facts.Fingerprint, null, null));
@@ -176,7 +164,7 @@ public sealed class CaseReportDeliveryTests
     public void EveryHoldMustBeTickedOnceTheStopIsOverridden()
     {
         var facts = DecidingFacts();
-        var plan = ReportDispatchPolicy.Plan(facts, [new(1, 0, false)], GeneratedAtUtc);
+        var plan = ReportDispatchPolicy.Plan(facts, GeneratedAtUtc);
 
         var refused = Assert.Throws<InvalidOperationException>(() => CaseReportDeliveryPolicy.RequireDispatchDecided(
             facts, plan, facts.Fingerprint, "Garage agreed by phone.", null));
@@ -196,7 +184,7 @@ public sealed class CaseReportDeliveryTests
             {
                 Attach = ReportSendingAttachments.Default with { VehicleImagesDocument = true }
             }),
-            [], GeneratedAtUtc);
+            GeneratedAtUtc);
         CaseReportArtifactKind[] confirmed =
             [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.ImagePack, CaseReportArtifactKind.FeeNote];
 
@@ -507,9 +495,8 @@ public sealed class CaseReportDeliveryTests
         Assert.Equal(
             [ReportAttachment with { FileName = "DVR-31001 PK12 TMZ Repairable report.pdf" }],
             command.Mail.Attachments);
-        // Nothing was asked, held or stopped.
+        // Nothing was held or stopped.
         var record = Assert.IsType<ReportDispatchRecord>(command.Mail.ReportDispatch);
-        Assert.Empty(record.Decisions);
         Assert.Empty(record.Holds);
         Assert.Null(record.StopOverridden);
         Assert.Null(record.StopOverrideReason);
@@ -745,14 +732,14 @@ public sealed class CaseReportDeliveryTests
     }
 
     /// <summary>
-    /// The same click answers the rules' questions and sends: a copy the
-    /// answer adds is sent to though the form could not show it.
+    /// A send asks staff nothing (R1023, R1024): a rule whose fact the Case
+    /// has not set does not apply and the report goes without its copy; once
+    /// the Case holds the fact, the rule's copy is sent to.
     /// </summary>
     [Fact]
-    public async Task SendRefusesWhileARuleQuestionIsUnansweredAndSendsTheCopyAnAnswerAdds()
+    public async Task ARuleTheCaseCannotMeetAddsNothingAndOneItMeetsAddsItsCopy()
     {
-        var send = new RecordingSend();
-        var facts = Facts(PrincipalReportSendingRules.Default with
+        var rules = PrincipalReportSendingRules.Default with
         {
             Rules =
             [
@@ -760,20 +747,22 @@ public sealed class CaseReportDeliveryTests
                     [new(ReportSendingConditionKind.Mentions, ["Luton"])],
                     new(["luton@rule.example"], []))
             ]
-        });
-        var sendReport = Use(new FixedGenerations(Generation()), send, facts: facts);
-        var request = Request(facts) with { ReviewedRecipients = new([Instructor], []) };
+        };
+        var unset = new RecordingSend();
+        var noText = Facts(rules);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => sendReport.ExecuteAsync(request, CancellationToken.None));
-        Assert.Empty(send.Commands);
+        await Use(new FixedGenerations(Generation()), unset, facts: noText)
+            .ExecuteAsync(Request(noText), CancellationToken.None);
 
-        await sendReport.ExecuteAsync(request with { Decisions = [new(0, 0, true)] }, CancellationToken.None);
+        Assert.Empty(Assert.Single(unset.Commands).Mail.Cc);
 
-        var command = Assert.Single(send.Commands).Mail;
-        Assert.Equal("luton@rule.example", Assert.Single(command.Cc).Address);
-        var decision = Assert.Single(Assert.IsType<ReportDispatchRecord>(command.ReportDispatch).Decisions);
-        Assert.Equal(new ReportRuleDecision(0, 0, true), decision);
+        var met = new RecordingSend();
+        var mentioned = Facts(rules) with { InstructionText = "Inspection at the Luton depot" };
+
+        await Use(new FixedGenerations(Generation()), met, facts: mentioned)
+            .ExecuteAsync(Request(mentioned), CancellationToken.None);
+
+        Assert.Equal("luton@rule.example", Assert.Single(Assert.Single(met.Commands).Mail.Cc).Address);
     }
 
     [Fact]
@@ -873,13 +862,13 @@ public sealed class CaseReportDeliveryTests
             Rules =
             [
                 new(ReportSendingRuleMatch.All,
-                    [new(ReportSendingConditionKind.ImagesFrom, ["SWINTON"])],
+                    [new(ReportSendingConditionKind.Outcome, ["repairable"])],
                     new([], [], Remind: "Tell Andy."))
             ]
         }) with { Outcome = "repairable" };
 
         await Use(new FixedGenerations(Generation()), send, facts: facts).ExecuteAsync(
-            Request(facts) with { Decisions = [new(0, 0, true)] }, CancellationToken.None);
+            Request(facts), CancellationToken.None);
 
         var record = Assert.IsType<ReportDispatchRecord>(Assert.Single(send.Commands).Mail.ReportDispatch);
         Assert.Equal(
@@ -1530,8 +1519,8 @@ public sealed class CaseReportDeliveryTests
         actor ?? Staff(), CaseId, GenerationId, 1, [ReportAttachment]);
 
     /// <summary>
-    /// Rules with a Principal hold, a Stop that holds on the repairable
-    /// outcome, and a question the Case cannot answer.
+    /// Rules with a Principal hold and a Stop that holds on the repairable
+    /// outcome.
     /// </summary>
     private static ReportDispatchFacts DecidingFacts() => Facts(PrincipalReportSendingRules.Default with
     {
@@ -1540,10 +1529,7 @@ public sealed class CaseReportDeliveryTests
         [
             new(ReportSendingRuleMatch.All,
                 [new(ReportSendingConditionKind.Outcome, ["repairable"])],
-                new([], [], Stop: "Do not send yet.")),
-            new(ReportSendingRuleMatch.All,
-                [new(ReportSendingConditionKind.ImagesFrom, ["SWINTON"])],
-                new(["swinton@rule.example"], []))
+                new([], [], Stop: "Do not send yet."))
         ]
     }) with { Outcome = "repairable" };
 

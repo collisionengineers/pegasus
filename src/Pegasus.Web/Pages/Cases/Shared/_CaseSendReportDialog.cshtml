@@ -105,16 +105,11 @@
                             <div class="notice notice--warning" role="status" data-report-stop>
                                 <span><strong>@(ReportLabels.Stopped).</strong> @stopText</span>
                             </div>
-                        }
-                        @if (plan.Stop is not null || plan.StopPossible)
-                        {
                             @* A rule's Stop refuses the send unless casework staff
-                               say why they override it. A Stop that only an answer
-                               below can decide is offered its reason box too, since
-                               the same click answers and sends. *@
+                               say why they override it. *@
                             <div class="field">
                                 <label for="report-stop-override">@ReportLabels.OverrideReason</label>
-                                <input id="report-stop-override" name="stopOverrideReason" type="text" required="@(plan.Stop is not null)" data-report-stop-override />
+                                <input id="report-stop-override" name="stopOverrideReason" type="text" required data-report-stop-override />
                             </div>
                         }
                         @foreach (var missing in plan.MissingCompanions)
@@ -335,19 +330,6 @@
                     </fieldset>
                     @if (plan is not null)
                     {
-                        @if (plan.Undecided.Count > 0)
-                        {
-                            <span class="lg">@ReportLabels.Questions</span>
-                            @foreach (var question in plan.Undecided)
-                            {
-                                var decisionName = $"decision-{question.RuleIndex}-{question.ConditionIndex}";
-                                <div class="cluster" data-report-question>
-                                    <span>@question.Question</span>
-                                    <label class="choice"><input type="radio" name="@decisionName" value="true" required /><span>@ReportLabels.Yes</span></label>
-                                    <label class="choice"><input type="radio" name="@decisionName" value="false" required /><span>@ReportLabels.No</span></label>
-                                </div>
-                            }
-                        }
                         @foreach (var warning in plan.Warnings)
                         {
                             <span class="muted" data-report-warning>@warning</span>
@@ -363,21 +345,12 @@
                             </div>
                         }
                         @* Each hold the Principal's rules set is ticked off as
-                           done; Core refuses the send otherwise. A hold that
-                           only an answer above can decide has its tick too,
-                           not required. *@
+                           done; Core refuses the send otherwise. *@
                         @foreach (var hold in plan.Holds)
                         {
                             <div class="cluster" data-report-hold-row>
                                 <span>@hold</span>
                                 <label class="choice"><input type="checkbox" name="holdsDone" value="@hold" required data-report-hold /><span>@ReportLabels.HoldDone</span></label>
-                            </div>
-                        }
-                        @foreach (var hold in plan.PossibleHolds)
-                        {
-                            <div class="cluster" data-report-hold-row>
-                                <span>@hold</span>
-                                <label class="choice"><input type="checkbox" name="holdsDone" value="@hold" data-report-hold /><span>@ReportLabels.HoldDone</span></label>
                             </div>
                         }
                     }

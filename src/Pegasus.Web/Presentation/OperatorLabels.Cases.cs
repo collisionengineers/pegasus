@@ -178,6 +178,8 @@ public static partial class OperatorLabels
         public const string Repairer = "Repairer";
         public const string RepairerDirectory = "Repairer contact";
         public const string NotLinked = "Not linked";
+        // The heading over the Repairers not linked to the Case's Principal (R1016).
+        public const string OtherRepairers = "Other repairers";
         // End of the Inspect-at and repairer labels.
         public const string FilesPanel = "Files";
         public const string AddEvidence = "Add evidence";

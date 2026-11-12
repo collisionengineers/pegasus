@@ -387,7 +387,11 @@ flagged as Sign-off Engineer are offered
 ([FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)). The
 default is the assigned Engineer when that account is flagged; otherwise it
 is the account marked as the default Sign-off Engineer in Administration. No
-name is built into the software. Reports render the Case's sign-off name,
+name is built into the software. A Case save records a Sign-off Engineer only
+when one other than the one the cell shows is chosen: the one shown coming
+back with the save is no pick, and choosing Unassigned removes a recorded pick
+so the default applies again (operator, 12 November 2026,
+[R1019](../rulings.md)). Reports render the Case's sign-off name,
 qualifications and signature image
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation)).
 The Engineer who issues a report is not automatically its signatory.

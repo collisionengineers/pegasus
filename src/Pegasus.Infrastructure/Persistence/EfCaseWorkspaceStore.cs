@@ -323,9 +323,12 @@ public sealed class EfCaseWorkspaceStore(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,
             signOffEngineerProfiles)?.StaffId;
-        if (request.Report?.SignOffEngineerId is { } signOffEngineerId)
+        if (request.Report is { } submittedReport)
         {
-            workflow.SignOffEngineerId = signOffEngineerId;
+            workflow.SignOffEngineerId = CaseSignOffEngineerResolver.Recorded(
+                workflow.SignOffEngineerId,
+                beforeSignOffEngineerId,
+                submittedReport.SignOffEngineerId);
         }
 
         if (movesCase && request.Completeness is { } completeness)

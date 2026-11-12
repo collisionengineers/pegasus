@@ -106,8 +106,7 @@ internal sealed class DatabaseLessCaseReads :
 
     /// <summary>
     /// The claim sources the schema seeds (slots 01 to 0b, from the SOP seeds
-    /// of 12, 13 and 17 October 2026), in the store's name order. No seed is a
-    /// repairer.
+    /// of 12, 13 and 17 October 2026), in the store's name order.
     /// </summary>
     private static readonly IReadOnlyList<ContactChoice> ClaimSources =
     [
@@ -122,6 +121,16 @@ internal sealed class DatabaseLessCaseReads :
         SeededClaimSource("00000000-0000-4000-8000-00000000f005", "Rapid Rental Solutions"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f002", "SMC"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f00a", "Swinton"),
+    ];
+
+    /// <summary>
+    /// The one repairer the schema seeds: the Easdons Bodyshop AX's report
+    /// sending rule names (migration SendingRulesReadCaseFacts, R1025). A
+    /// seeded contact has the same shape whatever its type.
+    /// </summary>
+    private static readonly IReadOnlyList<ContactChoice> Repairers =
+    [
+        SeededClaimSource("00000000-0000-4000-8000-00000000f00c", "Easdons Bodyshop") with { Role = ContactRole.Repairer }
     ];
 
     Task<CaseType?> ICaseKindQueries.GetAsync(Guid caseId, CancellationToken cancellationToken) =>
@@ -275,7 +284,7 @@ internal sealed class DatabaseLessCaseReads :
         ActionActor actor, ContactRole role, CancellationToken cancellationToken) => role switch
         {
             ContactRole.ClaimSource => Task.FromResult(ClaimSources),
-            ContactRole.Repairer => Task.FromResult<IReadOnlyList<ContactChoice>>([]),
+            ContactRole.Repairer => Task.FromResult(Repairers),
             _ => Refused<IReadOnlyList<ContactChoice>>(nameof(IContactDirectoryQueries)),
         };
 
@@ -355,9 +364,10 @@ internal sealed class DatabaseLessCaseReads :
     private static ValuationPreset SeededPreset(string id, string label, decimal suggestedAmount) =>
         new(new Guid(id), label, suggestedAmount, true, 1, "system:v1-foundation", DateTimeOffset.UnixEpoch);
 
-    /// <summary>An active claim source as the seed writes it: a name and nothing else, at version 0.</summary>
+    /// <summary>An active claim source as the seed writes it: a name and nothing else, linked to no
+    /// Principal, at version 0.</summary>
     private static ContactChoice SeededClaimSource(string id, string name) =>
-        new(new Guid(id), name, ContactRole.ClaimSource, 0, null, null, null, null, null, null);
+        new(new Guid(id), name, ContactRole.ClaimSource, 0, null, null, null, null, null, null, []);
 
     private static Task<T> Refused<T>(string port) =>
         Task.FromException<T>(new NotSupportedException(
