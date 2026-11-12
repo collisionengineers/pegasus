@@ -486,6 +486,17 @@ public static partial class OperatorLabels
             return captions;
         }
 
+        /// <summary>
+        /// The badge on a damage photo's tile (v51 B; operator, 12 November
+        /// 2026; R1010): its stage in the story's own word, capitalised, so
+        /// "Overview", "Closer", "Close-up" or "Extra".
+        /// </summary>
+        public static string StageBadge(PhotoCaptureStage stage)
+        {
+            var word = PhotoCaptureStory.StageLabel(stage);
+            return char.ToUpperInvariant(word[0]) + word[1..];
+        }
+
         private static string CaptionName(PhotoCaptureItem item) => item.Kind switch
         {
             PhotoCaptureItemKind.Overview => item.Position is >= 1 and <= PhotoCaptureStory.OverviewCount

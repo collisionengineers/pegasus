@@ -202,6 +202,11 @@
                                     <span class="gallery-image">
                                         <img src="@photo.TileHref" alt="@photo.Caption" loading="lazy" data-gallery-image />
                                         <span class="photo-link-tile-number" aria-hidden="true">@photo.Number</span>
+                                        @if (photo.Stage is { } stage)
+                                        {
+                                            @* The caption names the stage too; the badge is for the eye (v51 B; R1010). *@
+                                            <span class="photo-link-tile-stage" aria-hidden="true">@stage</span>
+                                        }
                                     </span>
                                     <span class="gallery-caption"><strong title="@photo.Caption">@photo.Caption</strong></span>
                                 </a>

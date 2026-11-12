@@ -614,9 +614,11 @@ made for it, **Awaiting instruction**, which pairs as any Vehicle images
 record does ([FRD-19](frd-19-image-led-intake-and-pairing.md)) (R948). A row
 is one line: a long name, firm or missing item ends in an ellipsis with the
 full text on hover, and narrower windows drop columns rather than scroll:
-from 1460px Sent and Received, from 1300px the Principal, the Customer and
-the photographs, and from 1180px Recipient, Standing link and the missing
-items, every one of them still on the link's page (R912, R948).
+from 1460px Sent and Received, from 1300px the Customer and the
+photographs, and from 1180px Recipient, Standing link and the missing
+items, every one of them still on the link's page (R912, R948). The
+Principal under a Direct link's Case stays at every width (operator,
+12 November 2026; R1011).
 
 `/PhotoCapture/Send/{caseId}` sends a link ([Photo links](#photo-links)).
 `/PhotoCapture/{id}` is a link's detail (operator, 11 November 2026; v51
@@ -629,7 +631,9 @@ Files, or **Open Vehicle images**; and More with the rest, Extend by 3, 7 or
 14 days among them, Cancel link last (R913). Its main column is **Photos**:
 on a Case link with something missing one Missing line, filters All,
 Overview, Damage and Vehicle ID, and the photographs as tiles that open in
-the viewer, each named once, a repeated name numbered, with paperwork and
+the viewer, each named once, a repeated name numbered, a damage photo taken
+at a stage with that stage as a badge on its tile (Overview, Closer,
+Close-up or Extra; operator, 12 November 2026; R1010), with paperwork and
 video as files below. Its 320px aside is one **Summary**: for a Case link
 Case, Recipient, Principal, Sent by, Accident, Expires and Chase; for a
 standing capture Destination, Standing link, Customer, Accident and

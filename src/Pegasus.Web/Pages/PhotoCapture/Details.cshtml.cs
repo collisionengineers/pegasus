@@ -38,11 +38,13 @@ public sealed class DetailsModel(
     /// rendering where the route serves one. <see cref="Category"/> is the
     /// filter it falls under (<see cref="OperatorLabels.PhotoCapture.PhotoFilterKey"/>), null for
     /// All only; <see cref="FileName"/> is the caption with the file's
-    /// extension, the name Save as offers.
+    /// extension, the name Save as offers; <see cref="Stage"/> is the badge
+    /// of a damage photo taken at a stage, null for any other tile.
     /// </summary>
     public sealed record PhotoTile(
         int Number,
         string Caption,
+        string? Stage,
         string? Category,
         string Href,
         string TileHref,
@@ -270,6 +272,7 @@ public sealed class DetailsModel(
         return new(
             number,
             caption,
+            item.Kind == PhotoCaptureItemKind.Damage && item.Stage is { } stage ? Labels.StageBadge(stage) : null,
             Labels.PhotoFilterKey(item.Kind),
             href,
             tileHref,

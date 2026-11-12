@@ -175,39 +175,48 @@
                     <h2 id="send-settings-title">@Labels.SendAPhotoLink</h2>
                     <div class="panel-actions"><button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
                 </div>
-                <div class="panel-body stack">
-                    <fieldset class="field fieldset-plain">
+                @* Each setting is a row, its label left of its control (v50 G; R1009). *@
+                <div class="panel-body">
+                    <fieldset class="fieldset-plain photo-link-row">
                         <legend>@Labels.PhotoGuidance</legend>
-                        <div class="cluster">
-                            @foreach (var mode in Enum.GetValues<PhotoCaptureMode>())
-                            {
-                                <label class="choice"><input type="radio" name="PhotoLinkStartMode" value="@mode" checked="@(Model.PhotoLinkStartMode == mode)" /> <span>@Labels.Mode(mode)</span></label>
-                            }
+                        <div class="photo-link-row-control">
+                            <div class="cluster">
+                                @foreach (var mode in Enum.GetValues<PhotoCaptureMode>())
+                                {
+                                    <label class="choice"><input type="radio" name="PhotoLinkStartMode" value="@mode" checked="@(Model.PhotoLinkStartMode == mode)" /> <span>@Labels.Mode(mode)</span></label>
+                                }
+                            </div>
                         </div>
                     </fieldset>
-                    <fieldset class="field fieldset-plain">
+                    <fieldset class="fieldset-plain photo-link-row">
                         <legend>@Labels.LifetimesOffered</legend>
-                        <div class="cluster">
-                            @foreach (var days in CaptureLimits.LifetimeDays)
-                            {
-                                <label class="choice"><input type="checkbox" name="PhotoLinkLifetimesOffered" value="@days" checked="@Model.PhotoLinkLifetimesOffered.Contains(days)" /> <span>@Labels.Days(days)</span></label>
-                            }
+                        <div class="photo-link-row-control">
+                            <div class="cluster">
+                                @foreach (var days in CaptureLimits.LifetimeDays)
+                                {
+                                    <label class="choice"><input type="checkbox" name="PhotoLinkLifetimesOffered" value="@days" checked="@Model.PhotoLinkLifetimesOffered.Contains(days)" /> <span>@Labels.Days(days)</span></label>
+                                }
+                            </div>
+                            <span asp-validation-for="PhotoLinkLifetimesOffered" class="field-error"></span>
                         </div>
-                        <span asp-validation-for="PhotoLinkLifetimesOffered" class="field-error"></span>
                     </fieldset>
-                    <div class="field field--narrow">
+                    <div class="photo-link-row">
                         <label for="PhotoLinkDefaultLifetimeDays">@Labels.LinkLasts</label>
-                        <select id="PhotoLinkDefaultLifetimeDays" name="PhotoLinkDefaultLifetimeDays">
-                            @foreach (var days in CaptureLimits.LifetimeDays)
-                            {
-                                <option value="@days" selected="@(Model.PhotoLinkDefaultLifetimeDays == days)">@Labels.Days(days)</option>
-                            }
-                        </select>
-                        <span asp-validation-for="PhotoLinkDefaultLifetimeDays" class="field-error"></span>
+                        <div class="photo-link-row-control">
+                            <select id="PhotoLinkDefaultLifetimeDays" name="PhotoLinkDefaultLifetimeDays" class="select">
+                                @foreach (var days in CaptureLimits.LifetimeDays)
+                                {
+                                    <option value="@days" selected="@(Model.PhotoLinkDefaultLifetimeDays == days)">@Labels.Days(days)</option>
+                                }
+                            </select>
+                            <span asp-validation-for="PhotoLinkDefaultLifetimeDays" class="field-error"></span>
+                        </div>
                     </div>
-                    <div class="cluster">
-                        <label class="choice"><input type="checkbox" name="PhotoLinkStartLiveCameraOnly" value="true" checked="@Model.PhotoLinkStartLiveCameraOnly" /> <span>@Labels.LiveCameraOnly</span></label>
-                        <label class="choice"><input type="checkbox" name="PhotoLinkStartOriginals" value="true" checked="@Model.PhotoLinkStartOriginals" /> <span>@Labels.FullSizeOriginals</span></label>
+                    <div class="photo-link-row">
+                        <div class="photo-link-row-choices">
+                            <label class="choice"><input type="checkbox" name="PhotoLinkStartLiveCameraOnly" value="true" checked="@Model.PhotoLinkStartLiveCameraOnly" /> <span>@Labels.LiveCameraOnly</span></label>
+                            <label class="choice"><input type="checkbox" name="PhotoLinkStartOriginals" value="true" checked="@Model.PhotoLinkStartOriginals" /> <span>@Labels.FullSizeOriginals</span></label>
+                        </div>
                     </div>
                 </div>
             </form>
