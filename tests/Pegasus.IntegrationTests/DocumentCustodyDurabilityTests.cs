@@ -1537,6 +1537,17 @@ public sealed class DocumentCustodyDurabilityTests
                 await using var seed = await database.CreateContextAsync();
                 (await seed.Set<DocumentOccurrenceEntity>().SingleAsync(item => item.Id == occurrenceId)).SemanticRole =
                     DocumentSemanticRole.Other;
+                // A retype to Image completes the Case's images through the
+                // one completion owner, which reads the Case's data snapshot
+                // as every Case created in production has one (R964).
+                seed.CaseDataSnapshots.Add(new CaseDataSnapshotEntity
+                {
+                    WorkId = caseId,
+                    CompletenessPolicyKey = "case-workflow",
+                    CompletenessPolicyVersion = 1,
+                    CompletenessPolicySatisfied = false,
+                    AcceptedAtUtc = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero)
+                });
                 await seed.SaveChangesAsync();
             }
             var generationId = await SeedCurrentGenerationAsync(database, caseId);

@@ -97,7 +97,6 @@ internal sealed class EfDocumentCustodyStore(
                     "Confirmed image addition completed the Case's images.",
                     beforeVersion,
                     now,
-                    writeHistory: true,
                     cancellationToken);
             }
             await context.SaveChangesAsync(cancellationToken);
@@ -218,7 +217,6 @@ internal sealed class EfDocumentCustodyStore(
                 $"Snapshot from {sourceVideo.FileName} completed the Case's images.",
                 beforeVersion,
                 now,
-                writeHistory: true,
                 cancellationToken);
             await context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -284,8 +282,9 @@ internal sealed class EfDocumentCustodyStore(
 
     /// <summary>
     /// Marks the Case's images complete once a confirmed JPEG or PNG image is
-    /// added or retyped on the Case, re-evaluating readiness when a Case data
-    /// snapshot is present so an eligible Not ready Case moves to Review (FRD-05, R964).
+    /// added, snapshotted or retyped on the Case, through the one completion
+    /// owner, so readiness is re-evaluated and an eligible Not ready Case moves
+    /// to Review, and records the completion as every other one is (FRD-13, R964).
     /// </summary>
     private static async Task CompleteAddedImageIfNeededAsync(
         PegasusDbContext context,
@@ -295,7 +294,6 @@ internal sealed class EfDocumentCustodyStore(
         string reason,
         long beforeVersion,
         DateTimeOffset now,
-        bool writeHistory,
         CancellationToken cancellationToken)
     {
         if (workflow.Case.ImagesComplete)
@@ -303,21 +301,8 @@ internal sealed class EfDocumentCustodyStore(
             return;
         }
 
-        var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: true)
-            .SingleOrDefaultAsync(item => item.WorkId == workflow.CaseId, cancellationToken);
-        if (snapshot is null)
-        {
-            workflow.Case.ImagesComplete = true;
-            return;
-        }
-
         var (before, after, evaluation) = await EfCaseArtifactCustody.CompleteCaseImagesAsync(
             context, workflow, now, cancellationToken);
-        if (!writeHistory)
-        {
-            return;
-        }
-
         var historyKey = $"images-complete:{CaseOperationReplay.Hash(operationKey)[..32]}";
         CaseMutationHistory.Add(
             context,
@@ -1014,20 +999,6 @@ internal sealed class EfDocumentCustodyStore(
         var beforeVersion = workflow.Version;
         var beforeRole = occurrence.SemanticRole;
         occurrence.SemanticRole = command.NewRole;
-        if (command.NewRole == DocumentSemanticRole.Image
-            && version.CustodyStatus == DocumentCustodyStatus.Confirmed)
-        {
-            await CompleteAddedImageIfNeededAsync(
-                context,
-                workflow,
-                command.Actor,
-                operationKey,
-                reason,
-                beforeVersion,
-                now,
-                writeHistory: false,
-                cancellationToken);
-        }
         CaseMutationGuard.Complete(workflow);
         CaseMutationHistory.Add(
             context,
@@ -1043,6 +1014,24 @@ internal sealed class EfDocumentCustodyStore(
             JsonSerializer.Serialize(new { occurrence.Id, SemanticRole = occurrence.SemanticRole.ToString() }),
             DocumentTypePolicyVersion,
             now);
+        if (command.NewRole == DocumentSemanticRole.Image
+            && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+            && !workflow.Case.ImagesComplete)
+        {
+            // The completion is its own Case change, after the type's, so
+            // each history row has its own version (R997).
+            var completionBeforeVersion = workflow.Version;
+            CaseMutationGuard.Advance(workflow);
+            await CompleteAddedImageIfNeededAsync(
+                context,
+                workflow,
+                command.Actor,
+                operationKey,
+                $"{version.FileName} changed to Image completed the Case's images.",
+                completionBeforeVersion,
+                now,
+                cancellationToken);
+        }
         if (reportImagesBefore is null)
         {
             await context.SaveChangesAsync(cancellationToken);

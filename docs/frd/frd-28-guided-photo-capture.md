@@ -339,7 +339,7 @@ one photo of the batch filed on the Case:
 - the Case's images complete (R781;
   [FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)),
   never on the first photo, and once per capture: only for a batch with
-  photos, and never after staff marked them incomplete (R792); the Case's
+  photos (R792; staff cannot mark images incomplete, R996); the Case's
   history gives the reason "The photo link's photos are in: the sender
   pressed Send, or the link ran out or was cancelled with photos on it."
   (operator, 10 November 2026; R871);

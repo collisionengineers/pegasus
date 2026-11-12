@@ -365,6 +365,63 @@ public sealed class VideoSnapshotWebTests
         var afterWorkflow = await afterContext.CaseWorkflows.AsNoTracking().SingleAsync(v => v.CaseId == caseId);
         Assert.True(afterCase.ImagesComplete);
         Assert.Equal(nameof(CaseLifecycleState.Review), afterWorkflow.State);
+
+        // The completion is recorded like every other one: its own line, the
+        // completeness before and after, and the readiness policy it used.
+        var completion = await afterContext.ActionHistory.AsNoTracking()
+            .SingleAsync(row => row.AggregateId == caseId.ToString("D")
+                && row.EventKind == EfDocumentCustodyStore.ImagesCompletedFromAddedImageEventKind
+                && row.Reason == "still-frame.png changed to Image completed the Case's images.");
+        Assert.Contains("\"ImagesComplete\":false", completion.BeforeJson ?? string.Empty, StringComparison.Ordinal);
+        Assert.Contains("\"ImagesComplete\":true", completion.AfterJson ?? string.Empty, StringComparison.Ordinal);
+        Assert.False(string.IsNullOrWhiteSpace(completion.PolicyVersion));
+        Assert.Contains(
+            await afterContext.CaseHistory.AsNoTracking()
+                .Where(row => row.CaseId == caseId)
+                .Select(row => row.Reason)
+                .ToListAsync(),
+            reason => reason == "still-frame.png changed to Image completed the Case's images.");
+    }
+
+    [Fact]
+    public async Task ASnapshotReplayedWithItsOperationKeyFilesOneImage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(
+            factory,
+            new(InstructionComplete: true, ImagesComplete: false));
+        var videoOccurrenceId = await AddConfirmedDocumentAsync(
+            factory,
+            caseId,
+            "walkaround.mp4",
+            "video/mp4",
+            Mp4HeaderBytes(),
+            DocumentSemanticRole.Other);
+
+        using var client = CreateStaffClient(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        var antiforgery = AntiforgeryValue(html);
+        var jpegBytes = SampleJpegBytes(new SKColor(90, 90, 200));
+        using (var first = await PostSnapshotAsync(
+            client, caseId, antiforgery, videoOccurrenceId, timestampMs: 3_000, "snap-replay", jpegBytes))
+        {
+            AssertPrgToFilesImages(first, caseId);
+        }
+        using (var replay = await PostSnapshotAsync(
+            client, caseId, antiforgery, videoOccurrenceId, timestampMs: 3_000, "snap-replay", jpegBytes))
+        {
+            AssertPrgToFilesImages(replay, caseId);
+        }
+
+        await using var context = await CreateDbContextAsync(factory);
+        var images = await context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            .CountAsync(occurrence => occurrence.CaseId == caseId
+                && occurrence.SemanticRole == DocumentSemanticRole.Image);
+        Assert.Equal(1, images);
+        var completions = await context.ActionHistory.AsNoTracking()
+            .CountAsync(row => row.AggregateId == caseId.ToString("D")
+                && row.EventKind == EfDocumentCustodyStore.ImagesCompletedFromAddedImageEventKind);
+        Assert.Equal(1, completions);
     }
 
     private static HttpClient CreateStaffClient(WebApplicationFactory<Program> factory) =>

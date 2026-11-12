@@ -317,7 +317,9 @@ public sealed partial class DownloadModel(
                         CaseId: caseId,
                         IntakeReceiptId: null,
                         ExpectedSha256: sha256,
-                        ExpectedContentLength: preview.ContentLength),
+                        ExpectedContentLength: preview.ContentLength,
+                        // A seek in a video costs its slice (FRD-05).
+                        Seekable: VideoSnapshotPolicy.IsSupportedVideoMediaType(mediaType)),
                     cancellationToken);
             }
             SetPreviewCaching(

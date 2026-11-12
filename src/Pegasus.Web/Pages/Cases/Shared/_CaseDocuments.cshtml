@@ -85,10 +85,14 @@ else
                         }
                         else if (previewKind != CaseDocumentPreviewKind.None)
                         {
+                            @* Only a video's row names its occurrence, for Take
+                               snapshot: an image filed under another type is not
+                               one of the Case's images, so it offers no Pop out
+                               (FRD-16, R757). *@
                             <a class="btn btn--small"
                                href="@Model.PreviewUrl(entry)"
                                data-evidence-item
-                               data-evidence-occurrence="@occurrence.Id"
+                               data-evidence-occurrence="@(VideoSnapshotPolicy.IsSupportedVideoMediaType(version.MediaType) ? occurrence.Id : (Guid?)null)"
                                data-download-href="@Model.DownloadUrl(entry)"
                                data-media-type="@version.MediaType"
                                data-file-name="@version.FileName">

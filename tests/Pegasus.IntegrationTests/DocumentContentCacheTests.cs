@@ -107,6 +107,87 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// A video preview's seek reads only its range from the warm cache copy,
+    /// pinned to the ETag recorded when that copy was verified at publication
+    /// (operator, 12 November 2026; FRD-05). Any other read is whole and
+    /// verified.
+    /// </summary>
+    [Fact]
+    public async Task AWarmSeekableReadFetchesOnlyTheRangeItIsSoughtToPinnedToThePublishedETag()
+    {
+        var bytes = Enumerable.Range(0, 64).Select(value => (byte)value).ToArray();
+        var estate = await Estate.CreateAsync(bytes);
+        await using (estate)
+        {
+            var seekable = estate.Request with { Seekable = true };
+            await using (var cold = await estate.Reader.OpenAsync(seekable, CancellationToken.None))
+            {
+                Assert.Equal(bytes, await ReadAsync(cold.Content));
+            }
+            Assert.Equal(1, estate.Box.Downloads);
+
+            var downloadsBefore = estate.Blob.Downloads.Length;
+            await using (var whole = await estate.Reader.OpenAsync(estate.Request, CancellationToken.None))
+            {
+                Assert.IsNotType<CachedObjectRangeStream>(whole.Content);
+                Assert.Equal(bytes, await ReadAsync(whole.Content));
+            }
+            Assert.Equal((0L, (long?)null), (estate.Blob.Downloads[downloadsBefore].Offset, estate.Blob.Downloads[downloadsBefore].Length));
+
+            downloadsBefore = estate.Blob.Downloads.Length;
+            await using var warm = await estate.Reader.OpenAsync(seekable, CancellationToken.None);
+            Assert.True(warm.Content.CanSeek);
+            Assert.Equal(bytes.LongLength, warm.Content.Length);
+            Assert.Equal(downloadsBefore, estate.Blob.Downloads.Length);
+
+            warm.Content.Seek(40, SeekOrigin.Begin);
+            var slice = new byte[8];
+            await warm.Content.ReadExactlyAsync(slice);
+            Assert.Equal(bytes[40..48], slice);
+            var ranged = Assert.Single(estate.Blob.Downloads.Skip(downloadsBefore));
+            Assert.Equal(40L, ranged.Offset);
+            Assert.Equal(new ETag("\"1\""), ranged.IfMatch);
+            Assert.Equal(1, estate.Box.Downloads);
+        }
+    }
+
+    [Fact]
+    public async Task ASeekableReadOfAChangedOrUnpinnedCacheCopyIsReadWholeAndVerified()
+    {
+        var bytes = "a video's cached bytes"u8.ToArray();
+        var estate = await Estate.CreateAsync(bytes);
+        await using (estate)
+        {
+            var seekable = estate.Request with { Seekable = true };
+            await using (var cold = await estate.Reader.OpenAsync(seekable, CancellationToken.None))
+            {
+                _ = await ReadAsync(cold.Content);
+            }
+
+            // The object's ETag is no longer the one verified at publication.
+            estate.Blob.ReplaceContent(bytes);
+            await using (var changed = await estate.Reader.OpenAsync(seekable, CancellationToken.None))
+            {
+                Assert.IsNotType<CachedObjectRangeStream>(changed.Content);
+                Assert.Equal(bytes, await ReadAsync(changed.Content));
+            }
+
+            // An entry with no recorded ETag cannot be pinned.
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Set<DocumentContentCacheEntryEntity>().SingleAsync()).ETag = null;
+                await db.SaveChangesAsync();
+            }
+            await using (var unpinned = await estate.Reader.OpenAsync(seekable, CancellationToken.None))
+            {
+                Assert.IsNotType<CachedObjectRangeStream>(unpinned.Content);
+                Assert.Equal(bytes, await ReadAsync(unpinned.Content));
+            }
+            Assert.All(estate.Blob.Downloads, download => Assert.Equal(0L, download.Offset));
+        }
+    }
+
     [Fact]
     public async Task ConfirmedIntakeAssetWithRemoteIdsOpensThroughTheProductionLogicalReader()
     {
@@ -3364,17 +3445,39 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         public override Task<Response<BlobProperties>> GetPropertiesAsync(BlobRequestConditions? conditions=null,CancellationToken token=default)
         {
             Interlocked.Increment(ref propertiesReads);
+            if (Content is null && MissingContentIsNotFound)
+            {
+                return Task.FromException<Response<BlobProperties>>(new RequestFailedException(404, "missing"));
+            }
+            if (conditions?.IfMatch is { } expected && expected != etag)
+            {
+                return Task.FromException<Response<BlobProperties>>(new RequestFailedException(412, "condition"));
+            }
             return Task.FromResult(Response.FromValue(BlobsModelFactory.BlobProperties(contentLength:Content?.LongLength??0,eTag:etag,metadata:new Dictionary<string,string>{{"sha256",Convert.ToHexString(SHA256.HashData(Content??[])).ToLowerInvariant()}}),new StubResponse()));
+        }
+        private readonly List<(long Offset, long? Length, ETag? IfMatch)> downloads = [];
+        /// <summary>Every download asked for: the range it started at and the ETag it was pinned to.</summary>
+        public (long Offset, long? Length, ETag? IfMatch)[] Downloads
+        {
+            get { lock (downloads) { return downloads.ToArray(); } }
         }
         public override Task<Response<BlobDownloadStreamingResult>> DownloadStreamingAsync(BlobDownloadOptions? options=null,CancellationToken token=default)
         {
+            var range = options?.Range ?? default;
+            lock (downloads)
+            {
+                downloads.Add((range.Offset, range.Length, options?.Conditions?.IfMatch));
+            }
             if (Content is null && MissingContentIsNotFound)
             {
                 return Task.FromException<Response<BlobDownloadStreamingResult>>(
                     new RequestFailedException(404, "missing"));
             }
+            var content = Content ?? [];
+            var start = (int)Math.Min(range.Offset, content.Length);
+            var end = range.Length is { } length ? (int)Math.Min(content.Length, start + length) : content.Length;
             return Task.FromResult(Response.FromValue(
-                BlobsModelFactory.BlobDownloadStreamingResult(new MemoryStream(Content ?? [])),
+                BlobsModelFactory.BlobDownloadStreamingResult(new MemoryStream(content[start..end])),
                 new StubResponse()));
         }
         public override async Task<Response<bool>> DeleteIfExistsAsync(DeleteSnapshotsOption option=default,BlobRequestConditions? conditions=null,CancellationToken token=default)

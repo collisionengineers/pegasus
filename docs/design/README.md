@@ -589,7 +589,7 @@ record. It is one fingerprinted static file of `<symbol viewBox="0 0 24 24">`
 elements; pages reference glyphs as
 `<svg class="icon"><use href="<file>#icon-…"/></svg>`. The `.icon` rule
 applies the stroke and caps because a `<use>` clone does not inherit them. The
-file holds the seventy-five glyphs in the two tables below; each glyph
+file holds the seventy-seven glyphs in the two tables below; each glyph
 checksum is the SHA-256 of the glyph's UTF-8 `<symbol id="icon-…">…</symbol>`
 element in that file.
 
@@ -661,8 +661,8 @@ sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`.
 | `reply` (undefined) | `reply` | `375ED4D581B49E8229371F88865AE3443A367891A401DDE63D810BDB7AB9AB38` | Reply; Triage Reply with finding |
 | `flag` (undefined) | `flag` | `708EC43687246B094825BB270B7183154D6193FC2F7763FBE6FED4D9ED32CBDA` | Flag message |
 
-The v26 shell and Case record glyphs below complete the file's seventy-five
-symbols: the fifty-three above plus these twenty-two.
+The v26 shell and Case record glyphs below complete the file's seventy-seven
+symbols: the fifty-three above plus these twenty-four.
 
 | Prototype name | Lucide id | Glyph SHA-256 | Usage |
 | --- | --- | --- | --- |
