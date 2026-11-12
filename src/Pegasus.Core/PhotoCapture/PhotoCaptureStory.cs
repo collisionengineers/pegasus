@@ -221,10 +221,10 @@ public static class PhotoCaptureStory
             PhotoCaptureItemKind.Video => "Walk-around video",
             _ => "Photo"
         };
-        var position = sequence % 100;
+        var place = sequence % 100;
         var number = kind == PhotoCaptureItemKind.Damage && stage is { } taken
-            ? (StageDigit(taken) * 100 + position).ToString("000", CultureInfo.InvariantCulture)
-            : position.ToString("00", CultureInfo.InvariantCulture);
+            ? (StageDigit(taken) * 100 + place).ToString("000", CultureInfo.InvariantCulture)
+            : place.ToString("00", CultureInfo.InvariantCulture);
         var name = string.Create(
             CultureInfo.InvariantCulture,
             $"{group:00}-{number} {label}{ExtensionFor(mediaType, originalFileName)}");
