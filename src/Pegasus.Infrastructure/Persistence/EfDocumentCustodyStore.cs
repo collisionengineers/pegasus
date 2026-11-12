@@ -1000,19 +1000,6 @@ internal sealed class EfDocumentCustodyStore(
         var beforeRole = occurrence.SemanticRole;
         occurrence.SemanticRole = command.NewRole;
         CaseMutationGuard.Complete(workflow);
-        if (command.NewRole == DocumentSemanticRole.Image
-            && version.CustodyStatus == DocumentCustodyStatus.Confirmed)
-        {
-            await CompleteAddedImageIfNeededAsync(
-                context,
-                workflow,
-                command.Actor,
-                operationKey,
-                $"{version.FileName} changed to Image completed the Case's images.",
-                beforeVersion,
-                now,
-                cancellationToken);
-        }
         CaseMutationHistory.Add(
             context,
             workflow,
@@ -1027,6 +1014,24 @@ internal sealed class EfDocumentCustodyStore(
             JsonSerializer.Serialize(new { occurrence.Id, SemanticRole = occurrence.SemanticRole.ToString() }),
             DocumentTypePolicyVersion,
             now);
+        if (command.NewRole == DocumentSemanticRole.Image
+            && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+            && !workflow.Case.ImagesComplete)
+        {
+            // The completion is its own Case change, after the type's, so
+            // each history row has its own version (R997).
+            var completionBeforeVersion = workflow.Version;
+            CaseMutationGuard.Advance(workflow);
+            await CompleteAddedImageIfNeededAsync(
+                context,
+                workflow,
+                command.Actor,
+                operationKey,
+                $"{version.FileName} changed to Image completed the Case's images.",
+                completionBeforeVersion,
+                now,
+                cancellationToken);
+        }
         if (reportImagesBefore is null)
         {
             await context.SaveChangesAsync(cancellationToken);
