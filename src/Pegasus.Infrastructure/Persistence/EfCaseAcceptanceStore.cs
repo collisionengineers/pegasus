@@ -280,7 +280,8 @@ public sealed class EfCaseAcceptanceStore(
             receipt,
             request,
             acceptedAtUtc,
-            await CaseDataSnapshotFactory.EstablishClaimSourceAsync(context, receipt, cancellationToken));
+            await CaseDataSnapshotFactory.EstablishClaimSourceAsync(context, receipt, cancellationToken),
+            await CaseDataSnapshotFactory.EstablishRepairerAsync(context, receipt, cancellationToken));
         // The mileage the original report states fills the accepted data's
         // empty mileage before the gate reads it (R930).
         if (standaloneAuditEvidence is not null)

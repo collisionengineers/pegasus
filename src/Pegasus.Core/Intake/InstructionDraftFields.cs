@@ -73,7 +73,8 @@ public static class InstructionDraftFields
                 KeyValuePair.Create("Claimant home telephone", CaseDataFieldNames.ClaimantContactNumber),
                 // The repairer the instruction names. The profiles print these
                 // two labels; the Case keeps the name and the address as its
-                // own facts, and a directory link is a separate staff decision.
+                // own facts, and a name that is an active Repairer's links
+                // the Case to it (EstablishedIntakeRepairer, R1027).
                 KeyValuePair.Create("Repairer name", CaseDataFieldNames.RepairerName),
                 KeyValuePair.Create("Repairer address", CaseDataFieldNames.RepairerAddress)
             ])
