@@ -20,8 +20,9 @@ namespace Pegasus.ArchitectureTests;
 /// <summary>
 /// The one-minute recovery timer also runs the due-work sweep and the approved-inbox
 /// recovery on every fifth minute, so they use its warm instance, and the pending-wake
-/// poll on the other minutes. Each test names the ports the steps read first, so the
-/// order of the steps is the order of the calls.
+/// poll on the other minutes. Every minute ends with the sent-report instruction tidy
+/// and the sent-mail correspondence tidy (operator, 12 November 2026; R986). Each test
+/// names the ports the steps read first, so the order of the steps is the order of the calls.
 /// A step that throws never stops the others, and after all have run it fails the
 /// invocation, so the failed request reaches the exception alert. With guided photo
 /// capture on, the photo capture settle runs on every minute straight after the
@@ -82,13 +83,15 @@ public sealed class PendingWorkRecoveryFunctionTests
     [InlineData(4)]
     [InlineData(6)]
     [InlineData(59)]
-    public async Task OtherMinutesRunTheDispatchThenThePendingWakePoll(int minute)
+    public async Task OtherMinutesRunTheDispatchThenThePendingWakePollThenInstructionTidyThenCorrespondenceTidy(int minute)
     {
         using var rig = new Rig(minute);
 
         await rig.Function.RunAsync(null!, default);
 
-        Assert.Equal([IntakeDispatch, ExternalDispatch, PendingWakePoll], rig.Calls);
+        Assert.Equal(
+            [IntakeDispatch, ExternalDispatch, PendingWakePoll, InstructionTidy, CorrespondenceTidy],
+            rig.Calls);
         // No wake was recorded, so the minute writes no inbox line.
         Assert.DoesNotContain(rig.Logger.Entries, entry =>
             entry.Message.Contains("approved-inbox messages", StringComparison.Ordinal));
@@ -105,7 +108,9 @@ public sealed class PendingWorkRecoveryFunctionTests
             () => rig.Function.RunAsync(null!, default));
 
         Assert.Equal("poll store is down", failure.Message);
-        Assert.Equal([IntakeDispatch, ExternalDispatch, PendingWakePoll], rig.Calls);
+        Assert.Equal(
+            [IntakeDispatch, ExternalDispatch, PendingWakePoll, InstructionTidy, CorrespondenceTidy],
+            rig.Calls);
         Assert.Contains(rig.Logger.Entries, entry =>
             entry.Level == LogLevel.Error
             && entry.Exception is InvalidOperationException { Message: "poll store is down" }
@@ -400,10 +405,10 @@ public sealed class PendingWorkRecoveryFunctionTests
         await rig.Function.RunAsync(null!, default);
 
         string[] otherJobs = minute % 5 == 0
-            ? [DueWorkSweep, SubscriptionMaintenance, InboxPoll, InstructionTidy, CorrespondenceTidy]
+            ? [DueWorkSweep, SubscriptionMaintenance, InboxPoll]
             : [PendingWakePoll];
         Assert.Equal(
-            [IntakeDispatch, ExternalDispatch, SettleOwedBells, SettleReaches, SettleWalk, .. otherJobs],
+            [IntakeDispatch, ExternalDispatch, SettleOwedBells, SettleReaches, SettleWalk, .. otherJobs, InstructionTidy, CorrespondenceTidy],
             rig.Calls);
     }
 
@@ -438,7 +443,9 @@ public sealed class PendingWorkRecoveryFunctionTests
 
         Assert.Contains("photo-capture settle", failure.Message, StringComparison.Ordinal);
         Assert.Contains("60 second budget", failure.Message, StringComparison.Ordinal);
-        Assert.Equal([IntakeDispatch, ExternalDispatch, SettleOwedBells, PendingWakePoll], rig.Calls);
+        Assert.Equal(
+            [IntakeDispatch, ExternalDispatch, SettleOwedBells, PendingWakePoll, InstructionTidy, CorrespondenceTidy],
+            rig.Calls);
         Assert.Contains(rig.Logger.Entries, entry =>
             entry.Level == LogLevel.Warning
             && entry.Message.Contains("photo-capture settle", StringComparison.Ordinal)
@@ -456,7 +463,9 @@ public sealed class PendingWorkRecoveryFunctionTests
             () => rig.Function.RunAsync(null!, default));
 
         Assert.Equal("settle store is down", failure.Message);
-        Assert.Equal([IntakeDispatch, ExternalDispatch, SettleOwedBells, PendingWakePoll], rig.Calls);
+        Assert.Equal(
+            [IntakeDispatch, ExternalDispatch, SettleOwedBells, PendingWakePoll, InstructionTidy, CorrespondenceTidy],
+            rig.Calls);
         Assert.Contains(rig.Logger.Entries, entry =>
             entry.Level == LogLevel.Error
             && entry.Exception is InvalidOperationException { Message: "settle store is down" }
