@@ -464,7 +464,7 @@ public sealed class CaseActionsMenuWebTests
             Substitute<ISaveCaseWorkspace>(services, store));
         var editing = OverviewPanel(await workspace.GetWorkspaceAsync());
         Assert.Contains(
-            "name=\"principalNotes\" form=\"case-edit-form\" maxlength=\"4000\">Handler prefers e-mail.</textarea>",
+            "name=\"principalNotes\" form=\"case-edit-form\" maxlength=\"2000\">Handler prefers e-mail.</textarea>",
             editing,
             StringComparison.Ordinal);
         Assert.Contains("name=\"claimSourceNotes\" form=\"case-edit-form\"", editing, StringComparison.Ordinal);
