@@ -641,6 +641,19 @@ the frame's jump, lazy-mount, scroll-spy or commit code; it is on demand and
 not in CI (R889), makes no request beyond its own local server, and records
 JSON under `artifacts/case-page/browser/`.
 
+### Capture upload browser check
+
+`node scripts/Test-CaptureUploadBrowser.mjs` runs the production photo capture
+app (`capture.js`, `capture.css`, `shell.html`) against scripted local answers
+in the same kind of headless profile (the executable's path as its first
+argument, or `CHROME`). It shows what the script-contract tests cannot: that a
+file over 4 MiB goes in parts with the digest the commit checks, that a file
+the phone can no longer read says so and frees Send while a server that cannot
+be reached keeps the signal sentence, and what Record and Choose open. Run it
+after changing the app's upload queue or its Extras step; it is on demand and
+not in CI (R889), makes no request beyond its own local server, and records
+JSON and screenshots under `artifacts/capture/browser/`.
+
 ### Imported source workspaces
 
 No live source workspace currently exists; both imported snapshots were

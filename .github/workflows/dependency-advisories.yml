@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   restore:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
       run:

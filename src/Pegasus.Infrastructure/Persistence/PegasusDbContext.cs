@@ -553,6 +553,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.InspectionReportNameResend).HasMaxLength(Pegasus.Core.Reports.PrincipalReportNames.MaximumFileNameLength);
             entity.Property(item => item.AuditReportNameFirst).HasMaxLength(Pegasus.Core.Reports.PrincipalReportNames.MaximumFileNameLength);
             entity.Property(item => item.AuditReportNameResend).HasMaxLength(Pegasus.Core.Reports.PrincipalReportNames.MaximumFileNameLength);
+            entity.Property(item => item.FeeNoteVatNumber).HasMaxLength(Pegasus.Core.Reports.AssessmentReportContract.MaximumVatNumberLength);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => item.Code).IsUnique();
             entity.HasIndex(item => item.PredecessorId).IsUnique();
@@ -1237,6 +1238,8 @@ internal sealed class PrincipalEntity
     public string? InspectionReportNameResend { get; set; }
     public string? AuditReportNameFirst { get; set; }
     public string? AuditReportNameResend { get; set; }
+    // The VAT number its fee notes print (R1006); null is the standard number.
+    public string? FeeNoteVatNumber { get; set; }
     public long Version { get; set; }
     public List<ContactPrincipalLinkEntity> ContactLinks { get; set; } = [];
     public List<CaseEntity> Cases { get; set; } = [];

@@ -88,7 +88,8 @@ rulings, 15 and 22 October 2026).
 **Tidying the answered instruction.** A report send that replied to a retained
 instruction is due for one move once its Sent item is confirmed. The Worker
 moves that instruction to the Deleted Items folder of the mailbox it sits in,
-within about five minutes, through the same recovery run as the Inbox poll.
+within about two minutes of Send, on the recovery timer's every-minute run
+(12 November 2026, R986; it ran every fifth minute before).
 It records what happened on the send: moved, already in Deleted Items, no
 longer in the mailbox, or failed. A move writes the Case history event
 `instruction_moved_to_deleted_items`; each failure writes
@@ -118,8 +119,8 @@ open query on the Case (R904). Forward, Send chaser and the Triage chaser
 never offer it, and a send of any other kind that names it is refused. The
 tick is kept on the send. Once the Sent item is confirmed, the Worker moves
 the Case's received e-mails to the Deleted Items folder of the mailbox each
-sits in (R902), within about five minutes, in the same recovery run as the
-instruction tidy and after it. The received e-mails are the Inbox-scope
+sits in (R902), within about two minutes of Send, in the same every-minute
+recovery run as the instruction tidy and after it (12 November 2026, R986). The received e-mails are the Inbox-scope
 retained messages linked to the Case now, with the request e-mail a Triage
 Case was opened from, that sit in a mailbox still Approved and activated
 (10 November 2026, R916) and that Pegasus held when the send was prepared; a

@@ -52,7 +52,12 @@ a request as a Triage, and creates a Triage Case only for an established
 Principal and a known registration. A request whose Principal is not
 established is not a Triage: an e-mailed one waits in the Inbox's No Case
 Found scope, and **Open the Triage** is not offered for a receipt with no
-established Principal. A Triage Case takes its receipt's Principal. That
+established Principal. A received item's established Principal is its
+instruction draft's suggested Principal; with no draft it is the accepted
+mail route's Principal, unless the instruction profile selected for the item
+conflicts with that route or is ambiguous. A sender that matched no route
+establishes none (operator, 11 November 2026, [R966](../rulings.md)). A
+Triage Case takes its receipt's Principal. That
 Principal is fixed with its Case/PO: Triage has no Set principal, and Correct principal
 is not offered on a Triage Case.
 

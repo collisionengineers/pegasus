@@ -168,11 +168,30 @@ public static class PhotoCaptureStory
     };
 
     /// <summary>
+    /// The digit a damage photo's stage shows as in its file name, in the
+    /// order the app takes the stages (operator, 12 November 2026; R1000).
+    /// Its own list, so the name never follows the enum's numbering.
+    /// </summary>
+    private static int StageDigit(PhotoCaptureStage stage) => stage switch
+    {
+        PhotoCaptureStage.Overview => 1,
+        PhotoCaptureStage.Closer => 2,
+        PhotoCaptureStage.CloseUp => 3,
+        PhotoCaptureStage.Extra => 4,
+        _ => throw new ArgumentOutOfRangeException(nameof(stage))
+    };
+
+    /// <summary>
     /// The item's file name: <c>GG-SS label.ext</c>, so the Case folder's own
     /// numbering (<c>NNN name</c>) is followed by the story position and a
     /// plain label. The Case folder stays flat (operator direction,
     /// 21 August 2026; 9 November 2026). The label uses only the app's own
-    /// words: the zone and angle names and the stage.
+    /// words: the zone and angle names and the stage. A damage photo taken at
+    /// a stage carries the stage's digit before its two-digit position
+    /// (<c>GG-SPP</c>: 1 overview, 2 closer, 3 close-up, 4 extra), so one
+    /// area's names sort in story order; every other photo, a damage photo
+    /// with no stage among them, keeps two digits (operator, 12 November
+    /// 2026; R1000). <see cref="Label"/> reads the name back.
     /// </summary>
     public static string FileName(
         PhotoCaptureItemKind kind,
@@ -202,14 +221,42 @@ public static class PhotoCaptureStory
             PhotoCaptureItemKind.Video => "Walk-around video",
             _ => "Photo"
         };
-        var name = string.Format(
+        var place = sequence % 100;
+        var number = kind == PhotoCaptureItemKind.Damage && stage is { } taken
+            ? (StageDigit(taken) * 100 + place).ToString("000", CultureInfo.InvariantCulture)
+            : place.ToString("00", CultureInfo.InvariantCulture);
+        var name = string.Create(
             CultureInfo.InvariantCulture,
-            "{0:00}-{1:00} {2}{3}",
-            group,
-            sequence % 100,
-            label,
-            ExtensionFor(mediaType, originalFileName));
+            $"{group:00}-{number} {label}{ExtensionFor(mediaType, originalFileName)}");
         return name.Length <= 120 ? name : name[..120];
+    }
+
+    /// <summary>
+    /// A story file name's own words: the name without its story position
+    /// (<c>GG-SS </c>, or <c>GG-SPP </c> for a damage photo taken at a stage)
+    /// and its extension, so "02-201 Front driver corner closer.jpg" reads
+    /// "Front driver corner closer". A name that is not a story name is
+    /// answered without its extension.
+    /// </summary>
+    public static string Label(string fileName)
+    {
+        ArgumentNullException.ThrowIfNull(fileName);
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        if (name.Length < 6 || !char.IsAsciiDigit(name[0]) || !char.IsAsciiDigit(name[1]) || name[2] != '-')
+        {
+            return name;
+        }
+
+        var digits = 0;
+        while (3 + digits < name.Length && char.IsAsciiDigit(name[3 + digits]))
+        {
+            digits++;
+        }
+
+        var labelStart = 3 + digits + 1;
+        return digits is 2 or 3 && labelStart < name.Length && name[labelStart - 1] == ' '
+            ? name[labelStart..]
+            : name;
     }
 
     /// <summary>Inspection images arrive In report; additional information does not (operator, 9 November 2026).</summary>

@@ -117,6 +117,48 @@ public sealed class FwInstructionExtractionPolicyTests
         Assert.Equal("FW", selection.Policy!.PrincipalCode);
     }
 
+    [Fact]
+    public void AnInstructionSentWithoutItsFooterSelectsTheProfileAndKeepsItsInspectionLocation()
+    {
+        // The 31470 shape of 10 November 2026: the whole block, and nothing
+        // after the inspection location that names the firm (R973).
+        var withFooter = Instruction(
+            "31470-01", "Mr Eshaan Malik Davies", "OO03PFT", "Triumph TRIDENT",
+            "05 November 2026", "10 November 2026",
+            "Individual Specialists Car Ltd 43-49 Western Road Hockley Birmingham B18 7QD",
+            "Current account.", "MrMartin", "FG19VFL Ford TRANSIT CONNECT");
+        var footerless = withFooter[..withFooter.IndexOf("Should you have", StringComparison.Ordinal)].TrimEnd();
+        Assert.DoesNotContain("fairwaylegal", footerless, StringComparison.OrdinalIgnoreCase);
+
+        var selection = new InstructionExtractionPolicySelector([new FwInstructionExtractionPolicy()])
+            .Select(Read(footerless), InstructionDocumentSignature.InstructionRole);
+        var draft = Assert.IsType<InstructionDraft>(Extract(footerless).InstructionDraft);
+
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
+        Assert.Equal("FW", selection.Policy!.PrincipalCode);
+        Assert.Equal("31470-01", draft.ClaimNumber);
+        Assert.Equal("OO03PFT", draft.VehicleRegistration);
+        Assert.Equal(
+            "Individual Specialists Car Ltd 43-49 Western Road Hockley Birmingham B18 7QD",
+            draft.InspectionAddress);
+    }
+
+    [Fact]
+    public void TheFirmsNameWithoutTheInstructionHeadingSelectsNothing()
+    {
+        var read = Read("""
+            Please see attached. www.fairwaylegal.co.uk
+            Vehicle Registration Number: BA69UMG
+            Make/Model: Toyota PRIUS
+            """);
+
+        var selection = new InstructionExtractionPolicySelector([new FwInstructionExtractionPolicy()])
+            .Select(read, InstructionDocumentSignature.InstructionRole);
+
+        Assert.NotEqual(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
+        Assert.Null(selection.Policy);
+    }
+
     private static InstructionExtractionResult Extract(params string[] fragments) =>
         new FwInstructionExtractionPolicy().Extract(
             Read(fragments),

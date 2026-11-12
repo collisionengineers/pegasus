@@ -26,7 +26,7 @@ public sealed class ProcessIntakeTests
     {
         // A structural signature probe only: no invented instruction or email.
         var read = Readable(content: [new(IntakeEvidenceSource.DocumentContent, "attachment",
-            "fairwaylegal\nVehicle Registration Number:\nMake/Model:")]);
+            "New INSTRUCTIONS:\nVehicle Registration Number:\nMake/Model:")]);
         var receipt = await CreateSut(new StubReader(read), new RecordingStore(),
             extractionPolicy: new FwInstructionExtractionPolicy()).ExecuteAsync(CreateSource());
         Assert.Equal(MailRouteDisposition.Accepted, receipt.MailRouteDecision?.Disposition);
@@ -37,6 +37,34 @@ public sealed class ProcessIntakeTests
         Assert.Equal(MailClassificationResult.NoPolicyKey, receipt.MailClassificationDecision?.PolicyKey);
         Assert.NotEqual(CaseMatchOutcome.UniqueMatch, receipt.CaseMatchDecision?.Outcome);
         Assert.Contains("conflicts", receipt.DecisionReason, StringComparison.Ordinal);
+        // The route is accepted, but a conflicting profile leaves the item
+        // with no established Principal (R966).
+        Assert.Equal("QDOS", EstablishedIntakePrincipal.RouteCode(receipt.MailRouteDecision));
+        Assert.Null(EstablishedIntakePrincipal.CodeFor(receipt));
+    }
+
+    [Fact]
+    public async Task AnAcceptedRouteWithNoInstructionProfileStillEstablishesItsPrincipal()
+    {
+        // An informal e-mail from a Principal's own domain: no profile is
+        // selected, so there is no draft, and the route names the Principal
+        // for Open the Triage and Create case (R966).
+        var read = Readable(
+            transportEvidence:
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "info@fairwaylegal.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message")
+            ],
+            content: [new(IntakeEvidenceSource.EmailBody, "outer message, body", "Please could you call me about this vehicle.")]);
+        var receipt = await CreateSut(new StubReader(read), new RecordingStore(),
+            extractionPolicy: new FwInstructionExtractionPolicy()).ExecuteAsync(CreateSource());
+
+        Assert.Equal(MailRouteDisposition.Accepted, receipt.MailRouteDecision?.Disposition);
+        Assert.Null(receipt.InstructionDraft);
+        Assert.Equal("FW", EstablishedIntakePrincipal.CodeFor(receipt));
     }
 
     [Theory]

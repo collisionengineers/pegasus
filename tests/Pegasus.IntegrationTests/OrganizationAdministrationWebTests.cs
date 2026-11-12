@@ -122,8 +122,15 @@ public sealed partial class OrganizationAdministrationWebTests
             ["PrincipalExpectedVersion"] = InputValue(reportSettingsHtml, "PrincipalExpectedVersion"),
             ["ExpectedVersion"] = InputValue(reportSettingsHtml, "ExpectedVersion"),
             ["DefaultFee"] = "205.00",
+            ["FeeNoteVatNumber"] = "GB 123 4567 89",
             ["AuditReportNameFirst"] = "{REG}_{CASE REF}_AUDIT"
         };
+        // The fee note VAT number box greys the standard number it stands for (R1008).
+        Assert.Contains(">Fee note VAT number</label>", reportSettingsHtml, StringComparison.Ordinal);
+        Assert.Matches(
+            "<input id=\"principal-fee-note-vat-number\" name=\"FeeNoteVatNumber\"(?: value=\"\")? maxlength=\"20\" placeholder=\"262 0937 10\"",
+            reportSettingsHtml);
+        Assert.Contains("Empty: the standard number.", reportSettingsHtml, StringComparison.Ordinal);
         // Each report name greys the standard name it stands for and offers its tokens (R740).
         Assert.Contains("placeholder=\"{CASE REF} {REG} {OUTCOME} report\"", reportSettingsHtml, StringComparison.Ordinal);
         Assert.Contains("data-insert-placeholder=\"{CASE REF}\" data-insert-target=\"report-name-audit-first report-name-audit-resend\"", reportSettingsHtml, StringComparison.Ordinal);
@@ -145,6 +152,14 @@ public sealed partial class OrganizationAdministrationWebTests
                 $"SELECT AuditReportNameFirst FROM Principals WHERE Id = '{principalId:D}';"));
         Assert.Contains(
             "value=\"{REG}_{CASE REF}_AUDIT\"",
+            await EditContactAsync(client, reportSettingsPath, "report-generation"),
+            StringComparison.Ordinal);
+        Assert.Equal(
+            "GB 123 4567 89",
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
+                $"SELECT FeeNoteVatNumber FROM Principals WHERE Id = '{principalId:D}';"));
+        Assert.Contains(
+            "name=\"FeeNoteVatNumber\" value=\"GB 123 4567 89\"",
             await EditContactAsync(client, reportSettingsPath, "report-generation"),
             StringComparison.Ordinal);
 

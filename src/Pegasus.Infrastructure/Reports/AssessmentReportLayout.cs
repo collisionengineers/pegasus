@@ -64,7 +64,7 @@ internal static class AssessmentReportLayout
             void Pages(bool feeNote, Action<ColumnDescriptor> body) => container.Page(page => Page(
                 page,
                 images.Logo,
-                CompanyBlock(feeNote),
+                CompanyBlock(feeNote, snapshot.VatNumber),
                 Footer(snapshot, feeNote),
                 pageCount,
                 feeNote ? FeeNoteBodyTop : ReportBodyTop,

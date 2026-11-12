@@ -386,6 +386,73 @@ public sealed class TriageFromIntakeIntegrationTests
     }
 
     [Fact]
+    public async Task AnAcceptedRouteWithNoInstructionProfileStillOffersOpenTheTriageOnceCorrected()
+    {
+        // R966: an informal e-mail from a Principal's own domain selects no
+        // instruction profile, so it has no draft. Its accepted route is what
+        // establishes the Principal, and once staff correct the message to
+        // Triage request the message offers Open the Triage. Before this the
+        // Principal was read from the draft alone and nobody could open it.
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var email = IntakeTestEvidence.CreateEmail(
+            "route-only-triage.eml",
+            "Further to our call this morning, could you look at this one for us before we instruct.",
+            senderAddress: "claims@ax-uk.com",
+            subject: "Vehicle to look at");
+
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
+        await using (var lookup = factory.Services.CreateAsyncScope())
+        {
+            var receipt = await lookup.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receiptId, CancellationToken.None);
+            Assert.NotNull(receipt);
+            Assert.Null(receipt.InstructionDraft);
+            Assert.Equal("AX", EstablishedIntakePrincipal.CodeFor(receipt));
+        }
+
+        var messageId = await RetainAsThePollWouldAsync(factory, receiptId, "route-only-triage", "Further to our call");
+        using var correction = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client),
+            ["ExpectedClassificationVersion"] = "1",
+            ["ClassificationKey"] = "triage-request",
+            ["CorrectionReason"] = "The Principal asked for a Triage on the call."
+        });
+        using var corrected = await client.PostAsync($"/Inbox/{messageId:D}?handler=CorrectClassification", correction);
+        Assert.Equal(HttpStatusCode.Redirect, corrected.StatusCode);
+
+        var offered = await IntakeWebDriver.GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        Assert.Contains("data-offered-action=\"OpenTriage\"", offered, StringComparison.Ordinal);
+
+        using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client),
+            ["vehicleRegistration"] = "yj21 mwr",
+            ["operationKey"] = Guid.NewGuid().ToString("N")
+        });
+        using var opened = await client.PostAsync($"/Inbox/{messageId:D}?handler=OpenTriage", form);
+        Assert.Equal(HttpStatusCode.Redirect, opened.StatusCode);
+
+        await using var after = factory.Services.CreateAsyncScope();
+        var triage = Assert.Single(
+            await after.ServiceProvider.GetRequiredService<ITriageQueries>()
+                .ListAsync(null, CancellationToken.None));
+        var detail = Assert.IsType<TriageDetail>(
+            await after.ServiceProvider.GetRequiredService<ITriageQueries>()
+                .GetAsync(triage.CaseId, CancellationToken.None));
+        Assert.Equal(receiptId, detail.Record.Origin?.ReceiptId);
+        Assert.Equal("YJ21MWR", detail.Record.NormalizedVehicleRegistration);
+        var context = after.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        Assert.Equal(
+            "AX",
+            await context.Cases.AsNoTracking()
+                .Where(item => item.Id == triage.CaseId)
+                .Select(item => item.Principal.Code)
+                .SingleAsync());
+    }
+
+    [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task StaffSupplyingTheRegistrationOnTheMessageOpensTheTriage()
     {

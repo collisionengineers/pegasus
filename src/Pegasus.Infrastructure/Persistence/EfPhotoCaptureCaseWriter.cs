@@ -49,8 +49,7 @@ public sealed class EfPhotoCaptureCaseWriter(
         await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, caseId, cancellationToken);
         // Once per capture (R792): the capture's marker is read and written
         // under the Case's workflow lock, in the transaction that completes the
-        // images, so a later batch never completes them again, even after
-        // staff marked them incomplete.
+        // images, so a later batch never completes them again.
         var capture = await context.PhotoCaptures
             .SingleOrDefaultAsync(item => item.Id == captureId, cancellationToken)
             ?? throw new KeyNotFoundException("The photo link was not found.");

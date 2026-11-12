@@ -145,6 +145,30 @@ public sealed class CaseImagesWindowWebTests
     }
 
     [Fact]
+    public async Task ADocumentsRowNamesItsOccurrenceOnlyForAVideoSoAJpegFiledAsAnotherTypeOffersNoPopOut()
+    {
+        var jpegOccurrenceId = Guid.NewGuid();
+        var videoOccurrenceId = Guid.NewGuid();
+        var store = new RecordingCaseDetailsStore
+        {
+            CaseDocuments =
+            [
+                Document(jpegOccurrenceId, Guid.NewGuid(), "scanned-claim-form.jpg", "image/jpeg"),
+                Document(videoOccurrenceId, Guid.NewGuid(), "walkaround.mp4", "video/mp4")
+            ]
+        };
+        using var workspace = await OpenEngineerWorkspaceAsync(store, _ => { });
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=files");
+        var files = Section(html, "section-files-title");
+        Assert.Contains("scanned-claim-form.jpg", files, StringComparison.Ordinal);
+        Assert.DoesNotContain($"data-evidence-occurrence=\"{jpegOccurrenceId:D}\"", files, StringComparison.Ordinal);
+        Assert.Contains($"data-evidence-occurrence=\"{videoOccurrenceId:D}\"", files, StringComparison.Ordinal);
+        // No readable Case image, so no Pop out in the Files head either (R757).
+        Assert.DoesNotContain("data-images-popout", files, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task TheFilesHeadHasNoPopOutWhileNoImageCanBeRead()
     {
         var store = new RecordingCaseDetailsStore();

@@ -452,7 +452,17 @@ replays by its operation key.
   reviews it: version, decision, existing Case, classified case type, draft,
   missing identity-critical fields, allocation attempt, the inspection
   address state, suggestion and fingerprint, and who settled it, and the
-  item's files, which a Triage reply attaches by asset id.
+  item's files, which a Triage reply attaches by asset id. It names the
+  Principal the item has established (`establishedPrincipalCode`,
+  [FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)). Where
+  the item has established none, `senderDirectoryPrincipalCode` is the one
+  active Principal Contact its sender belongs to by the Contacts directory:
+  the Contact's e-mail on the sender's exact domain, or the sender's whole
+  address on a shared mail domain. Two Principals on the domain, or a sender
+  the directory also makes an intermediary for a different Principal, name
+  none. It is a code to give `accept`, not a mail route (operator,
+  11 November 2026, [R969](../rulings.md)). `websiteEnquiry` is true for an
+  item the firm's website form sent (R972).
 - `pegasus_intake_action` with `resolve_inspection_address` settles the
   inspection address as **Create case** does: it accepts the suggested
   address, corrects it, or, where nothing was suggested, supplies one
@@ -462,9 +472,13 @@ replays by its operation key.
   Case's address carries an Automation label, never a staff one.
 - With `accept` it turns a received item into a Case as **Create case**
   does: the reviewed draft is recorded (named draft fields replace the
-  item's), then the Case is allocated for the Principal and case type.
-  `accept` is refused while the address is unsettled; a Principal that
-  inspects by images needs no settling. An Audit is accepted only for an
+  item's), then the Case is allocated for the Principal and case type. With
+  no `principalCode` the Principal is the one the item established. An
+  unsettled inspection address does not refuse `accept`: the Case starts
+  Not ready and its instruction names Inspection address as missing, as a
+  Case made from **New case** with the address blank does; a Principal that
+  inspects by images needs no settling (operator, 11 November 2026,
+  [R965](../rulings.md)). An Audit is accepted only for an
   item classified as one. With `allocate` it retries a failed allocation with
   a reason, naming the attempt, as the Intake log's **Retry allocation** does.
   With `open_triage` it opens the Triage Case from an item classified, or
@@ -492,7 +506,10 @@ replays by its operation key.
   page also carries `awaitingDecisionCount`: the Inbox messages, not
   dismissed, whose classification the pipeline decided and that are
   Unclassified or have no Case, counted outside the list's own filters so
-  that a list hiding mail shows (operator, 4 November 2026, R735).
+  that a list hiding mail shows (operator, 4 November 2026, R735). Each row
+  names who decided its current type in `classificationActor`, so a caller
+  that works only pipeline-decided mail passes over the rest without reading
+  each message.
 - `pegasus_mail_correct_classification` takes `correspondence`, one of the
   four category codes, or `new-instruction:Inspection` (and Audit,
   InspectionAndAudit), with a reason, as the staff Type select does
@@ -539,7 +556,10 @@ replays by its operation key.
   query to find a Case to link, and `pegasus_intake_get` and
   `pegasus_intake_action` (`accept`, and `resolve_inspection_address` with
   Pegasus's own suggestion only) to create the Case for an unlinked e-mail it
-  classifies New instruction (operator, 5 November 2026, R714), and
+  classifies New instruction (operator, 5 November 2026, R714),
+  `pegasus_case_create` with `privateCustomer` and then
+  `pegasus_mail_link_case` for a website enquiry (operator, 11 November 2026,
+  R972), and
   `pegasus_intake_action` `open_triage` to open the Triage for an unlinked
   Triage request whose registration it read (operator, 4 and 6 November
   2026, R731, R732).

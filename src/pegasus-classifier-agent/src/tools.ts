@@ -16,7 +16,11 @@
 // New instruction; open_triage is staff Open the Triage on an unlinked Triage
 // request whose registration the agent read in its text or Pegasus read in
 // its photographs. Pegasus refuses either while what it needs is missing, and
-// the e-mail then waits for staff.
+// the e-mail then waits for staff. The Principal is Pegasus's answer, never
+// the model's: the one the item established, else the one active Principal
+// Contact its sender belongs to (R966, R969). A missing inspection address
+// does not stop the Case (R965). A website enquiry becomes a private
+// customer's one-off Case, made directly and then linked (R972).
 
 import { randomUUID } from "node:crypto";
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
@@ -44,7 +48,7 @@ export interface Logger {
 export type ClassifierPegasus = Pick<
   PegasusMail,
   | "get" | "attachmentText" | "correct" | "link" | "openQuery" | "searchOldSystemFolders" | "searchMailboxes"
-  | "linkDestinations" | "intakeGet" | "intakeAction" | "photoRegistrations"
+  | "linkDestinations" | "intakeGet" | "intakeAction" | "photoRegistrations" | "caseCreate"
 >;
 
 /**
@@ -576,7 +580,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
 
   const createCase = tool(
     "create_case",
-    "Creates the Case for a listed e-mail that is classified new-instruction and has no Case, as staff Create case does on the received item: the e-mail becomes the Case's instruction. The work type is the classification's. Give claimantName, claimNumber, vehicleRegistration or incidentDate only when the instruction states them and Pegasus's draft lacks them; Pegasus keeps the values it extracted. Pegasus refuses the Case while an identity fact or the inspection address is missing, and the e-mail then waits for staff. A Case is never deleted.",
+    "Creates the Case for a listed e-mail that is classified new-instruction and has no Case, as staff Create case does on the received item: the e-mail becomes the Case's instruction. The work type is the classification's and the Principal is the one Pegasus knows for the e-mail; you never name one. Give claimantName, claimNumber, vehicleRegistration or incidentDate only when the instruction states them and Pegasus's draft lacks them; Pegasus keeps the values it extracted. Pegasus refuses the Case while an identity fact is missing or it knows no Principal for the sender, and the e-mail then waits for staff. A missing inspection address does not stop the Case: it starts Not ready and staff record the address. A website enquiry becomes a one-off Case for a private customer, linked to the e-mail: it needs claimantName and vehicleRegistration exactly as the enquiry writes them. A Case is never deleted.",
     {
       messageId: z.guid().describe("messageId from list_eligible_emails"),
       reason: z.string().min(1).max(450),
@@ -606,6 +610,20 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         if (intake.caseId != null) {
           return text(`The received item already has Case ${intake.caseReference ?? intake.caseId}.`, true);
         }
+        if (intake.websiteEnquiry) {
+          return await createOneOff(args, detail, expected, intake.version);
+        }
+        // The Principal is the one the item established; failing that, the
+        // one active Principal Contact its sender belongs to, which Pegasus
+        // worked out from the directory (R969). With neither, staff name it.
+        const senderPrincipal = intake.establishedPrincipalCode == null
+          ? intake.senderDirectoryPrincipalCode ?? undefined
+          : undefined;
+        if (intake.establishedPrincipalCode == null && senderPrincipal === undefined) {
+          verdict(args.messageId);
+          log("create case left for staff", { messageId: args.messageId, missing: ["Principal"] });
+          return text("Pegasus knows no Principal for this e-mail: its sender matched no route and belongs to no one active Principal Contact. The e-mail waits for staff.", true);
+        }
         const fields = missingOnly(intake.draft, args);
         // Nothing is written while an identity fact stays missing: the
         // address would be settled for a Case Pegasus then refuses.
@@ -616,13 +634,17 @@ export function createClassifierTools(options: ClassifierToolOptions) {
           log("create case left for staff", { messageId: args.messageId, missing: intake.missingIdentityFields });
           return text(`Pegasus would refuse the Case: ${intake.missingIdentityFields.join(", ")} missing. The e-mail waits for staff.`, true);
         }
-        log("create case", { messageId: args.messageId, receiptId, fields: Object.keys(fields), reason: args.reason, dryRun });
+        log("create case", {
+          messageId: args.messageId, receiptId, fields: Object.keys(fields), reason: args.reason, dryRun,
+          ...(senderPrincipal ? { senderPrincipal } : {}),
+        });
         if (dryRun) {
           verdict(args.messageId);
           return text("Dry run: would create the Case.");
         }
         // Pegasus's own suggested inspection address is accepted, as staff
         // accept it on Create case; the agent never supplies or corrects one.
+        // With none suggested the Case is created without it (R965).
         if (["Unresolved", "Suggested"].includes(intake.inspectionAddressState) && intake.inspectionAddressSuggestionFingerprint) {
           await pegasus.intakeAction({
             receiptId,
@@ -639,6 +661,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
             action: "accept",
             expectedReceiptVersion: intake.version,
             operationKey: operationKey("case", args.messageId, intake.version),
+            ...(senderPrincipal ? { principalCode: senderPrincipal } : {}),
             ...fields,
           });
           if (!created.caseId) {
@@ -664,6 +687,81 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         return text(`Pegasus refused the Case: ${messageOf(error)}. The e-mail waits for staff.`, true);
       }
     });
+
+  /**
+   * A website enquiry's Case (R972): a private customer's one-off, which a
+   * received item is never accepted as (R581), so it is created directly, as
+   * staff New case with the Private customer tick does, and the e-mail is
+   * then linked to it. The name and the registration must be written in the
+   * enquiry. Called inside create_case's own refusal handling.
+   */
+  async function createOneOff(
+    args: { messageId: string; reason: string; claimantName?: string; vehicleRegistration?: string; incidentDate?: string },
+    detail: MailDetail,
+    expected: MessageState,
+    intakeVersion: number,
+  ) {
+    const workType = typeOf(args.messageId, detail).workType;
+    const claimantName = args.claimantName?.trim();
+    const registration = args.vehicleRegistration ? normalizeRegistration(args.vehicleRegistration) : "";
+    if (!workType || !claimantName || !registration) {
+      verdict(args.messageId);
+      log("create case left for staff", { messageId: args.messageId, missing: ["website enquiry name or registration"] });
+      return text("A website enquiry becomes a one-off Case only with the customer's name and the vehicle's registration; the enquiry does not give both, so the e-mail waits for staff.", true);
+    }
+    const written = [detail.summary.subject, detail.bodyPlainText].join("\n");
+    if (!RegistrationShape.test(registration) || /^\d+$/.test(registration) || !appearsIn(registration, written)) {
+      return text(`${args.vehicleRegistration} is not written in the enquiry; give the registration exactly as the enquiry writes it, or leave the e-mail for staff.`, true);
+    }
+    if (!squash(written).includes(squash(claimantName))) {
+      return text(`${claimantName} is not written in the enquiry; give the name exactly as the enquiry writes it, or leave the e-mail for staff.`, true);
+    }
+    if (!detail.canLinkCase || detail.intakeVersion == null) {
+      verdict(args.messageId);
+      return text("The e-mail cannot be linked to a Case, so no one-off Case is made for it; it waits for staff.", true);
+    }
+    log("create one-off case", { messageId: args.messageId, registration, reason: args.reason, dryRun });
+    if (dryRun) {
+      verdict(args.messageId);
+      return text("Dry run: would create the one-off Case and link the e-mail to it.");
+    }
+    const created = await pegasus.caseCreate({
+      caseType: workType,
+      privateCustomer: true,
+      claimantName,
+      vehicleRegistration: registration,
+      ...(args.incidentDate ? { incidentDate: args.incidentDate } : {}),
+      operationKey: operationKey("one-off", args.messageId, intakeVersion),
+    });
+    const isLinked = (current: MailDetail) => current.summary.caseId?.toLowerCase() === created.caseId.toLowerCase();
+    try {
+      const destination = (await pegasus.linkDestinations(args.messageId, created.reference))
+        .find((item) => item.caseId.toLowerCase() === created.caseId.toLowerCase());
+      if (!destination) {
+        throw new Error("the new Case is not offered as a link destination");
+      }
+      const linked = await pegasus.link({
+        messageId: args.messageId,
+        caseId: destination.caseId,
+        expectedIntakeVersion: detail.intakeVersion,
+        expectedCaseVersion: destination.version,
+        reason: ReasonPrefix + args.reason,
+        operationKey: operationKey("one-off-link", args.messageId, detail.intakeVersion, newAttempt()),
+      });
+      wrote(args.messageId, linked);
+      return text(`Created one-off Case ${created.reference} and linked the e-mail to it.`);
+    } catch (error) {
+      const settled = await settle(args.messageId, expected, isLinked);
+      if (settled.kind === "landed") {
+        wrote(args.messageId, settled.detail);
+        return text(`Created one-off Case ${created.reference} and linked the e-mail to it.`);
+      }
+      // The Case exists; only its link is owed, and that is staff's to make.
+      verdict(args.messageId);
+      log("one-off case not linked", { messageId: args.messageId, caseReference: created.reference, error: messageOf(error) });
+      return text(`Created one-off Case ${created.reference}, but the e-mail was not linked to it (${messageOf(error)}). Staff link it.`, true);
+    }
+  }
 
   const openTriage = tool(
     "open_triage",
@@ -847,7 +945,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
 
   const searchMailboxes = tool(
     "search_mailboxes",
-    "Read-only. Searches the firm's approved mailboxes for earlier e-mail about a term and returns subjects, senders and dates only. state is unavailable when no mailbox could be read.",
+    "Read-only. Searches the firm's approved mailboxes for other e-mail about a term and returns subjects, senders and dates only. state is unavailable when no mailbox could be read.",
     {
       messageId: z.guid().describe("messageId from list_eligible_emails of the e-mail this lookup is for"),
       query: z.string().min(1).max(200).describe("A case reference, registration, claimant or claim number"),
@@ -892,6 +990,11 @@ export function createClassifierServer(options: ClassifierToolOptions) {
     tools: createClassifierTools(options),
     alwaysLoad: true,
   });
+}
+
+/** Lower case with runs of white space as one space, for finding a name as written. */
+function squash(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 /** The identity facts the agent read, kept only where Pegasus's draft has none. */

@@ -520,7 +520,19 @@ internal static class CaseDataSnapshotFactory
             return;
         }
 
-        RequirePolicy(receipt.ExtractionPolicyKey, receipt.ExtractionPolicyVersion, "instruction extraction");
+        // An item no instruction profile was selected for has no extraction
+        // policy: nothing was extracted from it, and every value on its draft
+        // is one a person keyed on Create case. Such a value is recorded under
+        // the acceptance policy, as the Principal a person allocated and the
+        // accepted deadline are. Requiring an extraction policy here refused
+        // every Case from such an item. A value that claims to be extracted
+        // still needs the policy that extracted it.
+        var hasExtractionPolicy = !string.IsNullOrWhiteSpace(receipt.ExtractionPolicyKey)
+            && receipt.ExtractionPolicyVersion is >= 1;
+        if (hasExtractionPolicy || field is null)
+        {
+            RequirePolicy(receipt.ExtractionPolicyKey, receipt.ExtractionPolicyVersion, "instruction extraction");
+        }
         if (field is null || field.HasConflict || field.Candidates.Count == 0)
         {
             throw new InvalidDataException(
@@ -533,6 +545,10 @@ internal static class CaseDataSnapshotFactory
                 string.Equals(item.Value, field.SuggestedValue, StringComparison.OrdinalIgnoreCase))
                 ?? throw new InvalidDataException(
                     $"The accepted intake field '{fieldName}' has ambiguous source provenance.");
+        if (!hasExtractionPolicy && candidate.Source != IntakeEvidenceSource.StaffCorrection)
+        {
+            RequirePolicy(receipt.ExtractionPolicyKey, receipt.ExtractionPolicyVersion, "instruction extraction");
+        }
         snapshot.Fields.Add(new()
         {
             WorkId = snapshot.WorkId,
@@ -560,8 +576,8 @@ internal static class CaseDataSnapshotFactory
             },
             SourceIdentity = receipt.Id.ToString("D"),
             SourceLabel = $"{candidate.Source}:{candidate.SourceLabel}",
-            PolicyKey = receipt.ExtractionPolicyKey!,
-            PolicyVersion = receipt.ExtractionPolicyVersion!.Value
+            PolicyKey = hasExtractionPolicy ? receipt.ExtractionPolicyKey! : snapshot.CompletenessPolicyKey,
+            PolicyVersion = hasExtractionPolicy ? receipt.ExtractionPolicyVersion!.Value : snapshot.CompletenessPolicyVersion
         });
     }
 

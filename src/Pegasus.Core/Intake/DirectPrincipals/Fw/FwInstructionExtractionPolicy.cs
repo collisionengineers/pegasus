@@ -13,7 +13,15 @@ public sealed partial class FwInstructionExtractionPolicy
     public const int Version = 1;
     public const string SupportedPrincipalCode = "FW";
     public const string DocumentProfileKeyValue = "fw_instruction_document";
-    public const int DocumentProfileVersionValue = 1;
+    public const int DocumentProfileVersionValue = 2;
+
+    /// <summary>
+    /// The heading every Fairway instruction opens with. The profile is known
+    /// by it, not by the firm's name in an e-mail footer, which an instruction
+    /// sent without its footer does not carry (operator, 11 November 2026;
+    /// R973). Whether the sender is Fairway is the mail route's question.
+    /// </summary>
+    private const string InstructionMarker = "New INSTRUCTIONS:";
 
     private const string AccidentLocationField = "Accident location";
     private const string ThirdPartyNameField = "Third party name";
@@ -62,18 +70,18 @@ public sealed partial class FwInstructionExtractionPolicy
     public int DocumentProfileVersion => DocumentProfileVersionValue;
     public InstructionDocumentSignature Signature => new(
         InstructionDocumentSignature.InstructionRole,
-        ["fairwaylegal", "Vehicle Registration Number:", "Make/Model:"],
+        [InstructionMarker, "Vehicle Registration Number:", "Make/Model:"],
         ["Connexus Vehicle Assessors", "Exclusive Vehicle Assessors"]);
 
     public IReadOnlyList<InstructionTemplateVariant> Variants { get; } =
     [
         new("collision-profile-fw-garage", new(
             InstructionDocumentSignature.InstructionRole,
-            ["fairwaylegal", "Inspection Location:", "Vehicle Registration Number:", "Make/Model:"],
+            [InstructionMarker, "Inspection Location:", "Vehicle Registration Number:", "Make/Model:"],
             ["Connexus Vehicle Assessors", "Exclusive Vehicle Assessors"])),
         new("collision-profile-fw-solicitor", new(
             InstructionDocumentSignature.InstructionRole,
-            ["fairwaylegal", "Vehicle Registration Number:", "Make/Model:"],
+            [InstructionMarker, "Vehicle Registration Number:", "Make/Model:"],
             ["Connexus Vehicle Assessors", "Exclusive Vehicle Assessors"]))
     ];
 
@@ -192,7 +200,7 @@ public sealed partial class FwInstructionExtractionPolicy
     private static string? CurrentInstruction(string text)
     {
         var normalized = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
-        var start = normalized.IndexOf("New INSTRUCTIONS:", StringComparison.OrdinalIgnoreCase);
+        var start = normalized.IndexOf(InstructionMarker, StringComparison.OrdinalIgnoreCase);
         if (start < 0)
             return null;
         var firstQuote = QuotedMessageBoundaryRegex().Match(normalized);

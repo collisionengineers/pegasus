@@ -221,6 +221,10 @@ strong{font-weight:600}
 .xrow.done .xt small{color:var(--success)}
 .xadd{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;background:none;border:1px solid var(--red);color:var(--red);border-radius:var(--r);font:inherit;font-weight:600;font-size:13px;padding:7px 10px;cursor:pointer}
 .xadd svg{width:14px;height:14px}
+.xrow.two{flex-wrap:wrap}
+.xrow.two .xt{flex:1 0 100%}
+.xacts{flex:1 0 100%;display:flex;gap:8px}
+.xacts .xadd{flex:1;justify-content:center}
 .xrow.done .xadd{border-color:var(--border);color:var(--fg)}
 .xrow.done .xadd svg{color:var(--success)}
 .xnote{display:block;border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;cursor:text}

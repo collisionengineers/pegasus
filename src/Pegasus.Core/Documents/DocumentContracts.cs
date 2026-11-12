@@ -6,10 +6,14 @@ namespace Pegasus.Core.Documents;
 /// <summary>
 /// An immutable document version or retained intake asset in its authorized context.
 /// The reader resolves custody/cache addresses internally; callers never supply storage keys.
+/// <paramref name="Seekable"/> asks for content read only in the ranges a
+/// byte-range request seeks to, from a cache copy verified when it was
+/// published (a video preview; FRD-05). A reader that cannot serve ranges
+/// returns verified content as for any other read.
 /// </summary>
 public sealed record ReadLogicalDocumentVersionRequest(
     ActionActor Actor, Guid? DocumentId, Guid? VersionId, Guid? IntakeAssetId, Guid? CaseId,
-    Guid? IntakeReceiptId, string ExpectedSha256, long ExpectedContentLength);
+    Guid? IntakeReceiptId, string ExpectedSha256, long ExpectedContentLength, bool Seekable = false);
 
 public sealed record LogicalDocumentContent(
     Stream Content, Guid? DocumentId, Guid? VersionId, Guid? IntakeAssetId, string Sha256,

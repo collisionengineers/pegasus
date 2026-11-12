@@ -128,8 +128,8 @@ public sealed record PhotoCaptureDetails(
 /// <see cref="ImagesCompletedAtUtc"/> is when the capture's settle, or the
 /// merge of one of its records, first completed, or found complete, its
 /// Case's images: once per capture, so a later batch or record never
-/// completes them again after staff marked them incomplete (operator,
-/// 9 November 2026; R792; 10 November 2026; R841).
+/// completes them again (operator, 9 November 2026; R792; 10 November 2026;
+/// R841).
 /// </summary>
 public sealed record PhotoCapture(
     Guid Id,

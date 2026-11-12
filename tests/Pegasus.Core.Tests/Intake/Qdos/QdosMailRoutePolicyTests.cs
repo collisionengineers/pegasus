@@ -5,6 +5,7 @@ namespace Pegasus.Core.Tests.Intake.Qdos;
 public sealed class PrincipalMailRoutePolicyTests
 {
     [Theory]
+    [InlineData("ABRAHAMS", "m.azam@abrahamssolicitors.co.uk")]
     [InlineData("ALISON", "bradford@alison-law.co.uk")]
     [InlineData("ALS", "kalan@autologistic.co.uk")]
     [InlineData("AMS", "info@amssolicitors.co.uk")]

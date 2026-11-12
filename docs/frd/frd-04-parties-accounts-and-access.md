@@ -179,6 +179,13 @@ The Principal section of a Contact carries:
   predecessor's. A new Case starts with its Principal's default fee as its
   agreed fee
   ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness));
+- the fee note VAT number (operator, 12 November 2026; R1006, R1007), saved
+  with the report settings: the VAT number this Principal's fee notes print
+  after "VAT No: ". It is any text of 20 characters at most, printed as
+  typed; nothing checks it is a real VAT number. Empty is the standard
+  number, 262 0937 10, which every Principal starts with. A successor code
+  inherits its predecessor's
+  ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches));
 - the report names (operator, 6 November 2026; R740), saved with the report
   settings: what an Inspection report and an Audit report are called, each
   for a first send and for a re-send, in text with the tokens `{REG}`,

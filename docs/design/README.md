@@ -589,7 +589,7 @@ record. It is one fingerprinted static file of `<symbol viewBox="0 0 24 24">`
 elements; pages reference glyphs as
 `<svg class="icon"><use href="<file>#icon-…"/></svg>`. The `.icon` rule
 applies the stroke and caps because a `<use>` clone does not inherit them. The
-file holds the seventy-five glyphs in the two tables below; each glyph
+file holds the seventy-seven glyphs in the two tables below; each glyph
 checksum is the SHA-256 of the glyph's UTF-8 `<symbol id="icon-…">…</symbol>`
 element in that file.
 
@@ -661,8 +661,8 @@ sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`.
 | `reply` (undefined) | `reply` | `375ED4D581B49E8229371F88865AE3443A367891A401DDE63D810BDB7AB9AB38` | Reply; Triage Reply with finding |
 | `flag` (undefined) | `flag` | `708EC43687246B094825BB270B7183154D6193FC2F7763FBE6FED4D9ED32CBDA` | Flag message |
 
-The v26 shell and Case record glyphs below complete the file's seventy-five
-symbols: the fifty-three above plus these twenty-two.
+The v26 shell and Case record glyphs below complete the file's seventy-seven
+symbols: the fifty-three above plus these twenty-four.
 
 | Prototype name | Lucide id | Glyph SHA-256 | Usage |
 | --- | --- | --- | --- |
@@ -1003,6 +1003,7 @@ deleted in wave 5.
 | `report-preview` | Report draft preview dialog body |
 | `pc-toolbar`, `pc-pills`, `pc-pill`, `pc-search-form`, `pc-oneline`, `pc-mini-thumbs`, `pc-standing-layout`, `pc-partner-list`, `pc-partner-bar`, `pc-qr-stage`, `photo-capture-table`, `photo-capture-sub` (`photo-capture.css`) | Photo capture (FRD-28; R774, R948): the Direct links and Standing links tabs as a `nav.tabs`; Direct links' scope pills with their counts and the search on one toolbar; Standing links' 288px directory beside the submissions, with the chosen link's bar and its QR code dialog; one-line tables whose rows preview their first photographs |
 | `photo-link-box`, `photo-link-url`, `photo-link-standing`, `photo-link-qr`, `photo-link-send`, `photo-link-grid` (`photo-capture.css`) | A photo link shown once to copy (`data-copy-target`), a standing link beside its QR code (the website link on Photo capture, a contact's on its Photo links tab), the Send a photo link form and a link's page |
+| `photo-link-row`, `photo-link-row-control`, `photo-link-row-choices`, `photo-link-tile-stage` (`photo-capture.css`) | A photo link setting as a row, its label (a `label` or a fieldset's `legend`) left of its control with a rule under it, and the row that holds only tick boxes: the website link's defaults and Send a photo link's settings on Administration › Photo links, and a contact's defaults (v50 F, G; R1009). The stage badge on a damage photo's tile on a link's page (v51 B; R1010) |
 | `photo-capture-told`, `photo-capture-note` (`Shared/_PhotoCaptureDetails`) | What they told us: the sender's typed details as a `definition-list` and the Customer's note, on Files → Images, a link's page and the Vehicle images record |
 | `photo-story`, `photo-story-capture`, `photo-story-heading`, `photo-story-stage` (`[data-image-story]`) | Files → Images on a Case with photo links: each link's What they told us, then its images in story groups (damage by stage) on the same tiles, then Other images; the block is the evidence set and is redrawn whole after a tile's In report or tag |
 

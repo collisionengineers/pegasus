@@ -29,7 +29,7 @@ public sealed class BcHoldingInstructionCorpusTests(ITestOutputHelper output)
         var receivedAt = TimeProvider.System.GetUtcNow();
         int classified = 0, replies = 0, notSelected = 0, unreadable = 0;
 
-        foreach (var path in BcHoldingCorpus.Files())
+        foreach (var path in HoldingCorpus.FilesFrom(BcHoldingCorpusFactAttribute.SenderDomain))
         {
             var bytes = await File.ReadAllBytesAsync(path);
             var sha = Convert.ToHexStringLower(SHA256.HashData(bytes));
@@ -91,11 +91,13 @@ public sealed class BcHoldingInstructionCorpusTests(ITestOutputHelper output)
             .ToArray();
 }
 
-internal static class BcHoldingCorpus
+/// <summary>
+/// The e-mails held under <c>corpus/holding/</c> whose From header names one
+/// sender domain.
+/// </summary>
+internal static class HoldingCorpus
 {
-    private const string SenderDomain = "@bakercoleman.co.uk";
-
-    public static string[] Files()
+    public static string[] FilesFrom(string senderDomain)
     {
         var holding = Path.Combine(QdosCorpus.Root, "holding");
         if (!Directory.Exists(holding))
@@ -104,14 +106,14 @@ internal static class BcHoldingCorpus
         }
 
         return Directory.EnumerateFiles(holding, "*.eml", SearchOption.AllDirectories)
-            .Where(FromHeaderNamesTheSender)
+            .Where(path => FromHeaderNamesTheSender(path, senderDomain))
             .Order(StringComparer.Ordinal)
             .ToArray();
     }
 
-    // Only the header block is read, and only its From line decides; a Baker &
-    // Coleman address copied on someone else's message is not their mail.
-    private static bool FromHeaderNamesTheSender(string path)
+    // Only the header block is read, and only its From line decides; the
+    // sender's address copied on someone else's message is not their mail.
+    private static bool FromHeaderNamesTheSender(string path, string senderDomain)
     {
         using var stream = File.OpenRead(path);
         var buffer = new byte[16 * 1024];
@@ -122,7 +124,7 @@ internal static class BcHoldingCorpus
             if (lines[index].StartsWith("From:", StringComparison.OrdinalIgnoreCase))
             {
                 return string.Concat(lines.Skip(index).Take(3))
-                    .Contains(SenderDomain, StringComparison.OrdinalIgnoreCase);
+                    .Contains(senderDomain, StringComparison.OrdinalIgnoreCase);
             }
 
             if (lines[index].TrimEnd('\r').Length == 0)
@@ -137,9 +139,11 @@ internal static class BcHoldingCorpus
 
 internal sealed class BcHoldingCorpusFactAttribute : FactAttribute
 {
+    public const string SenderDomain = "@bakercoleman.co.uk";
+
     public BcHoldingCorpusFactAttribute()
     {
-        if (BcHoldingCorpus.Files().Length == 0)
+        if (HoldingCorpus.FilesFrom(SenderDomain).Length == 0)
         {
             Skip = "No Baker & Coleman mail is held under corpus/holding/ on this machine; the pegasus-corpus-holding skill copies it.";
         }

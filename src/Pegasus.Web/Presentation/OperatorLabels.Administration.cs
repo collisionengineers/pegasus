@@ -290,6 +290,9 @@ public static partial class OperatorLabels
         public const string RemoveSalvageBand = "Remove";
         public const string SaveSalvageMatrix = "Save salvage matrix";
         public const string DefaultFee = "Default fee (£)";
+        // The VAT number the Principal's fee notes print (operator, 12 November 2026; R1006 to R1008).
+        public const string FeeNoteVatNumber = "Fee note VAT number";
+        public const string FeeNoteVatNumberHint = "Empty: the standard number.";
         // What the Principal's reports are called, filed and sent (operator, 6 November 2026; R740).
         public const string InspectionReportName = "Inspection report name";
         public const string AuditReportName = "Audit report name";

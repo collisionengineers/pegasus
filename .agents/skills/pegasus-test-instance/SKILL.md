@@ -74,6 +74,8 @@ together, with a ruling.
   file of production's data is kept on the machine.
 - **No Box write outside the local-test root `425169015650`.** The custody
   fence enforces it; the holding folder is a child the operator created.
+  The one read outside it is the folder-name search under the old-system
+  folder `3220448509`, for the classifier's Pre-Pegasus lookup (R970).
 
 ## Approvals
 

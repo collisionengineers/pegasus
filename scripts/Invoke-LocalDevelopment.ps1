@@ -960,7 +960,11 @@ function Start-OwnedLauncher {
         # the shell open the log files itself and exec the launcher over them,
         # so the owned process writes straight to disk for as long as it lives.
         # exec keeps the process identifier and start time, so the ownership
-        # record below describes the launcher, not a shell in front of it.
+        # record below describes the launcher, not a shell in front of it,
+        # once the exec has happened: until then the identifier is the shell's.
+        # The record is therefore handed over only after the launcher leads its
+        # own process group, which proves the exec and lets Stop reach the
+        # whole tree (#2093).
         $wrapper = Join-Path $Manifest.resources.paths.state "start-$Role-$attempt.sh"
         Write-LauncherShellWrapper `
             -Path $wrapper `
@@ -976,6 +980,17 @@ function Start-OwnedLauncher {
             -PassThru
     }
     try {
+        if (-not (Get-PegasusPlatform).IsWindows) {
+            $handover = Wait-PegasusProcessGroupLeader `
+                -ProcessId $process.Id `
+                -TimeoutSeconds $StartupTimeoutSeconds
+            if ($handover -eq 'Exited') {
+                throw "The $Role launcher exited before it started. See $stdout and $stderr."
+            }
+            if ($handover -eq 'TimedOut') {
+                throw "The $Role launcher did not take its own process group within $StartupTimeoutSeconds seconds. See $stdout and $stderr."
+            }
+        }
         $process.Refresh()
         return [pscustomobject][ordered]@{
             role = $Role
@@ -1223,12 +1238,15 @@ function Stop-OwnedProcessTree {
     if ($identity.Exists -and -not $identity.Owned) {
         throw "Refusing to stop PID $($record.pid): $($identity.Detail)."
     }
-    if (-not $identity.Exists) {
+    $rootPid = [int]$record.pid
+    # A launcher that has exited can leave its descendants running in its
+    # process group, which still proves ownership; reap them rather than
+    # forget them (R978). Windows has no such group, so this is false there.
+    if (-not $identity.Exists -and -not (Test-PegasusProcessTreeAlive -RootProcessId $rootPid)) {
         $Manifest.processes.$Role = $null
         return
     }
 
-    $rootPid = [int]$record.pid
     $result = Stop-PegasusProcessTree -RootProcessId $rootPid
     foreach ($warning in $result.Warnings) {
         Write-Warning $warning

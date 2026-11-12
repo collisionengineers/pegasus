@@ -76,8 +76,13 @@ and offers only the lifetimes set there: guided, both on and
 7 days of all three until they are changed (operator, 9 November 2026; R813,
 R817). Live camera only covers the vehicle
 photos: the scene and other-vehicle photos, paperwork and the walk-around
-video can always come from the camera roll, as in the handover's app (R778;
-9 November 2026). The link goes by e-mail, by Copy link, or both (R773),
+video can always come from the camera roll (R778; 9 November 2026). The
+walk-around video can also be recorded there and then: until it has one,
+its row offers **Record**, which opens the camera, and **Choose**, which
+opens the phone's own picker (operator, 12 November 2026; R984, R985). The
+handover's app only recorded, and from 9 to 12 November 2026 Pegasus left
+it to the phone's picker, which on Android Chrome is the gallery alone
+(#2095). The link goes by e-mail, by Copy link, or both (R773),
 or by text to the mobile on the form ([The photo link
 text](#the-photo-link-text); R918, R920); WhatsApp is Copy link and the
 staff member's own phone, and Pegasus has no WhatsApp provider.
@@ -334,7 +339,7 @@ one photo of the batch filed on the Case:
 - the Case's images complete (R781;
   [FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)),
   never on the first photo, and once per capture: only for a batch with
-  photos, and never after staff marked them incomplete (R792); the Case's
+  photos (R792; staff cannot mark images incomplete, R996); the Case's
   history gives the reason "The photo link's photos are in: the sender
   pressed Send, or the link ran out or was cancelled with photos on it."
   (operator, 10 November 2026; R871);
@@ -400,10 +405,16 @@ R780, R801).
 
 The Case's Box folder stays flat: no subfolders (R775). An item is named by
 the Case's document number, its story position and a plain label, as in
-`014 02-03 Front driver corner closer.jpg`. The label uses only the app's
+`014 02-201 Front driver corner closer.jpg`. The label uses only the app's
 own words: the angle, the zone and the stage, or Damage (operator,
 9 November 2026; R802), Number plate, VIN, Dashboard, Accident scene,
-Other vehicle, Paperwork or Walk-around video.
+Other vehicle, Paperwork or Walk-around video. A damage photo taken at a
+stage carries the stage's digit before its two-digit position (1 overview,
+2 closer, 3 close-up, 4 extra), so one area's names sort in story order, as
+`02-101 Front driver corner overview.jpg` then
+`02-201 Front driver corner closer.jpg`; every other photo, a damage photo
+with no stage among them, keeps two digits, and a name already given is not
+changed (operator, 12 November 2026; R1000).
 
 The **inspection images** (overview, damage, number plate, VIN and
 dashboard) arrive In report. The **additional information** (the scene, the
@@ -503,8 +514,8 @@ Staff may text a photo link as well as e-mail it (operator, 10 November
 2026; R918). Pegasus sends the text through Azure Communication Services
 from an SMS-enabled UK mobile number bought on its resource, over the Web's
 managed identity; the number is the `TextMessages:From` setting
-([configuration](../engineering/configuration.md)), and while it is empty no
-page offers **Send by text**. It texts a UK mobile only: 07… with eleven
+([configuration](../engineering/configuration.md)), and while it is empty, or
+outside Production, no page offers **Send by text**. It texts a UK mobile only: 07… with eleven
 digits, or the same written +44 7…, 0044 7… or 44 7…, spaces, dashes, dots
 and brackets ignored; any other number is refused with "Enter a UK mobile
 number to send by text." beside it. Replies are not read.
@@ -519,8 +530,9 @@ Photo link e-mail's placeholders, drawn and edited as the e-mail is
 ("Edited for this one only." and **Put the standard wording back**; R806,
 R919); a text with no `{photo link}` gets the link on its own line, and one
 over 1,530 characters (ten SMS segments) or empty is refused with "A text
-message is required.". Its built-in body, the agent's draft awaiting the
-operator's sign-off (R919):
+message is required.". Its built-in body, the agent's draft the operator
+signed off with the rest of the text's copy on 12 November 2026 (R919,
+R1001, R1002):
 
 ```text
 Hi {claimant},
@@ -607,9 +619,11 @@ made for it, **Awaiting instruction**, which pairs as any Vehicle images
 record does ([FRD-19](frd-19-image-led-intake-and-pairing.md)) (R948). A row
 is one line: a long name, firm or missing item ends in an ellipsis with the
 full text on hover, and narrower windows drop columns rather than scroll:
-from 1460px Sent and Received, from 1300px the Principal, the Customer and
-the photographs, and from 1180px Recipient, Standing link and the missing
-items, every one of them still on the link's page (R912, R948).
+from 1460px Sent and Received, from 1300px the Customer and the
+photographs, and from 1180px Recipient, Standing link and the missing
+items, every one of them still on the link's page (R912, R948). The
+Principal under a Direct link's Case stays at every width (operator,
+12 November 2026; R1011).
 
 `/PhotoCapture/Send/{caseId}` sends a link ([Photo links](#photo-links)).
 `/PhotoCapture/{id}` is a link's detail (operator, 11 November 2026; v51
@@ -622,7 +636,9 @@ Files, or **Open Vehicle images**; and More with the rest, Extend by 3, 7 or
 14 days among them, Cancel link last (R913). Its main column is **Photos**:
 on a Case link with something missing one Missing line, filters All,
 Overview, Damage and Vehicle ID, and the photographs as tiles that open in
-the viewer, each named once, a repeated name numbered, with paperwork and
+the viewer, each named once, a repeated name numbered, a damage photo taken
+at a stage with that stage as a badge on its tile (Overview, Closer,
+Close-up or Extra; operator, 12 November 2026; R1010), with paperwork and
 video as files below. Its 320px aside is one **Summary**: for a Case link
 Case, Recipient, Principal, Sent by, Accident, Expires and Chase; for a
 standing capture Destination, Standing link, Customer, Accident and
@@ -705,6 +721,14 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
   safe (operator, 10 November 2026; R837). A photo
   Pegasus refuses is outlined, does not hold Send back, and the review counts
   "{n} of {m} uploaded" (9 November 2026; R786).
+- **A file the phone cannot read.** A file is read from the phone into
+  memory a request at a time, 4 MiB at most, as it is sent; a video is never
+  read whole. When the phone cannot read a file the sender picked, the app
+  says "We couldn’t read that file from your phone. Please add it again.",
+  the file is not added and is not tried again, its photo or row is outlined
+  like a refused one, and Send is not held back. A full-size original the
+  phone cannot read is let go without a word and its photo stands (operator,
+  12 November 2026; R983; #2097).
 - **Caps.** A request past a rate limit, a size, a per-link count or a
   standing link's daily cap is refused; nothing past the cap is kept. A
   file the app itself refuses for its size is not sent, and the app says
@@ -754,7 +778,10 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
 
 Core tests in `tests/Pegasus.Core.Tests/PhotoCapture/` cover the token and
 slug shapes, the damage areas, the required items, the derived statuses, due
-reminders and pairing, the story order and names, the intake rules,
+reminders and pairing, the story order and names (a damage photo's stage
+digit and the label a name reads back as), the photo link text (the UK
+mobile shapes, the act written before the provider and its answer after,
+a repeated operation key), the intake rules,
 the Case fields a capture offers, which tokens record Opened, receiving an
 item, recording the details and routing, minting from a standing link, a
 quick link's Type, the hand-on of a quick Case link, standing link
@@ -788,16 +815,25 @@ Integration tests hold the rest:
   Administration › Photo links, the tab counts, Standing links' submissions
   with no Ask for it or Match to a case, the Case page's status and Resend, a
   kept file opening, a closed Case's Send page, the refusal sentences beside
-  their forms, Contact inactive, Reminded · name, and a standing link's
-  changes written to the action history);
+  their forms, Contact inactive, Reminded · name, a standing link's
+  changes written to the action history, and the photo link text: Send by
+  text offered only where a provider is configured, the text sent and
+  written once for an operation key, a number that is not a UK mobile
+  refused, and the composer's notice);
+- `AcsPhotoLinkTextSendTests`: the one request the text provider is sent,
+  and each of its failures as a code;
 - `WorkflowConfigurationWebTests`: the Photo links settings' refusals;
 - `StandingCaptureWebTests`: a standing capture opened as it starts, waiting
   with no Case and never Unidentified, taking paperwork with no Case, routed
   until its first photo, taking no originals with no Case, filing on the one
   Case its registration matches, the hand-off's session token, an item
   joining the open batch, a later record of the same capture not completing
-  the images again, and kept paperwork filing on the Case its record
-  reached, a Triage Case and a report-sent Case included.
+  the images again, kept paperwork filing on the Case its record
+  reached, a Triage Case and a report-sent Case included, and the Standing
+  links list's search, standing link filter and pages;
+- `PhotoCaptureListScaleTests`: both lists at 500 and at 2,000 captures
+  sending the same statements, counting what was seeded and reading of the
+  items only what the captures they evaluate need (R881, R882).
 
 `tests/Pegasus.ArchitectureTests/CaptureAssetContractTests.cs` holds the
 app's assets to the security policy (no inline style, handler or script
@@ -811,7 +847,7 @@ Deployment and live acceptance are separate evidence tiers
 
 - Capabilities: `EXT-21`, `INT-34`, `MAIL-27`, `UI-20` in
   [capabilities](../capabilities.md).
-- Rulings: R773 to R817 and R836 to R878 in [rulings](../rulings.md).
+- Rulings: R773 to R817, R836 to R878 and R983 to R985 in [rulings](../rulings.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration),
   [FRD-05](frd-05-documents-extraction-and-custody.md),

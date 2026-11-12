@@ -27,7 +27,9 @@ public sealed record Principal(
     // The agreed fee a new Case of this Principal starts with (5 October 2026).
     decimal DefaultFee = PrincipalDefaultFeePolicy.Standard,
     // What its reports are called (6 November 2026, R740); none means the standard names.
-    PrincipalReportNames? ReportNames = null)
+    PrincipalReportNames? ReportNames = null,
+    // The VAT number its fee notes print (12 November 2026, R1006); null means the standard number.
+    string? FeeNoteVatNumber = null)
 {
     /// <summary>
     /// The Principal's report sending rules (Report Sending SOP v8). Every
@@ -270,7 +272,8 @@ public sealed record UpdatePrincipalReportSettingsRequest(
     string? Reason,
     decimal DefaultFee,
     long ExpectedContactVersion,
-    PrincipalReportNames? ReportNames = null);
+    PrincipalReportNames? ReportNames = null,
+    string? FeeNoteVatNumber = null);
 
 public sealed record ReplacePrincipalRequest(
     Guid PrincipalId,

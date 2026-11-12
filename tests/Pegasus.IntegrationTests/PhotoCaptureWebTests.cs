@@ -81,7 +81,7 @@ public sealed partial class PhotoCaptureWebTests
     [Fact]
     public async Task ADamagePhotoSentOnACaseLinkIsFiledOnTheCaseUnderItsStoryName()
     {
-        const string expectedName = "02-01 Front driver corner closer.jpg";
+        const string expectedName = "02-201 Front driver corner closer.jpg";
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
@@ -394,9 +394,10 @@ public sealed partial class PhotoCaptureWebTests
         var encoded = HtmlEncoder.Default.Encode(principalName);
 
         var list = await IntakeWebDriver.GetHtmlAsync(client, "/PhotoCapture?scope=all");
-        // A long name ends in an ellipsis with the full name on hover (v50 I).
+        // A long name ends in an ellipsis with the full name on hover (v50 I),
+        // and is shown at every width (v51 N; R1011).
         Assert.Contains(
-            $"<small class=\"muted photo-capture-sub photo-capture-clip hide-m\" title=\"{encoded}\">{encoded}</small>",
+            $"<small class=\"muted photo-capture-sub photo-capture-clip\" title=\"{encoded}\">{encoded}</small>",
             ListRow(list, link.Capture.Id),
             StringComparison.Ordinal);
         var details = await IntakeWebDriver.GetHtmlAsync(client, $"/PhotoCapture/{link.Capture.Id:D}");
