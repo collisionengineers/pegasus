@@ -645,7 +645,8 @@ public sealed class Top15InstructionCorpusTests
             new TenInstructionExtractionPolicy(),
             new AmsInstructionExtractionPolicy(),
             new AlisonInstructionExtractionPolicy(),
-            new KmrInstructionExtractionPolicy()
+            new KmrInstructionExtractionPolicy(),
+            new AbrahamsInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
