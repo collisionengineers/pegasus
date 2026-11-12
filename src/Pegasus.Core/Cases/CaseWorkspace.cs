@@ -310,6 +310,11 @@ public sealed record CaseWorkspaceEstimate(
 public sealed record CaseWorkspaceSettlement(
     IReadOnlyDictionary<string, string?>? AssessmentFields);
 
+/// <param name="SignOffEngineerId">
+/// The Sign-off Engineer the editor showed or the operator chose, or none.
+/// A caller that does not send the choice passes the recorded pick, which
+/// <see cref="CaseSignOffEngineerResolver.Recorded"/> keeps.
+/// </param>
 public sealed record CaseWorkspaceReport(
     IReadOnlyDictionary<string, string?>? AssessmentFields,
     Guid? SignOffEngineerId,

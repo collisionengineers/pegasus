@@ -100,10 +100,13 @@
                 @if (mayEdit)
                 {
                     <select id="inspection-address-choice" class="fi" data-inspection-address-choice form="case-edit-form">
-                        @* A choice the Case cannot take is absent, never disabled (v36 item H, 9 October 2026). *@
+                        @* A choice the Case cannot take is absent, never disabled (v36 item H, 9 October 2026).
+                           Manual entry is a typed choice: picking it saves nothing until an
+                           address is typed (R1020), so the script's commit passes it by. *@
                         @foreach (var choice in choices.Where(choice => choice.IsAvailable || choice == selectedChoice))
                         {
                             <option value="@choice.Kind" data-address="@choice.Address"
+                                    data-typed-choice="@(choice.Kind == InspectionAddressChoiceKind.ManualEntry ? string.Empty : null)"
                                     selected="@(choice == selectedChoice ? "selected" : null)">@ChoiceLabel(choice)</option>
                         }
                     </select>
@@ -138,7 +141,14 @@
                     @if (mayEdit)
                     {
                         <select id="repairer-directory" class="fi" name="repairerDirectoryId" form="case-edit-form">
-                            <option value="">@OperatorLabels.CaseWorkspace.NotLinked</option>
+                            <option value="" selected="@(linkedRepairerId is null ? "selected" : null)">@OperatorLabels.CaseWorkspace.NotLinked</option>
+                            @* A link whose record is no longer an active Repairer is still this
+                               Case's link: it has its own option, as a claim source has, so a
+                               save carries it back and does not unlink it (R1022). *@
+                            @if (linkedRepairerId is { } recordedLink && linkedRepairer is null)
+                            {
+                                <option value="@recordedLink" selected="selected">@Value(linkedLabel)</option>
+                            }
                             @* The Repairers linked to the Case's Principal come first, under its code (R1015, R1016). *@
                             @foreach (var group in LinkedContactChoices.For(Model.RepairerChoices, details.Workflow.Identity.PrincipalCode, OperatorLabels.CaseWorkspace.OtherRepairers))
                             {

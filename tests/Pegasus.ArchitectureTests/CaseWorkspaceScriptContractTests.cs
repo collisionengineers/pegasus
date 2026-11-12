@@ -686,4 +686,79 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.Contains("done = window.pegasusCaseWorkspaceApplySnapshot(html);", snapshot, StringComparison.Ordinal);
         Assert.Contains("[data-evidence-occurrence=\"' + item.occurrenceId + '\"]'", snapshot, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// A choice that only says the value will be typed is not a value
+    /// (operator, 12 November 2026, R1020). Picking Manual entry at Inspect at,
+    /// or a Custom labour rate, used to commit a save that changed nothing;
+    /// the redraw after it drew the choice the record matched, so the pick
+    /// jumped back. The commit passes a typed choice by, the choice left
+    /// unsent holds its section, and Manual entry no longer empties the
+    /// address: the box is selected to type over.
+    /// </summary>
+    [Fact]
+    public void ATypedChoiceCommitsNothingUntilItsValueIsTyped()
+    {
+        var root = RepositoryRoot.Find();
+        var script = File.ReadAllText(Path.Combine(root, "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var handler = FunctionBody(script, "    document.addEventListener('change', function (event) {", "    ");
+        var passedBy = handler.IndexOf("if (typedChoice(control)) { return; }", StringComparison.Ordinal);
+        Assert.True(passedBy >= 0, "The commit must pass a typed choice by.");
+        Assert.True(passedBy < handler.IndexOf("if (compositeOf(control)) { scheduleCommit(); return; }", StringComparison.Ordinal));
+        Assert.True(passedBy < handler.IndexOf("commitNow();", StringComparison.Ordinal));
+        // A press on a radio is an input as well as a change, and a
+        // composite's input waits out the idle and saves.
+        var typing = FunctionBody(script, "    document.addEventListener('input', function (event) {", "    ");
+        Assert.True(
+            typing.IndexOf("if (typedChoice(control)) { return; }", StringComparison.Ordinal)
+                < typing.IndexOf("scheduleCommit();", StringComparison.Ordinal),
+            "A typed choice's input must schedule no commit.");
+        Assert.Contains("if (typedChoice(control)) { return; }", typing, StringComparison.Ordinal);
+        Assert.Contains("return !!chosen && chosen.hasAttribute('data-typed-choice');", script, StringComparison.Ordinal);
+
+        var shared = Path.Combine(root, "src", "Pegasus.Web", "Pages", "Cases", "Shared");
+        Assert.Contains(
+            "data-typed-choice=\"@(choice.Kind == InspectionAddressChoiceKind.ManualEntry ? string.Empty : null)\"",
+            File.ReadAllText(Path.Combine(shared, "_CaseInspectionAddress.cshtml")),
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "data-rate-custom data-typed-choice />",
+            File.ReadAllText(Path.Combine(shared, "_CaseEstimate.cshtml")),
+            StringComparison.Ordinal);
+
+        // Custom with the card's own figure is still the card: only a figure
+        // that moved is sent.
+        var rate = FunctionBody(script, "    function bindRate(form) {", "    ");
+        Assert.Contains("var moved = Number(hidden.value) !== Number(display.value);", rate, StringComparison.Ordinal);
+        Assert.Contains("if (moved) { post(); }", rate, StringComparison.Ordinal);
+
+        var site = File.ReadAllText(Path.Combine(root, "src", "Pegasus.Web", "wwwroot", "js", "site.js"));
+        var manualStart = site.IndexOf("if (option.value === 'ManualEntry') {", StringComparison.Ordinal);
+        Assert.True(manualStart >= 0, "site.js must keep its Manual entry branch.");
+        var manual = site[manualStart..site.IndexOf("input.value = option.dataset.address || '';", manualStart, StringComparison.Ordinal)];
+        Assert.Contains("input.select();", manual, StringComparison.Ordinal);
+        Assert.DoesNotContain("input.value =", manual, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A save redraws the Report section, and the binder used to open every
+    /// redrawn section on the Report tab: a fee typed on the Fee tab was
+    /// answered by the Report pane. The section drawn again opens on the tab
+    /// the operator was on.
+    /// </summary>
+    [Fact]
+    public void TheReportSectionDrawnAgainOpensOnTheTabTheOperatorWasOn()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        Assert.Contains("    var shown = 'report';", script, StringComparison.Ordinal);
+        Assert.Contains("                shown = name;", script, StringComparison.Ordinal);
+        Assert.Contains(
+            "show(panes.some(function (pane) { return pane.getAttribute('data-report-pane') === shown; }) ? shown : 'report');",
+            script,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("            show('report');", script, StringComparison.Ordinal);
+    }
 }

@@ -231,6 +231,33 @@ public sealed class AssignCaseEngineerTests
                 null, EngineerId, [Profile(EngineerId, isDefault: false), Profile(defaultSignOffEngineerId, isDefault: true)])?.StaffId);
     }
 
+    /// <summary>
+    /// A Case save carries the Sign-off Engineer its editor showed back with
+    /// every other value. Only someone other than the one shown is a pick;
+    /// none, where one was shown, removes the pick (R1019).
+    /// </summary>
+    [Fact]
+    public void ASaveRecordsASignOffEngineerOnlyWhenSomeoneOtherThanTheOneShownIsChosen()
+    {
+        var shown = Guid.NewGuid();
+        var other = Guid.NewGuid();
+
+        // The default shown comes back: no pick is made of it.
+        Assert.Null(CaseSignOffEngineerResolver.Recorded(null, shown, shown));
+        // The recorded pick shown comes back: it stays.
+        Assert.Equal(shown, CaseSignOffEngineerResolver.Recorded(shown, shown, shown));
+        // Someone else is the pick, over a default or over an earlier pick.
+        Assert.Equal(other, CaseSignOffEngineerResolver.Recorded(null, shown, other));
+        Assert.Equal(other, CaseSignOffEngineerResolver.Recorded(shown, shown, other));
+        // Unassigned, where one was shown, removes the pick.
+        Assert.Null(CaseSignOffEngineerResolver.Recorded(shown, shown, null));
+        // Nobody shown and nobody chosen leaves a pick no longer eligible alone.
+        Assert.Equal(other, CaseSignOffEngineerResolver.Recorded(other, null, null));
+        // A caller that sends no choice passes the recorded pick, which stays
+        // whoever was shown.
+        Assert.Equal(other, CaseSignOffEngineerResolver.Recorded(other, shown, other));
+    }
+
     private static AssignCaseEngineer Assign(RecordingWorkflowStore store) =>
         new(
             store,

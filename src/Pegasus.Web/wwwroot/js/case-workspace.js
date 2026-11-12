@@ -556,9 +556,20 @@
         commitWaiters = [];
         waiters.forEach(function (waiter) { if (waiter.abandon) { waiter.abandon(); } });
     }
+    // A choice that only says the value will be typed (Manual entry at
+    // Inspect at, a Custom labour rate) is not a value. Nothing is saved
+    // until what is typed is: a save here changes nothing on the Case, and
+    // the redraw that follows it would put the choice back on whichever one
+    // the record matches. Left unsent, the choice holds its section.
+    function typedChoice(control) {
+        var chosen = control.tagName === 'SELECT' ? control.options[control.selectedIndex]
+            : control.checked ? control : null;
+        return !!chosen && chosen.hasAttribute('data-typed-choice');
+    }
     document.addEventListener('change', function (event) {
         var control = event.target;
         if (!editorFor(control)) { return; }
+        if (typedChoice(control)) { return; }
         if (compositeOf(control)) { scheduleCommit(); return; }
         // A simple cell commits as it is left. A value the browser cannot
         // accept is said so there and then, and nothing is sent.
@@ -568,6 +579,9 @@
     document.addEventListener('input', function (event) {
         var control = event.target;
         if (!editorFor(control)) { return; }
+        // A press on a radio is an input too, and a composite's would wait
+        // out the idle and then save.
+        if (typedChoice(control)) { return; }
         // Typing waits for the cell to be left; a script's fill (the damage
         // plan, a bank wording, a slider's figure) and a composite's typing
         // commit after the idle.
@@ -4413,9 +4427,12 @@
                     hidden.value = card.getAttribute('data-rate') || hidden.value;
                     post();
                 } else if (display.value) {
+                    // Custom with the card's own figure is still the card
+                    // (RetainEditorRate): only a figure that moved is sent.
+                    var moved = Number(hidden.value) !== Number(display.value);
                     hidden.value = display.value;
                     if (uplift && uplift.checked) { uplift.checked = false; uplift.dispatchEvent(new Event('change', { bubbles: true })); }
-                    post();
+                    if (moved) { post(); }
                     display.focus();
                     display.select();
                 }
@@ -4951,6 +4968,11 @@
 (function () {
     'use strict';
 
+    // The tab the operator is on. A save redraws the section, and the
+    // section drawn again opens on the same tab: a fee typed on Fee is not
+    // answered by the Report pane.
+    var shown = 'report';
+
     function bind(root) {
         root.querySelectorAll('[data-report-tabs]').forEach(function (tabs) {
             if (tabs.dataset.reportTabsBound === 'true') {
@@ -4965,6 +4987,7 @@
             }
             tabs.hidden = false;
             function show(name) {
+                shown = name;
                 panes.forEach(function (pane) {
                     pane.hidden = pane.getAttribute('data-report-pane') !== name;
                 });
@@ -4986,7 +5009,7 @@
                 show(to.getAttribute('data-report-tab'));
                 to.focus();
             });
-            show('report');
+            show(panes.some(function (pane) { return pane.getAttribute('data-report-pane') === shown; }) ? shown : 'report');
         });
     }
 

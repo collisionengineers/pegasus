@@ -76,7 +76,10 @@ kept as ordinary Case facts with their extraction provenance. Staff either
 confirm that text or link the Case to an active Repairer-role Contact, chosen
 from a list that draws the Principal's linked Repairers first (R1015). Linking
 copies that Contact's identity, version, name and address onto the Case, so
-a later directory edit never changes the Case. The confirmed repairer address
+a later directory edit never changes the Case. A save keeps the link the Case
+holds as it is, whether or not the Contact is still active, and a name or
+address typed while it is linked is saved as the Case's own (operator,
+12 November 2026, [R1022](../rulings.md)). The confirmed repairer address
 is one of the Inspect-at options beside the claimant address, the storage
 location and the Principal's own default. The option names the repairer it
 came from.
