@@ -283,6 +283,87 @@ public sealed class OrganizationAdministrationTests
         Assert.Equal(210.00m, replacement.Successor.DefaultFee);
     }
 
+    /// <summary>R1006: a successor code prints the fee note VAT number its predecessor did.</summary>
+    [Fact]
+    public void ASuccessorInheritsItsPredecessorsFeeNoteVatNumber()
+    {
+        var predecessor = Principal(version: 3) with { FeeNoteVatNumber = "GB 123 4567 89" };
+
+        var replacement = OrganizationAdministrationPolicy.PlanPrincipalReplacement(
+            predecessor,
+            3,
+            Guid.NewGuid(),
+            "NEXT",
+            codeAlreadyExists: false);
+
+        Assert.Equal("GB 123 4567 89", replacement.Successor.FeeNoteVatNumber);
+        Assert.Equal("GB 123 4567 89", replacement.Predecessor.FeeNoteVatNumber);
+    }
+
+    /// <summary>
+    /// The fee note VAT number is saved with the report settings, kept as
+    /// typed, and moves the version only when it changes. An empty box and
+    /// the standard number are both the standard number (R1006, R1007).
+    /// </summary>
+    [Fact]
+    public void TheFeeNoteVatNumberChangesWithTheReportSettings()
+    {
+        var current = Principal(version: 3);
+        Assert.Null(current.FeeNoteVatNumber);
+
+        var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+            current,
+            expectedVersion: 3,
+            defaultFee: current.DefaultFee,
+            reportNames: null,
+            feeNoteVatNumber: "  GB 123 4567 89 ");
+
+        Assert.Equal("GB 123 4567 89", updated.FeeNoteVatNumber);
+        Assert.Equal(current.DefaultFee, updated.DefaultFee);
+        Assert.Equal(4, updated.Version);
+        Assert.Equal(4, OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+            updated,
+            expectedVersion: 4,
+            defaultFee: current.DefaultFee,
+            reportNames: null,
+            feeNoteVatNumber: "GB 123 4567 89").Version);
+
+        var cleared = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+            updated,
+            expectedVersion: 4,
+            defaultFee: current.DefaultFee,
+            reportNames: null,
+            feeNoteVatNumber: "   ");
+        Assert.Null(cleared.FeeNoteVatNumber);
+        Assert.Equal(5, cleared.Version);
+
+        var standard = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+            current,
+            expectedVersion: 3,
+            defaultFee: current.DefaultFee,
+            reportNames: null,
+            feeNoteVatNumber: AssessmentReportContract.VatNumber);
+        Assert.Null(standard.FeeNoteVatNumber);
+        Assert.Equal(3, standard.Version);
+    }
+
+    /// <summary>R1007: at most 20 characters, so the fee note's footer stays one line.</summary>
+    [Fact]
+    public void AFeeNoteVatNumberOverTwentyCharactersIsRefused()
+    {
+        var longest = new string('7', AssessmentReportContract.MaximumVatNumberLength);
+        Assert.Equal(20, longest.Length);
+        Assert.Equal(longest, AssessmentReportContract.NormalizeVatNumber(longest));
+
+        Assert.Throws<ArgumentException>(() =>
+            OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+                Principal(version: 3),
+                expectedVersion: 3,
+                defaultFee: PrincipalDefaultFeePolicy.Standard,
+                reportNames: null,
+                feeNoteVatNumber: longest + "7"));
+    }
+
     /// <summary>
     /// The default fee is saved with the report settings and moves the
     /// version only when it changes.

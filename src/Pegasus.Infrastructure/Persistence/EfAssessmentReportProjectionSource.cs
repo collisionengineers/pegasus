@@ -75,6 +75,8 @@ internal sealed class EfAssessmentReportProjectionSource(
                 // Whether the report carries vehicle images is the Principal's
                 // rule, read with the rest of its row.
                 PrincipalReportSendingRulesJson = item.Case.Principal.ReportSendingRulesJson,
+                // The VAT number its fee notes print; null is the standard number.
+                PrincipalFeeNoteVatNumber = item.Case.Principal.FeeNoteVatNumber,
                 item.Case.Year,
                 item.Case.Sequence,
                 item.Case.Reference,
@@ -219,7 +221,8 @@ internal sealed class EfAssessmentReportProjectionSource(
                 workspace.Assessment, latestApplied?.Reason),
             Wording: wording,
             SignOffEngineersOffered: profiles.Count > 0,
-            IncludeVehicleImages: IncludesVehicleImages(workflow.PrincipalReportSendingRulesJson));
+            IncludeVehicleImages: IncludesVehicleImages(workflow.PrincipalReportSendingRulesJson),
+            VatNumber: workflow.PrincipalFeeNoteVatNumber);
 
         var readiness = new CaseReportReadinessInput(
             workspace.Assessment,

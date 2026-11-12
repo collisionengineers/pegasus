@@ -488,7 +488,15 @@ note attached beside it. A request for the separate fee note names the current
 confirmed, non-stale generation and adds the fee note from that generation's
 frozen date and fee facts. It does not re-freeze the report. The request is
 refused when there is no current generation or the generation is stale. Fee
-facts, readiness and accepted fee terms are the same in both files.
+facts, readiness and accepted fee terms are the same in both files. A fee
+note page prints "VAT No: " and a VAT number in its company block and in its
+footer: the Principal's fee note VAT number
+([FRD-04](frd-04-parties-accounts-and-access.md)), or the standard number,
+262 0937 10, when it has none (operator, 12 November 2026; R1006). The number
+is frozen with the generation, so the preview and the next Generate report
+print the Principal's number as it then stands, a fee note already generated
+keeps the number it was issued with, and a change to it marks no generation
+stale.
 
 **Staleness.** One Core rule over normalised effective values marks a
 generation stale only when an accepted report fact changes. Notes, no-op

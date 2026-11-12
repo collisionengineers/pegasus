@@ -115,7 +115,8 @@ public sealed class EfOrganizationAdministration(
             request.ExpectedContactVersion,
             request.Reason,
             request.DefaultFee,
-            request.ReportNames
+            request.ReportNames,
+            request.FeeNoteVatNumber
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
@@ -141,10 +142,12 @@ public sealed class EfOrganizationAdministration(
             before,
             request.ExpectedVersion,
             request.DefaultFee,
-            request.ReportNames);
+            request.ReportNames,
+            request.FeeNoteVatNumber);
 
         entity.DefaultFee = result.DefaultFee;
         WriteReportNames(entity, result.ReportNames);
+        entity.FeeNoteVatNumber = result.FeeNoteVatNumber;
         entity.Version = result.Version;
 
         var now = _timeProvider.GetUtcNow();
@@ -482,6 +485,7 @@ public sealed class EfOrganizationAdministration(
             InspectionReportNameResend = result.ReportNames.InspectionResend,
             AuditReportNameFirst = result.ReportNames.AuditFirst,
             AuditReportNameResend = result.ReportNames.AuditResend,
+            FeeNoteVatNumber = result.FeeNoteVatNumber,
             // A successor code keeps the way its Cases are referenced, so a
             // replaced Private customer code still gives registration references.
             ReferenceScheme = predecessor.ReferenceScheme,
@@ -586,7 +590,8 @@ public sealed class EfOrganizationAdministration(
             notesOnEveryCase,
             ReadSalvageMatrix(entity.SalvageMatrixJson),
             entity.DefaultFee,
-            ReadReportNames(entity));
+            ReadReportNames(entity),
+            entity.FeeNoteVatNumber);
 
     internal static Principal ToPrincipal(PrincipalEntity entity) =>
         new(
@@ -603,7 +608,8 @@ public sealed class EfOrganizationAdministration(
             entity.Organization?.NotesOnEveryCase,
             ReadSalvageMatrix(entity.SalvageMatrixJson),
             entity.DefaultFee,
-            ReadReportNames(entity));
+            ReadReportNames(entity),
+            entity.FeeNoteVatNumber);
 
     /// <summary>A Principal's report names as its four columns hold them.</summary>
     internal static PrincipalReportNames ReadReportNames(PrincipalEntity entity) =>

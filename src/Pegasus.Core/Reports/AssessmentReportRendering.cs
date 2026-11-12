@@ -19,7 +19,30 @@ public static class AssessmentReportContract
     /// derived impact severity or location.
     /// </summary>
     public const string TemplateVersion = "rendererref1-v9";
+    /// <summary>The standard VAT number: what a fee note prints unless its Principal has its own.</summary>
     public const string VatNumber = "262 0937 10";
+    /// <summary>The longest fee note VAT number a Principal may carry: it shares the footer's one line.</summary>
+    public const int MaximumVatNumberLength = 20;
+
+    /// <summary>
+    /// A Principal's fee note VAT number as it is kept: trimmed and printed as
+    /// typed, and null when the box is empty or holds the standard number, so
+    /// null always means <see cref="VatNumber"/>.
+    /// </summary>
+    public static string? NormalizeVatNumber(string? vatNumber)
+    {
+        var trimmed = vatNumber?.Trim();
+        if (string.IsNullOrEmpty(trimmed) || trimmed.Equals(VatNumber, StringComparison.Ordinal))
+        {
+            return null;
+        }
+        if (trimmed.Length > MaximumVatNumberLength)
+        {
+            throw new ArgumentException(
+                $"A fee note VAT number has at most {MaximumVatNumberLength} characters.", nameof(vatNumber));
+        }
+        return trimmed;
+    }
     public const decimal FeeVatRate = 0.20m;
     public const string AccountName = "Collision Engineers Ltd";
     public const string BankName = "Lloyds Bank";
@@ -479,7 +502,10 @@ public sealed record AssessmentReportPresentation(
 /// with no vehicle images, as its Principal's report sending rules say
 /// (operator, 6 October 2026): the images are still pinned here, and the
 /// separate images document prints them. A snapshot frozen before the rule
-/// existed reads as true.
+/// existed reads as true. <see cref="VatNumber"/> is the Principal's fee note
+/// VAT number as it stood at generation, null for the standard number; it is
+/// left out of the stored snapshot when null, so a snapshot of the standard
+/// number is the same bytes it was before a Principal could have its own.
 /// </summary>
 public sealed record AssessmentReportSnapshot(
     string OurReference,
@@ -521,7 +547,9 @@ public sealed record AssessmentReportSnapshot(
     string PayloadVersion = AssessmentReportContract.TemplateVersion,
     string? SupplementaryStatement = null,
     IReadOnlyList<CaseReportWording>? Wording = null,
-    bool IncludeVehicleImages = true)
+    bool IncludeVehicleImages = true,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? VatNumber = null)
 {
     /// <summary>
     /// The narrative the report prints, in the Engineer's order (v28 P30):

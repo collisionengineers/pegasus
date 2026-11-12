@@ -44,7 +44,8 @@ public sealed class OrganizationAdministrationPersistenceTests
             "Confirm contact-owned report settings",
             205.00m,
             contactVersion,
-            new PrincipalReportNames(null, null, " {REG}_{CASE REF}_AUDIT ", null));
+            new PrincipalReportNames(null, null, " {REG}_{CASE REF}_AUDIT ", null),
+            " GB 123 4567 89 ");
 
         var updated = await update.ExecuteAsync(
             Request(principal.Version, principal.ContactVersion, "principal:report-settings:direct"), default);
@@ -56,6 +57,10 @@ public sealed class OrganizationAdministrationPersistenceTests
             $"SELECT AuditReportNameFirst FROM Principals WHERE Id = '{principal.Id:D}';"));
         Assert.Equal(205.00m, await (await factory.DatabaseAsync).ScalarAsync<decimal>(
             $"SELECT DefaultFee FROM Principals WHERE Id = '{principal.Id:D}';"));
+        // The fee note VAT number is saved with them, trimmed and as typed (R1006, R1007).
+        Assert.Equal("GB 123 4567 89", updated.FeeNoteVatNumber);
+        Assert.Equal("GB 123 4567 89", await (await factory.DatabaseAsync).ScalarAsync<string>(
+            $"SELECT FeeNoteVatNumber FROM Principals WHERE Id = '{principal.Id:D}';"));
         Assert.Equal(
             principal.ContactVersion + 1,
             await (await factory.DatabaseAsync).ScalarAsync<long>(
@@ -238,7 +243,8 @@ public sealed class OrganizationAdministrationPersistenceTests
             .Where(item => item.Id == predecessor.Id)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(item => item.DefaultFee, 210.00m)
-                .SetProperty(item => item.InspectionReportNameFirst, "{REG} Initial"));
+                .SetProperty(item => item.InspectionReportNameFirst, "{REG} Initial")
+                .SetProperty(item => item.FeeNoteVatNumber, "GB 123 4567 89"));
         var initialContactVersion = await seedContext.Organizations.AsNoTracking()
             .Where(item => item.Id == predecessor.OrganizationId)
             .Select(item => item.Version)
@@ -317,6 +323,8 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Equal(210.00m, persistedSuccessor.DefaultFee);
         // A successor code is named as its predecessor was (R740).
         Assert.Equal("{REG} Initial", persistedSuccessor.ReportNames.InspectionFirst);
+        // And prints the fee note VAT number its predecessor did (R1006).
+        Assert.Equal("GB 123 4567 89", persistedSuccessor.FeeNoteVatNumber);
         var caseMatrices = scope.ServiceProvider.GetRequiredService<IPrincipalSalvageMatrixQueries>();
         Assert.Equal(salvageMatrix, await caseMatrices.GetForCaseAsync(accepted.Identity.CaseId, default));
         Assert.Null(await caseMatrices.GetForCaseAsync(Guid.NewGuid(), default));

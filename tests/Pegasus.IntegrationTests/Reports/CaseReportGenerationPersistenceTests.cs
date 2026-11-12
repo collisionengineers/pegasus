@@ -1357,6 +1357,61 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
     }
 
     /// <summary>
+    /// The fee note's VAT number is the Principal's (R1006), read with the
+    /// Principal's name and address: a Principal without one has the standard
+    /// number, which the source reads as none.
+    /// </summary>
+    [Fact]
+    public async Task TheSourceReaderReadsTheFeeNoteVatNumberFromThePrincipal()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+
+        Assert.Null((await harness.ReadSourceAsync())!.Projection.VatNumber);
+
+        await harness.SetFeeNoteVatNumberAsync("GB 123 4567 89");
+
+        Assert.Equal("GB 123 4567 89", (await harness.ReadSourceAsync())!.Projection.VatNumber);
+    }
+
+    /// <summary>
+    /// A generation freezes its Principal's fee note VAT number (R1006): a
+    /// later change to the Principal does not alter a fee note already
+    /// generated. A generation of the standard number stores no VAT number at
+    /// all, so its snapshot is what it was before a Principal could have one.
+    /// </summary>
+    [Fact]
+    public async Task AGenerationFreezesItsPrincipalsFeeNoteVatNumber()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var standard = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        Assert.Null(standard.Generation!.Snapshot.Report.VatNumber);
+        Assert.False(await StoresAVatNumberAsync(standard.Generation.Id));
+
+        await harness.SetFeeNoteVatNumberAsync("GB 123 4567 89");
+        await harness.Store.MarkStaleAsync(harness.CaseId, "test-material-change", CancellationToken.None);
+        var own = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(operationKey: harness.Key("report-own-vat")), CancellationToken.None);
+        Assert.Equal("GB 123 4567 89", own.Generation!.Snapshot.Report.VatNumber);
+        Assert.True(await StoresAVatNumberAsync(own.Generation.Id));
+
+        await harness.SetFeeNoteVatNumberAsync(null);
+        var reloaded = await harness.Store.GetAsync(
+            harness.StaffActor, harness.CaseId, own.Generation.Id, CancellationToken.None);
+        Assert.Equal("GB 123 4567 89", reloaded!.Snapshot.Report.VatNumber);
+
+        async Task<bool> StoresAVatNumberAsync(Guid generationId)
+        {
+            await using var context = await harness.Factory.CreateDbContextAsync();
+            var json = await context.Set<CaseReportGenerationEntity>()
+                .Where(item => item.Id == generationId)
+                .Select(item => item.SnapshotJson)
+                .SingleAsync();
+            return JsonNode.Parse(json)!["report"]!.AsObject().ContainsKey("vatNumber");
+        }
+    }
+
+    /// <summary>
     /// The report is filed under the name frozen with it (R740): the
     /// Principal's Inspection name on a first send when it sets one, else the
     /// standard name, and a later change to the name does not rename it.
@@ -2593,6 +2648,21 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
                     .SetProperty(item => item.AuditReportNameResend, names.AuditResend));
         }
 
+        /// <summary>Sets the Principal's fee note VAT number; null is the standard number.</summary>
+        public async Task SetFeeNoteVatNumberAsync(string? vatNumber)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var principalId = await context.Cases
+                .Where(item => item.Id == CaseId)
+                .Select(item => item.PrincipalId)
+                .SingleAsync();
+            await context.Set<PrincipalEntity>()
+                .Where(item => item.Id == principalId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.FeeNoteVatNumber, vatNumber));
+            snapshotSource.VatNumber = vatNumber;
+        }
+
         public async Task SetReportImagesRuleAsync(bool reportImages)
         {
             await using var context = await Factory.CreateDbContextAsync();
@@ -3096,6 +3166,7 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
 
         /// <summary>The Principal's images rule, as the real source reads it with the Principal.</summary>
         public bool IncludeVehicleImages { get; set; } = true;
+        public string? VatNumber { get; set; }
 
         public Task<CaseReportFreezeInputs?> GetAsync(
             Guid requestedCaseId, ActionActor actor, CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken)
@@ -3106,7 +3177,7 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
             return Task.FromResult<CaseReportFreezeInputs?>(
                 requestedCaseId == caseId
                     ? new(
-                        projection with { Assessment = current, IncludeVehicleImages = IncludeVehicleImages },
+                        projection with { Assessment = current, IncludeVehicleImages = IncludeVehicleImages, VatNumber = VatNumber },
                         Readiness(current), reference, 1) { WorkId = workId }
                     : null);
         }

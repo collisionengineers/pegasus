@@ -134,6 +134,9 @@ A panel's save returns to its tab with its notice inside the panel; a refused
 save shows its message at the top of that panel and keeps what was typed
 (operator, 13 October 2026). Principal-specific
 settings are part of that Contact record. Report generation carries the Default fee (£) box,
+then the Fee note VAT number box, whose hint is "Empty: the standard number." and
+which shows the standard number, 262 0937 10, greyed when empty (operator,
+12 November 2026; R1008),
 then Inspection report name and Audit report name, each a First send and a
 Re-send text box, above Save report settings; it has no Report recipients
 settings (operator, 6 October 2026). An empty name box shows its standard name
