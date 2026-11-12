@@ -94,7 +94,11 @@ for this Principal, and Manual entry.
 An option whose value is not on the Case is disabled, never shown empty. The
 Case stores its storage location as its own field. Choosing an option records
 that value under the source and reason rules above. The choice never invents
-an address.
+an address. Manual entry is no value of its own: choosing it records nothing
+and leaves the address as it is, selected to type over, until an address is
+typed (operator, 12 November 2026, [R1020](../rulings.md)). The Case does not
+store which option was chosen: the option shown is the one whose address the
+Case holds ([R1021](../rulings.md)).
 
 **Reference addresses.** The `DATA-02` reference-data pipeline is the
 reviewed register and its operator-run loader

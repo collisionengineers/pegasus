@@ -2585,25 +2585,32 @@ public sealed partial class DetailsModel(
                             claimSource.OverrideContactEmailAddress)
                     };
                 }
-                // A linked directory organisation is copied onto the
-                // Case — its identity, its version and its own name and
+                // A directory organisation is copied onto the Case as it is
+                // linked — its identity, its version and its own name and
                 // address — so a later directory edit never rewrites this
-                // Case. Without a link the Case keeps the extracted or keyed
-                // text, and the member of staff saving it is its confirmation.
-                var linkedRepairer = overviewSubmitted && repairerDirectoryId is { } directoryId
+                // Case (FRD-04). Every save carries the select back, so the
+                // link the Case already holds is not linked again: it keeps
+                // the copy it has, whether or not the record is still active,
+                // and the name and address posted are the Case's own
+                // (operator, 12 November 2026, R1022). Without a link the
+                // Case keeps the extracted or keyed text, and the member of
+                // staff saving it is its confirmation.
+                var linkKept = repairerDirectoryId is { } postedLink
+                    && postedLink == persisted?.Repairer?.DirectoryOrganizationId;
+                var linkedRepairer = overviewSubmitted && !linkKept && repairerDirectoryId is { } directoryId
                     ? await contactDirectory.FindActiveByRoleAsync(
                             actor, ContactRole.Repairer, directoryId, cancellationToken)
                         ?? throw new InvalidOperationException("The selected repairer is not an active directory Repairer.")
                     : null;
                 // An unposted selector is not an unlink: only the rendered
                 // control, which offers "not linked" explicitly, may clear it.
-                var selectorPosted = Posted(nameof(repairerDirectoryId));
+                var unlinked = Posted(nameof(repairerDirectoryId)) && !linkKept;
                 var repairer = linkedRepairer is not null
                     ? new CaseWorkspaceRepairer(
                         linkedRepairer.OrganizationId, linkedRepairer.Version, linkedRepairer.Name)
                     : new CaseWorkspaceRepairer(
-                        selectorPosted ? null : persisted?.Repairer?.DirectoryOrganizationId,
-                        selectorPosted ? null : persisted?.Repairer?.DirectoryOrganizationVersion,
+                        unlinked ? null : persisted?.Repairer?.DirectoryOrganizationId,
+                        unlinked ? null : persisted?.Repairer?.DirectoryOrganizationVersion,
                         Submitted(nameof(repairerName), repairerName, Accepted(data.Inspection.RepairerName)?.Value));
                 var inspectionSubmitted = new[] { nameof(inspectionAddress), nameof(storageLocation), nameof(inspectionDate),
                     nameof(inspectionDeadline), nameof(storagePerDay), nameof(recoveryCharge) }.Any(Posted);

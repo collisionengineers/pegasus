@@ -850,8 +850,12 @@
                 var option = select.options[select.selectedIndex];
                 if (!option) return;
                 if (option.value === 'ManualEntry') {
-                    if (input.value.toLowerCase() === 'image based assessment') input.value = '';
-                    mode.value = input.value.trim() ? 'PhysicalAddress' : '';
+                    // Manual entry is no address of its own: the box keeps
+                    // what it holds, selected to type over, and nothing is
+                    // saved until an address is typed (R1020). Emptying the
+                    // box here would save the Case with no address.
+                    input.focus();
+                    input.select();
                     return;
                 }
                 input.value = option.dataset.address || '';

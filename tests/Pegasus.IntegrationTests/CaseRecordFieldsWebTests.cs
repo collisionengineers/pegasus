@@ -121,6 +121,97 @@ public sealed class CaseRecordFieldsWebTests
     }
 
     /// <summary>
+    /// Every save carries the Repairer select back. The link the Case already
+    /// holds is not linked again: the copy the Case took keeps its version
+    /// whatever the directory record says now (FRD-04), and the name and
+    /// address typed are saved as the Case's own (operator, 12 November 2026,
+    /// R1022).
+    /// </summary>
+    [Fact]
+    public async Task TheRepairerLinkTheCaseHoldsIsCarriedBackAndNotCopiedAgain()
+    {
+        var linkId = Guid.NewGuid();
+        var store = new RecordingCaseDetailsStore
+        {
+            Repairer = new(linkId, 3, "Kingsway Accident Repair"),
+            RepairerName = "Kingsway Accident Repair",
+            RepairerAddress = "12 Kingsway, Leeds LS1 1AA"
+        };
+        var ports = new RecordGapPorts(store);
+        // The directory record has moved on since the Case copied it.
+        ports.Repairers.Add(new ContactChoice(
+            linkId, "Kingsway Bodyshop Ltd", ContactRole.Repairer, 7, null, null, null, "1 New Road, Leeds LS2 2BB", "LS2 2BB", null));
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            ports.Register(services);
+            Substitute<Pegasus.Core.Address.IInspectionAddressChoicesQueries>(services, store);
+        });
+
+        using (var kept = await SaveAsync(
+            workspace,
+            ("repairerDirectoryId", linkId.ToString("D")),
+            ("repairerName", "Kingsway Accident Repair (Leeds)"),
+            ("repairerAddress", "14 Kingsway, Leeds LS1 1AA")))
+        {
+            AssertPrg(kept, store.CaseId);
+        }
+
+        var overview = Assert.Single(store.Saves).Overview!;
+        Assert.Equal(new CaseWorkspaceRepairer(linkId, 3, "Kingsway Accident Repair (Leeds)"), overview.Repairer);
+        Assert.Equal("14 Kingsway, Leeds LS1 1AA", overview.RepairerAddress);
+
+        using (var unlinked = await SaveAsync(
+            workspace, ("repairerDirectoryId", string.Empty), ("repairerName", "Kingsway Accident Repair")))
+        {
+            AssertPrg(unlinked, store.CaseId);
+        }
+        Assert.Null(store.Saves[^1].Overview!.Repairer!.DirectoryOrganizationId);
+    }
+
+    /// <summary>
+    /// A linked Repairer whose directory record is no longer active is still
+    /// this Case's link. The select draws it as its own option, so a save
+    /// carries it back; it used to draw Not linked, and any save unlinked it
+    /// (R1022).
+    /// </summary>
+    [Fact]
+    public async Task ARepairerLinkNoLongerActiveKeepsItsOptionAndSurvivesASave()
+    {
+        var linkId = Guid.NewGuid();
+        var store = new RecordingCaseDetailsStore
+        {
+            Repairer = new(linkId, 3, "Kingsway Accident Repair"),
+            RepairerName = "Kingsway Accident Repair",
+            RepairerAddress = "12 Kingsway, Leeds LS1 1AA"
+        };
+        var ports = new RecordGapPorts(store);
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            ports.Register(services);
+            Substitute<Pegasus.Core.Address.IInspectionAddressChoicesQueries>(services, store);
+        });
+
+        var editing = WebUtility.HtmlDecode(InspectionPanel(await workspace.GetWorkspaceAsync()));
+        Assert.Contains(
+            $"<option value=\"{linkId:D}\" selected=\"selected\">Kingsway Accident Repair</option>",
+            editing,
+            StringComparison.Ordinal);
+
+        using (var kept = await SaveAsync(
+            workspace,
+            ("repairerDirectoryId", linkId.ToString("D")),
+            ("repairerName", "Kingsway Accident Repair"),
+            ("repairerAddress", "12 Kingsway, Leeds LS1 1AA")))
+        {
+            AssertPrg(kept, store.CaseId);
+        }
+
+        Assert.Equal(
+            new CaseWorkspaceRepairer(linkId, 3, "Kingsway Accident Repair"),
+            Assert.Single(store.Saves).Overview!.Repairer);
+    }
+
+    /// <summary>
     /// The Due cell carries Overdue by the Work Centre's one rule (CASE-17,
     /// R307, R308): the persisted due instant at or before now, on an open
     /// Case only. The host clock is fixed at the instant the rows are
@@ -714,6 +805,8 @@ public sealed class CaseRecordFieldsWebTests
 
         public List<ContactChoice> ClaimSources { get; } = [];
 
+        public List<ContactChoice> Repairers { get; } = [];
+
         public void Register(IServiceCollection services)
         {
             Substitute<ISaveCaseWorkspace>(services, store);
@@ -752,7 +845,8 @@ public sealed class CaseRecordFieldsWebTests
 
         Task<IReadOnlyList<ContactChoice>> IContactDirectoryQueries.ListByRoleAsync(
             ActionActor actor, ContactRole role, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ContactChoice>>(role == ContactRole.ClaimSource ? [.. ClaimSources] : []);
+            Task.FromResult<IReadOnlyList<ContactChoice>>(
+                role == ContactRole.ClaimSource ? [.. ClaimSources] : role == ContactRole.Repairer ? [.. Repairers] : []);
 
         Task<IReadOnlyList<ContactChoice>> IContactDirectoryQueries.FindPossibleMatchesAsync(
             ActionActor actor, string name, CancellationToken cancellationToken) =>

@@ -708,8 +708,13 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
             expectedReason: CaseReportStaleReasons.AssessmentFactsChanged);
     }
 
+    /// <summary>
+    /// The default signatory the editor showed comes back with the save. It is
+    /// no pick, so the Case records none and the default stays a default
+    /// (operator, 12 November 2026, R1019).
+    /// </summary>
     [Fact]
-    public async Task SelectingTheEffectiveDefaultSignatoryThroughWorkspaceDoesNotStaleTheReport()
+    public async Task TheEffectiveDefaultSignatoryComingBackThroughWorkspaceIsNoPickAndDoesNotStaleTheReport()
     {
         await using var harness = await Harness.CreateAsync();
         var signOffEngineerId = await SeedDefaultSignOffEngineerAsync(harness);
@@ -731,8 +736,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
             CancellationToken.None);
 
         await using var context = await harness.Factory.CreateDbContextAsync();
-        Assert.Equal(
-            signOffEngineerId,
+        Assert.Null(
             (await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId))
                 .SignOffEngineerId);
         Assert.Equal(

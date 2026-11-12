@@ -146,6 +146,20 @@ public static class CaseSignOffEngineerResolver
     }
 
     /// <summary>
+    /// The Sign-off Engineer a Case save leaves recorded (operator, 12 November
+    /// 2026, R1019). A save carries the one its editor showed back with every
+    /// other value, so the one shown coming back is no pick and changes
+    /// nothing: the default stays a default. Someone else is the pick and is
+    /// recorded; none, where one was shown, removes the recorded pick and the
+    /// default applies again.
+    /// </summary>
+    /// <param name="recorded">The pick the Case holds, if any.</param>
+    /// <param name="shown">Who <see cref="Resolve"/> gave before the save.</param>
+    /// <param name="submitted">Who the save names, or none.</param>
+    public static Guid? Recorded(Guid? recorded, Guid? shown, Guid? submitted) =>
+        submitted == shown ? recorded : submitted;
+
+    /// <summary>
     /// The one eligibility rule for a chosen Sign-off Engineer, shared by the
     /// named selection command and the Case save that carries the same choice.
     /// </summary>
