@@ -18,7 +18,9 @@
 
 @* The Send chaser's composer (R915): nothing is e-mailed until Send by e-mail. *@
 <div class="mail-compose-standalone">
-    <section id="mail-compose-content" class="dialog mail-compose-dialog" role="dialog"
+    @* Once the link is issued the card holds one line and its Close, so it
+       takes its content's height as the dialog composer does (#2087). *@
+    <section id="mail-compose-content" class="dialog mail-compose-dialog @(Model.IssuedUrl is null ? null : "pc-composer-dialog")" role="dialog"
              aria-modal="true" aria-labelledby="mail-compose-title" tabindex="-1" data-photo-link-compose>
         <header class="dialog-head">
             <div>

@@ -130,7 +130,9 @@
 .photo-link-missing-bar p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .photo-link-missing-bar strong { font-weight: 650; color: var(--amber); }
 .photo-link-empty { margin: 0; }
-.photo-link-gallery .gallery-caption { font-size: 12px; }
+/* A block, so the shared caption's padding insets its name: on the inline
+   span the padding only opened an empty line above and below it (#2087). */
+.photo-link-gallery .gallery-caption { display: block; font-size: 12px; }
 .photo-link-gallery .gallery-caption strong { font-weight: 600; }
 .photo-link-tile-number { position: absolute; top: 5px; left: 5px; padding: 2px 5px; border-radius: var(--radius); background: var(--nav); color: var(--nav-text); font-size: 10.5px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
 .photo-link-files { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 9px 12px; border-top: 1px solid var(--line); background: var(--surface-2); font-size: 12.5px; }
