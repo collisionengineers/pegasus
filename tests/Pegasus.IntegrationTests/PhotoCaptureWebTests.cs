@@ -81,7 +81,7 @@ public sealed partial class PhotoCaptureWebTests
     [Fact]
     public async Task ADamagePhotoSentOnACaseLinkIsFiledOnTheCaseUnderItsStoryName()
     {
-        const string expectedName = "02-01 Front driver corner closer.jpg";
+        const string expectedName = "02-201 Front driver corner closer.jpg";
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);

@@ -90,24 +90,34 @@ public sealed class PhotoCaptureStoryTests
         Assert.Equal(sequences.OrderBy(sequence => sequence), sequences);
     }
 
+    /// <summary>
+    /// The names the operator approved (12 November 2026; R1000): a damage
+    /// photo taken at a stage carries the stage's digit before its two-digit
+    /// position, and every other photo keeps two digits.
+    /// </summary>
     public static TheoryData<PhotoCaptureItemKind, string?, PhotoCaptureStage?, int, string, string> Names => new()
     {
         { PhotoCaptureItemKind.Overview, null, null, 3, "image/jpeg", "01-03 Driver side.jpg" },
-        { PhotoCaptureItemKind.Damage, "fd", PhotoCaptureStage.Closer, 2, "image/jpeg", "Front driver corner closer.jpg" },
-        { PhotoCaptureItemKind.NumberPlate, null, null, 1, "image/png", "Number plate.png" },
-        { PhotoCaptureItemKind.Video, null, null, 1, "video/mp4", "Walk-around video.mp4" },
-        { PhotoCaptureItemKind.OtherVehicle, null, null, 2, "image/jpeg", "Other vehicle.jpg" }
+        { PhotoCaptureItemKind.Damage, "fd", PhotoCaptureStage.Overview, 1, "image/jpeg", "02-101 Front driver corner overview.jpg" },
+        { PhotoCaptureItemKind.Damage, "fd", PhotoCaptureStage.Overview, 2, "image/jpeg", "02-102 Front driver corner overview.jpg" },
+        { PhotoCaptureItemKind.Damage, "fd", PhotoCaptureStage.Closer, 1, "image/jpeg", "02-201 Front driver corner closer.jpg" },
+        { PhotoCaptureItemKind.Damage, "fd", PhotoCaptureStage.CloseUp, 1, "image/jpeg", "02-301 Front driver corner close-up.jpg" },
+        { PhotoCaptureItemKind.Damage, "fd", PhotoCaptureStage.Extra, 1, "image/jpeg", "02-401 Front driver corner extra.jpg" },
+        { PhotoCaptureItemKind.NumberPlate, null, null, 1, "image/jpeg", "14-01 Number plate.jpg" },
+        { PhotoCaptureItemKind.NumberPlate, null, null, 1, "image/png", "14-01 Number plate.png" },
+        { PhotoCaptureItemKind.Video, null, null, 1, "video/mp4", "20-01 Walk-around video.mp4" },
+        { PhotoCaptureItemKind.OtherVehicle, null, null, 2, "image/jpeg", "18-02 Other vehicle.jpg" }
     };
 
     [Theory]
     [MemberData(nameof(Names))]
-    public void FileNamesCarryTheStoryPositionAndAPlainLabel(
+    public void FileNamesCarryTheStoryPositionAndADamagePhotosStageDigit(
         PhotoCaptureItemKind kind,
         string? area,
         PhotoCaptureStage? stage,
         int position,
         string mediaType,
-        string expectedEnding)
+        string expectedName)
     {
         string[] areas = area is null ? [] : [area];
         var group = PhotoCaptureStory.Group(kind, area, areas);
@@ -115,11 +125,61 @@ public sealed class PhotoCaptureStoryTests
 
         var name = PhotoCaptureStory.FileName(kind, area, stage, position, group, sequence, mediaType);
 
-        Assert.EndsWith(expectedEnding, name, StringComparison.Ordinal);
-        Assert.Matches("^[0-9]{2}-[0-9]{2} ", name);
+        Assert.Equal(expectedName, name);
+        Assert.Matches("^[0-9]{2}-([0-9]{2}|[1-4][0-9]{2}) ", name);
         Assert.True(name.Length <= 120);
         Assert.Equal(-1, name.AsSpan().IndexOfAny(WindowsInvalid));
     }
+
+    /// <summary>
+    /// One damaged area's names sort as the story runs, by their text alone:
+    /// overview, closer, close-up, extra, each in the order taken (#2031).
+    /// </summary>
+    [Fact]
+    public void AnAreasDamageNamesSortInStoryOrderByTheirText()
+    {
+        string[] areas = ["fd"];
+        (PhotoCaptureStage Stage, int Position)[] taken =
+        [
+            (PhotoCaptureStage.Extra, 1),
+            (PhotoCaptureStage.CloseUp, 2),
+            (PhotoCaptureStage.Overview, 2),
+            (PhotoCaptureStage.Closer, 1),
+            (PhotoCaptureStage.CloseUp, 1),
+            (PhotoCaptureStage.Overview, 1)
+        ];
+        var group = PhotoCaptureStory.Group(PhotoCaptureItemKind.Damage, "fd", areas);
+        var named = taken
+            .Select(photo =>
+            {
+                var sequence = PhotoCaptureStory.Sequence(PhotoCaptureItemKind.Damage, photo.Stage, photo.Position);
+                var name = PhotoCaptureStory.FileName(
+                    PhotoCaptureItemKind.Damage, "fd", photo.Stage, photo.Position, group, sequence, "image/jpeg");
+                return (Sequence: sequence, Name: name);
+            })
+            .ToArray();
+
+        Assert.Equal(
+            named.OrderBy(photo => photo.Sequence).Select(photo => photo.Name),
+            named.Select(photo => photo.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(named.Length, named.Select(photo => photo.Name).Distinct(StringComparer.Ordinal).Count());
+    }
+
+    /// <summary>
+    /// A story name reads back as its plain label whether its position has
+    /// two digits, as every name had before 12 November 2026, or a damage
+    /// photo's three; any other file name is answered without its extension.
+    /// </summary>
+    [Theory]
+    [InlineData("02-201 Front driver corner closer.jpg", "Front driver corner closer")]
+    [InlineData("02-03 Front driver corner closer.jpg", "Front driver corner closer")]
+    [InlineData("04-03 Damage.jpg", "Damage")]
+    [InlineData("19-01 Paperwork 2026-11 invoice.pdf", "Paperwork 2026-11 invoice")]
+    [InlineData("IMG_0001.jpg", "IMG_0001")]
+    [InlineData("02-2011 Front.jpg", "02-2011 Front")]
+    [InlineData("02-201.jpg", "02-201")]
+    public void AStoryNameReadsAsItsPlainLabelWithTwoOrThreeDigits(string fileName, string expected) =>
+        Assert.Equal(expected, PhotoCaptureStory.Label(fileName));
 
     [Fact]
     public void APaperworkNameKeepsTheSendersFileNameButStaysBounded()
