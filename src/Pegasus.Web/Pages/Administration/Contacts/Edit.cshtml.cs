@@ -141,6 +141,8 @@ public sealed class EditModel(
 
     [BindProperty] public long PrincipalExpectedVersion { get; set; }
     [BindProperty] public decimal? DefaultFee { get; set; }
+    // The VAT number the Principal's fee notes print; empty is the standard number.
+    [BindProperty] public string? FeeNoteVatNumber { get; set; }
     // What the Principal's reports are called (R740); empty is the standard name.
     [BindProperty] public string? InspectionReportNameFirst { get; set; }
     [BindProperty] public string? InspectionReportNameResend { get; set; }
@@ -377,6 +379,7 @@ public sealed class EditModel(
         Tab = ReportGenerationTab;
         ClearModelStatePreservingErrors(
             nameof(DefaultFee),
+            nameof(FeeNoteVatNumber),
             nameof(InspectionReportNameFirst),
             nameof(InspectionReportNameResend),
             nameof(AuditReportNameFirst),
@@ -400,7 +403,8 @@ public sealed class EditModel(
                         InspectionReportNameFirst,
                         InspectionReportNameResend,
                         AuditReportNameFirst,
-                        AuditReportNameResend)), cancellationToken);
+                        AuditReportNameResend),
+                    FeeNoteVatNumber), cancellationToken);
                 TempData["AdministrationStatus"] = OperatorLabels.PrincipalAdministration.ReportSettingsUpdated;
                 return RedirectToPage(new { id = ContactId, tab = Tab });
             }
@@ -409,10 +413,10 @@ public sealed class EditModel(
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.SettingsNotAccepted); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
-        var typed = (DefaultFee, InspectionReportNameFirst, InspectionReportNameResend, AuditReportNameFirst, AuditReportNameResend);
+        var typed = (DefaultFee, FeeNoteVatNumber, InspectionReportNameFirst, InspectionReportNameResend, AuditReportNameFirst, AuditReportNameResend);
         await PopulateAsync(actor, cancellationToken);
         // What was typed stays.
-        (DefaultFee, InspectionReportNameFirst, InspectionReportNameResend, AuditReportNameFirst, AuditReportNameResend) = typed;
+        (DefaultFee, FeeNoteVatNumber, InspectionReportNameFirst, InspectionReportNameResend, AuditReportNameFirst, AuditReportNameResend) = typed;
         return Page();
     }
 
@@ -695,6 +699,7 @@ public sealed class EditModel(
         PrincipalExpectedVersion = Principal.Version;
         ReplacementExpectedVersion = Principal.Version;
         DefaultFee = Principal.DefaultFee;
+        FeeNoteVatNumber = Principal.FeeNoteVatNumber;
         InspectionReportNameFirst = Principal.ReportNames.InspectionFirst;
         InspectionReportNameResend = Principal.ReportNames.InspectionResend;
         AuditReportNameFirst = Principal.ReportNames.AuditFirst;

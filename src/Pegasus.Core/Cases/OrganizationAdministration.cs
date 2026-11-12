@@ -44,7 +44,8 @@ public sealed record PrincipalAdministrationSummary(
     string? NotesOnEveryCase = null,
     SalvageMatrix? SalvageMatrix = null,
     decimal DefaultFee = PrincipalDefaultFeePolicy.Standard,
-    PrincipalReportNames? ReportNames = null)
+    PrincipalReportNames? ReportNames = null,
+    string? FeeNoteVatNumber = null)
 {
     /// <summary>The Principal's report sending rules; the defaults when none were named.</summary>
     public PrincipalReportSendingRules ReportSending { get; init; } =
@@ -283,7 +284,8 @@ public static class OrganizationAdministrationPolicy
                 predecessor.ReportSending,
                 SalvageMatrix: predecessor.SalvageMatrix,
                 DefaultFee: predecessor.DefaultFee,
-                ReportNames: predecessor.ReportNames));
+                ReportNames: predecessor.ReportNames,
+                FeeNoteVatNumber: predecessor.FeeNoteVatNumber));
     }
 
     public static void RequireUniquePrincipalCode(bool alreadyExists)
@@ -306,6 +308,7 @@ public static class OrganizationAdministrationPolicy
         return request with
         {
             ReportNames = PrincipalReportNames.Normalize(request.ReportNames),
+            FeeNoteVatNumber = AssessmentReportContract.NormalizeVatNumber(request.FeeNoteVatNumber),
             OperationKey = NormalizeRequiredText(
                 request.OperationKey,
                 MaximumOperationKeyLength,
@@ -410,7 +413,8 @@ public static class OrganizationAdministrationPolicy
     }
 
     /// <summary>
-    /// The default fee and the report names change, and nothing else does.
+    /// The default fee, the report names and the fee note VAT number change,
+    /// and nothing else does.
     /// The code, the organization, its notes, the lineage and the allocation
     /// history are untouched.
     /// </summary>
@@ -418,7 +422,8 @@ public static class OrganizationAdministrationPolicy
         Principal current,
         long expectedVersion,
         decimal defaultFee,
-        PrincipalReportNames? reportNames)
+        PrincipalReportNames? reportNames,
+        string? feeNoteVatNumber = null)
     {
         ArgumentNullException.ThrowIfNull(current);
         RequireExpectedVersion(expectedVersion, nameof(expectedVersion));
@@ -439,11 +444,15 @@ public static class OrganizationAdministrationPolicy
 
         PrincipalDefaultFeePolicy.Require(defaultFee, nameof(defaultFee));
         var names = PrincipalReportNames.Normalize(reportNames);
-        var changed = current.DefaultFee != defaultFee || current.ReportNames != names;
+        var vatNumber = AssessmentReportContract.NormalizeVatNumber(feeNoteVatNumber);
+        var changed = current.DefaultFee != defaultFee
+            || current.ReportNames != names
+            || !string.Equals(current.FeeNoteVatNumber, vatNumber, StringComparison.Ordinal);
         return current with
         {
             DefaultFee = defaultFee,
             ReportNames = names,
+            FeeNoteVatNumber = vatNumber,
             Version = changed ? checked(current.Version + 1) : current.Version
         };
     }

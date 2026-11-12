@@ -6542,6 +6542,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<long?>("DefaultInspectionSourceVersion")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("FeeNoteVatNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<string>("InspectionMode")
                         .IsRequired()
                         .ValueGeneratedOnAdd()

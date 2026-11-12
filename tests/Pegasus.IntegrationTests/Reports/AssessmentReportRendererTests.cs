@@ -159,7 +159,7 @@ public sealed partial class AssessmentReportRendererTests
         Assert.All(reportPages, page =>
         {
             Assert.Contains(AssessmentReportWording.CompanyWebsite, page, StringComparison.Ordinal);
-            Assert.DoesNotContain(AssessmentReportWording.VatNumberLine, page, StringComparison.Ordinal);
+            Assert.DoesNotContain(AssessmentReportWording.VatNumberLine(), page, StringComparison.Ordinal);
         });
         Assert.Contains(AssessmentReportWording.VehicleDetailsHeading, pages[0], StringComparison.Ordinal);
         Assert.Contains(presentation.SettlementText, pages[1], StringComparison.Ordinal);
@@ -377,6 +377,44 @@ public sealed partial class AssessmentReportRendererTests
         Assert.Contains($"VAT No: {AssessmentReportContract.VatNumber}", text, StringComparison.Ordinal);
         Assert.Contains("Page 1 of", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Statement of Truth", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A Principal's own fee note VAT number, at its longest, replaces the
+    /// standard one on every fee note page, in the company block and in the
+    /// footer, and on no report page; the fee note is no longer for it
+    /// (operator, 12 November 2026; R1006, R1007).
+    /// </summary>
+    [Fact]
+    public async Task AFeeNotePrintsItsPrincipalsVatNumberAndNeverTheStandardOne()
+    {
+        const string ownNumber = "GB 987 6543 21 GRP 7";
+        Assert.Equal(AssessmentReportContract.MaximumVatNumberLength, ownNumber.Length);
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var standard = ReadySnapshot();
+        var snapshot = standard with { VatNumber = ownNumber };
+        var draft = new GenerateAssessmentReportDraft(renderer);
+
+        var standardFeeNote = await draft.ExecuteAsync(standard, CaseReportArtifactKind.FeeNote);
+        var feeNote = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.FeeNote);
+        var report = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
+
+        Assert.Equal(standardFeeNote.PageCount, feeNote.PageCount);
+        Assert.All(PageTexts(feeNote.Pdf), page =>
+        {
+            // Once in the company block and once in the footer.
+            Assert.Equal(2, Squeeze(page).Split(Squeeze($"VAT No: {ownNumber}"), StringSplitOptions.None).Length - 1);
+            Assert.DoesNotContain(AssessmentReportContract.VatNumber, page, StringComparison.Ordinal);
+        });
+        var pages = PageTexts(report.Pdf);
+        var reportPageCount = report.PageCount - feeNote.PageCount;
+        Assert.All(pages.Take(reportPageCount), page => Assert.DoesNotContain("VAT No:", page, StringComparison.Ordinal));
+        Assert.All(pages.Skip(reportPageCount), page =>
+        {
+            Assert.Contains(Squeeze($"VAT No: {ownNumber}"), Squeeze(page), StringComparison.Ordinal);
+            Assert.DoesNotContain(AssessmentReportContract.VatNumber, page, StringComparison.Ordinal);
+        });
     }
 
     /// <summary>
@@ -708,6 +746,24 @@ public sealed partial class AssessmentReportRendererTests
         Assert.True(AssessmentReportProjection.Project(input).Snapshot!.IncludeVehicleImages);
         Assert.False(AssessmentReportProjection
             .Project(input with { IncludeVehicleImages = false }).Snapshot!.IncludeVehicleImages);
+    }
+
+    /// <summary>
+    /// The Principal's fee note VAT number is projected into the snapshot, so
+    /// a generation freezes it; none, or the standard number, is none (R1006).
+    /// </summary>
+    [Fact]
+    public void TheProjectionCarriesThePrincipalsFeeNoteVatNumber()
+    {
+        var input = AssessmentReportDraftWebTests.ReadyInput(Guid.NewGuid());
+
+        Assert.Null(input.VatNumber);
+        Assert.Null(AssessmentReportProjection.Project(input).Snapshot!.VatNumber);
+        Assert.Equal(
+            "GB 123 4567 89",
+            AssessmentReportProjection.Project(input with { VatNumber = "GB 123 4567 89" }).Snapshot!.VatNumber);
+        Assert.Null(AssessmentReportProjection
+            .Project(input with { VatNumber = AssessmentReportContract.VatNumber }).Snapshot!.VatNumber);
     }
 
     /// <summary>

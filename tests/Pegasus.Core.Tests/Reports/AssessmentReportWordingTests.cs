@@ -41,6 +41,39 @@ public sealed class AssessmentReportWordingTests
             AssessmentReportWording.CompanyBlock(feeNote: true));
     }
 
+    /// <summary>
+    /// R1006: a Principal's own fee note VAT number replaces the standard one
+    /// in the fee note's company block and footer, and nowhere on the report.
+    /// </summary>
+    [Fact]
+    public void AFeeNotePrintsItsPrincipalsVatNumberInTheBlockAndTheFooter()
+    {
+        var snapshot = Sample(AssessmentReportOutcome.TotalLoss) with { VatNumber = "GB 123 4567 89" };
+        var separator = AssessmentReportWording.FooterSeparator;
+
+        Assert.Equal("VAT No: 262 0937 10", AssessmentReportWording.VatNumberLine());
+        Assert.Equal("VAT No: GB 123 4567 89", AssessmentReportWording.VatNumberLine(snapshot.VatNumber));
+        Assert.Equal(
+            [
+                "Collision Engineers Ltd",
+                "Independent Automotive Experts",
+                "VAT No: GB 123 4567 89",
+                "Engineers@CollisionEngineers.co.uk",
+                "www.CollisionEngineers.co.uk",
+            ],
+            AssessmentReportWording.CompanyBlock(feeNote: true, snapshot.VatNumber));
+        Assert.Equal(
+            $"PK12 TMZ · ap.qdos261789{separator}Collision Engineers Ltd{separator}VAT No: GB 123 4567 89",
+            AssessmentReportWording.Footer(snapshot, feeNote: true));
+
+        Assert.DoesNotContain(
+            AssessmentReportWording.CompanyBlock(feeNote: false, snapshot.VatNumber),
+            line => line.Contains("VAT", StringComparison.Ordinal));
+        Assert.Equal(
+            $"PK12 TMZ · ap.qdos261789{separator}Collision Engineers Ltd{separator}www.CollisionEngineers.co.uk",
+            AssessmentReportWording.Footer(snapshot, feeNote: false));
+    }
+
     /// <summary>Template: the foot of every page (DESIGN_SPEC.md lines 20 to 21).</summary>
     [Fact]
     public void TheFooterIsTheTemplates()

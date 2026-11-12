@@ -50,15 +50,21 @@ public static class AssessmentReportWording
     public const string CompanyEmail = "Engineers@CollisionEngineers.co.uk";
     public const string CompanyWebsite = "www.CollisionEngineers.co.uk";
 
-    /// <summary>The VAT number as printed. It appears on the fee note's pages only.</summary>
-    public const string VatNumberLine = "VAT No: " + AssessmentReportContract.VatNumber;
+    public const string VatNumberLead = "VAT No: ";
+
+    /// <summary>
+    /// The VAT number as printed. It appears on the fee note's pages only: the
+    /// Principal's own number, or the standard one when it has none.
+    /// </summary>
+    public static string VatNumberLine(string? vatNumber = null) =>
+        VatNumberLead + (vatNumber ?? AssessmentReportContract.VatNumber);
 
     /// <summary>The company block's lines in print order; the fee note's carries the VAT number.</summary>
-    public static IReadOnlyList<string> CompanyBlock(bool feeNote)
+    public static IReadOnlyList<string> CompanyBlock(bool feeNote, string? vatNumber = null)
     {
         if (feeNote)
         {
-            return [CompanyName, CompanyStrapline, VatNumberLine, CompanyEmail, CompanyWebsite];
+            return [CompanyName, CompanyStrapline, VatNumberLine(vatNumber), CompanyEmail, CompanyWebsite];
         }
         return [CompanyName, CompanyStrapline, CompanyEmail, CompanyWebsite];
     }
@@ -80,7 +86,8 @@ public static class AssessmentReportWording
     /// printout carries the same footer from its own registration and
     /// reference.
     /// </summary>
-    public static IReadOnlyList<string> FooterParts(string registration, string ourReference, bool feeNote)
+    public static IReadOnlyList<string> FooterParts(
+        string registration, string ourReference, bool feeNote, string? vatNumber = null)
     {
         ArgumentNullException.ThrowIfNull(registration);
         ArgumentNullException.ThrowIfNull(ourReference);
@@ -88,7 +95,7 @@ public static class AssessmentReportWording
         [
             $"{registration} · {ourReference}",
             CompanyName,
-            feeNote ? VatNumberLine : CompanyWebsite,
+            feeNote ? VatNumberLine(vatNumber) : CompanyWebsite,
         ];
     }
 
@@ -96,7 +103,7 @@ public static class AssessmentReportWording
     public static IReadOnlyList<string> FooterParts(AssessmentReportSnapshot snapshot, bool feeNote)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return FooterParts(snapshot.Vehicle.Registration, snapshot.OurReference, feeNote);
+        return FooterParts(snapshot.Vehicle.Registration, snapshot.OurReference, feeNote, snapshot.VatNumber);
     }
 
     /// <summary>The report's footer as one line.</summary>

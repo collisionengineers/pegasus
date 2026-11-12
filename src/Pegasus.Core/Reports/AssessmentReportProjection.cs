@@ -46,6 +46,11 @@ namespace Pegasus.Core.Reports;
 /// and the generation read it alike, and it is frozen into the snapshot, so a
 /// later change to the rules does not alter a frozen generation.
 /// </para>
+/// <para>
+/// <see cref="VatNumber"/> is the Principal's fee note VAT number, null for
+/// the standard one. It is loaded and frozen the same way, so a fee note
+/// already generated keeps the number it was issued with.
+/// </para>
 /// </remarks>
 public sealed record AssessmentReportProjectionInput(
     CaseAssessmentProjection Assessment,
@@ -60,7 +65,8 @@ public sealed record AssessmentReportProjectionInput(
     string? ValuationCommentary = null,
     IReadOnlyList<CaseReportWording>? Wording = null,
     bool SignOffEngineersOffered = false,
-    bool IncludeVehicleImages = true);
+    bool IncludeVehicleImages = true,
+    string? VatNumber = null);
 
 /// <summary>
 /// Either a snapshot ready to render, or the enumerated reasons it is not —
@@ -219,7 +225,8 @@ public static class AssessmentReportProjection
             // already issued. What a block they never touched says is
             // composed from the frozen facts beside it.
             Wording: input.Wording,
-            IncludeVehicleImages: input.IncludeVehicleImages);
+            IncludeVehicleImages: input.IncludeVehicleImages,
+            VatNumber: AssessmentReportContract.NormalizeVatNumber(input.VatNumber));
 
         return new(snapshot, []);
     }
