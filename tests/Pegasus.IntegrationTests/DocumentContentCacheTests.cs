@@ -127,7 +127,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             }
             Assert.Equal(1, estate.Box.Downloads);
 
-            var downloadsBefore = estate.Blob.Downloads.Count;
+            var downloadsBefore = estate.Blob.Downloads.Length;
             await using (var whole = await estate.Reader.OpenAsync(estate.Request, CancellationToken.None))
             {
                 Assert.IsNotType<CachedObjectRangeStream>(whole.Content);
@@ -135,11 +135,11 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             }
             Assert.Equal((0L, (long?)null), (estate.Blob.Downloads[downloadsBefore].Offset, estate.Blob.Downloads[downloadsBefore].Length));
 
-            downloadsBefore = estate.Blob.Downloads.Count;
+            downloadsBefore = estate.Blob.Downloads.Length;
             await using var warm = await estate.Reader.OpenAsync(seekable, CancellationToken.None);
             Assert.True(warm.Content.CanSeek);
             Assert.Equal(bytes.LongLength, warm.Content.Length);
-            Assert.Equal(downloadsBefore, estate.Blob.Downloads.Count);
+            Assert.Equal(downloadsBefore, estate.Blob.Downloads.Length);
 
             warm.Content.Seek(40, SeekOrigin.Begin);
             var slice = new byte[8];
@@ -3457,7 +3457,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         }
         private readonly List<(long Offset, long? Length, ETag? IfMatch)> downloads = [];
         /// <summary>Every download asked for: the range it started at and the ETag it was pinned to.</summary>
-        public IReadOnlyList<(long Offset, long? Length, ETag? IfMatch)> Downloads
+        public (long Offset, long? Length, ETag? IfMatch)[] Downloads
         {
             get { lock (downloads) { return downloads.ToArray(); } }
         }
