@@ -21,8 +21,8 @@ public interface IReportSendReadiness
 /// covering message, under the Case's edit lease. On an Inspection + Audit
 /// Case with its Audit, the same email may carry the other work's report too
 /// (operator, 12 October 2026). With them go what the Principal's report
-/// sending rules asked of staff on the same form: their answers, the holds
-/// they ticked as done and a reason for overriding a Stop.
+/// sending rules asked of staff on the same form: the holds they ticked as
+/// done and a reason for overriding a Stop.
 /// </summary>
 /// <param name="DispatchFingerprint">The <see cref="ReportDispatchFacts.Fingerprint"/> the form was drawn from.</param>
 /// <param name="AcknowledgedHolds">The hold texts staff ticked as done; every hold the plan sets must be among them.</param>
@@ -39,7 +39,6 @@ public sealed record SendCaseReportRequest(
     Guid? FromMailboxId = null,
     SecondCaseReport? SecondReport = null,
     string? DispatchFingerprint = null,
-    IReadOnlyList<ReportRuleDecision>? Decisions = null,
     IReadOnlyList<string>? AcknowledgedHolds = null,
     string? StopOverrideReason = null,
     string? Subject = null,
@@ -573,8 +572,8 @@ public static class CaseReportDeliveryPolicy
 
     /// <summary>
     /// What a send may go ahead on: the form was drawn from the rules and
-    /// facts as they are now, every question the rules ask is answered, a
-    /// rule's Stop is overridden with a reason, and every hold is ticked.
+    /// facts as they are now, a rule's Stop is overridden with a reason, and
+    /// every hold is ticked.
     /// </summary>
     public static void RequireDispatchDecided(
         ReportDispatchFacts facts,
@@ -588,11 +587,6 @@ public static class CaseReportDeliveryPolicy
         if (!string.Equals(dispatchFingerprint, facts.Fingerprint, StringComparison.Ordinal))
         {
             throw new InvalidOperationException(DispatchChanged);
-        }
-        if (plan.Undecided.Count > 0)
-        {
-            throw new InvalidOperationException(
-                "Answer every question about this Principal's rules before sending the report.");
         }
         if (plan.Stop is not null && string.IsNullOrWhiteSpace(stopOverrideReason))
         {
@@ -608,9 +602,8 @@ public static class CaseReportDeliveryPolicy
     }
 
     /// <summary>
-    /// The refusal when the rules or the instruction changed after the form
-    /// was drawn, so its questions and answers may no longer be the ones the
-    /// rules ask.
+    /// The refusal when the rules or the Case's facts changed after the form
+    /// was drawn, so what it showed may no longer be what the rules do.
     /// </summary>
     public const string DispatchChanged =
         "The report was not sent. This Principal's report sending rules or the Case's facts changed; check the form and send again.";
@@ -859,8 +852,8 @@ public sealed class ReportSendReadiness(
 /// Case's edit lease, the
 /// recipients staff reviewed, the documents they chose and the message they
 /// submitted. The Principal's report sending rules are read here once, as
-/// <see cref="ReportDispatchPolicy.Plan"/>: the same click answers their
-/// questions, overrides a Stop and ticks their holds. It is the one
+/// <see cref="ReportDispatchPolicy.Plan"/>: the same click overrides a Stop
+/// and ticks their holds. It is the one
 /// production caller of A's staff report send and hands it one command under
 /// the caller's operation key, so the same key replays the same send. A's
 /// returned state is the outcome; an Unknown or pending result is returned as
@@ -905,19 +898,17 @@ public sealed class SendCaseReport(
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found."))
             with { History = history, ConfirmedArtifacts = confirmed };
 
-        // The plan is the one reading of the Principal's rules: staff's
-        // answers resolve its questions, a rule's Stop needs a stated reason,
-        // and each hold is ticked as done.
+        // The plan is the one reading of the Principal's rules: a rule's
+        // Stop needs a stated reason, and each hold is ticked as done.
         var now = timeProvider.GetUtcNow();
-        var plan = ReportDispatchPolicy.Plan(facts, request.Decisions ?? [], now);
+        var plan = ReportDispatchPolicy.Plan(facts, now);
         var overrideReason = string.IsNullOrWhiteSpace(request.StopOverrideReason)
             ? null
             : request.StopOverrideReason.Trim();
         // A caller that drew no form (the Automation Actor's pegasus_report_send)
-        // answers no question, ticks no hold and overrides no Stop, so it sends
-        // under the rules as they are now and is refused wherever they ask staff.
+        // ticks no hold and overrides no Stop, so it sends under the rules as
+        // they are now and is refused wherever they hold or stop the send.
         var drewNoForm = request.DispatchFingerprint is null
-            && request.Decisions is not { Count: > 0 }
             && request.AcknowledgedHolds is not { Count: > 0 }
             && overrideReason is null;
         CaseReportDeliveryPolicy.RequireDispatchDecided(
@@ -928,11 +919,10 @@ public sealed class SendCaseReport(
             request.AcknowledgedHolds);
 
         // The plan seeds the review only: what staff submitted is what the
-        // delivery is addressed to, once the rules' own copies and removals
-        // are applied to it.
-        var seeded = ReportDispatchPolicy.Plan(facts, [], now);
+        // delivery is addressed to, once the rules' removals are applied to
+        // it.
         var (review, _) = ReportDispatchPolicy.Reconcile(
-            plan, seeded, request.ReviewedRecipients ?? CaseReportDeliveryPolicy.SuggestedReview(seeded));
+            plan, request.ReviewedRecipients ?? CaseReportDeliveryPolicy.SuggestedReview(plan));
         var addressing = CaseReportDeliveryPolicy.ReviewedAddress(facts, review);
 
         // The generation's documents first, the report leading; then the
@@ -1035,7 +1025,6 @@ public sealed class SendCaseReport(
             TidiesCaseCorrespondence: request.TidiesCaseCorrespondence)
         {
             ReportDispatch = new(
-                request.Decisions ?? [],
                 plan.Holds,
                 plan.Stop,
                 plan.Stop is null ? null : overrideReason,

@@ -1259,9 +1259,9 @@ The dialog also shows what the Principal's report sending rules decided
 - the From choice, starting on the mailbox the instruction email arrived
   in; with no usable instruction email, on the Principal's Send from (R655);
 - a notice when a rule stops the delivery, with an Override reason box for
-  staff with casework. The box is also offered when only an answer below can
-  decide the Stop;
-- a Yes or No question for each undecided rule condition, each required;
+  staff with casework;
+- no question: the rules read the Case's own facts (operator, 12 November
+  2026; R1023);
 - To and Cc seeded from the plan, with one line naming what set the Cc and what
   was removed;
 - the Files rows, with required companions always ticked and

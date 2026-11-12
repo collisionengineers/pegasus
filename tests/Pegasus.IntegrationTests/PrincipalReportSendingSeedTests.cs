@@ -1,8 +1,10 @@
+using System.Data.Common;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Infrastructure.Persistence.Migrations;
 using Kind = Pegasus.Core.Reports.ReportSendingConditionKind;
 using RuleMatch = Pegasus.Core.Reports.ReportSendingRuleMatch;
 
@@ -27,11 +29,13 @@ public sealed class PrincipalReportSendingSeedTests
     /// <c>send_from</c> names the mailbox. A <c>source</c> condition is that
     /// Claim Source by name, except ACSP and CS: they are Principals only, so the
     /// instruction is matched on their <c>match</c> text
-    /// (a contact has one type since 13 October 2026). <c>bodyshop_mentions</c> and
-    /// <c>images_from</c> take the source's <c>match</c> text,
-    /// <c>report_status</c> is the Outcome, a nested <c>any</c> of one kind is
-    /// one condition with alternatives (AX) and <c>rate_card</c> is Rate card.
-    /// PCH's notes name its report.
+    /// (a contact has one type since 13 October 2026).
+    /// <c>report_status</c> is the Outcome and <c>rate_card</c> is Rate card.
+    /// PCH's notes name its report. Two rules no longer follow the YAML: its
+    /// <c>bodyshop_mentions</c> (AX) and <c>images_from</c> (YML) conditions
+    /// had no Case fact and were only ever asked of staff, so the operator
+    /// restated them on the Case's Repairer and Claim Source (12 November
+    /// 2026; R1023, R1025, R1026). The YAML stays as supplied evidence (R3).
     /// </summary>
     private static Dictionary<string, PrincipalReportSendingRules> SopRules(Func<string, string> claimSource)
     {
@@ -57,7 +61,10 @@ public sealed class PrincipalReportSendingSeedTests
                 Rules =
                 [
                     new(RuleMatch.All,
-                        [new(Kind.BodyshopMentions, ["Easdons"]), new(Kind.BodyshopMentions, ["Guardian", "James Claims"])],
+                        [
+                            new(Kind.Repairer, [SendingRulesReadCaseFacts.EasdonsBodyshopId]),
+                            new(Kind.ClaimSource, [claimSource("Guardian Accident Claims"), claimSource("James Claims")])
+                        ],
                         new([], ["p.mandy@oakwoodscotland.co.uk"]))
                 ]
             },
@@ -173,7 +180,7 @@ public sealed class PrincipalReportSendingSeedTests
             {
                 Rules =
                 [
-                    new(RuleMatch.All, [new(Kind.ImagesFrom, ["Swinton"])],
+                    new(RuleMatch.All, [new(Kind.ClaimSource, [claimSource("Swinton")])],
                         new([], [], Remind: "send Swinton a copy of the report on WhatsApp."))
                 ]
             }
@@ -288,6 +295,52 @@ public sealed class PrincipalReportSendingSeedTests
     }
 
     /// <summary>
+    /// The restatement of the retired kinds guesses at nothing (R1023): met a
+    /// second time it changes no rule, and a rule that names a retired kind
+    /// in any shape it does not know stops it, so that rule is restated by
+    /// hand and never dropped.
+    /// </summary>
+    [Fact]
+    public async Task TheRestatementChangesNothingTwiceAndRefusesARetiredKindItCannotRestate()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        // ExecuteSqlRaw reads braces as placeholders, and the rules are JSON.
+        var restate = SendingRulesReadCaseFacts.RestateSql
+            .Replace("{", "{{", StringComparison.Ordinal)
+            .Replace("}", "}}", StringComparison.Ordinal);
+        Task<string[]> StoredAsync() => context.Principals.AsNoTracking()
+            .OrderBy(principal => principal.Code)
+            .Select(principal => principal.ReportSendingRulesJson)
+            .ToArrayAsync();
+        var migrated = await StoredAsync();
+
+        await context.Database.ExecuteSqlRawAsync(restate);
+
+        Assert.Equal(migrated, await StoredAsync());
+
+        var unknown = EfOrganizationAdministration.DefaultReportSendingJson.Replace(
+            "\"rules\":[]",
+            "\"rules\":[{\"match\":\"All\",\"if\":[{\"kind\":\"ImagesFrom\",\"values\":[\"Garage\"]}],\"then\":{\"ccAdd\":[\"garage@principal.example\"],\"ccRemove\":[]}}]",
+            StringComparison.Ordinal);
+        Assert.Contains("ImagesFrom", unknown, StringComparison.Ordinal);
+        await context.Principals
+            .Where(principal => principal.Code == "WLS")
+            .ExecuteUpdateAsync(setters => setters.SetProperty(principal => principal.ReportSendingRulesJson, unknown));
+
+        var refused = await Assert.ThrowsAnyAsync<DbException>(() => context.Database.ExecuteSqlRawAsync(restate));
+
+        Assert.Contains("restate that rule on the Principal contact", refused.Message, StringComparison.Ordinal);
+        Assert.Equal(
+            unknown,
+            await context.Principals.AsNoTracking()
+                .Where(principal => principal.Code == "WLS")
+                .Select(principal => principal.ReportSendingRulesJson)
+                .SingleAsync());
+    }
+
+    /// <summary>
     /// The rules and TL threshold tables were derived from this file, so an
     /// edit to the SOP that does not regenerate them fails here. The file is
     /// compared with LF line endings, as committed.
@@ -377,13 +430,15 @@ public sealed class PrincipalReportSendingSeedTests
         string IdOf(string name) => Assert.Single(organizations.Values, item => item.Name == name).Id.ToString("D");
         PrincipalReportSendingRules Rules(string code) => principals[code].Rules;
 
-        // AX: the nested all/any flattens to Match All with two Bodyshop mentions conditions.
+        // AX: Repairer is Easdons Bodyshop and Claim Source is Guardian
+        // Accident Claims or James Claims (R1025).
         var ax = Assert.Single(Rules("AX").Rules);
         Assert.Equal(ReportSendingRuleMatch.All, ax.Match);
-        Assert.Equal(2, ax.If.Count);
-        Assert.All(ax.If, condition => Assert.Equal(ReportSendingConditionKind.BodyshopMentions, condition.Kind));
-        Assert.Equal(["Easdons"], ax.If[0].Values.ToArray());
-        Assert.Equal(["Guardian", "James Claims"], ax.If[1].Values.ToArray());
+        Assert.Equal(
+            [ReportSendingConditionKind.Repairer, ReportSendingConditionKind.ClaimSource],
+            ax.If.Select(condition => condition.Kind).ToArray());
+        Assert.Equal([IdOf("Easdons Bodyshop")], ax.If[0].Values.ToArray());
+        Assert.Equal([IdOf("Guardian Accident Claims"), IdOf("James Claims")], ax.If[1].Values.ToArray());
         Assert.Equal("p.mandy@oakwoodscotland.co.uk", Assert.Single(ax.Then.CcRemove));
         Assert.Equal(2, Rules("AX").SendTo.Count);
         Assert.False(Rules("AX").Attach.FeeNoteSeparate);
@@ -395,6 +450,12 @@ public sealed class PrincipalReportSendingSeedTests
             "CarClaims job. This needs checking with Andy before it is sent.",
             Rules("DFD").Rules[2].Then.Stop);
         Assert.Equal([IdOf("CarClaims")], Rules("DFD").Rules[2].If[0].Values.ToArray());
+
+        // YML: Claim Source is Swinton (R1026).
+        var yml = Assert.Single(Rules("YML").Rules);
+        Assert.Equal(ReportSendingConditionKind.ClaimSource, Assert.Single(yml.If).Kind);
+        Assert.Equal([IdOf("Swinton")], yml.If[0].Values.ToArray());
+        Assert.Equal("send Swinton a copy of the report on WhatsApp.", yml.Then.Remind);
 
         // CS has no instruction e-mail, so it names its mailbox.
         Assert.Equal("engineers@collisionengineers.co.uk", Rules("CS").SendFromMailbox);

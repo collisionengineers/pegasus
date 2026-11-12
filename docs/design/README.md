@@ -777,9 +777,10 @@ them named "prepare" when they were approved and were reworded to "send" when
 delivery became one step; they are on the next design sign-off.
 
 A Report sending rule offers its conditions in one order: Claim Source,
-Repairer, Images from, Instruction mentions, Sender is not, Outcome, Bodyshop
-mentions, then Case type (operator, 13 October 2026), then Reference prefix
-and Previous job (Report Sending SOP v8; operator, 16 October 2026). Outcome
+Repairer, Instruction mentions, Sender is not, Outcome,
+then Case type (operator, 13 October 2026), then Reference prefix
+and Previous job (Report Sending SOP v8; operator, 16 October 2026; Images
+from and Bodyshop mentions retired 12 November 2026, R1023). Outcome
 and Case type are each a choice of their values; Case type names them as the
 Cases list does: Inspection, Audit, Inspection and audit. A refused rule says
 "choose a case type from the list", as it says "choose an outcome from the

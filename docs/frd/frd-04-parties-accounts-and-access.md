@@ -248,19 +248,19 @@ The Principal section of a Contact carries:
     Case's Claim Source or Repairer (a Contact of that type), the recorded
     outcome, the Case type (Inspection, Audit or Inspection and audit;
     operator, 13 October 2026), who sent the instruction, or words: "Instruction mentions" is
-    searched for in the instruction e-mail and asked only when the Case
-    holds no instruction text. Reference prefix holds when the report's
+    searched for in the instruction e-mail. Reference prefix holds when the report's
     reference starts with its letters and a dot (`a.PCH26118` has the
     prefix `a`). Previous job holds when another Case of the same Principal
-    with the same vehicle registration already has a sent report. Neither is
-    asked (operator, 16 October 2026). Several values in one condition are
+    with the same vehicle registration already has a sent report
+    (operator, 16 October 2026). Several values in one condition are
     alternatives. A Case type of Inspection or Audit matches the report being
     sent, which on an Inspection + Audit Case is its Inspection or Audit view
     (a send carrying both reports is the view it is sent from), and Inspection
-    and audit matches either report (operator, 13 October 2026). "Images
-    from" and "Bodyshop mentions" have no Case fact. A
-    rule whose fact is not yet known is undecided, and the delivery form
-    asks staff at delivery.
+    and audit matches either report (operator, 13 October 2026). Every
+    condition reads a fact the Case holds, and a fact the Case has not set
+    means the condition does not hold; the delivery form asks staff nothing
+    (operator, 12 November 2026; R1023, R1024). "Images from" and "Bodyshop
+    mentions" had no Case fact and are retired (R1025, R1026).
 
   No text in the rules has a length limit. A refused save names the rule and
   the problem and keeps what was typed. A Principal the SOP does not name,

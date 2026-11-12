@@ -807,12 +807,11 @@ public sealed partial class AssessmentReportDraftWebTests
     /// One step (operator, 6 October 2026): the delivery form's fields reach
     /// the send under the server's actor, the held lease and the form's own
     /// operation key, with what the Principal's rules asked of staff on the
-    /// same form: the fingerprint the form was drawn from, each answer posted
-    /// as decision-{rule}-{condition}, the ticked holds and the reason for
-    /// overriding a Stop. A field that is not an answer is not read as one.
+    /// same form: the fingerprint the form was drawn from, the ticked holds
+    /// and the reason for overriding a Stop.
     /// </summary>
     [Fact]
-    public async Task SendReportCarriesTheAnswersTheTickedHoldsAndTheOverrideReason()
+    public async Task SendReportCarriesTheTickedHoldsAndTheOverrideReason()
     {
         using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
@@ -840,10 +839,6 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("coveringMessage", "Edited by staff."),
                 ("toRecipients", "reviewed@recipient.example"),
                 ("dispatchFingerprint", "FORM-FINGERPRINT"),
-                ("decision-0-0", "true"),
-                ("decision-1-2", "false"),
-                ("decision-x-y", "true"),
-                ("decision-2-0", "maybe"),
                 ("stopOverrideReason", "Agreed by phone."),
                 ("holdsDone", "Authorise the garage."),
                 ("holdsDone", "Check the WhatsApp group.")));
@@ -851,9 +846,6 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var request = Assert.Single(send.Requests);
         Assert.Equal("FORM-FINGERPRINT", request.DispatchFingerprint);
-        Assert.Equal(
-            [new ReportRuleDecision(0, 0, true), new ReportRuleDecision(1, 2, false)],
-            request.Decisions!.OrderBy(decision => decision.RuleIndex).ToArray());
         Assert.Equal("Agreed by phone.", request.StopOverrideReason);
         Assert.Equal(["Authorise the garage.", "Check the WhatsApp group."], request.AcknowledgedHolds);
         Assert.False(request.TidiesCaseCorrespondence);
@@ -961,12 +953,14 @@ public sealed partial class AssessmentReportDraftWebTests
     /// <summary>
     /// The delivery form follows the Principal's rules as one plan: it says
     /// when the work's report was already sent and from which mailbox this
-    /// one leaves, asks each question the Case cannot answer as a Yes/No
-    /// pair, offers an override reason for a Stop an answer could still
-    /// apply, seeds To and Cc from the plan and says what set the Cc and what
-    /// the rules removed, states its warnings and what staff do after sending,
-    /// and gives each hold its Done tick. The form carries the fingerprint it
-    /// was drawn from. There is no Prepare step and no Still to do list.
+    /// one leaves, seeds To and Cc from the plan and says what set the Cc and
+    /// what the rules removed, states its warnings and what staff do after
+    /// sending, and gives each hold its Done tick. It asks nothing (operator,
+    /// 12 November 2026; R1023, R1024): a rule whose fact the Case has not
+    /// set, here the instruction's text and the Claim Source, does not apply,
+    /// so neither its copy, its hold nor its Stop is on the form. The form
+    /// carries the fingerprint it was drawn from. There is no Prepare step
+    /// and no Still to do list.
     /// </summary>
     [Fact]
     public async Task TheDeliveryFormFollowsThePrincipalsRules()
@@ -989,7 +983,7 @@ public sealed partial class AssessmentReportDraftWebTests
                         [new(ReportSendingConditionKind.Mentions, ["Luton"])],
                         new(["luton@principal.example"], [])),
                     new(ReportSendingRuleMatch.All,
-                        [new(ReportSendingConditionKind.ImagesFrom, ["Garage"])],
+                        [new(ReportSendingConditionKind.ClaimSource, [Guid.NewGuid().ToString("D")])],
                         new([], [], Hold: "Check the images.", Stop: "Images must come from the assessor."))
                 ]
             },
@@ -1038,17 +1032,9 @@ public sealed partial class AssessmentReportDraftWebTests
             $"<option value=\"{desk.Id:D}\">desk@collisionengineers.example</option>",
             from.Groups["options"].Value,
             StringComparison.Ordinal);
-        // The Stop is only possible until the images question is answered.
-        Assert.DoesNotContain("data-report-stop>", form, StringComparison.Ordinal);
-        Assert.DoesNotContain("required", InputTag(form, "data-report-stop-override"), StringComparison.Ordinal);
-        Assert.Equal(2, Regex.Count(form, "data-report-question"));
-        Assert.Contains("Does the instruction mention \"Luton\"?", form, StringComparison.Ordinal);
-        Assert.Contains("Are the images from Garage?", form, StringComparison.Ordinal);
-        foreach (var name in new[] { "decision-0-0", "decision-1-0" })
-        {
-            Assert.Contains($"<input type=\"radio\" name=\"{name}\" value=\"true\" required />", form, StringComparison.Ordinal);
-            Assert.Contains($"<input type=\"radio\" name=\"{name}\" value=\"false\" required />", form, StringComparison.Ordinal);
-        }
+        // Neither rule applies, so nothing is stopped and nothing is asked.
+        Assert.DoesNotContain("data-report-stop", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-question", form, StringComparison.Ordinal);
         Assert.Equal(["handler@principal.example"], InputValues(form, "toRecipients"));
         Assert.Equal(["copy@principal.example", "office@principal.example"], InputValues(form, "ccRecipients"));
         Assert.Contains(
@@ -1072,13 +1058,10 @@ public sealed partial class AssessmentReportDraftWebTests
             "<input type=\"checkbox\" name=\"holdsDone\" value=\"Authorise the garage.\" required data-report-hold />",
             form,
             StringComparison.Ordinal);
-        // The images rule's hold is offered with its tick, not yet required.
-        Assert.Contains(
-            "<input type=\"checkbox\" name=\"holdsDone\" value=\"Check the images.\" data-report-hold />",
-            form,
-            StringComparison.Ordinal);
-        // Each hold and its Done tick share one line (v41 K2).
-        Assert.Equal(2, Regex.Count(form, "<div class=\"cluster\" data-report-hold-row>"));
+        // The Claim Source rule's hold is not offered: its rule does not apply.
+        Assert.DoesNotContain("Check the images.", form, StringComparison.Ordinal);
+        // The hold and its Done tick share one line (v41 K2).
+        Assert.Equal(1, Regex.Count(form, "<div class=\"cluster\" data-report-hold-row>"));
         Assert.Equal(facts.Fingerprint, InputValue(form, "dispatchFingerprint"));
         Assert.Contains(
             $">{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendReport}<",
@@ -1506,9 +1489,8 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal("copy@recipient.example", Assert.Single(request.ReviewedRecipients.Cc));
         Assert.Null(request.SecondReport);
         Assert.Equal(CaseWorkSelector.Current, request.Work);
-        // A form that asked nothing posts no answers, holds or reason.
+        // A form with no hold and no Stop posts no holds or reason.
         Assert.Null(request.DispatchFingerprint);
-        Assert.Empty(request.Decisions!);
         Assert.Empty(request.AcknowledgedHolds!);
         Assert.Null(request.StopOverrideReason);
     }

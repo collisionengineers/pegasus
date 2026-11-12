@@ -1476,7 +1476,7 @@ public sealed partial class DetailsModel(
                         .Select(artifact => artifact.Kind) ?? []
                 ]
             };
-            DeliveryDispatchPlan = ReportDispatchPolicy.Plan(DeliveryRecipientSuggestions, [], clock.GetUtcNow());
+            DeliveryDispatchPlan = ReportDispatchPolicy.Plan(DeliveryRecipientSuggestions, clock.GetUtcNow());
         }
         ReportAddressBook = DeliveryRecipientSuggestions is { } addressBook
             ? CaseReportDeliveryPolicy.AddressBook(addressBook)
@@ -3278,29 +3278,6 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// Staff's answers to the questions the Principal's rules ask: one radio
-    /// pair per question, named <c>decision-{rule}-{condition}</c> with the
-    /// value true or false.
-    /// </summary>
-    private List<ReportRuleDecision> PostedReportDecisions()
-    {
-        var decisions = new List<ReportRuleDecision>();
-        foreach (var key in Request.Form.Keys)
-        {
-            var parts = key.Split('-');
-            if (parts.Length == 3
-                && parts[0] == "decision"
-                && int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var rule)
-                && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var condition)
-                && bool.TryParse(Request.Form[key].ToString(), out var holds))
-            {
-                decisions.Add(new(rule, condition, holds));
-            }
-        }
-        return decisions;
-    }
-
-    /// <summary>
     /// Sends the current generation's report in one step (operator, 6 October
     /// 2026): the staff-reviewed recipients, the documents chosen and the
     /// message submitted go to A's staff send transport under this form's
@@ -3376,7 +3353,6 @@ public sealed partial class DetailsModel(
                             PostedAttachmentNames("secondFileName"))
                         : null,
                     DispatchFingerprint: dispatchFingerprint,
-                    Decisions: PostedReportDecisions(),
                     AcknowledgedHolds: holdsDone ?? [],
                     StopOverrideReason: stopOverrideReason,
                     // The subject and the documents' names as staff left them

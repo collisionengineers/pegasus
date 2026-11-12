@@ -4335,7 +4335,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
             ObservedSentAtUtc = now.AddMinutes(-1),
             // What the send recorded, as the staff-mail store writes it.
             ReportDispatchJson = System.Text.Json.JsonSerializer.Serialize(
-                new Pegasus.Core.Reports.ReportDispatchRecord([], [], null, null, afterSendTasks),
+                new Pegasus.Core.Reports.ReportDispatchRecord([], null, null, afterSendTasks),
                 System.Text.Json.JsonSerializerOptions.Web),
             Version = 3,
             ConcurrencyToken = Guid.NewGuid()

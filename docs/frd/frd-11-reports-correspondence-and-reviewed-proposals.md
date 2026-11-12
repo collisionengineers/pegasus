@@ -573,22 +573,24 @@ same click as Send report (operator, 4 November 2026, R665).
   type of Inspection or Audit reads the report being sent, which on an
   Inspection + Audit Case is the view it is sent from (a send carrying both
   reports counts as that view), and Inspection and audit holds for either
-  report (operator, 13 October 2026). A rule is true,
-  false or undecided. With All, any false condition makes it false, else any
-  undecided one leaves it undecided. With Any, any true condition makes it
-  true, else any undecided one leaves it undecided. A fact the Case has not set
-  leaves its condition undecided. "Instruction mentions" is searched for in the
-  instruction e-mail's subject and text, ignoring case and spaces, and is
-  undecided only when the Case holds no instruction text. "Images from" and
-  "Bodyshop mentions" have no Case fact, so they are always undecided.
+  report (operator, 13 October 2026). A rule is true or
+  false: with All every condition holds, with Any at least one does. A fact
+  the Case has not set means its condition does not hold, so a rule on a Claim
+  Source or a Repairer applies only once the Case has that contact, from its
+  instruction or set by staff on the Case record (operator, 12 November 2026;
+  R1023, R1024). "Instruction mentions" is searched for in the
+  instruction e-mail's subject and text, ignoring case and spaces, and does
+  not hold when the Case holds no instruction text.
   "Reference prefix" reads the report's reference (`a.PCH26118` has the
   prefix `a`), and "Previous job" whether another Case of the same Principal
-  with the same vehicle registration already has a sent report; neither is
-  ever undecided (operator, 16 October 2026).
-- **Questions.** Each undecided condition of an undecided rule is a Yes or No
-  question on the delivery form. An answer settles it for that send only, and
-  never overrides a fact the Case holds. Send report is refused until every
-  question is answered. A copy that an answer adds is sent to.
+  with the same vehicle registration already has a sent report (operator, 16
+  October 2026). "Images from" and "Bodyshop mentions", which no Case fact
+  answered, are retired: AX's rule reads the Repairer and the Claim Source,
+  and YML's the Claim Source (R1025, R1026).
+- **No questions.** The form asks staff nothing about the rules (operator, 12
+  November 2026; R1023). What a rule reads is on the Case record, where staff
+  set or correct it before sending; the Cc line on the form names each rule
+  that added or removed a copy.
 - **Holds.** The Principal's hold and the hold of each rule that holds are
   ticked Done on the form, and Core refuses the send otherwise. The send
   records them.
@@ -630,8 +632,8 @@ same click as Send report (operator, 4 November 2026, R665).
   outcome and the instruction text). If any changed since, the send is refused
   and the form is read again. A send drawn from no form, as the Automation
   actor's `pegasus_report_send` is, is planned from the rules as they are now:
-  it answers no question, ticks no hold and overrides no Stop, so it is refused
-  wherever the rules ask staff.
+  it ticks no hold and overrides no Stop, so it is refused wherever the rules
+  hold or stop the send.
 - **Other mail on the instruction.** A report send is never held up by another
   unfinished message on the same instruction, and never holds one up.
 

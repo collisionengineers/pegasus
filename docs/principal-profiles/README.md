@@ -52,6 +52,10 @@ alone never activates one. Record actual evidence gaps without inventing rules.
 `sop-guides/` holds the operator-supplied standard operating procedure
 documents as received. They are business evidence for review, not behaviour
 owners; the owning FRD, ADR, or Core policy still wins on any disagreement.
+The live report sending rules differ from the Report sending SOP's YAML for
+two Principals by the operator's ruling of 12 November 2026: AX's
+`bodyshop_mentions` rule reads the Case's Repairer and Claim Source, and
+YML's `images_from` rule the Claim Source (R1025, R1026).
 
 | Guide | File |
 | --- | --- |
