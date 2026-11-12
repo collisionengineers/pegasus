@@ -3797,7 +3797,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
     }
 
     [Fact]
-    public async Task AnInstructionDraftsAccidentCircumstancesWinOverTheConfirmedField()
+    public async Task ConfirmedAccidentCircumstancesReadBeforeTheInstructionDrafts()
     {
         await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         await using (var context = await harness.Factory.CreateDbContextAsync())
@@ -3812,7 +3812,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         }
         ICaseCircumstancesQueries circumstances = harness.QueryStore;
 
-        Assert.Equal("Struck on the roundabout", await circumstances.GetAsync(harness.CaseId, default));
+        Assert.Equal("Rear-ended at lights", await circumstances.GetAsync(harness.CaseId, default));
     }
 
     private static Task<int> InsertConfirmedCircumstancesAsync(PegasusDbContext context, Guid caseId, string text) =>
