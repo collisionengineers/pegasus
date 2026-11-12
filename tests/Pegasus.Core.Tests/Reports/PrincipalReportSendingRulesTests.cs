@@ -198,13 +198,11 @@ public sealed class PrincipalReportSendingRulesTests
             Rules =
             [
                 Rule(ReportSendingConditionKind.Mentions, [" Luton ", "luton"]),
-                Rule(ReportSendingConditionKind.ImagesFrom, ["Swinton"]),
-                Rule(ReportSendingConditionKind.BodyshopMentions, [" Guardian ", "guardian", "James Claims"])
+                Rule(ReportSendingConditionKind.Mentions, [" Guardian ", "guardian", "James Claims"])
             ]
         });
         Assert.Equal("Luton", Assert.Single(Assert.Single(text.Rules[0].If).Values));
-        Assert.Equal("Swinton", Assert.Single(Assert.Single(text.Rules[1].If).Values));
-        Assert.Equal(["Guardian", "James Claims"], Assert.Single(text.Rules[2].If).Values.ToArray());
+        Assert.Equal(["Guardian", "James Claims"], Assert.Single(text.Rules[1].If).Values.ToArray());
 
         var longText = new string('x', 501);
         Assert.Equal(

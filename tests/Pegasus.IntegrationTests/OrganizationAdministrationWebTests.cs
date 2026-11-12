@@ -344,11 +344,14 @@ public sealed partial class OrganizationAdministrationWebTests
         // One spare blank rule; the claim source list offers a seeded source.
         Assert.Equal(1, Regex.Count(html, "name=\"RuleIndex\""));
         Assert.Contains(">Car 2 Go</option>", html, StringComparison.Ordinal);
-        Assert.Contains("<option value=\"BodyshopMentions\">Bodyshop mentions</option>", html, StringComparison.Ordinal);
-        // Case type follows Bodyshop mentions, a choice of the types that send a report (13 October 2026);
+        // Every condition reads a fact the Case holds: the two kinds that were only ever asked of
+        // staff are gone (operator, 12 November 2026; R1023).
+        Assert.DoesNotContain("BodyshopMentions", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("ImagesFrom", html, StringComparison.Ordinal);
+        // Case type follows Outcome, a choice of the types that send a report (13 October 2026);
         // Reference prefix and Previous job follow it (Report Sending SOP v8).
         Assert.Matches(
-            $@"<option value=""BodyshopMentions"">Bodyshop mentions</option>\s*<option value=""CaseType"">Case type</option>\s*<option value=""RefPrefix"">{OperatorLabels.PrincipalAdministration.ConditionKind(ReportSendingConditionKind.RefPrefix)}</option>\s*<option value=""PreviousJob"">{OperatorLabels.PrincipalAdministration.ConditionKind(ReportSendingConditionKind.PreviousJob)}</option>\s*</select>",
+            $@"<option value=""Outcome"">Outcome</option>\s*<option value=""CaseType"">Case type</option>\s*<option value=""RefPrefix"">{OperatorLabels.PrincipalAdministration.ConditionKind(ReportSendingConditionKind.RefPrefix)}</option>\s*<option value=""PreviousJob"">{OperatorLabels.PrincipalAdministration.ConditionKind(ReportSendingConditionKind.PreviousJob)}</option>\s*</select>",
             html);
         Assert.Matches(@"<option value=""Inspection"">Inspection</option>\s*<option value=""Audit"">Audit</option>\s*<option value=""InspectionAndAudit"">Inspection and audit</option>", html);
         Assert.Contains("Send is refused; staff may override with a reason.", html, StringComparison.Ordinal);
@@ -389,7 +392,7 @@ public sealed partial class OrganizationAdministrationWebTests
                 new("RuleIndex", "0"), new("Rule0Match", "Any"),
                 new("Rule0Cond0Kind", "Outcome"), new("Rule0Cond0Outcome", "repairable"),
                 new("Rule0Cond1Kind", "Mentions"), new("Rule0Cond1Text", "Luton, Dunstable"),
-                new("Rule0Cond2Kind", "BodyshopMentions"), new("Rule0Cond2Text", "Easdons, James Claims"),
+                new("Rule0Cond2Kind", "RefPrefix"), new("Rule0Cond2Text", "a, b"),
                 new("Rule0CcAdd", "x@example.com, y@example.com"), new("Rule0Stop", "Check with Andy."),
                 new("RuleIndex", "1"), new("Rule1Match", "All"), new("Rule1Cond0Kind", "")
             ]));
@@ -410,7 +413,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Contains("value=\"to@example.com\"", reloaded, StringComparison.Ordinal);
         Assert.Contains("value=\"Check first.\"", reloaded, StringComparison.Ordinal);
         Assert.Contains("value=\"Luton, Dunstable\"", reloaded, StringComparison.Ordinal);
-        Assert.Contains("value=\"Easdons, James Claims\"", reloaded, StringComparison.Ordinal);
+        Assert.Contains("value=\"a, b\"", reloaded, StringComparison.Ordinal);
         Assert.Contains("value=\"x@example.com, y@example.com\"", reloaded, StringComparison.Ordinal);
         // What a report is called is no sending rule (R740).
         Assert.DoesNotContain("RsName", reloaded, StringComparison.Ordinal);

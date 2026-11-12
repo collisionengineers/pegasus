@@ -40,8 +40,8 @@ public sealed class CaseReportDeliveryPersistenceTests
 
     /// <summary>
     /// A Principal whose rules hold every send until the garage is
-    /// authorised, remind staff to send the WhatsApp, and stop a send whose
-    /// images came from the garage, which only staff can say.
+    /// authorised, remind staff to send the WhatsApp, and stop the send of an
+    /// Inspection report, which every Case here is.
     /// </summary>
     private static readonly PrincipalReportSendingRules HeldRules = PrincipalReportSendingRules.Default with
     {
@@ -50,7 +50,18 @@ public sealed class CaseReportDeliveryPersistenceTests
         Rules =
         [
             new(ReportSendingRuleMatch.All,
-                [new(ReportSendingConditionKind.ImagesFrom, ["Garage"])],
+                [new(ReportSendingConditionKind.CaseType, ["Inspection"])],
+                new([], [], Remind: "Chase the images.", Stop: StopText))
+        ]
+    };
+
+    /// <summary>The same rules with a Stop no Case here meets: its rule names the Audit report.</summary>
+    private static readonly PrincipalReportSendingRules HeldRulesWithNoStop = HeldRules with
+    {
+        Rules =
+        [
+            new(ReportSendingRuleMatch.All,
+                [new(ReportSendingConditionKind.CaseType, ["Audit"])],
                 new([], [], Remind: "Chase the images.", Stop: StopText))
         ]
     };
@@ -474,12 +485,11 @@ public sealed class CaseReportDeliveryPersistenceTests
     }
 
     /// <summary>
-    /// The instruction's own text answers a rule that asks whether it
-    /// mentions something, so staff are not asked and the copy the rule adds
-    /// is made.
+    /// The instruction's own text meets a rule that reads whether it
+    /// mentions something, so the copy the rule adds is made.
     /// </summary>
     [Fact]
-    public async Task AnInstructionThatMentionsARulesTextAnswersItsQuestion()
+    public async Task AnInstructionThatMentionsARulesTextMeetsItsCondition()
     {
         await using var harness = await Harness.CreateAsync(PrincipalReportSendingRules.Default with
         {
@@ -495,29 +505,26 @@ public sealed class CaseReportDeliveryPersistenceTests
         var command = await harness.SendAsync(harness.Request() with { ReviewedRecipients = null });
 
         Assert.Equal("carclaims@principal.example", Assert.Single(command.Mail.Cc).Address);
-        Assert.Empty(command.Mail.ReportDispatch!.Decisions);
     }
 
     /// <summary>
     /// The send records what staff decided on the form with its operation:
-    /// their answers, the holds they ticked, the Stop they overrode with its
-    /// reason, and the after-send list, which the prepared operation stores
-    /// as its report dispatch.
+    /// the holds they ticked, the Stop they overrode with its reason, and the
+    /// after-send list, which the prepared operation stores as its report
+    /// dispatch. It holds no answers: the rules ask none (R1023).
     /// </summary>
     [Fact]
-    public async Task TheSendRecordsTheAnswersTheHoldsTheOverriddenStopAndTheAfterSendTasks()
+    public async Task TheSendRecordsTheHoldsTheOverriddenStopAndTheAfterSendTasks()
     {
         await using var harness = await Harness.CreateAsync(HeldRules);
 
         var command = await harness.SendAsync(harness.Request() with
         {
-            Decisions = [new ReportRuleDecision(0, 0, true)],
             AcknowledgedHolds = [HoldText],
             StopOverrideReason = "  Agreed by phone.  "
         });
 
         var dispatch = command.Mail.ReportDispatch!;
-        Assert.Equal([new ReportRuleDecision(0, 0, true)], dispatch.Decisions);
         Assert.Equal([HoldText], dispatch.Holds);
         Assert.Equal(StopText, dispatch.StopOverridden);
         Assert.Equal("Agreed by phone.", dispatch.StopOverrideReason);
@@ -527,10 +534,7 @@ public sealed class CaseReportDeliveryPersistenceTests
 
         using var stored = JsonDocument.Parse(row.ReportDispatchJson!);
         var root = stored.RootElement;
-        var decision = Assert.Single(root.GetProperty("decisions").EnumerateArray());
-        Assert.Equal(0, decision.GetProperty("ruleIndex").GetInt32());
-        Assert.Equal(0, decision.GetProperty("conditionIndex").GetInt32());
-        Assert.True(decision.GetProperty("holds").GetBoolean());
+        Assert.False(root.TryGetProperty("decisions", out _));
         Assert.Equal(HoldText, Assert.Single(root.GetProperty("holds").EnumerateArray()).GetString());
         Assert.Equal(StopText, root.GetProperty("stopOverridden").GetString());
         Assert.Equal("Agreed by phone.", root.GetProperty("stopOverrideReason").GetString());
@@ -546,11 +550,10 @@ public sealed class CaseReportDeliveryPersistenceTests
     [Fact]
     public async Task AStopThatDoesNotApplyRecordsNoOverride()
     {
-        await using var harness = await Harness.CreateAsync(HeldRules);
+        await using var harness = await Harness.CreateAsync(HeldRulesWithNoStop);
 
         var command = await harness.SendAsync(harness.Request() with
         {
-            Decisions = [new ReportRuleDecision(0, 0, false)],
             AcknowledgedHolds = [HoldText],
             StopOverrideReason = "Agreed by phone."
         });
@@ -563,34 +566,29 @@ public sealed class CaseReportDeliveryPersistenceTests
 
     /// <summary>
     /// Core refuses the send, and the transport is never reached, when the
-    /// form was drawn from rules that have since changed, a question is
-    /// unanswered, a Stop that applies has no reason, or a hold is not ticked.
+    /// form was drawn from rules that have since changed, a Stop that applies
+    /// has no reason, or a hold is not ticked.
     /// </summary>
     [Fact]
-    public async Task TheSendIsRefusedUntilTheFormIsCurrentAnsweredOverriddenAndTicked()
+    public async Task TheSendIsRefusedUntilTheFormIsCurrentOverriddenAndTicked()
     {
         await using var harness = await Harness.CreateAsync(HeldRules);
-        var answered = harness.Request() with
+        var complete = harness.Request() with
         {
-            Decisions = [new ReportRuleDecision(0, 0, true)],
             AcknowledgedHolds = [HoldText],
             StopOverrideReason = "Agreed by phone."
         };
 
         Assert.StartsWith(
-            "Answer every question",
-            await harness.RefusalAsync(answered with { Decisions = [] }),
-            StringComparison.Ordinal);
-        Assert.StartsWith(
             $"This delivery is stopped: {StopText}",
-            await harness.RefusalAsync(answered with { StopOverrideReason = " " }),
+            await harness.RefusalAsync(complete with { StopOverrideReason = " " }),
             StringComparison.Ordinal);
         Assert.StartsWith(
             "Tick Done against every hold",
-            await harness.RefusalAsync(answered with { AcknowledgedHolds = [] }),
+            await harness.RefusalAsync(complete with { AcknowledgedHolds = [] }),
             StringComparison.Ordinal);
 
-        var drawn = answered with { DispatchFingerprint = await harness.FingerprintAsync() };
+        var drawn = complete with { DispatchFingerprint = await harness.FingerprintAsync() };
         await harness.SetRulesAsync(HeldRules with { Hold = "Check the WhatsApp group." });
 
         Assert.Equal(CaseReportDeliveryPolicy.DispatchChanged, await harness.RefusalAsync(drawn));

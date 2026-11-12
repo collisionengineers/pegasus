@@ -153,14 +153,9 @@ public sealed class EfReportRecipientSuggestionQueries(
             && CaseRegistration.Normalize(registration) is { } vehicle
             && await PreviousJobAsync(context, caseId, row.PrincipalId, vehicle, cancellationToken);
 
-        // The names of the contacts the Case chose and the rules mention.
-        var contactIds = rules.Rules
-            .SelectMany(rule => rule.If)
-            .Where(condition => condition.Kind is ReportSendingConditionKind.ClaimSource or ReportSendingConditionKind.Repairer)
-            .SelectMany(condition => condition.Values)
-            .Select(value => Guid.TryParse(value, out var id) ? id : Guid.Empty)
-            .Concat([claimSourceId ?? Guid.Empty, repairerId ?? Guid.Empty])
-            .Where(id => id != Guid.Empty)
+        // The names of the contacts the Case chose, for the rule labels.
+        var contactIds = new[] { claimSourceId, repairerId }
+            .OfType<Guid>()
             .Distinct()
             .ToArray();
         var names = contactIds.Length == 0
@@ -191,7 +186,6 @@ public sealed class EfReportRecipientSuggestionQueries(
             ReportWork = workKind,
             InstructionText = instructionText,
             FiledEstimates = await EfFiledEstimateAttachmentQueries.ReadAsync(context, caseId, cancellationToken),
-            ContactNames = names,
             PreviousJob = previousJob
         };
     }

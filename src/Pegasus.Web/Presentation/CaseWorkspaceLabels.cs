@@ -1185,9 +1185,6 @@ public static class CaseWorkspaceLabels
         public const string From = "From";
         public const string Stopped = "Stopped";
         public const string OverrideReason = "Override reason";
-        public const string Questions = "Answer before sending";
-        public const string Yes = "Yes";
-        public const string No = "No";
         public const string RequiredForPrincipal = "(required for this Principal)";
         public const string FiledEstimate = "Filed estimate";
         public const string AfterSending = "After sending";

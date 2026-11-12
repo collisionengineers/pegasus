@@ -2007,7 +2007,7 @@ public sealed class StaffMailSendPersistenceTests
         ReplyCommand(actor, mailboxId, retainedMessageId, operationKey) with
         {
             Purpose = StaffMailPurpose.CaseReport,
-            ReportDispatch = new([], [], null, null, ["Send the WhatsApp."])
+            ReportDispatch = new([], null, null, ["Send the WhatsApp."])
         };
 
     private static void AssertOperationContext(
