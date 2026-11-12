@@ -301,6 +301,80 @@ public sealed partial class StandingCaptureWebTests
     }
 
     /// <summary>
+    /// The Standing links list cuts its page before it evaluates a capture
+    /// (#2088). Pages laid end to end are the whole list in SQL Server's own
+    /// order, which decides between captures made at the same instant and is
+    /// never re-sorted in memory; the search and the standing link filter
+    /// apply before the cut, so the total is what they match and not what a
+    /// page holds.
+    /// </summary>
+    [Fact]
+    public async Task TheStandingLinksListSearchesAndCountsBeforeItCutsAPageAndKeepsItsOrderAcrossPages()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var contact = await StandingCaptureDriver.CreateContactLinkAsync(factory);
+        var contactName = contact.OrganizationName
+            ?? throw new InvalidOperationException("The contact's link carries no contact name.");
+        StandingPhotoLink website;
+        await using (var setup = factory.Services.CreateAsyncScope())
+        {
+            website = await setup.ServiceProvider.GetRequiredService<StandingPhotoLinkAdministration>()
+                .CreateWebsiteAsync(Administrator, Guid.NewGuid().ToString("N"), "ce-vehicle-photos", CancellationToken.None);
+        }
+
+        var first = await StandingCaptureDriver.StartAsync(factory, client, contact, "ZZ91 AAA");
+        var second = await StandingCaptureDriver.StartAsync(factory, client, contact, "ZZ92 BBB");
+        var third = await StandingCaptureDriver.StartAsync(factory, client, contact, "ZZ93 CCC");
+        var onWebsite = await StandingCaptureDriver.StartAsync(factory, client, website, "ZZ94 DDD");
+        Guid[] expectedOrder;
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            expectedOrder = await db.PhotoCaptures.AsNoTracking()
+                .OrderByDescending(value => value.CreatedAtUtc)
+                .ThenByDescending(value => value.Id)
+                .Select(value => value.Id)
+                .ToArrayAsync();
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IPhotoCaptureQueries>();
+        Task<PhotoCaptureListPage> ListAsync(string? search, Guid? standingLinkId, int pageSize, int page) =>
+            queries.ListAsync(new(false, search, PhotoCaptureScope.All, standingLinkId, pageSize, page), CancellationToken.None);
+        static Guid[] Ids(PhotoCaptureListPage page) => [.. page.Rows.Select(row => row.Capture.Id)];
+
+        var whole = await ListAsync(null, null, 100, 1);
+        var pageOne = await ListAsync(null, null, 3, 1);
+        var pageTwo = await ListAsync(null, null, 3, 2);
+        var pastTheEnd = await ListAsync(null, null, 3, 3);
+        Guid[] started = [first.Capture.Id, second.Capture.Id, third.Capture.Id, onWebsite.Capture.Id];
+        Assert.Equal(started.Order(), expectedOrder.Order());
+        Assert.Equal(expectedOrder, Ids(whole));
+        Assert.Equal(expectedOrder, Ids(pageOne).Concat(Ids(pageTwo)));
+        Assert.Equal(3, pageOne.Rows.Count);
+        Assert.Empty(pastTheEnd.Rows);
+        Assert.All(
+            new[] { whole, pageOne, pageTwo, pastTheEnd },
+            listed => Assert.Equal(started.Length, listed.TotalCount));
+
+        // The registration typed without its space, in another case.
+        var byRegistration = await ListAsync("zz92bbb", null, 3, 1);
+        Assert.Equal(second.Capture.Id, Assert.Single(byRegistration.Rows).Capture.Id);
+        Assert.Equal(1, byRegistration.TotalCount);
+
+        // The contact's name in another case: its three captures, two to the page.
+        var byContact = await ListAsync(contactName.ToUpperInvariant(), null, 2, 1);
+        Assert.Equal(3, byContact.TotalCount);
+        Assert.Equal(2, byContact.Rows.Count);
+        Assert.All(byContact.Rows, row => Assert.Equal(contact.Id, row.Capture.StandingLinkId));
+        Assert.All(byContact.Rows, row => Assert.Equal(contactName, row.OrganizationName));
+
+        var byLink = await ListAsync(null, website.Id, 3, 1);
+        Assert.Equal(onWebsite.Capture.Id, Assert.Single(byLink.Rows).Capture.Id);
+        Assert.Equal(1, byLink.TotalCount);
+    }
+
+    /// <summary>
     /// The store gives an item its batch under the capture's lock (F-R6a):
     /// once batch 1 is settled a new item is batch 2's first; a batch-1 item
     /// that never reached intake joins batch 2 when it is sent again; one
