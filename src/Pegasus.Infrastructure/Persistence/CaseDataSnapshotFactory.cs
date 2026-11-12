@@ -39,7 +39,11 @@ internal static class CaseDataSnapshotFactory
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(receipt);
-        var fields = EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson);
+        // The review fields are read only where the snapshot itself reads
+        // them, for an item with an instruction draft.
+        InstructionReviewField[] fields = receipt.InstructionDraft is null
+            ? []
+            : EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson);
         var route = receipt.MailRouteDecision;
         var intermediaryPrincipalCode = route is not null
             && string.Equals(route.Disposition, "accepted", StringComparison.Ordinal)

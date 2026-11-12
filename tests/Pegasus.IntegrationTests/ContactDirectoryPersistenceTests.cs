@@ -475,6 +475,7 @@ public sealed class ContactDirectoryPersistenceTests
             Decision = "case_created", DecisionReason = "fill-probe",
             EvidenceJson = emptyEnvelope, OcrCandidatesJson = emptyEnvelope,
             FieldsJson = EfIntakeReceiptStore.SerializeFields(fields),
+            InstructionDraft = new() { SuggestedPrincipalCode = "CSF01" },
             MailRouteDecision = new()
             {
                 Disposition = "accepted", RouteOwnerCode = "fill-claims.example", RouteKind = routeKind,
