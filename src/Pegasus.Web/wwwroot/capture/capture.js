@@ -25,8 +25,9 @@ let LINK = PATHM ? PATHM[1]+'.'+PATHM[2] : '';
 const isStanding = () => LINK.indexOf('s.')===0;
 
 /* The sentences the prototype never needed because it had no network (operator, 9 November 2026; R786),
-   and the server's own sentence for a file over the link's size, shown when the app refuses one (operator, 10 November 2026; R878). */
-const COPY = { offline: 'We couldn’t reach Collision Engineers. Check your signal and try again.', tooLarge: 'The file is larger than this link accepts.' };
+   the server's own sentence for a file over the link's size, shown when the app refuses one (operator, 10 November 2026; R878),
+   and the one for a file the phone itself can no longer read (operator, 12 November 2026; R983). */
+const COPY = { offline: 'We couldn’t reach Collision Engineers. Check your signal and try again.', tooLarge: 'The file is larger than this link accepts.', unreadable: 'We couldn’t read that file from your phone. Please add it again.' };
 
 let CTX = null, PRIOR = null, LIVE = false, GUIDED = true, GONE = false;
 let SRC = null, CASE = { reg:'' }, STEPS = [], SEQ = [], TITLES = {}, KEY = '';
@@ -182,7 +183,7 @@ async function api(method, path, o){
   if(o.json!==undefined){ headers['Content-Type']='application/json'; body=JSON.stringify(o.json); }
   else if(o.type) headers['Content-Type']=o.type;
   /* a request that hangs is given up as if the network failed (status 0): a file, or the commit of one sent in parts, gets 2 minutes or its size at about 8 KB a second if that is longer; anything else 30 seconds */
-  const bytes=o.body!==undefined ? o.body.size : o.bytes;
+  const bytes=o.body!==undefined ? o.body.byteLength : o.bytes;
   const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(), bytes!==undefined ? Math.max(120000, bytes/8) : 30000);
   let r, data=null;
   try{
@@ -207,7 +208,7 @@ function gone(){
 const ONE=4194304, MAXUP=2;
 /* an original over CaptureLimits.OriginalBytes is not sent; about 100 MB of originals wait to go at most, and one past that is not sent */
 const ORIGMAX=25000000, ORIGPENDING=100000000;
-/* the largest photo, document and video the server takes (CaptureLimits): a larger file is refused here at once, before it is read into memory to be hashed */
+/* the largest photo, document and video the server takes (CaptureLimits): a larger file is refused here at once, before any of it is read */
 const PHOTOMAX=10000000;
 const DOCMAX=25000000;
 const VIDEOMAX=100000000;
@@ -252,12 +253,14 @@ function pump(){
 }
 async function run(job){
   job.state='busy'; active++;
-  let r; try{ r=await sendJob(job); }catch(e){ r={status:0}; }
+  let r; try{ r=await sendJob(job); }catch(e){ r={status:0, unreadable:e===UNREADABLE}; }
   active--;
   const st=r.status, code=r.data&&r.data.code;
   if(st===200||st===201){ job.state='done'; job.tries=0;
     if(!job.original){ job.p.uploaded=true; queueOriginal(job.p); } else job.p.file=null; }
   else if(st===404){ job.state='failed'; return; }
+  /* the phone cannot read the file: it is not added, the app says so, and nothing is tried again; an original is let go and its photo stands (R983) */
+  else if(r.unreadable){ if(job.original) dropOriginal(job); else { job.state='failed'; job.p.failed=true; note(COPY.unreadable); } }
   else if(job.original && !CTX.originals) dropOriginal(job);
   else if(st===0 || st===429 || st>=500 || (st===409 && code==='not_ready')){
     job.tries++; job.state='queued';
@@ -277,23 +280,57 @@ function queueOriginal(p){
 }
 function dropOriginal(job){ job.state='dropped'; job.p.file=null; }
 function origPending(){ return JOBS.some(j=>j.original && (j.state==='queued'||j.state==='busy')); }
+/* What is sent is read from the file into memory first, one request's worth at a time: a picked file the phone can no longer read
+   fails here, as itself, and what goes cannot change on the way. A video is never read whole (R983). */
+const UNREADABLE={};
+async function readPiece(blob, from, to){ try{ return await blob.slice(from,to).arrayBuffer(); }catch(e){ throw UNREADABLE; } }
 async function sendJob(job){
   const p=job.p, blob=job.original?p.file:p.blob, type=(job.original?p.file.type:p.type)||'application/octet-stream', q=itemQuery(p, job.original);
-  if(blob.size<=ONE) return api('PUT','items/'+p.cid,{query:q, body:blob, type, link:job.link});
+  if(blob.size<=ONE) return api('PUT','items/'+p.cid,{query:q, body:await readPiece(blob,0,blob.size), type, link:job.link});
   const total=blob.size, parts=Math.ceil(total/ONE), qt=q+'&totalBytes='+total;
-  if(!job.sha) job.sha=await sha256(blob);
+  /* the file's digest is built from the parts as they go; parts that go again start it again */
+  if(!job.partsDone || !job.hash){ job.partsDone=0; job.hash=sha256(); job.sha=null; }
   for(let n=job.partsDone+1;n<=parts;n++){
-    const r=await api('PUT','items/'+p.cid+'/parts/'+n,{query:qt, body:blob.slice((n-1)*ONE, Math.min(total,n*ONE)), type, link:job.link});
+    const piece=await readPiece(blob,(n-1)*ONE, Math.min(total,n*ONE));
+    const r=await api('PUT','items/'+p.cid+'/parts/'+n,{query:qt, body:piece, type, link:job.link});
     if(!r.ok) return r;
-    job.partsDone=n; job.tries=0;
+    job.hash.update(new Uint8Array(piece)); job.partsDone=n; job.tries=0;
   }
+  if(!job.sha) job.sha=job.hash.hex();
   const r=await api('POST','items/'+p.cid+'/commit',{query:qt, json:{totalBytes:total, sha256:job.sha}, bytes:total, link:job.link});
   /* an original's commit that is not ready keeps its parts (the photo is still being filed); every fifth time running they go again, in case they were lost */
   const keep=job.original && r.status===409 && r.data && r.data.code==='not_ready' && (job.tries+1)%5!==0;
   if(!r.ok && r.status>=400 && r.status<500 && r.status!==404 && r.status!==429 && !keep) job.partsDone=0;
   return r;
 }
-async function sha256(blob){ const d=await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()); return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+/* SHA-256 fed a piece at a time (FIPS 180-4): the browser's own digest takes the whole file in one buffer, which a 100 MB video is not read into. */
+const SHAK=new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+function sha256(){
+  const h=new Uint32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]), w=new Uint32Array(64), tail=new Uint8Array(64);
+  let held=0, length=0;
+  const block=(d,o)=>{
+    for(let i=0;i<16;i++,o+=4) w[i]=(d[o]<<24)|(d[o+1]<<16)|(d[o+2]<<8)|d[o+3];
+    for(let i=16;i<64;i++){ const x=w[i-15], y=w[i-2]; w[i]=w[i-16]+((x>>>7|x<<25)^(x>>>18|x<<14)^(x>>>3))+w[i-7]+((y>>>17|y<<15)^(y>>>19|y<<13)^(y>>>10)); }
+    let a=h[0],b=h[1],c=h[2],e=h[3],f=h[4],g=h[5],j=h[6],k=h[7];
+    for(let i=0;i<64;i++){
+      const t1=(k+((f>>>6|f<<26)^(f>>>11|f<<21)^(f>>>25|f<<7))+((f&g)^(~f&j))+SHAK[i]+w[i])|0, t2=(((a>>>2|a<<30)^(a>>>13|a<<19)^(a>>>22|a<<10))+((a&b)^(a&c)^(b&c)))|0;
+      k=j; j=g; g=f; f=(e+t1)|0; e=c; c=b; b=a; a=(t1+t2)|0; }
+    h[0]+=a; h[1]+=b; h[2]+=c; h[3]+=e; h[4]+=f; h[5]+=g; h[6]+=j; h[7]+=k;
+  };
+  return {
+    update(bytes){ let o=0; length+=bytes.length;
+      if(held){ while(held<64 && o<bytes.length) tail[held++]=bytes[o++]; if(held<64) return; block(tail,0); held=0; }
+      for(;o+64<=bytes.length;o+=64) block(bytes,o);
+      while(o<bytes.length) tail[held++]=bytes[o++]; },
+    hex(){ const bits=length*8;
+      tail[held++]=0x80; if(held>56){ tail.fill(0,held); block(tail,0); held=0; }
+      tail.fill(0,held,56); const end=new DataView(tail.buffer); end.setUint32(56, Math.floor(bits/4294967296)); end.setUint32(60, bits>>>0); block(tail,0);
+      return [...h].map(x=>x.toString(16).padStart(8,'0')).join(''); }
+  };
+}
 function cancelUpload(p){ if(!p) return; p.cancelled=true; p.file=null; if(p.job && p.job.state==='queued') p.job.state='cancelled'; if(p.url) URL.revokeObjectURL(p.url); upChanged(); }
 /* Upload state changed: refresh the "uploading / uploaded" lines in place (a full render would steal focus from a field being typed in); the review page re-renders for its Send button. */
 let preparing=0;  /* gallery files still being made ready to go */
@@ -301,6 +338,7 @@ function upChanged(){
   upBusy=preparing+JOBS.filter(j=>!j.original && (j.state==='queued'||j.state==='busy')).length;
   if(GONE || !STEPS.length) return;
   if(STEPS[S.step]==='summary' || (STEPS[S.step]==='done' && S.handoff)) return render();
+  if(STEPS[S.step]==='extras') drawVideoRow();
   document.querySelectorAll('.uplog[data-ul]').forEach(el=>{ const l=UPL[+el.dataset.ul]; if(l) el.innerHTML=uplogInner(l); });
 }
 /* Stalled: photos are waiting and the phone is offline or one has failed to go three times running; the app then says so (R786) with a retry. */
@@ -446,7 +484,26 @@ let camStream=null;
 function pick(kind,id){ pending={kind,id}; const el=(kind==='damage'||kind==='scene'||kind==='other'||kind==='overview'?fileMulti:fileSingle); if(LIVE && !['scene','other','docs','video'].includes(kind)) el.setAttribute('capture','environment'); else el.removeAttribute('capture');  /* live-only covers the vehicle photos; scene and other-vehicle photos, paperwork and video can come from the camera roll */ el.click(); }
 function liveNote(){ return LIVE ? `<p class="hint livenote"><span class="livenote-ico">${ICON.shield}</span><span>For this job, photos must be taken live on this device. Choosing from your gallery is switched off.</span></p>` : ''; }
 const onDocs = e=>{ for(const f of e.target.files){ addPhoto('docs',{name:f.name, bytes:f.size, orig:f.size, blob:f, type:f.type||'application/octet-stream', file:null, t:f.lastModified||Date.now()}); } e.target.value=''; render(); };
-function pickVideo(){ fileVideo.click(); }
+/* Record opens the camera; Choose leaves the phone's own picker, which is the gallery (operator, 12 November 2026; R984) */
+function pickVideo(record){ if(record) fileVideo.setAttribute('capture','environment'); else fileVideo.removeAttribute('capture'); fileVideo.click(); }
+/* The Extras rows. The video's, until it has one, offers Record and Choose in place of Add (operator, 12 November 2026; R984, R985);
+   a video the server refused, or the phone could not read, is not added: its row is outlined and offers them again. */
+function xrow(id,title,sub,done,btn){
+  const two=id==='video'&&!done;  /* two actions sit under the row's words, which a phone's width cannot hold beside them */
+  return `<div class="xrow ${done?'done':''}${two?'two':''}${two&&S.video&&S.video.failed?' failed':''}" data-row="${id}"><div class="xt"><b>${title}</b><small>${sub}</small></div>${two
+    ? `<span class="xacts"><button class="xadd" data-x="video" data-record>${ICON.camera}Record</button><button class="xadd" data-x="video">${ICON.image}Choose</button></span>`
+    : `<button class="xadd" data-x="${id}">${done?ICON.check+(btn||'Added'):ICON.plus+'Add'}</button>`}</div>`;
+}
+function videoRow(){ return xrow('video','Walk-around video','A slow walk once round the car, under a minute', (!!S.video&&!S.video.failed)||rc('video')>0, 'Added'); }
+function bindRows(scope){
+  scope.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{ const x=b.dataset.x;
+    if(x==='video') pickVideo(b.hasAttribute('data-record'));
+    else if(x==='scene'||x==='other'){ pending={kind:x}; fileMulti.removeAttribute('capture'); fileMulti.click(); }
+    else if(x==='docs') fileDocs.click();
+    else { S._notesOpen=true; render(); const ta=$('#notes'); if(ta) ta.focus(); } });
+}
+/* the video's row alone is drawn again when its upload ends, so a note being typed beside it keeps its place */
+function drawVideoRow(){ const el=main.querySelector('.xrow[data-row="video"]'); if(!el) return; const t=document.createElement('template'); t.innerHTML=videoRow(); const n=t.content.firstElementChild; el.replaceWith(n); bindRows(n); }
 const onVideo = e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; addPhoto('video',{name:f.name, bytes:f.size, orig:f.size, blob:f, type:f.type||'application/octet-stream', file:null, t:f.lastModified||Date.now()}); render(); };
 
 /* ---------- v10 touches: light meter, framed camera, blur check, nudge ---------- */
@@ -950,24 +1007,18 @@ const R = {
   plate(){ singleShot('plate', 'Number plate', 'A clear photo of the registration plate confirms we’re looking at the right vehicle.', EX.plate(), 'Line the plate up inside the red corners and make sure it’s readable.'); },
   dash(){  singleShot('dash', 'Dashboard', 'Start the car and take a photo of the instrument cluster so we can see the mileage and any warning lights.', EX.dash, 'If the car won’t start, turn the ignition to the “on” position instead.'); },
   extras(){
-    /* a video the server refused is not added: its row is outlined and offers Add again */
-    const nd=S.docs.length+rc('paperwork'), ns=S.scene.length+rc('scene'), no=S.other.length+rc('other-vehicle'), vidRefused=!!S.video&&!!S.video.failed, hasVideo=(!!S.video&&!S.video.failed)||rc('video')>0;
-    const row=(id,title,sub,done,btn)=>`<div class="xrow ${done?'done':''}${id==='video'&&vidRefused&&!done?' failed':''}"><div class="xt"><b>${title}</b><small>${sub}</small></div><button class="xadd" data-x="${id}">${done?ICON.check+(btn||'Added'):ICON.plus+'Add'}</button></div>`;
+    const nd=S.docs.length+rc('paperwork'), ns=S.scene.length+rc('scene'), no=S.other.length+rc('other-vehicle');
     main.innerHTML = `<h2>Extras</h2>
       <p class="lede">Optional, but they help our engineer get the full picture. Add whatever you have, then carry on.</p>
       <div class="xlist">
-        ${row('video','Walk-around video','A slow walk once round the car, under a minute', hasVideo, 'Added')}
-        ${row('scene','Accident scene photos', ns?`${ns} photo${ns===1?'':'s'} added`:'Where it happened', ns>0, 'Add more')}
-        ${row('other','Other vehicle photos', no?`${no} photo${no===1?'':'s'} added`:'The other vehicle involved', no>0, 'Add more')}
-        ${row('docs','Estimates or paperwork', nd?`${nd} file${nd===1?'':'s'} added`:'Repair estimates, invoices, letters', nd>0, 'Add more')}
+        ${videoRow()}
+        ${xrow('scene','Accident scene photos', ns?`${ns} photo${ns===1?'':'s'} added`:'Where it happened', ns>0, 'Add more')}
+        ${xrow('other','Other vehicle photos', no?`${no} photo${no===1?'':'s'} added`:'The other vehicle involved', no>0, 'Add more')}
+        ${xrow('docs','Estimates or paperwork', nd?`${nd} file${nd===1?'':'s'} added`:'Repair estimates, invoices, letters', nd>0, 'Add more')}
         <label class="xnote ${S.notes?'done':''}" for="notes"><b>Anything you’d like to tell us?</b><small>Type a note here for our engineer to read – for example, the boot doesn’t close.</small><textarea id="notes" rows="4" placeholder="Type your note here">${esc(S.notes)}</textarea></label>
       </div>
       ${uplogHTML([...S.scene,...S.other,...S.docs,...(S.video?[S.video]:[])])}`;
-    main.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{ const x=b.dataset.x;
-      if(x==='video') pickVideo();
-      else if(x==='scene'||x==='other'){ pending={kind:x}; fileMulti.removeAttribute('capture'); fileMulti.click(); }
-      else if(x==='docs') fileDocs.click();
-      else { S._notesOpen=true; render(); const ta=$('#notes'); if(ta) ta.focus(); } });
+    bindRows(main);
     const ta=$('#notes'); if(ta) ta.oninput=e=>{ S.notes=e.target.value; S.notesEdited=true; save(); ta.closest('.xnote').classList.toggle('done',!!S.notes.trim()); };
     cta.innerHTML = `<button class="btn ghost" id="back" aria-label="Back">${ICON.back}</button><button class="btn primary" id="next">Continue to review</button>`;
   },

@@ -158,7 +158,10 @@ public sealed partial class CaptureAssetContractTests
         Assert.Contains("Open the link again and enter the same registration to send more photos for this vehicle.", script, StringComparison.Ordinal);
     }
 
-    /// <summary>Video can always come from the camera roll, so its input never forces the camera.</summary>
+    /// <summary>
+    /// Video can always come from the camera roll, so its input never forces
+    /// the camera; Record sets the camera on it for that one press (R984).
+    /// </summary>
     [Fact]
     public void TheVideoInputNeverForcesTheCamera()
     {
@@ -168,6 +171,49 @@ public sealed partial class CaptureAssetContractTests
             Assert.True(input.Success, $"{relative} has no video input.");
             Assert.DoesNotContain("capture=", input.Value, StringComparison.Ordinal);
         }
+    }
+
+    /// <summary>
+    /// Until it has a video, the walk-around video's row offers Record, which
+    /// opens the camera, and Choose, which leaves the phone's own picker
+    /// (R984, R985).
+    /// </summary>
+    [Fact]
+    public void TheVideoRowOffersRecordAndChoose()
+    {
+        var script = Read(ScriptPath);
+
+        Assert.Contains("data-x=\"video\" data-record>${ICON.camera}Record</button>", script, StringComparison.Ordinal);
+        Assert.Contains("data-x=\"video\">${ICON.image}Choose</button>", script, StringComparison.Ordinal);
+        Assert.Contains(
+            "if(record) fileVideo.setAttribute('capture','environment'); else fileVideo.removeAttribute('capture');",
+            script,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>A file the phone cannot read has its own sentence, never the one for no signal (R983).</summary>
+    [Fact]
+    public void TheAppSaysWhenThePhoneCannotReadAFile()
+    {
+        Assert.Contains(
+            "unreadable: 'We couldn\u2019t read that file from your phone. Please add it again.'",
+            Read(ScriptPath),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A file is read a request's worth at a time, so a video is never read
+    /// whole: the browser's own digest, which takes the whole file in one
+    /// buffer, is not used (R983).
+    /// </summary>
+    [Fact]
+    public void TheAppNeverReadsAFileWhole()
+    {
+        var script = Read(ScriptPath);
+
+        Assert.Contains("blob.slice(from,to).arrayBuffer()", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("blob.arrayBuffer()", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("crypto.subtle", script, StringComparison.Ordinal);
     }
 
     /// <summary>The Razor shell emits shell.html's markup, so the four file inputs are the same in both.</summary>

@@ -76,8 +76,13 @@ and offers only the lifetimes set there: guided, both on and
 7 days of all three until they are changed (operator, 9 November 2026; R813,
 R817). Live camera only covers the vehicle
 photos: the scene and other-vehicle photos, paperwork and the walk-around
-video can always come from the camera roll, as in the handover's app (R778;
-9 November 2026). The link goes by e-mail, by Copy link, or both (R773),
+video can always come from the camera roll (R778; 9 November 2026). The
+walk-around video can also be recorded there and then: until it has one,
+its row offers **Record**, which opens the camera, and **Choose**, which
+opens the phone's own picker (operator, 12 November 2026; R984, R985). The
+handover's app only recorded, and from 9 to 12 November 2026 Pegasus left
+it to the phone's picker, which on Android Chrome is the gallery alone
+(#2095). The link goes by e-mail, by Copy link, or both (R773),
 or by text to the mobile on the form ([The photo link
 text](#the-photo-link-text); R918, R920); WhatsApp is Copy link and the
 staff member's own phone, and Pegasus has no WhatsApp provider.
@@ -705,6 +710,14 @@ batch. Its destination is undecided, a Case, or a Vehicle images record.
   safe (operator, 10 November 2026; R837). A photo
   Pegasus refuses is outlined, does not hold Send back, and the review counts
   "{n} of {m} uploaded" (9 November 2026; R786).
+- **A file the phone cannot read.** A file is read from the phone into
+  memory a request at a time, 4 MiB at most, as it is sent; a video is never
+  read whole. When the phone cannot read a file the sender picked, the app
+  says "We couldn’t read that file from your phone. Please add it again.",
+  the file is not added and is not tried again, its photo or row is outlined
+  like a refused one, and Send is not held back. A full-size original the
+  phone cannot read is let go without a word and its photo stands (operator,
+  12 November 2026; R983; #2097).
 - **Caps.** A request past a rate limit, a size, a per-link count or a
   standing link's daily cap is refused; nothing past the cap is kept. A
   file the app itself refuses for its size is not sent, and the app says
@@ -811,7 +824,7 @@ Deployment and live acceptance are separate evidence tiers
 
 - Capabilities: `EXT-21`, `INT-34`, `MAIL-27`, `UI-20` in
   [capabilities](../capabilities.md).
-- Rulings: R773 to R817 and R836 to R878 in [rulings](../rulings.md).
+- Rulings: R773 to R817, R836 to R878 and R983 to R985 in [rulings](../rulings.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration),
   [FRD-05](frd-05-documents-extraction-and-custody.md),
