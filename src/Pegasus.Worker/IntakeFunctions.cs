@@ -27,11 +27,13 @@ namespace Pegasus.Worker;
 /// Every fifth minute the same run also does the two jobs that once had their
 /// own five-minute timers, so they use this timer's warm instance instead of
 /// starting a cold one: the due-work sweep, then the approved-inbox fallback
-/// poll (Graph subscription maintenance first), then the sent-report instruction
-/// tidy and the sent-mail correspondence tidy (ADR-0071, R902), two jobs
-/// that were never on their own timers. On every other
+/// poll (Graph subscription maintenance first). On every other
 /// minute it runs one folded job, the pending-wake poll: each mailbox whose wake
 /// found it leased or not yet due is polled then, not at the next fallback poll.
+/// Every minute then ends with the sent-report instruction tidy and the
+/// sent-mail correspondence tidy (ADR-0071, R902), two jobs that were never on
+/// their own timers, so the e-mails move within about two minutes of Send
+/// (operator, 12 November 2026; R986).
 /// When guided photo capture is on, every minute first runs the photo capture
 /// settle, straight after the dispatch, so a Case moves within about a minute
 /// of Send (operator, 10 November 2026; R838).
@@ -115,13 +117,18 @@ public sealed partial class PendingWorkRecoveryFunction(
             {
                 await RunFoldedJobAsync("due-work sweep", RunDueWorkSweepAsync, foldedFailures, cancellationToken);
                 await RunFoldedJobAsync("approved-inbox recovery", RunInboxRecoveryAsync, foldedFailures, cancellationToken);
-                await RunFoldedJobAsync("sent-report instruction tidy", RunInstructionTidyAsync, foldedFailures, cancellationToken);
-                await RunFoldedJobAsync("sent-mail correspondence tidy", RunCorrespondenceTidyAsync, foldedFailures, cancellationToken);
             }
             else
             {
                 await RunFoldedJobAsync("pending-wake poll", RunPendingWakePollAsync, foldedFailures, cancellationToken);
             }
+
+            // The two tidies run on every minute, after the minute's other jobs:
+            // a ticked send's e-mails move at the first run after its Sent item
+            // is confirmed, not at the next fifth minute (R986). With nothing
+            // due each is one read of the send journal and no Graph call.
+            await RunFoldedJobAsync("sent-report instruction tidy", RunInstructionTidyAsync, foldedFailures, cancellationToken);
+            await RunFoldedJobAsync("sent-mail correspondence tidy", RunCorrespondenceTidyAsync, foldedFailures, cancellationToken);
         }
         catch (Exception) when (dispatchFailure is not null && cancellationToken.IsCancellationRequested)
         {
@@ -195,12 +202,16 @@ public sealed partial class PendingWorkRecoveryFunction(
             50,
             InstructionTidyActor,
             cancellationToken);
-        LogInstructionTidy(
-            logger,
-            result.MovedCount,
-            result.AlreadyMovedCount,
-            result.MessageMissingCount,
-            result.FailedCount);
+        // Most minutes have no send due; they write no line.
+        if (result.ExaminedCount > 0)
+        {
+            LogInstructionTidy(
+                logger,
+                result.MovedCount,
+                result.AlreadyMovedCount,
+                result.MessageMissingCount,
+                result.FailedCount);
+        }
     }
 
     private async Task RunCorrespondenceTidyAsync(CancellationToken cancellationToken)
@@ -211,13 +222,17 @@ public sealed partial class PendingWorkRecoveryFunction(
             10,
             CorrespondenceTidyActor,
             cancellationToken);
-        LogCorrespondenceTidy(
-            logger,
-            result.ExaminedCount,
-            result.MovedCount,
-            result.AlreadyMovedCount,
-            result.MessageMissingCount,
-            result.FailedCount);
+        // Most minutes have no send due; they write no line.
+        if (result.ExaminedCount > 0)
+        {
+            LogCorrespondenceTidy(
+                logger,
+                result.ExaminedCount,
+                result.MovedCount,
+                result.AlreadyMovedCount,
+                result.MessageMissingCount,
+                result.FailedCount);
+        }
     }
 
     private async Task RunFoldedJobAsync(
