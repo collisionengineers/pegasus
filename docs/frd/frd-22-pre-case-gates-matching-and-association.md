@@ -4,9 +4,11 @@
 
 ## Short version
 
-- A Case/PO is allocated only when the Principal, the Case type and every
-  identity-critical fact are certain. Manual uploads also need a staff
-  member to accept the proposal.
+- A Case/PO is allocated only when the Principal and the Case type are
+  certain. Where a person or a caller creates the Case, the claimant name,
+  claim number and vehicle registration must be given first; an instruction
+  read on an accepted e-mail route gets its Case without them. Manual
+  uploads also need a staff member to accept the proposal.
 - Missing ordinary detail is not a gate. The new Case starts in `Not ready`.
 - Matching never guesses. A weak or conflicting signal leaves material with
   no Case for a staff decision (image material in Unidentified, an e-mail
@@ -63,6 +65,18 @@ extraction alone never allocates or reserves a Case/PO. Missing ordinary
 detail or images keep the Case at `Not ready`; they are not
 another pre-Case gate.
 
+The identity-critical fields are the claimant name, the claim number and the
+vehicle registration. They must be given before a person or a caller creates
+the Case: staff New case and Create case from a received item, a corrected
+draft, the MCP `accept`, and a Principal API submission
+([FRD-09](frd-09-principal-and-intermediary-routes.md#accepted-api-01-submission-contract)).
+An instruction that an accepted e-mail route's profile reads is not held to
+them. Its Principal comes from the route and its Case type from the
+classification, so a letter that leaves one out, the registration included,
+still creates its Case, which starts `Not ready` with the field named as
+missing (operator, 12 November 2026, [R981](../rulings.md) and
+[R987](../rulings.md)).
+
 A Triage Case is allocated only once the Principal is established, before
 the request is classified as a Triage, and the registration is known. A
 Triage request missing either allocates nothing; an e-mailed one waits in
@@ -70,7 +84,7 @@ the Inbox's No Case Found scope
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
 
 For a standalone Audit, a missing original report is a Case requirement, not
-a pre-Case gate. Once the Principal and identity-critical gates pass, the
+a pre-Case gate. Once the pre-Case gates pass, the
 instruction creates the `a.` Case/PO. The Case shows **Original report
 missing** only while it has neither a filed original report nor
 standalone-Audit evidence retained at intake. It clears when Pegasus
@@ -84,8 +98,8 @@ acceptance. A manual proposal may create an Audit from a receipt
 already classified Audit, with or without standalone-Audit evidence; where
 evidence exists, acceptance checks that it belongs to that receipt.
 
-If a route cannot establish an identity-critical fact, it keeps only what is
-safe and creates no Case. Only images become Unidentified (operator, 13
+If a route cannot establish a fact it needs before a Case, it keeps only what
+is safe and creates no Case. Only images become Unidentified (operator, 13
 October 2026,
 [FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)):
 image material becomes an Unidentified item, an e-mail waits in the Inbox's
@@ -301,8 +315,8 @@ its processing, and that association files the same way
 - Two candidate Cases for an automatic route: image material becomes
   Unidentified with the Conflicting identification reason; an e-mail waits
   in No Case Found.
-- A route cannot establish an identity-critical fact: it keeps only what is
-  safe; image material becomes Unidentified and an e-mail waits in No Case
+- A route cannot establish a fact it needs before a Case: it keeps only what
+  is safe; image material becomes Unidentified and an e-mail waits in No Case
   Found.
 - An automatic association meets a live staff lease: it yields and retries
   later against the current version.
