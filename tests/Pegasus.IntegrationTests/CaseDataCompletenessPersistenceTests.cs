@@ -337,10 +337,73 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.DoesNotContain(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceId);
     }
 
+    [Fact]
+    public void TheRepairerAnInstructionNamedIsLinkedOnTheCaseAsAStaffChoiceIs()
+    {
+        // R1027: the record's identity, version and name, as confirmed rows a
+        // later edit replaces or clears, sourced to the instruction line that
+        // named it. The address stays the one the instruction gave.
+        var name = new InstructionReviewField(
+            "Repairer name", "HARBOUR BODY REPAIRS",
+            [new("HARBOUR BODY REPAIRS", IntakeEvidenceSource.PdfContent, "bodyshop-name-line")], false, false);
+        var address = new InstructionReviewField(
+            "Repairer address", "1 Quay Road, Leeds, LS1 1AA",
+            [new("1 Quay Road, Leeds, LS1 1AA", IntakeEvidenceSource.PdfContent, "bodyshop-address-line")], false, false);
+        var contact = new ContactChoice(
+            Guid.NewGuid(), "Harbour Body Repairs", ContactRole.Repairer, 3, null,
+            null, null, "9 Directory Street", null, null);
+
+        var snapshot = PhoneSnapshot(
+            [
+                new("Claimant mobile telephone", "selected",
+                    [new("selected", IntakeEvidenceSource.PdfContent, "selected-source")], false, false),
+                name,
+                address
+            ],
+            repairer: new(contact, name));
+
+        string Confirmed(string fieldName)
+        {
+            var row = Assert.Single(
+                snapshot.Fields,
+                item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Confirmed);
+            Assert.Equal(CaseDataCodes.IntakeEvidence, row.SourceKind);
+            Assert.Equal("PdfContent:bodyshop-name-line", row.SourceLabel);
+            Assert.Equal(PchInstructionExtractionPolicy.Key, row.PolicyKey);
+            Assert.Equal("system-worker:intake-processing", row.ConfirmedByActor);
+            return row.Value;
+        }
+
+        Assert.Equal(contact.OrganizationId.ToString("D"), Confirmed(CaseDataFieldNames.RepairerId));
+        Assert.Equal("3", Confirmed(CaseDataFieldNames.RepairerVersion));
+        Assert.Equal("Harbour Body Repairs", Confirmed(CaseDataFieldNames.RepairerName));
+        // The instruction's own address is the Case's; the directory's is not copied over it.
+        var kept = Assert.Single(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.RepairerAddress);
+        Assert.Equal("1 Quay Road, Leeds, LS1 1AA", kept.Value);
+        Assert.NotEqual(CaseDataCodes.Confirmed, kept.ValueKind);
+    }
+
+    [Fact]
+    public void AnItemThatEstablishesNoRepairerLeavesTheCaseUnlinked()
+    {
+        var snapshot = PhoneSnapshot([
+            new("Claimant mobile telephone", "selected",
+                [new("selected", IntakeEvidenceSource.PdfContent, "selected-source")], false, false),
+            new("Repairer name", "A garage the directory does not hold",
+                [new("A garage the directory does not hold", IntakeEvidenceSource.PdfContent, "bodyshop-name-line")], false, false)
+        ]);
+
+        Assert.DoesNotContain(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.RepairerId);
+        Assert.DoesNotContain(
+            snapshot.Fields,
+            item => item.FieldName == CaseDataFieldNames.RepairerName && item.ValueKind == CaseDataCodes.Confirmed);
+    }
+
     private static CaseDataSnapshotEntity PhoneSnapshot(
         IReadOnlyList<InstructionReviewField> fields,
         EstablishedClaimSource? claimSource = null,
-        IntakeMailRouteDecisionEntity? route = null)
+        IntakeMailRouteDecisionEntity? route = null,
+        EstablishedRepairer? repairer = null)
     {
         var receiptId = Guid.NewGuid();
         var receipt = new IntakeReceiptEntity
@@ -367,7 +430,8 @@ public sealed class CaseDataCompletenessPersistenceTests
                 new(true, false), new(false, "completeness-probe", 1),
                 new Pegasus.Core.Workflow.CaseWorkflowConfiguration("completeness-probe", 1), CaseInspectionMode.PhysicalAddress),
             DateTimeOffset.UtcNow,
-            claimSource);
+            claimSource,
+            repairer);
     }
 
     [Fact]

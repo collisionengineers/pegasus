@@ -72,7 +72,15 @@ several Repairers. These directory links never rewrite the address or
 party-role copy an existing Case already holds.
 
 A Case records its own repairer: the name and address the instruction gave,
-kept as ordinary Case facts with their extraction provenance. Staff either
+kept as ordinary Case facts with their extraction provenance. A Case made
+from a received item is also linked to the active Repairer-role Contact whose
+name is the one its instruction gives, ignoring capitals: exactly one such
+Contact, otherwise none, and a name that is not a Contact never creates one.
+The link copies the Contact's identity, version and name, and the address
+stays the instruction's. It is recorded as a choice on the Case is, so staff
+change or clear it; Cases made before the change are not linked (operator, 12
+November 2026; [R1027](../rulings.md), as [R1017](../rulings.md) and
+[R1018](../rulings.md) for a Claim Source). Staff otherwise either
 confirm that text or link the Case to an active Repairer-role Contact, chosen
 from a list that draws the Principal's linked Repairers first (R1015). Linking
 copies that Contact's identity, version, name and address onto the Case, so

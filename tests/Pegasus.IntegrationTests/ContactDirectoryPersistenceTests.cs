@@ -517,6 +517,67 @@ public sealed class ContactDirectoryPersistenceTests
     }
 
     /// <summary>
+    /// R1027: a received item's Repairer is read from the directory in one
+    /// statement, and only for an item whose instruction names a repairer. An
+    /// inactive Repairer of the name, and a Claim Source of it, are not taken.
+    /// </summary>
+    [Fact]
+    public async Task AReceivedItemEstablishesItsRepairerFromTheDirectory()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        var named = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            Name = "Fill fixture bodyshop",
+            Role = ContactRole.Repairer
+        });
+        _ = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            Name = "Fill fixture closed bodyshop",
+            Role = ContactRole.Repairer,
+            Active = false
+        });
+        _ = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with { Name = "Fill fixture source only" });
+        const string emptyEnvelope = """{"version":1,"data":[]}""";
+        IntakeReceiptEntity Receipt(params InstructionReviewField[] fields) => new()
+        {
+            Id = Guid.NewGuid(), SourceFileName = "fill-probe", MediaType = "message/rfc822",
+            SourceHash = "source-hash", SourceChannel = "mailbox", ExternalReceiptToken = "fill-probe",
+            SourceReaderKey = "structural-probe", SourceReaderVersion = "1",
+            Decision = "case_created", DecisionReason = "fill-probe",
+            EvidenceJson = emptyEnvelope, OcrCandidatesJson = emptyEnvelope,
+            FieldsJson = EfIntakeReceiptStore.SerializeFields(fields),
+            InstructionDraft = new() { SuggestedPrincipalCode = "AX" }
+        };
+        InstructionReviewField RepairerName(string printed) => new(
+            "Repairer name", printed, [new(printed, IntakeEvidenceSource.PdfContent, "bodyshop-name-line")], false, false);
+
+        await using var scope = database.CreateAsyncScope();
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+
+        statements.Reset();
+        var established = await CaseDataSnapshotFactory.EstablishRepairerAsync(
+            context, Receipt(RepairerName("FILL FIXTURE BODYSHOP")), CancellationToken.None);
+        Assert.InRange(statements.Count, 0, 1);
+        Assert.NotNull(established);
+        Assert.Equal(named.OrganizationId, established.Repairer.OrganizationId);
+
+        Assert.Null(await CaseDataSnapshotFactory.EstablishRepairerAsync(
+            context, Receipt(RepairerName("Fill fixture closed bodyshop")), CancellationToken.None));
+        Assert.Null(await CaseDataSnapshotFactory.EstablishRepairerAsync(
+            context, Receipt(RepairerName("Fill fixture source only")), CancellationToken.None));
+
+        // An instruction that names no repairer reads nothing.
+        statements.Reset();
+        Assert.Null(await CaseDataSnapshotFactory.EstablishRepairerAsync(
+            context, Receipt(), CancellationToken.None));
+        Assert.Empty(statements.Statements);
+    }
+
+    /// <summary>
     /// #1950: a role's choices are kept until a contact save commits, so a new
     /// contact and a deactivated one show on the next read.
     /// </summary>
