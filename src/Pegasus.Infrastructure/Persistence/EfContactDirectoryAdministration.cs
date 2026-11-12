@@ -122,7 +122,7 @@ public sealed class EfContactDirectoryAdministration(
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         var roleCode = ToCode(role);
-        return await ReadChoicesAsync(
+        return await ReadLinkedChoicesAsync(
             context.Organizations.AsNoTracking()
                 .Where(item => item.Active && item.Role == roleCode)
                 .OrderBy(item => item.Name)
@@ -244,6 +244,10 @@ public sealed class EfContactDirectoryAdministration(
     }
 
     /// <summary>One statement over the choice's own columns: no Principal link, Principal or latest Case is read.</summary>
+    /// <summary>
+    /// The possible matches' read: the organisation's own columns and nothing
+    /// else, since a match draws no Principal link (R373).
+    /// </summary>
     private static async Task<IReadOnlyList<ContactChoice>> ReadChoicesAsync(
         IQueryable<OrganizationEntity> ordered,
         CancellationToken cancellationToken)
@@ -267,6 +271,40 @@ public sealed class EfContactDirectoryAdministration(
             .Select(row => new ContactChoice(
                 row.Id, row.Name, ParseRole(row.Role), row.Version, row.ContactPerson, row.Email,
                 row.Telephone, row.Address, row.Postcode, row.NotesOnEveryCase))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// A role list's read: the same columns and, in the same statement, the
+    /// codes of the Principals each organisation is linked to, which order a
+    /// Case's list (R1013, R1015). Also read by the intake acceptance, which
+    /// fills a new Case's Claim Source from the active Claim Sources (R1014).
+    /// </summary>
+    internal static async Task<IReadOnlyList<ContactChoice>> ReadLinkedChoicesAsync(
+        IQueryable<OrganizationEntity> ordered,
+        CancellationToken cancellationToken)
+    {
+        var rows = await ordered
+            .Select(item => new
+            {
+                item.Id,
+                item.Name,
+                item.Role,
+                item.Version,
+                item.ContactPerson,
+                item.Email,
+                item.Telephone,
+                item.Address,
+                item.Postcode,
+                item.NotesOnEveryCase,
+                LinkedPrincipalCodes = item.PrincipalLinks.Select(link => link.Principal.Code).ToList()
+            })
+            .ToArrayAsync(cancellationToken);
+        return rows
+            .Select(row => new ContactChoice(
+                row.Id, row.Name, ParseRole(row.Role), row.Version, row.ContactPerson, row.Email,
+                row.Telephone, row.Address, row.Postcode, row.NotesOnEveryCase,
+                [.. row.LinkedPrincipalCodes.Order(StringComparer.Ordinal)]))
             .ToArray();
     }
 

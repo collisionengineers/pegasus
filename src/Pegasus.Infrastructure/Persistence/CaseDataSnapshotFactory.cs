@@ -26,11 +26,53 @@ internal static class CaseDataSnapshotFactory
         };
     }
 
+    /// <summary>
+    /// The Claim Source the received item establishes for its Case
+    /// (<see cref="EstablishedIntakeClaimSource"/>; R1014, R1017). The active
+    /// Claim Sources are read only for an item that names one or came through
+    /// an intermediary.
+    /// </summary>
+    public static async Task<EstablishedClaimSource?> EstablishClaimSourceAsync(
+        PegasusDbContext context,
+        IntakeReceiptEntity receipt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(receipt);
+        var fields = EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson);
+        var route = receipt.MailRouteDecision;
+        var intermediaryPrincipalCode = route is not null
+            && string.Equals(route.Disposition, "accepted", StringComparison.Ordinal)
+            && string.Equals(
+                route.RouteKind,
+                EfIntakeReceiptStore.ToCode(MailRouteKind.Intermediary),
+                StringComparison.Ordinal)
+                ? route.PrincipalCode
+                : null;
+        if (!EstablishedIntakeClaimSource.HasEvidence(fields, intermediaryPrincipalCode))
+        {
+            return null;
+        }
+
+        var claimSources = await EfContactDirectoryAdministration.ReadLinkedChoicesAsync(
+            context.Organizations.AsNoTracking()
+                .Where(item => item.Active && item.Role == "claim_source")
+                .OrderBy(item => item.Name)
+                .ThenBy(item => item.Id),
+            cancellationToken);
+        return EstablishedIntakeClaimSource.For(
+            fields,
+            intermediaryPrincipalCode,
+            route?.EffectiveSenderAddress,
+            claimSources);
+    }
+
     public static CaseDataSnapshotEntity Create(
         CaseEntity caseEntity,
         IntakeReceiptEntity receipt,
         CaseAcceptanceRequest request,
-        DateTimeOffset acceptedAtUtc)
+        DateTimeOffset acceptedAtUtc,
+        EstablishedClaimSource? claimSource = null)
     {
         ArgumentNullException.ThrowIfNull(caseEntity);
         ArgumentNullException.ThrowIfNull(receipt);
@@ -70,6 +112,7 @@ internal static class CaseDataSnapshotFactory
 
         AddPrincipalFact(snapshot, receipt, request, acceptedAtUtc);
         AddInstructionSuggestions(snapshot, receipt);
+        AddClaimSource(snapshot, receipt, request, claimSource, acceptedAtUtc);
         AddResolvedInspection(
             snapshot,
             receipt,
@@ -365,6 +408,94 @@ internal static class CaseDataSnapshotFactory
                 CaseDataCodes.Text,
                 "miles");
         }
+    }
+
+    /// <summary>
+    /// The Claim Source the received item established, copied onto the new
+    /// Case as a staff choice on the Case is: the directory record's identity,
+    /// version, name and contact, as confirmed rows a later edit replaces or
+    /// clears. Its provenance is the instruction that named it or the mail
+    /// route that proved its sender (R1014, R1017).
+    /// </summary>
+    private static void AddClaimSource(
+        CaseDataSnapshotEntity snapshot,
+        IntakeReceiptEntity receipt,
+        CaseAcceptanceRequest request,
+        EstablishedClaimSource? established,
+        DateTimeOffset acceptedAtUtc)
+    {
+        if (established is null)
+        {
+            return;
+        }
+
+        string sourceKind;
+        string sourceLabel;
+        string? evidencePolicyKey;
+        int? evidencePolicyVersion;
+        if (established.Origin == IntakeClaimSourceOrigin.Instruction)
+        {
+            var named = established.Field?.SuggestedValue;
+            var candidates = established.Field?.Candidates ?? [];
+            var candidate = candidates.FirstOrDefault(item =>
+                    string.Equals(item.Value, named, StringComparison.OrdinalIgnoreCase))
+                ?? candidates.FirstOrDefault();
+            sourceKind = CaseDataCodes.IntakeEvidence;
+            sourceLabel = candidate is null
+                ? "instruction claim source"
+                : $"{candidate.Source}:{candidate.SourceLabel}";
+            evidencePolicyKey = receipt.ExtractionPolicyKey;
+            evidencePolicyVersion = receipt.ExtractionPolicyVersion;
+        }
+        else
+        {
+            var route = receipt.MailRouteDecision;
+            var routeOwner = route?.RouteOwnerCode;
+            sourceKind = CaseDataCodes.MailRoute;
+            sourceLabel = string.IsNullOrWhiteSpace(routeOwner) ? "accepted mail route" : routeOwner;
+            evidencePolicyKey = route?.PolicyKey;
+            evidencePolicyVersion = route?.PolicyVersion;
+        }
+        // A fill is an addition to the Case, never a condition of it: evidence
+        // with no policy identity fills nothing rather than refusing the Case.
+        if (string.IsNullOrWhiteSpace(evidencePolicyKey) || evidencePolicyVersion is not >= 1)
+        {
+            return;
+        }
+
+        string policyKey = evidencePolicyKey;
+        int policyVersion = evidencePolicyVersion.Value;
+        var contact = established.ClaimSource;
+        void Confirm(string fieldName, string valueType, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            UpsertConfirmed(
+                snapshot,
+                fieldName,
+                valueType,
+                value,
+                request.Actor.SubjectId,
+                acceptedAtUtc,
+                policyKey,
+                policyVersion,
+                sourceKind,
+                sourceLabel,
+                inheritUnderlying: false);
+        }
+
+        Confirm(CaseDataFieldNames.ClaimSourceId, CaseDataCodes.Text, contact.OrganizationId.ToString("D"));
+        Confirm(
+            CaseDataFieldNames.ClaimSourceVersion,
+            CaseDataCodes.Integer,
+            contact.Version.ToString(CultureInfo.InvariantCulture));
+        Confirm(CaseDataFieldNames.ClaimSourceName, CaseDataCodes.Text, contact.Name);
+        Confirm(CaseDataFieldNames.ClaimSourceContactName, CaseDataCodes.Text, contact.ContactPerson);
+        Confirm(CaseDataFieldNames.ClaimSourceContactTelephone, CaseDataCodes.Text, contact.Telephone);
+        Confirm(CaseDataFieldNames.ClaimSourceContactEmailAddress, CaseDataCodes.Text, contact.Email);
     }
 
     private static void AddExtractedRepairerFact(

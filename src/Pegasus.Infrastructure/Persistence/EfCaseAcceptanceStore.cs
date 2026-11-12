@@ -275,7 +275,12 @@ public sealed class EfCaseAcceptanceStore(
             await OriginalReportPrefillWriter.ApplyAsync(
                 context, caseId, null, declaredAuditVerdict, acceptedAtUtc, cancellationToken);
         }
-        var dataSnapshot = CaseDataSnapshotFactory.Create(caseEntity, receipt, request, acceptedAtUtc);
+        var dataSnapshot = CaseDataSnapshotFactory.Create(
+            caseEntity,
+            receipt,
+            request,
+            acceptedAtUtc,
+            await CaseDataSnapshotFactory.EstablishClaimSourceAsync(context, receipt, cancellationToken));
         // The mileage the original report states fills the accepted data's
         // empty mileage before the gate reads it (R930).
         if (standaloneAuditEvidence is not null)

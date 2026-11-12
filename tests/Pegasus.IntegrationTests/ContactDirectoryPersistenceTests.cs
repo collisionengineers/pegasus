@@ -358,8 +358,10 @@ public sealed class ContactDirectoryPersistenceTests
 
     /// <summary>
     /// R373: the role lists and the possible matches read one statement over the
-    /// organisation's own columns, never its Principal links, Principals or latest
-    /// Case, and the choice holds the same facts the full record holds.
+    /// organisation's own columns, never its Principals or latest Case, and the
+    /// choice holds the same facts the full record holds. A role list carries, in
+    /// that same statement, the codes of the Principals each contact is linked
+    /// to, which order a Case's list (R1013, R1015); a possible match does not.
     /// </summary>
     [Fact]
     public async Task ChoicesAreOneStatementOverTheOrganisationsOwnColumns()
@@ -408,7 +410,11 @@ public sealed class ContactDirectoryPersistenceTests
             new ContactChoice(
                 zulu.OrganizationId, zulu.Name, ContactRole.Repairer, zulu.Version, "Z Handler", "zulu@example.test",
                 "0113 000 0001", "1 Zulu Road", "ZU1 1ZU", null),
-            listed[1]);
+            listed[1] with { LinkedPrincipalCodes = null });
+        Assert.Equal("CHC01", Assert.Single(listed[1].LinkedPrincipalCodes!));
+        Assert.True(listed[1].IsLinkedTo("chc01"));
+        Assert.Empty(listed[0].LinkedPrincipalCodes!);
+        Assert.False(listed[0].IsLinkedTo("CHC01"));
 
         statements.Reset();
         var sources = await queries.ListByRoleAsync(Administrator, ContactRole.ClaimSource, CancellationToken.None);
@@ -430,6 +436,83 @@ public sealed class ContactDirectoryPersistenceTests
                 (zulu.OrganizationId, ContactRole.Repairer)
             ],
             matches.Select(item => (item.OrganizationId, item.Role)));
+    }
+
+    /// <summary>
+    /// R1014, R1017: a received item's Claim Source is read from the directory
+    /// in one statement, and only for an item that names one or came through
+    /// an intermediary. The instruction's named Claim Source comes before the
+    /// sender's.
+    /// </summary>
+    [Fact]
+    public async Task AReceivedItemEstablishesItsClaimSourceFromTheDirectory()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        var principal = await SaveAsync(database, NewPrincipal("Fill fixture principal", "CSF01"));
+        var sender = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            Name = "Fill fixture sender",
+            Email = "desk@fill-claims.example",
+            ContactPerson = "S Handler",
+            LinkedPrincipalIds = principal.OwnPrincipalIds!
+        });
+        var named = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with { Name = "Fill fixture named" });
+        _ = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            Name = "Fill fixture inactive",
+            Email = "desk@fill-claims.example",
+            Active = false,
+            LinkedPrincipalIds = principal.OwnPrincipalIds!
+        });
+        const string emptyEnvelope = """{"version":1,"data":[]}""";
+        IntakeReceiptEntity Receipt(string routeKind, params InstructionReviewField[] fields) => new()
+        {
+            Id = Guid.NewGuid(), SourceFileName = "fill-probe", MediaType = "message/rfc822",
+            SourceHash = "source-hash", SourceChannel = "mailbox", ExternalReceiptToken = "fill-probe",
+            SourceReaderKey = "structural-probe", SourceReaderVersion = "1",
+            Decision = "case_created", DecisionReason = "fill-probe",
+            EvidenceJson = emptyEnvelope, OcrCandidatesJson = emptyEnvelope,
+            FieldsJson = EfIntakeReceiptStore.SerializeFields(fields),
+            MailRouteDecision = new()
+            {
+                Disposition = "accepted", RouteOwnerCode = "fill-claims.example", RouteKind = routeKind,
+                PrincipalCode = "CSF01", PredicatesJson = emptyEnvelope, Reason = "fill-probe",
+                PolicyKey = "principal_mail_route", PolicyVersion = 1,
+                TransportIdentitiesJson = emptyEnvelope, OriginalIdentitiesJson = emptyEnvelope,
+                EffectiveSenderAddress = "reports@fill-claims.example", EffectiveSenderSourceLabel = "fill-probe"
+            }
+        };
+        var introducer = new InstructionReviewField(
+            EstablishedIntakeClaimSource.IntroducerField, "FILL FIXTURE NAMED",
+            [new("FILL FIXTURE NAMED", IntakeEvidenceSource.PdfContent, "introducer-line")], false, false);
+
+        await using var scope = database.CreateAsyncScope();
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+
+        statements.Reset();
+        var fromSender = await CaseDataSnapshotFactory.EstablishClaimSourceAsync(
+            context, Receipt("intermediary"), CancellationToken.None);
+        Assert.InRange(statements.Count, 0, 1);
+        Assert.NotNull(fromSender);
+        Assert.Equal(IntakeClaimSourceOrigin.Sender, fromSender.Origin);
+        Assert.Equal(sender.OrganizationId, fromSender.ClaimSource.OrganizationId);
+        Assert.Equal("S Handler", fromSender.ClaimSource.ContactPerson);
+
+        var fromInstruction = await CaseDataSnapshotFactory.EstablishClaimSourceAsync(
+            context, Receipt("intermediary", introducer), CancellationToken.None);
+        Assert.NotNull(fromInstruction);
+        Assert.Equal(IntakeClaimSourceOrigin.Instruction, fromInstruction.Origin);
+        Assert.Equal(named.OrganizationId, fromInstruction.ClaimSource.OrganizationId);
+
+        // A direct Principal's own mail names no Claim Source and reads nothing.
+        statements.Reset();
+        Assert.Null(await CaseDataSnapshotFactory.EstablishClaimSourceAsync(
+            context, Receipt("direct_principal"), CancellationToken.None));
+        Assert.Empty(statements.Statements);
     }
 
     /// <summary>

@@ -34,9 +34,11 @@ public sealed record ContactDirectoryRecord(
     CaseInspectionMode? PrincipalInspectionMode = null);
 
 /// <summary>One directory organisation as a choice or a possible match offers it:
-/// the facts a Case link copies and a list draws, none of the Principal links, Principal
-/// facts or latest Case that <see cref="ContactDirectoryRecord"/> carries for the
-/// Contacts pages, receipts and history.</summary>
+/// the facts a Case link copies and a list draws, and the codes of the Principals it is
+/// linked to, which put it first in a Case of one of them (operator, 12 November 2026;
+/// R1013, R1015). None of the Principal facts or latest Case that
+/// <see cref="ContactDirectoryRecord"/> carries for the Contacts pages, receipts and
+/// history.</summary>
 public sealed record ContactChoice(
     Guid OrganizationId,
     string Name,
@@ -47,7 +49,15 @@ public sealed record ContactChoice(
     string? Telephone,
     string? Address,
     string? Postcode,
-    string? NotesOnEveryCase);
+    string? NotesOnEveryCase,
+    IReadOnlyList<string>? LinkedPrincipalCodes = null)
+{
+    /// <summary>Whether this organisation is linked to the Principal with this code.</summary>
+    public bool IsLinkedTo(string? principalCode) =>
+        !string.IsNullOrWhiteSpace(principalCode)
+        && LinkedPrincipalCodes is { } codes
+        && codes.Contains(principalCode.Trim(), StringComparer.OrdinalIgnoreCase);
+}
 
 public sealed record ContactDirectoryQuery(
     ActionActor Actor,

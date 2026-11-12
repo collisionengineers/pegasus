@@ -152,6 +152,8 @@ public static class CaseWorkspaceLabels
         public const string ClaimSourceNotesThisCase = "Claim source notes · this Case";
         public const string AccidentCircumstances = "Accident circumstances";
         public const string NoClaimSource = "None";
+        // The heading over the Claim sources not linked to the Case's Principal (R1016).
+        public const string OtherClaimSources = "Other claim sources";
         public const string ReportSent = "Report sent";
     }
 

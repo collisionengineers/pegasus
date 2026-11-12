@@ -6,6 +6,18 @@
     ViewData["Title"] = "New case";
 
     var draft = Model.IsManual ? null : Model.DraftFields.Draft;
+    // Each Claim Source's place in name order, which the regrouping script keeps.
+    var claimSourceOrder = Model.ClaimSourceChoices
+        .Select((choice, index) => (choice.OrganizationId, index))
+        .ToDictionary(item => item.OrganizationId, item => item.index);
+}
+@functions {
+    // One Claim Source option, with the Principal codes it is linked to and its
+    // place in name order for the regrouping script (site.js).
+    private void ClaimSourceOption(ContactChoice claimSource, int order)
+    {
+        <option value="@claimSource.OrganizationId" data-principals="@string.Join(' ', claimSource.LinkedPrincipalCodes ?? [])" data-order="@order">@claimSource.Name</option>
+    }
 }
 
 @* The direct form's Files panel is the Upload sheet's picker (R596); the
@@ -89,11 +101,22 @@
                     </div>
                     <div class="field" data-triage-hidden>
                         <label asp-for="ClaimSourceId">Claim Source</label>
-                        <select asp-for="ClaimSourceId">
+                        @* The Claim Sources linked to the typed Principal come first, under its
+                           code (R1013, R1016); site.js regroups the list as the code changes. *@
+                        <select asp-for="ClaimSourceId" data-linked-choices="[name='@nameof(Model.PrincipalCode)']" data-others-label="@CaseWorkspaceLabels.Frame.OtherClaimSources">
                             <option value="">Not recorded</option>
-                            @foreach (var claimSource in Model.ClaimSourceChoices)
+                            @foreach (var group in LinkedContactChoices.For(Model.ClaimSourceChoices, Model.IsPrivateCustomer ? null : Model.PrincipalCode, CaseWorkspaceLabels.Frame.OtherClaimSources))
                             {
-                                <option value="@claimSource.OrganizationId">@claimSource.Name</option>
+                                if (group.Label is null)
+                                {
+                                    foreach (var claimSource in group.Choices) { ClaimSourceOption(claimSource, claimSourceOrder[claimSource.OrganizationId]); }
+                                }
+                                else
+                                {
+                                    <optgroup label="@group.Label">
+                                        @foreach (var claimSource in group.Choices) { ClaimSourceOption(claimSource, claimSourceOrder[claimSource.OrganizationId]); }
+                                    </optgroup>
+                                }
                             }
                         </select>
                         <span asp-validation-for="ClaimSourceId" class="field-error"></span>

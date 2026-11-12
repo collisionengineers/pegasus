@@ -483,8 +483,9 @@ the ribbon's facts and are not repeated as cells (v36 item E, 9 October 2026); R
 greyed cell, with no padlock; the Case card carries the derived Matter line across its foot and, once a
 report has been sent, when and from which mailbox. A select's empty option carries the cell's
 absent word (Not recorded, Unassigned), so the control reads as the box does. The Claim source card lays its cells two
-across, like the Case card: the Claim source, chosen from the active Claim Source contacts, and its contact name,
-telephone and e-mail; then the Claim source's Notes on every Case, read-only and absent when the record has none
+across, like the Case card: the Claim source, chosen from the active Claim Source contacts with those linked to the Case's
+Principal first under its code and the rest under "Other claim sources" (operator, 12 November 2026;
+[R1013](../rulings.md), [R1016](../rulings.md)), and its contact name, telephone and e-mail; then the Claim source's Notes on every Case, read-only and absent when the record has none
 ([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)), beside this Case's own Claim source notes.
 Below the cards, a full-width Principal panel holds the Principal's Notes on every Case, read-only and absent when the
 record has none, beside this Case's own Principal notes, which keep their half-width place when the record has none. A
@@ -573,6 +574,10 @@ Inspect at, the recorded address or `Image Based Assessment` with its
 source tag, Principal default only when it differs from the recorded value,
 Storage location, and Repairer
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)).
+The Repairer contact list draws the Repairers linked to the Case's Principal
+first under its code and the rest under "Other repairers" (operator, 12
+November 2026; [R1015](../rulings.md), [R1016](../rulings.md);
+[FRD-04](frd-04-parties-accounts-and-access.md#parties-principals-organisations-accounts-and-access)).
 
 ### Vehicle
 
