@@ -118,9 +118,9 @@ jobs:
     # lane down with them. Each step keeps its own name, so each verdict is
     # still read individually.
     #
-    # Windows, because the documentation link check resolves targets with
-    # Test-Path, which is case-insensitive there and case-sensitive on Linux;
-    # moving it would quietly change the rule (R658).
+    # Linux, like every lane: the Azure estate is Linux and no check runs on
+    # Windows alone, so the documentation link check resolves case-sensitively
+    # (R977, reversing R658).
     #
     # It follows `changes` so every lane reads one verdict order, but must not
     # inherit its verdict: without `!cancelled()`, a failed path detection would
@@ -128,7 +128,7 @@ jobs:
     # check all of them run.
     needs: [changes]
     if: ${{ !cancelled() }}
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -137,10 +137,11 @@ jobs:
         # no build-relevant path.
         shell: pwsh
         run: ./scripts/Test-DocumentationLinks.ps1
-      - name: LocalDB lifecycle classifier tests
-        # Test-PegasusPlatform.ps1 dot-sources PegasusPlatform.ps1, the parser
-        # the release scripts share. Windows-specific, and seconds to run, so it
-        # runs on every change set rather than behind a path flag.
+      - name: Platform script tests
+        # Test-PegasusPlatform.ps1 dot-sources PegasusPlatform.ps1, the helpers
+        # the release and local-run scripts share, including the Linux launcher
+        # handover and process-group stop (#2093). Seconds to run, so it runs
+        # on every change set rather than behind a path flag.
         shell: pwsh
         run: ./scripts/Test-PegasusPlatform.ps1
       - uses: actions/setup-python@v6

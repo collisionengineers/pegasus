@@ -480,40 +480,97 @@ function Get-PegasusProcessSnapshot {
             continue
         }
 
-        try {
-            $stat = [System.IO.File]::ReadAllText("/proc/$processId/stat")
-        }
-        catch {
-            # The process exited between enumeration and read.
+        $stat = Read-PegasusProcessStat -ProcessId $processId
+        if ($null -eq $stat) {
             continue
         }
-
-        # Field 2 is the executable name in parentheses and may itself contain
-        # spaces or a closing parenthesis, so parse from the LAST ')' rather
-        # than splitting the whole line on spaces.
-        $commEnd = $stat.LastIndexOf(')')
-        if ($commEnd -lt 0 -or ($commEnd + 2) -ge $stat.Length) {
-            continue
-        }
-
-        $fields = $stat.Substring($commEnd + 2) -split ' '
-        if ($fields.Count -lt 3) {
-            continue
-        }
-
-        $parentProcessId = 0
-        $processGroupId = 0
-        if (-not [int]::TryParse($fields[1], [ref]$parentProcessId)) { continue }
-        if (-not [int]::TryParse($fields[2], [ref]$processGroupId)) { continue }
 
         $snapshot.Add([pscustomobject]@{
             ProcessId = $processId
-            ParentProcessId = $parentProcessId
-            ProcessGroupId = $processGroupId
+            ParentProcessId = $stat.ParentProcessId
+            ProcessGroupId = $stat.ProcessGroupId
         })
     }
 
     return @($snapshot)
+}
+
+function Read-PegasusProcessStat {
+    <#
+        .SYNOPSIS
+        Returns State, ParentProcessId and ProcessGroupId from /proc/<pid>/stat,
+        or $null when the process is gone or its record cannot be read. Linux only.
+    #>
+    param([Parameter(Mandatory)][int]$ProcessId)
+
+    try {
+        $stat = [System.IO.File]::ReadAllText("/proc/$ProcessId/stat")
+    }
+    catch {
+        # The process exited, or exited between enumeration and read.
+        return $null
+    }
+
+    # Field 2 is the executable name in parentheses and may itself contain
+    # spaces or a closing parenthesis, so parse from the LAST ')' rather
+    # than splitting the whole line on spaces.
+    $commEnd = $stat.LastIndexOf(')')
+    if ($commEnd -lt 0 -or ($commEnd + 2) -ge $stat.Length) {
+        return $null
+    }
+
+    $fields = $stat.Substring($commEnd + 2) -split ' '
+    if ($fields.Count -lt 3) {
+        return $null
+    }
+
+    $parentProcessId = 0
+    $processGroupId = 0
+    if (-not [int]::TryParse($fields[1], [ref]$parentProcessId)) { return $null }
+    if (-not [int]::TryParse($fields[2], [ref]$processGroupId)) { return $null }
+
+    return [pscustomobject]@{
+        State = $fields[0]
+        ParentProcessId = $parentProcessId
+        ProcessGroupId = $processGroupId
+    }
+}
+
+function Wait-PegasusProcessGroupLeader {
+    <#
+        .SYNOPSIS
+        Waits until a launched process leads its own process group. Linux only.
+
+        .DESCRIPTION
+        A launcher is started through /bin/sh, which then execs PowerShell, and
+        the PowerShell launcher's preamble (Get-PegasusProcessGroupPreamble)
+        makes it the leader of a new group. Until then the process identifier
+        belongs to the shell, or to a launcher whose descendants the group
+        cannot yet reach, so neither its identity nor a group stop is reliable
+        (#2093). Only that preamble can make the child lead a group whose
+        identifier is its own, so Leader proves both the exec and the group.
+
+        Returns Leader, Exited (the process is gone or a zombie) or TimedOut.
+    #>
+    param(
+        [Parameter(Mandatory)][int]$ProcessId,
+        [Parameter(Mandatory)][int]$TimeoutSeconds
+    )
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ($true) {
+        $stat = Read-PegasusProcessStat -ProcessId $ProcessId
+        if ($null -eq $stat -or $stat.State -eq 'Z') {
+            return 'Exited'
+        }
+        if ($stat.ProcessGroupId -eq $ProcessId) {
+            return 'Leader'
+        }
+        if ([DateTimeOffset]::UtcNow -ge $deadline) {
+            return 'TimedOut'
+        }
+        Start-Sleep -Milliseconds 50
+    }
 }
 
 function Get-PegasusProcessCommandLine {
