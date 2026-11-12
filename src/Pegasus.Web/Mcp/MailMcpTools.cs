@@ -36,7 +36,8 @@ internal sealed record MailToolSummary(
     Guid? CaseId,
     string? CaseReference,
     bool IsTriageCase,
-    MailToolClassificationResult? Classification);
+    MailToolClassificationResult? Classification,
+    string? ClassificationActor);
 
 internal sealed record MailToolPage(
     IReadOnlyList<MailToolSummary> Items,
@@ -316,7 +317,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists the retained mail workspace, newest first: one page of messages with the mailboxes that hold retained mail and how fresh the workspace is. Each message names its Case by caseId and caseReference; isTriageCase is true when that Case is a Triage Case, whose reference starts t. and which is not an instruction Case. Defaults to every mailbox and the inbox scope. The first page, called without a continuation, also carries awaitingDecisionCount: the Inbox messages the pipeline decided that are Unclassified or have no Case, counted outside this list's filters. Reads the retained record only; nothing is marked read in any mailbox.")]
+    [Description("Lists the retained mail workspace, newest first: one page of messages with the mailboxes that hold retained mail and how fresh the workspace is. Each message names its Case by caseId and caseReference; isTriageCase is true when that Case is a Triage Case, whose reference starts t. and which is not an instruction Case; classificationActor is who decided its current type (system-worker: for the pipeline). Defaults to every mailbox and the inbox scope. The first page, called without a continuation, also carries awaitingDecisionCount: the Inbox messages the pipeline decided that are Unclassified or have no Case, counted outside this list's filters. Reads the retained record only; nothing is marked read in any mailbox.")]
     public async Task<MailToolPage> ListAsync(
         [Description("Optional exact mailbox identity from the mailboxes list. Omit for every mailbox.")] string? mailbox = null,
         [Description("Optional folder scope: inbox, sent, or dismissed. Defaults to inbox.")] string? folder = null,
@@ -797,7 +798,8 @@ internal sealed class MailMcpTools(
         summary.CaseId,
         summary.CaseReference,
         summary.IsTriageCase,
-        summary.Classification is { } classification ? Map(classification) : null);
+        summary.Classification is { } classification ? Map(classification) : null,
+        summary.ClassificationActor);
 
     private static MailToolClassification Map(MailClassificationDossier dossier) => new(
         dossier.Version,

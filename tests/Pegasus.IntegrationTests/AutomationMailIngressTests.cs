@@ -129,6 +129,13 @@ public sealed class AutomationMailIngressTests
             // Beside caseId and caseReference, a client can tell a Triage
             // Case from an instruction Case.
             Assert.False(items[0].GetProperty("isTriageCase").GetBoolean());
+            // The row names who decided its type, so a caller that works only
+            // pipeline-decided mail need not read each message to find out.
+            Assert.Equal(
+                "system-worker:approved-inbox-poller",
+                items[0].GetProperty("classificationActor").GetString());
+            Assert.True(!items[1].TryGetProperty("classificationActor", out var undecided)
+                || undecided.ValueKind == System.Text.Json.JsonValueKind.Null);
             var mailboxes = structured.GetProperty("mailboxes").EnumerateArray().ToArray();
             Assert.Contains(
                 mailboxes,

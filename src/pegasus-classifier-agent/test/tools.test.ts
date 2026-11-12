@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { describe, it } from "node:test";
 import { FixturePegasus } from "../src/fixture-pegasus.js";
-import type { MailClassification } from "../src/pegasus.js";
+import type { IntakeDetail, MailClassification } from "../src/pegasus.js";
 import { appearsIn, AttachmentTextLimit, BodyLimit } from "../src/tools.js";
 import { candidate, harness, mail, timedOut } from "./support.js";
 
@@ -178,6 +179,99 @@ describe("open_triage (#1890)", () => {
     });
     assert.equal(result.isError, true);
     assert.match(result.text, /classify it first/);
+  });
+});
+
+describe("create_case", () => {
+  const facts = { claimantName: "Pat Example", claimNumber: "REF-1", vehicleRegistration: "AB12CDE" };
+
+  /** A new-instruction e-mail with no Case, and what pegasus_intake_get says of its received item. */
+  function instruction(intake: Partial<IntakeDetail>, options: { subject?: string; body?: string; dryRun?: boolean } = {}) {
+    const receiptId = randomUUID();
+    const detail = mail({
+      outcome: "Classified", category: "new-instruction", caseType: "Inspection", receiptId,
+      ...(options.subject ? { subject: options.subject } : {}),
+      ...(options.body ? { body: options.body } : {}),
+    });
+    const candidates = [candidate(detail)];
+    const pegasus = new FixturePegasus({ candidates, intake: { [receiptId]: intake } });
+    return { detail, run: harness(candidates, { pegasus, ...(options.dryRun ? { dryRun: true } : {}) }) };
+  }
+
+  it("creates the Case when Pegasus suggested no inspection address (R965)", async () => {
+    const { detail, run } = instruction({ inspectionAddressState: "Unresolved", inspectionAddressSuggestionFingerprint: null });
+    const result = await run.call("create_case", { messageId: detail.summary.id, reason: "The letter instructs an inspection." });
+    assert.equal(result.isError, false, result.text);
+    assert.match(result.text, /^Created Case REPLAY-/);
+    assert.deepEqual(run.pegasus.writes.map((write) => write.kind), ["case"]);
+    assert.ok(!run.pegasus.writes[0]?.detail.includes("principalCode"), "an established Principal is never named again");
+  });
+
+  it("gives accept the sender's one directory Principal when the item established none (R969)", async () => {
+    const { detail, run } = instruction({
+      establishedPrincipalCode: null, senderDirectoryPrincipalCode: "ABRAHAMS", draft: null,
+      inspectionAddressState: "Unresolved",
+    });
+    const result = await run.call("create_case", { messageId: detail.summary.id, reason: "The letter instructs an inspection.", ...facts });
+    assert.equal(result.isError, false, result.text);
+    assert.equal(JSON.parse(run.pegasus.writes[0]?.detail ?? "{}").principalCode, "ABRAHAMS");
+  });
+
+  it("leaves the e-mail for staff when Pegasus knows no Principal for it", async () => {
+    const { detail, run } = instruction({ establishedPrincipalCode: null, senderDirectoryPrincipalCode: null, draft: null });
+    const result = await run.call("create_case", { messageId: detail.summary.id, reason: "The letter instructs an inspection.", ...facts });
+    assert.equal(result.isError, true);
+    assert.match(result.text, /knows no Principal/);
+    assert.deepEqual(run.pegasus.writes, []);
+    assert.ok(run.outcomes.verdicts.has(detail.summary.id));
+  });
+
+  describe("a website enquiry (R972)", () => {
+    const website = { websiteEnquiry: true, establishedPrincipalCode: null, senderDirectoryPrincipalCode: null, draft: null };
+    const enquiry = { subject: "New General Enquiry - Pat Example", body: "Name: Pat Example\nRegistration: MJ15 UCT\nPlease inspect my car." };
+
+    it("makes the private customer's one-off Case and links the e-mail to it", async () => {
+      const { detail, run } = instruction(website, enquiry);
+      const result = await run.call("create_case", {
+        messageId: detail.summary.id, reason: "The enquiry asks for an inspection.", claimantName: "Pat Example", vehicleRegistration: "mj15uct",
+      });
+      assert.equal(result.isError, false, result.text);
+      assert.equal(result.text, "Created one-off Case MJ15UCT and linked the e-mail to it.");
+      assert.deepEqual(run.pegasus.writes.map((write) => write.kind), ["one-off", "link"]);
+      assert.equal(run.pegasus.writes[0]?.messageId, detail.summary.id);
+      assert.equal((await run.pegasus.get(detail.summary.id)).summary.caseReference, "MJ15UCT");
+      assert.ok(run.outcomes.written.has(detail.summary.id));
+    });
+
+    it("waits for staff when the enquiry gives no registration", async () => {
+      const { detail, run } = instruction(website, enquiry);
+      const result = await run.call("create_case", { messageId: detail.summary.id, reason: "The enquiry asks for an inspection.", claimantName: "Pat Example" });
+      assert.equal(result.isError, true);
+      assert.match(result.text, /waits for staff/);
+      assert.deepEqual(run.pegasus.writes, []);
+    });
+
+    it("refuses a name or a registration the enquiry does not write", async () => {
+      const { detail, run } = instruction(website, enquiry);
+      const wrongPlate = await run.call("create_case", {
+        messageId: detail.summary.id, reason: "The enquiry asks for an inspection.", claimantName: "Pat Example", vehicleRegistration: "AB12CDE",
+      });
+      const wrongName = await run.call("create_case", {
+        messageId: detail.summary.id, reason: "The enquiry asks for an inspection.", claimantName: "Sam Other", vehicleRegistration: "MJ15UCT",
+      });
+      assert.match(wrongPlate.text, /AB12CDE is not written in the enquiry/);
+      assert.match(wrongName.text, /Sam Other is not written in the enquiry/);
+      assert.deepEqual(run.pegasus.writes, []);
+    });
+
+    it("writes nothing in a dry run", async () => {
+      const { detail, run } = instruction(website, { ...enquiry, dryRun: true });
+      const result = await run.call("create_case", {
+        messageId: detail.summary.id, reason: "The enquiry asks for an inspection.", claimantName: "Pat Example", vehicleRegistration: "MJ15 UCT",
+      });
+      assert.equal(result.text, "Dry run: would create the one-off Case and link the e-mail to it.");
+      assert.deepEqual(run.pegasus.writes, []);
+    });
   });
 });
 

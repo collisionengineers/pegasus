@@ -63,7 +63,8 @@ extraction alone never allocates or reserves a Case/PO. Missing ordinary
 detail or images keep the Case at `Not ready`; they are not
 another pre-Case gate.
 
-A Triage Case is allocated only once the Principal is established, before
+A Triage Case is allocated only once the Principal is established (the
+draft's suggested Principal, else the accepted mail route's, R966), before
 the request is classified as a Triage, and the registration is known. A
 Triage request missing either allocates nothing; an e-mailed one waits in
 the Inbox's No Case Found scope

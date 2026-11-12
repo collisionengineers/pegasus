@@ -49,6 +49,18 @@ public sealed class IntermediaryDomains
         Identity(senderAddress) is { } identity
         && principalCodesByIdentity[identity].Contains(principalCode, StringComparer.Ordinal);
 
+    /// <summary>Every Principal the sender is an intermediary for; none when it is not one.</summary>
+    public IReadOnlyCollection<string> PrincipalCodesFor(string senderAddress) =>
+        Identity(senderAddress) is { } identity
+            ? principalCodesByIdentity[identity].Distinct(StringComparer.Ordinal).ToArray()
+            : [];
+
+    /// <summary>
+    /// What a directory e-mail or a sender is matched by: the full mailbox
+    /// address on a shared mail domain, the exact domain otherwise.
+    /// </summary>
+    internal static string? IdentityOf(string? address) => Identity(address);
+
     // A blank, malformed or multi-address e-mail has no identity.
     private static string? Identity(string? address) =>
         address is not null && PrincipalMailRoutePolicy.TryGetMailboxDomain(address, out var domain)

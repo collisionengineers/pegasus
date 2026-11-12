@@ -217,7 +217,11 @@ arbitrary nested messages and quoted history do not. A conflicting or
 ambiguous profile fails closed. Automatic instruction extraction for a
 non-QDOS Principal needs one profile that agrees with the sender. Existing
 QDOS route-bound body and Triage shapes stay accepted when no competing
-profile matches.
+profile matches. Fairway's profile is known by its `New INSTRUCTIONS:`
+heading with the registration and make and model labels, not by the firm's
+name in an e-mail footer, which an instruction sent without its footer does
+not carry; whether the sender is Fairway stays the route's question
+(operator, 11 November 2026, [R973](../rulings.md)).
 
 **Classification.** The one `PrincipalMailClassificationPolicy`
 implementation is bound to each extraction registration. QDOS keeps its

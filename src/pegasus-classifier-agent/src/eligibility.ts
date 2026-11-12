@@ -16,9 +16,14 @@ export function decider(actor: string): string {
   return separator < 0 ? "" : actor.slice(0, separator);
 }
 
-/** From the list row alone: worth reading in full. */
+/**
+ * From the list row alone: worth reading in full. The row names who decided
+ * its type, so mail staff, an Automation caller or a Principal decided is
+ * passed over without a read; these are the rows awaitingDecisionCount counts.
+ */
 export function isCandidate(summary: MailSummary): boolean {
-  return summary.caseId == null || summary.classification?.outcome === "Unclassified";
+  return decider(summary.classificationActor ?? "") === "system-worker"
+    && (summary.caseId == null || summary.classification?.outcome === "Unclassified");
 }
 
 /** From the full read, at the start of a run. */

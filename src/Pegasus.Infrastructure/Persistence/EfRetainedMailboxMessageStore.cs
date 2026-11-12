@@ -1317,6 +1317,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                     DismissedAtUtc = row.DismissedAtUtc,
                     IsTriageCase = isTriageCase,
                     ClassificationVersion = receipt?.Classification?.Version,
+                    ClassificationActor = receipt?.Classification?.DecidedByActor,
                     PrincipalCode = receipt?.RoutePrincipalCode ?? caseFact?.PrincipalCode,
                     VehicleSummary = string.IsNullOrWhiteSpace(caseFact?.Registration)
                         ? receipt?.DraftRegistration

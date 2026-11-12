@@ -43,6 +43,9 @@ internal sealed record IntakeToolDetail(
     Guid? CaseId,
     string? CaseReference,
     string? ClassifiedCaseType,
+    string? EstablishedPrincipalCode,
+    string? SenderDirectoryPrincipalCode,
+    bool WebsiteEnquiry,
     InstructionDraft? Draft,
     IReadOnlyList<string> MissingIdentityFields,
     IntakeToolAllocation? Allocation,
@@ -104,6 +107,8 @@ internal sealed class IntakeActionMcpTools(
     IStandaloneAuditEvidenceQueries standaloneAuditEvidence,
     IInspectionAddressResolutionStore addressResolutions,
     IPrincipalInspectionModeStore principalInspectionModes,
+    IPrincipalSenderDirectory principalSenders,
+    IIntermediaryRegistry intermediaries,
     ICreateManualCase createManualCase,
     IContactDirectoryQueries contacts,
     ITriageQueries triages,
@@ -124,7 +129,7 @@ internal sealed class IntakeActionMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Gets one received item as the Create case page reviews it: its version, processing decision, the Case it already belongs to, the classified case type, the instruction draft and which identity-critical fields it still lacks, the allocation attempt (with attemptId and whether it can be retried), the inspection address: its state (Unresolved, Suggested, Accepted, Corrected or Supplied), the address extraction suggested with the fingerprint pegasus_intake_action resolve_inspection_address takes, and the settled value with the actor kind and subject that settled it; and the item's files (assetId, name, type, size and custody state; a Triage reply attaches Confirmed files by assetId).")]
+    [Description("Gets one received item as the Create case page reviews it: its version, processing decision, the Case it already belongs to, the classified case type, the Principal the item has established (establishedPrincipalCode: the draft's suggested Principal, else an accepted mail route's unless the instruction profile conflicts with it) or, when it has established none, the one active Principal Contact its sender belongs to by the Contacts directory (senderDirectoryPrincipalCode, a code to give accept as principalCode), whether it is a website enquiry (websiteEnquiry: a private customer's, made a one-off Case with pegasus_case_create), the instruction draft and which identity-critical fields it still lacks, the allocation attempt (with attemptId and whether it can be retried), the inspection address: its state (Unresolved, Suggested, Accepted, Corrected or Supplied), the address extraction suggested with the fingerprint pegasus_intake_action resolve_inspection_address takes, and the settled value with the actor kind and subject that settled it; and the item's files (assetId, name, type, size and custody state; a Triage reply attaches Confirmed files by assetId).")]
     public async Task<IntakeToolDetail> GetAsync(
         [Description(ReceiptIdDescription)] Guid receiptId,
         CancellationToken cancellationToken = default)
@@ -139,6 +144,9 @@ internal sealed class IntakeActionMcpTools(
             {
                 var receipt = await RequireReceiptAsync(receiptId, context.Actor, cancellationToken);
                 var resolution = await ResolutionAsync(receipt, cancellationToken);
+                var established = EstablishedIntakePrincipal.CodeFor(receipt);
+                var sender = receipt.MailRouteDecision?.EffectiveSender?.Address;
+                var websiteEnquiry = WebsiteEnquiryMail.IsFrom(sender);
                 return new IntakeToolDetail(
                     receipt.Id,
                     receipt.Version,
@@ -152,6 +160,13 @@ internal sealed class IntakeActionMcpTools(
                         ? receipt.AcceptedCaseReference
                         : receipt.ManualLinkedCaseReference,
                     receipt.MailClassificationDecision?.CaseType?.ToString(),
+                    established,
+                    established is null && !websiteEnquiry
+                        ? (await principalSenders.LoadAsync(cancellationToken)).SingleFor(
+                            sender,
+                            await intermediaries.LoadAsync(cancellationToken))
+                        : null,
+                    websiteEnquiry,
                     receipt.InstructionDraft,
                     receipt.InstructionDraft is { } draft
                         ? InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft)
@@ -193,13 +208,13 @@ internal sealed class IntakeActionMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("One staff intake act on a received item, through the same Core commands as staff. accept turns the item into a Case, as Create case on a received item does: the reviewed draft is recorded (the draft fields named here replace the item's; an omitted field keeps its value and an empty string clears it), then the Case is allocated for principalCode (default: the draft's suggested Principal) and caseType (default: the classified type; Audit only for an item classified as an Audit). It is refused while an identity-critical field is missing, or while the inspection address is not settled (a Principal that inspects by images needs none). resolve_inspection_address settles the address as the Create case page does: omit inspectionAddress to accept the suggested address, or give it to correct the suggestion (both need addressSuggestionFingerprint from pegasus_intake_get); where nothing was suggested, give inspectionAddress to supply it, with no fingerprint. Image Based Assessment is never typed. The settlement is recorded as the Automation actor's and advances the item version by one. allocate retries a failed allocation with a reason, naming the attempt it retries. open_triage opens the Triage Case from an item classified, or corrected to, Triage request, as Open the Triage on its message does, for vehicleRegistration, which it requires; it is refused where the message does not offer Open the Triage. Each needs the item version from pegasus_intake_get; the result names the allocation status and, once allocated, the Case, or the opened Triage Case, or the settled address and the item's new version.")]
+    [Description("One staff intake act on a received item, through the same Core commands as staff. accept turns the item into a Case, as Create case on a received item does: the reviewed draft is recorded (the draft fields named here replace the item's; an omitted field keeps its value and an empty string clears it), then the Case is allocated for principalCode (default: the Principal the item established, pegasus_intake_get's establishedPrincipalCode) and caseType (default: the classified type; Audit only for an item classified as an Audit). It is refused while an identity-critical field is missing. An unsettled inspection address does not refuse it: the Case then starts Not ready with Inspection address among its missing instruction items (a Principal that inspects by images needs none). resolve_inspection_address settles the address as the Create case page does: omit inspectionAddress to accept the suggested address, or give it to correct the suggestion (both need addressSuggestionFingerprint from pegasus_intake_get); where nothing was suggested, give inspectionAddress to supply it, with no fingerprint. Image Based Assessment is never typed. The settlement is recorded as the Automation actor's and advances the item version by one. allocate retries a failed allocation with a reason, naming the attempt it retries. open_triage opens the Triage Case from an item classified, or corrected to, Triage request, as Open the Triage on its message does, for vehicleRegistration, which it requires; it is refused where the message does not offer Open the Triage. Each needs the item version from pegasus_intake_get; the result names the allocation status and, once allocated, the Case, or the opened Triage Case, or the settled address and the item's new version.")]
     public async Task<IntakeActionToolResult> ActAsync(
         [Description(ReceiptIdDescription)] Guid receiptId,
         [Description("accept, resolve_inspection_address, allocate or open_triage.")] string action,
         [Description("The item version from pegasus_intake_get; a stale value fails closed.")] long expectedReceiptVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key resumes the same act rather than starting another.")] string operationKey,
-        [Description("accept only: the Principal code the Case is allocated for, at most 20 characters; omit to use the draft's suggested Principal.")] string? principalCode = null,
+        [Description("accept only: the Principal code the Case is allocated for, at most 20 characters; omit to use the Principal the item established.")] string? principalCode = null,
         [Description("accept only: Inspection, Audit or InspectionAndAudit; omit to use the classified case type, or Inspection when there is none.")] string? caseType = null,
         [Description("accept only: claimant name.")] string? claimantName = null,
         [Description("accept only: claim number.")] string? claimNumber = null,
@@ -526,15 +541,15 @@ internal sealed class IntakeActionMcpTools(
 
         var current = receipt.InstructionDraft
             ?? new InstructionDraft(null, null, null, null, null, null, null, null, null, null);
-        var principal = RequirePrincipalCode(principalCode ?? current.SuggestedPrincipalCode);
+        // Omitted, the Principal is the one the item established: the draft's
+        // suggestion, else its accepted mail route's (R966).
+        var principal = RequirePrincipalCode(principalCode ?? EstablishedIntakePrincipal.CodeFor(receipt));
         var principalIsImageBased = await principalInspectionModes.GetForPrincipalAsync(principal, cancellationToken)
             == CaseInspectionMode.ImageBasedAssessment;
         var resolution = await ResolutionAsync(receipt, cancellationToken);
-        if (!InspectionAddressResolutionPolicy.SatisfiesCaseCreation(resolution.State, principalIsImageBased))
-        {
-            throw new McpException(
-                "The inspection address is not settled; settle it with resolve_inspection_address before this item can become a case.");
-        }
+        // An unsettled address does not refuse the Case (R965): it starts Not
+        // ready, with Inspection address among its missing instruction items.
+        var addressSettled = InspectionAddressResolutionPolicy.SatisfiesCaseCreation(resolution.State, principalIsImageBased);
 
         var draft = current with
         {
@@ -585,7 +600,7 @@ internal sealed class IntakeActionMcpTools(
                 type,
                 principal,
                 new CaseCompleteness(
-                    InstructionComplete: true,
+                    InstructionComplete: addressSettled,
                     ImagesComplete: InstructionEvidenceImages.Select(receipt.AssetRecords).Count > 0),
                 auditEvidence is { IntakeReceiptId: var evidenceReceiptId } && evidenceReceiptId == receipt.Id
                     ? auditEvidence.Id

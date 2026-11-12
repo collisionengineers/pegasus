@@ -316,19 +316,9 @@ public sealed class AllocateIntake(
     /// </summary>
     private static string? EstablishedPrincipalCode(
         IntakeReceipt receipt,
-        PrincipalSubmissionBinding? binding)
-    {
-        if (receipt.MailRouteDecision is
-            {
-                Disposition: MailRouteDisposition.Accepted,
-                SelectedRoute: { } selectedRoute
-            })
-        {
-            return selectedRoute.PrincipalCode.Trim().ToUpperInvariant();
-        }
-
-        return binding?.PrincipalCode.Trim().ToUpperInvariant();
-    }
+        PrincipalSubmissionBinding? binding) =>
+        EstablishedIntakePrincipal.RouteCode(receipt.MailRouteDecision)
+            ?? EstablishedIntakePrincipal.Normalize(binding?.PrincipalCode);
 
     /// <summary>
     /// The note the Principal sent with its instruction, written onto the case it

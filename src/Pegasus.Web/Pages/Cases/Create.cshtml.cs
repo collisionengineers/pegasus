@@ -302,7 +302,11 @@ public sealed partial class CreateModel(
         RefusalMessage = DescribeRefusal();
         var draft = Receipt.InstructionDraft;
         SuggestedPrincipalCode = draft?.SuggestedPrincipalCode;
-        PrincipalCode = draft?.SuggestedPrincipalCode ?? string.Empty;
+        // With no draft the item's accepted mail route still names its
+        // Principal (R966), so the field opens filled as a draft fills it.
+        PrincipalCode = draft?.SuggestedPrincipalCode
+            ?? EstablishedIntakePrincipal.CodeFor(Receipt)
+            ?? string.Empty;
         ClaimantName = draft?.ClaimantName;
         ClaimNumber = draft?.ClaimNumber;
         VehicleRegistration = draft?.VehicleRegistration;
@@ -935,7 +939,7 @@ public sealed partial class CreateModel(
         // records "Image Based Assessment" against a principal that inspects in
         // person.
         var effectivePrincipalCode = Optional(PrincipalCode)
-            ?? receipt.InstructionDraft?.SuggestedPrincipalCode;
+            ?? EstablishedIntakePrincipal.CodeFor(receipt);
         PrincipalIsImageBased = await IsImageBasedAsync(effectivePrincipalCode, cancellationToken);
         PrincipalCodes = await principalQueries.ListNewCasePrincipalCodesAsync(cancellationToken);
         AddressResolution = await addressResolutionStore.GetAsync(receiptId, cancellationToken)

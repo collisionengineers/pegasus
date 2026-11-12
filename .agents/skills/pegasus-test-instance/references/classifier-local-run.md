@@ -84,7 +84,13 @@ WantedBy=timers.target
 
 `systemctl --user enable --now pegasus-classifier.timer` starts it;
 `journalctl --user -u pegasus-classifier` is its log. Rebuild (`npm ci && npm
-run build`) after each move of the checkout (skill section 6).
+run build`) after each move of the checkout (skill section 6): `dist/` is
+ignored, so a new branch does not rebuild it and the timer keeps running the
+old one.
+
+The settings file carries `Box__OldSystemRootFolderId=3220448509`, so
+`pegasus_old_system_folder_search` answers `available` here as in production
+(R970); without it every folder lookup answers `unavailable`.
 
 ## Claude Code on the instance's MCP
 

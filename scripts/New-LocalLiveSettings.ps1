@@ -55,6 +55,9 @@ $Path = [System.IO.Path]::GetFullPath($Path)
 
 # The operator-approved local-test custody root (not the production root).
 $boxRootFolderId = '425169015650'
+# The old-system case folders, read by folder name only for the classifier's
+# Pre-Pegasus lookup (R561); the operator allowed that read here (R970).
+$boxOldSystemRootFolderId = '3220448509'
 if ($BoxHoldingFolderId -eq $boxRootFolderId) {
     throw 'The Box holding folder must be a folder below the local-test root, not the root itself.'
 }
@@ -91,6 +94,7 @@ $literals = [ordered]@{
     Box__UploadUri = 'https://upload.box.com/api/2.0/'
     Box__RootFolderId = $boxRootFolderId
     Box__HoldingFolderId = $BoxHoldingFolderId
+    Box__OldSystemRootFolderId = $boxOldSystemRootFolderId
     Dvla__BaseUri = 'https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/'
     Dvsa__BaseUri = 'https://history.mot.api.gov.uk/v1/trade/vehicles/registration/'
     Dvsa__TokenUri = 'https://login.microsoftonline.com/a455b827-244f-4c97-b5b4-ce5d13b4d00c/oauth2/v2.0/token'

@@ -90,6 +90,13 @@ public sealed record RetainedMailSummary(
     public int? ClassificationVersion { get; init; }
 
     /// <summary>
+    /// Who decided the message's current classification, as the decision
+    /// records it (<c>system-worker:</c>, <c>staff:</c>, <c>automation:</c>
+    /// and so on); null while it has no decision.
+    /// </summary>
+    public string? ClassificationActor { get; init; }
+
+    /// <summary>
     /// True when <see cref="CaseId"/> is a Triage Case by its own type, whether
     /// the message opened it or staff linked the message to it. Then
     /// <see cref="CaseReference"/> is its <c>t.</c> reference and the workspace
