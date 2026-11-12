@@ -54,11 +54,9 @@ internal static class CaseDataSnapshotFactory
             return null;
         }
 
-        var claimSources = await EfContactDirectoryAdministration.ReadLinkedChoicesAsync(
-            context.Organizations.AsNoTracking()
-                .Where(item => item.Active && item.Role == "claim_source")
-                .OrderBy(item => item.Name)
-                .ThenBy(item => item.Id),
+        var claimSources = await EfContactDirectoryAdministration.ReadActiveByRoleAsync(
+            context,
+            ContactRole.ClaimSource,
             cancellationToken);
         return EstablishedIntakeClaimSource.For(
             fields,
@@ -439,7 +437,7 @@ internal static class CaseDataSnapshotFactory
             var candidates = established.Field?.Candidates ?? [];
             var candidate = candidates.FirstOrDefault(item =>
                     string.Equals(item.Value, named, StringComparison.OrdinalIgnoreCase))
-                ?? candidates.FirstOrDefault();
+                ?? (candidates.Count > 0 ? candidates[0] : null);
             sourceKind = CaseDataCodes.IntakeEvidence;
             sourceLabel = candidate is null
                 ? "instruction claim source"

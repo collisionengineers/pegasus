@@ -121,8 +121,22 @@ public sealed class EfContactDirectoryAdministration(
         CancellationToken cancellationToken)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        return await ReadActiveByRoleAsync(context, role, cancellationToken);
+    }
+
+    /// <summary>
+    /// The active contacts of one role in name order, each with the codes of
+    /// the Principals it is linked to, in one statement. The role lists read
+    /// it, and so does the intake acceptance, inside its own transaction, to
+    /// fill a new Case's Claim Source (R1014).
+    /// </summary>
+    internal static Task<IReadOnlyList<ContactChoice>> ReadActiveByRoleAsync(
+        PegasusDbContext context,
+        ContactRole role,
+        CancellationToken cancellationToken)
+    {
         var roleCode = ToCode(role);
-        return await ReadLinkedChoicesAsync(
+        return ReadLinkedChoicesAsync(
             context.Organizations.AsNoTracking()
                 .Where(item => item.Active && item.Role == roleCode)
                 .OrderBy(item => item.Name)
@@ -277,10 +291,9 @@ public sealed class EfContactDirectoryAdministration(
     /// <summary>
     /// A role list's read: the same columns and, in the same statement, the
     /// codes of the Principals each organisation is linked to, which order a
-    /// Case's list (R1013, R1015). Also read by the intake acceptance, which
-    /// fills a new Case's Claim Source from the active Claim Sources (R1014).
+    /// Case's list (R1013, R1015).
     /// </summary>
-    internal static async Task<IReadOnlyList<ContactChoice>> ReadLinkedChoicesAsync(
+    private static async Task<IReadOnlyList<ContactChoice>> ReadLinkedChoicesAsync(
         IQueryable<OrganizationEntity> ordered,
         CancellationToken cancellationToken)
     {
