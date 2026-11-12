@@ -174,12 +174,12 @@
                                 {
                                     if (group.Label is null)
                                     {
-                                        foreach (var choice in group.Choices) { ClaimSourceOption(choice, claimSource?.ClaimSourceId); }
+                                        foreach (var choice in group.Choices) { await ClaimSourceOption(choice, claimSource?.ClaimSourceId); }
                                     }
                                     else
                                     {
                                         <optgroup label="@group.Label">
-                                            @foreach (var choice in group.Choices) { ClaimSourceOption(choice, claimSource?.ClaimSourceId); }
+                                            @foreach (var choice in group.Choices) { await ClaimSourceOption(choice, claimSource?.ClaimSourceId); }
                                         </optgroup>
                                     }
                                 }
@@ -227,8 +227,9 @@
     // same words as a plain caption while reading, with the value's source
     // tag in the label line in both.
     // One Claim source option: its record's notes and contact ride on it so the
-    // cells beside the list follow a change before Save (case-workspace.js).
-    private void ClaimSourceOption(ContactChoice choice, Guid? selectedId)
+    // cells beside the list follow a change before Save (case-workspace.js). A
+    // Task, since the option tag helper it draws through runs asynchronously.
+    private async Task ClaimSourceOption(ContactChoice choice, Guid? selectedId)
     {
         <option value="@choice.OrganizationId" data-notes="@choice.NotesOnEveryCase" data-contact-name="@choice.ContactPerson" data-contact-phone="@choice.Telephone" data-contact-email="@choice.Email" selected="@(choice.OrganizationId == selectedId)">@choice.Name</option>
     }

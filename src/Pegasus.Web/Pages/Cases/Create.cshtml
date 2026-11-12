@@ -14,7 +14,8 @@
 @functions {
     // One Claim Source option, with the Principal codes it is linked to and its
     // place in name order for the regrouping script (site.js).
-    private void ClaimSourceOption(ContactChoice claimSource, int order)
+    // A Task, since the option tag helper it draws through runs asynchronously.
+    private async Task ClaimSourceOption(ContactChoice claimSource, int order)
     {
         <option value="@claimSource.OrganizationId" data-principals="@string.Join(' ', claimSource.LinkedPrincipalCodes ?? [])" data-order="@order">@claimSource.Name</option>
     }
@@ -109,12 +110,12 @@
                             {
                                 if (group.Label is null)
                                 {
-                                    foreach (var claimSource in group.Choices) { ClaimSourceOption(claimSource, claimSourceOrder[claimSource.OrganizationId]); }
+                                    foreach (var claimSource in group.Choices) { await ClaimSourceOption(claimSource, claimSourceOrder[claimSource.OrganizationId]); }
                                 }
                                 else
                                 {
                                     <optgroup label="@group.Label">
-                                        @foreach (var claimSource in group.Choices) { ClaimSourceOption(claimSource, claimSourceOrder[claimSource.OrganizationId]); }
+                                        @foreach (var claimSource in group.Choices) { await ClaimSourceOption(claimSource, claimSourceOrder[claimSource.OrganizationId]); }
                                     </optgroup>
                                 }
                             }
