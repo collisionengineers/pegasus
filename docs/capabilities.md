@@ -215,7 +215,7 @@ exclusion.
 | OPS-27 | Report a problem: kept with its captured state and raised as a repository issue | [Problem reports](frd/frd-17-administration-workspace.md#problem-reports) |
 | EXT-21 | Guided photo capture app and its public surface: photo links and standing links, anonymous and route-bound, Collision Engineers branded | [Public surface](frd/frd-28-guided-photo-capture.md#public-surface); [The app's steps and required items](frd/frd-28-guided-photo-capture.md#the-apps-steps-and-required-items); [Standing photo links](frd/frd-28-guided-photo-capture.md#standing-photo-links) |
 | INT-34 | Photo capture intake channel: a receipt per item, filing on a known Case, a Vehicle images record when a capture with no Case settles, story-order names and In report baskets | [Routing and filing](frd/frd-28-guided-photo-capture.md#routing-and-filing); [Baskets and names](frd/frd-28-guided-photo-capture.md#baskets-and-names); [Case field filling](frd/frd-28-guided-photo-capture.md#case-field-filling) |
-| MAIL-27 | Photo link e-mail from an approved mailbox, Copy link, and reminders shown as due and sent by staff through the composer | [The photo link e-mail](frd/frd-28-guided-photo-capture.md#the-photo-link-e-mail); [Statuses and reminders](frd/frd-28-guided-photo-capture.md#statuses-and-reminders) |
+| MAIL-27 | Photo link e-mail from an approved mailbox, the photo link text from Pegasus's own UK mobile number (R918), Copy link, and reminders shown as due and sent by staff through the composer | [The photo link e-mail](frd/frd-28-guided-photo-capture.md#the-photo-link-e-mail); [The photo link text](frd/frd-28-guided-photo-capture.md#the-photo-link-text); [Statuses and reminders](frd/frd-28-guided-photo-capture.md#statuses-and-reminders) |
 | UI-20 | Photo capture workspace: the rail page with Direct links and Standing links, Send photo link, a link's detail and a contact's Photo links tab | [Staff pages](frd/frd-28-guided-photo-capture.md#staff-pages) |
 | ACC-12 | External/customer application accounts (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | ACC-13 | Public registration (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
@@ -238,7 +238,7 @@ exclusion.
 | BND-01 | Import predecessor cases or application data (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | BND-02 | Keep the predecessor application available after cutover (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | BND-03 | Reuse predecessor application code (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
-| BND-04 | SMS integration (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
+| BND-04 | SMS integration, other than texting a photo link (R918) (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | BND-05 | Microsoft Teams integration (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | BND-06 | Persistent external case/customer portal (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | BND-07 | Independent Engineer accounts (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |

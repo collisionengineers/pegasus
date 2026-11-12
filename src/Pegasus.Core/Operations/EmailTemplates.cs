@@ -134,9 +134,9 @@ public static partial class EmailTemplates
     /// <summary>
     /// The photo link text (FRD-28 The photo link text; R919): the e-mail's
     /// message cut to what a text carries, in plain characters so it stays in
-    /// the cheaper SMS alphabet. The wording is the agent's draft awaiting the
-    /// operator's sign-off (operator, 10 November 2026: "make something
-    /// reasonable and give it to me to sign off on").
+    /// the cheaper SMS alphabet. The wording is the agent's draft (operator,
+    /// 10 November 2026: "make something reasonable and give it to me to
+    /// sign off on"), signed off as drafted on 12 November 2026 (R1001).
     /// </summary>
     private const string PhotoLinkTextDefault =
         "Hi {claimant},\n"

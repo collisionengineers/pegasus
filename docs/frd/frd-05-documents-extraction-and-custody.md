@@ -148,8 +148,8 @@ repeat every minute.
   custody completes (R719, 6 November 2026).
 - A photo link's items file flat in the Case's Box folder, with no
   subfolder, each named by its Case document number, its story position and
-  a plain label, as `014 02-03 Front driver corner closer.jpg` (operator,
-  9 November 2026; R775;
+  a plain label, as `014 02-201 Front driver corner closer.jpg` (operator,
+  9 and 12 November 2026; R775, R1000;
   [FRD-28](frd-28-guided-photo-capture.md#baskets-and-names)). Its
   inspection images arrive In report and its additional information does
   not ([Image tags](#image-tags)). A full-size original files as the next
