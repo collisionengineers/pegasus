@@ -761,4 +761,76 @@ public sealed class CaseWorkspaceScriptContractTests
             StringComparison.Ordinal);
         Assert.DoesNotContain("            show('report');", script, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// A section is drawn again after a save only while it holds nothing
+    /// unsent, and a landed commit made only the Case form's own controls
+    /// sent. A helper control with no form (an impact row, the salvage
+    /// slider, the rate box, the Contract tick) sends its value through a
+    /// hidden field, so once touched it read as unsent for the rest of the
+    /// session and its section never followed a save again: Settlement kept
+    /// an Engineer's Value the Case had moved on from. The commit samples the
+    /// helpers with the form. The scale preview's slider is applied by its
+    /// own form and keeps holding.
+    /// </summary>
+    [Fact]
+    public void ALandedCommitMakesTheHelperControlsSentWithTheForm()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var helpers = FunctionBody(script, "    function helperControls() {", "    ");
+        Assert.Contains("main.querySelectorAll('input, select, textarea')", helpers, StringComparison.Ordinal);
+        Assert.Contains("return !control.form && !control.closest('[data-estimate-scale]');", helpers, StringComparison.Ordinal);
+        Assert.Contains(
+            "return Array.prototype.slice.call(form.elements).concat(helperControls()).map(function (control) {",
+            script,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A hidden field a script fills (a damage marker, a rotation, a removed
+    /// line) does not hold its section. A catch up answered while such a
+    /// change waited to be sent drew the section as the server had it, and
+    /// the commit then sent the page without the change. The answer is let
+    /// go and the page catches up after the commit.
+    /// </summary>
+    [Fact]
+    public void ACatchUpNeverDrawsOverAChangeWaitingToBeSent()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var catchUp = FunctionBody(script, "function catchUp(options) {", "    ");
+        var waits = catchUp.IndexOf("if (commitTimer !== null || commitPending) {", StringComparison.Ordinal);
+        Assert.True(waits >= 0, "A catch up must look for a change waiting to be sent.");
+        Assert.True(waits < catchUp.IndexOf("swap(html, null, null, { catchUp: true, afterSave: afterSave })", StringComparison.Ordinal));
+        Assert.Contains("if (afterSave) { redrawWanted = true; } else { catchUpWanted = true; }", catchUp, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Estimate's Contract repair bar writes Decisions' outcome and agreed
+    /// sum, which live in another section. It held both from when it was
+    /// bound; after a save drew Decisions again while the Estimate stayed, the
+    /// bar wrote the sum into a control no longer on the page and nothing was
+    /// saved. The partners are found as they are used and heard through one
+    /// capturing listener on the document.
+    /// </summary>
+    [Fact]
+    public void TheContractBarFindsDecisionsControlsAsItUsesThem()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var bar = FunctionBody(script, "    function bindContract(form) {", "    ");
+        Assert.Contains("function sum() { return sumId ? document.getElementById(sumId) : null; }", bar, StringComparison.Ordinal);
+        Assert.Contains("function outcome() { return outcomeId ? document.getElementById(outcomeId) : null; }", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("var sum = document.getElementById(", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("var outcome = document.getElementById(", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("sum.addEventListener(", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("outcome.addEventListener(", bar, StringComparison.Ordinal);
+        Assert.Contains("if (!bar || !bar.host.isConnected || !event.target || !event.target.id) { return; }", script, StringComparison.Ordinal);
+        Assert.Contains("if (name === 'input' && event.target.id === bar.sumId) { bar.sumTyped(); }", script, StringComparison.Ordinal);
+        Assert.Contains("if (name === 'change' && event.target.id === bar.outcomeId) { bar.outcomeChosen(); }", script, StringComparison.Ordinal);
+    }
 }
