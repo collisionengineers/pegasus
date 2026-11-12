@@ -5,9 +5,8 @@ namespace Pegasus.Core.PhotoCapture;
 /// capture, only while the Case's images are not complete, and only on a Case
 /// that takes a system completion. A capture that has already completed them
 /// never completes them again, whether its later photos arrive on a second
-/// Send or in a later record of the same capture that merges into the Case, so
-/// a member of staff who marked them incomplete keeps that (operator,
-/// 9 November 2026; R792; 10 November 2026; R841). A record no capture made
+/// Send or in a later record of the same capture that merges into the Case
+/// (operator, 9 November 2026; R792; 10 November 2026; R841). A record no capture made
 /// has no capture marker and completes them as any merge does.
 /// </summary>
 public static class PhotoCaptureImages

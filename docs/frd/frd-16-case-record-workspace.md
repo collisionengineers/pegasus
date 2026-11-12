@@ -956,7 +956,8 @@ open (non-closed, non-archived) Standard or Audit Case, the viewer toolbar
 offers **Take snapshot** (`icon-aperture`) in or out of Edit mode without
 waiting on or ending any live edit lease
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); pressing it captures
-the current video frame at its intrinsic resolution, files it in Box as a JPEG
+the current video frame at its intrinsic resolution, up to 4096 pixels on its
+longest side ([R998](../rulings.md)), files it in Box as a JPEG
 `Image` (`InReport = true` by default, named
 `{video-stem}-frame-{mm}m{ss}s.jpg` with `{ms}ms` and `" (2)"` disambiguation up
 to 120 characters), updates Files and Case readiness in place while keeping the

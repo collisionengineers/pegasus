@@ -128,7 +128,8 @@ internal sealed partial class CachedDocumentContentStore(
         ValidateRequest(request);
         RequireStaffRight(request.Actor);
         var (source, entry) = await ResolveAuthorizedSourceAsync(request, cancellationToken);
-        return await ServeAsync(request, source, CachedReader(entry, source), cancellationToken);
+        return await ServeAsync(
+            request, source, CachedReader(entry, source, request.Seekable), cancellationToken);
     }
 
     /// <summary>
@@ -452,10 +453,11 @@ internal sealed partial class CachedDocumentContentStore(
     /// </summary>
     private Func<CancellationToken, Task<Stream?>> CachedReader(
         DocumentContentCacheEntryEntity? entry,
-        ResolvedSource source) =>
+        ResolvedSource source,
+        bool seekable = false) =>
         entry is null
             ? _ => Task.FromResult<Stream?>(null)
-            : token => TryOpenCachedAsync(entry, source, timeProvider.GetUtcNow(), token);
+            : token => TryOpenCachedAsync(entry, source, seekable, timeProvider.GetUtcNow(), token);
 
     /// <summary>
     /// The authorised source and, read in the same query, its cache entry
@@ -580,11 +582,56 @@ internal sealed partial class CachedDocumentContentStore(
     private async Task<Stream?> TryOpenCachedAsync(
         DocumentContentCacheEntryEntity entry,
         ResolvedSource source,
+        bool seekable,
         DateTimeOffset now,
-        CancellationToken cancellationToken) =>
-        await IsServableAsync(entry, now, cancellationToken)
-            ? await OpenCachedObjectAsync(entry, source, cancellationToken)
-            : null;
+        CancellationToken cancellationToken)
+    {
+        if (!await IsServableAsync(entry, now, cancellationToken))
+        {
+            return null;
+        }
+        return seekable && await TryOpenRangesAsync(entry, source, cancellationToken) is { } ranges
+            ? ranges
+            : await OpenCachedObjectAsync(entry, source, cancellationToken);
+    }
+
+    /// <summary>
+    /// The cached object read only in the ranges asked of it, for a video
+    /// preview's seeks: the object was hashed and length-checked when it was
+    /// published, and every range is read pinned to the ETag recorded then,
+    /// so a changed object answers 412 instead of other bytes (operator, 12
+    /// November 2026; FRD-05). <c>null</c> when the entry cannot be pinned or
+    /// its object is gone or changed, so the caller reads it whole and
+    /// verifies it as any other read.
+    /// </summary>
+    private async Task<Stream?> TryOpenRangesAsync(
+        DocumentContentCacheEntryEntity entry,
+        ResolvedSource source,
+        CancellationToken cancellationToken)
+    {
+        if (entry.ETag is not { Length: > 0 } etag
+            || entry.VerifiedSize != source.Length
+            || !FixedHashEquals(entry.VerifiedSha256, source.Sha256))
+        {
+            return null;
+        }
+        var blob = container.GetBlobClient(entry.BlobIdentity);
+        var pinned = new ETag(etag);
+        try
+        {
+            var properties = await blob.GetPropertiesAsync(
+                new BlobRequestConditions { IfMatch = pinned }, cancellationToken);
+            if (properties.Value.ContentLength != source.Length)
+            {
+                return null;
+            }
+        }
+        catch (RequestFailedException exception) when (exception.Status is 404 or 412)
+        {
+            return null;
+        }
+        return new CachedObjectRangeStream(blob, pinned, source.Length);
+    }
 
     /// <summary>
     /// Whether an entry read earlier may still be served now: it has not

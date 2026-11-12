@@ -325,7 +325,10 @@ R592).
 
 An inline image preview is served through this same cached content path,
 never as an audited download. Every read re-verifies the source content hash
-and serves only confirmed custody. The one exception is the upload review,
+and serves only confirmed custody, except a seek in an MP4 or MOV preview,
+which reads only its range from the cache copy verified when it was
+published, pinned to that copy's ETag; a copy that cannot be pinned is read
+whole and verified (operator, 12 November 2026; [R999](../rulings.md)). The one exception is the upload review,
 which shows an uploaded image from its intake bytes, staged or retained,
 before custody confirms it, re-verifying the hash the same way (operator, 28
 October 2026, R463; [FRD-18](frd-18-manual-upload.md#the-reviews-shape)). A cache entry is addressed by content
@@ -339,7 +342,8 @@ logically removed, whatever its custody state, and offers the thumbnail,
 viewer link, tags and Crop only on Confirmed ones. The Documents tab lists
 the same set, each row stating its custody, and offers Preview and Save as
 only where the bytes are held; inline MP4 and MOV previews support HTTP
-byte-range requests so the viewer can seek cleanly before capturing a frame. Export is the one Case export
+byte-range requests so the viewer can seek cleanly before capturing a frame,
+each costing its slice (R999). Export is the one Case export
 ([FRD-07](frd-07-case-export.md#export-case)), not a per-document action
 (operator ruling, 15 October 2026).
 

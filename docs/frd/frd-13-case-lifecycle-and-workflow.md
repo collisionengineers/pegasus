@@ -144,7 +144,8 @@ photos on it, and every photo has filed; never on the first photo (operator,
 [FRD-28](frd-28-guided-photo-capture.md#routing-and-filing)). This
 completion is recorded once per capture, with its actor, and only for a
 batch with a photo filed on the Case: a later batch never completes the
-images again, so a later staff change stands ([R792](../rulings.md)). A
+images again ([R792](../rulings.md); staff cannot mark images incomplete,
+[R996](../rulings.md)). A
 photo whose filing ended for good without filing does not hold the batch
 back (operator, 10 November 2026, [R840](../rulings.md);
 [FRD-28](frd-28-guided-photo-capture.md#routing-and-filing)). A capture whose Vehicle
@@ -154,8 +155,10 @@ later record of the same capture does not complete them again (operator,
 10 November 2026, [R841](../rulings.md)). A JPEG or PNG filed directly onto the
 Case as an `Image` — from a Case video snapshot, `pegasus_document_add`, or
 retyping a confirmed document to `Image` — likewise completes the Case's images
-once confirmed in Box custody (operator, 11 November 2026,
-[R964](../rulings.md);
+once confirmed in Box custody, recorded in the Case's history like every other
+completion; a retype's line reads "{file name} changed to Image completed the
+Case's images." (operator, 11 November 2026, [R964](../rulings.md);
+12 November 2026, [R997](../rulings.md);
 [FRD-05](frd-05-documents-extraction-and-custody.md#document-types)). It does not clear other
 blockers, assign an Engineer, or skip Review.
 
