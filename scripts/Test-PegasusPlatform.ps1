@@ -491,10 +491,118 @@ finally {
     Remove-Item -LiteralPath $settingsRoot -Recurse -Force
 }
 
-if (-not $IsWindows) {
-    Write-Output 'LocalDB state classification skipped: Windows-only branch.'
-    return
+if ($IsLinux) {
+    # A local run's launcher is started through /bin/sh, which execs PowerShell,
+    # and the launcher then makes itself a process group leader. Its ownership
+    # record is handed over only once it leads that group (#2093), and a group
+    # whose launcher has exited is still stopped through the group (R978).
+    $launcherRoot = Join-Path ([IO.Path]::GetTempPath()) ("pegasus-launcher-" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $launcherRoot | Out-Null
+    $started = [System.Collections.Generic.List[System.Diagnostics.Process]]::new()
+    $leftChildPidFile = Join-Path $launcherRoot 'left-child.pid'
+    $powerShell = [Environment]::ProcessPath
+
+    function Start-ShellFixture {
+        param([Parameter(Mandatory)][string]$Name, [Parameter(Mandatory)][string]$Body)
+
+        $wrapper = Join-Path $launcherRoot "$Name.sh"
+        [IO.File]::WriteAllText($wrapper, $Body + "`n", [Text.UTF8Encoding]::new($false))
+        $process = Start-Process -FilePath '/bin/sh' -ArgumentList @("`"$wrapper`"") -PassThru
+        $started.Add($process)
+        return $process
+    }
+
+    function New-LauncherFixture {
+        param([Parameter(Mandatory)][string]$Name, [Parameter(Mandatory)][string]$Body)
+
+        $launcher = Join-Path $launcherRoot "$Name.ps1"
+        [IO.File]::WriteAllText(
+            $launcher,
+            (Get-PegasusProcessGroupPreamble) + "`n" + $Body + "`n",
+            [Text.UTF8Encoding]::new($false))
+        return "exec '$powerShell' -NoLogo -NoProfile -NonInteractive -File '$launcher' </dev/null >/dev/null 2>&1"
+    }
+
+    function Assert-GroupStopped {
+        param([Parameter(Mandatory)][string]$Case, [Parameter(Mandatory)][int]$RootProcessId)
+
+        $result = Stop-PegasusProcessTree -RootProcessId $RootProcessId
+        if (-not $result.Stopped -or @($result.ResidualProcessIds).Count -ne 0) {
+            throw "$Case did not stop the group; residual: $(@($result.ResidualProcessIds) -join ', ')."
+        }
+    }
+
+    try {
+        # Handover: until the exec and the preamble have run, the identifier is
+        # the shell's and leads no group of its own.
+        $hold = Start-ShellFixture -Name 'hold' -Body (
+            "sleep 1`n" + (New-LauncherFixture -Name 'hold' -Body 'Start-Sleep -Seconds 60'))
+        $before = Read-PegasusProcessStat -ProcessId $hold.Id
+        if ($null -eq $before -or $before.ProcessGroupId -eq $hold.Id) {
+            throw 'A launcher still in its shell must not lead its own process group.'
+        }
+        $handover = Wait-PegasusProcessGroupLeader -ProcessId $hold.Id -TimeoutSeconds 60
+        if ($handover -ne 'Leader') {
+            throw "A launcher that ran its preamble must lead its group; got $handover."
+        }
+        if ((Get-Item -LiteralPath "/proc/$($hold.Id)/exe").LinkTarget -ne $powerShell) {
+            throw 'A launcher that leads its group must already be PowerShell, not the shell.'
+        }
+        Assert-GroupStopped -Case 'Stopping a running launcher' -RootProcessId $hold.Id
+
+        # A launcher that exits leaves its child in the group; the group still
+        # proves ownership and is stopped (R978).
+        $leave = Start-ShellFixture -Name 'leave' -Body (New-LauncherFixture -Name 'leave' -Body (
+                "`$child = Start-Process -FilePath '/bin/sleep' -ArgumentList '60' -PassThru`n" +
+                "Set-Content -LiteralPath '$leftChildPidFile' -Value `$child.Id`n" +
+                "Start-Sleep -Seconds 2`nexit 0"))
+        $handover = Wait-PegasusProcessGroupLeader -ProcessId $leave.Id -TimeoutSeconds 60
+        if ($handover -ne 'Leader') {
+            throw "The exiting launcher must lead its group before it exits; got $handover."
+        }
+        if (-not $leave.WaitForExit(60000)) {
+            throw 'The exiting launcher fixture did not exit.'
+        }
+        $leftChild = [int](Get-Content -LiteralPath $leftChildPidFile -Raw)
+        if (-not (Test-PegasusProcessTreeAlive -RootProcessId $leave.Id)) {
+            throw 'A group whose launcher exited must still count as alive while its child runs.'
+        }
+        Assert-GroupStopped -Case 'Stopping a group whose launcher exited' -RootProcessId $leave.Id
+        if ($null -ne (Get-Process -Id $leftChild -ErrorAction SilentlyContinue)) {
+            throw 'The child left in the group must be stopped with it.'
+        }
+
+        $exited = Start-ShellFixture -Name 'exited' -Body 'exit 3'
+        $handover = Wait-PegasusProcessGroupLeader -ProcessId $exited.Id -TimeoutSeconds 60
+        if ($handover -ne 'Exited') {
+            throw "A launcher that exits before its preamble must be reported Exited; got $handover."
+        }
+
+        $stalled = Start-ShellFixture -Name 'stalled' -Body 'exec sleep 30'
+        $handover = Wait-PegasusProcessGroupLeader -ProcessId $stalled.Id -TimeoutSeconds 1
+        if ($handover -ne 'TimedOut') {
+            throw "A process that never leads its group must time out; got $handover."
+        }
+        Write-Output 'Linux launcher handover and process-group stop passed.'
+    }
+    finally {
+        foreach ($process in $started) {
+            if (-not $process.HasExited) {
+                $process.Kill($true)
+                $process.WaitForExit()
+            }
+        }
+        if (Test-Path -LiteralPath $leftChildPidFile) {
+            Stop-Process -Id ([int](Get-Content -LiteralPath $leftChildPidFile -Raw)) -Force -ErrorAction SilentlyContinue
+        }
+        Remove-Item -LiteralPath $launcherRoot -Recurse -Force
+    }
 }
+
+# The LocalDB response classifier is text parsing, so it runs on every host;
+# the engine kind is pinned to LocalDb for these cases.
+$engineKindResolver = ${function:Get-PegasusDatabaseEngineKind}
+function Get-PegasusDatabaseEngineKind { 'LocalDb' }
 
 $script:RequestedInstance = 'PegasusDevelopment_PLAT014_contract'
 $script:FixtureOutput = ''
@@ -526,14 +634,19 @@ function Assert-DatabaseState {
 
 $missingFixture = "Printing of LocalDB instance `"$script:RequestedInstance`" information failed because of the following error:`r`n`r`nLocalDB instance `"$script:RequestedInstance`" doesn't exist! "
 
-Assert-DatabaseState -Case 'zero-exit explicit missing instance' -Output $missingFixture -ExitCode 0 -Expected 'Missing'
-Assert-DatabaseState -Case 'zero-exit missing different instance' -Output 'LocalDB instance "PegasusDevelopment_other" doesn''t exist! ' -ExitCode 0 -Expected 'Unknown'
-Assert-DatabaseState -Case 'zero-exit wrapper-only failure' -Output "Printing of LocalDB instance `"$script:RequestedInstance`" information failed because of the following error:" -ExitCode 0 -Expected 'Unknown'
-Assert-DatabaseState -Case 'zero-exit unrecognized response' -Output 'LocalDB returned an unrecognized diagnostic.' -ExitCode 0 -Expected 'Unknown'
-Assert-DatabaseState -Case 'running state' -Output 'State: Running' -ExitCode 0 -Expected 'Running'
-Assert-DatabaseState -Case 'stopped state' -Output 'State: Stopped' -ExitCode 0 -Expected 'Stopped'
-Assert-DatabaseState -Case 'contradictory state and missing response' -Output "State: Running`r`nLocalDB instance `"$script:RequestedInstance`" doesn't exist! " -ExitCode 0 -Expected 'Unknown'
-Assert-DatabaseState -Case 'non-zero response' -Output 'LocalDB command failed.' -ExitCode 1 -Expected 'Missing'
+try {
+    Assert-DatabaseState -Case 'zero-exit explicit missing instance' -Output $missingFixture -ExitCode 0 -Expected 'Missing'
+    Assert-DatabaseState -Case 'zero-exit missing different instance' -Output 'LocalDB instance "PegasusDevelopment_other" doesn''t exist! ' -ExitCode 0 -Expected 'Unknown'
+    Assert-DatabaseState -Case 'zero-exit wrapper-only failure' -Output "Printing of LocalDB instance `"$script:RequestedInstance`" information failed because of the following error:" -ExitCode 0 -Expected 'Unknown'
+    Assert-DatabaseState -Case 'zero-exit unrecognized response' -Output 'LocalDB returned an unrecognized diagnostic.' -ExitCode 0 -Expected 'Unknown'
+    Assert-DatabaseState -Case 'running state' -Output 'State: Running' -ExitCode 0 -Expected 'Running'
+    Assert-DatabaseState -Case 'stopped state' -Output 'State: Stopped' -ExitCode 0 -Expected 'Stopped'
+    Assert-DatabaseState -Case 'contradictory state and missing response' -Output "State: Running`r`nLocalDB instance `"$script:RequestedInstance`" doesn't exist! " -ExitCode 0 -Expected 'Unknown'
+    Assert-DatabaseState -Case 'non-zero response' -Output 'LocalDB command failed.' -ExitCode 1 -Expected 'Missing'
+}
+finally {
+    ${function:Get-PegasusDatabaseEngineKind} = $engineKindResolver
+}
 
 $global:LASTEXITCODE = 0
 Write-Output 'Pegasus platform LocalDB state classification passed.'
