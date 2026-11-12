@@ -34,7 +34,8 @@ public sealed class PhotoCaptureListScaleSerialTests
 /// a request sends the same statements at 2,000 captures as at 500 (a
 /// no-growth pair), the page's counts are the ones the seed was built with,
 /// and a tab reads of its items only what the list uses, under a ceiling per
-/// capture.
+/// capture it evaluates: Direct links evaluates its whole tab for the scopes'
+/// counts, and Standing links only the rows it shows (#2088).
 /// </summary>
 [Trait("Category", "SqlServer")]
 [Collection(PhotoCaptureListScaleSerialTests.Name)]
@@ -246,8 +247,10 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
     /// <see cref="ItemRowsReadPerCapture"/> rows for each capture with photos
     /// it evaluates, fewer than its <see cref="ItemsPerCaptureWithPhotos"/>
     /// items, and at most <see cref="PreviewPhotographs"/> for each row shown.
-    /// Standing links also counts Direct links' Awaiting, so its ceiling is
-    /// over both tabs. A ceiling, never an exact total.
+    /// Direct links evaluates every capture on its tab. Standing links
+    /// evaluates the rows it shows and nothing else of its own tab (#2088),
+    /// and also counts Direct links' Awaiting, so its ceiling is Direct links'
+    /// captures and one page. A ceiling, never an exact total.
     /// </summary>
     private static void AssertItemReadsBounded(Reading reading)
     {
@@ -256,12 +259,14 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
         Assert.False(
             reading.ReadsWholeItemRows,
             $"{where}: a statement read whole item rows." + Environment.NewLine + reading.StatementText);
-        var items = reading.Direct ? reading.TabItems : reading.Expected.ComingInItems + reading.Expected.LinksWeSentItems;
+        var evaluatedWithPhotos = reading.Direct
+            ? reading.TabItems / ItemsPerCaptureWithPhotos
+            : reading.Expected.LinksWeSentItems / ItemsPerCaptureWithPhotos + PageSize;
         // The preview read adds at most PreviewPhotographs rows for each row shown.
-        var ceiling = items / ItemsPerCaptureWithPhotos * ItemRowsReadPerCapture + PageSize * PreviewPhotographs;
+        var ceiling = evaluatedWithPhotos * ItemRowsReadPerCapture + PageSize * PreviewPhotographs;
         Assert.True(
             reading.ItemRowsRead <= ceiling,
-            $"{where}: the list read {reading.ItemRowsRead} item rows, more than {ceiling} for {items / ItemsPerCaptureWithPhotos} captures with photos.");
+            $"{where}: the list read {reading.ItemRowsRead} item rows, more than {ceiling} for {evaluatedWithPhotos} captures with photos.");
     }
 
     /// <summary>The count on the Direct links scope button whose value is <paramref name="scopeKey"/>, or null when it has none.</summary>

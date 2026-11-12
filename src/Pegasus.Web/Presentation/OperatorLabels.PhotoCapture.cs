@@ -231,7 +231,7 @@ public static partial class OperatorLabels
         public const string Message = "Message";
         public const string SendByEmail = "Send by e-mail";
 
-        // The photo link text (R918 to R921); the wording awaits the operator's sign-off.
+        // The photo link text (R918 to R921); the operator signed the wording off on 12 November 2026 (R1001, R1002).
         public const string SendByText = "Send by text";
         public const string TextMessage = "Text message";
         public const string TextNotSent = "Text not sent";
@@ -383,14 +383,13 @@ public static partial class OperatorLabels
 
         /// <summary>
         /// One item's own words: its story file name without the story
-        /// position and the extension (<see cref="PhotoCaptureStory.FileName"/>),
-        /// so "02-03 Front driver corner closer.jpg" reads "Front driver corner closer".
+        /// position and the extension (<see cref="PhotoCaptureStory.Label"/>),
+        /// so "02-201 Front driver corner closer.jpg" reads "Front driver corner closer".
         /// </summary>
         public static string ItemLabel(PhotoCaptureItem item)
         {
             ArgumentNullException.ThrowIfNull(item);
-            var name = Path.GetFileNameWithoutExtension(item.FileName);
-            return name.Length > 6 && name[2] == '-' && name[5] == ' ' ? name[6..] : name;
+            return PhotoCaptureStory.Label(item.FileName);
         }
 
         // v51 link page and Vehicle images (R948): /PhotoCapture/{id}'s header,
@@ -485,6 +484,17 @@ public static partial class OperatorLabels
             }
 
             return captions;
+        }
+
+        /// <summary>
+        /// The badge on a damage photo's tile (v51 B; operator, 12 November
+        /// 2026; R1010): its stage in the story's own word, capitalised, so
+        /// "Overview", "Closer", "Close-up" or "Extra".
+        /// </summary>
+        public static string StageBadge(PhotoCaptureStage stage)
+        {
+            var word = PhotoCaptureStory.StageLabel(stage);
+            return char.ToUpperInvariant(word[0]) + word[1..];
         }
 
         private static string CaptionName(PhotoCaptureItem item) => item.Kind switch

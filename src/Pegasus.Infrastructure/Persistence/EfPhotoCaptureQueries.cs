@@ -6,21 +6,23 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The staff reads of photo links (FRD-28). A capture's status is derived
-/// on read and never stored, so a list reads its whole tab's captures and
+/// on read and never stored. Direct links reads its whole tab's captures and
 /// evaluates each one's missing items and status in memory, once per request:
-/// that one evaluation gives the Direct links scopes' counts, before any
-/// filter, and the rows the scope, standing link and search filters keep,
-/// which are then paged (v51 N, P; R948). Of the items it reads only what the required
-/// items rule and the photograph count use, grouped in SQL
-/// (<see cref="ItemFactsAsync"/>), so a repeated photo of the same thing adds
-/// to a count and not a row; issue #2020 measured the lists at scale before
-/// this and keeps measuring them (<c>PhotoCaptureListScaleTests</c>; R881,
-/// R882). The statement count is fixed whatever the row count: the captures,
-/// their item facts, their contacts, which quick Case links were handed on,
-/// their Vehicle images records, the issuers' names (kept in
-/// <see cref="StaffAccountReads"/>) and which of their Cases are archived.
-/// The rows shown then read their From and their preview photographs
-/// (<see cref="ShownAsync"/>).
+/// that one evaluation gives the scopes' counts, before any filter, and the
+/// rows the scope and search filters keep, which are then paged (v51 N;
+/// R948). Standing links filters by nothing a capture derives, only its
+/// standing link and the search, so it reads its tab narrowly, cuts the page
+/// and evaluates the rows it shows alone (#2088; <see cref="ListStandingAsync"/>).
+/// Of the items an evaluation reads only what the required items rule and
+/// the photograph count use, grouped in SQL (<see cref="ItemFactsAsync"/>),
+/// so a repeated photo of the same thing adds to a count and not a row;
+/// issue #2020 measured the lists at scale before this and keeps measuring
+/// them (<c>PhotoCaptureListScaleTests</c>; R881, R882). The statement count
+/// is fixed whatever the row count: the captures, their item facts, their
+/// contacts, which quick Case links were handed on, their Vehicle images
+/// records, the issuers' names (kept in <see cref="StaffAccountReads"/>) and
+/// which of their Cases are archived. The rows shown then read their From
+/// and their preview photographs (<see cref="ShownAsync"/>).
 /// </summary>
 public sealed class EfPhotoCaptureQueries(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -50,30 +52,34 @@ public sealed class EfPhotoCaptureQueries(
     public async Task<PhotoCaptureListPage> ListAsync(PhotoCaptureListFilter filter, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(filter);
-        // One evaluation of the whole tab gives both the Direct links scopes'
-        // counts, before any filter, and the rows the filters keep (#2020).
-        var now = timeProvider.GetUtcNow();
-        var evaluated = await EvaluateTabAsync(filter.Direct, cancellationToken);
-        var countsByScope = new Dictionary<PhotoCaptureScope, int>();
-        if (filter.Direct)
+        if (!filter.Direct)
         {
-            foreach (var scope in Enum.GetValues<PhotoCaptureScope>())
-            {
-                countsByScope[scope] = evaluated.Count(row => InScope(row, scope, now));
-            }
+            return await ListStandingAsync(filter, cancellationToken);
+        }
+
+        // One evaluation of the whole tab gives both the scopes' counts,
+        // before any filter, and the rows the filters keep (#2020).
+        var now = timeProvider.GetUtcNow();
+        var evaluated = await EvaluateDirectLinksAsync(cancellationToken);
+        var countsByScope = new Dictionary<PhotoCaptureScope, int>();
+        foreach (var scope in Enum.GetValues<PhotoCaptureScope>())
+        {
+            countsByScope[scope] = evaluated.Count(row => InScope(row, scope, now));
         }
 
         var search = filter.Search?.Trim();
         var matching = evaluated
-            .Where(row => !filter.Direct || InScope(row, filter.Scope, now))
-            .Where(row => filter.Direct || filter.StandingLinkId is null || row.Row.Capture.StandingLinkId == filter.StandingLinkId)
-            .Where(row => string.IsNullOrEmpty(search) || Matches(row.Row, search))
+            .Where(row => InScope(row, filter.Scope, now))
+            .Where(row => string.IsNullOrEmpty(search) || Matches(
+                row.Row.Capture.NormalizedRegistration,
+                row.Row.Capture.CustomerName,
+                row.Row.Capture.CaseReference,
+                row.Row.OrganizationName,
+                search))
             .ToArray();
-        var pageSize = Math.Max(1, filter.PageSize);
-        var page = Math.Max(1, filter.Page);
         var rows = matching
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+            .Skip(PageStart(filter))
+            .Take(PageSize(filter))
             .Select(row => row.Row)
             .ToArray();
         if (rows.Length == 0)
@@ -83,6 +89,84 @@ public sealed class EfPhotoCaptureQueries(
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         return new(await ShownAsync(context, rows, cancellationToken), matching.Length, countsByScope);
+    }
+
+    private static int PageSize(PhotoCaptureListFilter filter) => Math.Max(1, filter.PageSize);
+
+    private static int PageStart(PhotoCaptureListFilter filter) => (Math.Max(1, filter.Page) - 1) * PageSize(filter);
+
+    /// <summary>What the Standing links filters read of one capture: its place in the list and what the search matches.</summary>
+    private sealed record StandingListing(
+        Guid Id,
+        string? NormalizedRegistration,
+        string? CustomerName,
+        string? CaseReference,
+        string? ContactName);
+
+    /// <summary>
+    /// One page of the Standing links tab. Nothing the tab filters or counts
+    /// by is derived from a capture's items, so the tab is read narrowly,
+    /// newest first, the search is applied to that, and only the page's
+    /// captures are loaded and evaluated: a tab of any size costs the items
+    /// of the rows it shows (#2088). A capture's contact is read with it, as
+    /// the search matches the contact's name. The page is cut from one read
+    /// and loaded by a second, so a capture made between them shows on the
+    /// next load.
+    /// </summary>
+    private async Task<PhotoCaptureListPage> ListStandingAsync(PhotoCaptureListFilter filter, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var tab = context.PhotoCaptures.AsNoTracking()
+            .Where(capture => StandingOrigins.Contains(capture.Origin));
+        if (filter.StandingLinkId is { } standingLinkId)
+        {
+            tab = tab.Where(capture => capture.StandingLinkId == standingLinkId);
+        }
+
+        var listed = await tab
+            .OrderByDescending(capture => capture.CreatedAtUtc)
+            .ThenByDescending(capture => capture.Id)
+            .Select(capture => new StandingListing(
+                capture.Id,
+                capture.NormalizedRegistration,
+                capture.CustomerName,
+                capture.CaseReference,
+                context.Organizations
+                    .Where(organization => organization.Id == capture.OrganizationId)
+                    .Select(organization => organization.Name)
+                    .FirstOrDefault()))
+            .ToListAsync(cancellationToken);
+        var search = filter.Search?.Trim();
+        var matching = listed
+            .Where(row => string.IsNullOrEmpty(search)
+                || Matches(row.NormalizedRegistration, row.CustomerName, row.CaseReference, row.ContactName, search))
+            .ToArray();
+        var ids = matching
+            .Skip(PageStart(filter))
+            .Take(PageSize(filter))
+            .Select(row => row.Id)
+            .ToArray();
+        var noCounts = new Dictionary<PhotoCaptureScope, int>();
+        if (ids.Length == 0)
+        {
+            return new([], matching.Length, noCounts);
+        }
+
+        var captures = await context.PhotoCaptures.AsNoTracking()
+            .Where(capture => EF.Parameter(ids).Contains(capture.Id))
+            .ToListAsync(cancellationToken);
+        // Back into the list's order by each id's place in it: SQL Server and
+        // .NET order a uniqueidentifier differently, so the ids are never sorted here.
+        var place = new Dictionary<Guid, int>(ids.Length);
+        for (var index = 0; index < ids.Length; index++)
+        {
+            place[ids[index]] = index;
+        }
+
+        captures.Sort((left, right) => place[left.Id].CompareTo(place[right.Id]));
+        var evaluated = await EvaluateAsync(context, captures, cancellationToken);
+        var rows = evaluated.Select(row => row.Row).ToArray();
+        return new(await ShownAsync(context, rows, cancellationToken), matching.Length, noCounts);
     }
 
     private static bool InScope(EvaluatedRow row, PhotoCaptureScope scope, DateTimeOffset now) =>
@@ -217,13 +301,12 @@ public sealed class EfPhotoCaptureQueries(
 
     private sealed record EvaluatedRow(PhotoCaptureListRow Row, PhotoCaptureState State);
 
-    /// <summary>Every capture of the tab, newest first, each with its missing items and status.</summary>
-    private async Task<IReadOnlyList<EvaluatedRow>> EvaluateTabAsync(bool direct, CancellationToken cancellationToken)
+    /// <summary>Every Direct link, newest first, each with its missing items and status.</summary>
+    private async Task<IReadOnlyList<EvaluatedRow>> EvaluateDirectLinksAsync(CancellationToken cancellationToken)
     {
-        var origins = direct ? SentByUsOrigins : StandingOrigins;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var captures = await context.PhotoCaptures.AsNoTracking()
-            .Where(capture => origins.Contains(capture.Origin))
+            .Where(capture => SentByUsOrigins.Contains(capture.Origin))
             .OrderByDescending(capture => capture.CreatedAtUtc)
             .ThenByDescending(capture => capture.Id)
             .ToListAsync(cancellationToken);
@@ -578,17 +661,21 @@ public sealed class EfPhotoCaptureQueries(
     /// The search: the registration typed with or without its space, the
     /// customer's name, the Case reference or the contact's name, ignoring case.
     /// </summary>
-    private static bool Matches(PhotoCaptureListRow row, string search)
+    private static bool Matches(
+        string? registration,
+        string? customerName,
+        string? caseReference,
+        string? contactName,
+        string search)
     {
-        var capture = row.Capture;
         var compact = search.Replace(" ", string.Empty, StringComparison.Ordinal);
         return (compact.Length > 0
-                && capture.NormalizedRegistration is { } registration
+                && registration is not null
                 && registration.Replace(" ", string.Empty, StringComparison.Ordinal)
                     .Contains(compact, StringComparison.OrdinalIgnoreCase))
-            || Contains(capture.CustomerName, search)
-            || Contains(capture.CaseReference, search)
-            || Contains(row.OrganizationName, search);
+            || Contains(customerName, search)
+            || Contains(caseReference, search)
+            || Contains(contactName, search);
     }
 
     private static bool Contains(string? value, string search) =>
