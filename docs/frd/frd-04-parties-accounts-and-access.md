@@ -37,8 +37,14 @@ Engineers. Every Contact has one type: Principal, Claim Source, Repairer,
 Storage provider or Third Party Engineer (operator, 13 October 2026). A
 Principal never links to another Principal. A Contact of any other type may
 link to several Principals; the links are shown on the Contacts list and the
-Contact's page, and they do not narrow a Case's Claim Source or Repairer
-choices (operator, 13 October 2026). A Claim Source's links also make it an
+Contact's page. A Case's Claim Source list and its Repairer list draw the
+contacts linked to the Case's Principal first, under that Principal's code,
+then the others under "Other claim sources" or "Other repairers", each part
+in name order. Nothing is hidden: a Principal with no linked contact, and a
+Case that names no Principal, keep the one list (operator, 12 November 2026;
+[R1013](../rulings.md), [R1015](../rulings.md), [R1016](../rulings.md),
+replacing "they do not narrow a Case's Claim Source or Repairer choices",
+operator, 13 October 2026). A Claim Source's links also make it an
 intermediary for those Principals' mail (operator, 15 October 2026;
 [FRD-09](frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association)).
 A Storage or Third Party Engineer Contact is directory information only: no
@@ -67,7 +73,8 @@ party-role copy an existing Case already holds.
 
 A Case records its own repairer: the name and address the instruction gave,
 kept as ordinary Case facts with their extraction provenance. Staff either
-confirm that text or link the Case to an active Repairer-role Contact. Linking
+confirm that text or link the Case to an active Repairer-role Contact, chosen
+from a list that draws the Principal's linked Repairers first (R1015). Linking
 copies that Contact's identity, version, name and address onto the Case, so
 a later directory edit never changes the Case. The confirmed repairer address
 is one of the Inspect-at options beside the claimant address, the storage
@@ -282,7 +289,13 @@ show the Claim source notes read-only in the Claim source card and the
 Principal notes read-only in the Principal panel, each beside that Case's own
 editable notes, and show nothing when the record has none (R618, R619). A Triage Case shows the Principal's notes too, read-only and absent when
 the Principal has none (operator ruling, 22 October 2026). The Claim source is chosen on the Case from the active Claim Source
-contacts, or none. The Case keeps a copy of the chosen name and contact, its
+contacts, or none. A Case made from a received item is created with one where the item establishes it: the claim source its
+instruction names (DFD's Claim source, SBL's and OAK's Introducer), when that name is an active Claim Source's, ignoring
+capitals; otherwise, for mail accepted through an intermediary, the one active Claim Source linked to the route's Principal
+that the sender matches, by the rule that made it an intermediary. Two or more matches, or none, fill nothing, and a name
+that is not a Contact never creates one. It is recorded as a choice on the Case is, so staff change or clear it; Cases made
+before the change are not filled (operator, 12 November 2026; [R1014](../rulings.md), [R1017](../rulings.md),
+[R1018](../rulings.md)). The Case keeps a copy of the chosen name and contact, its
 notes follow the chosen record, and a changed choice must still be an active
 Claim Source when the Case is saved. The Case may override the chosen
 source's contact name, telephone and e-mail for that Case alone. The override

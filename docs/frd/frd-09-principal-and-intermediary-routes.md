@@ -209,7 +209,11 @@ Principal; an intermediary is not a direct identity (operator, 15 October
 2026). On a shared mail domain only the Claim Source's own mailbox matches,
 and a sender that is both a direct identity and an intermediary fails closed
 (operator, 16 October 2026;
-[ADR-0078](../adr/0078-intermediaries-are-linked-claim-sources.md)). An
+[ADR-0078](../adr/0078-intermediaries-are-linked-claim-sources.md)). A Case
+made from an intermediary's mail takes that Claim Source, unless its
+instruction names another
+([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration);
+operator, 12 November 2026, [R1014](../rulings.md), [R1017](../rulings.md)). An
 accepted sender on its own classifies and allocates nothing.
 
 **One document.** A profile is chosen from its signals within one physical

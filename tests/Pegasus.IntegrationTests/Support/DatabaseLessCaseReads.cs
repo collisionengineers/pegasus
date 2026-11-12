@@ -355,9 +355,10 @@ internal sealed class DatabaseLessCaseReads :
     private static ValuationPreset SeededPreset(string id, string label, decimal suggestedAmount) =>
         new(new Guid(id), label, suggestedAmount, true, 1, "system:v1-foundation", DateTimeOffset.UnixEpoch);
 
-    /// <summary>An active claim source as the seed writes it: a name and nothing else, at version 0.</summary>
+    /// <summary>An active claim source as the seed writes it: a name and nothing else, linked to no
+    /// Principal, at version 0.</summary>
     private static ContactChoice SeededClaimSource(string id, string name) =>
-        new(new Guid(id), name, ContactRole.ClaimSource, 0, null, null, null, null, null, null);
+        new(new Guid(id), name, ContactRole.ClaimSource, 0, null, null, null, null, null, null, []);
 
     private static Task<T> Refused<T>(string port) =>
         Task.FromException<T>(new NotSupportedException(

@@ -252,7 +252,95 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.DoesNotContain(snapshot.Fields, field => field.FieldName == CaseDataFieldNames.RepairerName);
     }
 
-    private static CaseDataSnapshotEntity PhoneSnapshot(IReadOnlyList<InstructionReviewField> fields)
+    [Fact]
+    public void TheClaimSourceAnInstructionNamedIsCopiedOntoTheCaseAsAStaffChoiceIs()
+    {
+        // R1014, R1017: the record's identity, version, name and contact, as
+        // confirmed rows a later edit replaces or clears, sourced to the
+        // instruction line that named it.
+        var field = new InstructionReviewField(
+            EstablishedIntakeClaimSource.IntroducerField, "FLEET ROUTE SOLUTIONS",
+            [new("FLEET ROUTE SOLUTIONS", IntakeEvidenceSource.PdfContent, "introducer-line")], false, false);
+        var contact = new ContactChoice(
+            Guid.NewGuid(), "Fleet Route Solutions", ContactRole.ClaimSource, 4, "A Handler",
+            "desk@fleet-route.example", "0113 000 0002", null, null, null);
+
+        var snapshot = PhoneSnapshot(
+            [
+                new("Claimant mobile telephone", "selected",
+                    [new("selected", IntakeEvidenceSource.PdfContent, "selected-source")], false, false),
+                field
+            ],
+            new(contact, IntakeClaimSourceOrigin.Instruction, field));
+
+        string Confirmed(string fieldName)
+        {
+            var row = Assert.Single(snapshot.Fields, item => item.FieldName == fieldName);
+            Assert.Equal(CaseDataCodes.Confirmed, row.ValueKind);
+            Assert.Equal(CaseDataCodes.IntakeEvidence, row.SourceKind);
+            Assert.Equal("PdfContent:introducer-line", row.SourceLabel);
+            Assert.Equal(PchInstructionExtractionPolicy.Key, row.PolicyKey);
+            Assert.Equal("system-worker:intake-processing", row.ConfirmedByActor);
+            return row.Value;
+        }
+
+        Assert.Equal(contact.OrganizationId.ToString("D"), Confirmed(CaseDataFieldNames.ClaimSourceId));
+        Assert.Equal("4", Confirmed(CaseDataFieldNames.ClaimSourceVersion));
+        Assert.Equal("Fleet Route Solutions", Confirmed(CaseDataFieldNames.ClaimSourceName));
+        Assert.Equal("A Handler", Confirmed(CaseDataFieldNames.ClaimSourceContactName));
+        Assert.Equal("0113 000 0002", Confirmed(CaseDataFieldNames.ClaimSourceContactTelephone));
+        Assert.Equal("desk@fleet-route.example", Confirmed(CaseDataFieldNames.ClaimSourceContactEmailAddress));
+    }
+
+    [Fact]
+    public void TheClaimSourceASenderProvedIsSourcedToItsMailRoute()
+    {
+        var contact = new ContactChoice(
+            Guid.NewGuid(), "Claims Route", ContactRole.ClaimSource, 1, null,
+            "desk@claims-route.example", null, null, null, null);
+
+        var snapshot = PhoneSnapshot(
+            [
+                new("Claimant mobile telephone", "selected",
+                    [new("selected", IntakeEvidenceSource.PdfContent, "selected-source")], false, false)
+            ],
+            new(contact, IntakeClaimSourceOrigin.Sender),
+            new()
+            {
+                Disposition = "accepted", RouteOwnerCode = "claims-route.example", RouteKind = "intermediary",
+                PrincipalCode = "PCH", PredicatesJson = "{\"version\":1,\"data\":[]}", Reason = "probe",
+                PolicyKey = "principal_mail_route", PolicyVersion = 1,
+                TransportIdentitiesJson = "{\"version\":1,\"data\":[]}",
+                OriginalIdentitiesJson = "{\"version\":1,\"data\":[]}",
+                EffectiveSenderAddress = "reports@claims-route.example", EffectiveSenderSourceLabel = "probe"
+            });
+
+        var name = Assert.Single(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceName);
+        Assert.Equal("Claims Route", name.Value);
+        Assert.Equal(CaseDataCodes.Confirmed, name.ValueKind);
+        Assert.Equal(CaseDataCodes.MailRoute, name.SourceKind);
+        Assert.Equal("claims-route.example", name.SourceLabel);
+        Assert.Equal("principal_mail_route", name.PolicyKey);
+        // A contact the record does not hold is not written as an empty fact.
+        Assert.DoesNotContain(snapshot.Fields, item => item.FieldName is
+            CaseDataFieldNames.ClaimSourceContactName or CaseDataFieldNames.ClaimSourceContactTelephone);
+    }
+
+    [Fact]
+    public void AnItemThatEstablishesNoClaimSourceLeavesTheCaseWithNone()
+    {
+        var snapshot = PhoneSnapshot([
+            new("Claimant mobile telephone", "selected",
+                [new("selected", IntakeEvidenceSource.PdfContent, "selected-source")], false, false)
+        ]);
+
+        Assert.DoesNotContain(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceId);
+    }
+
+    private static CaseDataSnapshotEntity PhoneSnapshot(
+        IReadOnlyList<InstructionReviewField> fields,
+        EstablishedClaimSource? claimSource = null,
+        IntakeMailRouteDecisionEntity? route = null)
     {
         var receiptId = Guid.NewGuid();
         var receipt = new IntakeReceiptEntity
@@ -265,7 +353,8 @@ public sealed class CaseDataCompletenessPersistenceTests
             Decision = "case_created", DecisionReason = "provenance-probe",
             EvidenceJson = "{\"version\":1,\"data\":[]}", OcrCandidatesJson = "{\"version\":1,\"data\":[]}",
             FieldsJson = EfIntakeReceiptStore.SerializeFields(fields),
-            InstructionDraft = new() { SuggestedPrincipalCode = "PCH", ClaimantContactNumber = "selected" }
+            InstructionDraft = new() { SuggestedPrincipalCode = "PCH", ClaimantContactNumber = "selected" },
+            MailRouteDecision = route
         };
         var accepted = new CaseEntity
         {
@@ -277,7 +366,8 @@ public sealed class CaseDataCompletenessPersistenceTests
                 "provenance-probe", CaseType.Inspection, "PCH",
                 new(true, false), new(false, "completeness-probe", 1),
                 new Pegasus.Core.Workflow.CaseWorkflowConfiguration("completeness-probe", 1), CaseInspectionMode.PhysicalAddress),
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            claimSource);
     }
 
     [Fact]

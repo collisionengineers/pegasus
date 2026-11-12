@@ -139,10 +139,27 @@
                     {
                         <select id="repairer-directory" class="fi" name="repairerDirectoryId" form="case-edit-form">
                             <option value="">@OperatorLabels.CaseWorkspace.NotLinked</option>
-                            @foreach (var contact in Model.RepairerChoices)
+                            @* The Repairers linked to the Case's Principal come first, under its code (R1015, R1016). *@
+                            @foreach (var group in LinkedContactChoices.For(Model.RepairerChoices, details.Workflow.Identity.PrincipalCode, OperatorLabels.CaseWorkspace.OtherRepairers))
                             {
-                                <option value="@contact.OrganizationId"
-                                        selected="@(contact.OrganizationId == linkedRepairerId ? "selected" : null)">@contact.Name</option>
+                                if (group.Label is null)
+                                {
+                                    foreach (var contact in group.Choices)
+                                    {
+                                        <option value="@contact.OrganizationId"
+                                                selected="@(contact.OrganizationId == linkedRepairerId ? "selected" : null)">@contact.Name</option>
+                                    }
+                                }
+                                else
+                                {
+                                    <optgroup label="@group.Label">
+                                        @foreach (var contact in group.Choices)
+                                        {
+                                            <option value="@contact.OrganizationId"
+                                                    selected="@(contact.OrganizationId == linkedRepairerId ? "selected" : null)">@contact.Name</option>
+                                        }
+                                    </optgroup>
+                                }
                             }
                         </select>
                     }

@@ -169,9 +169,19 @@
                                 {
                                     <option value="@recordedSourceId" data-notes="@notes.ClaimSourceNotes" data-contact-name="@claimSource.ContactName" data-contact-phone="@claimSource.ContactTelephone" data-contact-email="@claimSource.ContactEmailAddress" selected>@claimSource.Name</option>
                                 }
-                                @foreach (var choice in Model.ClaimSourceChoices)
+                                @* The Claim sources linked to the Case's Principal come first, under its code (R1013, R1016). *@
+                                @foreach (var group in LinkedContactChoices.For(Model.ClaimSourceChoices, workflow.Identity.PrincipalCode, Frame.OtherClaimSources))
                                 {
-                                    <option value="@choice.OrganizationId" data-notes="@choice.NotesOnEveryCase" data-contact-name="@choice.ContactPerson" data-contact-phone="@choice.Telephone" data-contact-email="@choice.Email" selected="@(choice.OrganizationId == claimSource?.ClaimSourceId)">@choice.Name</option>
+                                    if (group.Label is null)
+                                    {
+                                        foreach (var choice in group.Choices) { await ClaimSourceOption(choice, claimSource?.ClaimSourceId); }
+                                    }
+                                    else
+                                    {
+                                        <optgroup label="@group.Label">
+                                            @foreach (var choice in group.Choices) { await ClaimSourceOption(choice, claimSource?.ClaimSourceId); }
+                                        </optgroup>
+                                    }
                                 }
                             </select>
                         }</div>
@@ -216,6 +226,14 @@
     // The cell's label: a real <label> for the control while editing, the
     // same words as a plain caption while reading, with the value's source
     // tag in the label line in both.
+    // One Claim source option: its record's notes and contact ride on it so the
+    // cells beside the list follow a change before Save (case-workspace.js). A
+    // Task, since the option tag helper it draws through runs asynchronously.
+    private async Task ClaimSourceOption(ContactChoice choice, Guid? selectedId)
+    {
+        <option value="@choice.OrganizationId" data-notes="@choice.NotesOnEveryCase" data-contact-name="@choice.ContactPerson" data-contact-phone="@choice.Telephone" data-contact-email="@choice.Email" selected="@(choice.OrganizationId == selectedId)">@choice.Name</option>
+    }
+
     private void Lbl(string id, string text, CaseDataSource? source = null)
     {
         var tag = OperatorLabels.SourceTag(source);
