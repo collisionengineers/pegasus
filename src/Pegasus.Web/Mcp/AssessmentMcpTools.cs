@@ -679,10 +679,7 @@ internal sealed class AssessmentMcpTools(
     private static RepairerVatStatus? ParseVatStatus(string? value) =>
         string.IsNullOrWhiteSpace(value)
             ? null
-            : Enum.TryParse<RepairerVatStatus>(value.Trim(), ignoreCase: true, out var status)
-                && Enum.IsDefined(status)
-                ? status
-                : throw new McpException(RepairerVatStatuses.NotAChoice);
+            : AutomationMcpErrors.ParseName<RepairerVatStatus>(value, RepairerVatStatuses.NotAChoice);
 
     private static EstimateVatCategories? ParseVatCategories(IReadOnlyList<string>? values)
     {

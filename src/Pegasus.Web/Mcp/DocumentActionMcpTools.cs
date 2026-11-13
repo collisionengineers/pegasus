@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Globalization;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Custody;
@@ -93,13 +92,10 @@ internal sealed class DocumentActionMcpTools(
                     {
                         throw new McpException("The create_image_tag action needs tagName.");
                     }
-                    var colour = Enum.TryParse<ImageTagColour>(tagColour?.Trim(), ignoreCase: true, out var parsed)
-                        && Enum.IsDefined(parsed)
-                        && !int.TryParse(tagColour, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)
-                            ? parsed
-                            : throw new McpException(
-                                "The create_image_tag action needs tagColour, one of: "
-                                + string.Join(", ", Enum.GetNames<ImageTagColour>()) + ".");
+                    var colour = AutomationMcpErrors.ParseName<ImageTagColour>(
+                        tagColour,
+                        "The create_image_tag action needs tagColour, one of: "
+                        + string.Join(", ", Enum.GetNames<ImageTagColour>()) + ".");
                     CreateImageTagResult created;
                     try
                     {
@@ -146,8 +142,7 @@ internal sealed class DocumentActionMcpTools(
                     : Guid.Empty;
                 // By name only, as tagColour is: a number is not a type.
                 var newRole = verb == "set_type"
-                    ? Enum.TryParse<DocumentSemanticRole>(semanticRole?.Trim(), ignoreCase: true, out var role)
-                        && !int.TryParse(semanticRole, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)
+                    ? AutomationMcpErrors.TryParseName<DocumentSemanticRole>(semanticRole, out var role)
                         && DocumentTypePolicy.StaffMayChoose.Contains(role)
                             ? role
                             : throw new McpException(

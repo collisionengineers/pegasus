@@ -107,14 +107,9 @@ internal sealed class DocumentMcpTools(
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var safeFileName = AutomationMcpErrors.RequireFileName(fileName);
                 var safeMediaType = AutomationMcpErrors.RequireMediaType(mediaType);
-                if (!Enum.TryParse<DocumentSemanticRole>(
-                        semanticRole?.Trim(),
-                        ignoreCase: true,
-                        out var parsedRole)
-                    || !Enum.IsDefined(parsedRole))
-                {
-                    throw new McpException("The document semantic role is not recognized.");
-                }
+                var parsedRole = AutomationMcpErrors.ParseName<DocumentSemanticRole>(
+                    semanticRole,
+                    "The document semantic role is not recognized.");
                 if (expectedCaseVersion < 0)
                 {
                     throw new McpException("The expected case version cannot be negative.");

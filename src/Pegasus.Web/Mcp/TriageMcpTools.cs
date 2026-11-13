@@ -80,16 +80,9 @@ internal sealed class TriageMcpTools(
         return await auditor.CallAsync("pegasus_triage_list", "triage",
             async context =>
             {
-                TriageState? parsedState = null;
-                if (!string.IsNullOrWhiteSpace(state))
-                {
-                    if (!Enum.TryParse<TriageState>(state.Trim(), true, out var parsed)
-                        || !Enum.IsDefined(parsed))
-                    {
-                        throw new McpException("The Triage state is not recognized.");
-                    }
-                    parsedState = parsed;
-                }
+                TriageState? parsedState = string.IsNullOrWhiteSpace(state)
+                    ? null
+                    : AutomationMcpErrors.ParseName<TriageState>(state, "The Triage state is not recognized.");
                 var effectiveLimit = CursorPaging.NormalizeLimit(limit);
                 var result = await listTriage.ExecuteAsync(
                     new(context.Actor, parsedState, cursor, effectiveLimit), cancellationToken);
@@ -281,10 +274,7 @@ internal sealed class TriageMcpTools(
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var parsedAction = Enum.TryParse<TriageAssignAction>(action?.Trim(), ignoreCase: true, out var parsed)
-            && Enum.IsDefined(parsed)
-                ? parsed
-                : throw new McpException("action must be Assign or Unassign.");
+        var parsedAction = AutomationMcpErrors.ParseName<TriageAssignAction>(action, "action must be Assign or Unassign.");
         return MutateAsync("pegasus_triage_assign", caseId, expectedVersion, operationKey, editLeaseToken,
             async (actor, key, token) =>
             {
@@ -358,7 +348,5 @@ internal sealed class TriageMcpTools(
     }
 
     private static TriageLinkAction ParseAction(string? action) =>
-        Enum.TryParse<TriageLinkAction>(action?.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
-            ? parsed
-            : throw new McpException("action must be Link or Unlink.");
+        AutomationMcpErrors.ParseName<TriageLinkAction>(action, "action must be Link or Unlink.");
 }

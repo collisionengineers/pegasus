@@ -126,17 +126,11 @@ internal sealed class CaseMcpTools(
             "case-search",
             async context =>
             {
-                CaseLifecycleState? stateFilter = null;
-                if (!string.IsNullOrWhiteSpace(state))
-                {
-                    if (!Enum.TryParse<CaseLifecycleState>(state.Trim(), ignoreCase: true, out var parsed)
-                        || !Enum.IsDefined(parsed))
-                    {
-                        throw new McpException("The lifecycle-state filter is not recognized.");
-                    }
-
-                    stateFilter = parsed;
-                }
+                CaseLifecycleState? stateFilter = string.IsNullOrWhiteSpace(state)
+                    ? null
+                    : AutomationMcpErrors.ParseName<CaseLifecycleState>(
+                        state,
+                        "The lifecycle-state filter is not recognized.");
 
                 var effectiveLimit = CursorPaging.NormalizeLimit(limit);
 

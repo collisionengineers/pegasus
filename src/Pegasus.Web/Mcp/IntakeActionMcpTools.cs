@@ -448,10 +448,9 @@ internal sealed class IntakeActionMcpTools(
             operationKey,
             (context, key) => AutomationMcpErrors.IntakeRefusalsAsync("pegasus_intake_get", async () =>
             {
-                var type = Enum.TryParse<CaseType>(caseType?.Trim(), ignoreCase: true, out var parsedType)
-                    && Enum.IsDefined(parsedType)
-                        ? parsedType
-                        : throw new McpException("caseType must be Inspection, Audit, InspectionAndAudit or Triage.");
+                var type = AutomationMcpErrors.ParseName<CaseType>(
+                    caseType,
+                    "caseType must be Inspection, Audit, InspectionAndAudit or Triage.");
                 // A one-off for a private customer names no Principal and is
                 // never a Triage (R574, R577); every other Case names one.
                 if (privateCustomer == !string.IsNullOrWhiteSpace(principalCode))
@@ -554,8 +553,7 @@ internal sealed class IntakeActionMcpTools(
         var classifiedType = receipt.MailClassificationDecision?.CaseType;
         var type = caseType is null
             ? classifiedType ?? CaseType.Inspection
-            : Enum.TryParse<CaseType>(caseType.Trim(), ignoreCase: true, out var parsedType)
-                && Enum.IsDefined(parsedType)
+            : AutomationMcpErrors.TryParseName<CaseType>(caseType, out var parsedType)
                 && parsedType != CaseType.Triage
                     ? parsedType
                     : throw new McpException("caseType must be Inspection, Audit or InspectionAndAudit.");

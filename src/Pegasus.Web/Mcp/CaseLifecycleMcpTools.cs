@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Globalization;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Cases;
@@ -251,20 +250,14 @@ internal sealed class CaseLifecycleMcpTools(
     }
 
     private static CaseClosureOutcome ParseClosureOutcome(string? value) =>
-        Enum.TryParse<CaseClosureOutcome>(value?.Trim(), ignoreCase: true, out var parsed)
-            && Enum.IsDefined(parsed)
-            && !int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)
-            ? parsed
-            : throw new McpException(
-                "The close action needs outcome, one of: " + string.Join(", ", Enum.GetNames<CaseClosureOutcome>()) + ".");
+        AutomationMcpErrors.ParseName<CaseClosureOutcome>(
+            value,
+            "The close action needs outcome, one of: " + string.Join(", ", Enum.GetNames<CaseClosureOutcome>()) + ".");
 
     private static CaseReopenDestination ParseReopenDestination(string? value) =>
-        Enum.TryParse<CaseReopenDestination>(value?.Trim(), ignoreCase: true, out var parsed)
-            && Enum.IsDefined(parsed)
-            && !int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)
-            ? parsed
-            : throw new McpException(
-                "The reopen action needs destination, one of: " + string.Join(", ", Enum.GetNames<CaseReopenDestination>()) + ".");
+        AutomationMcpErrors.ParseName<CaseReopenDestination>(
+            value,
+            "The reopen action needs destination, one of: " + string.Join(", ", Enum.GetNames<CaseReopenDestination>()) + ".");
 
     /// <summary>What an act created, beyond the Case's own new version and state.</summary>
     private sealed record Created(

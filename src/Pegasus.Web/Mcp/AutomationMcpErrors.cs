@@ -214,6 +214,21 @@ internal static class AutomationMcpErrors
     public static DateOnly RequireMonth(string? value, string refusal) =>
         OptionalMonth(value, refusal) ?? throw new McpException(refusal);
 
+    /// <summary>
+    /// An enum value given by its name, in any case, never by its number;
+    /// anything else is refused with the caller's own sentence.
+    /// </summary>
+    public static TEnum ParseName<TEnum>(string? value, string refusal)
+        where TEnum : struct, Enum =>
+        TryParseName<TEnum>(value, out var parsed) ? parsed : throw new McpException(refusal);
+
+    /// <summary>As <see cref="ParseName{TEnum}"/>, for a caller that refuses more than a non-name.</summary>
+    public static bool TryParseName<TEnum>(string? value, out TEnum parsed)
+        where TEnum : struct, Enum =>
+        Enum.TryParse<TEnum>(value?.Trim(), ignoreCase: true, out parsed)
+            && Enum.IsDefined(parsed)
+            && !int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _);
+
     public static byte[] DecodeContent(string contentBase64, int maximumBytes, string description)
     {
         var maximumCharacters = ((maximumBytes + 2) / 3) * 4;

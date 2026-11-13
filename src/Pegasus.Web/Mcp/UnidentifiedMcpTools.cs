@@ -131,16 +131,11 @@ internal sealed class UnidentifiedMcpTools(
             "unidentified",
             async context =>
             {
-                UnidentifiedMediaKind? filter = null;
-                if (!string.IsNullOrWhiteSpace(mediaKind))
-                {
-                    if (!Enum.TryParse<UnidentifiedMediaKind>(mediaKind.Trim(), ignoreCase: true, out var parsed)
-                        || !Enum.IsDefined(parsed))
-                    {
-                        throw new McpException("The Unidentified media filter is not recognized.");
-                    }
-                    filter = parsed;
-                }
+                UnidentifiedMediaKind? filter = string.IsNullOrWhiteSpace(mediaKind)
+                    ? null
+                    : AutomationMcpErrors.ParseName<UnidentifiedMediaKind>(
+                        mediaKind,
+                        "The Unidentified media filter is not recognized.");
 
                 var effectiveLimit = CursorPaging.NormalizeLimit(limit);
                 var page = await listQueue.ExecuteAsync(

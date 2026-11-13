@@ -928,11 +928,7 @@ internal sealed class PhotoCaptureMcpTools(
 
     private static T ParseEnum<T>(string value, string name)
         where T : struct, Enum =>
-        Enum.TryParse<T>(value.Trim(), ignoreCase: true, out var parsed)
-            && Enum.IsDefined(parsed)
-            && !int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)
-                ? parsed
-                : throw new McpException($"{name} must be one of: {string.Join(", ", Enum.GetNames<T>())}.");
+        AutomationMcpErrors.ParseName<T>(value, $"{name} must be one of: {string.Join(", ", Enum.GetNames<T>())}.");
 
     private static string Resource(Guid? id, string fallback) =>
         id is { } value && value != Guid.Empty ? value.ToString("D") : fallback;

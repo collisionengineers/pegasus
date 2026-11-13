@@ -443,19 +443,15 @@ internal sealed class AiJobMcpTools(
             : value;
 
     private static AiJobTransitionAction ParseAction(string? action) =>
-        Enum.TryParse<AiJobTransitionAction>(action?.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
-            ? parsed
-            : throw new McpException(ActionValues);
+        AutomationMcpErrors.ParseName<AiJobTransitionAction>(action, ActionValues);
 
     private static AiJobResultKind ParseResultKind(string? resultKind) =>
-        Enum.TryParse<AiJobResultKind>(resultKind?.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
-            ? parsed
-            : throw new McpException("Complete needs resultKind: Estimate, ProposedResolution or DraftReply.");
+        AutomationMcpErrors.ParseName<AiJobResultKind>(
+            resultKind,
+            "Complete needs resultKind: Estimate, ProposedResolution or DraftReply.");
 
     private static AiJobKind ParseKind(string? kind) =>
-        Enum.TryParse<AiJobKind>(kind?.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
-            ? parsed
-            : throw new McpException("The AI job kind is not recognized.");
+        AutomationMcpErrors.ParseName<AiJobKind>(kind, "The AI job kind is not recognized.");
 
     private static DateOnly ParseGuideMonth(string value) =>
         AutomationMcpErrors.RequireMonth(value, "guideMonth must use yyyy-MM.");

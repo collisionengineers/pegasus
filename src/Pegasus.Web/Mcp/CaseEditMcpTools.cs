@@ -806,11 +806,9 @@ internal sealed class CaseEditMcpTools(
     };
 
     private static ValuationSource ParseSource(string value) =>
-        Enum.TryParse<ValuationSource>(value?.Trim(), ignoreCase: true, out var source)
-            && Enum.IsDefined(source)
-            ? source
-            : throw new McpException(
-                "The valuation source must be one of: " + string.Join(", ", Enum.GetNames<ValuationSource>()) + ".");
+        AutomationMcpErrors.ParseName<ValuationSource>(
+            value,
+            "The valuation source must be one of: " + string.Join(", ", Enum.GetNames<ValuationSource>()) + ".");
 
     private static DateOnly? ParseGuideMonth(string? value) =>
         AutomationMcpErrors.OptionalMonth(value, "The guide month must be yyyy-MM.");

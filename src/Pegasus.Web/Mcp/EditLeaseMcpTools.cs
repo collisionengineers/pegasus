@@ -341,10 +341,7 @@ internal sealed class EditLeaseMcpTools(
     }
 
     private static EditLeaseRecordKind ParseKind(string? recordKind) =>
-        Enum.TryParse<EditLeaseRecordKind>(recordKind?.Trim(), ignoreCase: true, out var parsed)
-        && Enum.IsDefined(parsed)
-            ? parsed
-            : throw new McpException("recordKind must be Case, Triage or ImageIntake.");
+        AutomationMcpErrors.ParseName<EditLeaseRecordKind>(recordKind, "recordKind must be Case, Triage or ImageIntake.");
 
     private static string Scope(EditLeaseRecordKind kind) =>
         kind == EditLeaseRecordKind.Case ? AutomationMcp.CasesScope : AutomationMcp.IntakeScope;

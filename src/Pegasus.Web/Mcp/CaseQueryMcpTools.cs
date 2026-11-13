@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Globalization;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Lifecycle;
@@ -130,11 +129,8 @@ internal sealed class CaseQueryMcpTools(
             return null;
         }
 
-        return Enum.TryParse<CaseQueryChannel>(value?.Trim(), ignoreCase: true, out var parsed)
-            && Enum.IsDefined(parsed)
-            && !int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)
-            ? parsed
-            : throw new McpException(
-                "open needs channel, one of: " + string.Join(", ", Enum.GetNames<CaseQueryChannel>()) + ", or a messageId.");
+        return AutomationMcpErrors.ParseName<CaseQueryChannel>(
+            value,
+            "open needs channel, one of: " + string.Join(", ", Enum.GetNames<CaseQueryChannel>()) + ", or a messageId.");
     }
 }
