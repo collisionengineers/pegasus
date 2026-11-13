@@ -897,6 +897,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfCaseReportGenerationStore>());
         services.AddScoped<ICaseReportContentSource, EfCaseReportContentSource>();
         services.AddScoped<IGenerateCaseReport, GenerateCaseReport>();
+        services.AddScoped<CaseReportActs>();
         services.AddScoped<IReportSendReadiness, ReportSendReadiness>();
         services.AddScoped<ISendCaseReport, SendCaseReport>();
         services.AddScoped<GenerateCaseAssessmentReportDraft>();

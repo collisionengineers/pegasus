@@ -99,7 +99,7 @@ internal sealed class ReportMcpTools(
     IUnlinkReportEvidence unlinkEvidence,
     IGetCaseHeader getCaseHeader,
     IAvailableReportSentEvidenceQueries availableEvidence,
-    IGetAssessmentAccess getAssessmentAccess,
+    CaseReportActs reportActs,
     ICaseWorkflowQueries workflowQueries,
     AutomationMcpAuditor auditor,
     Pegasus.Web.Presentation.OneCommandEdit leases)
@@ -264,16 +264,12 @@ internal sealed class ReportMcpTools(
         CancellationToken cancellationToken)
     {
         var actor = context.Actor;
-        var access = await getAssessmentAccess.ExecuteAsync(new(caseId, actor), cancellationToken);
-        if (access is null || !access.CanOpen)
+        switch (await reportActs.GetAccessAsync(actor, caseId, selector, cancellationToken))
         {
-            throw new McpException("The case was not found or its report cannot be generated in its state.");
-        }
-        if (access.IsReadOnly
-            && !(selector == CaseWorkSelector.Primary
-                && (await getCaseHeader.ExecuteAsync(new(caseId, actor), cancellationToken))?.Works is { HasAudit: true }))
-        {
-            throw new McpException("The case is read-only once Complete.");
+            case CaseReportActAccess.NotOpen:
+                throw new McpException("The case was not found or its report cannot be generated in its state.");
+            case CaseReportActAccess.ReadOnly:
+                throw new McpException("The case is read-only once Complete.");
         }
         if (kind != CaseReportArtifactKind.AssessmentReport && targetGenerationId is null)
         {
@@ -292,16 +288,16 @@ internal sealed class ReportMcpTools(
                 // One custody batch around the report and its fee note: the
                 // Case folder is proved once for both (FRD-05, #1952).
                 await using var batch = generateReport.BeginBatch();
-                var result = await GenerateOneAsync(
-                    actor, caseId, expectedVersion, token, key, kind, targetGenerationId, selector, cancellationToken);
+                var request = CaseReportActs.RequestFor(
+                    actor, caseId, expectedVersion, token, key, kind, targetGenerationId, selector);
+                var result = await GenerateOneAsync(request, cancellationToken);
                 string? feeNote = null;
-                if (GenerateCaseReport.FeeNoteTargetOf(kind, result.Generation) is { } feeNoteTarget)
+                if (CaseReportActs.FeeNoteRequestAfter(
+                    request, result, OneCommandEditAuthority.DeriveOperationKey(key, ":fee-note")) is { } feeNoteRequest)
                 {
                     // The report stands whatever the fee note's outcome (R771: a
                     // fee note's failure still fails this call, as it did).
-                    var feeNoteResult = await GenerateOneAsync(
-                        actor, caseId, expectedVersion, token, OneCommandEditAuthority.DeriveOperationKey(key, ":fee-note"),
-                        CaseReportArtifactKind.FeeNote, feeNoteTarget, selector, cancellationToken);
+                    var feeNoteResult = await GenerateOneAsync(feeNoteRequest, cancellationToken);
                     feeNote = feeNoteResult.Outcome.ToString();
                     if (feeNoteResult.Generation is { } withFeeNote)
                     {
@@ -314,37 +310,13 @@ internal sealed class ReportMcpTools(
     }
 
     private async Task<CaseReportGenerationResult> GenerateOneAsync(
-        ActionActor actor,
-        Guid caseId,
-        long expectedVersion,
-        string token,
-        string key,
-        CaseReportArtifactKind kind,
-        Guid? targetGenerationId,
-        CaseWorkSelector selector,
+        GenerateCaseReportRequest request,
         CancellationToken cancellationToken)
     {
         CaseReportGenerationResult result;
         try
         {
-            result = await generateReport.ExecuteAsync(
-                new(
-                    actor,
-                    caseId,
-                    expectedVersion,
-                    token,
-                    key,
-                    kind,
-                    kind switch
-                    {
-                        CaseReportArtifactKind.AssessmentReport => "Generate the immutable case report",
-                        CaseReportArtifactKind.FeeNote => "Generate the immutable fee note",
-                        CaseReportArtifactKind.RepairSpecification => "Generate the immutable Repair Spec",
-                        _ => "Generate the immutable images",
-                    },
-                    targetGenerationId,
-                    selector),
-                cancellationToken);
+            result = await generateReport.ExecuteAsync(request, cancellationToken);
         }
         catch (ReportRenderRejectedException refusal)
         {

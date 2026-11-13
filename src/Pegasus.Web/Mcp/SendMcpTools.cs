@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Net.Mail;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
-using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -57,7 +56,7 @@ internal sealed record MailSendToolResult(
 internal sealed class SendMcpTools(
     ISendCaseReport sendCaseReport,
     ICaseReportGenerationStore reportGenerations,
-    IGetAssessmentAccess getAssessmentAccess,
+    CaseReportActs reportActs,
     IGetCaseHeader getCaseHeader,
     ISearchCases searchCases,
     ICaseWorkflowQueries workflowQueries,
@@ -625,16 +624,12 @@ internal sealed class SendMcpTools(
         CaseWorkSelector selector,
         CancellationToken cancellationToken)
     {
-        var access = await getAssessmentAccess.ExecuteAsync(new(caseId, actor), cancellationToken);
-        if (access is null || !access.CanOpen)
+        switch (await reportActs.GetAccessAsync(actor, caseId, selector, cancellationToken))
         {
-            throw new McpException("The case was not found or its report cannot be sent in its state.");
-        }
-        if (access.IsReadOnly
-            && !(selector == CaseWorkSelector.Primary
-                && (await getCaseHeader.ExecuteAsync(new(caseId, actor), cancellationToken))?.Works is { HasAudit: true }))
-        {
-            throw new McpException("The case is read-only once Complete.");
+            case CaseReportActAccess.NotOpen:
+                throw new McpException("The case was not found or its report cannot be sent in its state.");
+            case CaseReportActAccess.ReadOnly:
+                throw new McpException("The case is read-only once Complete.");
         }
     }
 

@@ -3094,21 +3094,19 @@ public sealed partial class DetailsModel(
         // flow that awaits both generations, so it reaches each filing.
         var generator = HttpContext.RequestServices.GetRequiredService<IGenerateCaseReport>();
         await using var batch = generator.BeginBatch();
-        var (result, outcome) = await GenerateOneAsync(
-            generator, actor, id, operationKey, editLeaseToken, expectedCaseVersion,
-            kind, targetGenerationId, cancellationToken);
+        var request = CaseReportActs.RequestFor(
+            actor, id, expectedCaseVersion, editLeaseToken, operationKey, kind, targetGenerationId, WorkSelector);
+        var (result, outcome) = await GenerateOneAsync(generator, request, cancellationToken);
         if (outcome is not null)
         {
             return outcome;
         }
         if (!string.IsNullOrWhiteSpace(feeNoteOperationKey)
-            && GenerateCaseReport.FeeNoteTargetOf(kind, result!.Generation) is { } feeNoteTarget)
+            && CaseReportActs.FeeNoteRequestAfter(request, result!, feeNoteOperationKey) is { } feeNoteRequest)
         {
             // The report stands whatever the fee note's outcome; a fee note
             // that is not generated says so beside the report's confirmation.
-            var (_, feeNoteOutcome) = await GenerateOneAsync(
-                generator, actor, id, feeNoteOperationKey, editLeaseToken, expectedCaseVersion,
-                CaseReportArtifactKind.FeeNote, feeNoteTarget, cancellationToken);
+            var (_, feeNoteOutcome) = await GenerateOneAsync(generator, feeNoteRequest, cancellationToken);
             if (feeNoteOutcome is ForbidResult or NotFoundResult)
             {
                 return feeNoteOutcome;
@@ -3124,36 +3122,15 @@ public sealed partial class DetailsModel(
     /// </summary>
     private async Task<(CaseReportGenerationResult? Result, IActionResult? Outcome)> GenerateOneAsync(
         IGenerateCaseReport generator,
-        ActionActor actor,
-        Guid id,
-        string operationKey,
-        string editLeaseToken,
-        long expectedCaseVersion,
-        CaseReportArtifactKind kind,
-        Guid? targetGenerationId,
+        GenerateCaseReportRequest request,
         CancellationToken cancellationToken)
     {
+        var id = request.CaseId;
+        var kind = request.Kind;
         CaseReportGenerationResult result;
         try
         {
-            result = await generator.ExecuteAsync(
-                new(
-                    actor,
-                    id,
-                    expectedCaseVersion,
-                    editLeaseToken,
-                    operationKey,
-                    kind,
-                    kind switch
-                    {
-                        CaseReportArtifactKind.AssessmentReport => "Generate the immutable case report",
-                        CaseReportArtifactKind.FeeNote => "Generate the immutable fee note",
-                        CaseReportArtifactKind.RepairSpecification => "Generate the immutable Repair Spec",
-                        _ => "Generate the immutable images",
-                    },
-                    targetGenerationId,
-                    WorkSelector),
-                cancellationToken);
+            result = await generator.ExecuteAsync(request, cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
