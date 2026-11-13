@@ -38,13 +38,12 @@ internal sealed class CaseQueryMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("One query act, through the same Core command as the Case page, with no edit lease, expected version or reason. open logs a query (channel one of Email, Phone, WhatsApp or Other, optional details) or opens one on a linked message (messageId); a new query is Unassigned. mark_done closes one open query. reopen reopens one Done query while the Case is not archived or closed. assign sets the assignee (assigneeStaffId) or Unassigned when omitted. Needs a mcp:-prefixed operation key.")]
+    [Description("One query act, through the same Core command as the Case page, with no edit lease, expected version or reason. open logs a query (channel one of Email, Phone, WhatsApp or Other, optional details); a query on a linked message is pegasus_mail_open_query. A new query is Unassigned. mark_done closes one open query. reopen reopens one Done query while the Case is not archived or closed. assign sets the assignee (assigneeStaffId) or Unassigned when omitted. Needs a mcp:-prefixed operation key.")]
     public async Task<CaseQueryToolResult> ActAsync(
         [Description("open, mark_done, reopen or assign.")] string action,
         [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("open: the Case.")] Guid? caseId = null,
         [Description("mark_done, reopen and assign: the query.")] Guid? queryId = null,
-        [Description("open from a linked e-mail: the retained message. Omit it to log a query by channel.")] Guid? messageId = null,
         [Description("open of a logged query: Email, Phone, WhatsApp or Other.")] string? channel = null,
         [Description("open of a logged query: what the query is.")] string? details = null,
         [Description("assign: the staff identifier, from pegasus_vocabulary_get staff, or omit for Unassigned.")] Guid? assigneeStaffId = null,
@@ -70,7 +69,7 @@ internal sealed class CaseQueryMcpTools(
                     {
                         var id = AutomationMcpErrors.RequireId(caseId ?? Guid.Empty, "case identifier");
                         var opened = await openQuery.ExecuteAsync(
-                            new(id, actor, key, messageId, ParseChannel(channel, messageId), details),
+                            new(id, actor, key, null, ParseChannel(channel), details),
                             cancellationToken);
                         var workflow = await workflows.GetAsync(id, cancellationToken);
                         return new CaseQueryToolResult(
@@ -113,20 +112,8 @@ internal sealed class CaseQueryMcpTools(
         string key) =>
         new(action, queryId, workflow.CaseId, workflow.Version, workflow.HasOpenQuery, key);
 
-    private static CaseQueryChannel? ParseChannel(string? value, Guid? messageId)
-    {
-        if (messageId is not null)
-        {
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                throw new McpException("open takes a message or a channel, not both.");
-            }
-
-            return null;
-        }
-
-        return AutomationMcpErrors.ParseName<CaseQueryChannel>(
+    private static CaseQueryChannel ParseChannel(string? value) =>
+        AutomationMcpErrors.ParseName<CaseQueryChannel>(
             value,
-            "open needs channel, one of: " + string.Join(", ", Enum.GetNames<CaseQueryChannel>()) + ", or a messageId.");
-    }
+            "open needs channel, one of: " + string.Join(", ", Enum.GetNames<CaseQueryChannel>()) + ".");
 }
