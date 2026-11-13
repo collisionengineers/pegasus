@@ -1183,9 +1183,9 @@ public static partial class OperatorLabels
     }
 
     /// <summary>
-    /// The Automation activity view's Subject column, resolved from the raw
-    /// subject id recorded on an Automation action or a denied automation
-    /// request (<see cref="Pegasus.Core.Identity.AutomationActivityRecord"/>).
+    /// The Automation actor's label in Action logs and on AI jobs, resolved
+    /// from the raw subject id recorded on an Automation action or a denied
+    /// automation request.
     /// There is exactly one Automation client per deployment (ADR-0011): a
     /// subject matching its configured client id is that client; anything else
     /// that is shaped like a GUID cannot be resolved to an identity and is never

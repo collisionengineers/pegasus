@@ -3,8 +3,6 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using OpenIddict.Abstractions;
-using OpenIddict.EntityFrameworkCore.Models;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
@@ -115,14 +113,11 @@ public sealed class EfStaffAccountAdministration(
 
             var replayUser = await FindUserAsync(request.StaffId, cancellationToken);
             var replayRole = await GetRoleAsync(replayUser);
-            var replayCounts = ParseRevocationCounts(replay.AfterJson);
             await transaction.CommitAsync(cancellationToken);
             return new(
                 EfStaffAccountQueries.Summary(
                     replayUser,
                     replayRole),
-                replayCounts.Authorizations,
-                replayCounts.Tokens,
                 WasReplay: true);
         }
 
@@ -140,15 +135,10 @@ public sealed class EfStaffAccountAdministration(
         var before = Snapshot(user, role);
         user.IsEnabled = false;
         user.Version++;
-        var revoked = (Authorizations: 0L, Tokens: 0L);
         if (before != Snapshot(user, role))
         {
             ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
         }
-        revoked = await RevokeAuthorizationsAndTokensAsync(
-            user.Id,
-            scrubTokenMaterial: false,
-            cancellationToken);
 
         await EfEditScopeStore.ClearForActorAsync(
             context,
@@ -162,7 +152,7 @@ public sealed class EfStaffAccountAdministration(
             "staff_account_disabled",
             request.OperationKey,
             before,
-            Snapshot(user, role, revoked.Authorizations, revoked.Tokens),
+            Snapshot(user, role),
             now,
             request.Reason);
         AddSecurityEvent(
@@ -180,8 +170,6 @@ public sealed class EfStaffAccountAdministration(
             EfStaffAccountQueries.Summary(
                 user,
                 role),
-            revoked.Authorizations,
-            revoked.Tokens,
             WasReplay: false);
     }
 
@@ -218,14 +206,11 @@ public sealed class EfStaffAccountAdministration(
             }
 
             var replayUser = await FindUserAsync(request.StaffId, cancellationToken);
-            var replayCounts = ParseRevocationCounts(replay.AfterJson);
             await transaction.CommitAsync(cancellationToken);
             return new(
                 EfStaffAccountQueries.Summary(
                     replayUser,
                     await GetRoleAsync(replayUser)),
-                replayCounts.Authorizations,
-                replayCounts.Tokens,
                 WasReplay: true);
         }
 
@@ -250,16 +235,11 @@ public sealed class EfStaffAccountAdministration(
             throw new StaffAccountAdministrationException(
                 StaffAccountAdministrationError.SelfAction);
         }
-        var revoked = (Authorizations: 0L, Tokens: 0L);
         if (roleChanged)
         {
             ThrowIfFailed(await userManager.RemoveFromRoleAsync(user, RoleName(currentRole)));
             ThrowIfFailed(await userManager.AddToRoleAsync(user, RoleName(request.Role)));
             ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
-            revoked = await RevokeAuthorizationsAndTokensAsync(
-                user.Id,
-                scrubTokenMaterial: false,
-                cancellationToken);
         }
 
         var previousDefault = await context.Users.SingleOrDefaultAsync(
@@ -285,7 +265,7 @@ public sealed class EfStaffAccountAdministration(
             "staff_account_settings_updated",
             request.OperationKey,
             before,
-            Snapshot(user, request.Role, revoked.Authorizations, revoked.Tokens),
+            Snapshot(user, request.Role),
             now,
             request.Reason);
         if (roleChanged)
@@ -314,8 +294,6 @@ public sealed class EfStaffAccountAdministration(
             EfStaffAccountQueries.Summary(
                 user,
                 request.Role),
-            revoked.Authorizations,
-            revoked.Tokens,
             WasReplay: false);
     }
 
@@ -350,10 +328,6 @@ public sealed class EfStaffAccountAdministration(
         if (before != Snapshot(user, role))
         {
             ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
-            _ = await RevokeAuthorizationsAndTokensAsync(
-                user.Id,
-                scrubTokenMaterial: false,
-                cancellationToken);
         }
 
         var now = timeProvider.GetUtcNow();
@@ -384,9 +358,8 @@ public sealed class EfStaffAccountAdministration(
         if (replay is not null)
         {
             EnsureReplay(replay, request.StaffId, "staff_logout_forced", request.Reason);
-            var counts = ParseRevocationCounts(replay.AfterJson);
             await transaction.CommitAsync(cancellationToken);
-            return new(request.StaffId, counts.Authorizations, counts.Tokens, WasReplay: true);
+            return new(request.StaffId, WasReplay: true);
         }
 
         var user = await FindUserAsync(request.StaffId, cancellationToken);
@@ -395,10 +368,6 @@ public sealed class EfStaffAccountAdministration(
         var before = Snapshot(user, role);
         user.Version++;
         ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
-        var revoked = await RevokeAuthorizationsAndTokensAsync(
-            user.Id,
-            scrubTokenMaterial: false,
-            cancellationToken);
         var now = timeProvider.GetUtcNow();
         AddHistory(
             request.Actor,
@@ -406,7 +375,7 @@ public sealed class EfStaffAccountAdministration(
             "staff_logout_forced",
             request.OperationKey,
             before,
-            Snapshot(user, role, revoked.Authorizations, revoked.Tokens),
+            Snapshot(user, role),
             now,
             request.Reason);
         AddSecurityEvent(
@@ -421,7 +390,7 @@ public sealed class EfStaffAccountAdministration(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         accountReads.Evict(user.Id);
-        return new(user.Id, revoked.Authorizations, revoked.Tokens, WasReplay: false);
+        return new(user.Id, WasReplay: false);
     }
 
     public async Task<ResetStaffPasswordResult> ResetPasswordAsync(
@@ -453,10 +422,6 @@ public sealed class EfStaffAccountAdministration(
         user.PasswordHash = userManager.PasswordHasher.HashPassword(user, temporaryPassword);
         user.MustChangePassword = true;
         ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
-        var revoked = await RevokeAuthorizationsAndTokensAsync(
-            user.Id,
-            scrubTokenMaterial: false,
-            cancellationToken);
         var now = timeProvider.GetUtcNow();
         AddHistory(
             request.Actor,
@@ -464,7 +429,7 @@ public sealed class EfStaffAccountAdministration(
             "staff_password_reset",
             request.OperationKey,
             before,
-            Snapshot(user, role, revoked.Authorizations, revoked.Tokens),
+            Snapshot(user, role),
             now,
             request.Reason);
         AddSecurityEvent(
@@ -482,8 +447,6 @@ public sealed class EfStaffAccountAdministration(
         return new(
             user.Id,
             temporaryPassword,
-            revoked.Authorizations,
-            revoked.Tokens,
             wasReplay: false);
     }
 
@@ -499,12 +462,9 @@ public sealed class EfStaffAccountAdministration(
         if (replay is not null)
         {
             EnsureReplay(replay, request.StaffId, "staff_account_deleted", request.Reason);
-            var counts = ParseRevocationCounts(replay.AfterJson);
             await transaction.CommitAsync(cancellationToken);
             return new(
                 request.StaffId,
-                counts.Authorizations,
-                counts.Tokens,
                 CredentialsCleared: true,
                 WasReplay: true);
         }
@@ -528,13 +488,9 @@ public sealed class EfStaffAccountAdministration(
 
         var before = Snapshot(user, role);
         // The row goes. What it can no longer answer for is settled first: its
-        // authorizations and tokens are revoked and scrubbed, its edit scopes
-        // released, and the rows keyed on it removed or detached. The history
-        // row keeps the account as it was, under its own id.
-        var revoked = await RevokeAuthorizationsAndTokensAsync(
-            user.Id,
-            scrubTokenMaterial: true,
-            cancellationToken);
+        // edit scopes are released, and the rows keyed on it removed or
+        // detached. The history row keeps the account as it was, under its own
+        // id.
         await EfEditScopeStore.ClearForActorAsync(
             context, ActionActor.Staff(user.Id, [role]), cancellationToken);
         await RemoveDependentsAsync(user.Id, cancellationToken);
@@ -545,7 +501,7 @@ public sealed class EfStaffAccountAdministration(
             "staff_account_deleted",
             request.OperationKey,
             before,
-            Snapshot(user, role, revoked.Authorizations, revoked.Tokens),
+            Snapshot(user, role),
             now,
             request.Reason);
         AddSecurityEvent(
@@ -562,8 +518,6 @@ public sealed class EfStaffAccountAdministration(
         accountReads.Evict(user.Id);
         return new(
             user.Id,
-            revoked.Authorizations,
-            revoked.Tokens,
             CredentialsCleared: true,
             WasReplay: false);
     }
@@ -651,46 +605,6 @@ public sealed class EfStaffAccountAdministration(
             select user.Id)
             .Distinct()
             .CountAsync(cancellationToken);
-    }
-
-    private async Task<(long Authorizations, long Tokens)> RevokeAuthorizationsAndTokensAsync(
-        Guid staffId,
-        bool scrubTokenMaterial,
-        CancellationToken cancellationToken)
-    {
-        var subject = staffId.ToString("D");
-        var authorizations = await context.Set<OpenIddictEntityFrameworkCoreAuthorization>()
-            .Where(item => item.Subject == subject
-                && item.Status != OpenIddictConstants.Statuses.Revoked)
-            .ToListAsync(cancellationToken);
-        var tokens = await context.Set<OpenIddictEntityFrameworkCoreToken>()
-            .Where(item => item.Subject == subject
-                && item.Status != OpenIddictConstants.Statuses.Revoked)
-            .ToListAsync(cancellationToken);
-        foreach (var authorization in authorizations)
-        {
-            authorization.Status = OpenIddictConstants.Statuses.Revoked;
-            authorization.ConcurrencyToken = Guid.NewGuid().ToString("N");
-            if (scrubTokenMaterial)
-            {
-                authorization.Properties = null;
-                authorization.Scopes = null;
-            }
-        }
-
-        foreach (var token in tokens)
-        {
-            token.Status = OpenIddictConstants.Statuses.Revoked;
-            token.ConcurrencyToken = Guid.NewGuid().ToString("N");
-            if (scrubTokenMaterial)
-            {
-                token.Payload = null;
-                token.Properties = null;
-                token.ReferenceId = null;
-            }
-        }
-
-        return (authorizations.Count, tokens.Count);
     }
 
     /// <summary>
@@ -865,9 +779,7 @@ public sealed class EfStaffAccountAdministration(
 
     private static string Snapshot(
         PegasusIdentityUser user,
-        StaffRole role,
-        long revokedAuthorizations = 0,
-        long revokedTokens = 0) =>
+        StaffRole role) =>
         JsonSerializer.Serialize(new
         {
             user.Id,
@@ -879,9 +791,7 @@ public sealed class EfStaffAccountAdministration(
             user.SignOffPrintedName,
             user.SignOffQualifications,
             user.SignOffSignatureDigest,
-            user.IsDefaultSignOffEngineer,
-            RevokedAuthorizations = revokedAuthorizations,
-            RevokedTokens = revokedTokens
+            user.IsDefaultSignOffEngineer
         });
 
     private static bool RecordedSettingsEqual(
@@ -933,30 +843,6 @@ public sealed class EfStaffAccountAdministration(
 
     private static string SignatureDigest(byte[] signature) =>
         Convert.ToHexStringLower(SHA256.HashData(signature));
-
-    private static (long Authorizations, long Tokens) ParseRevocationCounts(
-        string? afterJson)
-    {
-        if (afterJson is null)
-        {
-            return (0, 0);
-        }
-
-        using var document = JsonDocument.Parse(afterJson);
-        var authorizations = document.RootElement.TryGetProperty(
-                "RevokedAuthorizations",
-                out var authorizationElement)
-            && authorizationElement.TryGetInt64(out var authorizationCount)
-                ? authorizationCount
-                : 0;
-        var tokens = document.RootElement.TryGetProperty(
-                "RevokedTokens",
-                out var tokenElement)
-            && tokenElement.TryGetInt64(out var tokenCount)
-                ? tokenCount
-                : 0;
-        return (authorizations, tokens);
-    }
 
     private string NormalizeUserName(string userName) =>
         userManager.NormalizeName(userName)

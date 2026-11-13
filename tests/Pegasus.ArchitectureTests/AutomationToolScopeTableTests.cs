@@ -8,7 +8,7 @@ using Pegasus.Web.Mcp;
 namespace Pegasus.ArchitectureTests;
 
 /// <summary>
-/// ADR-0080 decision 3, carried by ADR-0087: <see cref="AutomationToolScopes"/>
+/// ADR-0087 decision 3: <see cref="AutomationToolScopes"/>
 /// is the one declaration of a tool's scope, read by the call gate and the
 /// tools/list filter. Every registered tool has a row, every row is a registered tool,
 /// every gate names the tool it guards, and a token lists exactly the tools

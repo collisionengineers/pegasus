@@ -9,6 +9,7 @@ authorization comes from the operator; the primary agent owns verification.
 - [Reference authoring](runbook.md#principal-identification-corpus-authoring)
 - [Mailbox operations](runbook.md#approved-mailbox-estate)
 - [OAuth certificate operations](runbook.md#automation-oauth-certificate-operation)
+  and [release deployment inputs](runbook.md#release-deployment-inputs)
 - [Monitoring](runbook.md#monitoring-and-diagnosis) and [recovery](runbook.md#recovery)
 - [Configuration reference](engineering/configuration.md)
 - [Release procedure](../.agents/skills/pegasus-release/SKILL.md)
@@ -975,6 +976,18 @@ they load; until then every request but `/health` and `/diagnostics` answers
 site at 503 and logs a warning per attempt; it does not stop the process.
 Development explicitly uses isolated process keys through
 `AutomationMcp:UseDevelopmentKeys`; that setting is rejected in Production.
+Initial certificate creation is a separately authorized operator action; no
+secret is seeded.
+
+Rotation follows
+[ADR-0041](adr/0041-persistent-automation-keys-and-grant-attribution.md#decision).
+Stopping the Automation client is the emergency control; issued tokens lapse
+at the end of their own lifetime (13 November 2026, R1045). Certificate
+rotation, external connector round-trip and live provider acceptance are later
+proof; local cryptographic replica tests do not claim that operator run
+occurred.
+
+## Release deployment inputs
 
 The approved release operator supplies these deployment inputs:
 
@@ -1022,8 +1035,7 @@ The Web host lists the four `Glass:*` keys, the two
 required settings, so a
 Web App deployed without them stops at startup naming the key; the migration
 host is built the same way and must be handed the same values.
-Initial certificate creation is a separately authorized operator action; no
-secret is seeded. The Glass's valuation account is the one Glass's login held
+The Glass's valuation account is the one Glass's login held
 in deployment configuration: the release operator creates its two secrets in
 the deployment vault and grants the Web identity secret-read access at each
 secret's scope, and Bicep hands the Web App Key Vault references to them. The
@@ -1033,18 +1045,6 @@ and `brego-valuation-password`, with the Web identity granted secret-read access
 staff member's own Glass's account name and password, used for the repair
 estimate, are entered by an Administrator on that staff account's Glass's page
 and are held protected per staff account, never in deployment configuration.
-
-For rotation, publish new certificate secret versions, then deploy all replicas
-with both the new and still-required old versions. Verify token issue,
-validation and refresh across a process restart and a second replica before
-removing old versions. Retain old decryption/signature material through the
-maximum lifetime of every token issued with it: access tokens last 10 minutes,
-refresh tokens at most 14 days with sliding expiration disabled. Base removal
-on the last old-key issuance plus that lifetime, not on certificate upload
-time. Emergency invalidation is an explicit operator action and must record
-which grants/tokens were revoked. Certificate rotation, external connector
-round-trip and live provider acceptance are later proof; local cryptographic
-replica tests do not claim that operator run occurred.
 
 ## Monitoring and diagnosis
 

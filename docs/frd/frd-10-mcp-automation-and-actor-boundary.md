@@ -49,7 +49,8 @@ releases, takeovers and refusals; routine lease renewal, job polling and
 progress heartbeats are telemetry only
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). It has no
 Administrator, configuration, credential, cloud, release, deletion or other
-management authority.
+management authority. The MCP is on in every deployed estate and is stopped by
+the Automation client's Stop switch (13 November 2026, R1046).
 
 **Casework parity.** Within casework the Actor may do anything a staff member
 with `PerformCasework` can, with two exceptions: it never puts an estimate in
@@ -68,8 +69,10 @@ The consent page lists each requested scope with a tick box, ticked by
 default; the grant holds the scopes left ticked, and approving none is the
 refusal the Refuse button records (operator, 29 October 2026; R548). An
 approved scope never grants human staff authority. Code exchange and refresh
-keep the grant. A revoked, expired or wrong-audience credential fails before
-any tool runs. Production signing and encryption use separate persistent
+keep the grant. An expired or wrong-audience credential fails before any tool
+runs; an issued token is not revoked but lapses at the end of its own
+lifetime, and stopping the Automation client is the emergency control
+(13 November 2026, R1045). Production signing and encryption use separate persistent
 certificate purposes with a rotation overlap, so a restart or replica change
 does not invalidate valid tokens. Missing production keys fail closed.
 
@@ -744,7 +747,7 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-27.
 
 ## Edge cases and fail-closed behaviour
 
-- A revoked, expired or wrong-scope token fails before the tool runs.
+- An expired or wrong-scope token fails before the tool runs.
 - A foreign or oversize cursor or document request gets a non-disclosing
   failure.
 - A download whose file cannot be rendered inline (not an image, PDF or

@@ -29,7 +29,6 @@ public static class AutomationMcpExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(productVersion);
 
         services.AddSingleton(options);
-        services.AddHttpContextAccessor();
         services.AddScoped<AutomationClientRegistry>();
         services.AddScoped<AutomationActorResolver>();
         services.AddScoped<AutomationMcpAuditor>();
@@ -192,9 +191,6 @@ public static class AutomationMcpExtensions
         return services;
     }
 
-    private const string DocumentContentPath = "/automation/documents";
-    private const string IntakeSourceContentPath = "/automation/intake-sources";
-
     private static X509Certificate2 CreateIsolatedCertificate(string subject)
     {
         using var key = RSA.Create(3072);
@@ -246,12 +242,12 @@ public static class AutomationMcpExtensions
             .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
 
         app.MapGet(
-                DocumentContentPath + "/{occurrenceId:guid}/versions/{versionId:guid}",
+                AutomationMcp.DocumentContentPath + "/{occurrenceId:guid}/versions/{versionId:guid}",
                 AutomationDocumentStreaming.GetAsync)
             .RequireAuthorization(AutomationMcp.DocumentsEndpointPolicy)
             .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
         app.MapGet(
-                IntakeSourceContentPath + "/{receiptId:guid}",
+                AutomationMcp.IntakeSourceContentPath + "/{receiptId:guid}",
                 AutomationDocumentStreaming.GetIntakeSourceAsync)
             .RequireAuthorization(AutomationMcp.IntakeEndpointPolicy)
             .RequireRateLimiting(AutomationMcp.RateLimitPolicy);

@@ -19,8 +19,6 @@ public sealed record ChangeStaffPasswordRequest(
 
 public sealed record ChangeStaffPasswordResult(
     Guid StaffId,
-    long RevokedAuthorizations,
-    long RevokedTokens,
     bool WasReplay);
 
 public interface IStaffPasswordChangeStore

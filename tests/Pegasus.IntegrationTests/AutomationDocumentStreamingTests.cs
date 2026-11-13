@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Identity;
+using Pegasus.Web.Authentication;
 using Pegasus.Web.Mcp;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
@@ -65,6 +67,75 @@ public sealed class AutomationDocumentStreamingTests
         Assert.Equal(HttpStatusCode.InternalServerError, mismatchResponse.StatusCode);
         Assert.Equal(1, boundary.ContentReads);
         Assert.DoesNotContain("stream-boundary", await mismatchResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A content route is a machine surface: a caller without the bearer gets
+    /// the bare challenge, not the HTML status page, and the refusal is a
+    /// transport-denial security event as it is on <c>/mcp</c>.
+    /// </summary>
+    [Fact]
+    public async Task AnUnauthenticatedStreamIsChallengedWithoutTheStatusPage()
+    {
+        using var fixture = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var factory = WithAutomationMcp(fixture);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            $"/automation/documents/{DocumentBoundary.OccurrenceId:D}/versions/{DocumentBoundary.VersionId:D}?caseId={DocumentBoundary.CaseId:D}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.NotEqual("text/html", response.Content.Headers.ContentType?.MediaType);
+        Assert.DoesNotContain(
+            "<html",
+            await response.Content.ReadAsStringAsync(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, await (await fixture.DatabaseAsync).ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM SecurityEvents
+            WHERE ReasonCode = N'automation_access_denied' AND Outcome = N'Denied'
+            """));
+    }
+
+    /// <summary>
+    /// Stop refuses a token issued before it: on a content route the refusal is
+    /// a 403 with the resolver's security event, and no bytes are read.
+    /// </summary>
+    [Fact]
+    public async Task AStoppedClientsTokenIsForbiddenTheStream()
+    {
+        using var fixture = new IntakeWebApplicationFactory(TimeProvider.System);
+        var boundary = new DocumentBoundary();
+        using var factory = WithBoundary(WithAutomationMcp(fixture), boundary);
+        using var client = factory.CreateClient();
+        var token = await RequestTokenAsync(client, AutomationMcp.DocumentsScope);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var stopped = await scope.ServiceProvider
+                .GetRequiredService<AutomationClientRegistry>()
+                .SetEnabledAsync(
+                    enabled: false,
+                    ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+                    "Integration-test stop",
+                    Guid.NewGuid().ToString("N"),
+                    CancellationToken.None);
+            Assert.False(stopped.IsEnabled);
+        }
+
+        using var request = Request(
+            $"/automation/documents/{DocumentBoundary.OccurrenceId:D}/versions/{DocumentBoundary.VersionId:D}?caseId={DocumentBoundary.CaseId:D}",
+            token);
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(0, boundary.ContentReads);
+        Assert.Equal(1, await (await fixture.DatabaseAsync).ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM SecurityEvents
+            WHERE ReasonCode = N'automation_client_disabled'
+              AND Outcome = N'Denied'
+              AND SubjectId = N'pegasus-automation'
+            """));
     }
 
     private static WebApplicationFactory<Program> WithBoundary(
