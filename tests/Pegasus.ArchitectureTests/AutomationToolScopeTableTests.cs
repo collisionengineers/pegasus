@@ -118,6 +118,6 @@ public sealed partial class AutomationToolScopeTableTests
             .Order(StringComparer.Ordinal)];
     }
 
-    [GeneratedRegex(@"Name = ""(?<tool>pegasus_[a-z_]+)""|(?:RequireAsync|CallAsync|MutateAsync)\(\s*""(?<gate>pegasus_[a-z_]+)""")]
+    [GeneratedRegex(@"Name = ""(?<tool>pegasus_[a-z_]+)""|(?:RequireAsync|CallAsync|CallWithOptionalKeyAsync|MutateAsync)\(\s*""(?<gate>pegasus_[a-z_]+)""")]
     private static partial Regex ToolOrGate();
 }
