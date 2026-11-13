@@ -237,7 +237,7 @@ public sealed class PrincipalInstructionPolicyTests
         Assert.Equal(
             "repairer.name",
             Assert.Throws<PrincipalInstructionValidationException>(
-                () => Parse($$"""{"caseType":"inspection","repairer":{"name":"{{name}}"}}""")).Field);
+                () => Parse($$$"""{"caseType":"inspection","repairer":{"name":"{{{name}}}"}}""")).Field);
         Assert.Equal(
             "claimSource",
             Assert.Throws<PrincipalInstructionValidationException>(
@@ -254,7 +254,7 @@ public sealed class PrincipalInstructionPolicyTests
     [InlineData("Kilometres", "kilometres")]
     public void AMileageUnitIsStoredInItsCanonicalSpelling(string sent, string stored)
     {
-        var draft = Parse($$"""{"caseType":"inspection","vehicle":{"mileage":1000,"mileageUnit":"{{sent}}"}}""")
+        var draft = Parse($$$"""{"caseType":"inspection","vehicle":{"mileage":1000,"mileageUnit":"{{{sent}}}"}}""")
             .Instruction.Draft;
 
         Assert.Equal(stored, draft.VehicleMileageUnit);
@@ -276,7 +276,7 @@ public sealed class PrincipalInstructionPolicyTests
     public void OnlyAStandaloneAuditCarriesAnOriginalReport(string caseType)
     {
         var error = Assert.Throws<PrincipalInstructionValidationException>(
-            () => Parse($$"""{"caseType":"{{caseType}}","originalReport":{"fileName":"report.pdf","contentBase64":"JVBERi0="}}"""));
+            () => Parse($$$"""{"caseType":"{{{caseType}}}","originalReport":{"fileName":"report.pdf","contentBase64":"JVBERi0="}}"""));
 
         Assert.Equal("originalReport", error.Field);
     }
