@@ -102,6 +102,12 @@ embedded resource
   (the batch withholds whole and the cut stays the single download's: a
   whole file either fits or is withheld with its reason) (operator,
   1 October 2026: PDF pages travel as text, not as images);
+- a Word document (.doc or .docx), from `pegasus_document_download`, as the
+  page text of the PDF rendering staff view
+  ([FRD-05](frd-05-documents-extraction-and-custody.md)), within
+  the same budget; a rendering still being made answers "call again", the
+  rendering is not a download of the document, and the batch returns a Word
+  document's metadata (operator, 13 November 2026, R1043);
 - a text file that already fits the budget as its text;
 - anything else, or any file over 10 MiB, as metadata only.
 
@@ -216,13 +222,19 @@ estimate line types and evidence labels, the repairer VAT statuses and VAT
 categories, the valuation sources and the shared image tags. It also lists
 the enabled staff by id and username, whose ids the assign actions take, and
 the eligible Sign-off Engineers by id and printed name, whose id
-`signOffEngineerId` takes (operator, 2 November 2026; R593).
+`signOffEngineerId` takes (operator, 2 November 2026; R593), and the
+unroadworthy wordings bank, the one list offered on every Case (R952).
+`pegasus_assessment_update` with `saveUnroadworthyReasonToBank` also saves
+the unroadworthy reason it records to that bank, as **Save this wording**
+does; a wording the bank already offers is not saved twice.
 
 **Valuation.** `pegasus_valuation_list` returns the Case's valuation cards:
 each guide card, the Engineer's Value card and any AI market research card.
 `pegasus_valuation_save` records guide cards and, optionally, adopts the
 valuation calculation against a basis card, as the Valuation section's Save
 does; a card for the same source and guide month replaces the earlier one.
+An Other increase counts only with a name and an amount above zero and is
+otherwise left out, as on the Case page (R934).
 `pegasus_valuation_get` presses a guide card's **Get valuation** and records
 that card with the figures, as the section's Save would (operator, 8 October
 2026): Pegasus asks the source's connected provider with its own valuation
@@ -247,7 +259,17 @@ year and mileage; the inspection; and the Sign-off Engineer. As on the Case
 page, it links the repairer to an active directory Repairer and records the
 Claim source from the active Claim source records, each copied onto the Case
 so a later directory edit never rewrites it; `pegasus_directory_search`
-lists them.
+lists them with the codes of the Principals each is linked to and, given the
+Case's Principal code, lists that Principal's linked contacts first, as the
+Case page does (R1013, R1016). Naming the Repairer the Case is already linked
+to keeps the link and its copy as they are, whether or not the record is
+still active (R1022). Naming the Sign-off Engineer the Case already shows
+records nothing, and the empty identifier removes the recorded pick so the
+default applies again (R1019). `pegasus_case_get` returns the Case's Claim
+source and Repairer, which the report sending rules read, and what still
+holds the Case from being ready: its unmet requirements, the instruction
+items still missing, a failed document storage and a missing original
+report, as the Not ready queue and the Case's Next action name them (R929).
 `pegasus_assessment_get` returns Case facts under `caseOwned`. The Case's
 Received date, which is its instruction date, is read-only:
 `caseOwned.receivedDate` and the Case summary's `receivedAtUtc` carry it, and
@@ -264,11 +286,11 @@ Unassigned (#1213, operator, 15 October 2026,
 return to Engineer; close with a named outcome;
 reopen to a named destination; archive; create the linked replacement of a
 Case created in error; Create audit; request the vehicle lookup; record a
-manual chase; log a query (its channel, with the reason as its details) on a
-Report sent Case; and resolve the Case's open queries (operator, 11 October
-2026). Each needs the reason staff give for it, except where staff give
-none. A tagged e-mail is a query too: `pegasus_mail_correct_classification`
-to Query. Core alone decides which act the Case's state
+manual chase. Each needs the reason staff give for it, except where staff
+give none. Queries are `pegasus_case_query`: it logs a query by its channel,
+opens one on a linked message, marks one done, reopens one and assigns it
+(operator, 11 October 2026). A tagged e-mail is a query too:
+`pegasus_mail_correct_classification` to Query. Core alone decides which act the Case's state
 allows ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
 A Case is never deleted.
 
@@ -693,13 +715,13 @@ its one command when none is given.
 | Scope | Tool | Action | Lease |
 | --- | --- | --- | --- |
 | `automation.cases` | `pegasus_case_search` | Search Cases by text, reference, registration, claimant, claim number, Principal, state; cursor page | none |
-| `automation.cases` | `pegasus_case_get` | One Case with its paged documents (occurrence and version ids for download) and history | none |
+| `automation.cases` | `pegasus_case_get` | One Case with its Claim source and Repairer, what still holds it from being ready, and its paged documents (occurrence and version ids for download) and history | none |
 | `automation.cases` | `pegasus_case_update_details` | Case-detail edit through the staff Case save; an omitted value is unchanged, an empty string clears | one-command lease |
 | `automation.cases` | `pegasus_case_note_add` | Add an append-only note to the Case timeline | key only |
 | `automation.cases` | `pegasus_case_action` | One Case lifecycle act with an `action`: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, manual_chase | one-command lease |
 | `automation.cases` | `pegasus_case_query` | One query act with an `action`: open, mark_done, reopen, assign. No edit lease, expected version or reason. Reopen is refused on a closed or archived Case | key only |
-| `automation.cases` | `pegasus_directory_search` | The active directory Repairers or Claim sources a Case links to | none |
-| `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags; enabled staff by username; Sign-off Engineers by printed name | none |
+| `automation.cases` | `pegasus_directory_search` | The active directory Repairers or Claim sources a Case links to, each with its linked Principal codes; a named Principal's linked contacts first | none |
+| `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags; enabled staff by username; Sign-off Engineers by printed name; the unroadworthy wordings bank | none |
 | `automation.cases` | `pegasus_work_centre_dismiss` | Dismiss a Case, Unidentified item, AI job, or a System Action's underlying receipt, image intake or query from the Work Centre | key only |
 | `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`), a Triage Case or an Image Intake record (`automation.intake`) for multi-step work; `takeOver` asks a staff holder of a Case to hand over and waits; takes over a staff Triage or Image Intake scope | explicit lease |
 | `automation.intake` | `pegasus_intake_queue_list` | List intake receipts by decision and allocation | none |
@@ -750,7 +772,7 @@ its one command when none is given.
 
 The Actor changes no state of its own. Each tool moves the record it acts on
 through that record's owner: Unidentified and intake in FRD-02, Triage in
-FRD-03, Cases in FRD-13, AI jobs in FRD-11.
+FRD-03, Cases in FRD-13, AI jobs in FRD-27.
 
 ## Edge cases and fail-closed behaviour
 
@@ -788,9 +810,10 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
   `forward`, is refused rather than ignored (4 November 2026, R655).
 - Mail is filed against an instruction Case; a Triage Case is answered only
   with `triage_reply`, and a cancelled Triage takes no reply.
-- `pegasus_intake_action accept` is refused while the item's inspection
-  address is unsettled; `resolve_inspection_address` settles it first. A
-  stale item version or suggestion fingerprint is refused and writes nothing.
+- `pegasus_intake_action accept` is not refused by an unsettled inspection
+  address: the Case starts Not ready with Inspection address among its
+  missing instruction items (R965). A stale item version or suggestion
+  fingerprint is refused and writes nothing.
 - `pegasus_report_wording_save` is refused while the Case's report cannot
   be projected, since there is no composed sentence to compare with.
 - Confirm is refused for a job that is not a `Draft ready` QueryResponse or

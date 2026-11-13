@@ -119,7 +119,7 @@ internal sealed class IntakeMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Submits one immutable intake source document (email, PDF, document, or image) into the durable intake queue on the automation channel. Content is base64 and is limited to 10 MB before decoding. The external receipt token is the durable source-occurrence identity: replaying the same token with identical content is a duplicate, and different content under the same token fails closed.")]
+    [Description("Submits one immutable intake source document (email, PDF, document, or image) into the durable intake queue on the automation channel. Content is base64; the decoded file is at most 100,000,000 bytes. The external receipt token is the durable source-occurrence identity: replaying the same token with identical content is a duplicate, and different content under the same token fails closed.")]
     public async Task<IntakeSubmitToolResult> SubmitAsync(
         [Description("The leaf file name; path components are rejected.")] string fileName,
         [Description("The source media type.")] string mediaType,

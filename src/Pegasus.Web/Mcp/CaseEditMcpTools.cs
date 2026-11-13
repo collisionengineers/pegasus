@@ -65,7 +65,7 @@ internal sealed record GuideCardToolInput(
     [property: Description("The guide month the figures are for, yyyy-MM.")] string? GuideMonth = null);
 
 internal sealed record ValuationAdditionToolInput(
-    [property: Description("The valuation addition preset identifier.")] Guid PresetId,
+    [property: Description("The valuation addition preset identifier; the empty identifier 00000000-0000-0000-0000-000000000000 is an Other increase, which counts only with a label and an amount above zero and is otherwise left out.")] Guid PresetId,
     [property: Description("The preset version the amount was read at.")] long PresetVersion,
     [property: Description("The addition's label.")] string? Label,
     [property: Description("The addition amount in pounds.")] decimal Amount);
@@ -115,6 +115,7 @@ internal sealed record VocabularyToolResult(
     IReadOnlyList<ImageTagVocabularyItem> ImageTags,
     [property: Description("The enabled staff, by username: the identifiers pegasus_case_action assign_engineer, pegasus_triage_assign and pegasus_case_query assign accept.")] IReadOnlyList<StaffVocabularyItem> Staff,
     [property: Description("The eligible Sign-off Engineers, by printed name: the identifiers pegasus_case_update_details signOffEngineerId accepts.")] IReadOnlyList<SignOffEngineerVocabularyItem> SignOffEngineers,
+    [property: Description("The unroadworthy wordings bank, oldest first: the one list offered on every Case for assessment.unroadworthy_reason, which also takes free text.")] IReadOnlyList<string> UnroadworthyReasons,
     string CorrelationId);
 
 internal sealed record DirectoryToolItem(
@@ -125,7 +126,8 @@ internal sealed record DirectoryToolItem(
     string? Email,
     string? Telephone,
     string? Address,
-    string? Postcode);
+    string? Postcode,
+    [property: Description("The codes of the Principals this organisation is linked to; a Case of one of them lists it first.")] IReadOnlyList<string> LinkedPrincipalCodes);
 
 internal sealed record DirectorySearchToolResult(
     string Role,
@@ -151,6 +153,7 @@ internal sealed class CaseEditMcpTools(
     IFetchGuideValuation fetchGuideValuation,
     IContactDirectoryQueries contactDirectory,
     IReadImageTagVocabulary imageTags,
+    IUnroadworthyReasonBankStore unroadworthyReasonBank,
     Pegasus.Core.Identity.ICaseEngineerChoices staffChoices,
     Pegasus.Core.Identity.IStaffAccountQueries staffAccounts,
     TimeProvider timeProvider,
@@ -181,7 +184,7 @@ internal sealed class CaseEditMcpTools(
         [Description("VAT status text.")] string? vatStatus = null,
         [Description("Repairer name.")] string? repairerName = null,
         [Description("Repairer address.")] string? repairerAddress = null,
-        [Description("Links the Case's repairer to an active directory Repairer (pegasus_directory_search, role Repairer): its name, address and version are copied onto the Case, so a later directory edit never rewrites it. The empty identifier 00000000-0000-0000-0000-000000000000 removes the link and keeps the typed name.")] Guid? repairerDirectoryId = null,
+        [Description("Links the Case's repairer to an active directory Repairer (pegasus_directory_search, role Repairer): its name, address and version are copied onto the Case, so a later directory edit never rewrites it. Naming the Repairer the Case is already linked to keeps that link and its copy as they are. The empty identifier 00000000-0000-0000-0000-000000000000 removes the link and keeps the typed name.")] Guid? repairerDirectoryId = null,
         [Description("Records the Case's claim source as an active directory Claim source (pegasus_directory_search, role ClaimSource), copied onto the Case with its contact. The empty identifier 00000000-0000-0000-0000-000000000000 records none.")] Guid? claimSourceId = null,
         [Description("The Case's own notes beside its Principal.")] string? principalNotes = null,
         [Description("The Case's own notes beside its Claim source.")] string? claimSourceNotes = null,
@@ -200,7 +203,7 @@ internal sealed class CaseEditMcpTools(
         [Description("Storage location for the vehicle.")] string? storageLocation = null,
         [Description("Inspection date, yyyy-MM-dd; the report prints it as the date the damage was assessed.")] string? inspectionDate = null,
         [Description("Inspection deadline, yyyy-MM-dd.")] string? inspectionDeadline = null,
-        [Description("The Sign-off Engineer's staff identifier, from pegasus_vocabulary_get signOffEngineers.")] Guid? signOffEngineerId = null,
+        [Description("The Sign-off Engineer's staff identifier, from pegasus_vocabulary_get signOffEngineers. Naming the engineer the Case already shows records nothing. The empty identifier 00000000-0000-0000-0000-000000000000 removes the recorded pick, so the default applies again.")] Guid? signOffEngineerId = null,
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
@@ -282,8 +285,13 @@ internal sealed class CaseEditMcpTools(
                                 throw new McpException("The Case has no claim source to set a contact for.");
                             }
                             // A linked directory organisation is copied onto the
-                            // Case: its identity, version, name and address.
-                            var linkedRepairer = repairerDirectoryId is { } directoryId && directoryId != Guid.Empty
+                            // Case: its identity, version, name and address. The
+                            // link the Case already holds is not linked again: it
+                            // keeps the copy it has, whether or not the record is
+                            // still active, as the Case page's save keeps it (R1022).
+                            var linkedRepairer = repairerDirectoryId is { } directoryId
+                                && directoryId != Guid.Empty
+                                && directoryId != persisted?.Repairer?.DirectoryOrganizationId
                                 ? await contactDirectory.FindActiveByRoleAsync(
                                         context.Actor, ContactRole.Repairer, directoryId, cancellationToken)
                                     ?? throw new McpException("The selected repairer is not an active directory Repairer.")
@@ -370,11 +378,15 @@ internal sealed class CaseEditMcpTools(
                         {
                             await LoadAssessmentAsync();
                         }
+                        // The empty identifier names no one: where an engineer
+                        // was shown, that removes the recorded pick and the
+                        // default applies again, as Unassigned does on the Case
+                        // page (R1019).
                         CaseWorkspaceReport? report = signOffEngineerId is not { } engineerId
                             ? null
                             : new(
                                 AssessmentFields: null,
-                                engineerId,
+                                engineerId == Guid.Empty ? null : engineerId,
                                 DateOnly.TryParseExact(Recorded(AssessmentVocabulary.ReportDate), "yyyy-MM-dd",
                                     CultureInfo.InvariantCulture, DateTimeStyles.None, out var reportDate)
                                     ? reportDate
@@ -516,6 +528,7 @@ internal sealed class CaseEditMcpTools(
                         (adoption.Additions ?? [])
                             .Select(addition => new ValuationAdditionSelection(
                                 addition.PresetId, addition.PresetVersion, addition.Label, addition.Amount))
+                            .Where(addition => addition.Counts)
                             .ToArray(),
                         adoption.ConditionDeduction)
                     {
@@ -661,7 +674,7 @@ internal sealed class CaseEditMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Returns the vocabularies the write tools accept: every assessment field path with its type, accepted codes, the format a structured value takes (assessment.impacts, the impacts; damage.impacts, the damage markers), staff label and whether pegasus_assessment_update may write it (for example Roadworthiness is assessment.legal_status and the outcome is assessment.outcome); the estimate line types and evidence labels with their meanings; repairer VAT statuses and VAT categories; valuation sources; the shared image tags pegasus_document_action applies; the enabled staff by username, whose identifiers the assign actions take; and the eligible Sign-off Engineers by printed name.")]
+    [Description("Returns the vocabularies the write tools accept: every assessment field path with its type, accepted codes, the format a structured value takes (assessment.impacts, the impacts; damage.impacts, the damage markers), staff label and whether pegasus_assessment_update may write it (for example Roadworthiness is assessment.legal_status and the outcome is assessment.outcome); the estimate line types and evidence labels with their meanings; repairer VAT statuses and VAT categories; valuation sources; the shared image tags pegasus_document_action applies; the enabled staff by username, whose identifiers the assign actions take; the eligible Sign-off Engineers by printed name; and the unroadworthy wordings bank.")]
     public async Task<VocabularyToolResult> GetVocabularyAsync(CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync("pegasus_vocabulary_get", cancellationToken);
@@ -676,7 +689,8 @@ internal sealed class CaseEditMcpTools(
                 var tagsRead = imageTags.ListAsync(cancellationToken);
                 var staffRead = staffChoices.GetAsync(context.Actor, cancellationToken);
                 var signOffRead = staffAccounts.ListSignOffEngineersAsync(cancellationToken);
-                await Task.WhenAll(tagsRead, staffRead, signOffRead);
+                var bankRead = unroadworthyReasonBank.ListAsync(cancellationToken);
+                await Task.WhenAll(tagsRead, staffRead, signOffRead, bankRead);
                 return new VocabularyToolResult(
                     AssessmentVocabulary.Definitions.Values
                         .Select(definition =>
@@ -714,6 +728,7 @@ internal sealed class CaseEditMcpTools(
                         .Select(engineer => new SignOffEngineerVocabularyItem(
                             engineer.StaffId, engineer.PrintedName, engineer.Qualifications, engineer.IsDefault))
                         .ToArray(),
+                    (await bankRead).Select(wording => wording.Text).ToArray(),
                     context.TraceIdentifier);
             }),
             cancellationToken);
@@ -727,10 +742,11 @@ internal sealed class CaseEditMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists the active Contacts directory organisations holding one role, as the Case page offers them to link to a Case: Repairer (for pegasus_case_update_details repairerDirectoryId) or ClaimSource (for claimSourceId). An optional name filter keeps the organisations whose name contains it, ignoring case.")]
+    [Description("Lists the active Contacts directory organisations holding one role, as the Case page offers them to link to a Case: Repairer (for pegasus_case_update_details repairerDirectoryId) or ClaimSource (for claimSourceId). Each carries the codes of the Principals it is linked to; name the Case's principalCode and the organisations linked to that Principal come first, as the Case page lists them, each group in name order. An optional name filter keeps the organisations whose name contains it, ignoring case.")]
     public async Task<DirectorySearchToolResult> SearchDirectoryAsync(
         [Description("The directory role: Repairer or ClaimSource.")] string role,
         [Description("Optional text the organisation's name must contain, ignoring case.")] string? name = null,
+        [Description("Optional Principal code (a Case's summary.principal): the organisations linked to that Principal are listed first.")] string? principalCode = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync("pegasus_directory_search", cancellationToken);
@@ -754,6 +770,9 @@ internal sealed class CaseEditMcpTools(
                     records
                         .Where(record => string.IsNullOrEmpty(filter)
                             || record.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                        // The directory reads in name order and the sort is
+                        // stable, so each group keeps it (R1013, R1016).
+                        .OrderByDescending(record => record.IsLinkedTo(principalCode))
                         .Select(record => new DirectoryToolItem(
                             record.OrganizationId,
                             record.Version,
@@ -762,7 +781,8 @@ internal sealed class CaseEditMcpTools(
                             record.Email,
                             record.Telephone,
                             record.Address,
-                            record.Postcode))
+                            record.Postcode,
+                            record.LinkedPrincipalCodes ?? []))
                         .ToArray(),
                     context.TraceIdentifier);
             }),

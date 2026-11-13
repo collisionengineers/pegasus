@@ -122,7 +122,22 @@ public sealed record ValuationAdditionSelection(
     Guid PresetId,
     long PresetVersion,
     string? Label,
-    decimal Amount);
+    decimal Amount)
+{
+    /// <summary>
+    /// Whether this addition is a value increase: a preset always is, and an
+    /// Other one, which carries no preset, only once it has a name and an
+    /// amount above zero (operator, 11 November 2026; R934). One short of
+    /// either is left out of the calculation and refuses nothing, whoever
+    /// posts it.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Counts => PresetId != Guid.Empty || OtherCounts(Label, Amount);
+
+    /// <summary>The Other rule of <see cref="Counts"/>, for a row not yet a selection.</summary>
+    public static bool OtherCounts(string? label, decimal amount) =>
+        amount > 0m && !string.IsNullOrWhiteSpace(label);
+}
 
 /// <summary>
 /// One addition as it is calculated and recorded: the maintained label and
