@@ -29,7 +29,6 @@ public static class AutomationMcpExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(productVersion);
 
         services.AddSingleton(options);
-        services.AddHttpContextAccessor();
         services.AddScoped<AutomationClientRegistry>();
         services.AddScoped<AutomationActorResolver>();
         services.AddScoped<AutomationMcpAuditor>();

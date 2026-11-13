@@ -498,7 +498,7 @@ builder.Services.AddRateLimiter(options =>
             _ => new FixedWindowRateLimiterOptions
             {
                 AutoReplenishment = true,
-                PermitLimit = AutomationMcp.RequestsPerClientPerMinute,
+                PermitLimit = AutomationMcp.RequestsPerIpAddressPerMinute,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));

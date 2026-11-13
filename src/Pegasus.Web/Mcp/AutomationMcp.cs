@@ -4,8 +4,9 @@ namespace Pegasus.Web.Mcp;
 
 /// <summary>
 /// Fixed names for the Automation Actor MCP ingress (ADR-0011, ADR-0013
-/// clause 10): one named vendor-neutral Automation client, client-credentials
-/// authentication, per-area scopes, and a dedicated rate-limit policy.
+/// clause 10): one named vendor-neutral Automation client, authenticated by
+/// client credentials or, for an external connector, by authorization code
+/// with PKCE (ADR-0027), per-area scopes, and a dedicated rate-limit policy.
 /// </summary>
 public static class AutomationMcp
 {
@@ -53,7 +54,8 @@ public static class AutomationMcp
     /// </summary>
     public const string SendScope = "automation.send";
     public const string GrantIdentityClaim = "pegasus_automation_grant";
-    public const int RequestsPerClientPerMinute = 120;
+    /// <summary>The rate limit's permits a minute, partitioned per IP address (ADR-0087).</summary>
+    public const int RequestsPerIpAddressPerMinute = 120;
     public static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(14);
 
@@ -72,7 +74,7 @@ public static class AutomationMcp
         || path.StartsWithSegments(IntakeSourceContentPath);
 
     // The cross-tool rules FRD-10 states, as the server's instructions restate
-    // them (ADR-0080 decision 2, carried by ADR-0087): agent-facing copy the
+    // them (ADR-0087 decision 1): agent-facing copy the
     // operator approved as built (R526); the take-over clause added 10 November 2026 (R901).
     private const string Paging = "Lists page by cursor, 50 by default and 100 at most.";
     private const string OneCommandLease =
@@ -106,7 +108,6 @@ public sealed record AutomationMcpOptions(
     TimeSpan RegistrationCacheLifetime,
     IReadOnlyList<Uri> RedirectUris,
     bool UseDevelopmentKeys,
-    Uri? KeyVaultUri,
     IReadOnlyList<Uri> SigningCertificateSecretUris,
     IReadOnlyList<Uri> EncryptionCertificateSecretUris)
 {
@@ -222,7 +223,6 @@ public sealed record AutomationMcpOptions(
             TimeSpan.FromSeconds(cacheSeconds),
             redirectUris,
             useDevelopmentKeys,
-            keyVaultUri,
             signingCertificates,
             encryptionCertificates);
     }
