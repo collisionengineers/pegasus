@@ -586,7 +586,9 @@ same click as Send report (operator, 4 November 2026, R665).
   with the same vehicle registration already has a sent report (operator, 16
   October 2026). "Images from" and "Bodyshop mentions", which no Case fact
   answered, are retired: AX's rule reads the Repairer and the Claim Source,
-  and YML's the Claim Source (R1025, R1026).
+  and YML's the Claim Source (R1025, R1026). PCH's iRevolution rule reads the
+  Repairer, which is where its instructions name iRevolution (operator, 13
+  November 2026; [R1033](../rulings.md)).
 - **No questions.** The form asks staff nothing about the rules (operator, 12
   November 2026; R1023). What a rule reads is on the Case record, where staff
   set or correct it before sending; the Cc line on the form names each rule
