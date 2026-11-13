@@ -83,8 +83,6 @@ public sealed record DisableStaffAccountRequest(
 
 public sealed record DisableStaffAccountResult(
     StaffAccountSummary Account,
-    long RevokedAuthorizations,
-    long RevokedTokens,
     bool WasReplay);
 
 public sealed record UpdateStaffAccountSettingsRequest(
@@ -102,8 +100,6 @@ public sealed record UpdateStaffAccountSettingsRequest(
 
 public sealed record UpdateStaffAccountSettingsResult(
     StaffAccountSummary Account,
-    long RevokedAuthorizations,
-    long RevokedTokens,
     bool WasReplay);
 
 public sealed record EnableStaffAccountRequest(
@@ -126,8 +122,6 @@ public sealed record ForceStaffLogoutRequest(
 
 public sealed record ForceStaffLogoutResult(
     Guid StaffId,
-    long RevokedAuthorizations,
-    long RevokedTokens,
     bool WasReplay);
 
 public sealed record ResetStaffPasswordRequest(
@@ -140,14 +134,10 @@ public sealed record ResetStaffPasswordRequest(
 public sealed class ResetStaffPasswordResult(
     Guid staffId,
     string temporaryPassword,
-    long revokedAuthorizations,
-    long revokedTokens,
     bool wasReplay)
 {
     public Guid StaffId { get; } = staffId;
     public string TemporaryPassword { get; } = temporaryPassword;
-    public long RevokedAuthorizations { get; } = revokedAuthorizations;
-    public long RevokedTokens { get; } = revokedTokens;
     public bool WasReplay { get; } = wasReplay;
     public override string ToString() => nameof(ResetStaffPasswordResult);
 }
@@ -161,8 +151,6 @@ public sealed record DeleteStaffAccountRequest(
 
 public sealed record DeleteStaffAccountResult(
     Guid StaffId,
-    long RevokedAuthorizations,
-    long RevokedTokens,
     bool CredentialsCleared,
     bool WasReplay);
 
