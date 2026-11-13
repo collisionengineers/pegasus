@@ -277,8 +277,9 @@ with a named outcome; reopen to a named destination; archive; create the
 linked replacement of a Case created in error; Create audit; request the
 vehicle lookup; record a manual chase. Each needs the reason staff give for
 it, except where staff give none. Queries are `pegasus_case_query`: it logs a query by its channel,
-opens one on a linked message, marks one done, reopens one and assigns it
-(operator, 11 October 2026). A tagged e-mail is a query too:
+marks one done, reopens one and assigns it (operator, 11 October 2026). A
+query on a linked message is opened with `pegasus_mail_open_query` (R1042).
+A tagged e-mail is a query too:
 `pegasus_mail_correct_classification` to Query. Core alone decides which
 act the Case's state allows
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
@@ -559,6 +560,8 @@ history and replays by its operation key.
   receipt, image intake or query
   ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre),
   [ADR-0086](../adr/0086-work-centre-views-are-computed-on-read.md)).
+  Its operation key is optional: Core's dismissal takes none, so a key only
+  labels the call's history (R1042).
 
 Which of these tools the classifier agent calls, and when, is FRD-08's
 ([Mail categories and correction](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)).
@@ -652,10 +655,10 @@ its one command when none is given.
 | `automation.cases` | `pegasus_case_update_details` | Case-detail edit through the staff Case save; an omitted value is unchanged, an empty string clears | one-command lease |
 | `automation.cases` | `pegasus_case_note_add` | Add an append-only note to the Case timeline | key only |
 | `automation.cases` | `pegasus_case_action` | One Case lifecycle act with an `action`: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, manual_chase | one-command lease |
-| `automation.cases` | `pegasus_case_query` | One query act with an `action`: open, mark_done, reopen, assign. No edit lease, expected version or reason. Reopen is refused on a closed or archived Case | key only |
+| `automation.cases` | `pegasus_case_query` | One query act with an `action`: open (logged by its channel), mark_done, reopen, assign. No edit lease, expected version or reason. Reopen is refused on a closed or archived Case | key only |
 | `automation.cases` | `pegasus_directory_search` | The active directory Repairers or Claim sources a Case links to, each with its linked Principal codes; a named Principal's linked contacts first | none |
 | `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags; enabled staff by username; Sign-off Engineers by printed name; the unroadworthy wordings bank | none |
-| `automation.cases` | `pegasus_work_centre_dismiss` | Dismiss a Case, Unidentified item, AI job, or a System Action's underlying receipt, image intake or query from the Work Centre | key only |
+| `automation.cases` | `pegasus_work_centre_dismiss` | Dismiss a Case, Unidentified item, AI job, or a System Action's underlying receipt, image intake or query from the Work Centre | optional key |
 | `automation.cases` | `pegasus_photo_link_list`, `pegasus_photo_link_get` | Photo links as the Photo capture page lists them (Direct links by scope, Standing links' captures, or one Case's links) with status, reminder due and what is missing; one link as its page shows it, with its history and the acts its page offers | none |
 | `automation.cases` | `pegasus_photo_link_action` | One photo link act that sends nothing, with an `action`: issue (a new link's address to copy), resend_copy, extend, cancel, log_call | key only |
 | `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`), a Triage Case or an Image Intake record (`automation.intake`) for multi-step work; `takeOver` asks a staff holder of a Case to hand over and waits; takes over a staff Triage or Image Intake scope | explicit lease |

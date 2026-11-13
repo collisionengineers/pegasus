@@ -16,8 +16,7 @@ internal sealed record DocumentAddToolResult(
     long ContentLength,
     string SourceOccurrenceIdentity,
     bool IsReplay,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
 /// The structured half of a download: the file's identity, size and hash,
@@ -84,7 +83,7 @@ internal sealed class DocumentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Retains one document of at most 10 MiB in the canonical case custody boundary, provenance-labelled as Automation-sourced. A document added as an Image must be a JPEG or PNG and completes the Case's images. Send the content as base64 in contentBase64, or stage it with pegasus_upload_begin and pegasus_upload_part and pass the uploadId; exactly one of the two. Needs the observed case version; present an edit lease token from pegasus_edit_begin for multi-step work, or omit it and the tool holds the lease for this one command. Replaying the same operation key with identical inputs returns the original custody record.")]
+    [Description("Retains one document of at most 10 MiB in the canonical case custody boundary, provenance-labelled as Automation-sourced. A document added as an Image must be a JPEG or PNG and completes the Case's images. Send the content as base64 in contentBase64, or stage it with pegasus_upload_begin and pegasus_upload_part and pass the uploadId; exactly one of the two. Needs the observed case version. Replaying the same operation key with identical inputs returns the original custody record.")]
     public async Task<DocumentAddToolResult> AddAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("The leaf file name; path components are rejected.")] string fileName,
@@ -165,8 +164,7 @@ internal sealed class DocumentMcpTools(
                     result.Version.ContentLength,
                     result.Occurrence.SourceOccurrenceIdentity,
                     result.IsReplay,
-                    normalizedKey,
-                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                    normalizedKey);
             },
             cancellationToken);
     }

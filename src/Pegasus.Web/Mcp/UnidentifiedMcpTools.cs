@@ -79,8 +79,7 @@ internal sealed record UnidentifiedActionToolResult(
     string? ImageIntakeReference,
     RegistrationReadingToolItem? Reading,
     bool IsReplay,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record UnidentifiedSourceToolItem(
     Guid ReceiptId,
@@ -122,7 +121,7 @@ internal sealed class UnidentifiedMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists the open Unidentified queue. Each item has an immutable U-reference and canonical reason. Uses protected continuations; limit defaults to 50 and is at most 100.")]
+    [Description("Lists the open Unidentified queue. Each item has an immutable U-reference and canonical reason. Uses protected continuations.")]
     public async Task<UnidentifiedListToolResult> ListAsync(
         [Description("Optional media filter: Image, Email or Document.")] string? mediaKind = null,
         [Description("Opaque continuation returned by the preceding list call.")] string? cursor = null,
@@ -302,7 +301,7 @@ internal sealed class UnidentifiedMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Resolves one open Unidentified item using the same versioned Core commands as Web: a destination (InstructionCase, ImageIntake, Triage or ExternalReference) or Close with reason, the item's one refusal, which names no destination and keeps the U-reference reachable under Closed. Requires a mcp:-prefixed operation key, reason and expected version. pegasus_unidentified_reopen withdraws either.")]
+    [Description("Resolves one open Unidentified item: a destination (InstructionCase, ImageIntake, Triage or ExternalReference) or Close with reason, the item's one refusal, which names no destination and keeps the U-reference reachable under Closed. Requires a mcp:-prefixed operation key, reason and expected version. pegasus_unidentified_reopen withdraws either.")]
     public async Task<UnidentifiedToolItem> ResolveAsync(
         [Description(ReferenceDescription)] string reference,
         [Description("The item version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -360,7 +359,7 @@ internal sealed class UnidentifiedMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("One staff act on an open Unidentified item's material, through the same Core commands as the Unidentified record. register_images is Register images: the item's images become an Image Intake record (staff label Vehicle images) under vehicleRegistration, with a reason; an upload group item registers its whole group as one record. It is refused where the record does not offer Register images (pegasus_unidentified_get canRegisterImages). dismiss_reading is Dismiss on a registration reading: readingId, from pegasus_unidentified_get readings, with a reason; a reading already decided is refused. Requires a mcp:-prefixed operation key; replaying it returns what it recorded.")]
+    [Description("One staff act on an open Unidentified item's material, as on the Unidentified record. register_images is Register images: the item's images become an Image Intake record (staff label Vehicle images) under vehicleRegistration, with a reason; an upload group item registers its whole group as one record. It is refused where the record does not offer Register images (pegasus_unidentified_get canRegisterImages). dismiss_reading is Dismiss on a registration reading: readingId, from pegasus_unidentified_get readings, with a reason; a reading already decided is refused. Requires a mcp:-prefixed operation key; replaying it returns what it recorded.")]
     public async Task<UnidentifiedActionToolResult> ActAsync(
         [Description(ReferenceDescription)] string reference,
         [Description("register_images or dismiss_reading.")] string action,
@@ -381,7 +380,6 @@ internal sealed class UnidentifiedMcpTools(
                     ?? throw new McpException("The Unidentified reference was not found.");
                 var itemContext = await getContext.ExecuteAsync(context.Actor, item.Id, cancellationToken)
                     ?? throw new McpException("The Unidentified reference was not found.");
-                var correlation = AutomationMcpAuditor.CorrelationId(context, key);
                 switch (action?.Trim())
                 {
                     case "register_images":
@@ -400,8 +398,7 @@ internal sealed class UnidentifiedMcpTools(
                             record.ImageIntakeReference,
                             Reading: null,
                             isReplay,
-                            key,
-                            correlation);
+                            key);
                     }
                     case "dismiss_reading":
                     {
@@ -427,8 +424,7 @@ internal sealed class UnidentifiedMcpTools(
                             ImageIntakeReference: null,
                             RegistrationReadingToolItem.From(dismissed),
                             decided,
-                            key,
-                            correlation);
+                            key);
                     }
                     default:
                         throw new McpException("action must be register_images or dismiss_reading.");

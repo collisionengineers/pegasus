@@ -181,15 +181,13 @@ internal sealed record MailActionToolResult(
     string Action,
     bool IsDismissed,
     bool IsReplay,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record MailOpenQueryToolResult(
     Guid QueryId,
     Guid CaseId,
     Guid MessageId,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal enum MailLinkAction
 {
@@ -238,7 +236,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Read-only. Searches one approved mailbox, or every approved mailbox, in Outlook for a term (a case reference, registration, claimant or claim number) and returns message headers only: subject, sender, received time and a short preview. Nothing in any mailbox is marked read, moved or changed. A mailbox the tenant has not admitted reports unavailable; state is unavailable when no mailbox answered. Use it to see whether a case an e-mail refers to has earlier correspondence, for example one still run in the old system (FRD-08 Pre-Pegasus case).")]
+    [Description("Read-only. Searches one approved mailbox, or every approved mailbox, in Outlook for a term (a case reference, registration, claimant or claim number) and returns message headers only: subject, sender, received time and a short preview. Nothing in any mailbox is marked read, moved or changed. A mailbox the tenant has not admitted reports unavailable; state is unavailable when no mailbox answered. Use it to see whether a case an e-mail refers to has earlier correspondence, for example one still run in the old system.")]
     public async Task<MailToolMailboxSearch> MailboxSearchAsync(
         [Description("The search text, 1 to 200 characters.")] string query,
         [Description("Optional approved mailbox identifier from pegasus_mail_list; omit it to search every approved mailbox.")] Guid? mailbox = null,
@@ -281,7 +279,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Read-only. Searches the folder names below the old system's Box folder for the firm's own Case reference, which names those folders (R592), and returns folder names and identities only; a reference-shaped term matches a folder name only as a whole token, any other term is a plain name search; no content is read and nothing is written. state is unavailable when that folder is not configured or Box could not be read. Use it to see whether a case an e-mail refers to is one still run in the old system (FRD-08 Pre-Pegasus case).")]
+    [Description("Read-only. Searches the folder names below the old system's Box folder for the firm's own Case reference, which names those folders, and returns folder names and identities only; a reference-shaped term matches a folder name only as a whole token, any other term is a plain name search; no content is read and nothing is written. state is unavailable when that folder is not configured or Box could not be read. Use it to see whether a case an e-mail refers to is one still run in the old system.")]
     public async Task<MailToolOldSystemFolderSearch> OldSystemFolderSearchAsync(
         [Description("The search text, 1 to 200 characters.")] string query,
         [Description("Folders to return, 1 to 100.")] int pageSize = OldSystemLookupBounds.MaximumItems,
@@ -399,7 +397,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Opens a query on a retained message linked to a Report sent Case, through the same Core command as the Case's Open query. The message must hold no non-withdrawn query. A new query is Unassigned. Needs a mcp:-prefixed operation key.")]
+    [Description("Opens a query on a retained message linked to a Report sent Case, as the Case's Open query does. The message must hold no non-withdrawn query. A new query is Unassigned. Needs a mcp:-prefixed operation key.")]
     public async Task<MailOpenQueryToolResult> OpenQueryAsync(
         [Description(MessageIdDescription)] Guid messageId,
         [Description(AutomationToolText.OperationKey)] string operationKey,
@@ -422,7 +420,7 @@ internal sealed class MailMcpTools(
                 var queryId = await openCaseQuery.ExecuteAsync(
                     new(caseId, context.Actor, key, id, null, null),
                     cancellationToken);
-                return new MailOpenQueryToolResult(queryId, caseId, id, key, AutomationMcpAuditor.CorrelationId(context, key));
+                return new MailOpenQueryToolResult(queryId, caseId, id, key);
             },
             cancellationToken);
     }
@@ -435,7 +433,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Corrects one retained message's type using the same versioned Core command as the staff workspace. Accepts correspondence, new-instruction, triage-request, cancellation, pre-pegasus-case, or the combined new-instruction:Inspection form (and Audit, InspectionAndAudit). A split new-instruction also needs workType. Requires a reason, the expected classification version, and a mcp:-prefixed operation key.")]
+    [Description("Corrects one retained message's type as the staff workspace does. Accepts correspondence, new-instruction, triage-request, cancellation, pre-pegasus-case, or the combined new-instruction:Inspection form (and Audit, InspectionAndAudit). A split new-instruction also needs workType. Requires a reason, the expected classification version, and a mcp:-prefixed operation key.")]
     public async Task<MailToolClassification> CorrectClassificationAsync(
         [Description(MessageIdDescription)] Guid messageId,
         [Description("The classification version last read, for optimistic concurrency.")] int expectedClassificationVersion,
@@ -481,7 +479,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("One staff mail act on a retained message, through the same Core command as the message page. dismiss takes the message out of the incoming scopes without classifying or linking it, and restore brings a dismissed message back; neither touches Outlook, deletes anything or closes an open Unidentified item. Requires a mcp:-prefixed operation key; nothing here sends mail.")]
+    [Description("One staff mail act on a retained message, as on the message page. dismiss takes the message out of the incoming scopes without classifying or linking it, and restore brings a dismissed message back; neither touches Outlook, deletes anything or closes an open Unidentified item. Requires a mcp:-prefixed operation key; nothing here sends mail.")]
     public async Task<MailActionToolResult> ActAsync(
         [Description(MessageIdDescription)] Guid messageId,
         [Description("dismiss or restore.")] string action,
@@ -496,7 +494,6 @@ internal sealed class MailMcpTools(
             {
                 var id = AutomationMcpErrors.RequireId(messageId, "retained message identifier");
                 var dismissing = IsDismiss(action);
-                var correlation = AutomationMcpAuditor.CorrelationId(context, key);
                 var dismissal = (dismissing
                     ? await dismiss.ExecuteAsync(new(id, context.Actor, key), cancellationToken)
                     : await restore.ExecuteAsync(new(id, context.Actor, key), cancellationToken))
@@ -506,8 +503,7 @@ internal sealed class MailMcpTools(
                     dismissing ? "dismiss" : "restore",
                     dismissal.IsDismissed,
                     dismissal.IsReplay,
-                    key,
-                    correlation);
+                    key);
             },
             cancellationToken);
     }
@@ -563,7 +559,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("One link act on a retained message, through the same Core commands as the staff message page. link (the default) is Link to case: the message joins the Case's or Triage Case's files and, for a Case, takes the classification the Case state gives it. unlink is Unlink: it separates the message from the Case it is linked to, named by caseId. change is Change linked Case: the message is unlinked from its linked Case and linked to caseId, with the one reason for both; the new Case's lease is held before anything is unlinked, so a refused new Case leaves the message linked. Requires the intake version from pegasus_mail_get, the version of the Case caseId names (from pegasus_mail_link_destinations, or for unlink pegasus_mail_get's linkedCaseVersion), a reason and a mcp:-prefixed operation key; change also takes linkedCaseVersion. Present a lease token for a record held for multi-step work, or omit it and the tool holds the lease for this one command.")]
+    [Description("One link act on a retained message, as on the staff message page. link (the default) is Link to case: the message joins the Case's or Triage Case's files and, for a Case, takes the classification the Case state gives it. unlink is Unlink: it separates the message from the Case it is linked to, named by caseId. change is Change linked Case: the message is unlinked from its linked Case and linked to caseId, with the one reason for both; the new Case's lease is held before anything is unlinked, so a refused new Case leaves the message linked. Requires the intake version from pegasus_mail_get, the version of the Case caseId names (from pegasus_mail_link_destinations, or for unlink pegasus_mail_get's linkedCaseVersion), a reason and a mcp:-prefixed operation key; change also takes linkedCaseVersion.")]
     public async Task<MailToolDetail> LinkCaseAsync(
         [Description(MessageIdDescription)] Guid messageId,
         [Description("link and change: the Case or Triage Case identifier from pegasus_mail_link_destinations; unlink: the Case the message is linked to (pegasus_mail_get's caseId).")] Guid caseId,

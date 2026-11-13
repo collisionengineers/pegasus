@@ -74,7 +74,6 @@ internal sealed record CaseHoldsToolItem(
 internal sealed record CaseGetToolResult(
     CaseSearchToolItem Summary,
     long CaseVersion,
-    Guid? AssignedEngineerId,
     [property: Description("The Case's Claim source, which the report sending rules read; null when the Case records none.")] CaseClaimSourceToolItem? ClaimSource,
     [property: Description("The Case's Repairer, linked or typed; null when the Case records none.")] CaseRepairerToolItem? Repairer,
     [property: Description("What still holds the Case from being ready, as the Not ready queue and the Case's Next action name it.")] CaseHoldsToolItem Holds,
@@ -230,7 +229,6 @@ internal sealed class CaseMcpTools(
                 return new CaseGetToolResult(
                     Map(header.Summary),
                     header.Workflow.Version,
-                    header.Workflow.AssignedEngineerId,
                     claimSource is null
                         ? null
                         : new(

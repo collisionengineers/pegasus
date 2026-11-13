@@ -72,7 +72,6 @@ internal sealed record IntakeActionToolResult(
     string? InspectionAddressState,
     string? InspectionAddressResolvedValue,
     string OperationKey,
-    string CorrelationId,
     Guid? ImageIntakeId = null,
     string? ImageIntakeReference = null);
 
@@ -80,8 +79,7 @@ internal sealed record CaseCreateToolResult(
     Guid CaseId,
     string Reference,
     string? AuditReference,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal enum IntakeAction
 {
@@ -113,10 +111,7 @@ internal sealed record IntakeQueueToolResult(
 internal sealed record IntakeSubmitToolResult(
     Guid ReceiptId,
     bool IsDuplicate,
-    string Disposition,
-    string ExternalReceiptToken,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
 /// Automation Actor intake tools. The queue list and durable intake receipt
@@ -169,7 +164,7 @@ internal sealed class IntakeMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists intake receipts with processing decision and allocation state kept separate. Filters are case_created, unidentified, unsupported, ocr_required, technical_failure, or no filter for all. Uses protected continuations; limit defaults to 50 and is at most 100.")]
+    [Description("Lists intake receipts with processing decision and allocation state kept separate. Filters are case_created, unidentified, unsupported, ocr_required, technical_failure, or no filter for all. Uses protected continuations.")]
     public async Task<IntakeQueueToolResult> ListAsync(
         [Description("Optional decision filter code; omit for every decision.")] string? decision = null,
         [Description("Opaque continuation returned by the preceding list call.")] string? cursor = null,
@@ -271,10 +266,7 @@ internal sealed class IntakeMcpTools(
                 return new IntakeSubmitToolResult(
                     result.StagedReceiptId,
                     result.IsDuplicate,
-                    "Queued",
-                    normalizedToken,
-                    normalizedKey,
-                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                    normalizedKey);
             },
             cancellationToken);
     }
@@ -385,7 +377,7 @@ internal sealed class IntakeMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("One staff intake act on a received item, through the same Core commands as staff. accept turns the item into a Case, as Create case on a received item does: the reviewed draft is recorded (the draft fields named here replace the item's; an omitted field keeps its value and an empty string clears it), then the Case is allocated for principalCode (default: the Principal the item established, pegasus_intake_get's establishedPrincipalCode) and caseType (default: the classified type; Audit only for an item classified as an Audit). It is refused while an identity-critical field is missing. An unsettled inspection address does not refuse it: the Case then starts Not ready with Inspection address among its missing instruction items (a Principal that inspects by images needs none). resolve_inspection_address settles the address as the Create case page does: omit inspectionAddress to accept the suggested address, or give it to correct the suggestion (both need addressSuggestionFingerprint from pegasus_intake_get); where nothing was suggested, give inspectionAddress to supply it, with no fingerprint. Image Based Assessment is never typed. The settlement is recorded as the Automation actor's and advances the item version by one. allocate retries a failed allocation with a reason, naming the attempt it retries. open_triage opens the Triage Case from an item classified, or corrected to, Triage request, as Open the Triage on its message does, for vehicleRegistration, which it requires; it is refused where the message does not offer Open the Triage. register_images registers the item's images as an Image Intake record (staff label Vehicle images) under vehicleRegistration, with a reason, as Register images on its message does; it is refused where the message does not offer Register images. Each needs the item version from pegasus_intake_get; the result names the allocation status and, once allocated, the Case, or the opened Triage Case, or the registered Image Intake record, or the settled address and the item's new version.")]
+    [Description("One staff intake act on a received item. accept turns the item into a Case, as Create case on a received item does: the reviewed draft is recorded (the draft fields named here replace the item's; an omitted field keeps its value and an empty string clears it), then the Case is allocated for principalCode (default: the Principal the item established, pegasus_intake_get's establishedPrincipalCode) and caseType (default: the classified type; Audit only for an item classified as an Audit). It is refused while an identity-critical field is missing. An unsettled inspection address does not refuse it: the Case then starts Not ready with Inspection address among its missing instruction items (a Principal that inspects by images needs none). resolve_inspection_address settles the address as the Create case page does: omit inspectionAddress to accept the suggested address, or give it to correct the suggestion (both need addressSuggestionFingerprint from pegasus_intake_get); where nothing was suggested, give inspectionAddress to supply it, with no fingerprint. Image Based Assessment is never typed. The settlement is recorded as the Automation actor's and advances the item version by one. allocate retries a failed allocation with a reason, naming the attempt it retries. open_triage opens the Triage Case from an item classified, or corrected to, Triage request, as Open the Triage on its message does, for vehicleRegistration, which it requires; it is refused where the message does not offer Open the Triage. register_images registers the item's images as an Image Intake record (staff label Vehicle images) under vehicleRegistration, with a reason, as Register images on its message does; it is refused where the message does not offer Register images. Each needs the item version from pegasus_intake_get; the result names the allocation status and, once allocated, the Case, or the opened Triage Case, or the registered Image Intake record, or the settled address and the item's new version.")]
     public async Task<IntakeActionToolResult> ActAsync(
         [Description(ReceiptIdDescription)] Guid receiptId,
         [Description("accept, resolve_inspection_address, allocate, open_triage or register_images.")] string action,
@@ -462,8 +454,7 @@ internal sealed class IntakeMcpTools(
                         settled.ReceiptVersion,
                         settled.State.ToString(),
                         settled.ResolvedValue,
-                        key,
-                        AutomationMcpAuditor.CorrelationId(context, key));
+                        key);
                 }
                 if (parsed == IntakeAction.OpenTriage)
                 {
@@ -489,8 +480,7 @@ internal sealed class IntakeMcpTools(
                         ReceiptVersion: null,
                         InspectionAddressState: null,
                         InspectionAddressResolvedValue: null,
-                        key,
-                        AutomationMcpAuditor.CorrelationId(context, key));
+                        key);
                 }
 
                 if (parsed == IntakeAction.RegisterImages)
@@ -517,7 +507,6 @@ internal sealed class IntakeMcpTools(
                         InspectionAddressState: null,
                         InspectionAddressResolvedValue: null,
                         key,
-                        AutomationMcpAuditor.CorrelationId(context, key),
                         record.Id,
                         record.ImageIntakeReference);
                 }
@@ -583,8 +572,7 @@ internal sealed class IntakeMcpTools(
                     ReceiptVersion: null,
                     InspectionAddressState: null,
                     InspectionAddressResolvedValue: null,
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             }),
             cancellationToken);
     }
@@ -694,8 +682,7 @@ internal sealed class IntakeMcpTools(
                     identity.CaseId,
                     identity.Reference,
                     identity.AuditReference,
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             }),
             cancellationToken);
     }

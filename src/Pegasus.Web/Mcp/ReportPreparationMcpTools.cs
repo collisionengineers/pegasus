@@ -142,7 +142,7 @@ internal sealed class ReportPreparationMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Changes the report's wording blocks for one work through the Case save, as the Report section's Save does: rename a heading, write wording in place of the composed sentence or put a block back to it, move a block, take it off the report or put it back, and add or delete a paragraph of your own (key 'manual:' plus a name). Each named block changes only in what it names; every other block keeps its heading, wording, place and presence. Wording or a heading equal to the composed one is no change, so the block keeps tracking its fields. Read pegasus_report_wording_get first. Refused while the Case's report cannot yet be projected. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
+    [Description("Changes the report's wording blocks for one work through the Case save, as the Report section's Save does: rename a heading, write wording in place of the composed sentence or put a block back to it, move a block, take it off the report or put it back, and add or delete a paragraph of your own (key 'manual:' plus a name). Each named block changes only in what it names; every other block keeps its heading, wording, place and presence. Wording or a heading equal to the composed one is no change, so the block keeps tracking its fields. Read pegasus_report_wording_get first. Refused while the Case's report cannot yet be projected. Needs the expected case version.")]
     public async Task<ReportWordingToolResult> SaveWordingAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
@@ -227,7 +227,7 @@ internal sealed class ReportPreparationMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Prepares images for the report through the Case save, as the Case page's image editor does: crop, rotate, set an image's place among the Supporting images, and print it on a page of its own. Each image names its preparationVersion from pegasus_image_preparation_get; a value it omits keeps what is recorded. Order and full page are only for an image in the report; whether an image is in the report is pegasus_document_action set_in_report, and its Overview or Close-up role follows its tags. The images in the report are renumbered from 1. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
+    [Description("Prepares images for the report through the Case save, as the Case page's image editor does: crop, rotate, set an image's place among the Supporting images, and print it on a page of its own. Each image names its preparationVersion from pegasus_image_preparation_get; a value it omits keeps what is recorded. Order and full page are only for an image in the report; whether an image is in the report is pegasus_document_action set_in_report, and its Overview or Close-up role follows its tags. The images in the report are renumbered from 1. Needs the expected case version.")]
     public async Task<ImagePreparationToolResult> PrepareImagesAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,

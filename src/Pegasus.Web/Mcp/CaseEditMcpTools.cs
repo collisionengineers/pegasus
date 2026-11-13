@@ -14,13 +14,11 @@ internal sealed record CaseUpdateDetailsToolResult(
     Guid CaseId,
     long CaseVersion,
     string State,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record CaseNoteAddToolResult(
     Guid CaseId,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record AssessmentFieldVocabularyItem(
     string Path,
@@ -109,7 +107,7 @@ internal sealed class CaseEditMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Edits the Case facts staff edit on the Case page, through the same Case save: claimant, claim, accident, VAT status, repairer (typed, or linked to a directory Repairer), claim source (a directory Claim source) and its contact for this Case, Principal and Claim source notes, due by, vehicle identity and mileage, inspection and the Sign-off Engineer. Omit a value to leave it as it is; send an empty string to clear a text or date value. Values not named are never changed. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). Dates are yyyy-MM-dd; inspectionMode is 'physical_address' or 'image_based_assessment'. Assessment fields (outcome, roadworthiness, values, damage and the rest) are written with pegasus_assessment_update.")]
+    [Description("Edits the Case facts staff edit on the Case page: claimant, claim, accident, VAT status, repairer (typed, or linked to a directory Repairer), claim source (a directory Claim source) and its contact for this Case, Principal and Claim source notes, due by, vehicle identity and mileage, inspection and the Sign-off Engineer. Omit a value to leave it as it is; send an empty string to clear a text or date value. Values not named are never changed. Needs the expected case version. Dates are yyyy-MM-dd; inspectionMode is 'physical_address' or 'image_based_assessment'. Assessment fields (outcome, roadworthiness, values, damage and the rest) are written with pegasus_assessment_update.")]
     public async Task<CaseUpdateDetailsToolResult> UpdateDetailsAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
@@ -338,8 +336,7 @@ internal sealed class CaseEditMcpTools(
                     caseId,
                     saved.Version,
                     saved.Data.State.ToString(),
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             },
             cancellationToken);
     }
@@ -367,7 +364,7 @@ internal sealed class CaseEditMcpTools(
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 await addCaseNote.ExecuteAsync(new(caseId, context.Actor, key, note), cancellationToken);
-                return new CaseNoteAddToolResult(caseId, key, AutomationMcpAuditor.CorrelationId(context, key));
+                return new CaseNoteAddToolResult(caseId, key);
             },
             cancellationToken);
     }
