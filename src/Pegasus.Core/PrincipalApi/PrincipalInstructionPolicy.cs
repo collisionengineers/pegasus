@@ -33,6 +33,10 @@ public static class PrincipalInstructionPolicy
     /// </summary>
     public const string OriginalReportSourceLabel = "principal-original-report";
 
+    /// <summary>The review-field labels of a named repairer (R1027).</summary>
+    public const string RepairerNameField = "Repairer name";
+    public const string RepairerAddressField = "Repairer address";
+
     /// <summary>Every other submitted file, labelled by its position in the request.</summary>
     public static string AssetSourceLabel(int index) => $"principal-file:{index}";
 
@@ -42,11 +46,19 @@ public static class PrincipalInstructionPolicy
     /// value with no unambiguous provenance, and this is that provenance: the
     /// Principal said so.
     /// </summary>
-    public static IReadOnlyList<InstructionReviewField> ReviewFields(InstructionDraft draft)
+    public static IReadOnlyList<InstructionReviewField> ReviewFields(
+        InstructionDraft draft,
+        PrincipalInstruction instruction)
     {
         ArgumentNullException.ThrowIfNull(draft);
+        ArgumentNullException.ThrowIfNull(instruction);
         return InstructionDraftFields.All
             .Select(field => (field.Label, Value: field.Value(draft)))
+            // The repairer and claim source an instruction names travel as
+            // review fields under the labels e-mail intake prints for them.
+            .Append((Label: RepairerNameField, Value: instruction.RepairerName))
+            .Append((Label: RepairerAddressField, Value: instruction.RepairerAddress))
+            .Append((Label: EstablishedIntakeClaimSource.ClaimSourceField, Value: instruction.ClaimSource))
             .Where(field => !string.IsNullOrWhiteSpace(field.Value))
             .Select(field => new InstructionReviewField(
                 field.Label,

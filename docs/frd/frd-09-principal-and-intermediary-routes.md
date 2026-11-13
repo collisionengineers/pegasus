@@ -101,8 +101,10 @@ already holds the fields, so it states them.
   budget per request.
 - **Submit.** `POST /api/principal/v1/submissions` as `application/json`,
   with a required `Idempotency-Key` header (at most 200 characters, unique
-  per Principal). The body declares the instruction and carries any files
-  inline as base64. An instruction with no files is accepted.
+  per Principal). The key is what makes a retry safe: a request sent again
+  under it returns the first receipt rather than a second submission (13
+  November 2026, R1052). The body declares the instruction and carries any
+  files inline as base64. An instruction with no files is accepted.
 - **Principal.** The credential establishes it. Nothing in the body names
   or selects a Principal.
 - **Case type.** One of `inspection`, `audit`, `auditreport` or `triage`,
@@ -119,7 +121,8 @@ already holds the fields, so it states them.
   reference is the `a.` value itself, and the verdict never changes it
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
   `auditreport` is Collision Engineers auditing its own report and carries
-  neither.
+  neither. Every type but `audit` is refused (400) for either one (13
+  November 2026, R1056).
 - **Files.** Optional: zero or more, each a leaf `fileName` and base64
   `contentBase64`. The extension is the file type, as it is for every other
   intake route, and must be one the intake reader opens. Nothing else is
@@ -139,10 +142,26 @@ already holds the fields, so it states them.
   A submission is accepted once: whichever of the request and the repair
   records it first is the one row, and a repaired row states when the
   submission was received and that recovery completed it.
+- **Repairer and Claim Source.** The body may name the `repairer` (`name`,
+  `address`) and the `claimSource`. They are stated as the review fields
+  e-mail intake prints for them, so the same rule decides the link: a name
+  that is an active Repairer's or Claim Source's, ignoring capitals, links
+  the Case to it. A repairer name and address that match none are still the
+  Case's facts; a claim source that matches none is not recorded (13
+  November 2026, R1053; R1014, R1017, R1027).
+- **Mileage unit.** `vehicle.mileageUnit` is miles or kilometres, in the
+  spellings the Case odometer reads, stored as `miles` or `kilometres`;
+  anything else is 400 (13 November 2026, R1056).
 - **Provenance.** Every declared value is written to the Case with its own
   provenance, Principal API, distinct from extraction and from staff entry,
   and shows as such on the Case. The Principal is recorded from the
   authenticated submission binding with Principal API provenance.
+- **Notes.** `notes` becomes a note on the Case timeline in the Principal's
+  name, once the Case exists, on every route that creates it: automatic
+  allocation, a member of staff creating it from a submission kept for
+  sorting, and a reasoned retry. One note is written whichever route
+  succeeds (13 November 2026, R1054). A Triage request's note is not
+  written to the Triage.
 - **Receipt.** 201 with `submissionId`, `receivedAtUtc`,
   `principalReference` and `replayed: false`, the moment the submission is
   durably received and before any processing. A replay of the same key with
@@ -160,7 +179,10 @@ already holds the fields, so it states them.
   The body has no `instructionDate` member; a member the contract does not
   name is ignored, not refused.
 - **Existing-Case rejection.** The Case-match policy runs on the declared
-  claim number, vehicle registration, claimant and incident date. A unique
+  claim number, vehicle registration, claimant and incident date, for every
+  Principal: one with no e-mail instruction profile is matched, and its
+  Cases indexed, by the full-reference normalization (13 November 2026,
+  R1055). A unique
   or ambiguous existing-Case match fails with
   `principal_existing_case_match`; Pegasus allocates no Case or PO and
   neither links material to nor changes an existing Case. With no match, the

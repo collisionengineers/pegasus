@@ -21,11 +21,20 @@ namespace Pegasus.Core.PrincipalApi;
 /// never confused with something a document said or a person keyed. The draft
 /// carries no Principal code: the credential decides the Principal, and
 /// processing stamps it from the submission's binding.
+///
+/// The repairer and the claim source are not draft members: e-mail intake
+/// reads them as review fields, and a declaration states them the same way
+/// (<see cref="PrincipalInstructionPolicy.ReviewFields"/>), so the one owner of
+/// each, <see cref="EstablishedIntakeRepairer"/> and
+/// <see cref="EstablishedIntakeClaimSource"/>, decides what the Case takes.
 /// </summary>
 public sealed record PrincipalInstruction(
     CaseType CaseType,
     AuditAssessment? OriginalReportVerdict,
-    InstructionDraft Draft);
+    InstructionDraft Draft,
+    string? RepairerName = null,
+    string? RepairerAddress = null,
+    string? ClaimSource = null);
 
 /// <summary>
 /// One declared field the Principal got wrong, named by its path in the request
@@ -44,8 +53,8 @@ public sealed class PrincipalInstructionValidationException(string field, string
 /// The wire vocabulary, in one place. The values are the operator's own words
 /// (2026-08-28) and are matched case-insensitively. Inspection and Audit is
 /// <c>auditreport</c> on the wire: Collision Engineers inspects, then audits
-/// its own report. A declared verdict decides the Audit reference prefix
-/// (operator, 2026-08-28).
+/// its own report. A declared verdict records the assessment and never changes
+/// the Case reference (FRD-09).
 /// </summary>
 public static class PrincipalInstructionVocabulary
 {

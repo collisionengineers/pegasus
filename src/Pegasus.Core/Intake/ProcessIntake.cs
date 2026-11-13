@@ -914,8 +914,8 @@ public sealed class ProcessIntake(
             // Principal code are one vocabulary. They are matched by ordinal
             // equality against IPrincipalCaseMatchPolicy.PrincipalCode, and
             // DeclaredAssessment already stamps binding.PrincipalCode on the
-            // draft as the Principal code. A Principal with no case-match
-            // policy yields null and is not blocked from creating cases.
+            // draft as the Principal code. A Principal with no instruction
+            // profile is matched by the default policy (R1055).
             var declared = binding.Instruction.Draft;
             var principalMatchDecision = await caseMatchEvaluator.ExecuteDeclaredAsync(
                 binding.PrincipalCode,
@@ -925,7 +925,7 @@ public sealed class ProcessIntake(
                     declared.ClaimantName,
                     declared.DateOfIncident),
                 cancellationToken);
-            if (principalMatchDecision?.Outcome is CaseMatchOutcome.UniqueMatch
+            if (principalMatchDecision.Outcome is CaseMatchOutcome.UniqueMatch
                 or CaseMatchOutcome.Ambiguous)
             {
                 throw new PrincipalExistingCaseMatchException();
@@ -1310,7 +1310,7 @@ public sealed class ProcessIntake(
         {
             SuggestedPrincipalCode = CasePrincipalCode.Normalize(binding.PrincipalCode)
         };
-        var fields = PrincipalInstructionPolicy.ReviewFields(draft);
+        var fields = PrincipalInstructionPolicy.ReviewFields(draft, instruction);
         var missingFields = InstructionDraftCompleteness.MissingFieldNames(draft);
         IntakeEvidence[] evidence = isTriage
             ?

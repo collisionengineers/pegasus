@@ -2,7 +2,7 @@
 #
 # This file describes the implemented contract; it does not define it.
 # Behaviour was read from src/Pegasus.Web/PrincipalApi and
-# src/Pegasus.Core/PrincipalApi on 2026-10-07. Contract intent is owned by
+# src/Pegasus.Core/PrincipalApi on 2026-11-13. Contract intent is owned by
 # docs/frd/frd-09-principal-and-intermediary-routes.md.
 #
 # Any OpenAPI 3.1 viewer (Swagger UI, Redoc) renders it.
@@ -72,7 +72,11 @@ info:
     ## Idempotency
 
     Every `POST` needs an `Idempotency-Key` header: at most 200 characters,
-    trimmed, and unique **per Principal**.
+    trimmed, and unique **per Principal**. It is what makes a retry safe: a
+    request that timed out can be sent again with the same key and returns the
+    original receipt instead of creating a second submission. Use a value your
+    own system already holds once per instruction, such as your claim number or
+    order id.
 
     | Same key, and… | Answer |
     | --- | --- |
@@ -98,6 +102,9 @@ info:
     | `auditreport` | Inspection and Audit | Collision Engineers inspects, then audits its own report. Carries no verdict and no original report. |
     | `triage` | Triage | Opens a Triage record instead of a Case. The result's `caseReference` is the Triage's `t.` reference. |
 
+    `originalReport` and `originalReportVerdict` are refused with `400` for
+    every type but `audit`.
+
     Values are matched case-insensitively; the lower-case form is canonical.
 
     ## What a submission must contain
@@ -109,15 +116,21 @@ info:
     | --- | --- |
     | `claimNumber`, `claimant.name` and `vehicle.registration` | These identify the claim. If any is missing the submission is still accepted (`201`), but processing ends with `decision: NeedsSorting` and no reference, and staff sort it by hand. |
     | `vehicle.registration` (for `triage`) | A Triage is opened from the registration. Without it the material is kept for staff rather than opening a Triage. |
-    | Every other field | Ordinary detail. Anything missing leaves the Case **Not ready** until it is supplied. |
+    | Vehicle make and model, mileage, incident date and circumstances, inspection location | Required detail. Anything missing leaves the Case **Not ready** until it is supplied. |
+    | Every other field | Optional detail, recorded when given. |
 
     Pegasus does not read values back out of your files. Every value you state
-    is recorded on the Case as declared by the Principal over this API.
+    is recorded on the Case as declared by the Principal over this API, except
+    `notes`, which becomes a note on the Case's timeline. A `repairer` or
+    `claimSource` whose name is one of Collision Engineers' own Repairer or
+    Claim Source contacts, ignoring capitals, is linked to that contact; a
+    repairer name and address that match no contact are still recorded, and a
+    claim source that matches none is not.
 
     ## Existing work is never changed
 
     Pegasus checks the declared claim number, vehicle registration, claimant and
-    incident date against the Principal's existing Cases. If they match one Case
+    incident date against the Principal's existing Cases, for every Principal. If they match one Case
     or several, the submission is still received (`201`), but processing ends in
     `status: Failed` with `failureCode: principal_existing_case_match`. No Case
     or PO is allocated and the existing Case is untouched.
@@ -165,7 +178,8 @@ info:
     rather than one field, such as a missing `Idempotency-Key`.
 
     `404` (API off), `413` (raised by the web server) and `429` may carry no
-    body. Treat the status code as the answer.
+    body. Treat the status code as the answer. A `500` is an unexpected fault;
+    retry with the same key.
 
     ## Reading a result
 
@@ -175,6 +189,9 @@ info:
     | `Processing` | Being processed. A transient fault that has a retry scheduled stays `Processing`, and `failureCode` may name it. |
     | `Complete` | Processing finished. Read `decision`. |
     | `Failed` | Processing ended without a Case. `failureCode` says why. |
+
+    `Complete` and `Failed` stay as they are unless a member of staff asks
+    Pegasus to evaluate the submission again, which returns it to `Received`.
 
     | `decision` | Meaning |
     | --- | --- |
@@ -186,8 +203,11 @@ info:
     something to report. `failureCode` is an open vocabulary: tolerate values you
     do not recognise.
 
-    `caseReference` is the Pegasus Case/PO reference (for example `QDOS26024`).
-    Audit references carry an `a.` prefix and Triage references a `t.` prefix.
+    `caseReference` is the Pegasus Case/PO reference (for example
+    `QDOS26024-p`). Audit references carry an `a.` prefix and Triage references
+    a `t.` prefix. While Collision Engineers' reference setting is on, every
+    reference ends in `-p` (`a.QDOS26158-p`); treat the reference as an opaque
+    string.
 
 servers:
   - url: https://pegasus-prod-web-252ow37gij.azurewebsites.net
@@ -261,6 +281,13 @@ paths:
                       2 Example Road
                       Exampleton
                       EX2 2BB
+                  repairer:
+                    name: Example Garage
+                    address: |-
+                      2 Example Road
+                      Exampleton
+                      EX2 2BB
+                  claimSource: Example Introducer
                   vatStatus: Not VAT registered
                   notes: Claimant available after 5pm.
                   files:
@@ -347,6 +374,8 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/RetentionFailed'
 
@@ -393,7 +422,7 @@ paths:
                     decision: CaseCreated
                     allocationFailure: null
                     failureCode: null
-                    caseReference: QDOS26024
+                    caseReference: QDOS26024-p
                 needsSorting:
                   summary: Complete, kept for staff (claim not identified)
                   value:
@@ -452,7 +481,8 @@ components:
       required: true
       description: |
         Names this submission so a retry cannot create a second one. Trimmed,
-        at most 200 characters, and unique per Principal. Reusing a key with a
+        at most 200 characters, and unique per Principal. Your own claim number
+        or order id is a good value. Reusing a key with a
         byte-identical body is a replay (`200`); with a different body it is
         refused (`409`). A missing or over-long key is `400`.
       schema:
@@ -507,6 +537,17 @@ components:
           $ref: '#/components/schemas/Incident'
         inspection:
           $ref: '#/components/schemas/Inspection'
+        repairer:
+          $ref: '#/components/schemas/Repairer'
+        claimSource:
+          type: string
+          maxLength: 300
+          description: |
+            The claim source (introducer) the work came through. When the name
+            is one of Collision Engineers' Claim Source contacts, ignoring
+            capitals, the Case is linked to it; otherwise it is not recorded.
+            Runs of whitespace are collapsed.
+          examples: [Example Introducer]
         vatStatus:
           type: string
           maxLength: 100
@@ -515,7 +556,14 @@ components:
         notes:
           type: string
           maxLength: 2000
-          description: A free-text note from the Principal. Line breaks are kept.
+          description: |
+            A free-text note from the Principal. It is added to the Case's
+            timeline in the Principal's name once the Case exists, whether
+            Pegasus creates it automatically or a member of staff creates it
+            from a submission kept for sorting. A submission that creates no
+            Case adds no note, and a `triage` request's note is not added to
+            the Triage.
+            Line breaks are kept; blank lines and runs of spaces collapse.
         files:
           type: array
           maxItems: 20
@@ -530,8 +578,9 @@ components:
           allOf:
             - $ref: '#/components/schemas/SubmissionFile'
           description: |
-            Optional. The original report an `audit` audits. It may instead
-            arrive later.
+            Optional, and only for `audit`: the original report it audits. It
+            may instead arrive later. Refused with `400` for every other
+            `caseType`.
 
     Claimant:
       type: object
@@ -581,9 +630,29 @@ components:
           examples: [48210]
         mileageUnit:
           type: string
-          maxLength: 40
-          description: Unit of `mileage`, as free text.
+          description: |
+            Unit of `mileage`: `miles` or `kilometres`, matched
+            case-insensitively. `mile`, `mi`, `kilometre`, `kilometer`,
+            `kilometers` and `km` are read as the same two and stored as
+            `miles` or `kilometres`. Anything else is refused with `400`.
           examples: [miles]
+
+    Repairer:
+      type: object
+      description: |
+        The repairer holding the vehicle. A `name` that is one of Collision
+        Engineers' Repairer contacts, ignoring capitals, links the Case to that
+        contact; the name and address are recorded either way.
+      properties:
+        name:
+          type: string
+          maxLength: 300
+          description: Repairer name. Runs of whitespace are collapsed.
+          examples: [Example Garage]
+        address:
+          type: string
+          maxLength: 1000
+          description: Repairer address. Line breaks are kept; blank lines and runs of spaces collapse.
 
     Incident:
       type: object
@@ -706,7 +775,8 @@ components:
           type: string
           enum: [Received, Processing, Complete, Failed]
           description: |
-            Where processing stands. `Complete` and `Failed` are final. See
+            Where processing stands. `Complete` and `Failed` stay as they are
+            unless staff ask Pegasus to evaluate the submission again. See
             "Reading a result" in the overview.
         decision:
           type: [string, 'null']
@@ -734,17 +804,20 @@ components:
             | `invalid_intake_data` | The retained input was invalid. Final. |
             | `staged_artifact_integrity_failure` | The retained bytes failed their integrity check. Final. |
             | `source_identity_conflict` | The submission's identity conflicted with an existing one. Final. |
-            | `artifact_retention_failure` | A transient storage fault. Retried. |
-            | `intake_processing_failure` | A transient processing fault. Retried. |
-            | `ocr_required` | The intake reader needs OCR to read the material. |
+            | `artifact_retention_failure` | A transient storage fault. Retried up to five times, then final. |
+            | `intake_processing_failure` | A transient processing fault. Retried up to five times, then final. |
+            | `unexpected_intake_processing_failure` | An unexpected processing fault. Final. |
+            | `queue_poisoned` | Processing was attempted repeatedly without completing. Final. |
+            | `reevaluation_pending` | Staff asked Pegasus to evaluate the submission again; it is waiting to be processed. |
           examples: [principal_existing_case_match]
         caseReference:
           type: [string, 'null']
           description: |
             The Case/PO reference once processing allocated one, otherwise
             `null`. For `triage`, the Triage's `t.` reference. Audit references
-            carry an `a.` prefix.
-          examples: [QDOS26024]
+            carry an `a.` prefix. Every reference ends in `-p` while Collision
+            Engineers' reference setting is on.
+          examples: [QDOS26024-p]
 
     Problem:
       type: object
@@ -794,6 +867,8 @@ components:
         | The body is not JSON, is empty, or a date or number is malformed | `body` |
         | A string is longer than its limit, or `vehicle.registration` holds other than letters, digits and spaces | the field, for example `claimNumber` |
         | `vehicle.mileage` is negative | `vehicle.mileage` |
+        | `vehicle.mileageUnit` is not miles or kilometres | `vehicle.mileageUnit` |
+        | `originalReport` supplied on any type but `audit` | `originalReport` |
         | `originalReportVerdict` missing on an `audit`, or supplied on any other type | `originalReportVerdict` |
         | `caseType` missing or not one of the four values | `caseType` |
         | `originalReportVerdict` not `repairable` or `total-loss` | `originalReportVerdict` |
@@ -910,6 +985,11 @@ components:
       headers:
         Retry-After:
           $ref: '#/components/headers/RetryAfter'
+    InternalError:
+      description: |
+        An unexpected fault. Whether the submission was retained is unknown:
+        retry with the same `Idempotency-Key`, which returns the original
+        receipt if it was.
     RetentionFailed:
       description: |
         The submission could not be retained. Nothing is lost by retrying: send
