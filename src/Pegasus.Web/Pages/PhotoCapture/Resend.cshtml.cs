@@ -221,9 +221,7 @@ public sealed class ResendModel(
             {
                 // An edited text is sent as staff wrote it; an unedited one is
                 // the standard wording for the link as made.
-                var text = textEdited
-                    ? PhotoLinkMail.Complete(TextBody!, values, IssuedUrl)
-                    : PhotoLinkMail.Complete(await _mail.RenderTextAsync(actor, values, cancellationToken), values, IssuedUrl);
+                var text = await _mail.ComposeTextAsync(actor, textEdited ? TextBody : null, values, IssuedUrl, cancellationToken);
                 try
                 {
                     TextOutcome = await sendText.ExecuteAsync(actor, capture.Id, Mobile, text, OperationKey, cancellationToken);
@@ -249,9 +247,7 @@ public sealed class ResendModel(
             {
                 // An edited message is sent as staff wrote it; an unedited one is
                 // the standard wording for the link as made.
-                var message = edited
-                    ? PhotoLinkMail.Complete(Body!, values, IssuedUrl)
-                    : PhotoLinkMail.Complete(await _mail.RenderAsync(actor, values, cancellationToken), values, IssuedUrl);
+                var message = await _mail.ComposeAsync(actor, edited ? Body : null, values, IssuedUrl, cancellationToken);
                 Operation = await _mail.SendAsync(
                     actor,
                     capture.CaseId!.Value,

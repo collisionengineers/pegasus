@@ -27,7 +27,7 @@ public sealed partial class AutomationToolScopeTableTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(73, registered.Length);
+        Assert.Equal(77, registered.Length);
         Assert.Equal(registered, AutomationToolScopes.Tools.Order(StringComparer.Ordinal).ToArray());
     }
 
@@ -55,7 +55,7 @@ public sealed partial class AutomationToolScopeTableTests
         }
 
         // The nine Triage writes share one gate, which takes the tool's name.
-        Assert.Equal(73 - 9, gated);
+        Assert.Equal(77 - 9, gated);
     }
 
     [Fact]
@@ -77,11 +77,11 @@ public sealed partial class AutomationToolScopeTableTests
         ];
         Assert.Equal(mailTools, Listed(AutomationMcp.MailScope));
         var casesAndDocuments = Listed(AutomationMcp.CasesScope, AutomationMcp.DocumentsScope);
-        Assert.Equal(24, casesAndDocuments.Length);
+        Assert.Equal(27, casesAndDocuments.Length);
         Assert.Contains("pegasus_edit_begin", casesAndDocuments);
         Assert.Contains("pegasus_edit_begin", Listed(AutomationMcp.IntakeScope));
         Assert.Equal(10, Listed(AutomationMcp.AssessmentScope).Length);
-        Assert.Equal(73, Listed([.. AutomationMcp.Scopes]).Length);
+        Assert.Equal(77, Listed([.. AutomationMcp.Scopes]).Length);
         Assert.Empty(Listed());
     }
 
@@ -99,6 +99,8 @@ public sealed partial class AutomationToolScopeTableTests
         Assert.Throws<InvalidOperationException>(
             () => AutomationToolScopes.RequiredScope("pegasus_edit_begin"));
         Assert.Equal(AutomationMcp.SendScope, AutomationToolScopes.RequiredScope("pegasus_report_send"));
+        Assert.Equal(AutomationMcp.SendScope, AutomationToolScopes.RequiredScope("pegasus_photo_link_send"));
+        Assert.Equal(AutomationMcp.CasesScope, AutomationToolScopes.RequiredScope("pegasus_photo_link_action"));
         Assert.Throws<InvalidOperationException>(
             () => AutomationToolScopes.RequiredScope("pegasus_no_such_tool"));
     }

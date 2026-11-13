@@ -94,6 +94,28 @@ public sealed class PhotoLinkMail(
     }
 
     /// <summary>
+    /// The e-mail a link that now exists goes in: the message as written
+    /// (<see cref="Complete"/>), or with none written the standard wording
+    /// for the link as issued (R806).
+    /// </summary>
+    public async Task<string> ComposeAsync(
+        ActionActor actor,
+        string? written,
+        IReadOnlyDictionary<string, string?> values,
+        string link,
+        CancellationToken cancellationToken) =>
+        Complete(written ?? await RenderAsync(actor, values, cancellationToken), values, link);
+
+    /// <summary>The text a link that now exists goes in, as <see cref="ComposeAsync"/> composes the e-mail (R919).</summary>
+    public async Task<string> ComposeTextAsync(
+        ActionActor actor,
+        string? written,
+        IReadOnlyDictionary<string, string?> values,
+        string link,
+        CancellationToken cancellationToken) =>
+        Complete(written ?? await RenderTextAsync(actor, values, cancellationToken), values, link);
+
+    /// <summary>
     /// Sends one photo link e-mail on the Case. The From is the mailbox staff
     /// chose, else the Case's default sender; none that can send refuses with
     /// <see cref="CaseMailSenderRequiredException"/>.

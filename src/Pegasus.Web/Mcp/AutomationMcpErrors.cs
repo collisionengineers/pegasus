@@ -5,6 +5,7 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.PhotoCapture;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Mcp;
@@ -12,7 +13,7 @@ namespace Pegasus.Web.Mcp;
 /// <summary>
 /// Translates Core refusals into content-safe MCP errors. Domain exceptions
 /// carry deliberately safe messages (version conflicts, lease state,
-/// operation replays, validation refusals) and pass through; anything
+/// operation replays, validation refusals, a photo link's refusals) and pass through; anything
 /// unexpected collapses to a generic failure so no infrastructure detail
 /// crosses the boundary. The three edit-guard refusals name which guard
 /// refused and the current case version, so the Automation Actor can reload
@@ -81,7 +82,8 @@ internal static class AutomationMcpErrors
         catch (Exception exception) when (
             exception is ArgumentException
                 or InvalidOperationException
-                or InvalidDataException)
+                or InvalidDataException
+                or PhotoCaptureRefusalException)
         {
             throw new McpException(Refusal(exception));
         }

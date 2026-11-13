@@ -30,6 +30,9 @@ internal static class AutomationToolScopes
             "pegasus_case_action",
             "pegasus_case_query",
             "pegasus_work_centre_dismiss",
+            "pegasus_photo_link_list",
+            "pegasus_photo_link_get",
+            "pegasus_photo_link_action",
             "pegasus_edit_begin",
             "pegasus_edit_renew",
             "pegasus_edit_end"
@@ -114,7 +117,8 @@ internal static class AutomationToolScopes
         (AutomationMcp.SendScope,
         [
             "pegasus_report_send",
-            "pegasus_mail_send"
+            "pegasus_mail_send",
+            "pegasus_photo_link_send"
         ])
     ];
 
