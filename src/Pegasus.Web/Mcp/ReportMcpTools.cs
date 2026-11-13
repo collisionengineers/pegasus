@@ -77,8 +77,7 @@ internal sealed record ReportActionToolResult(
     IReadOnlyList<ReportArtifactToolItem> Artifacts,
     IReadOnlyList<ReportReadinessToolItem> NotReadyReasons,
     string? FeeNoteOutcome,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
 /// Automation Actor report tools (FRD-10, ADR-0064): the Case's report
@@ -238,8 +237,7 @@ internal sealed class ReportMcpTools(
                             item.Requirement, item.Source, item.WhyOutstanding, item.HowToResolve))
                         .ToArray(),
                     result.FeeNoteOutcome,
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             },
             cancellationToken);
     }

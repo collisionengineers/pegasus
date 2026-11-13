@@ -26,7 +26,6 @@ internal sealed record ReportSendToolResult(
     [property: Description("The Case version after the send.")] long CaseVersion,
     [property: Description("The Case's lifecycle state after the send.")] string CaseState,
     string OperationKey,
-    string CorrelationId,
     [property: Description("The other work's report generation the same e-mail carried, when otherReport was asked for.")] Guid? OtherGenerationId = null,
     [property: Description("The file names the e-mail carries, in order: the report and the companion documents attached, the filed estimates the Principal's rules attach, then the other work's report and its documents when otherReport was asked for. Report what was sent from this list, not from what was asked for.")] IReadOnlyList<string>? Attachments = null);
 
@@ -39,7 +38,6 @@ internal sealed record MailSendToolResult(
     [property: Description("The Case the mail is filed against (the Triage Case for triage_reply).")] Guid CaseId,
     [property: Description("The retained message answered or forwarded; null for a chaser sent as a new message.")] Guid? MessageId,
     string OperationKey,
-    string CorrelationId,
     string? AiJobNotCompleted = null);
 
 /// <summary>
@@ -195,7 +193,6 @@ internal sealed class SendMcpTools(
                     workflow.Version,
                     workflow.State.ToString(),
                     key,
-                    AutomationMcpAuditor.CorrelationId(context, key),
                     second?.GenerationId,
                     operation.AttachmentFileNames ?? []);
             },
@@ -324,7 +321,6 @@ internal sealed class SendMcpTools(
                     caseId,
                     message,
                     key,
-                    AutomationMcpAuditor.CorrelationId(context, key),
                     operation.AiJobRefusal is { } refusal
                         ? OperatorLabels.QueryResponseJobs.NotCompleted(refusal)
                         : null);

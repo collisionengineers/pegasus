@@ -21,8 +21,7 @@ internal sealed record CaseActionToolResult(
     Guid? AuditWorkId,
     string? AuditReference,
     Guid? VehicleLookupWorkItemId,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
 /// Automation Actor Case lifecycle (FRD-10, ADR-0064): the Actions-menu acts a
@@ -243,8 +242,7 @@ internal sealed class CaseLifecycleMcpTools(
                     created.AuditWorkId,
                     created.AuditReference,
                     created.VehicleLookupWorkItemId,
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             },
             cancellationToken);
     }

@@ -16,8 +16,7 @@ internal sealed record DocumentAddToolResult(
     long ContentLength,
     string SourceOccurrenceIdentity,
     bool IsReplay,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
 /// The structured half of a download: the file's identity, size and hash,
@@ -165,8 +164,7 @@ internal sealed class DocumentMcpTools(
                     result.Version.ContentLength,
                     result.Occurrence.SourceOccurrenceIdentity,
                     result.IsReplay,
-                    normalizedKey,
-                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                    normalizedKey);
             },
             cancellationToken);
     }

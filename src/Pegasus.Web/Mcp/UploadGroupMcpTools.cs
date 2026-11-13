@@ -54,8 +54,7 @@ internal sealed record UploadGroupActionToolResult(
     Guid? CaseId,
     bool IsReplay,
     UploadGroupToolDetail Group,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
 /// A stored upload of several files (staff Upload, v30 Upload E) for the
@@ -231,8 +230,7 @@ internal sealed class UploadGroupMcpTools(
             caseId,
             isReplay,
             await DetailAsync(context, state, query: null, correlation, cancellationToken),
-            key,
-            correlation);
+            key);
     }
 
     private async Task<UploadGroupState> RequireStateAsync(

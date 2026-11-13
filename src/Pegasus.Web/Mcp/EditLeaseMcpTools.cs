@@ -23,15 +23,13 @@ internal sealed record EditLeaseToolResult(
     string Holder,
     long Version,
     DateTimeOffset ExpiresAtUtc,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record EditLeaseReleaseToolResult(
     string RecordKind,
     Guid RecordId,
     bool Released,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
 /// The explicit edit lease for multi-step automation work on a Case, a Triage
@@ -104,7 +102,7 @@ internal sealed class EditLeaseMcpTools(
                             cancellationToken);
                     return new EditLeaseToolResult(
                         kind.ToString(), recordId, null, lease.Token, lease.Holder, lease.Version,
-                        lease.ExpiresAtUtc, normalizedKey, AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                        lease.ExpiresAtUtc, normalizedKey);
                 }
 
                 var scopeLease = await editScopes.ClaimAsync(
@@ -116,7 +114,7 @@ internal sealed class EditLeaseMcpTools(
                 return new EditLeaseToolResult(
                     kind.ToString(), recordId, await ScopeReferenceAsync(kind, recordId, context, cancellationToken),
                     scopeLease.Token, scopeLease.Holder, scopeLease.RecordVersion, scopeLease.ExpiresAtUtc,
-                    normalizedKey, AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                    normalizedKey);
             }),
             cancellationToken);
     }
@@ -158,7 +156,7 @@ internal sealed class EditLeaseMcpTools(
                         cancellationToken);
                     return new EditLeaseToolResult(
                         kind.ToString(), recordId, null, lease.Token, lease.Holder, lease.Version,
-                        lease.ExpiresAtUtc, normalizedKey, AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                        lease.ExpiresAtUtc, normalizedKey);
                 }
 
                 var scopeLease = await editScopes.HeartbeatAsync(
@@ -167,7 +165,7 @@ internal sealed class EditLeaseMcpTools(
                 return new EditLeaseToolResult(
                     kind.ToString(), recordId, await ScopeReferenceAsync(kind, recordId, context, cancellationToken),
                     scopeLease.Token, scopeLease.Holder, scopeLease.RecordVersion, scopeLease.ExpiresAtUtc,
-                    normalizedKey, AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                    normalizedKey);
             }),
             cancellationToken);
     }
@@ -222,8 +220,7 @@ internal sealed class EditLeaseMcpTools(
                     released = false;
                 }
                 return new EditLeaseReleaseToolResult(
-                    kind.ToString(), recordId, released, normalizedKey,
-                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                    kind.ToString(), recordId, released, normalizedKey);
             }),
             cancellationToken);
     }

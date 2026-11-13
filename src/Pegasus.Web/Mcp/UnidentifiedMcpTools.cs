@@ -79,8 +79,7 @@ internal sealed record UnidentifiedActionToolResult(
     string? ImageIntakeReference,
     RegistrationReadingToolItem? Reading,
     bool IsReplay,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record UnidentifiedSourceToolItem(
     Guid ReceiptId,
@@ -381,7 +380,6 @@ internal sealed class UnidentifiedMcpTools(
                     ?? throw new McpException("The Unidentified reference was not found.");
                 var itemContext = await getContext.ExecuteAsync(context.Actor, item.Id, cancellationToken)
                     ?? throw new McpException("The Unidentified reference was not found.");
-                var correlation = AutomationMcpAuditor.CorrelationId(context, key);
                 switch (action?.Trim())
                 {
                     case "register_images":
@@ -400,8 +398,7 @@ internal sealed class UnidentifiedMcpTools(
                             record.ImageIntakeReference,
                             Reading: null,
                             isReplay,
-                            key,
-                            correlation);
+                            key);
                     }
                     case "dismiss_reading":
                     {
@@ -427,8 +424,7 @@ internal sealed class UnidentifiedMcpTools(
                             ImageIntakeReference: null,
                             RegistrationReadingToolItem.From(dismissed),
                             decided,
-                            key,
-                            correlation);
+                            key);
                     }
                     default:
                         throw new McpException("action must be register_images or dismiss_reading.");

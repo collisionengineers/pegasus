@@ -13,8 +13,7 @@ internal sealed record UploadBeginToolResult(
     DateTimeOffset ExpiresAtUtc,
     IReadOnlyList<int> ReceivedParts,
     bool IsReplay,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record UploadPartToolResult(
     Guid UploadId,
@@ -78,8 +77,7 @@ internal sealed class DocumentUploadMcpTools(
                     ticket.ExpiresAtUtc,
                     ticket.ReceivedParts,
                     ticket.IsReplay,
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             }),
             cancellationToken);
     }

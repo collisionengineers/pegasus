@@ -15,8 +15,7 @@ internal sealed record DocumentActionToolResult(
     Guid? TagId,
     string? Outcome,
     string? Message,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
 /// Automation Actor document acts (FRD-10, ADR-0064): what a member of staff
@@ -107,7 +106,7 @@ internal sealed class DocumentActionMcpTools(
                     }
                     return new DocumentActionToolResult(
                         caseId, verb, null, null, created.Tag.Id, created.IsReplay ? "Replay" : "Created", null,
-                        key, AutomationMcpAuditor.CorrelationId(context, key));
+                        key);
                 }
 
                 var version = expectedVersion
@@ -208,8 +207,7 @@ internal sealed class DocumentActionMcpTools(
                     tag == Guid.Empty ? null : tag,
                     retry?.Outcome.ToString() ?? "Recorded",
                     retry?.Message,
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             },
             cancellationToken);
     }

@@ -92,8 +92,7 @@ internal sealed record PhotoLinkActionToolResult(
     PhotoLinkSummary Link,
     [property: Description("issue and resend_copy: the link's address, returned once; null when replayed.")] string? LinkUrl,
     [property: Description("true when the operation key had already made this link or address: nothing more was made and no address is returned.")] bool Replayed,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record PhotoLinkSendToolResult(
     string Action,
@@ -105,8 +104,7 @@ internal sealed record PhotoLinkSendToolResult(
     [property: Description("email: Submitted once the provider accepted it, Sent once the Sent item is observed, Failed with failureCode, Unknown when the provider outcome is not known (never resend), or an in-flight state.")] string? State,
     [property: Description("Why a Failed or Unknown e-mail, or a text the provider did not accept, stopped.")] string? FailureCode,
     [property: Description("text: whether the provider accepted the text; accepted is not delivered.")] bool? TextAccepted,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
 /// The Automation Actor's guided photo capture links (FRD-28), with the
@@ -357,7 +355,7 @@ internal sealed class PhotoCaptureMcpTools(
                     var id = AutomationMcpErrors.RequireId(caseId ?? Guid.Empty, "case identifier");
                     var link = await NewLinkAsync(customerName, mobile, email, accidentDate, mode, quickLinkFor, liveCameraOnly, originalsInBackground, days, cancellationToken);
                     var issued = await IssueAsync(id, actor, link, PhotoLinkTokenPurpose.Copy, key, cancellationToken);
-                    return await ActedAsync(verb, issued.Capture.Id, issued.Replayed ? null : mail.CaptureUrl(issued.Token), issued.Replayed, key, context, cancellationToken);
+                    return await ActedAsync(verb, issued.Capture.Id, issued.Replayed ? null : mail.CaptureUrl(issued.Token), issued.Replayed, key, cancellationToken);
                 }
 
                 if (caseId is not null || newLink || (days is not null && verb != "extend"))
@@ -369,7 +367,7 @@ internal sealed class PhotoCaptureMcpTools(
                 if (verb == "resend_copy")
                 {
                     var resent = await FoundAsync(() => actions.ResendAsync(actor, captured, PhotoLinkTokenPurpose.Copy, key, cancellationToken));
-                    return await ActedAsync(verb, captured, resent.Replayed ? null : mail.CaptureUrl(resent.Token), resent.Replayed, key, context, cancellationToken);
+                    return await ActedAsync(verb, captured, resent.Replayed ? null : mail.CaptureUrl(resent.Token), resent.Replayed, key, cancellationToken);
                 }
 
                 var row = await queries.GetRowAsync(captured, cancellationToken)
@@ -400,7 +398,7 @@ internal sealed class PhotoCaptureMcpTools(
                         break;
                 }
 
-                return await ActedAsync(verb, captured, null, false, key, context, cancellationToken);
+                return await ActedAsync(verb, captured, null, false, key, cancellationToken);
             },
             cancellationToken);
     }
@@ -564,7 +562,7 @@ internal sealed class PhotoCaptureMcpTools(
         var issued = await IssueAsync(id, actor, link, PhotoLinkTokenPurpose.Email, key, cancellationToken);
         if (issued.Replayed)
         {
-            return await SentAsync("send", channel, issued.Capture.Id, null, true, null, null, key, context, cancellationToken);
+            return await SentAsync("send", channel, issued.Capture.Id, null, true, null, null, key, cancellationToken);
         }
 
         return await EmailAsync(mail, context, key, "send", issued, id, facts.PrincipalName, fromId, subjectLine, message, cancellationToken);
@@ -635,7 +633,7 @@ internal sealed class PhotoCaptureMcpTools(
         var issued = await FoundAsync(() => actions.ResendAsync(actor, id, PhotoLinkTokenPurpose.Email, key, cancellationToken));
         if (issued.Replayed)
         {
-            return await SentAsync("resend", "email", id, null, true, null, null, key, context, cancellationToken);
+            return await SentAsync("resend", "email", id, null, true, null, null, key, cancellationToken);
         }
 
         var subjectLine = subject ?? PhotoLinkMail.Subject(issued.Capture.NormalizedRegistration);
@@ -668,7 +666,7 @@ internal sealed class PhotoCaptureMcpTools(
             Pegasus.Web.Pages.Mail.StaffMailSendLog.Refused(logger, operation.Id, operation.ApprovedMailboxId, operation.FailureCode);
         }
 
-        return await SentAsync(verb, "email", capture.Id, url, false, operation, null, key, context, cancellationToken);
+        return await SentAsync(verb, "email", capture.Id, url, false, operation, null, key, cancellationToken);
     }
 
     /// <summary>The issued link's text, as Send and Resend compose and send it (R918, R919).</summary>
@@ -688,7 +686,7 @@ internal sealed class PhotoCaptureMcpTools(
         var values = PhotoLinkMail.Values(capture.NormalizedRegistration, capture.CustomerName, principalName, url, capture.ExpiresAtUtc);
         var text = await mail.ComposeTextAsync(context.Actor, message, values, url, cancellationToken);
         var outcome = await sendText.ExecuteAsync(context.Actor, capture.Id, number, text, key, cancellationToken);
-        return await SentAsync(verb, "text", capture.Id, url, false, null, outcome, key, context, cancellationToken);
+        return await SentAsync(verb, "text", capture.Id, url, false, null, outcome, key, cancellationToken);
     }
 
     private async Task<PhotoLinkSendToolResult> SentAsync(
@@ -700,7 +698,6 @@ internal sealed class PhotoCaptureMcpTools(
         StaffMailOperation? operation,
         PhotoLinkTextOutcome? outcome,
         string key,
-        AutomationActorContext context,
         CancellationToken cancellationToken) =>
         new(
             verb,
@@ -712,8 +709,7 @@ internal sealed class PhotoCaptureMcpTools(
             operation?.State.ToString(),
             operation?.FailureCode ?? outcome?.FailureCode,
             outcome?.Accepted,
-            key,
-            AutomationMcpAuditor.CorrelationId(context, key));
+            key);
 
     private async Task<PhotoLinkActionToolResult> ActedAsync(
         string verb,
@@ -721,15 +717,13 @@ internal sealed class PhotoCaptureMcpTools(
         string? url,
         bool replayed,
         string key,
-        AutomationActorContext context,
         CancellationToken cancellationToken) =>
         new(
             verb,
             await SummaryAsync(captureId, cancellationToken),
             url,
             replayed,
-            key,
-            AutomationMcpAuditor.CorrelationId(context, key));
+            key);
 
     /// <summary>A new link's details: what the caller gave, else where Send starts from Administration's settings (R813, R817).</summary>
     private async Task<NewLink> NewLinkAsync(

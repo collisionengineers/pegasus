@@ -182,15 +182,13 @@ internal sealed record MailActionToolResult(
     string Action,
     bool IsDismissed,
     bool IsReplay,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record MailOpenQueryToolResult(
     Guid QueryId,
     Guid CaseId,
     Guid MessageId,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal enum MailLinkAction
 {
@@ -438,7 +436,7 @@ internal sealed class MailMcpTools(
                 var queryId = await openCaseQuery.ExecuteAsync(
                     new(caseId, context.Actor, key, id, null, null),
                     cancellationToken);
-                return new MailOpenQueryToolResult(queryId, caseId, id, key, AutomationMcpAuditor.CorrelationId(context, key));
+                return new MailOpenQueryToolResult(queryId, caseId, id, key);
             },
             cancellationToken);
     }
@@ -512,7 +510,6 @@ internal sealed class MailMcpTools(
             {
                 var id = AutomationMcpErrors.RequireId(messageId, "retained message identifier");
                 var dismissing = IsDismiss(action);
-                var correlation = AutomationMcpAuditor.CorrelationId(context, key);
                 var dismissal = (dismissing
                     ? await dismiss.ExecuteAsync(new(id, context.Actor, key), cancellationToken)
                     : await restore.ExecuteAsync(new(id, context.Actor, key), cancellationToken))
@@ -522,8 +519,7 @@ internal sealed class MailMcpTools(
                     dismissing ? "dismiss" : "restore",
                     dismissal.IsDismissed,
                     dismissal.IsReplay,
-                    key,
-                    correlation);
+                    key);
             },
             cancellationToken);
     }

@@ -29,8 +29,7 @@ internal sealed record ValuationSaveToolResult(
     Guid CaseId,
     long CaseVersion,
     IReadOnlyList<ValuationToolItem> Valuations,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record ValuationGetToolResult(
     Guid CaseId,
@@ -41,8 +40,7 @@ internal sealed record ValuationGetToolResult(
     string? GuideMonth,
     long? CaseVersion,
     IReadOnlyList<ValuationToolItem> Valuations,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record GuideCardToolInput(
     [property: Description("The guide the figures come from: Glasses, Cazana, EngineersValue, Brego, SuperCap or Cap.")] string Source,
@@ -180,8 +178,7 @@ internal sealed class ValuationMcpTools(
                     caseId,
                     saved.Version,
                     valuations.Select(Map).ToArray(),
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             },
             cancellationToken);
     }
@@ -278,8 +275,7 @@ internal sealed class ValuationMcpTools(
                     fetched.Quote?.GuideMonth.ToString("yyyy-MM", CultureInfo.InvariantCulture),
                     fetched.CaseVersion,
                     valuations.Select(Map).ToArray(),
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             },
             cancellationToken);
     }

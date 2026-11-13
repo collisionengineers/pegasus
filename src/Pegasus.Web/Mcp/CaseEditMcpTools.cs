@@ -14,13 +14,11 @@ internal sealed record CaseUpdateDetailsToolResult(
     Guid CaseId,
     long CaseVersion,
     string State,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record CaseNoteAddToolResult(
     Guid CaseId,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record AssessmentFieldVocabularyItem(
     string Path,
@@ -348,8 +346,7 @@ internal sealed class CaseEditMcpTools(
                     caseId,
                     saved.Version,
                     saved.Data.State.ToString(),
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             },
             cancellationToken);
     }
@@ -377,7 +374,7 @@ internal sealed class CaseEditMcpTools(
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 await addCaseNote.ExecuteAsync(new(caseId, context.Actor, key, note), cancellationToken);
-                return new CaseNoteAddToolResult(caseId, key, AutomationMcpAuditor.CorrelationId(context, key));
+                return new CaseNoteAddToolResult(caseId, key);
             },
             cancellationToken);
     }

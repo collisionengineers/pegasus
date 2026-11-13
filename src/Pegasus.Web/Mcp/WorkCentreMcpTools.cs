@@ -6,8 +6,7 @@ namespace Pegasus.Web.Mcp;
 
 internal sealed record WorkCentreDismissToolResult(
     Guid RecordId,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
 /// Work Centre Dismiss for the Automation Actor (FRD-15, ADR-0064): the same
@@ -43,8 +42,7 @@ internal sealed class WorkCentreMcpTools(
                     cancellationToken);
                 return new WorkCentreDismissToolResult(
                     recordId,
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             },
             cancellationToken);
     }

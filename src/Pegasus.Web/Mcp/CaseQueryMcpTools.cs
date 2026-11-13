@@ -12,8 +12,7 @@ internal sealed record CaseQueryToolResult(
     Guid? CaseId,
     long? CaseVersion,
     bool? HasOpenQuery,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
 /// Automation Actor query acts (FRD-10): open, mark done, reopen and assign,
@@ -75,20 +74,19 @@ internal sealed class CaseQueryMcpTools(
                             cancellationToken);
                         var workflow = await workflows.GetAsync(id, cancellationToken);
                         return new CaseQueryToolResult(
-                            verb, opened, id, workflow?.Version, workflow?.HasOpenQuery, key,
-                            AutomationMcpAuditor.CorrelationId(context, key));
+                            verb, opened, id, workflow?.Version, workflow?.HasOpenQuery, key);
                     }
                     case "mark_done":
                     {
                         var id = AutomationMcpErrors.RequireId(queryId ?? Guid.Empty, "query identifier");
                         var workflow = await markDone.ExecuteAsync(new(id, actor, key), cancellationToken);
-                        return Result(verb, id, workflow, key, context);
+                        return Result(verb, id, workflow, key);
                     }
                     case "reopen":
                     {
                         var id = AutomationMcpErrors.RequireId(queryId ?? Guid.Empty, "query identifier");
                         var workflow = await reopenQuery.ExecuteAsync(new(id, actor, key), cancellationToken);
-                        return Result(verb, id, workflow, key, context);
+                        return Result(verb, id, workflow, key);
                     }
                     default:
                     {
@@ -101,7 +99,7 @@ internal sealed class CaseQueryMcpTools(
                         var workflow = await assignQuery.ExecuteAsync(
                             new(id, actor, key, assigneeStaffId),
                             cancellationToken);
-                        return Result(verb, id, workflow, key, context);
+                        return Result(verb, id, workflow, key);
                     }
                 }
             },
@@ -112,10 +110,8 @@ internal sealed class CaseQueryMcpTools(
         string action,
         Guid queryId,
         CaseWorkflowRecord workflow,
-        string key,
-        AutomationActorContext context) =>
-        new(action, queryId, workflow.CaseId, workflow.Version, workflow.HasOpenQuery, key,
-            AutomationMcpAuditor.CorrelationId(context, key));
+        string key) =>
+        new(action, queryId, workflow.CaseId, workflow.Version, workflow.HasOpenQuery, key);
 
     private static CaseQueryChannel? ParseChannel(string? value, Guid? messageId)
     {

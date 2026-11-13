@@ -93,8 +93,7 @@ internal sealed record EstimateSaveToolResult(
     Guid CaseId,
     long CaseVersion,
     EstimateToolItem Estimate,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record EstimateSnapshotToolItem(
     Guid SnapshotId,
@@ -113,15 +112,13 @@ internal sealed record EstimateActToolResult(
     Guid CaseId,
     long CaseVersion,
     EstimateToolItem? Estimate,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record EstimateImportToolResult(
     Guid CaseId,
     Guid EstimateId,
     string Name,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 internal sealed record EstimateListToolItem(
     Guid EstimateId,
     int Version,
@@ -179,7 +176,6 @@ internal sealed record AssessmentUpdateToolResult(
     IReadOnlyList<EstimateLineToolItem> EstimateLines,
     IReadOnlyList<AssessmentReadinessToolItem> Readiness,
     string OperationKey,
-    string CorrelationId,
     [property: Description("Set when saveUnroadworthyReasonToBank was asked: Saved, or AlreadyOffered when the bank already holds the wording.")] string? UnroadworthyReasonBank = null);
 
 /// <summary>
@@ -251,8 +247,7 @@ internal sealed class AssessmentMcpTools(
                         cancellationToken),
                     cancellationToken);
                 return new EstimateImportToolResult(
-                    caseId, imported.EstimateId, name.Trim(), key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    caseId, imported.EstimateId, name.Trim(), key);
             },
             cancellationToken);
     }
@@ -351,8 +346,7 @@ internal sealed class AssessmentMcpTools(
                     caseId,
                     workflow.Version,
                     MapEstimate(saved),
-                    normalizedKey,
-                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                    normalizedKey);
             },
             cancellationToken);
     }
@@ -472,8 +466,7 @@ internal sealed class AssessmentMcpTools(
                     caseId,
                     workflow.Version,
                     result is null ? null : MapEstimate(result),
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             },
             cancellationToken);
     }
@@ -626,7 +619,6 @@ internal sealed class AssessmentMcpTools(
                     projection.Fields.Select(MapField).ToArray(),
                     projection.EstimateLines.Select(MapLine).ToArray(),
                     projection.Readiness.Select(MapReadiness).ToArray(),
-                    normalizedKey,
                     normalizedKey,
                     bank);
             },

@@ -72,7 +72,6 @@ internal sealed record IntakeActionToolResult(
     string? InspectionAddressState,
     string? InspectionAddressResolvedValue,
     string OperationKey,
-    string CorrelationId,
     Guid? ImageIntakeId = null,
     string? ImageIntakeReference = null);
 
@@ -80,8 +79,7 @@ internal sealed record CaseCreateToolResult(
     Guid CaseId,
     string Reference,
     string? AuditReference,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal enum IntakeAction
 {
@@ -115,8 +113,7 @@ internal sealed record IntakeSubmitToolResult(
     bool IsDuplicate,
     string Disposition,
     string ExternalReceiptToken,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
 /// Automation Actor intake tools. The queue list and durable intake receipt
@@ -273,8 +270,7 @@ internal sealed class IntakeMcpTools(
                     result.IsDuplicate,
                     "Queued",
                     normalizedToken,
-                    normalizedKey,
-                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                    normalizedKey);
             },
             cancellationToken);
     }
@@ -462,8 +458,7 @@ internal sealed class IntakeMcpTools(
                         settled.ReceiptVersion,
                         settled.State.ToString(),
                         settled.ResolvedValue,
-                        key,
-                        AutomationMcpAuditor.CorrelationId(context, key));
+                        key);
                 }
                 if (parsed == IntakeAction.OpenTriage)
                 {
@@ -489,8 +484,7 @@ internal sealed class IntakeMcpTools(
                         ReceiptVersion: null,
                         InspectionAddressState: null,
                         InspectionAddressResolvedValue: null,
-                        key,
-                        AutomationMcpAuditor.CorrelationId(context, key));
+                        key);
                 }
 
                 if (parsed == IntakeAction.RegisterImages)
@@ -517,7 +511,6 @@ internal sealed class IntakeMcpTools(
                         InspectionAddressState: null,
                         InspectionAddressResolvedValue: null,
                         key,
-                        AutomationMcpAuditor.CorrelationId(context, key),
                         record.Id,
                         record.ImageIntakeReference);
                 }
@@ -583,8 +576,7 @@ internal sealed class IntakeMcpTools(
                     ReceiptVersion: null,
                     InspectionAddressState: null,
                     InspectionAddressResolvedValue: null,
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             }),
             cancellationToken);
     }
@@ -694,8 +686,7 @@ internal sealed class IntakeMcpTools(
                     identity.CaseId,
                     identity.Reference,
                     identity.AuditReference,
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             }),
             cancellationToken);
     }
