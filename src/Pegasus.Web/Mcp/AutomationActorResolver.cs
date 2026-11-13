@@ -197,6 +197,20 @@ internal sealed class AutomationMcpAuditor(
     }
 
     /// <summary>
+    /// As the calls above, for the tool whose operation key is optional: with
+    /// a key it is the keyed call, and without one the call that carries none.
+    /// </summary>
+    public Task<TResult> CallWithOptionalKeyAsync<TResult>(
+        string toolName,
+        string aggregateId,
+        string? operationKey,
+        Func<AutomationActorContext, string?, Task<TResult>> body,
+        CancellationToken cancellationToken) =>
+        operationKey is null
+            ? CallAsync(toolName, aggregateId, context => body(context, null), cancellationToken)
+            : CallAsync(toolName, aggregateId, operationKey, (context, key) => body(context, key), cancellationToken);
+
+    /// <summary>
     /// The audit resource of a call about one record: its identifier, or
     /// <c>invalid</c> for the empty one the call then refuses.
     /// </summary>

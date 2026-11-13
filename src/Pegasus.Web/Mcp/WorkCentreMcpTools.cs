@@ -32,19 +32,12 @@ internal sealed class WorkCentreMcpTools(
         [Description("Optional caller key prefixed 'mcp:' that labels the call's history.")] string? operationKey = null,
         CancellationToken cancellationToken = default)
     {
-        var resource = AutomationMcpAuditor.Resource(recordId);
-        return operationKey is null
-            ? await auditor.CallAsync(
-                "pegasus_work_centre_dismiss",
-                resource,
-                context => DismissForAsync(context, recordId, null, cancellationToken),
-                cancellationToken)
-            : await auditor.CallAsync(
-                "pegasus_work_centre_dismiss",
-                resource,
-                operationKey,
-                (context, key) => DismissForAsync(context, recordId, key, cancellationToken),
-                cancellationToken);
+        return await auditor.CallWithOptionalKeyAsync(
+            "pegasus_work_centre_dismiss",
+            AutomationMcpAuditor.Resource(recordId),
+            operationKey,
+            (context, key) => DismissForAsync(context, recordId, key, cancellationToken),
+            cancellationToken);
     }
 
     private async Task<WorkCentreDismissToolResult> DismissForAsync(
