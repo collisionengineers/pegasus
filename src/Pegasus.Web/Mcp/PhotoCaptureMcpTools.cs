@@ -768,7 +768,7 @@ internal sealed class PhotoCaptureMcpTools(
             customerName,
             mobile,
             email,
-            ParseDate(accidentDate),
+            AutomationMcpErrors.OptionalDate(accidentDate, "accidentDate must be a yyyy-MM-dd date."),
             linkMode,
             linkFor,
             liveCameraOnly ?? settings.PhotoLinkStartLiveCameraOnly,
@@ -933,13 +933,6 @@ internal sealed class PhotoCaptureMcpTools(
             && !int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)
                 ? parsed
                 : throw new McpException($"{name} must be one of: {string.Join(", ", Enum.GetNames<T>())}.");
-
-    private static DateOnly? ParseDate(string? value) =>
-        string.IsNullOrWhiteSpace(value)
-            ? null
-            : DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
-                ? parsed
-                : throw new McpException("accidentDate must be a yyyy-MM-dd date.");
 
     private static string Resource(Guid? id, string fallback) =>
         id is { } value && value != Guid.Empty ? value.ToString("D") : fallback;

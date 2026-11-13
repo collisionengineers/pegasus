@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using ModelContextProtocol;
@@ -182,6 +183,36 @@ internal static class AutomationMcpErrors
         value == Guid.Empty
             ? throw new McpException($"A non-empty {name} is required.")
             : value;
+
+    /// <summary>
+    /// An optional yyyy-MM-dd date: omitted or blank is none, and anything
+    /// else that is not one is refused with the caller's own sentence.
+    /// </summary>
+    public static DateOnly? OptionalDate(string? value, string refusal) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+                ? parsed
+                : throw new McpException(refusal);
+
+    /// <summary>A required yyyy-MM-dd date, refused with the same sentence when omitted.</summary>
+    public static DateOnly RequireDate(string? value, string refusal) =>
+        OptionalDate(value, refusal) ?? throw new McpException(refusal);
+
+    /// <summary>
+    /// An optional yyyy-MM month, as its first day: omitted or blank is none,
+    /// and anything else that is not one is refused with the caller's own sentence.
+    /// </summary>
+    public static DateOnly? OptionalMonth(string? value, string refusal) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : DateOnly.TryParseExact(value.Trim(), "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+                ? parsed
+                : throw new McpException(refusal);
+
+    /// <summary>A required yyyy-MM month, refused with the same sentence when omitted.</summary>
+    public static DateOnly RequireMonth(string? value, string refusal) =>
+        OptionalMonth(value, refusal) ?? throw new McpException(refusal);
 
     public static byte[] DecodeContent(string contentBase64, int maximumBytes, string description)
     {

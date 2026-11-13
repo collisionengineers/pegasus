@@ -396,7 +396,7 @@ internal sealed class AiJobMcpTools(
                         safeFileName,
                         safeMediaType,
                         content,
-                        ParseDate(recordedDate),
+                        AutomationMcpErrors.RequireDate(recordedDate, "recordedDate must use yyyy-MM-dd."),
                         ParseTime(recordedTime),
                         mileage,
                         retailValue,
@@ -457,15 +457,8 @@ internal sealed class AiJobMcpTools(
             ? parsed
             : throw new McpException("The AI job kind is not recognized.");
 
-    private static DateOnly ParseDate(string value) =>
-        DateOnly.TryParseExact(value?.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
-            ? parsed
-            : throw new McpException("recordedDate must use yyyy-MM-dd.");
-
     private static DateOnly ParseGuideMonth(string value) =>
-        DateOnly.TryParseExact(value.Trim(), "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
-            ? parsed
-            : throw new McpException("guideMonth must use yyyy-MM.");
+        AutomationMcpErrors.RequireMonth(value, "guideMonth must use yyyy-MM.");
 
     private static TimeOnly ParseTime(string value) =>
         TimeOnly.TryParseExact(

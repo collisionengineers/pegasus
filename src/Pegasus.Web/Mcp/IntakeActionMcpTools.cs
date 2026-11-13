@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Globalization;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Address;
@@ -872,11 +871,7 @@ internal sealed class IntakeActionMcpTools(
         submitted is null ? current : string.IsNullOrWhiteSpace(submitted) ? null : submitted.Trim();
 
     private static DateOnly? ParseDate(string? value, string name) =>
-        string.IsNullOrWhiteSpace(value)
-            ? null
-            : DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
-                ? parsed
-                : throw new McpException($"{name} must be a yyyy-MM-dd date.");
+        AutomationMcpErrors.OptionalDate(value, $"{name} must be a yyyy-MM-dd date.");
 
     /// <summary>The draft fields an accept names, with each date's raw text so an empty string clears.</summary>
     private sealed record DraftChanges(

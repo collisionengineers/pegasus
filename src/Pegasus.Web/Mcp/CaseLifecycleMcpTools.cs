@@ -110,7 +110,7 @@ internal sealed class CaseLifecycleMcpTools(
                         ? throw new McpException($"The {verb} action needs a reason.")
                         : reason,
                 };
-                var holdReview = verb == "hold" ? ParseDate(reviewOn, nameof(reviewOn)) : null;
+                var holdReview = verb == "hold" ? AutomationMcpErrors.OptionalDate(reviewOn, $"The {nameof(reviewOn)} value must be a yyyy-MM-dd date.") : null;
                 var closure = verb == "close" ? ParseClosureOutcome(outcome) : default;
                 var reopenTo = verb == "reopen" ? ParseReopenDestination(destination) : default;
                 // An omitted engineerId hands the Case to Unassigned (#1213).
@@ -249,14 +249,6 @@ internal sealed class CaseLifecycleMcpTools(
             },
             cancellationToken);
     }
-
-    private static DateOnly? ParseDate(string? value, string name) =>
-        string.IsNullOrWhiteSpace(value)
-            ? null
-            : DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture,
-                DateTimeStyles.None, out var parsed)
-                ? parsed
-                : throw new McpException($"The {name} value must be a yyyy-MM-dd date.");
 
     private static CaseClosureOutcome ParseClosureOutcome(string? value) =>
         Enum.TryParse<CaseClosureOutcome>(value?.Trim(), ignoreCase: true, out var parsed)

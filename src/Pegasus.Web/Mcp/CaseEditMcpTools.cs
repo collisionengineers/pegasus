@@ -782,21 +782,10 @@ internal sealed class CaseEditMcpTools(
     private static string? Text(string? submitted, string? current) =>
         submitted is null ? current : string.IsNullOrWhiteSpace(submitted) ? null : submitted;
 
-    private static DateOnly? Date(string? submitted, string name, DateOnly? current)
-    {
-        if (submitted is null)
-        {
-            return current;
-        }
-        if (string.IsNullOrWhiteSpace(submitted))
-        {
-            return null;
-        }
-        return DateOnly.TryParseExact(submitted.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture,
-            DateTimeStyles.None, out var parsed)
-            ? parsed
-            : throw new McpException($"The {name} value must be a yyyy-MM-dd date.");
-    }
+    private static DateOnly? Date(string? submitted, string name, DateOnly? current) =>
+        submitted is null
+            ? current
+            : AutomationMcpErrors.OptionalDate(submitted, $"The {name} value must be a yyyy-MM-dd date.");
 
     private static CaseInspectionMode? ParseInspectionMode(string? value) =>
         string.IsNullOrWhiteSpace(value)
@@ -824,12 +813,7 @@ internal sealed class CaseEditMcpTools(
                 "The valuation source must be one of: " + string.Join(", ", Enum.GetNames<ValuationSource>()) + ".");
 
     private static DateOnly? ParseGuideMonth(string? value) =>
-        string.IsNullOrWhiteSpace(value)
-            ? null
-            : DateOnly.TryParseExact(value.Trim() + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture,
-                DateTimeStyles.None, out var month)
-                ? month
-                : throw new McpException("The guide month must be yyyy-MM.");
+        AutomationMcpErrors.OptionalMonth(value, "The guide month must be yyyy-MM.");
 
     private static ValuationToolItem Map(CaseValuation valuation) => new(
         valuation.ValuationId,
