@@ -109,19 +109,9 @@ internal static class AutomationFileContent
         if (IsPdf(mediaType))
         {
             var extracted = await pdfText.ExtractAsync(content, inlineLimit, cancellationToken);
-            if (extracted is not null)
-            {
-                var blocks = PdfBlocks(summary + PdfHeaderTail(extracted.PageCount), extracted);
-                var notice = extracted.Pages.Count < extracted.PageCount
-                    ? $"Only {extracted.Pages.Count} of {extracted.PageCount} pages fit the inline limit of {inlineLimit} characters; raise maxInlineBytes or fetch contentUrl."
-                    : null;
-                if (notice is not null)
-                {
-                    blocks.Add(new TextContentBlock { Text = notice });
-                }
-                return new AutomationFileDelivery(true, notice, blocks);
-            }
-            return Withheld(summary, UnreadablePdfNotice, contentUrl);
+            return extracted is null
+                ? Withheld(summary, UnreadablePdfNotice, contentUrl)
+                : PageText(summary + PdfHeaderTail(extracted.PageCount), extracted, inlineLimit);
         }
 
         if (IsText(mediaType) && contentLength <= inlineLimit)
@@ -139,6 +129,43 @@ internal static class AutomationFileContent
             summary,
             $"The content ({contentLength} bytes, {mediaType}) is not delivered inline; fetch contentUrl with this bearer token.",
             contentUrl);
+    }
+
+    /// <summary>
+    /// A Word document as staff view it (R949): the page text of the PDF
+    /// rendering of the stored version. The rendering is derived data, so the
+    /// summary and contentUrl stay the Word document's own.
+    /// </summary>
+    public static async Task<AutomationFileDelivery> DeliverWordRenderingAsync(
+        IExtractPdfPageText pdfText,
+        string fileName,
+        string mediaType,
+        long contentLength,
+        string sha256,
+        ReadOnlyMemory<byte> rendering,
+        int inlineLimit,
+        string contentUrl,
+        CancellationToken cancellationToken)
+    {
+        var summary = Summary(fileName, mediaType, contentLength, sha256);
+        var extracted = await pdfText.ExtractAsync(rendering, inlineLimit, cancellationToken);
+        return extracted is null
+            ? Withheld(summary, UnrenderedWordNotice, contentUrl)
+            : PageText(summary + WordHeaderTail(extracted.PageCount), extracted, inlineLimit);
+    }
+
+    /// <summary>The page-text answer for a PDF or a rendering, with the cut-off notice when pages were left out.</summary>
+    private static AutomationFileDelivery PageText(string header, PdfTextExtraction extracted, int inlineLimit)
+    {
+        var blocks = PdfBlocks(header, extracted);
+        var notice = extracted.Pages.Count < extracted.PageCount
+            ? $"Only {extracted.Pages.Count} of {extracted.PageCount} pages fit the inline limit of {inlineLimit} characters; raise maxInlineBytes or fetch contentUrl."
+            : null;
+        if (notice is not null)
+        {
+            blocks.Add(new TextContentBlock { Text = notice });
+        }
+        return new AutomationFileDelivery(true, notice, blocks);
     }
 
     /// <summary>
@@ -166,6 +193,14 @@ internal static class AutomationFileContent
 
     public const string UnreadablePdfNotice =
         "The PDF could not be read for text; fetch contentUrl with this bearer token.";
+
+    /// <summary>The reason a Word document with no readable rendering is withheld.</summary>
+    public const string UnrenderedWordNotice =
+        "The Word document could not be rendered for text; fetch contentUrl with this bearer token.";
+
+    /// <summary>The reason a Word document whose rendering is still being made is withheld.</summary>
+    public const string PendingWordRenderingNotice =
+        "The Word document's rendering is still being made; call again shortly, or fetch contentUrl with this bearer token.";
 
     /// <summary>
     /// The batch download (R192): one walk over the items in request order,
@@ -513,6 +548,10 @@ internal static class AutomationFileContent
     /// <summary>What follows the summary in a PDF's header block.</summary>
     private static string PdfHeaderTail(int pageCount) =>
         $" {pageCount} page(s); text follows per page. The PDF itself is at contentUrl.";
+
+    /// <summary>What follows the summary in a Word document's header block.</summary>
+    private static string WordHeaderTail(int pageCount) =>
+        $" {pageCount} page(s); the text of its PDF rendering follows per page. The Word document itself is at contentUrl.";
 
     /// <summary>The length of <paramref name="bytes"/> bytes as base64 text.</summary>
     private static int Base64Length(int bytes) => (bytes + 2) / 3 * 4;

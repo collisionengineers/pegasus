@@ -53,10 +53,31 @@ internal sealed record CaseHistoryToolItem(
     long BeforeVersion,
     long AfterVersion);
 
+internal sealed record CaseClaimSourceToolItem(
+    [property: Description("The directory Claim source record the Case copies, as pegasus_case_update_details claimSourceId names it.")] Guid? ClaimSourceId,
+    string? Name,
+    [property: Description("The contact for this Case: the Case's own where one was set, otherwise the record's.")] string? ContactName,
+    string? ContactTelephone,
+    string? ContactEmail);
+
+internal sealed record CaseRepairerToolItem(
+    [property: Description("The directory Repairer the Case is linked to, as pegasus_case_update_details repairerDirectoryId names it; null when the repairer is typed and not linked.")] Guid? DirectoryOrganizationId,
+    string? Name,
+    string? Address);
+
+internal sealed record CaseHoldsToolItem(
+    [property: Description("The Case requirements still unmet, by the names staff see: for example Instructions, Images or the vehicle mileage. Empty when none is.")] IReadOnlyList<string> MissingRequirements,
+    [property: Description("While Instructions is unmet, the instruction items the Case's data still lacks, by their field labels.")] IReadOnlyList<string> MissingInstructionItems,
+    [property: Description("The Case's document storage failed, which holds it Not ready until pegasus_document_action retry_custody confirms it.")] bool DocumentStorageFailed,
+    [property: Description("An Audit's original report is not on the Case yet.")] bool OriginalReportMissing);
+
 internal sealed record CaseGetToolResult(
     CaseSearchToolItem Summary,
     long CaseVersion,
     Guid? AssignedEngineerId,
+    [property: Description("The Case's Claim source, which the report sending rules read; null when the Case records none.")] CaseClaimSourceToolItem? ClaimSource,
+    [property: Description("The Case's Repairer, linked or typed; null when the Case records none.")] CaseRepairerToolItem? Repairer,
+    [property: Description("What still holds the Case from being ready, as the Not ready queue and the Case's Next action name it.")] CaseHoldsToolItem Holds,
     CaseEditLeaseToolSnapshot? ActiveEditLease,
     IReadOnlyList<CaseDocumentToolItem> Documents,
     string? NextDocumentCursor,
@@ -73,7 +94,8 @@ internal sealed record CaseGetToolResult(
 [McpServerToolType]
 internal sealed class CaseMcpTools(
     SearchCasesByCursor searchCases,
-    IGetCaseHeader getCaseHeader,
+    IGetCaseEditBasis getCaseEditBasis,
+    INotReadyCaseQueries notReadyCases,
     IListCaseDocumentsByCursor listDocuments,
     IListCaseHistoryByCursor listHistory,
     AutomationActorResolver resolver,
@@ -153,7 +175,7 @@ internal sealed class CaseMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Returns one case as a bounded projection with independently paged document inventory and history. Document content is retrieved with pegasus_document_download, or with pegasus_document_download_batch for 1 to 25 documents in one call.")]
+    [Description("Returns one case as a bounded projection: its summary and version, its Claim source and Repairer, what still holds it from being ready, and independently paged document inventory and history. Document content is retrieved with pegasus_document_download, or with pegasus_document_download_batch for 1 to 25 documents in one call.")]
     public async Task<CaseGetToolResult> GetAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("Opaque document cursor returned by the previous response.")] string? documentCursor = null,
@@ -170,10 +192,21 @@ internal sealed class CaseMcpTools(
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
-                var header = await getCaseHeader.ExecuteAsync(
-                    new(caseId, context.Actor),
-                    cancellationToken)
+                // The frame and data are the Case save's own read; the
+                // blockers are the Not ready queue's. Each opens its own
+                // context, so they run side by side.
+                var basisRead = getCaseEditBasis.ExecuteAsync(
+                    new(caseId, context.Actor), cancellationToken);
+                var blockersRead = notReadyCases.GetBlockersAsync([caseId], cancellationToken);
+                await Task.WhenAll(basisRead, blockersRead);
+                var header = await basisRead
                     ?? throw new McpException("The case was not found.");
+                var blockers = (await blockersRead).GetValueOrDefault(caseId);
+                var data = header.Data;
+                var claimSource = data.Workspace?.ClaimSource;
+                var repairerName = Accepted(data.Inspection.RepairerName);
+                var repairerAddress = Accepted(data.Inspection.RepairerAddress);
+                var repairerLink = data.Workspace?.Repairer?.DirectoryOrganizationId;
                 var effectiveLimit = CursorPaging.NormalizeLimit(limit);
                 var documentPage = await listDocuments.ExecuteAsync(
                     new(context.Actor, caseId, documentCursor, effectiveLimit), cancellationToken);
@@ -211,7 +244,23 @@ internal sealed class CaseMcpTools(
                     Map(header.Summary),
                     header.Workflow.Version,
                     header.Workflow.AssignedEngineerId,
-                    header.ActiveEditLease is { } lease
+                    claimSource is null
+                        ? null
+                        : new(
+                            claimSource.ClaimSourceId,
+                            claimSource.Name,
+                            claimSource.EffectiveContactName,
+                            claimSource.EffectiveContactTelephone,
+                            claimSource.EffectiveContactEmailAddress),
+                    repairerLink is null && repairerName is null && repairerAddress is null
+                        ? null
+                        : new(repairerLink, repairerName, repairerAddress),
+                    new(
+                        data.Completeness.Evaluation.MissingRequirements,
+                        data.Completeness.MissingInstructionItems,
+                        blockers?.CustodyFailed ?? false,
+                        blockers?.OriginalReportMissing ?? false),
+                    header.Frame.ActiveEditLease is { } lease
                         ? new(lease.Holder, lease.ExpiresAtUtc)
                         : null,
                     documents,
@@ -222,6 +271,9 @@ internal sealed class CaseMcpTools(
             }),
             cancellationToken);
     }
+
+    private static string? Accepted(CaseField<string>? field) =>
+        (field?.Confirmed ?? field?.Fact)?.Value;
 
     private static CaseSearchToolItem Map(CaseSearchItem item) => new(
         item.CaseId,
