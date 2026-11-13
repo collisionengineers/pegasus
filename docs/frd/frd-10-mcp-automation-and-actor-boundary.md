@@ -24,8 +24,9 @@
   Case details and notes, findings, valuation, estimates, the Case's
   lifecycle acts, reports and their approval, report wording, image
   preparation, the Case's documents, AI jobs, mail correction, linking mail
-  to a Case, dismiss and restore, and Work Centre dismiss. It sends reports to the Principal and e-mail under
-  its own `automation.send` scope. It never puts an estimate in use, never
+  to a Case, dismiss and restore, Work Centre dismiss and photo links. It
+  sends reports to the Principal, e-mail and photo links under its own
+  `automation.send` scope. It never puts an estimate in use, never
   runs a Glass's session and never touches Glass's credentials.
 - A tool counts as delivered only after a real caller has proved success,
   authorisation failure, validation failure and history.
@@ -60,8 +61,10 @@ with the staff member's own Glass's account (operator, 7 October 2026;
 `Manage*` rights stay with staff Administrators. The Case lifecycle, report
 and document tools, report approval among them, the queue and job tools,
 settling an inspection address, report wording, image preparation and
-outward sending are delivered (operator, 7 October 2026). Sending has its own
-scope, `automation.send`, so a grant can hold casework without sending.
+outward sending are delivered (operator, 7 October 2026). Sending a report,
+an e-mail or a photo link has its own scope, `automation.send`, so a grant
+can hold casework without sending; every other photo link act is
+`automation.cases` (operator, 13 November 2026; R1039, R1040).
 
 **Grants.** Each connector grant has its own durable identity. History keeps
 the grant identity, the shared client ID and the human approver separately.
@@ -343,6 +346,23 @@ codes on the wire are the Core list under `unidentified`. No tool exposes
 Glass's credentials or runs a Glass's session; Get valuation uses Pegasus's
 own valuation account and is not a session.
 
+**Photo links.** <a id="photo-links"></a> The Actor works guided photo
+capture links as a member of staff with `PerformCasework` does on the Photo
+capture pages ([FRD-28](frd-28-guided-photo-capture.md#staff-pages)),
+through the same Core commands and with no Case edit lease, as the pages
+take none (operator, 13 November 2026; R1039, R1040).
+`pegasus_photo_link_list` reads the Direct links tab by scope, the Standing
+links tab's captures, or one Case's links, each with its status, any
+reminder due and what it is missing; `pegasus_photo_link_get` reads one link
+as its page shows it, with its history and the acts its page offers.
+`pegasus_photo_link_action` issues a link for a Case and returns its address
+to copy, makes a fresh address to copy for a live link, and extends, cancels
+or logs a call where the link's page offers it; a repeated operation key
+acts once. Sending a link by e-mail or text is `pegasus_photo_link_send`,
+under `automation.send` ([Sending](#sending)). Standing and website links
+are managed by Administrators only. With `Features:PhotoCapture` off every
+photo link tool refuses.
+
 **Sending.** <a id="sending"></a> The Actor sends as staff do, under
 `automation.send` (operator, 7 October 2026;
 [ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). EVA
@@ -415,6 +435,20 @@ record the Automation Actor as the sender, never a member of staff. The
 Actor's current-sender check is its client registration's kill switch, read
 at each step a staff send re-reads the staff account, so a send in flight
 when the client is stopped fails as `staff_send_authorization_lost`.
+
+`pegasus_photo_link_send` is **Send a photo link** (`send`, a new link
+for a Case) and **Resend** (`resend`, a live link sent from a Case, under
+a fresh address, counted as a reminder when one is due), through the same
+Core commands ([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-e-mail)).
+`email` is the Photo link e-mail, a new message from the Outgoing mailbox
+`fromMailbox` names, else the Case's default sender, to the new link's
+address or the link's own; `text` is the Photo link (text) to a UK mobile,
+where a text provider is configured. The message, omitted, is the standard
+wording; given, it is sent as written with its placeholders filled and the
+link added if left out. A repeated operation key sends nothing more: a
+repeated e-mail answers `replayed`, a repeated text is refused.
+Its e-mail is the same staff send operation, recorded as the Automation
+Actor's.
 
 **Network-drive scanning.** An externally scheduled client may scan an
 approved network-drive scope and submit immutable source occurrences through
@@ -683,7 +717,7 @@ server's instructions restate this document's cross-tool rules and make
 none. The seven servers of Release 123 at `/mcp/<scope word>` are replaced,
 not aliased: an Administrator adds one connector and consents once.
 
-The Actor's whole inventory, 73 tools, by scope. "One-command lease" means
+The Actor's whole inventory, 77 tools, by scope. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
 its one command when none is given.
@@ -699,6 +733,8 @@ its one command when none is given.
 | `automation.cases` | `pegasus_directory_search` | The active directory Repairers or Claim sources a Case links to, each with its linked Principal codes; a named Principal's linked contacts first | none |
 | `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags; enabled staff by username; Sign-off Engineers by printed name; the unroadworthy wordings bank | none |
 | `automation.cases` | `pegasus_work_centre_dismiss` | Dismiss a Case, Unidentified item, AI job, or a System Action's underlying receipt, image intake or query from the Work Centre | key only |
+| `automation.cases` | `pegasus_photo_link_list`, `pegasus_photo_link_get` | Photo links as the Photo capture page lists them (Direct links by scope, Standing links' captures, or one Case's links) with status, reminder due and what is missing; one link as its page shows it, with its history and the acts its page offers | none |
+| `automation.cases` | `pegasus_photo_link_action` | One photo link act that sends nothing, with an `action`: issue (a new link's address to copy), resend_copy, extend, cancel, log_call | key only |
 | `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`) or a Triage Case (`automation.intake`) for multi-step work; `takeOver` asks a staff holder of a Case to hand over and waits; takes over a staff Triage scope | explicit lease |
 | `automation.intake` | `pegasus_intake_queue_list` | List intake receipts by decision and allocation | none |
 | `automation.intake` | `pegasus_intake_submit` | Submit one immutable source on the automation channel | none |
@@ -737,6 +773,7 @@ its one command when none is given.
 | `automation.mail` | `pegasus_old_system_folder_search` | Read-only: folder names and identities matching a term below the old system's Box folder; a reference-shaped term matches a folder name only as a whole token (R592); unavailable until that folder is configured (R561) | none |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does, with `deleteCaseCorrespondence` | one-command lease |
+| `automation.send` | `pegasus_photo_link_send` | Send a new link (`send`) or a live one again (`resend`) by `email`, the Photo link staff send, or by `text` | key only |
 | `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `markQueryDone`, `aiJobId` and `deleteCaseCorrespondence`), `forward`, `triage_reply` (with `deleteCaseCorrespondence` on the outcome reply) | Case or Triage version and key |
 
 ## States and transitions
@@ -773,6 +810,10 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-27.
 - A send tool without `automation.send` is refused before it runs. A send is
   Submitted, not Sent, until its Sent item is observed; an Unknown send is
   never resent, its operation key is replayed.
+- A photo link act the link's page does not offer (extend on a cancelled
+  link, cancel on a dead one, log_call on a standing capture) is refused
+  and changes nothing; a resend Core refuses, on a cancelled or expired
+  link, is refused with Core's sentence.
 - A reply or reply all takes no recipients of its own; a chaser or forward
   without a To recipient, or with an address that is not a plain e-mail
   address, is refused and nothing is sent.
@@ -815,6 +856,7 @@ acceptance are separate evidence tiers
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
   [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md),
+  [FRD-28](frd-28-guided-photo-capture.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md),
   [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md).

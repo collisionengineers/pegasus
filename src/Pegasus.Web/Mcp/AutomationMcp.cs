@@ -48,9 +48,10 @@ public static class AutomationMcp
     public const string JobsScope = "automation.jobs";
 
     /// <summary>
-    /// Outward sending: a report to the Principal and staff mail (new, reply,
-    /// forward, the Triage reply). Its own scope, so a grant can hold casework
-    /// without sending (operator, 7 October 2026; ADR-0064).
+    /// Outward sending: a report to the Principal, staff mail (new, reply,
+    /// forward, the Triage reply) and a photo link by e-mail or text (R1039,
+    /// R1040). Its own scope, so a grant can hold casework without sending
+    /// (operator, 7 October 2026; ADR-0064).
     /// </summary>
     public const string SendScope = "automation.send";
     public const string GrantIdentityClaim = "pegasus_automation_grant";

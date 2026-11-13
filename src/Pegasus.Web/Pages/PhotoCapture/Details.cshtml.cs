@@ -54,6 +54,28 @@ public sealed class DetailsModel(
     /// <summary>One paperwork or video item of the Files strip; <see cref="Href"/> is null until it reaches intake.</summary>
     public sealed record FileChip(string Caption, string? Href);
 
+    /// <summary>
+    /// The acts this page offers on a link, which the Automation Actor's
+    /// photo link tools offer alike: Resend on a live link HQ sent from a
+    /// Case (R914); Log call on one not cancelled; Extend on one not
+    /// cancelled whose Case is not archived (R793); Cancel while it is live.
+    /// </summary>
+    public sealed record LinkOffers(bool Resend, bool LogCall, bool Extend, bool Cancel)
+    {
+        public static LinkOffers For(PhotoCaptureListRow row, DateTimeOffset now)
+        {
+            ArgumentNullException.ThrowIfNull(row);
+            var capture = row.Capture;
+            var caseLink = capture.Origin == PhotoCaptureOrigin.CaseLink;
+            var live = PhotoCaptureAccess.IsLive(capture, now, row.CaseArchived);
+            return new(
+                Resend: caseLink && live,
+                LogCall: caseLink && !capture.IsRevoked,
+                Extend: !capture.IsRevoked && !row.CaseArchived,
+                Cancel: live);
+        }
+    }
+
     [BindProperty(SupportsGet = true)]
     public Guid Id { get; set; }
 
@@ -99,10 +121,16 @@ public sealed class DetailsModel(
     /// once they have. One that has received nothing reads its derived state,
     /// Opened, Expired or Cancelled, as a Direct link would.
     /// </summary>
-    public string ChipLabel =>
-        IsCaseLink || Capture.AcceptedItemCount == 0 ? Labels.State(State)
-        : IsUploading ? Labels.Uploading
-        : Labels.Received;
+    public string ChipLabel => ChipLabelOf(Capture, State);
+
+    /// <inheritdoc cref="ChipLabel"/>
+    public static string ChipLabelOf(CaptureRecord capture, PhotoCaptureState state)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        return capture.Origin == PhotoCaptureOrigin.CaseLink || capture.AcceptedItemCount == 0 ? Labels.State(state)
+            : PhotoCaptureStatus.IsUploading(capture) ? Labels.Uploading
+            : Labels.Received;
+    }
 
     /// <summary>The header chip's tone: amber while uploading, green once received.</summary>
     public string ChipTone =>
@@ -120,7 +148,9 @@ public sealed class DetailsModel(
         && State is not (PhotoCaptureState.Cancelled or PhotoCaptureState.Expired);
 
     /// <summary>Resend, one act since Remind sent the same message (R914): a live link HQ sent from a Case.</summary>
-    public bool OffersResend => IsCaseLink && IsLive;
+    public bool OffersResend => Offers.Resend;
+
+    private LinkOffers Offers => LinkOffers.For(Row, Now);
 
     /// <summary>
     /// The page's one primary act (R913): Resend when a reminder is due, Log
@@ -135,12 +165,12 @@ public sealed class DetailsModel(
     /// <summary>Where Resend opens the composer, returning here.</summary>
     public string ResendHref => IndexModel.ResendHref(Id, $"/PhotoCapture/{Id:D}");
 
-    public bool OffersLogCall => IsCaseLink && !Capture.IsRevoked;
+    public bool OffersLogCall => Offers.LogCall;
 
     /// <summary>A link whose Case is archived is dead and is not extended (R793).</summary>
-    public bool OffersExtend => !Capture.IsRevoked && !Row.CaseArchived;
+    public bool OffersExtend => Offers.Extend;
 
-    public bool OffersCancel => IsLive;
+    public bool OffersCancel => Offers.Cancel;
 
     /// <summary>
     /// Where the photos are, after the follow-up act (v51 D, R; R948): the
@@ -236,14 +266,7 @@ public sealed class DetailsModel(
         var derived = IndexModel.Derive(found, Now);
         State = derived.State;
         Due = derived.Due;
-        // Only the items whose upload reached intake are photos the link has,
-        // as the phone and the Send count them; the story decides their order.
-        var ordered = PhotoCaptureStoryView.Groups(
-                items.Result.Where(item => item.StagedReceiptId is not null).ToArray(),
-                found.Capture.Details.MarkedAreas)
-            .SelectMany(group => group.Stages)
-            .SelectMany(stage => stage.Items)
-            .ToArray();
+        var ordered = ReceivedInStoryOrder(items.Result, found.Capture);
         var photographs = ordered.Where(item => PhotoCaptureStory.IsPhotographKind(item.Kind)).ToArray();
         var captions = Labels.Captions(photographs);
         Photos = [.. photographs.Select((item, index) => Tile(item, index + 1, captions[index]))];
@@ -252,6 +275,23 @@ public sealed class DetailsModel(
             .Select(item => new FileChip(Labels.ItemLabel(item), FileHref(item)))];
         History = KeyMilestones(found, acts.Result, State);
         return true;
+    }
+
+    /// <summary>
+    /// The items the link has, in story order: only those whose upload
+    /// reached intake are photos the link has, as the phone and the Send
+    /// count them; the story decides their order.
+    /// </summary>
+    public static PhotoCaptureItem[] ReceivedInStoryOrder(IReadOnlyList<PhotoCaptureItem> items, CaptureRecord capture)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(capture);
+        return PhotoCaptureStoryView.Groups(
+                items.Where(item => item.StagedReceiptId is not null).ToArray(),
+                capture.Details.MarkedAreas)
+            .SelectMany(group => group.Stages)
+            .SelectMany(stage => stage.Items)
+            .ToArray();
     }
 
     private PhotoTile Tile(PhotoCaptureItem item, int number, string caption)
@@ -296,11 +336,13 @@ public sealed class DetailsModel(
     /// with who did it, Reminded, Link extended, Sent by text, Text not sent,
     /// Call logged and Cancelled (R805, R870, R921), and Expired.
     /// </summary>
-    private static IReadOnlyList<HistoryLine> KeyMilestones(
+    public static IReadOnlyList<HistoryLine> KeyMilestones(
         PhotoCaptureListRow row,
         IReadOnlyList<PhotoLinkAct> acts,
         PhotoCaptureState state)
     {
+        ArgumentNullException.ThrowIfNull(row);
+        ArgumentNullException.ThrowIfNull(acts);
         var capture = row.Capture;
         var lines = new List<HistoryLine> { new(Labels.Created, capture.CreatedAtUtc, row.IssuedByName) };
         if (capture.OpenedAtUtc is { } opened)
