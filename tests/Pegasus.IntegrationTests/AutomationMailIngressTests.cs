@@ -669,6 +669,130 @@ public sealed class AutomationMailIngressTests
     }
 
     /// <summary>
+    /// Unlink and Change linked Case are the message page's other two link
+    /// acts (R1041): the Actor changes a linked message to another Case, the
+    /// new Case read from the destinations a linked message is offered, then
+    /// unlinks it, each under the linked Case's version from the message. An
+    /// unlink naming a Case the message is not linked to is refused as stale.
+    /// </summary>
+    [Fact]
+    public async Task TheActorChangesAndUnlinksAMessagesCaseThroughTheStaffCommands()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var ids = await SeedRetainedAsync(mcpFactory, count: 3);
+        var messageId = ids[1];
+        await SeedClassificationAsync(mcpFactory, $"{MailboxId}-1");
+        await SeedClassificationAsync(mcpFactory, $"{MailboxId}-0", sourceHash: 'F');
+        await SeedClassificationAsync(mcpFactory, $"{MailboxId}-2", sourceHash: 'C');
+        var receiptId = await ReceiptIdAsync(mcpFactory, $"{MailboxId}-1");
+        var firstCaseId = await ImageIntakeTestData.SeedCaseAsync(
+            mcpFactory.Services,
+            await ReceiptIdAsync(mcpFactory, $"{MailboxId}-0"),
+            "MAIL42001",
+            nameof(Pegasus.Core.Workflow.CaseLifecycleState.Review));
+        var secondCaseId = await ImageIntakeTestData.SeedCaseAsync(
+            mcpFactory.Services,
+            await ReceiptIdAsync(mcpFactory, $"{MailboxId}-2"),
+            "MAIL42002",
+            nameof(Pegasus.Core.Workflow.CaseLifecycleState.Review));
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        long intakeVersion;
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(40, "pegasus_mail_get", new { messageId })))
+        {
+            intakeVersion = (await ReadStructuredContentAsync(response)).GetProperty("intakeVersion").GetInt64();
+        }
+
+        long caseVersion;
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(
+            41, "pegasus_mail_link_destinations", new { messageId, query = "MAIL42001" })))
+        {
+            var destination = Assert.Single((await ReadStructuredContentAsync(response)).GetProperty("items").EnumerateArray());
+            Assert.Equal(firstCaseId, destination.GetProperty("caseId").GetGuid());
+            caseVersion = destination.GetProperty("version").GetInt64();
+        }
+
+        long linkedCaseVersion;
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(42, "pegasus_mail_link_case", new
+        {
+            messageId,
+            caseId = firstCaseId,
+            expectedIntakeVersion = intakeVersion,
+            expectedCaseVersion = caseVersion,
+            reason = "The message names this Case.",
+            operationKey = "mcp:mail-change-link"
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.True(structured.GetProperty("canChangeLinkedCase").GetBoolean());
+            intakeVersion = structured.GetProperty("intakeVersion").GetInt64();
+            linkedCaseVersion = structured.GetProperty("linkedCaseVersion").GetInt64();
+        }
+        Assert.Equal(firstCaseId, await ActiveCaseIdAsync(mcpFactory, receiptId));
+
+        // A linked message is offered the Cases its link may change to.
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(
+            43, "pegasus_mail_link_destinations", new { messageId, query = "MAIL42002" })))
+        {
+            var destination = Assert.Single((await ReadStructuredContentAsync(response)).GetProperty("items").EnumerateArray());
+            Assert.Equal(secondCaseId, destination.GetProperty("caseId").GetGuid());
+            caseVersion = destination.GetProperty("version").GetInt64();
+        }
+
+        // Unlink names the Case the message is linked to; any other is stale.
+        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(44, "pegasus_mail_link_case", new
+        {
+            messageId,
+            caseId = secondCaseId,
+            action = "unlink",
+            expectedIntakeVersion = intakeVersion,
+            expectedCaseVersion = caseVersion,
+            reason = "Not this Case.",
+            operationKey = "mcp:mail-unlink-wrong"
+        })))
+        {
+            Assert.Contains("reload it with pegasus_mail_get", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+        Assert.Equal(firstCaseId, await ActiveCaseIdAsync(mcpFactory, receiptId));
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(45, "pegasus_mail_link_case", new
+        {
+            messageId,
+            caseId = secondCaseId,
+            action = "change",
+            expectedIntakeVersion = intakeVersion,
+            expectedCaseVersion = caseVersion,
+            linkedCaseVersion,
+            reason = "The message belongs with the other Case.",
+            operationKey = "mcp:mail-change"
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            intakeVersion = structured.GetProperty("intakeVersion").GetInt64();
+            linkedCaseVersion = structured.GetProperty("linkedCaseVersion").GetInt64();
+        }
+        Assert.Equal(secondCaseId, await ActiveCaseIdAsync(mcpFactory, receiptId));
+
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(46, "pegasus_mail_link_case", new
+        {
+            messageId,
+            caseId = secondCaseId,
+            action = "unlink",
+            expectedIntakeVersion = intakeVersion,
+            expectedCaseVersion = linkedCaseVersion,
+            reason = "The message belongs with no Case.",
+            operationKey = "mcp:mail-unlink"
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.False(structured.GetProperty("canChangeLinkedCase").GetBoolean());
+        }
+        Assert.Null(await ActiveCaseIdAsync(mcpFactory, receiptId));
+    }
+
+    /// <summary>
     /// Dismiss and Restore are the staff acts on a message (ADR-0064): the
     /// Automation Actor takes a message out of the incoming scopes and brings
     /// it back, in its own name.
@@ -1020,6 +1144,17 @@ public sealed class AutomationMailIngressTests
             .Where(item => item.SourceChannel == "mailbox" && item.ExternalReceiptToken == externalToken)
             .Select(item => item.Id)
             .SingleAsync();
+    }
+
+    private static async Task<Guid?> ActiveCaseIdAsync(
+        Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> factory,
+        Guid receiptId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return (await context.IntakeManualAssociations
+            .SingleOrDefaultAsync(item => item.IntakeReceiptId == receiptId && item.IsActive))?.CaseId;
     }
 
     private static async Task AssertLinkedAsync(

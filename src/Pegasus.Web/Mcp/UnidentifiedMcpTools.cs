@@ -4,8 +4,10 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core;
 using Pegasus.Core.Documents;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Web.Intake;
 
 namespace Pegasus.Web.Mcp;
 
@@ -40,6 +42,44 @@ internal sealed record UnidentifiedToolDetail(
     UnidentifiedToolItem Item,
     IReadOnlyList<UnidentifiedSourceToolItem> Sources,
     IReadOnlyList<UnidentifiedHistoryEntry> History,
+    IReadOnlyList<RegistrationReadingToolItem> Readings,
+    bool CanRegisterImages,
+    string? SuggestedRegistration,
+    string CorrelationId);
+
+/// <summary>
+/// One registration reading of retained image material: what the plate
+/// recognition read from one image and the staff decision on it.
+/// </summary>
+internal sealed record RegistrationReadingToolItem(
+    Guid Id,
+    Guid ReceiptId,
+    string Outcome,
+    string? SuggestedRegistration,
+    double? Confidence,
+    string Disposition,
+    string? DispositionReason,
+    DateTimeOffset OccurredAtUtc)
+{
+    public static RegistrationReadingToolItem From(ImageVrmSuggestion reading) => new(
+        reading.Id,
+        reading.IntakeReceiptId,
+        reading.Outcome.ToString(),
+        reading.SuggestedRegistration,
+        reading.Confidence,
+        reading.Disposition.ToString(),
+        reading.DispositionReason,
+        reading.OccurredAtUtc);
+}
+
+internal sealed record UnidentifiedActionToolResult(
+    UnidentifiedToolItem Item,
+    string Action,
+    Guid? ImageIntakeId,
+    string? ImageIntakeReference,
+    RegistrationReadingToolItem? Reading,
+    bool IsReplay,
+    string OperationKey,
     string CorrelationId);
 
 internal sealed record UnidentifiedSourceToolItem(
@@ -65,6 +105,10 @@ internal sealed class UnidentifiedMcpTools(
     IRenderImageForDelivery images,
     IExtractPdfPageText pdfText,
     IIntakeSubmissionGroupStore groupStore,
+    GetUnidentifiedItemContext getContext,
+    IVrmSuggestionStore vrmSuggestions,
+    StaffIntakeActions intakeActions,
+    IImageIntakeStore imageIntakes,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
@@ -122,7 +166,7 @@ internal sealed class UnidentifiedMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Gets one Unidentified item by exact U-reference, including safe detail and immutable history.")]
+    [Description("Gets one Unidentified item by exact U-reference, including safe detail, immutable history, the registration readings the record shows (each with the readingId pegasus_unidentified_action dismiss_reading takes) and whether Register images is offered, with the registration the readings agree on.")]
     public async Task<UnidentifiedToolDetail> GetAsync(
         [Description("Exact canonical U-reference, for example U17.")] string reference,
         CancellationToken cancellationToken = default)
@@ -138,10 +182,15 @@ internal sealed class UnidentifiedMcpTools(
                 var normalizedReference = RequireReference(reference);
                 var item = await store.GetByReferenceAsync(normalizedReference, cancellationToken)
                     ?? throw new McpException("The Unidentified reference was not found.");
+                var itemContext = await getContext.ExecuteAsync(context.Actor, item.Id, cancellationToken)
+                    ?? throw new McpException("The Unidentified reference was not found.");
                 return new UnidentifiedToolDetail(
                     Map(item),
                     await GetSourcesAsync(item, context.Actor, cancellationToken),
                     await store.HistoryAsync(item.Id, cancellationToken),
+                    ShownReadings(itemContext).Select(RegistrationReadingToolItem.From).ToArray(),
+                    itemContext.CanRegisterImages,
+                    itemContext.SuggestedRegistration,
                     context.TraceIdentifier);
             }),
             cancellationToken);
@@ -238,6 +287,15 @@ internal sealed class UnidentifiedMcpTools(
         return result;
     }
 
+    /// <summary>
+    /// The readings the Unidentified record shows: a group item's every member
+    /// receipt's, any other item's own.
+    /// </summary>
+    private static IEnumerable<ImageVrmSuggestion> ShownReadings(UnidentifiedItemContext itemContext) =>
+        itemContext.Item.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup && itemContext.SubmissionGroup is not null
+            ? itemContext.MemberReceipts.SelectMany(receipt => itemContext.MemberReadings[receipt.Id])
+            : itemContext.RegistrationReadings;
+
     private static UnidentifiedSourceToolItem MapSource(IntakeReceipt receipt, int? ordinal) => new(
         receipt.Id,
         ordinal,
@@ -308,6 +366,139 @@ internal sealed class UnidentifiedMcpTools(
             }),
             cancellationToken);
     }
+
+    [McpServerTool(
+        Name = "pegasus_unidentified_action",
+        Title = "Act on Unidentified work",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("One staff act on an open Unidentified item's material, through the same Core commands as the Unidentified record. register_images is Register images: the item's images become an Image Intake record (staff label Vehicle images) under vehicleRegistration, with a reason; an upload group item registers its whole group as one record. It is refused where the record does not offer Register images (pegasus_unidentified_get canRegisterImages). dismiss_reading is Dismiss on a registration reading: readingId, from pegasus_unidentified_get readings, with a reason; a reading already decided is refused. Requires a mcp:-prefixed operation key; replaying it returns what it recorded.")]
+    public async Task<UnidentifiedActionToolResult> ActAsync(
+        [Description("Exact canonical U-reference, for example U17.")] string reference,
+        [Description("register_images or dismiss_reading.")] string action,
+        [Description("Why, for the record's history, at most 500 characters.")] string reason,
+        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description("register_images only: the vehicle registration the images are registered under.")] string? vehicleRegistration = null,
+        [Description("dismiss_reading only: the reading identifier from pegasus_unidentified_get readings.")] Guid? readingId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync("pegasus_unidentified_action", cancellationToken);
+        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_unidentified_action",
+            reference?.Trim() ?? "invalid",
+            key,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                var normalizedReference = RequireReference(reference);
+                var item = await store.GetByReferenceAsync(normalizedReference, cancellationToken)
+                    ?? throw new McpException("The Unidentified reference was not found.");
+                var itemContext = await getContext.ExecuteAsync(context.Actor, item.Id, cancellationToken)
+                    ?? throw new McpException("The Unidentified reference was not found.");
+                var correlation = AutomationMcpAuditor.CorrelationId(context, key);
+                switch (action?.Trim())
+                {
+                    case "register_images":
+                    {
+                        if (readingId is not null)
+                        {
+                            throw new McpException("register_images takes vehicleRegistration and reason.");
+                        }
+
+                        var (record, isReplay) = await RegisterImagesAsync(
+                            context.Actor, itemContext, vehicleRegistration, reason, key, cancellationToken);
+                        return new UnidentifiedActionToolResult(
+                            await ReloadAsync(item, cancellationToken),
+                            "register_images",
+                            record.Id,
+                            record.ImageIntakeReference,
+                            Reading: null,
+                            isReplay,
+                            key,
+                            correlation);
+                    }
+                    case "dismiss_reading":
+                    {
+                        if (vehicleRegistration is not null)
+                        {
+                            throw new McpException("dismiss_reading takes readingId and reason.");
+                        }
+
+                        var reading = AutomationMcpErrors.RequireId(
+                            readingId ?? throw new McpException("dismiss_reading needs readingId."),
+                            "reading identifier");
+                        itemContext.RequireReading(reading);
+                        // A reading already decided is refused unless this key decided it.
+                        var decided = itemContext.RegistrationReadings.Any(candidate =>
+                            candidate.Id == reading && candidate.Disposition != ImageVrmSuggestionDisposition.Pending);
+                        var dismissed = await vrmSuggestions.SetDispositionAsync(
+                            new(reading, ImageVrmSuggestionDisposition.Dismissed, context.Actor, reason, key),
+                            cancellationToken);
+                        return new UnidentifiedActionToolResult(
+                            await ReloadAsync(item, cancellationToken),
+                            "dismiss_reading",
+                            ImageIntakeId: null,
+                            ImageIntakeReference: null,
+                            RegistrationReadingToolItem.From(dismissed),
+                            decided,
+                            key,
+                            correlation);
+                    }
+                    default:
+                        throw new McpException("action must be register_images or dismiss_reading.");
+                }
+            }),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Register images on the item as its record runs it
+    /// (<see cref="StaffIntakeActions.RegisterItemImagesAsync"/>): the offer is
+    /// checked there, so an item whose images are registered is refused as on
+    /// the record; only then is the refusal read as a replay of the same key,
+    /// which returns the record it registered.
+    /// </summary>
+    private async Task<(ImageIntakeRecord Record, bool IsReplay)> RegisterImagesAsync(
+        Pegasus.Core.Identity.ActionActor actor,
+        UnidentifiedItemContext itemContext,
+        string? vehicleRegistration,
+        string reason,
+        string key,
+        CancellationToken cancellationToken)
+    {
+        var operationKey = IntakeActionMcpTools.RegistrationOperationKey(actor, key);
+        try
+        {
+            return (await intakeActions.RegisterItemImagesAsync(
+                    actor, itemContext, vehicleRegistration, reason, operationKey, cancellationToken),
+                false);
+        }
+        catch (InvalidOperationException)
+        {
+            var replayed = await IntakeActionMcpTools.RegistrationReplayAsync(
+                imageIntakes,
+                itemContext.ImageIntake?.Record,
+                vehicleRegistration,
+                actor,
+                operationKey,
+                reason,
+                itemContext.SubmissionGroup?.Id,
+                cancellationToken);
+            if (replayed is null)
+            {
+                throw;
+            }
+
+            return (replayed, true);
+        }
+    }
+
+    private async Task<UnidentifiedToolItem> ReloadAsync(UnidentifiedItem item, CancellationToken cancellationToken) =>
+        Map(await store.GetAsync(item.Id, cancellationToken) ?? item);
 
     [McpServerTool(
         Name = "pegasus_unidentified_reopen",

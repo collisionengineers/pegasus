@@ -27,7 +27,7 @@ public sealed partial class AutomationToolScopeTableTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(73, registered.Length);
+        Assert.Equal(79, registered.Length);
         Assert.Equal(registered, AutomationToolScopes.Tools.Order(StringComparer.Ordinal).ToArray());
     }
 
@@ -55,7 +55,7 @@ public sealed partial class AutomationToolScopeTableTests
         }
 
         // The nine Triage writes share one gate, which takes the tool's name.
-        Assert.Equal(73 - 9, gated);
+        Assert.Equal(79 - 9, gated);
     }
 
     [Fact]
@@ -79,9 +79,14 @@ public sealed partial class AutomationToolScopeTableTests
         var casesAndDocuments = Listed(AutomationMcp.CasesScope, AutomationMcp.DocumentsScope);
         Assert.Equal(24, casesAndDocuments.Length);
         Assert.Contains("pegasus_edit_begin", casesAndDocuments);
-        Assert.Contains("pegasus_edit_begin", Listed(AutomationMcp.IntakeScope));
+        var intakeTools = Listed(AutomationMcp.IntakeScope);
+        Assert.Contains("pegasus_edit_begin", intakeTools);
+        Assert.Equal(31, intakeTools.Length);
+        Assert.Contains("pegasus_image_intake_action", intakeTools);
+        Assert.Contains("pegasus_upload_group_action", intakeTools);
+        Assert.Contains("pegasus_unidentified_action", intakeTools);
         Assert.Equal(10, Listed(AutomationMcp.AssessmentScope).Length);
-        Assert.Equal(73, Listed([.. AutomationMcp.Scopes]).Length);
+        Assert.Equal(79, Listed([.. AutomationMcp.Scopes]).Length);
         Assert.Empty(Listed());
     }
 

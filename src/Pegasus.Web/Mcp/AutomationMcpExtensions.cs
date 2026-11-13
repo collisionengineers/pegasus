@@ -184,6 +184,8 @@ public static class AutomationMcpExtensions
             .WithTools<AssessmentMcpTools>()
             .WithTools<MailMcpTools>()
             .WithTools<UnidentifiedMcpTools>()
+            .WithTools<ImageIntakeMcpTools>()
+            .WithTools<UploadGroupMcpTools>()
             .WithTools<TriageMcpTools>()
             .WithTools<AiJobMcpTools>()
             .WithTools<IntakeActionMcpTools>()
