@@ -104,8 +104,6 @@ internal sealed class ReportMcpTools(
     AutomationMcpAuditor auditor,
     Pegasus.Web.Presentation.OneCommandEdit leases)
 {
-    private const int MaximumOperationKeyLength = 100;
-
     private static readonly string[] Actions =
     [
         "generate_report", "generate_repair_spec", "generate_image_pack",
@@ -141,7 +139,7 @@ internal sealed class ReportMcpTools(
                 var available = await availableEvidence.ListAsync(cancellationToken);
                 return new ReportListToolResult(
                     caseId,
-                    selector == CaseWorkSelector.Primary ? "inspection" : "current",
+                    WorkName(selector),
                     header.Workflow.Version,
                     header.Workflow.State.ToString(),
                     generations
@@ -302,7 +300,7 @@ internal sealed class ReportMcpTools(
                     // The report stands whatever the fee note's outcome (R771: a
                     // fee note's failure still fails this call, as it did).
                     var feeNoteResult = await GenerateOneAsync(
-                        actor, caseId, expectedVersion, token, Derive(key, ":fee-note"),
+                        actor, caseId, expectedVersion, token, OneCommandEditAuthority.DeriveOperationKey(key, ":fee-note"),
                         CaseReportArtifactKind.FeeNote, feeNoteTarget, selector, cancellationToken);
                     feeNote = feeNoteResult.Outcome.ToString();
                     if (feeNoteResult.Generation is { } withFeeNote)
@@ -443,6 +441,10 @@ internal sealed class ReportMcpTools(
         _ => throw new McpException("The work must be current or inspection."),
     };
 
+    /// <summary>The selected work's name, as <see cref="ParseWork"/> reads it.</summary>
+    internal static string WorkName(CaseWorkSelector selector) =>
+        selector == CaseWorkSelector.Primary ? "inspection" : "current";
+
     /// <summary>
     /// The selected work's recorded approval and linked Sent evidence. The
     /// Case's current work keeps them on the Case's workflow; only the
@@ -488,13 +490,6 @@ internal sealed class ReportMcpTools(
     /// <summary>A stable approval identity for one Case and operation key.</summary>
     private static Guid ApprovalId(Guid caseId, string operationKey) =>
         new(SHA256.HashData(Encoding.UTF8.GetBytes($"report-approval:{caseId:D}:{operationKey}")).AsSpan(0, 16));
-
-    /// <summary>A follow-on act's own operation key, derived within Core's key length.</summary>
-    private static string Derive(string operationKey, string suffix)
-    {
-        var room = MaximumOperationKeyLength - suffix.Length;
-        return (operationKey.Length > room ? operationKey[..room] : operationKey) + suffix;
-    }
 
     /// <summary>One act's outcome before the Case's new version is read back.</summary>
     private sealed record ActOutcome(

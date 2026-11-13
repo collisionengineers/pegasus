@@ -112,7 +112,7 @@ internal sealed class SendMcpTools(
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var actor = context.Actor;
-                var selector = ParseWork(work);
+                var selector = ReportMcpTools.ParseWork(work);
                 var kinds = ParseAttach(attach);
                 var names = ParseAttachmentNames(attachmentNames);
                 ReportRecipientReview? review = to is null && cc is null
@@ -187,7 +187,7 @@ internal sealed class SendMcpTools(
                     ?? throw new McpException("The case was not found.");
                 return new ReportSendToolResult(
                     caseId,
-                    selector == CaseWorkSelector.Primary ? "inspection" : "current",
+                    ReportMcpTools.WorkName(selector),
                     generation.Id,
                     operation.Id,
                     operation.State.ToString(),
@@ -689,11 +689,4 @@ internal sealed class SendMcpTools(
         }
         return parsed.Count == 0 ? null : parsed;
     }
-
-    private static CaseWorkSelector ParseWork(string? work) => work?.Trim() switch
-    {
-        null or "" or "current" => CaseWorkSelector.Current,
-        "inspection" => CaseWorkSelector.Primary,
-        _ => throw new McpException("The work must be current or inspection."),
-    };
 }

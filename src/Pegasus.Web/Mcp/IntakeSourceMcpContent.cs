@@ -60,7 +60,7 @@ internal static class IntakeSourceMcpContent
                 metadata.MediaType,
                 metadata.ContentLength,
                 metadata.Sha256,
-                $"The content ({metadata.ContentLength} bytes, {metadata.MediaType}) exceeds the inline limit of {inlineLimit} bytes or is not an image, PDF or text file; fetch contentUrl with this bearer token.",
+                AutomationFileContent.InlineLimitNotice(metadata.ContentLength, metadata.MediaType, inlineLimit),
                 contentUrl);
         }
         else

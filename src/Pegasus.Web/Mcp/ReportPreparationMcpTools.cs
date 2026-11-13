@@ -303,7 +303,7 @@ internal sealed class ReportPreparationMcpTools(
         var presentation = snapshot?.Presentation();
         return new ReportWordingToolResult(
             caseId,
-            selector == CaseWorkSelector.Primary ? "inspection" : "current",
+            ReportMcpTools.WorkName(selector),
             caseVersion,
             snapshot is not null,
             [
