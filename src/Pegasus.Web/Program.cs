@@ -949,10 +949,8 @@ builder.Services.AddScoped<Pegasus.Web.Pages.Cases.TriageCasePorts>();
 builder.Services.AddScoped<Pegasus.Web.Pages.Cases.TriageCaseRouteFilter>();
 builder.Services.AddScoped<DiscardIntakeSubmissionGroup>();
 builder.Services.AddScoped<IDeclineImageMatch, DeclineImageMatch>();
-// No Administration view reads the Automation activity use case: automation
-// activity is read in Action logs (FRD-04). GetServiceHealth reads the newest
-// activity through this port in every profile; the ingress itself stays
-// behind the composition gate.
+// GetServiceHealth reads the newest Automation activity time through this
+// port in every profile; Action logs (FRD-04) list the activity itself.
 builder.Services.AddScoped<IAutomationActivityQueries, EfAutomationActivityStore>();
 // Administration health remains available when the Automation ingress is disabled.
 builder.Services.AddScoped<Pegasus.Core.Operations.IAutomationIngressStatusQueries, AutomationIngressStatusQueries>();

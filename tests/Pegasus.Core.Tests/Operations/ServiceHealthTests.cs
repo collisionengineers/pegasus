@@ -448,28 +448,8 @@ public sealed class ServiceHealthTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by the snapshot.");
 
-        public Task<ListAutomationActivityResult> ListAsync(
-            ListAutomationActivityRequest request,
-            CancellationToken cancellationToken)
-        {
-            Assert.Equal(1, request.PageSize);
-            IReadOnlyList<AutomationActivityRecord> records = LatestAutomationActivityAtUtc is { } at
-                ?
-                [
-                    new(
-                        Guid.NewGuid(),
-                        AutomationActivityRecordType.ActionHistory,
-                        "ai_job_taken",
-                        "automation",
-                        at,
-                        "succeeded",
-                        "corr-1",
-                        null,
-                        null,
-                        null)
-                ]
-                : [];
-            return Overlapped(new ListAutomationActivityResult(records, null, 1, 1, false, false));
-        }
+        public Task<DateTimeOffset?> GetNewestActivityAtUtcAsync(
+            CancellationToken cancellationToken) =>
+            Overlapped(LatestAutomationActivityAtUtc);
     }
 }

@@ -16,7 +16,7 @@ public static class AutomationMcp
     /// The single Automation client's operator-facing name. Registered as its
     /// OpenIddict display name (<see cref="AutomationClientRegistry"/>) and used
     /// wherever the client's raw subject id would otherwise be shown to an operator
-    /// (the Automation activity view).
+    /// (Action logs and AI jobs).
     /// </summary>
     public const string ClientDisplayName = "Pegasus Automation Actor";
 
