@@ -452,7 +452,7 @@ internal sealed class UnidentifiedMcpTools(
         string key,
         CancellationToken cancellationToken)
     {
-        var operationKey = IntakeActionMcpTools.RegistrationOperationKey(actor, key);
+        var operationKey = IntakeMcpTools.RegistrationOperationKey(actor, key);
         try
         {
             return (await intakeActions.RegisterItemImagesAsync(
@@ -461,7 +461,7 @@ internal sealed class UnidentifiedMcpTools(
         }
         catch (InvalidOperationException)
         {
-            var replayed = await IntakeActionMcpTools.RegistrationReplayAsync(
+            var replayed = await IntakeMcpTools.RegistrationReplayAsync(
                 imageIntakes,
                 itemContext.ImageIntake?.Record,
                 vehicleRegistration,

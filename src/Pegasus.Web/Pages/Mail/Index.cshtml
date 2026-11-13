@@ -4,7 +4,7 @@
 @model Pegasus.Web.Pages.Mail.IndexModel
 @{
     ViewData["Title"] = "Inbox";
-    ViewData["RefreshStatus"] = Pegasus.Web.Pages.Mail.IndexModel.FreshnessStatus(Model.Freshness.State);
+    ViewData["RefreshStatus"] = MailListCodes.FreshnessStatus(Model.Freshness.State);
     ViewData["RefreshFields"] = Model.RefreshFields;
     var totalPages = Model.Results.TotalPages;
     var currentPage = Model.Results.Page;

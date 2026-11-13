@@ -6,7 +6,6 @@ using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
-using Pegasus.Web.Pages.Mail;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Mcp;
@@ -381,7 +380,7 @@ internal sealed class MailMcpTools(
                         item.MailboxAddress,
                         item.IsPolled)).ToArray(),
                     new(
-                        IndexModel.FreshnessStatus(freshness.State),
+                        MailListCodes.FreshnessStatus(freshness.State),
                         freshness.LastSuccessfulUpdateAtUtc),
                     awaitingDecisionCount);
             },
@@ -869,7 +868,7 @@ internal sealed class MailMcpTools(
             : null;
         return new MailToolDetail(
             Map(detail.Summary),
-            IndexModel.FolderCode(detail.Folder),
+            MailListCodes.FolderCode(detail.Folder),
             detail.ToAddresses,
             detail.CcAddresses,
             detail.BodyPlainText,

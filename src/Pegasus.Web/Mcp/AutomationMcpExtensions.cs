@@ -171,6 +171,7 @@ public static class AutomationMcpExtensions
             .WithRequestFilters(filters => filters.AddListToolsFilter(toolListing.Filter))
             .WithTools<CaseMcpTools>()
             .WithTools<CaseEditMcpTools>()
+            .WithTools<ValuationMcpTools>()
             .WithTools<CaseLifecycleMcpTools>()
             .WithTools<CaseQueryMcpTools>()
             .WithTools<EditLeaseMcpTools>()
@@ -187,7 +188,6 @@ public static class AutomationMcpExtensions
             .WithTools<UploadGroupMcpTools>()
             .WithTools<TriageMcpTools>()
             .WithTools<AiJobMcpTools>()
-            .WithTools<IntakeActionMcpTools>()
             .WithTools<WorkCentreMcpTools>()
             .WithTools<PhotoCaptureMcpTools>()
             .WithTools<SendMcpTools>();

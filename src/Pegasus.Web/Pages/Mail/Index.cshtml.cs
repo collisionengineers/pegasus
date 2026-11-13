@@ -530,15 +530,7 @@ public sealed class IndexModel(
 
     /// <summary>The folder route value for a list context: absent for Inbox, <c>dismissed</c> for the Dismissed scope.</summary>
     public static string? ListFolderCode(MailFolderScope folder, bool dismissed) =>
-        dismissed ? DismissedFolderCode : folder == MailFolderScope.Inbox ? null : FolderCode(folder);
-
-    public static string FolderCode(MailFolderScope folder) => folder switch
-    {
-        MailFolderScope.Inbox => "inbox",
-        MailFolderScope.Sent => "sent",
-        MailFolderScope.Upload => "upload",
-        _ => throw new InvalidOperationException($"Unknown mail folder scope '{(int)folder}'.")
-    };
+        dismissed ? DismissedFolderCode : folder == MailFolderScope.Inbox ? null : MailListCodes.FolderCode(folder);
 
     public static string FolderLabel(MailFolderScope folder) => folder switch
     {
@@ -546,14 +538,6 @@ public sealed class IndexModel(
         MailFolderScope.Sent => "Sent",
         MailFolderScope.Upload => "Uploaded",
         _ => throw new InvalidOperationException($"Unknown mail folder scope '{(int)folder}'.")
-    };
-
-    public static string FreshnessStatus(MailFreshnessState state) => state switch
-    {
-        MailFreshnessState.Current => "current",
-        MailFreshnessState.Stale => "stale",
-        MailFreshnessState.Unavailable => "unavailable",
-        _ => "unavailable"
     };
 
     /// <summary>
