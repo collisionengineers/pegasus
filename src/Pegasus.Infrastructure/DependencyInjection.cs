@@ -624,7 +624,8 @@ public static class DependencyInjection
         services.AddScoped<IFileGuideValuationReport, FileGuideValuationReport>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
         services.AddScoped<CancelAiJob>();
-        services.AddScoped<IConfirmAiJob, ConfirmAiJob>();
+        services.AddScoped<ConfirmAiJob>();
+        services.AddScoped<IConfirmAiJob>(provider => provider.GetRequiredService<ConfirmAiJob>());
         services.AddScoped<EfCaseTaskStore>();
         services.AddScoped<ICaseTaskStore>(
             provider => provider.GetRequiredService<EfCaseTaskStore>());

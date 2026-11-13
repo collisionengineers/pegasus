@@ -668,6 +668,28 @@ public sealed class CancelAiJob(IAiJobStore store)
 
 public sealed class ConfirmAiJob(IAiJobStore store) : IConfirmAiJob
 {
+    public const string NotConfirmedByHand =
+        "Only a Draft ready QueryResponse or UnidentifiedQueuePass job is confirmed by hand.";
+
+    /// <summary>
+    /// The Work Centre's Complete job and the Automation Actor's Confirm close
+    /// only a job that completes by hand; the others complete through their
+    /// record's own act (FRD-27).
+    /// </summary>
+    public async Task<AiJobRecord> ExecuteByHandAsync(
+        ConfirmAiJobCommand command,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        var job = await store.GetAsync(command.JobId, cancellationToken);
+        if (job is null || !AiJobPolicy.CompletesByHand(job))
+        {
+            throw new InvalidOperationException(NotConfirmedByHand);
+        }
+
+        return await ExecuteAsync(command, cancellationToken);
+    }
+
     public Task<AiJobRecord> ExecuteAsync(
         ConfirmAiJobCommand command,
         CancellationToken cancellationToken)

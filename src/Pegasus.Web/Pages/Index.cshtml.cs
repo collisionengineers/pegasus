@@ -30,7 +30,6 @@ public partial class IndexModel(
     IGetOperationsSnapshot getOperationsSnapshot,
     IListRecentCases listRecentCases,
     IAiJobQueries aiJobQueries,
-    IAiJobStore aiJobStore,
     ICaseWorkflowConfiguration workflowConfiguration,
     IStaffAccountQueries staffAccounts,
     IGetCaseHeader getCaseHeader,
@@ -38,7 +37,7 @@ public partial class IndexModel(
     OneCommandEdit oneCommandEdit,
     IAssignCaseEngineer assignEngineer,
     IAssignCaseQuery assignQuery,
-    IConfirmAiJob confirmAiJob,
+    ConfirmAiJob confirmAiJob,
     ListWorkCentreAiJobs listAiJobs,
     IListSystemActions listSystemActions,
     IWorkCentreDismissalStore dismissalStore,
@@ -370,13 +369,7 @@ public partial class IndexModel(
 
         try
         {
-            var job = await aiJobStore.GetAsync(jobId, cancellationToken);
-            if (job is null || !AiJobPolicy.CompletesByHand(job))
-            {
-                throw new InvalidOperationException("The job cannot be completed by hand.");
-            }
-
-            await confirmAiJob.ExecuteAsync(
+            await confirmAiJob.ExecuteByHandAsync(
                 new ConfirmAiJobCommand(jobId, expectedVersion, actor, operationKey),
                 cancellationToken);
             StatusMessage = Labels.JobCompleted;

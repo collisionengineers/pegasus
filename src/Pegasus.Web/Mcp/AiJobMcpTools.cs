@@ -69,12 +69,11 @@ internal enum AiJobTransitionAction
 [McpServerToolType]
 internal sealed class AiJobMcpTools(
     IAiJobQueries queries,
-    IAiJobStore store,
     ICreateAiJob create,
     IStartMarketResearch startMarketResearch,
     IWorkAiJob work,
     CancelAiJob cancel,
-    IConfirmAiJob confirm,
+    ConfirmAiJob confirm,
     ICompleteMarketResearchAiJob completeMarketResearch,
     Pegasus.Core.Documents.DocumentUploads uploads,
     StartQueryResponse startQueryResponse,
@@ -331,7 +330,8 @@ internal sealed class AiJobMcpTools(
                     new(id, expectedVersion, context.Actor, key, reason), cancellationToken),
                 AiJobTransitionAction.Cancel => cancel.ExecuteAsync(
                     new(id, expectedVersion, context.Actor, key, Require(reason, "Cancel", "reason")), cancellationToken),
-                AiJobTransitionAction.Confirm => ConfirmAsync(id, expectedVersion, context, key, cancellationToken),
+                AiJobTransitionAction.Confirm => confirm.ExecuteByHandAsync(
+                    new(id, expectedVersion, context.Actor, key), cancellationToken),
                 _ => throw new McpException(ActionValues)
             });
             return Map(job);
@@ -410,27 +410,6 @@ internal sealed class AiJobMcpTools(
                     completion.IsReplay);
             },
             cancellationToken);
-    }
-
-    /// <summary>
-    /// Confirm closes only a job the Work Centre completes by hand; the others
-    /// complete through their record's own act (FRD-27).
-    /// </summary>
-    private async Task<AiJobRecord> ConfirmAsync(
-        Guid jobId,
-        long expectedVersion,
-        AutomationActorContext context,
-        string key,
-        CancellationToken cancellationToken)
-    {
-        var job = await store.GetAsync(jobId, cancellationToken);
-        if (job is null || !AiJobPolicy.CompletesByHand(job))
-        {
-            throw new McpException(
-                "Only a Draft ready QueryResponse or UnidentifiedQueuePass job is confirmed by hand.");
-        }
-
-        return await confirm.ExecuteAsync(new(jobId, expectedVersion, context.Actor, key), cancellationToken);
     }
 
     private const string ActionValues = "action must be Take, Progress, Complete, Fail, Release, Cancel or Confirm.";
