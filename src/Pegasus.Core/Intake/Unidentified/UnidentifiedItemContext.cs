@@ -52,6 +52,19 @@ public sealed record UnidentifiedItemContext(
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .Take(2)
         .ToArray() is [var single] ? single : null;
+
+    /// <summary>
+    /// A staff decision on a registration reading names one of this item's
+    /// readings; any other is refused. The Unidentified record's Dismiss and the
+    /// Automation Actor's dismiss both ask here.
+    /// </summary>
+    public void RequireReading(Guid readingId)
+    {
+        if (RegistrationReadings.All(reading => reading.Id != readingId))
+        {
+            throw new InvalidOperationException("The reading is not on this item.");
+        }
+    }
 }
 
 public sealed class GetUnidentifiedItemContext(

@@ -160,9 +160,9 @@ staff, runs its one command, and releases the lease afterwards; while another
 editor holds the record, or the expected version is newer than the record's,
 the claim is refused and nothing is written (operator, 1 October 2026; R516,
 29 October 2026). `pegasus_edit_begin`,
-`pegasus_edit_renew` and `pegasus_edit_end` hold a Case or a Triage Case for
-multi-step work, named by `recordKind`, under that record's own scope
-([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). With `takeOver` on a Case,
+`pegasus_edit_renew` and `pegasus_edit_end` hold a Case, a Triage Case or an
+Image Intake record for multi-step work, named by `recordKind`, under that
+record's own scope ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). With `takeOver` on a Case,
 `pegasus_edit_begin` asks the member of staff holding the lease and waits
 inside the call up to 45 seconds, returning the lease if they accept and a
 refusal naming declined, no answer or already asked otherwise; the Automation
@@ -170,9 +170,9 @@ Actor never forces a hand-over (R554, 30 October 2026;
 [FRD-14](frd-14-record-edit-leases.md#take-over)). A Case's lease-conflict refusal names
 that request, and the tool, its `takeOver` parameter and the server's
 instructions describe it as the way to get a Case a member of staff holds
-(operator, 10 November 2026; R901). On a Triage Case `takeOver`
-still takes over a staff scope at once (R556, 30 October 2026), and the
-takeover goes into the record's history. Staff take over an Automation Case
+(operator, 10 November 2026; R901). On a Triage Case or an Image Intake
+record `takeOver` still takes over a staff scope at once (R556, 30 October
+2026), and the takeover goes into the record's history. Staff take over an Automation Case
 lease or Triage scope at once, and only staff may: the Automation Actor never
 takes over an Automation holder (R517, 29 October 2026;
 [ADR-0075](../adr/0075-staff-take-over-of-an-automation-lease.md)); the history
@@ -502,8 +502,9 @@ Triage changes do.
 ### Queue and intake tools
 
 The queue acts a staff member performs on received items, Unidentified
-items, mail and the Work Centre (operator, 7 October 2026;
-[ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). Each calls
+items, Image Intake records, uploads of several files, mail and the Work
+Centre (operator, 7 October 2026;
+[ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md); R1041). Each calls
 the same Core command as the staff page, records the Actor's own history and
 replays by its operation key.
 
@@ -543,6 +544,9 @@ replays by its operation key.
   With `open_triage` it opens the Triage Case from an item classified, or
   corrected to, Triage request, as **Open the Triage** on its message does
   ([FRD-03](frd-03-triage.md#triage); operator, 22 October 2026; R223).
+  With `register_images` it registers the item's images as an Image Intake
+  record under the registration given, with a reason, as **Register images**
+  on its message does, where the message offers it.
 - `pegasus_case_create` creates a Case directly, as staff **New case** does
   ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)): an
   Inspection, Audit or Inspection and Audit Case with its identity-critical
@@ -558,7 +562,27 @@ replays by its operation key.
   [R595](../rulings.md)).
 - `pegasus_unidentified_resolve` with `targetKind` Closed is **Close with
   reason**: it names no destination. `pegasus_unidentified_reopen` withdraws
-  a resolution or closure with a reason.
+  a resolution or closure with a reason. `pegasus_unidentified_get` returns
+  the registration readings the record shows and whether it offers
+  **Register images**; `pegasus_unidentified_action` takes the record's
+  **Register images** (`register_images`; an upload group item registers its
+  whole group as one record) and a reading's **Dismiss**
+  (`dismiss_reading`), each with a reason.
+- `pegasus_image_intake_list` lists the Image Intake records (staff label
+  Vehicle images) awaiting instruction with no Case, as the Cases page does;
+  `pegasus_image_intake_get` reads one as its page shows it, with the active
+  Principals its Principal may be set to; `pegasus_image_intake_action`
+  records, replaces or clears its known Principal (`set_principal`) or closes
+  it with a reason (`close`), each holding the record's edit scope for its
+  one command unless an Image Intake lease is presented
+  ([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)).
+- `pegasus_upload_group_get` reads a stored upload of several files as its
+  page does: each file's status and outcome, whether its one decision may
+  attach every file to one Case and the Cases they share, and whether it may
+  be discarded. `pegasus_upload_group_action` takes that decision: `attach`
+  every file to one Case, `leave` the matched Cases undecided, or `discard`
+  the upload. Any member of staff who does casework may decide any upload, so
+  the Automation Actor may too.
 - The Automation Actor reads, reclassifies and links mail through the mail
   tools in scope `automation.mail` (operator ruling, 15 October 2026).
 - `pegasus_mail_list` folder is `inbox`, `sent` or `dismissed`. Its first
@@ -574,8 +598,11 @@ replays by its operation key.
   InspectionAndAudit), with a reason, as the staff Type select does
   ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)).
 - `pegasus_mail_link_destinations` lists the Cases and Triage Cases the
-  staff **Case / PO** picker offers for **Link to Case**, and
-  `pegasus_mail_link_case` links the message through the staff command
+  staff **Case / PO** picker offers for **Link to Case**, or for a linked
+  message those **Change linked Case** offers, and `pegasus_mail_link_case`
+  links the message (`link`), unlinks it (`unlink`) or changes its linked
+  Case (`change`) through the staff commands; a change holds the new Case's
+  lease before anything is unlinked
   ([FRD-20](frd-20-mailbox-workspace.md#classification-and-linking-actions)).
 - `pegasus_mail_action` with `dismiss` or `restore` changes the message's
   Pegasus scope only
@@ -717,7 +744,7 @@ server's instructions restate this document's cross-tool rules and make
 none. The seven servers of Release 123 at `/mcp/<scope word>` are replaced,
 not aliased: an Administrator adds one connector and consents once.
 
-The Actor's whole inventory, 77 tools, by scope. "One-command lease" means
+The Actor's whole inventory, 83 tools, by scope. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
 its one command when none is given.
@@ -735,16 +762,21 @@ its one command when none is given.
 | `automation.cases` | `pegasus_work_centre_dismiss` | Dismiss a Case, Unidentified item, AI job, or a System Action's underlying receipt, image intake or query from the Work Centre | key only |
 | `automation.cases` | `pegasus_photo_link_list`, `pegasus_photo_link_get` | Photo links as the Photo capture page lists them (Direct links by scope, Standing links' captures, or one Case's links) with status, reminder due and what is missing; one link as its page shows it, with its history and the acts its page offers | none |
 | `automation.cases` | `pegasus_photo_link_action` | One photo link act that sends nothing, with an `action`: issue (a new link's address to copy), resend_copy, extend, cancel, log_call | key only |
-| `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`) or a Triage Case (`automation.intake`) for multi-step work; `takeOver` asks a staff holder of a Case to hand over and waits; takes over a staff Triage scope | explicit lease |
+| `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`), a Triage Case or an Image Intake record (`automation.intake`) for multi-step work; `takeOver` asks a staff holder of a Case to hand over and waits; takes over a staff Triage or Image Intake scope | explicit lease |
 | `automation.intake` | `pegasus_intake_queue_list` | List intake receipts by decision and allocation | none |
 | `automation.intake` | `pegasus_intake_submit` | Submit one immutable source on the automation channel | none |
 | `automation.intake` | `pegasus_intake_get` | One received item as the Create case page reviews it | none |
-| `automation.intake` | `pegasus_intake_action` | `resolve_inspection_address` (accept, correct or supply it), `accept` a received item as a Case, `allocate` (retry) a failed allocation, or `open_triage` on a Triage request | item version and key |
+| `automation.intake` | `pegasus_intake_action` | `resolve_inspection_address` (accept, correct or supply it), `accept` a received item as a Case, `allocate` (retry) a failed allocation, `open_triage` on a Triage request, or `register_images` as an Image Intake record | item version and key |
 | `automation.intake` | `pegasus_case_create` | Create a Case or Triage Case directly | key only |
-| `automation.intake` | `pegasus_unidentified_list`, `pegasus_unidentified_get` | The open Unidentified queue; one item by U-reference with its sources and history | none |
+| `automation.intake` | `pegasus_unidentified_list`, `pegasus_unidentified_get` | The open Unidentified queue; one item by U-reference with its sources, history and registration readings | none |
 | `automation.intake` | `pegasus_unidentified_source_download` | A retained source as native content | none |
 | `automation.intake` | `pegasus_unidentified_resolve` | Resolve an item to a destination, or Close with reason | version and key |
 | `automation.intake` | `pegasus_unidentified_reopen` | Reopen a resolved or closed item with a reason | version and key |
+| `automation.intake` | `pegasus_unidentified_action` | `register_images` as an Image Intake record, or `dismiss_reading` a registration reading, with a reason | key |
+| `automation.intake` | `pegasus_image_intake_list`, `pegasus_image_intake_get` | The Image Intake records awaiting instruction with no Case; one record as its page shows it | none |
+| `automation.intake` | `pegasus_image_intake_action` | `set_principal` (record, replace or clear the known Principal) or `close` with a reason | one-command lease |
+| `automation.intake` | `pegasus_upload_group_get` | A stored upload of several files with its one decision's state and the Cases its files share | none |
+| `automation.intake` | `pegasus_upload_group_action` | The upload's one decision: `attach` every file to one Case, `leave` the matched Cases undecided, or `discard` it | Case version, receipt versions and key |
 | `automation.intake` | `pegasus_triage_list`, `pegasus_triage_get` | Triage records; one Triage with findings, evidence, candidates and history | none |
 | `automation.intake` | `pegasus_triage_source_download` | The Triage's retained origin source as native content | none |
 | `automation.intake` | `pegasus_triage_await_information`, `pegasus_triage_record_finding`, `pegasus_triage_response_evidence`, `pegasus_triage_complete`, `pegasus_triage_cancel`, `pegasus_triage_reopen` | The Triage contract above | one-command lease |
@@ -764,7 +796,7 @@ its one command when none is given.
 | `automation.mail` | `pegasus_mail_list`, `pegasus_mail_get` | The retained mail workspace; one message with classification and history | none |
 | `automation.mail` | `pegasus_mail_correct_classification` | Correct a classification to a mail category or Unclassified through the staff command | version and key |
 | `automation.mail` | `pegasus_mail_link_destinations` | The Cases and Triage Cases the message may be linked to, with their versions | none |
-| `automation.mail` | `pegasus_mail_link_case` | Link the message to a Case or Triage Case through the staff command | one-command lease |
+| `automation.mail` | `pegasus_mail_link_case` | Link the message to a Case or Triage Case, unlink it, or change its linked Case, through the staff commands | one-command lease on each record |
 | `automation.mail` | `pegasus_mail_open_query` | Open a query on a linked message whose report is sent | key only |
 | `automation.mail` | `pegasus_mail_action` | `dismiss` or `restore` in Pegasus | key |
 | `automation.mail` | `pegasus_mail_mailbox_search` | Read-only: message headers (subject, sender, received time, preview) matching a term in one or every approved mailbox; a mailbox the tenant has not admitted reports unavailable (R561) | none |

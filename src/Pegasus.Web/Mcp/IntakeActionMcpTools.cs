@@ -5,6 +5,7 @@ using ModelContextProtocol.Server;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 using Pegasus.Web.Intake;
@@ -71,7 +72,9 @@ internal sealed record IntakeActionToolResult(
     string? InspectionAddressState,
     string? InspectionAddressResolvedValue,
     string OperationKey,
-    string CorrelationId);
+    string CorrelationId,
+    Guid? ImageIntakeId = null,
+    string? ImageIntakeReference = null);
 
 internal sealed record CaseCreateToolResult(
     Guid CaseId,
@@ -85,16 +88,18 @@ internal enum IntakeAction
     Accept,
     Allocate,
     ResolveInspectionAddress,
-    OpenTriage
+    OpenTriage,
+    RegisterImages
 }
 
 /// <summary>
 /// The staff intake acts for the Automation Actor (ADR-0064, FRD-02): read one
 /// received item, turn it into a Case (Create case from a received item),
 /// retry a failed allocation, settle the inspection address, open the Triage
-/// from an item classified, or corrected to, Triage request (R223), and create
-/// a Case directly. Each calls the same Core commands as the staff Create case
-/// page, the message's Open the Triage and the Action Logs retry, under
+/// from an item classified, or corrected to, Triage request (R223), register
+/// its images as an Image Intake record, and create a Case directly. Each calls
+/// the same Core commands as the staff Create case page, the message's Open the
+/// Triage and Register images, and the Action Logs retry, under
 /// <c>automation.intake</c>, with the resolved Automation identity. A settled
 /// address names the Automation actor as its settler (ADR-0064), never a
 /// member of staff.
@@ -113,6 +118,7 @@ internal sealed class IntakeActionMcpTools(
     IContactDirectoryQueries contacts,
     ITriageQueries triages,
     StaffIntakeActions intakeActions,
+    IImageIntakeStore imageIntakes,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
@@ -208,17 +214,17 @@ internal sealed class IntakeActionMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("One staff intake act on a received item, through the same Core commands as staff. accept turns the item into a Case, as Create case on a received item does: the reviewed draft is recorded (the draft fields named here replace the item's; an omitted field keeps its value and an empty string clears it), then the Case is allocated for principalCode (default: the Principal the item established, pegasus_intake_get's establishedPrincipalCode) and caseType (default: the classified type; Audit only for an item classified as an Audit). It is refused while an identity-critical field is missing. An unsettled inspection address does not refuse it: the Case then starts Not ready with Inspection address among its missing instruction items (a Principal that inspects by images needs none). resolve_inspection_address settles the address as the Create case page does: omit inspectionAddress to accept the suggested address, or give it to correct the suggestion (both need addressSuggestionFingerprint from pegasus_intake_get); where nothing was suggested, give inspectionAddress to supply it, with no fingerprint. Image Based Assessment is never typed. The settlement is recorded as the Automation actor's and advances the item version by one. allocate retries a failed allocation with a reason, naming the attempt it retries. open_triage opens the Triage Case from an item classified, or corrected to, Triage request, as Open the Triage on its message does, for vehicleRegistration, which it requires; it is refused where the message does not offer Open the Triage. Each needs the item version from pegasus_intake_get; the result names the allocation status and, once allocated, the Case, or the opened Triage Case, or the settled address and the item's new version.")]
+    [Description("One staff intake act on a received item, through the same Core commands as staff. accept turns the item into a Case, as Create case on a received item does: the reviewed draft is recorded (the draft fields named here replace the item's; an omitted field keeps its value and an empty string clears it), then the Case is allocated for principalCode (default: the Principal the item established, pegasus_intake_get's establishedPrincipalCode) and caseType (default: the classified type; Audit only for an item classified as an Audit). It is refused while an identity-critical field is missing. An unsettled inspection address does not refuse it: the Case then starts Not ready with Inspection address among its missing instruction items (a Principal that inspects by images needs none). resolve_inspection_address settles the address as the Create case page does: omit inspectionAddress to accept the suggested address, or give it to correct the suggestion (both need addressSuggestionFingerprint from pegasus_intake_get); where nothing was suggested, give inspectionAddress to supply it, with no fingerprint. Image Based Assessment is never typed. The settlement is recorded as the Automation actor's and advances the item version by one. allocate retries a failed allocation with a reason, naming the attempt it retries. open_triage opens the Triage Case from an item classified, or corrected to, Triage request, as Open the Triage on its message does, for vehicleRegistration, which it requires; it is refused where the message does not offer Open the Triage. register_images registers the item's images as an Image Intake record (staff label Vehicle images) under vehicleRegistration, with a reason, as Register images on its message does; it is refused where the message does not offer Register images. Each needs the item version from pegasus_intake_get; the result names the allocation status and, once allocated, the Case, or the opened Triage Case, or the registered Image Intake record, or the settled address and the item's new version.")]
     public async Task<IntakeActionToolResult> ActAsync(
         [Description(ReceiptIdDescription)] Guid receiptId,
-        [Description("accept, resolve_inspection_address, allocate or open_triage.")] string action,
+        [Description("accept, resolve_inspection_address, allocate, open_triage or register_images.")] string action,
         [Description("The item version from pegasus_intake_get; a stale value fails closed.")] long expectedReceiptVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key resumes the same act rather than starting another.")] string operationKey,
         [Description("accept only: the Principal code the Case is allocated for, at most 20 characters; omit to use the Principal the item established.")] string? principalCode = null,
         [Description("accept only: Inspection, Audit or InspectionAndAudit; omit to use the classified case type, or Inspection when there is none.")] string? caseType = null,
         [Description("accept only: claimant name.")] string? claimantName = null,
         [Description("accept only: claim number.")] string? claimNumber = null,
-        [Description("accept and open_triage: vehicle registration; open_triage requires it and takes no other field.")] string? vehicleRegistration = null,
+        [Description("accept, open_triage and register_images: vehicle registration; open_triage and register_images require it and take no other draft field.")] string? vehicleRegistration = null,
         [Description("accept only: vehicle make.")] string? vehicleMake = null,
         [Description("accept only: vehicle model.")] string? vehicleModel = null,
         [Description("accept only: vehicle mileage.")] long? vehicleMileage = null,
@@ -226,7 +232,7 @@ internal sealed class IntakeActionMcpTools(
         [Description("accept only: date of incident, yyyy-MM-dd.")] string? incidentDate = null,
         [Description("accept only: inspection date, yyyy-MM-dd; it is also the Case's accepted inspection deadline.")] string? inspectionDate = null,
         [Description("allocate only: the allocation attemptId from pegasus_intake_get that failed and is being retried.")] Guid? expectedAttemptId = null,
-        [Description("allocate only: why the allocation is retried, 1 to 500 characters.")] string? reason = null,
+        [Description("allocate: why the allocation is retried; register_images: why the images are registered under this registration; 1 to 500 characters.")] string? reason = null,
         [Description("resolve_inspection_address only: the address that corrects the suggestion, or is supplied where nothing was suggested, at most 1000 characters; omit to accept the suggestion.")] string? inspectionAddress = null,
         [Description("resolve_inspection_address only: inspectionAddressSuggestionFingerprint from pegasus_intake_get, naming the suggestion accepted or corrected; omit when nothing was suggested.")] string? addressSuggestionFingerprint = null,
         CancellationToken cancellationToken = default)
@@ -246,7 +252,8 @@ internal sealed class IntakeActionMcpTools(
                     "allocate" => IntakeAction.Allocate,
                     "resolve_inspection_address" => IntakeAction.ResolveInspectionAddress,
                     "open_triage" => IntakeAction.OpenTriage,
-                    _ => throw new McpException("action must be accept, resolve_inspection_address, allocate or open_triage.")
+                    "register_images" => IntakeAction.RegisterImages,
+                    _ => throw new McpException("action must be accept, resolve_inspection_address, allocate, open_triage or register_images.")
                 };
                 var draftFields = new object?[]
                 {
@@ -316,6 +323,35 @@ internal sealed class IntakeActionMcpTools(
                         InspectionAddressResolvedValue: null,
                         key,
                         AutomationMcpAuditor.CorrelationId(context, key));
+                }
+
+                if (parsed == IntakeAction.RegisterImages)
+                {
+                    // vehicleRegistration is one of the draft fields.
+                    if (draftFields.Count(value => value is not null) > (vehicleRegistration is null ? 0 : 1)
+                        || expectedAttemptId is not null)
+                    {
+                        throw new McpException("register_images takes only vehicleRegistration and reason.");
+                    }
+
+                    var (record, isReplay) = await RegisterImagesAsync(
+                        context.Actor, receiptId, expectedReceiptVersion, key, vehicleRegistration, reason, cancellationToken);
+                    return new IntakeActionToolResult(
+                        receiptId,
+                        "register_images",
+                        AllocationStatus: null,
+                        CaseId: null,
+                        CaseReference: null,
+                        AuditReference: null,
+                        SafeReason: null,
+                        isReplay,
+                        ReceiptVersion: null,
+                        InspectionAddressState: null,
+                        InspectionAddressResolvedValue: null,
+                        key,
+                        AutomationMcpAuditor.CorrelationId(context, key),
+                        record.Id,
+                        record.ImageIntakeReference);
                 }
 
                 IntakeAllocationResult result;
@@ -714,6 +750,99 @@ internal sealed class IntakeActionMcpTools(
             throw;
         }
     }
+
+    /// <summary>
+    /// Register images on a received item as its message page runs it
+    /// (<see cref="StaffIntakeActions.RegisterImagesAsync"/>): the offer is
+    /// checked there, so an item whose images are registered is refused as on
+    /// the page; only then is the refusal read as a replay of the same key,
+    /// which returns the record it registered.
+    /// </summary>
+    private async Task<(ImageIntakeRecord Record, bool IsReplay)> RegisterImagesAsync(
+        ActionActor actor,
+        Guid receiptId,
+        long expectedReceiptVersion,
+        string key,
+        string? vehicleRegistration,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        var receipt = await RequireReceiptAsync(receiptId, actor, cancellationToken);
+        // The caller's key may take the whole operation-key length, so the
+        // registration is keyed by its derived identity instead.
+        var operationKey = RegistrationOperationKey(actor, key);
+        if (receipt.Version != expectedReceiptVersion)
+        {
+            // The registration moves the item on, so a replay reads it as it
+            // stands now.
+            return (await RegistrationReplayAsync(
+                    imageIntakes,
+                    await imageIntakes.GetRecordByOriginReceiptAsync(receipt.Id, cancellationToken),
+                    vehicleRegistration,
+                    actor,
+                    operationKey,
+                    reason,
+                    submissionGroupId: null,
+                    cancellationToken)
+                ?? throw new IntakeVersionConflictException(),
+                true);
+        }
+
+        try
+        {
+            return (await intakeActions.RegisterImagesAsync(
+                    actor, receipt, vehicleRegistration, reason ?? string.Empty, operationKey, cancellationToken),
+                false);
+        }
+        catch (InvalidOperationException)
+        {
+            var replayed = await RegistrationReplayAsync(
+                imageIntakes,
+                await imageIntakes.GetRecordByOriginReceiptAsync(receipt.Id, cancellationToken),
+                vehicleRegistration,
+                actor,
+                operationKey,
+                reason,
+                submissionGroupId: null,
+                cancellationToken);
+            if (replayed is null)
+            {
+                throw;
+            }
+
+            return (replayed, true);
+        }
+    }
+
+    /// <summary>The Image Intake registration's operation key for the caller's own key.</summary>
+    internal static string RegistrationOperationKey(ActionActor actor, string key) =>
+        AutomationMcpErrors.DeriveOperationGuid("register-images", actor, key).ToString("N");
+
+    /// <summary>
+    /// The record a registration under this key already made, read back
+    /// through the store's own replay probe, which refuses the key used with
+    /// different details; null when the key made none.
+    /// </summary>
+    internal static async Task<ImageIntakeRecord?> RegistrationReplayAsync(
+        IImageIntakeStore store,
+        ImageIntakeRecord? registered,
+        string? vehicleRegistration,
+        ActionActor actor,
+        string operationKey,
+        string? reason,
+        Guid? submissionGroupId,
+        CancellationToken cancellationToken) =>
+        registered is null
+            ? null
+            : (await store.ProbeRegisterReplayAsync(
+                new(
+                    registered.Origin,
+                    ImageIntakeLifecycleRules.NormalizeRegistrationInput(vehicleRegistration),
+                    actor,
+                    operationKey,
+                    reason ?? string.Empty,
+                    submissionGroupId),
+                cancellationToken))?.Result;
 
     private async Task<IntakeReceipt> RequireReceiptAsync(
         Guid receiptId,

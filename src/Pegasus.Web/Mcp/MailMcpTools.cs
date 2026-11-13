@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Pegasus.Core;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Intake;
@@ -103,6 +104,8 @@ internal sealed record MailToolDetail(
     MailToolClassification? Classification,
     long? IntakeVersion,
     bool CanLinkCase,
+    bool CanChangeLinkedCase,
+    long? LinkedCaseVersion,
     string CorrelationId);
 
 /// <summary>One attachment's extracted text, as pegasus_mail_attachment_text returns it.</summary>
@@ -196,12 +199,20 @@ internal enum MailAction
     Restore
 }
 
+internal enum MailLinkAction
+{
+    Link,
+    Unlink,
+    Change
+}
+
 /// <summary>
 /// The classified-email workspace for the Automation Actor: the same Core
 /// queries and the same commands the staff mail pages call, behind the
 /// per-area <c>automation.mail</c> scope. Reads mirror the workspace list and
 /// message detail; the mutations are the staff-equivalent classification
-/// correction, and Dismiss and Restore (Pegasus-side only). Nothing here sends mail:
+/// correction, Link to case, Unlink and Change linked Case, and Dismiss and
+/// Restore (Pegasus-side only). Nothing here sends mail:
 /// sending is <c>pegasus_mail_send</c>, under <c>automation.send</c>.
 /// </summary>
 [McpServerToolType]
@@ -215,6 +226,7 @@ internal sealed class MailMcpTools(
     IGetIntake getIntake,
     IIntakeAssociationDestinationQueries destinations,
     ILinkIntake linkIntake,
+    IReverseIntakeLink reverseLink,
     IOpenCaseQuery openCaseQuery,
     OneCommandEdit leases,
     AutomationActorResolver resolver,
@@ -398,7 +410,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Gets one retained message: recipients, body text, attachment names, thread, the versioned classification decision (its category code, or none while Unclassified) with its permanent correction history, the correction options, and the intake version with whether the message can be linked to a Case. Attachments are listed by name, type and size; their content is not returned here — a message attached to a Case exposes its documents through the document tools.")]
+    [Description("Gets one retained message: recipients, body text, attachment names, thread, the versioned classification decision (its category code, or none while Unclassified) with its permanent correction history, the correction options, and the intake version with whether the message can be linked to a Case, or, once linked, whether its linked Case can be changed and the linked Case's version (the Case workflow version, or the Triage version for a Triage Case) that pegasus_mail_link_case unlink and change check. Attachments are listed by name, type and size; their content is not returned here — a message attached to a Case exposes its documents through the document tools.")]
     public async Task<MailToolDetail> GetAsync(
         [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
         CancellationToken cancellationToken = default)
@@ -551,7 +563,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists the Cases and Triage Cases a retained message may be linked to, as the staff Link to case dialog does: without a query, the Cases intake already matched; with a query, a search over reference, registration, claimant and claim number. Each destination carries the version pegasus_mail_link_case checks: the Case workflow version, or the Triage version for a Triage Case. Empty when the message cannot be linked.")]
+    [Description("Lists the Cases and Triage Cases a retained message may be linked to, as the staff Link to case dialog does: without a query, the Cases intake already matched; with a query, a search over reference, registration, claimant and claim number. For a message already linked, a query lists the Cases its link may be changed to, never the one it is linked to, as Change linked Case does. Each destination carries the version pegasus_mail_link_case checks: the Case workflow version, or the Triage version for a Triage Case. Empty when the message cannot be linked.")]
     public async Task<MailToolLinkDestinations> LinkDestinationsAsync(
         [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
         [Description("Optional search text; omit it for the matched suggestions.")] string? query = null,
@@ -568,7 +580,9 @@ internal sealed class MailMcpTools(
                 var receipt = await RequireReceiptAsync(context, messageId, cancellationToken);
                 var items = string.IsNullOrWhiteSpace(query)
                     ? await destinations.GetSuggestedAsync(receipt, context.Actor, cancellationToken)
-                    : await destinations.SearchAsync(receipt, query.Trim(), context.Actor, cancellationToken);
+                    : receipt.CurrentCaseId is null
+                        ? await destinations.SearchAsync(receipt, query.Trim(), context.Actor, cancellationToken)
+                        : await destinations.SearchToChangeAsync(receipt, query.Trim(), context.Actor, cancellationToken);
                 return new MailToolLinkDestinations(
                     messageId,
                     receipt.Version,
@@ -589,21 +603,24 @@ internal sealed class MailMcpTools(
 
     [McpServerTool(
         Name = "pegasus_mail_link_case",
-        Title = "Link retained mail to a Case",
+        Title = "Link, unlink or change the Case of retained mail",
         ReadOnly = false,
         Destructive = false,
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Links one retained message to a Case or Triage Case through the same Core command as the staff Link to case action: the message joins the Case's files and, for a Case, takes the classification the Case state gives it. Requires the intake version from pegasus_mail_get, the destination version from pegasus_mail_link_destinations, a reason and a mcp:-prefixed operation key. Present a lease token for a record held for multi-step work, or omit it and the tool holds the lease for this one command.")]
+    [Description("One link act on a retained message, through the same Core commands as the staff message page. link (the default) is Link to case: the message joins the Case's or Triage Case's files and, for a Case, takes the classification the Case state gives it. unlink is Unlink: it separates the message from the Case it is linked to, named by caseId. change is Change linked Case: the message is unlinked from its linked Case and linked to caseId, with the one reason for both; the new Case's lease is held before anything is unlinked, so a refused new Case leaves the message linked. Requires the intake version from pegasus_mail_get, the version of the Case caseId names (from pegasus_mail_link_destinations, or for unlink pegasus_mail_get's linkedCaseVersion), a reason and a mcp:-prefixed operation key; change also takes linkedCaseVersion. Present a lease token for a record held for multi-step work, or omit it and the tool holds the lease for this one command.")]
     public async Task<MailToolDetail> LinkCaseAsync(
         [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
-        [Description("The Case or Triage Case identifier from pegasus_mail_link_destinations.")] Guid caseId,
+        [Description("link and change: the Case or Triage Case identifier from pegasus_mail_link_destinations; unlink: the Case the message is linked to (pegasus_mail_get's caseId).")] Guid caseId,
         [Description("The message's intake version last read, from pegasus_mail_get.")] long expectedIntakeVersion,
-        [Description("The destination version last read, from pegasus_mail_link_destinations.")] long expectedCaseVersion,
-        [Description("Why this message belongs with the Case (1 to 500 characters).")] string reason,
+        [Description("The version last read of the Case caseId names: from pegasus_mail_link_destinations, or for unlink pegasus_mail_get's linkedCaseVersion.")] long expectedCaseVersion,
+        [Description("Why, for the message's history (1 to 500 characters).")] string reason,
         [Description("Caller idempotency key, prefixed mcp:.")] string operationKey,
-        [Description("The destination's edit lease token from pegasus_edit_begin; omit it and the tool holds the lease for this one command.")] string? caseEditLeaseToken = null,
+        [Description("The edit lease token from pegasus_edit_begin of the Case caseId names; omit it and the tool holds the lease for this one command.")] string? caseEditLeaseToken = null,
+        [Description("link (the default), unlink or change.")] string? action = null,
+        [Description("change only: the linked Case's version from pegasus_mail_get's linkedCaseVersion.")] long? linkedCaseVersion = null,
+        [Description("change only: the linked Case's edit lease token from pegasus_edit_begin; omit it and the tool holds that lease for this one command.")] string? linkedCaseEditLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync("pegasus_mail_link_case", cancellationToken);
@@ -615,28 +632,181 @@ internal sealed class MailMcpTools(
             key,
             () => AutomationMcpErrors.ExecuteAsync(() => AutomationMcpErrors.IntakeRefusalsAsync("pegasus_mail_get", async () =>
             {
+                var parsed = ParseLinkAction(action);
+                if (parsed != MailLinkAction.Change
+                    && (linkedCaseVersion is not null || linkedCaseEditLeaseToken is not null))
+                {
+                    throw new McpException("linkedCaseVersion and linkedCaseEditLeaseToken belong to change.");
+                }
+
                 var receipt = await RequireReceiptAsync(context, messageId, cancellationToken);
                 var id = AutomationMcpErrors.RequireId(caseId, "case identifier");
-                var destination = await destinations.GetAsync(receipt, id, context.Actor, cancellationToken)
-                    ?? throw new McpException("The selected case is not available for association.");
-                Func<string, Task<bool>> link = async token =>
+                switch (parsed)
                 {
-                    await linkIntake.ExecuteAsync(
-                        new(receipt.Id, id, expectedIntakeVersion, expectedCaseVersion, token, context.Actor, key, reason),
-                        cancellationToken);
-                    return true;
-                };
-                if (destination.IsTriageCase)
-                {
-                    await leases.RunTriageAsync(id, expectedCaseVersion, caseEditLeaseToken, context.Actor, key, link, cancellationToken);
+                    case MailLinkAction.Unlink:
+                        await UnlinkAsync(
+                            context.Actor, receipt, id, expectedIntakeVersion, expectedCaseVersion,
+                            caseEditLeaseToken, key, reason, cancellationToken);
+                        break;
+                    case MailLinkAction.Change:
+                        await ChangeLinkedCaseAsync(
+                            context.Actor, receipt, id, expectedIntakeVersion, expectedCaseVersion,
+                            caseEditLeaseToken,
+                            linkedCaseVersion ?? throw new McpException("change needs linkedCaseVersion, the linked Case's version from pegasus_mail_get."),
+                            linkedCaseEditLeaseToken, key, reason, cancellationToken);
+                        break;
+                    default:
+                        var destination = await destinations.GetAsync(receipt, id, context.Actor, cancellationToken)
+                            ?? throw new McpException("The selected case is not available for association.");
+                        await RunOnDestinationAsync(
+                            destination,
+                            expectedCaseVersion,
+                            caseEditLeaseToken,
+                            context.Actor,
+                            key,
+                            token => linkIntake.ExecuteAsync(
+                                new(receipt.Id, id, expectedIntakeVersion, expectedCaseVersion, token, context.Actor, key, reason),
+                                cancellationToken),
+                            cancellationToken);
+                        break;
                 }
-                else
-                {
-                    await leases.RunCaseAsync(id, expectedCaseVersion, caseEditLeaseToken, context.Actor, key, link, cancellationToken);
-                }
+
                 return await ReadDetailAsync(context, messageId, cancellationToken);
             })),
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Unlink, as the message page runs it: the message must be at the version
+    /// read and linked to the Case named, whose authority row gives the lease
+    /// to hold (a Triage Case's Triage edit scope, a Case's edit lease).
+    /// </summary>
+    private async Task UnlinkAsync(
+        ActionActor actor,
+        IntakeReceipt receipt,
+        Guid caseId,
+        long expectedIntakeVersion,
+        long expectedCaseVersion,
+        string? caseEditLeaseToken,
+        string key,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        if (receipt.Version != expectedIntakeVersion || receipt.CurrentCaseId != caseId)
+        {
+            throw new IntakeVersionConflictException();
+        }
+
+        var current = await destinations.GetAuthorityAsync(caseId, actor, cancellationToken)
+            ?? throw new IntakeVersionConflictException();
+        await RunOnDestinationAsync(
+            current,
+            expectedCaseVersion,
+            caseEditLeaseToken,
+            actor,
+            key,
+            token => reverseLink.ExecuteAsync(
+                new(receipt.Id, caseId, receipt.Version, expectedCaseVersion, token, actor, key, reason),
+                cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Change linked Case, as the message page runs it: the existing Unlink and
+    /// the existing Link in one act with the one reason, each under its own
+    /// edit authority and keeping its own history entry. The new Case's
+    /// authority is held before anything is unlinked, so a Case someone is
+    /// editing refuses with nothing written; the link is then made against the
+    /// receipt as the unlink left it. The two writes take keys derived from the
+    /// caller's, so neither replays the other.
+    /// </summary>
+    private async Task ChangeLinkedCaseAsync(
+        ActionActor actor,
+        IntakeReceipt receipt,
+        Guid caseId,
+        long expectedIntakeVersion,
+        long expectedCaseVersion,
+        string? caseEditLeaseToken,
+        long linkedCaseVersion,
+        string? linkedCaseEditLeaseToken,
+        string key,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        if (receipt.Version != expectedIntakeVersion || receipt.CurrentCaseId is not { } currentCaseId)
+        {
+            throw new IntakeVersionConflictException();
+        }
+
+        // The unlink is made first and the link then needs a message the policy
+        // lets be linked, so a message it does not is refused before anything
+        // is held or unlinked.
+        if (!IntakeAssociationDestinationPolicy.CanOfferToChange(receipt))
+        {
+            throw new McpException(OperatorLabels.IntakeCannotBecomeCaseReason(receipt.Decision));
+        }
+
+        var target = caseId != currentCaseId
+            ? await destinations.GetAuthorityAsync(caseId, actor, cancellationToken)
+            : null;
+        if (target is null)
+        {
+            throw new McpException("The selected case is not available for association.");
+        }
+
+        var current = await destinations.GetAuthorityAsync(currentCaseId, actor, cancellationToken)
+            ?? throw new IntakeVersionConflictException();
+        var unlinkKey = OneCommandEditAuthority.DeriveOperationKey(key, ":unlink");
+        var linkKey = OneCommandEditAuthority.DeriveOperationKey(key, ":link");
+        await RunOnDestinationAsync(
+            target,
+            expectedCaseVersion,
+            caseEditLeaseToken,
+            actor,
+            linkKey,
+            async targetToken =>
+            {
+                await RunOnDestinationAsync(
+                    current,
+                    linkedCaseVersion,
+                    linkedCaseEditLeaseToken,
+                    actor,
+                    unlinkKey,
+                    token => reverseLink.ExecuteAsync(
+                        new(receipt.Id, currentCaseId, receipt.Version, linkedCaseVersion, token, actor, unlinkKey, reason),
+                        cancellationToken),
+                    cancellationToken);
+                var unlinked = await getIntake.ExecuteAsync(new(receipt.Id, actor), cancellationToken)
+                    ?? throw new IntakeVersionConflictException();
+                await linkIntake.ExecuteAsync(
+                    new(unlinked.Id, target.CaseId, unlinked.Version, expectedCaseVersion, targetToken, actor, linkKey, reason),
+                    cancellationToken);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs one association command under the destination's edit authority: a
+    /// presented token unchanged, or the authority held for this one command (a
+    /// Triage Case's Triage edit scope, a Case's edit lease).
+    /// </summary>
+    private Task<bool> RunOnDestinationAsync(
+        IntakeAssociationDestination destination,
+        long expectedVersion,
+        string? heldToken,
+        ActionActor actor,
+        string key,
+        Func<string, Task> command,
+        CancellationToken cancellationToken)
+    {
+        Func<string, Task<bool>> run = async token =>
+        {
+            await command(token);
+            return true;
+        };
+        return destination.IsTriageCase
+            ? leases.RunTriageAsync(destination.CaseId, expectedVersion, heldToken, actor, key, run, cancellationToken)
+            : leases.RunCaseAsync(destination.CaseId, expectedVersion, heldToken, actor, key, run, cancellationToken);
     }
 
     [McpServerTool(
@@ -730,6 +900,11 @@ internal sealed class MailMcpTools(
         var receipt = detail.Summary.IntakeReceiptId is { } receiptId
             ? await getIntake.ExecuteAsync(new(receiptId, context.Actor), cancellationToken)
             : null;
+        // The linked Case's version, from its authority row, as the message
+        // page reads it to unlink or change the link.
+        var linked = receipt?.CurrentCaseId is { } linkedCaseId
+            ? await destinations.GetAuthorityAsync(linkedCaseId, context.Actor, cancellationToken)
+            : null;
         return new MailToolDetail(
             Map(detail.Summary),
             IndexModel.FolderCode(detail.Folder),
@@ -751,6 +926,8 @@ internal sealed class MailMcpTools(
             detail.Classification is { } dossier ? Map(dossier) : null,
             receipt?.Version,
             receipt is not null && IntakeAssociationDestinationPolicy.CanOffer(receipt),
+            receipt is not null && IntakeAssociationDestinationPolicy.CanOfferToChange(receipt),
+            linked?.Version,
             context.TraceIdentifier);
     }
 
@@ -773,6 +950,14 @@ internal sealed class MailMcpTools(
                 : null)
             ?? throw new McpException("The retained message has no received item to link.");
     }
+
+    private static MailLinkAction ParseLinkAction(string? action) => action?.Trim() switch
+    {
+        null or "" or "link" => MailLinkAction.Link,
+        "unlink" => MailLinkAction.Unlink,
+        "change" => MailLinkAction.Change,
+        _ => throw new McpException("action must be link, unlink or change.")
+    };
 
     private static MailAction ParseMailAction(string? action) => action?.Trim() switch
     {

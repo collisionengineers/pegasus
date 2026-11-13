@@ -15,6 +15,7 @@ namespace Pegasus.Web.Presentation;
 /// </summary>
 public sealed partial class OneCommandEdit(
     OneCommandEditAuthority authority,
+    IEditScopeLeases editScopes,
     ILogger<OneCommandEdit> logger)
 {
     /// <summary>Claims the authority alone, for a caller that words a refused claim itself.</summary>
@@ -159,6 +160,62 @@ public sealed partial class OneCommandEdit(
         Func<string, Task<T>> action,
         CancellationToken cancellationToken) =>
         RunUnlessHeldAsync(triageCaseId, true, expectedVersion, heldToken, actor, operationKey, action, cancellationToken);
+
+    /// <summary>
+    /// The same, for an Automation write to an Image Intake record under its record edit scope
+    /// (FRD-14 Record edit scopes): a presented token runs the command unchanged; with none, the
+    /// scope is claimed for that one command with a key derived from the command's, and given
+    /// back afterwards by the same release rule as a Case's authority.
+    /// </summary>
+    public async Task<T> RunImageIntakeAsync<T>(
+        Guid imageIntakeId,
+        long expectedVersion,
+        string? heldToken,
+        ActionActor actor,
+        string operationKey,
+        Func<string, Task<T>> action,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (!string.IsNullOrWhiteSpace(heldToken))
+        {
+            return await action(heldToken);
+        }
+
+        var leaseKey = OneCommandEditAuthority.DeriveOperationKey(operationKey, ":lease");
+        var scope = await editScopes.ClaimAsync(
+            new ClaimEditScopeRequest(EditScopeKind.ImageIntake, imageIntakeId, expectedVersion, actor, leaseKey),
+            cancellationToken);
+        var completed = false;
+        try
+        {
+            var result = await action(scope.Token);
+            completed = true;
+            return result;
+        }
+        finally
+        {
+            try
+            {
+                await editScopes.ReleaseAsync(
+                    new ReleaseEditScopeRequest(
+                        EditScopeKind.ImageIntake,
+                        imageIntakeId,
+                        actor,
+                        OneCommandEditAuthority.DeriveOperationKey(leaseKey, ":release"),
+                        scope.Token),
+                    CancellationToken.None);
+            }
+            catch (Exception exception) when (completed && OneCommandEditAuthority.WriteEndedIt(actor, exception))
+            {
+                // The write ended the scope itself; there was nothing left to release.
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                LogReleaseFailed(logger, imageIntakeId, exception.GetType().Name, exception.Message);
+            }
+        }
+    }
 
     private Task<T> RunUnlessHeldAsync<T>(
         Guid caseId,
