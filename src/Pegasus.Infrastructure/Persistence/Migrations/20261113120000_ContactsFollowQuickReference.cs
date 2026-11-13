@@ -115,8 +115,8 @@ public partial class ContactsFollowQuickReference : Migration
             INSERT INTO @introducers ([Id], [Name]) VALUES
             {{string.Join("," + Environment.NewLine, OakIntroducers.Select(item => $"    ('{item.Id}', {Literal(item.Name)})"))}};
 
-            INSERT INTO [dbo].[Organizations] ([Active], [Address], [ContactPerson], [Email], [Id], [Name], [NotesOnEveryCase], [Postcode], [Role], [Telephone], [Version])
-            SELECT 1, NULL, NULL, NULL, [i].[Id], [i].[Name], NULL, NULL, N'claim_source', NULL, 0
+            INSERT INTO [dbo].[Organizations] ([Active], [Address], [Email], [Id], [Name], [NotesOnEveryCase], [Postcode], [Role], [Telephone], [Version])
+            SELECT 1, NULL, NULL, [i].[Id], [i].[Name], NULL, NULL, N'claim_source', NULL, 0
             FROM @introducers AS [i]
             WHERE @oak IS NOT NULL
                 AND NOT EXISTS (
@@ -144,7 +144,7 @@ public partial class ContactsFollowQuickReference : Migration
             IF @pch IS NOT NULL AND NOT EXISTS (
                 SELECT 1 FROM [dbo].[Organizations]
                 WHERE [Role] = N'repairer' AND [NormalizedName] = N'IREVOLUTION REPAIR NETWORK')
-                INSERT INTO [dbo].[Organizations] ([Active], [Address], [ContactPerson], [Email], [Id], [Name], [NotesOnEveryCase], [Postcode], [Role], [Telephone], [Version]) VALUES (1, NULL, NULL, NULL, '{{IRevolutionRepairerId}}', N'iRevolution Repair Network', NULL, NULL, N'repairer', NULL, 0);
+                INSERT INTO [dbo].[Organizations] ([Active], [Address], [Email], [Id], [Name], [NotesOnEveryCase], [Postcode], [Role], [Telephone], [Version]) VALUES (1, NULL, NULL, '{{IRevolutionRepairerId}}', N'iRevolution Repair Network', NULL, NULL, N'repairer', NULL, 0);
 
             DECLARE @iRevolution uniqueidentifier = (
                 SELECT [Id] FROM [dbo].[Organizations]
