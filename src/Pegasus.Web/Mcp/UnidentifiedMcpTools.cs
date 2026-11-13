@@ -112,6 +112,8 @@ internal sealed class UnidentifiedMcpTools(
     TimeProvider timeProvider,
     AutomationMcpAuditor auditor)
 {
+    private const string ReferenceDescription = "Exact canonical U-reference, for example U17.";
+
     [McpServerTool(
         Name = "pegasus_unidentified_list",
         Title = "List Unidentified work",
@@ -160,7 +162,7 @@ internal sealed class UnidentifiedMcpTools(
         UseStructuredContent = true)]
     [Description("Gets one Unidentified item by exact U-reference, including safe detail, immutable history, the registration readings the record shows (each with the readingId pegasus_unidentified_action dismiss_reading takes) and whether Register images is offered, with the registration the readings agree on.")]
     public async Task<UnidentifiedToolDetail> GetAsync(
-        [Description("Exact canonical U-reference, for example U17.")] string reference,
+        [Description(ReferenceDescription)] string reference,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -194,7 +196,7 @@ internal sealed class UnidentifiedMcpTools(
         OpenWorld = false)]
     [Description("Returns the retained source of an exact U-reference as native content: an image as a JPEG image block re-encoded to fit maxInlineBytes, a PDF as its page text, a small text file as text; anything else as metadata only. Every result carries the file name, media type, size, SHA-256 and an authenticated contentUrl for the original bytes (same bearer token, Intake scope). A grouped origin requires the exact member receipt identifier returned by pegasus_unidentified_get.")]
     public async Task<CallToolResult> DownloadSourceAsync(
-        [Description("Exact canonical U-reference, for example U17.")] string reference,
+        [Description(ReferenceDescription)] string reference,
         [Description("For a grouped origin, the exact member receipt identifier from pegasus_unidentified_get.")] Guid? memberReceiptId = null,
         [Description("Byte budget for inline content; 0 selects 100 KiB, at most 10 MiB.")] int maxInlineBytes = 0,
         CancellationToken cancellationToken = default)
@@ -302,11 +304,11 @@ internal sealed class UnidentifiedMcpTools(
         UseStructuredContent = true)]
     [Description("Resolves one open Unidentified item using the same versioned Core commands as Web: a destination (InstructionCase, ImageIntake, Triage or ExternalReference) or Close with reason, the item's one refusal, which names no destination and keeps the U-reference reachable under Closed. Requires a mcp:-prefixed operation key, reason and expected version. pegasus_unidentified_reopen withdraws either.")]
     public async Task<UnidentifiedToolItem> ResolveAsync(
-        [Description("Exact canonical U-reference, for example U17.")] string reference,
+        [Description(ReferenceDescription)] string reference,
         [Description("The item version the caller observed; a stale value fails closed.")] long expectedVersion,
         [Description("Why, for the item's history, at most 500 characters. For Closed it is the closure reason.")] string reason,
         [Description("Where the item goes: InstructionCase, ImageIntake or Triage (targetId is that record's id), ExternalReference (free-form targetId), or Closed (close with reason; no targetId).")] UnidentifiedResolutionTargetKind targetKind,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("The destination identifier for that kind; required for every kind except Closed, which takes none.")] string? targetId = null,
         [Description("Optional display reference for the destination; not taken by Closed.")] string? targetReference = null,
         CancellationToken cancellationToken = default)
@@ -360,10 +362,10 @@ internal sealed class UnidentifiedMcpTools(
         UseStructuredContent = true)]
     [Description("One staff act on an open Unidentified item's material, through the same Core commands as the Unidentified record. register_images is Register images: the item's images become an Image Intake record (staff label Vehicle images) under vehicleRegistration, with a reason; an upload group item registers its whole group as one record. It is refused where the record does not offer Register images (pegasus_unidentified_get canRegisterImages). dismiss_reading is Dismiss on a registration reading: readingId, from pegasus_unidentified_get readings, with a reason; a reading already decided is refused. Requires a mcp:-prefixed operation key; replaying it returns what it recorded.")]
     public async Task<UnidentifiedActionToolResult> ActAsync(
-        [Description("Exact canonical U-reference, for example U17.")] string reference,
+        [Description(ReferenceDescription)] string reference,
         [Description("register_images or dismiss_reading.")] string action,
         [Description("Why, for the record's history, at most 500 characters.")] string reason,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("register_images only: the vehicle registration the images are registered under.")] string? vehicleRegistration = null,
         [Description("dismiss_reading only: the reading identifier from pegasus_unidentified_get readings.")] Guid? readingId = null,
         CancellationToken cancellationToken = default)
@@ -490,10 +492,10 @@ internal sealed class UnidentifiedMcpTools(
         UseStructuredContent = true)]
     [Description("Reopens one resolved or closed Unidentified item with a reason, as the item's Reopen does: the resolution is withdrawn, stays in the item's history, and the item returns to the open list. Requires a mcp:-prefixed operation key and the expected version.")]
     public async Task<UnidentifiedToolItem> ReopenAsync(
-        [Description("Exact canonical U-reference, for example U17.")] string reference,
+        [Description(ReferenceDescription)] string reference,
         [Description("The item version the caller observed; a stale value fails closed.")] long expectedVersion,
         [Description("Why the item is reopened, for its history, at most 500 characters.")] string reason,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(

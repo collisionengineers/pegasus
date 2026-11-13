@@ -142,7 +142,7 @@ internal sealed class AiJobMcpTools(
     [Description("Creates one AI job of any kind through the same Core command and subject checks as the staff action that starts it, so external agents on automated runs can queue work for each other. Estimate needs caseId (a Case With Engineer or later that has an Engineer's Value) and takes an optional instruction and targetPercentOfEngineerValue. MarketResearch needs caseId and guideMonth; while one is already queued or taken for the Case, that job is returned instead. QueryResponse needs messageId, a retained post-report query linked to its Case. UnidentifiedResolution needs unidentifiedReference, an open item. UnidentifiedQueuePass needs instruction. Refused while the Administrator has stopped AI work. Requires a mcp:-prefixed operation key; replaying the same key returns the same job.")]
     public async Task<AiJobToolItem> CreateAsync(
         [Description("Estimate, MarketResearch, QueryResponse, UnidentifiedResolution or UnidentifiedQueuePass.")] string kind,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("Estimate: optional direction, at most 500 characters; omitted, the job asks for an estimate for the Case. UnidentifiedQueuePass: required, at most 500 characters. The other kinds carry the fixed instruction staff send, and a value is refused for them.")] string? instruction = null,
         [Description("Estimate and MarketResearch: the Case identifier.")] Guid? caseId = null,
         [Description("Estimate only: optional target from 0 to 80 percent of the Case's recorded Engineer's Value; guidance for the drafter, never an accepted figure.")] int? targetPercentOfEngineerValue = null,
@@ -301,7 +301,7 @@ internal sealed class AiJobMcpTools(
         [Description("The job identifier from pegasus_ai_job_list.")] Guid jobId,
         [Description("The job version the caller observed; a stale value fails closed.")] long expectedVersion,
         [Description("Take, Progress, Complete, Fail, Release, Cancel or Confirm.")] string action,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("Progress: the note, at most 500 characters.")] string? progressNote = null,
         [Description("Complete: Estimate, ProposedResolution or DraftReply.")] string? resultKind = null,
         [Description("Complete: reference to the draft written through the attributed tools, at most 200 characters.")] string? resultReference = null,
@@ -356,7 +356,7 @@ internal sealed class AiJobMcpTools(
         [Description("The MarketResearch job identifier this client holds.")] Guid jobId,
         [Description("The job version the caller observed; a stale value fails closed.")] long expectedJobVersion,
         [Description("The Case the research is for.")] Guid caseId,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("Leaf name for the findings document, at most 255 characters.")] string fileName,
         [Description("Media type for the findings document, at most 200 characters.")] string mediaType,
         [Description("Valuation date, yyyy-MM-dd.")] string recordedDate,

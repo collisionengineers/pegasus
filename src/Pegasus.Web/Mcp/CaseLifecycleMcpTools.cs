@@ -68,8 +68,8 @@ internal sealed class CaseLifecycleMcpTools(
         UseStructuredContent = true)]
     [Description("Takes one Case lifecycle act a member of staff takes from the Case's Actions menu, through the same Core command and guards: hold (reason, optional reviewOn), release_hold (reason), return_to_review (reason; from With Engineer or Report sent, when the Case's own completeness facts allow), assign_engineer (optional engineerId, omitted for Unassigned; from Review, moving the Case to With Engineer, or within With Engineer; no reason, Core records who it went to), return_to_engineer (reason; from Report sent), close (reason, outcome), reopen (reason, destination), archive (reason; a closed Case whose custody is confirmed), create_linked_replacement (reason, replacementPrincipalCode; for a Case created in error), create_audit (an Inspection + Audit Case gains its Audit work), vehicle_lookup (registration; queues one DVLA/DVSA lookup) or manual_chase (chaseChannel, chaseRecipient, chaseOutcome, optional chaseNote; a Not ready Case's due work). Queries are pegasus_case_query. A Case is never deleted. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command); each act ends the lease it ran under. Returns the Case's new version and state and any identifier the act created.")]
     public async Task<CaseActionToolResult> ActAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key with the same inputs returns the same outcome.")] string operationKey,
         [Description("The act: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup or manual_chase.")] string action,
         [Description("Why (case history reason, at most 500 characters). Required for every act except assign_engineer, create_audit, vehicle_lookup and manual_chase, which take none.")] string? reason = null,
@@ -83,7 +83,7 @@ internal sealed class CaseLifecycleMcpTools(
         [Description("manual_chase: who or which address was chased (at most 500 characters).")] string? chaseRecipient = null,
         [Description("manual_chase: what the chase achieved (at most 500 characters).")] string? chaseOutcome = null,
         [Description("manual_chase: an optional note about the chase (at most 1000 characters).")] string? chaseNote = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(

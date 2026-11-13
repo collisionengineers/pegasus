@@ -112,8 +112,8 @@ internal sealed class ImageIntakeMcpTools(
         UseStructuredContent = true)]
     [Description("Lists the Image Intake records (staff label Vehicle images) awaiting instruction with no Case, newest first, as the Cases page lists them. Each item carries its id, Image Intake Reference, registration and state.")]
     public async Task<ImageIntakeListToolResult> ListAsync(
-        [Description("Opaque cursor returned by the previous page; omit for the first page.")] string? cursor = null,
-        [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
+        [Description(AutomationToolText.Cursor)] string? cursor = null,
+        [Description(AutomationToolText.PageSize)] int? limit = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -209,7 +209,7 @@ internal sealed class ImageIntakeMcpTools(
         [Description(IdDescription)] Guid imageIntakeId,
         [Description("set_principal or close.")] string action,
         [Description("The record version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("set_principal only: the active Principal's identifier; omit for Not known.")] Guid? principalId = null,
         [Description("close only: why the record is closed, at most 500 characters.")] string? reason = null,
         [Description("Edit lease token from pegasus_edit_begin (recordKind ImageIntake) for multi-step work; omit it and the tool holds the record's edit scope for this one command.")] string? editLeaseToken = null,

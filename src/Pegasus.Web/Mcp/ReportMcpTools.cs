@@ -120,7 +120,7 @@ internal sealed class ReportMcpTools(
         UseStructuredContent = true)]
     [Description("Lists a Case's report generations for one work, as the Case page reads them: each generation's identifier, state (Pending, Confirmed or Stale), whether it is the work's current one, when it was generated and at which case version, and its artifacts (AssessmentReport, FeeNote, RepairSpecification, ImagePack) with filing state, file name, SHA-256 and whether the recorded report approval names it. Also returns the work's recorded report approval, its linked report-Sent evidence, and the retained Sent evidence available to link.")]
     public async Task<ReportListToolResult> ListAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("current (the default; the Audit once a Case has one) or inspection (the Inspection report of a Case that has its Audit).")] string? work = null,
         CancellationToken cancellationToken = default)
     {
@@ -181,8 +181,8 @@ internal sealed class ReportMcpTools(
         UseStructuredContent = true)]
     [Description("Takes one report act a member of staff takes on the Case page, through the same Core command and guards: generate_report (freezes the Case's accepted facts and renders the immutable report, filed to the Case; once it is confirmed the separate fee note is made from the same generation), generate_repair_spec or generate_image_pack (a companion document of a confirmed generation, generationId defaulting to the work's current one), record_approval (records approval of one stored generated artifact, artifactId from pegasus_report_list; while the Case is With Engineer, or on the Inspection report of a Case that has its Audit; this is not a send), link_sent_evidence (links retained report-Sent evidence, evidenceId from pegasus_report_list; the current work's report moves the Case to Post report) or unlink_sent_evidence (reason; the currently linked evidence unless evidenceId names it). Nothing here sends a report; pegasus_report_send does. A generation that is not ready answers outcome NotReady with the reasons and records nothing. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). A generation keeps the lease; approval and the evidence acts end it.")]
     public async Task<ReportActionToolResult> ActAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same outcome without rendering again.")] string operationKey,
         [Description("The act: generate_report, generate_repair_spec, generate_image_pack, record_approval, link_sent_evidence or unlink_sent_evidence.")] string action,
         [Description("current (the default; the Audit once a Case has one) or inspection (the Inspection report of a Case that has its Audit). unlink_sent_evidence acts on the current work only.")] string? work = null,
@@ -190,7 +190,7 @@ internal sealed class ReportMcpTools(
         [Description("record_approval: the stored generated artifact approved (pegasus_report_list).")] Guid? artifactId = null,
         [Description("link_sent_evidence: the retained report-Sent evidence to link; unlink_sent_evidence: the linked evidence, defaulting to the one linked now.")] Guid? evidenceId = null,
         [Description("Why (case history reason, at most 500 characters). Required for record_approval, link_sent_evidence and unlink_sent_evidence.")] string? reason = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(

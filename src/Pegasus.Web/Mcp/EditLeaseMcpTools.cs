@@ -134,7 +134,7 @@ internal sealed class EditLeaseMcpTools(
         [Description(RecordKindDescription)] string recordKind,
         [Description(RecordIdDescription)] Guid recordId,
         [Description("The lease token returned by pegasus_edit_begin.")] string editLeaseToken,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         CancellationToken cancellationToken = default)
     {
         var kind = ParseKind(recordKind);
@@ -185,7 +185,7 @@ internal sealed class EditLeaseMcpTools(
         [Description(RecordKindDescription)] string recordKind,
         [Description(RecordIdDescription)] Guid recordId,
         [Description("The lease token returned by pegasus_edit_begin.")] string editLeaseToken,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         CancellationToken cancellationToken = default)
     {
         var kind = ParseKind(recordKind);

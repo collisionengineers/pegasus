@@ -117,8 +117,8 @@ internal sealed class CaseMcpTools(
         [Description("Claim number filter.")] string? claimNumber = null,
         [Description("Principal code filter.")] string? principal = null,
         [Description("Lifecycle state filter using the CaseLifecycleState name.")] string? state = null,
-        [Description("Opaque cursor returned by the previous page; omit for the first page.")] string? cursor = null,
-        [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
+        [Description(AutomationToolText.Cursor)] string? cursor = null,
+        [Description(AutomationToolText.PageSize)] int? limit = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -167,7 +167,7 @@ internal sealed class CaseMcpTools(
         UseStructuredContent = true)]
     [Description("Returns one case as a bounded projection: its summary and version, its Claim source and Repairer, what still holds it from being ready, and independently paged document inventory and history. Document content is retrieved with pegasus_document_download, or with pegasus_document_download_batch for 1 to 25 documents in one call.")]
     public async Task<CaseGetToolResult> GetAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("Opaque document cursor returned by the previous response.")] string? documentCursor = null,
         [Description("Opaque history cursor returned by the previous response.")] string? historyCursor = null,
         [Description("Maximum documents and history entries per page, 1 to 100; omit for 50.")] int? limit = null,

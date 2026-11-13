@@ -138,7 +138,6 @@ internal sealed class PhotoCaptureMcpTools(
     ILogger<PhotoCaptureMcpTools> logger,
     IOptions<PhotoCaptureOptions>? options = null)
 {
-    private const string KeyDescription = "Caller idempotency key prefixed 'mcp:'.";
     private const string CaptureDescription = "The photo link (captureId from pegasus_photo_link_list).";
     private const string CustomerNameDescription = "A new link: the customer's name; omit for the Case's claimant.";
     private const string AccidentDateDescription = "A new link: the accident date, yyyy-MM-dd; omit for the Case's.";
@@ -171,7 +170,7 @@ internal sealed class PhotoCaptureMcpTools(
         [Description("Text the registration, customer, Case reference or contact contains.")] string? search = null,
         [Description("The standing tab: only the captures this standing link started.")] Guid? standingLinkId = null,
         [Description("The page, from 1; omit for the first.")] int? page = null,
-        [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
+        [Description(AutomationToolText.PageSize)] int? limit = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -323,7 +322,7 @@ internal sealed class PhotoCaptureMcpTools(
     [Description("One photo link act that sends nothing, through the same Core command as the Photo capture pages, with no edit lease or expected version. issue makes a new link for a Case and returns its address to copy, as Send a photo link's Create link to copy does. resend_copy makes a fresh address for a live link sent from a Case, as Resend's Create link to copy does, counted as a reminder when one is due. extend adds days to the link; cancel stops it taking photos; log_call records a phone call to the customer. extend, cancel and log_call are taken where the link's page offers them (offers in pegasus_photo_link_get). A repeated operation key acts once; a repeated issue or resend_copy returns replayed and no address.")]
     public async Task<PhotoLinkActionToolResult> ActAsync(
         [Description("issue, resend_copy, extend, cancel or log_call.")] string action,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("issue: the Case.")] Guid? caseId = null,
         [Description("resend_copy, extend, cancel and log_call: " + CaptureDescription)] Guid? captureId = null,
         [Description("extend: 3, 7 or 14. issue: the link's lifetime in days, one Administration offers; omit for the default.")] int? days = null,
@@ -418,7 +417,7 @@ internal sealed class PhotoCaptureMcpTools(
     public async Task<PhotoLinkSendToolResult> SendAsync(
         [Description("send or resend.")] string action,
         [Description("email or text.")] string channel,
-        [Description(KeyDescription + " A text's key is at most 87 characters.")] string operationKey,
+        [Description(AutomationToolText.OperationKey + " A text's key is at most 87 characters.")] string operationKey,
         [Description("send: the Case.")] Guid? caseId = null,
         [Description("resend: " + CaptureDescription)] Guid? captureId = null,
         [Description("send: the customer's e-mail address; required for email, else kept on the link.")] string? email = null,

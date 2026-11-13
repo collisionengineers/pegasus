@@ -65,7 +65,6 @@ internal sealed class TriageMcpTools(
 {
     private const string TriageIdDescription = "The Triage Case identifier (caseId from pegasus_triage_list).";
     private const string VersionDescription = "The Triage version the caller observed; a stale value fails closed.";
-    private const string KeyDescription = "Caller idempotency key prefixed 'mcp:'.";
     private const string ReasonDescription = "Why, for the Triage history (at most 500 characters).";
     private const string LeaseDescription = "Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the Triage lease for this one command.";
 
@@ -73,8 +72,8 @@ internal sealed class TriageMcpTools(
     [Description("Lists a bounded page of Triage records through the protected Core continuation query. Each item carries the Triage Case id, its t. reference, state and version.")]
     public async Task<TriageListToolResult> ListAsync(
         [Description("Optional state filter: Open, AwaitingInformation, FindingRecorded, Completed or Cancelled.")] string? state = null,
-        [Description("Opaque cursor returned by the previous page; omit for the first page.")] string? cursor = null,
-        [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
+        [Description(AutomationToolText.Cursor)] string? cursor = null,
+        [Description(AutomationToolText.PageSize)] int? limit = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync("pegasus_triage_list", "triage",
@@ -136,7 +135,7 @@ internal sealed class TriageMcpTools(
     public Task<TriageDetailToolResult> AwaitInformationAsync(
         [Description(TriageIdDescription)] Guid caseId,
         [Description(VersionDescription)] long expectedVersion,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default) =>
         MutateAsync("pegasus_triage_await_information", caseId, expectedVersion, operationKey, editLeaseToken,
@@ -148,7 +147,7 @@ internal sealed class TriageMcpTools(
         [Description(TriageIdDescription)] Guid caseId,
         [Description(VersionDescription)] long expectedVersion,
         [Description(ReasonDescription)] string reason,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("Roadworthy or Unroadworthy; omit when the finding is assessment only.")] RoadworthinessFinding? roadworthiness = null,
         [Description("The assessment finding; omit when the finding is roadworthiness only.")] AssessmentFinding? assessment = null,
         [Description("The earlier finding this one supersedes; omit to add a finding.")] Guid? supersedesFindingId = null,
@@ -168,7 +167,7 @@ internal sealed class TriageMcpTools(
         [Description("Link or Unlink.")] string action,
         [Description("The sent evidence identifier.")] Guid sentEvidenceId,
         [Description(ReasonDescription)] string reason,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("Link only: the poll outcome the evidence answers.")] Guid? pollOutcomeId = null,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
@@ -195,7 +194,7 @@ internal sealed class TriageMcpTools(
     public Task<TriageDetailToolResult> CompleteAsync(
         [Description(TriageIdDescription)] Guid caseId,
         [Description(VersionDescription)] long expectedVersion,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default) =>
         MutateAsync("pegasus_triage_complete", caseId, expectedVersion, operationKey, editLeaseToken,
@@ -207,7 +206,7 @@ internal sealed class TriageMcpTools(
         [Description(TriageIdDescription)] Guid caseId,
         [Description(VersionDescription)] long expectedVersion,
         [Description(ReasonDescription)] string reason,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default) =>
         MutateAsync("pegasus_triage_cancel", caseId, expectedVersion, operationKey, editLeaseToken,
@@ -219,7 +218,7 @@ internal sealed class TriageMcpTools(
         [Description(TriageIdDescription)] Guid caseId,
         [Description(VersionDescription)] long expectedVersion,
         [Description(ReasonDescription)] string reason,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default) =>
         MutateAsync("pegasus_triage_reopen", caseId, expectedVersion, operationKey, editLeaseToken,
@@ -234,7 +233,7 @@ internal sealed class TriageMcpTools(
         [Description(VersionDescription)] long expectedTriageVersion,
         [Description("The instruction Case version the caller observed; a stale value fails closed.")] long expectedCaseVersion,
         [Description(ReasonDescription)] string reason,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         [Description("The instruction Case's edit lease token from pegasus_edit_begin; omit it and the tool holds the Case lease for this one command.")] string? caseEditLeaseToken = null,
         CancellationToken cancellationToken = default)
@@ -269,7 +268,7 @@ internal sealed class TriageMcpTools(
         [Description(TriageIdDescription)] Guid caseId,
         [Description(VersionDescription)] long expectedVersion,
         [Description("Assign or Unassign.")] string action,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("Assign only: the staff identifier of an enabled member of staff, from pegasus_vocabulary_get staff.")] Guid? assigneeId = null,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
@@ -308,7 +307,7 @@ internal sealed class TriageMcpTools(
         [Description(TriageIdDescription)] Guid caseId,
         [Description(VersionDescription)] long expectedVersion,
         [Description("The note text, at most 500 characters.")] string note,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default) =>
         MutateAsync("pegasus_triage_note_add", caseId, expectedVersion, operationKey, editLeaseToken,

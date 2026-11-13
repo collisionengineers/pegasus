@@ -56,7 +56,7 @@ internal sealed class DocumentActionMcpTools(
         UseStructuredContent = true)]
     [Description("Takes one document act a member of staff takes on a Case's files, through the same Core command and guards: tag or untag (one image occurrence and one tagId from pegasus_vocabulary_get's image tags), set_in_report (inReport true puts the image in the report, false takes it out), mark_original_report (occurrenceId and versionId of a filed non-image document on an Audit awaiting its original report; its readable figures fill the Original report cells and, where the Case has none, its stated mileage fills the Case mileage), set_type (occurrenceId, versionId, semanticRole and reason; gives the document a new type, any but OriginalSource: Instruction, Image, Correspondence, EngineerReport, AuditReport, Estimate, ValuationEvidence or Other; Image only for a JPEG or PNG file, and it completes the Case's images; AuditReport is mark_original_report's act and fills the same cells and mileage), remove (reason; the occurrence is removed from the Case while custody content and history are kept), retry_custody (reason, retryTarget; re-arms failed Box custody of the Case's source or Audit reference folder) or create_image_tag (tagName, tagColour; adds a word to the shared vocabulary without changing the Case, so it needs no version or lease). Occurrence and version identifiers come from pegasus_case_get. Every other act needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command) and ends the lease it ran under.")]
     public async Task<DocumentActionToolResult> ActAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key with the same inputs records the act once.")] string operationKey,
         [Description("The act: tag, untag, set_in_report, mark_original_report, set_type, remove, retry_custody or create_image_tag.")] string action,
         [Description("The case version the caller observed; required for every act except create_image_tag. A stale value fails closed.")] long? expectedVersion = null,
@@ -69,7 +69,7 @@ internal sealed class DocumentActionMcpTools(
         [Description("retry_custody: case_source (the Case's own Box folder) or audit_reference (the Audit's a. folder).")] string? retryTarget = null,
         [Description("create_image_tag: the new tag's name (at most 40 characters, unique without regard to case).")] string? tagName = null,
         [Description("create_image_tag: the tag's colour, one of Blue, Green, Amber, Navy, Red or Grey.")] string? tagColour = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(

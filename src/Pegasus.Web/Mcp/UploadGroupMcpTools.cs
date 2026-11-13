@@ -116,7 +116,7 @@ internal sealed class UploadGroupMcpTools(
     public async Task<UploadGroupActionToolResult> ActAsync(
         [Description(GroupIdDescription)] Guid groupId,
         [Description("attach, leave or discard.")] string action,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("attach only: the Case or Triage Case identifier.")] Guid? caseId = null,
         [Description("attach only: the destination's version from pegasus_upload_group_get.")] long? expectedCaseVersion = null,
         [Description("discard only: the upload's version from pegasus_upload_group_get.")] long? expectedGroupVersion = null,

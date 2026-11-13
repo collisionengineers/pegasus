@@ -116,7 +116,7 @@ internal sealed class ReportPreparationMcpTools(
         UseStructuredContent = true)]
     [Description("Reads the report's wording blocks for one work as the Report section offers them, in print order: each block's key, heading, wording, place, whether it is on the report, whether it is a paragraph the Engineer wrote (manual) or wording written in place of the composed sentence (handEdited), and, for a standard block, the sentence composed from the Case's fields and its standard heading. A block with nothing to say and no change is not offered. available is false while the Case's report cannot yet be projected, and then there are no blocks. Also lists the standard block keys and headings.")]
     public async Task<ReportWordingToolResult> GetWordingAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(WorkDescription)] string? work = null,
         CancellationToken cancellationToken = default)
     {
@@ -144,13 +144,13 @@ internal sealed class ReportPreparationMcpTools(
         UseStructuredContent = true)]
     [Description("Changes the report's wording blocks for one work through the Case save, as the Report section's Save does: rename a heading, write wording in place of the composed sentence or put a block back to it, move a block, take it off the report or put it back, and add or delete a paragraph of your own (key 'manual:' plus a name). Each named block changes only in what it names; every other block keeps its heading, wording, place and presence. Wording or a heading equal to the composed one is no change, so the block keeps tracking its fields. Read pegasus_report_wording_get first. Refused while the Case's report cannot yet be projected. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
     public async Task<ReportWordingToolResult> SaveWordingAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("The blocks to change, each named by its key once.")] IReadOnlyList<ReportWordingBlockToolInput> blocks,
         [Description(WorkDescription)] string? work = null,
         [Description("Why the wording is being changed (case history reason).")] string? reason = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -199,7 +199,7 @@ internal sealed class ReportPreparationMcpTools(
         UseStructuredContent = true)]
     [Description("Reads how each of a Case's images prints in the report, as the Case page's Files section shows it: whether it is in the report and can print, its role (Overview, CloseUp or Supporting, decided by its tags) and place in the report, its staff order, rotation, crop, whether it prints on a page of its own, its tags, and the preparationVersion pegasus_image_prepare needs.")]
     public async Task<ImagePreparationToolResult> GetImagePreparationAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -229,12 +229,12 @@ internal sealed class ReportPreparationMcpTools(
         UseStructuredContent = true)]
     [Description("Prepares images for the report through the Case save, as the Case page's image editor does: crop, rotate, set an image's place among the Supporting images, and print it on a page of its own. Each image names its preparationVersion from pegasus_image_preparation_get; a value it omits keeps what is recorded. Order and full page are only for an image in the report; whether an image is in the report is pegasus_document_action set_in_report, and its Overview or Close-up role follows its tags. The images in the report are renumbered from 1. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
     public async Task<ImagePreparationToolResult> PrepareImagesAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("The images to prepare, each named once.")] IReadOnlyList<ImagePreparationToolInput> images,
         [Description("Why the images are being prepared (case history reason).")] string? reason = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(

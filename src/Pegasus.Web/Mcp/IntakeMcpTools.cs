@@ -121,7 +121,7 @@ internal sealed class IntakeMcpTools(
         [Description("The source media type.")] string mediaType,
         [Description("The complete source content encoded as base64.")] string contentBase64,
         [Description("The durable source-occurrence identity for this exact submission, at most 200 characters.")] string externalReceiptToken,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         CancellationToken cancellationToken = default)
     {
         var normalizedToken = externalReceiptToken?.Trim();

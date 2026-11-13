@@ -170,9 +170,9 @@ internal sealed class CaseEditMcpTools(
         UseStructuredContent = true)]
     [Description("Edits the Case facts staff edit on the Case page, through the same Case save: claimant, claim, accident, VAT status, repairer (typed, or linked to a directory Repairer), claim source (a directory Claim source) and its contact for this Case, Principal and Claim source notes, due by, vehicle identity and mileage, inspection and the Sign-off Engineer. Omit a value to leave it as it is; send an empty string to clear a text or date value. Values not named are never changed. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). Dates are yyyy-MM-dd; inspectionMode is 'physical_address' or 'image_based_assessment'. Assessment fields (outcome, roadworthiness, values, damage and the rest) are written with pegasus_assessment_update.")]
     public async Task<CaseUpdateDetailsToolResult> UpdateDetailsAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("Why these details are being changed (case history reason).")] string? reason = null,
         [Description("Claimant name.")] string? claimantName = null,
         [Description("Claimant contact number.")] string? claimantContactNumber = null,
@@ -203,7 +203,7 @@ internal sealed class CaseEditMcpTools(
         [Description("Inspection date, yyyy-MM-dd; the report prints it as the date the damage was assessed.")] string? inspectionDate = null,
         [Description("Inspection deadline, yyyy-MM-dd.")] string? inspectionDeadline = null,
         [Description("The Sign-off Engineer's staff identifier, from pegasus_vocabulary_get signOffEngineers. Naming the engineer the Case already shows records nothing. The empty identifier 00000000-0000-0000-0000-000000000000 removes the recorded pick, so the default applies again.")] Guid? signOffEngineerId = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -423,7 +423,7 @@ internal sealed class CaseEditMcpTools(
         UseStructuredContent = true)]
     [Description("Adds a note to the case's timeline, as a member of staff adds one on the Case. A note is append-only and attributed to the Automation actor; it changes no case value and needs no version or edit lease. At most 2000 characters.")]
     public async Task<CaseNoteAddToolResult> AddNoteAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key adds the note once.")] string operationKey,
         [Description("The note text.")] string note,
         CancellationToken cancellationToken = default)
@@ -451,7 +451,7 @@ internal sealed class CaseEditMcpTools(
         UseStructuredContent = true)]
     [Description("Lists the valuation cards recorded on a case: each guide card, the Engineer's Value card and any AI market research card, with its figures and identifier.")]
     public async Task<ValuationListToolResult> ListValuationsAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -477,13 +477,13 @@ internal sealed class CaseEditMcpTools(
         UseStructuredContent = true)]
     [Description("Records valuation guide cards on a case and, optionally, the valuation calculation against a basis card, as the Valuation section's Save does. A card for the same source and guide month replaces the earlier one. A calculation writes the report's Retail and Trade values (assessment.values.retail, assessment.values.trade) from its basis card; nothing else writes them. The Engineer's Value (assessment.values.engineer) is written with pegasus_assessment_update. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
     public async Task<ValuationSaveToolResult> SaveValuationsAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("The guide cards to record.")] IReadOnlyList<GuideCardToolInput>? guideCards = null,
         [Description("The calculation to record against its basis card.")] ValuationAdoptionToolInput? adoption = null,
         [Description("Why the valuation is being recorded (case history reason).")] string? reason = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -559,13 +559,13 @@ internal sealed class CaseEditMcpTools(
         UseStructuredContent = true)]
     [Description("Runs the Valuation section's Get valuation for one guide source and records that source's card on the case with the figures it answers, as a member of staff pressing Get valuation and saving does. Pegasus asks the source's connected provider (Glass's, Brego or Cazana) for the case's confirmed registration and mileage in the guide month, files the provider's own valuation report on the case afterwards and fills an empty case VIN the provider names (Glass's, Brego and Cazana offer both). Outcome Recorded carries the figures; Unavailable (no connected provider, or it could not answer), VehicleAge (the source does not value a vehicle of this age), NoVehicleData (the source holds no data for the registration) and AlreadyAsked (the source has already answered for this case and guide month at its current registration and mileage, so it is not asked or charged again) record nothing. Adopting a basis card, which writes the report's Retail and Trade values, stays with pegasus_valuation_save; the Engineer's Value stays with pegasus_assessment_update. A source is asked once per case and guide month at its confirmed registration and mileage: only an answer with figures uses that ask, and a corrected registration or mileage allows one more. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
     public async Task<ValuationGetToolResult> GetValuationAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("The guide source to value with: Glasses, Cazana, Brego, SuperCap or Cap.")] string source,
         [Description("The guide month to value in, yyyy-MM; omit for the current month.")] string? guideMonth = null,
         [Description("Why the valuation is being recorded (case history reason).")] string? reason = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(

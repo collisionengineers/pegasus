@@ -42,7 +42,7 @@ internal sealed class CaseQueryMcpTools(
     [Description("One query act, through the same Core command as the Case page, with no edit lease, expected version or reason. open logs a query (channel one of Email, Phone, WhatsApp or Other, optional details) or opens one on a linked message (messageId); a new query is Unassigned. mark_done closes one open query. reopen reopens one Done query while the Case is not archived or closed. assign sets the assignee (assigneeStaffId) or Unassigned when omitted. Needs a mcp:-prefixed operation key.")]
     public async Task<CaseQueryToolResult> ActAsync(
         [Description("open, mark_done, reopen or assign.")] string action,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("open: the Case.")] Guid? caseId = null,
         [Description("mark_done, reopen and assign: the query.")] Guid? queryId = null,
         [Description("open from a linked e-mail: the retained message. Omit it to log a query by channel.")] Guid? messageId = null,

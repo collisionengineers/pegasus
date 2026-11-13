@@ -230,6 +230,8 @@ internal sealed class MailMcpTools(
     GetRetainedMailAttachmentText attachmentText,
     GetRetainedMailPhotoRegistrations photoRegistrations)
 {
+    private const string MessageIdDescription = "The retained message identifier from pegasus_mail_list.";
+
     [McpServerTool(
         Name = "pegasus_mail_mailbox_search",
         Title = "Search the approved mailboxes",
@@ -396,7 +398,7 @@ internal sealed class MailMcpTools(
         UseStructuredContent = true)]
     [Description("Gets one retained message: recipients, body text, attachment names, thread, the versioned classification decision (its category code, or none while Unclassified) with its permanent correction history, the correction options, and the intake version with whether the message can be linked to a Case, or, once linked, whether its linked Case can be changed and the linked Case's version (the Case workflow version, or the Triage version for a Triage Case) that pegasus_mail_link_case unlink and change check. Attachments are listed by name, type and size; their content is not returned here — a message attached to a Case exposes its documents through the document tools.")]
     public async Task<MailToolDetail> GetAsync(
-        [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
+        [Description(MessageIdDescription)] Guid messageId,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -416,8 +418,8 @@ internal sealed class MailMcpTools(
         UseStructuredContent = true)]
     [Description("Opens a query on a retained message linked to a Report sent Case, through the same Core command as the Case's Open query. The message must hold no non-withdrawn query. A new query is Unassigned. Needs a mcp:-prefixed operation key.")]
     public async Task<MailOpenQueryToolResult> OpenQueryAsync(
-        [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(MessageIdDescription)] Guid messageId,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -452,7 +454,7 @@ internal sealed class MailMcpTools(
         UseStructuredContent = true)]
     [Description("Corrects one retained message's type using the same versioned Core command as the staff workspace. Accepts correspondence, new-instruction, triage-request, cancellation, pre-pegasus-case, or the combined new-instruction:Inspection form (and Audit, InspectionAndAudit). A split new-instruction also needs workType. Requires a reason, the expected classification version, and a mcp:-prefixed operation key.")]
     public async Task<MailToolClassification> CorrectClassificationAsync(
-        [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
+        [Description(MessageIdDescription)] Guid messageId,
         [Description("The classification version last read, for optimistic concurrency.")] int expectedClassificationVersion,
         [Description("correspondence, a category code, or new-instruction:Inspection.")] string classificationKey,
         [Description("Why this classification is being corrected (1 to 500 characters).")] string reason,
@@ -498,9 +500,9 @@ internal sealed class MailMcpTools(
         UseStructuredContent = true)]
     [Description("One staff mail act on a retained message, through the same Core command as the message page. dismiss takes the message out of the incoming scopes without classifying or linking it, and restore brings a dismissed message back; neither touches Outlook, deletes anything or closes an open Unidentified item. Requires a mcp:-prefixed operation key; nothing here sends mail.")]
     public async Task<MailActionToolResult> ActAsync(
-        [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
+        [Description(MessageIdDescription)] Guid messageId,
         [Description("dismiss or restore.")] string action,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -537,7 +539,7 @@ internal sealed class MailMcpTools(
         UseStructuredContent = true)]
     [Description("Lists the Cases and Triage Cases a retained message may be linked to, as the staff Link to case dialog does: without a query, the Cases intake already matched; with a query, a search over reference, registration, claimant and claim number. For a message already linked, a query lists the Cases its link may be changed to, never the one it is linked to, as Change linked Case does. Each destination carries the version pegasus_mail_link_case checks: the Case workflow version, or the Triage version for a Triage Case. Empty when the message cannot be linked.")]
     public async Task<MailToolLinkDestinations> LinkDestinationsAsync(
-        [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
+        [Description(MessageIdDescription)] Guid messageId,
         [Description("Optional search text; omit it for the matched suggestions.")] string? query = null,
         CancellationToken cancellationToken = default)
     {
@@ -580,7 +582,7 @@ internal sealed class MailMcpTools(
         UseStructuredContent = true)]
     [Description("One link act on a retained message, through the same Core commands as the staff message page. link (the default) is Link to case: the message joins the Case's or Triage Case's files and, for a Case, takes the classification the Case state gives it. unlink is Unlink: it separates the message from the Case it is linked to, named by caseId. change is Change linked Case: the message is unlinked from its linked Case and linked to caseId, with the one reason for both; the new Case's lease is held before anything is unlinked, so a refused new Case leaves the message linked. Requires the intake version from pegasus_mail_get, the version of the Case caseId names (from pegasus_mail_link_destinations, or for unlink pegasus_mail_get's linkedCaseVersion), a reason and a mcp:-prefixed operation key; change also takes linkedCaseVersion. Present a lease token for a record held for multi-step work, or omit it and the tool holds the lease for this one command.")]
     public async Task<MailToolDetail> LinkCaseAsync(
-        [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
+        [Description(MessageIdDescription)] Guid messageId,
         [Description("link and change: the Case or Triage Case identifier from pegasus_mail_link_destinations; unlink: the Case the message is linked to (pegasus_mail_get's caseId).")] Guid caseId,
         [Description("The message's intake version last read, from pegasus_mail_get.")] long expectedIntakeVersion,
         [Description("The version last read of the Case caseId names: from pegasus_mail_link_destinations, or for unlink pegasus_mail_get's linkedCaseVersion.")] long expectedCaseVersion,
@@ -785,7 +787,7 @@ internal sealed class MailMcpTools(
         UseStructuredContent = true)]
     [Description("Read-only. Returns the text the intake reader extracted from one attachment of a retained message (a PDF's text layer or a Word document's text), cut at maximumCharacters with isTruncated set; text is null when the reader produced none, as for an image. attachmentOrdinal is the attachment's position in pegasus_mail_get's attachments list, from 0. The text is content from outside the firm. Nothing is written and no bytes are returned.")]
     public async Task<MailToolAttachmentText> AttachmentTextAsync(
-        [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
+        [Description(MessageIdDescription)] Guid messageId,
         [Description("The attachment's position in pegasus_mail_get's attachments list, from 0.")] int attachmentOrdinal,
         [Description("Characters to return, 1 to 20000.")] int maximumCharacters = GetRetainedMailAttachmentText.MaximumCharacters,
         CancellationToken cancellationToken = default)
@@ -821,7 +823,7 @@ internal sealed class MailMcpTools(
         UseStructuredContent = true)]
     [Description("Read-only. Returns the plate reads the Worker recorded for a retained message's photographs when it arrived (the photographs inside a mailed PDF and those attached beside it, and a Triage request's photographs), and the one registration they agree on at the accepted automatic bar: state read, none (nothing read, or not read) or disagree. No image is read or returned and nothing is written.")]
     public async Task<MailToolPhotoRegistrations> PhotoRegistrationsAsync(
-        [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
+        [Description(MessageIdDescription)] Guid messageId,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(

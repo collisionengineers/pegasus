@@ -29,7 +29,7 @@ internal sealed class WorkCentreMcpTools(
     [Description("Dismisses a record from the Work Centre for everyone, as a row's Dismiss does: its rows leave Needs attention, New cases, System Actions and AI Actions until the record next qualifies (the next chase falls due, the Case is held again or re-enters Review, the Triage or job changes state, the item is reopened, or a later system action is recorded on that record). The record itself does not change and there is no undo. Requires a mcp:-prefixed operation key for the call's history.")]
     public async Task<WorkCentreDismissToolResult> DismissAsync(
         [Description("The record behind the row: a Case identifier (a Triage Case's too), an Unidentified item's id (pegasus_unidentified_get), an AI job's id (pegasus_ai_job_list), or a System Action's underlying receipt, image intake or query id.")] Guid recordId,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(

@@ -52,7 +52,7 @@ internal sealed class DocumentUploadMcpTools(
     public async Task<UploadBeginToolResult> BeginAsync(
         [Description("The whole document's size in bytes, 1 to 10485760.")] long totalBytes,
         [Description("The whole document's SHA-256, 64 hexadecimal digits.")] string sha256,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync("pegasus_upload_begin", cancellationToken);
