@@ -2,7 +2,7 @@
 id: ADR-0087
 status: accepted
 date: 2026-10-29
-supersedes: [ADR-0080]
+supersedes: [ADR-0080, ADR-0027]
 superseded_by: []
 related_capabilities: [MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06]
 related_frd: [frd-10]
@@ -21,7 +21,10 @@ and 7 (no new tool until the split) end. Its decisions 2 (instructions
 restate FRD-10's cross-tool rules and make none), 3 (`tools/list` holds only
 the tools whose scope the token carries; the list is disclosure and the
 resolver is the gate) and 5 (no Administration or read-only server) stand and
-are owned here. ADR-0011, ADR-0026, ADR-0027 and ADR-0064 are unchanged.
+are owned here. Decision 4 replaces
+[ADR-0027](0027-authorization-code-for-external-mcp-connectors.md)'s
+approve-all-or-refuse consent; its other clauses stand. ADR-0011, ADR-0026
+and ADR-0064 are unchanged.
 Raised by issue #1733 from the release-readiness decision E7 (R509).
 
 ## Context
@@ -130,7 +133,7 @@ client-credentials callers. Rejected (R548).
 - [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md)
 - [ADR-0080](superseded/0080-automation-mcp-one-server-per-scope.md) (superseded)
 - [ADR-0011](0011-restrict-mcp-to-automation-actor.md),
-  [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md),
+  [ADR-0026](superseded/0026-enable-automation-mcp-by-explicit-deployment-configuration.md),
   [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md),
   [ADR-0064](0064-automation-actor-staff-casework-parity.md)
 - [Current architecture](../current-architecture.md)

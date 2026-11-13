@@ -48,8 +48,8 @@ Records whose status is superseded live in `superseded/` with their IDs unchange
 | [ADR-0023](superseded/0023-restructure-repository-documentation-and-reference-evidence.md) | Restructure repository documentation and reference evidence | superseded | — | — |
 | [ADR-0024](0024-stable-approved-mailbox-identity-and-explicit-baseline.md) | Stable approved-mailbox identity and per-mailbox fresh start | accepted | ADR-0044, ADR-0068 (separate Sent-evidence activation) | — |
 | [ADR-0025](0025-integrate-renderer-and-extractor-into-the-application.md) | Integrate the report renderer and document extractor into the application, not into standalone packages | accepted | — | RPT-01, RPT-02, RPT-03, RPT-04, RPT-05, INT-10, INT-11, INT-12 |
-| [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md) | Enable Automation MCP by explicit deployment configuration | accepted | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
-| [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md) | Authorization code with PKCE for external MCP connectors | accepted | ADR-0041 | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
+| [ADR-0026](superseded/0026-enable-automation-mcp-by-explicit-deployment-configuration.md) | Enable Automation MCP by explicit deployment configuration | superseded | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
+| [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md) | Authorization code with PKCE for external MCP connectors | accepted | ADR-0041, ADR-0087 (consent per scope) | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
 | [ADR-0028](superseded/0028-run-integrated-renderer-in-web-container-app.md) | Run the integrated report renderer in the Web Container App | superseded | ADR-0049, ADR-0050 | EXT-08, RPT-01, RPT-02 |
 | [ADR-0029](0029-image-initiated-case-projection.md) | Image-initiated Case projection | accepted | ADR-0045 | INT-17, INT-28 |
 | [ADR-0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | accepted; expired at cutover, 2 November 2026 (R603) | ADR-0046 (partial) | — |

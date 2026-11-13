@@ -17,6 +17,11 @@ only the conflicting mechanism below, not the unrelated clauses of ADR-0027.
 Acceptance records the technical decision; it is not deployment evidence or
 authorization for an external operation.
 
+Amended 13 November 2026 (R1045): nothing invalidates an issued token early.
+Stopping the Automation client is the emergency control, and issued tokens
+lapse at the end of their own lifetime. The Decision's sentence is edited in
+place.
+
 ## Context
 
 The earlier decision and current functional contract describe different
@@ -35,7 +40,8 @@ Rotation overlaps new and required old material; verify issue, validation and
 refresh across restart and replicas before retirement. Old material remains
 through the last old-key issuance plus the maximum token lifetime: ten-minute
 access tokens and non-sliding refresh tokens of at most fourteen days.
-Emergency invalidation is explicit and records affected grants/tokens.
+Stopping the Automation client is the emergency control; issued tokens lapse
+at the end of their own lifetime (13 November 2026, R1045).
 
 ## Consequences
 

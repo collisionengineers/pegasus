@@ -123,7 +123,7 @@ withdrew the earlier exclusion for exactly that reason.
 - [FRD-27 — AI Job List](../frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)
 - [FRD-10 — AI job and estimate tools](../frd/frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools)
 - [ADR-0011](0011-restrict-mcp-to-automation-actor.md)
-- [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md)
+- [ADR-0026](superseded/0026-enable-automation-mcp-by-explicit-deployment-configuration.md)
 - [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md)
 - [ADR-0031](0031-automation-actor-contract-without-eva-export-tools.md)
 - [Boundaries — AI assistance](../prd/pegasus-product.md#permanent-boundaries)

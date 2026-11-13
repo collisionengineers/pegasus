@@ -168,7 +168,7 @@ with `pegasus_ai_job_transition`
 
 **Administration.** Automation & AI shows the active and failed job counts
 and the Stop/Start automation control. That control is the
-[ADR-0026](../adr/0026-enable-automation-mcp-by-explicit-deployment-configuration.md) kill switch, so stopping
+[ADR-0026](../adr/superseded/0026-enable-automation-mcp-by-explicit-deployment-configuration.md) kill switch, so stopping
 automation also stops the ledger. The Work Centre pane is the live queue;
 the history of the same jobs is
 [Action logs](frd-04-parties-accounts-and-access.md#permanent-action-history),
@@ -239,7 +239,7 @@ Deployment and live acceptance are separate evidence tiers
   [FRD-17](frd-17-administration-workspace.md),
   [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md).
 - Technical constraints:
-  [ADR-0026](../adr/0026-enable-automation-mcp-by-explicit-deployment-configuration.md),
+  [ADR-0026](../adr/superseded/0026-enable-automation-mcp-by-explicit-deployment-configuration.md),
   [ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md),
   [ADR-0035](../adr/0035-ai-job-ledger.md),
   [ADR-0073](../adr/0073-send-to-ai-hand-off-record-retired.md).

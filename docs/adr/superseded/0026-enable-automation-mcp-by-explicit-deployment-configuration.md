@@ -1,6 +1,6 @@
 ---
 id: ADR-0026
-status: accepted
+status: superseded
 date: 2026-08-18
 supersedes: []
 superseded_by: []
@@ -13,7 +13,13 @@ tags: [mcp, automation, deployment]
 
 ## Status
 
-Accepted.
+Superseded on 13 November 2026 (operator ruling R1046): the Automation MCP is
+on in every deployed estate and the Automation client's Stop switch stops it,
+which
+[FRD-10 § MCP automation and actor boundary](../../frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)
+states. Retained for history.
+
+Accepted on 18 August 2026.
 
 ## Current applicability
 
@@ -70,5 +76,5 @@ ownership of the external MCP client's client-selection or tool-access policy.
 
 ## Links
 
-- [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md)
-- [ADR-0021](superseded/0021-automation-actor-direct-write-assessment-contract.md)
+- [FRD-10](../../frd/frd-10-mcp-automation-and-actor-boundary.md)
+- [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md)
