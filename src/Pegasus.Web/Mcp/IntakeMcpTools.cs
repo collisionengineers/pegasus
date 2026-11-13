@@ -111,8 +111,6 @@ internal sealed record IntakeQueueToolResult(
 internal sealed record IntakeSubmitToolResult(
     Guid ReceiptId,
     bool IsDuplicate,
-    string Disposition,
-    string ExternalReceiptToken,
     string OperationKey);
 
 /// <summary>
@@ -268,8 +266,6 @@ internal sealed class IntakeMcpTools(
                 return new IntakeSubmitToolResult(
                     result.StagedReceiptId,
                     result.IsDuplicate,
-                    "Queued",
-                    normalizedToken,
                     normalizedKey);
             },
             cancellationToken);

@@ -37,7 +37,6 @@ public sealed class AutomationIntakeSubmitIngressTests
         {
             var submitted = await ReadStructuredContentAsync(response);
             Assert.False(submitted.GetProperty("isDuplicate").GetBoolean());
-            Assert.Equal(receiptToken, submitted.GetProperty("externalReceiptToken").GetString());
             stagedReceiptId = submitted.GetProperty("receiptId").GetGuid();
         }
 
