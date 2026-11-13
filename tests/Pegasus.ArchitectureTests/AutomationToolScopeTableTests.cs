@@ -27,7 +27,6 @@ public sealed partial class AutomationToolScopeTableTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(83, registered.Length);
         Assert.Equal(registered, AutomationToolScopes.Tools.Order(StringComparer.Ordinal).ToArray());
     }
 
@@ -87,7 +86,7 @@ public sealed partial class AutomationToolScopeTableTests
         Assert.Contains("pegasus_upload_group_action", intakeTools);
         Assert.Contains("pegasus_unidentified_action", intakeTools);
         Assert.Equal(10, Listed(AutomationMcp.AssessmentScope).Length);
-        Assert.Equal(83, Listed([.. AutomationMcp.Scopes]).Length);
+        Assert.Equal(AutomationToolScopes.Tools.Order(StringComparer.Ordinal).ToArray(), Listed([.. AutomationMcp.Scopes]));
         Assert.Empty(Listed());
     }
 
