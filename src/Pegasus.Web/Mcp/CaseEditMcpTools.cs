@@ -198,14 +198,12 @@ internal sealed class CaseEditMcpTools(
                                 {
                                     claimSource = null;
                                 }
-                                else if (sourceId != claimSource?.ClaimSourceId)
+                                else if (CaseDetailsSaveRules.ClaimSourceToCopy(claimSource, sourceId) is { } copied)
                                 {
                                     var chosen = await contactDirectory.FindActiveByRoleAsync(
-                                            context.Actor, ContactRole.ClaimSource, sourceId, cancellationToken)
+                                            context.Actor, ContactRole.ClaimSource, copied, cancellationToken)
                                         ?? throw new McpException("The selected claim source is not an active Claim source record.");
-                                    claimSource = new CaseWorkspaceClaimSource(
-                                        chosen.OrganizationId, chosen.Version, chosen.Name,
-                                        chosen.ContactPerson, chosen.Telephone, chosen.Email);
+                                    claimSource = CaseDetailsSaveRules.ClaimSourceCopy(chosen);
                                 }
                             }
                             claimSource = claimSource is { } source
@@ -226,9 +224,9 @@ internal sealed class CaseEditMcpTools(
                             // link the Case already holds is not linked again: it
                             // keeps the copy it has, whether or not the record is
                             // still active, as the Case page's save keeps it (R1022).
-                            var linkedRepairer = repairerDirectoryId is { } directoryId
-                                && directoryId != Guid.Empty
-                                && directoryId != persisted?.Repairer?.DirectoryOrganizationId
+                            var linkedRepairer = CaseDetailsSaveRules.RepairerToLink(
+                                    persisted?.Repairer,
+                                    repairerDirectoryId == Guid.Empty ? null : repairerDirectoryId) is { } directoryId
                                 ? await contactDirectory.FindActiveByRoleAsync(
                                         context.Actor, ContactRole.Repairer, directoryId, cancellationToken)
                                     ?? throw new McpException("The selected repairer is not an active directory Repairer.")
@@ -245,13 +243,11 @@ internal sealed class CaseEditMcpTools(
                                 linkedRepairer?.Address
                                     ?? Text(repairerAddress, Accepted(data.Inspection.RepairerAddress)),
                                 claimSource,
-                                linkedRepairer is not null
-                                    ? new CaseWorkspaceRepairer(
-                                        linkedRepairer.OrganizationId, linkedRepairer.Version, linkedRepairer.Name)
-                                    : new CaseWorkspaceRepairer(
-                                        unlinkRepairer ? null : persisted?.Repairer?.DirectoryOrganizationId,
-                                        unlinkRepairer ? null : persisted?.Repairer?.DirectoryOrganizationVersion,
-                                        Text(repairerName, Accepted(data.Inspection.RepairerName))),
+                                CaseDetailsSaveRules.Repairer(
+                                    persisted?.Repairer,
+                                    linkedRepairer,
+                                    unlinkRepairer,
+                                    Text(repairerName, Accepted(data.Inspection.RepairerName))),
                                 Text(principalNotes, persisted?.PrincipalNotes),
                                 Text(claimSourceNotes, persisted?.ClaimSourceNotes),
                                 Date(dueBy, nameof(dueBy),
@@ -263,11 +259,8 @@ internal sealed class CaseEditMcpTools(
                         {
                             await LoadAssessmentAsync();
                             var address = Text(inspectionAddress, Accepted(data.Inspection.Address));
-                            var treatment = mode is not null
-                                ? Treatment(mode)
-                                : inspectionAddress is null && persisted?.InspectionAddressTreatment is { } recorded
-                                    ? recorded
-                                    : Treatment(CaseDataPolicy.InferInspectionMode(address));
+                            var treatment = CaseDetailsSaveRules.InspectionTreatment(
+                                mode, inspectionAddress is not null, persisted?.InspectionAddressTreatment, address);
                             inspection = new(
                                 treatment,
                                 address,
@@ -305,7 +298,7 @@ internal sealed class CaseEditMcpTools(
                                 Text(vehicleMake, Accepted(data.Vehicle.Make)),
                                 Text(vehicleModel, Accepted(data.Vehicle.Model)),
                                 new(mileage,
-                                    mileage is null ? null : unit ?? CaseOdometerUnit.Miles,
+                                    CaseDetailsSaveRules.MileageUnit(mileage, unit),
                                     persisted?.VehicleMileageDisplayUnit),
                                 AssessmentFields: null,
                                 Text(vehicleYear, Accepted(data.Vehicle.Year)));
@@ -324,10 +317,7 @@ internal sealed class CaseEditMcpTools(
                             : new(
                                 AssessmentFields: null,
                                 engineerId == Guid.Empty ? null : engineerId,
-                                DateOnly.TryParseExact(Recorded(AssessmentVocabulary.ReportDate), "yyyy-MM-dd",
-                                    CultureInfo.InvariantCulture, DateTimeStyles.None, out var reportDate)
-                                    ? reportDate
-                                    : null);
+                                CaseDetailsSaveRules.RecordedReportDate(Recorded(AssessmentVocabulary.ReportDate)));
 
                         if (overview is null && inspection is null && vehicle is null && report is null)
                         {
@@ -529,11 +519,4 @@ internal sealed class CaseEditMcpTools(
                 _ => throw new McpException(
                     "The inspection mode must be physical_address or image_based_assessment.")
             };
-
-    private static CaseReportAddressTreatment Treatment(CaseInspectionMode? mode) => mode switch
-    {
-        CaseInspectionMode.ImageBasedAssessment => CaseReportAddressTreatment.ImageBasedAssessment,
-        CaseInspectionMode.PhysicalAddress => CaseReportAddressTreatment.PhysicalVehicleLocation,
-        _ => CaseReportAddressTreatment.Undetermined
-    };
 }

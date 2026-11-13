@@ -2498,14 +2498,8 @@ public sealed partial class DetailsModel(
                     CultureInfo.InvariantCulture, out var value) ? value : null;
                 var persisted = data.Workspace;
                 var address = Submitted(nameof(inspectionAddress), inspectionAddress, Accepted(data.Inspection.Address)?.Value);
-                var treatment = !Posted(nameof(inspectionAddress)) && persisted?.InspectionAddressTreatment is { } recordedTreatment
-                    ? recordedTreatment
-                    : CaseDataPolicy.InferInspectionMode(address) switch
-                    {
-                        CaseInspectionMode.ImageBasedAssessment => CaseReportAddressTreatment.ImageBasedAssessment,
-                        CaseInspectionMode.PhysicalAddress => CaseReportAddressTreatment.PhysicalVehicleLocation,
-                        _ => CaseReportAddressTreatment.Undetermined
-                    };
+                var treatment = CaseDetailsSaveRules.InspectionTreatment(
+                    null, Posted(nameof(inspectionAddress)), persisted?.InspectionAddressTreatment, address);
                 var mileageValue = Submitted(nameof(vehicleMileage), vehicleMileage, Accepted(data.Vehicle.Mileage)?.Value);
                 var mileageUnit = Submitted(nameof(vehicleMileageUnit), vehicleMileageUnit, Accepted(data.Vehicle.MileageUnit)?.Value);
                 CaseOdometerUnit? originalUnit = null;
@@ -2518,7 +2512,7 @@ public sealed partial class DetailsModel(
                 // The mileage value and its selected unit are saved together.
                 // Emptying the box clears the unit; a mileage submitted without
                 // a unit is read in miles.
-                originalUnit = mileageValue is null ? null : originalUnit ?? CaseOdometerUnit.Miles;
+                originalUnit = CaseDetailsSaveRules.MileageUnit(mileageValue, originalUnit);
                 var reportFields = assessmentFields.Where(field => EditorLabels.Report.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 // Every control opens holding its value, so emptying it clears it.
@@ -2553,15 +2547,13 @@ public sealed partial class DetailsModel(
                         claimSourceChanged = claimSource is not null;
                         claimSource = null;
                     }
-                    else if (sourceId != persisted?.ClaimSource?.ClaimSourceId)
+                    else if (CaseDetailsSaveRules.ClaimSourceToCopy(persisted?.ClaimSource, sourceId) is { } copied)
                     {
                         claimSourceChanged = true;
                         var chosen = await contactDirectory.FindActiveByRoleAsync(
-                                actor, ContactRole.ClaimSource, sourceId, cancellationToken)
+                                actor, ContactRole.ClaimSource, copied, cancellationToken)
                             ?? throw new InvalidOperationException("The selected claim source is not an active Claim source record.");
-                        claimSource = new CaseWorkspaceClaimSource(
-                            chosen.OrganizationId, chosen.Version, chosen.Name,
-                            chosen.ContactPerson, chosen.Telephone, chosen.Email);
+                        claimSource = CaseDetailsSaveRules.ClaimSourceCopy(chosen);
                     }
                 }
                 // The contact boxes show the effective contact; Core keeps an
@@ -2595,9 +2587,9 @@ public sealed partial class DetailsModel(
                 // (operator, 12 November 2026, R1022). Without a link the
                 // Case keeps the extracted or keyed text, and the member of
                 // staff saving it is its confirmation.
-                var linkKept = repairerDirectoryId is { } postedLink
-                    && postedLink == persisted?.Repairer?.DirectoryOrganizationId;
-                var linkedRepairer = overviewSubmitted && !linkKept && repairerDirectoryId is { } directoryId
+                var linkKept = CaseDetailsSaveRules.KeepsRepairerLink(persisted?.Repairer, repairerDirectoryId);
+                var linkedRepairer = overviewSubmitted
+                    && CaseDetailsSaveRules.RepairerToLink(persisted?.Repairer, repairerDirectoryId) is { } directoryId
                     ? await contactDirectory.FindActiveByRoleAsync(
                             actor, ContactRole.Repairer, directoryId, cancellationToken)
                         ?? throw new InvalidOperationException("The selected repairer is not an active directory Repairer.")
@@ -2605,13 +2597,11 @@ public sealed partial class DetailsModel(
                 // An unposted selector is not an unlink: only the rendered
                 // control, which offers "not linked" explicitly, may clear it.
                 var unlinked = Posted(nameof(repairerDirectoryId)) && !linkKept;
-                var repairer = linkedRepairer is not null
-                    ? new CaseWorkspaceRepairer(
-                        linkedRepairer.OrganizationId, linkedRepairer.Version, linkedRepairer.Name)
-                    : new CaseWorkspaceRepairer(
-                        unlinked ? null : persisted?.Repairer?.DirectoryOrganizationId,
-                        unlinked ? null : persisted?.Repairer?.DirectoryOrganizationVersion,
-                        Submitted(nameof(repairerName), repairerName, Accepted(data.Inspection.RepairerName)?.Value));
+                var repairer = CaseDetailsSaveRules.Repairer(
+                    persisted?.Repairer,
+                    linkedRepairer,
+                    unlinked,
+                    Submitted(nameof(repairerName), repairerName, Accepted(data.Inspection.RepairerName)?.Value));
                 var inspectionSubmitted = new[] { nameof(inspectionAddress), nameof(storageLocation), nameof(inspectionDate),
                     nameof(inspectionDeadline), nameof(storagePerDay), nameof(recoveryCharge) }.Any(Posted);
                 var vehicleSubmitted = new[] { nameof(vehicleRegistration), nameof(vehicleMake), nameof(vehicleModel),
@@ -2631,8 +2621,7 @@ public sealed partial class DetailsModel(
                 var markers = !Posted(nameof(damageMarkers))
                     ? null
                     : AssessmentPolicy.ParseMarkers(damageMarkers);
-                var recordedDate = DateOnly.TryParseExact(Recorded(AssessmentVocabulary.ReportDate), "yyyy-MM-dd",
-                    CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : (DateOnly?)null;
+                var recordedDate = CaseDetailsSaveRules.RecordedReportDate(Recorded(AssessmentVocabulary.ReportDate));
                 // The guide source cards have no Save of their own (23 September
                 // 2026): this save records the ones whose boxes were changed, and
                 // records the calculation when the operator changed it.
