@@ -455,10 +455,7 @@ builder.Services.AddRateLimiter(options =>
             "/Account/SignIn",
             StringComparison.OrdinalIgnoreCase)
             ? "sign_in_rate_limited"
-            : rejectedPath.StartsWithSegments(AutomationMcp.McpEndpointPath)
-                || rejectedPath.Equals(
-                    AutomationMcp.TokenEndpointPath,
-                    StringComparison.OrdinalIgnoreCase)
+            : AutomationMcp.IsIngressPath(rejectedPath)
                 ? "automation_rate_limited"
                 : rejectedPath.StartsWithSegments(PrincipalApi.BasePath)
                     ? "principal_api_rate_limited"
@@ -1266,12 +1263,10 @@ if (automationMcpOptions is not null)
         var isTokenEndpoint = automationPath.Equals(
             AutomationMcp.TokenEndpointPath,
             StringComparison.OrdinalIgnoreCase);
-        var isMcpEndpoint = automationPath.StartsWithSegments(
-            AutomationMcp.McpEndpointPath);
         var isAuthorizationEndpoint = automationPath.Equals(
             AutomationMcp.AuthorizationEndpointPath,
             StringComparison.OrdinalIgnoreCase);
-        if (!isTokenEndpoint && !isMcpEndpoint && !isAuthorizationEndpoint)
+        if (!AutomationMcp.IsIngressPath(automationPath) && !isAuthorizationEndpoint)
         {
             await next(context);
             return;
@@ -1441,8 +1436,7 @@ app.Run();
 static bool IsMachineSurface(PathString path) =>
     path.StartsWithSegments("/health")
     || path.StartsWithSegments("/diagnostics")
-    || path.StartsWithSegments(AutomationMcp.McpEndpointPath)
-    || path.Equals(AutomationMcp.TokenEndpointPath, StringComparison.OrdinalIgnoreCase)
+    || AutomationMcp.IsIngressPath(path)
     || path.StartsWithSegments(PrincipalApi.BasePath)
     || path.StartsWithSegments("/capture/api");
 

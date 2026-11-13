@@ -33,6 +33,10 @@ public static class AutomationMcp
     /// <summary>The one server's path (ADR-0087): every tool is served here.</summary>
     public const string McpEndpointPath = "/mcp";
 
+    /// <summary>The original-bytes routes a download tool names as its <c>contentUrl</c>.</summary>
+    public const string DocumentContentPath = "/automation/documents";
+    public const string IntakeSourceContentPath = "/automation/intake-sources";
+
     /// <summary>RFC 9728: the server's metadata document, which lists every scope.</summary>
     public const string ResourceMetadataPath = "/.well-known/oauth-protected-resource/mcp";
     public const string CasesScope = "automation.cases";
@@ -55,6 +59,17 @@ public static class AutomationMcp
 
     public static IReadOnlyList<string> Scopes { get; } =
         [CasesScope, IntakeScope, DocumentsScope, AssessmentScope, MailScope, JobsScope, SendScope];
+
+    /// <summary>
+    /// The bearer-only automation surface a program calls: the token endpoint,
+    /// the one server and the two content routes. The consent page at
+    /// <see cref="AuthorizationEndpointPath"/> is a staff page and is not one.
+    /// </summary>
+    public static bool IsIngressPath(PathString path) =>
+        path.StartsWithSegments(McpEndpointPath)
+        || path.Equals(TokenEndpointPath, StringComparison.OrdinalIgnoreCase)
+        || path.StartsWithSegments(DocumentContentPath)
+        || path.StartsWithSegments(IntakeSourceContentPath);
 
     // The cross-tool rules FRD-10 states, as the server's instructions restate
     // them (ADR-0080 decision 2, carried by ADR-0087): agent-facing copy the
