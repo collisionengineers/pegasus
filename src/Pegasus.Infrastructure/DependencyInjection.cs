@@ -172,6 +172,7 @@ public static class DependencyInjection
         services.AddScoped<PromoteAssociatedIntakeCaseEvidence>();
         services.AddScoped<IOriginalReportRecognitionDeferrals, EfOriginalReportRecognitionDeferrals>();
         services.AddScoped<ResolveIntake>();
+        services.AddScoped<IntakeCaseCreation>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
         services.AddScoped<IRetryIntakeOcr, RetryIntakeOcr>();
         services.AddScoped<ILinkIntake, LinkIntake>();

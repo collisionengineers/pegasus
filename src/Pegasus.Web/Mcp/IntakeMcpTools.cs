@@ -141,7 +141,7 @@ internal sealed class IntakeMcpTools(
     IGetIntake getIntake,
     ResolveIntake resolveIntake,
     IAllocateIntake allocateIntake,
-    IStandaloneAuditEvidenceQueries standaloneAuditEvidence,
+    IntakeCaseCreation caseCreation,
     IInspectionAddressResolutionStore addressResolutions,
     IPrincipalInspectionModeStore principalInspectionModes,
     IPrincipalSenderDirectory principalSenders,
@@ -720,8 +720,7 @@ internal sealed class IntakeMcpTools(
         {
             throw new McpException("This item already has a case.");
         }
-        if (receipt.Decision is not (IntakeDecision.OcrRequired or IntakeDecision.NeedsSorting)
-            && !IntakeDecisionPolicy.CanBecomeCase(receipt.Decision))
+        if (!IntakeCaseCreation.AcceptsByHand(receipt.Decision))
         {
             throw new McpException(OperatorLabels.IntakeCannotBecomeCaseReason(receipt.Decision));
         }
@@ -765,9 +764,7 @@ internal sealed class IntakeMcpTools(
             // The address the page puts in the draft: the Principal's own
             // image-based mode, or the address that was settled.
             InspectionAddress = principalIsImageBased
-                ? resolution.ResolvedValue
-                    ?? resolution.Evaluation.Suggestion?.Value
-                    ?? Ext18InspectionAddressPolicy.ImageBasedAssessment
+                ? IntakeCaseCreation.ImageBasedInspectionAddress(resolution)
                 : resolution.ResolvedValue
         };
         var missing = InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
@@ -787,7 +784,7 @@ internal sealed class IntakeMcpTools(
                 IntakeResolutionKind.CorrectDraft,
                 draft),
             cancellationToken);
-        var auditEvidence = await standaloneAuditEvidence.GetForReceiptAsync(receipt.Id, cancellationToken);
+        var auditEvidenceId = await caseCreation.StandaloneAuditEvidenceIdAsync(receipt.Id, cancellationToken);
         return await allocateIntake.AttemptStaffCreateAsync(
             new(
                 receipt.Id,
@@ -800,10 +797,8 @@ internal sealed class IntakeMcpTools(
                 principal,
                 new CaseCompleteness(
                     InstructionComplete: addressSettled,
-                    ImagesComplete: InstructionEvidenceImages.Select(receipt.AssetRecords).Count > 0),
-                auditEvidence is { IntakeReceiptId: var evidenceReceiptId } && evidenceReceiptId == receipt.Id
-                    ? auditEvidence.Id
-                    : null,
+                    ImagesComplete: IntakeCaseCreation.ImagesComplete(receipt)),
+                auditEvidenceId,
                 draft.InspectionDate),
             cancellationToken);
     }
