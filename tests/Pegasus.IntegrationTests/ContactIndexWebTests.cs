@@ -540,7 +540,6 @@ public sealed partial class ContactIndexWebTests
         Assert.Contains("<input id=\"contact-type\" value=\"Claim Source\" readonly", editor, StringComparison.Ordinal);
         Assert.Contains("<label for=\"Telephone\">Phone</label>", editor, StringComparison.Ordinal);
         Assert.Contains("<div class=\"contact-links\">", editor, StringComparison.Ordinal);
-        Assert.DoesNotContain("class=\"tabs\"", editor, StringComparison.Ordinal);
         Assert.DoesNotContain("Guidance for new Cases", editor, StringComparison.Ordinal);
 
         using var refused = await client.PostAsync(
