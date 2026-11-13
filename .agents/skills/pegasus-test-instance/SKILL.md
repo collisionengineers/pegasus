@@ -201,7 +201,7 @@ Principal API issues its keys on the instance (Administration > Contacts);
 the MCP serves the local classifier and tailnet agents with a
 client-credentials token, and a claude.ai custom connector through the
 authorization-code flow that `AutomationMcp__RedirectUris` turns on, an
-Administrator approving at `/connect/authorize` (R899). Never put `AutomationMcp__PublicOrigin` or
+Administrator approving at `/authorize` (R899). Never put `AutomationMcp__PublicOrigin` or
 `Glass__CallbackBaseUri` in the file: the lifecycle owns both and refuses
 them.
 

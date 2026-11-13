@@ -179,7 +179,8 @@ internal sealed record AssessmentUpdateToolResult(
     IReadOnlyList<EstimateLineToolItem> EstimateLines,
     IReadOnlyList<AssessmentReadinessToolItem> Readiness,
     string OperationKey,
-    string CorrelationId);
+    string CorrelationId,
+    [property: Description("Set when saveUnroadworthyReasonToBank was asked: Saved, or AlreadyOffered when the bank already holds the wording.")] string? UnroadworthyReasonBank = null);
 
 /// <summary>
 /// Automation Actor assessment and estimate tools (FRD-10, ADR-0064): direct
@@ -194,6 +195,7 @@ internal sealed record AssessmentUpdateToolResult(
 internal sealed class AssessmentMcpTools(
     IGetCaseAssessment getAssessment,
     SaveAssessment saveAssessment,
+    ISaveUnroadworthyReason saveUnroadworthyReason,
     ISaveEstimate saveEstimate,
     IListCaseEstimates caseEstimates,
     IListCaseEstimatesByCursor listEstimates,
@@ -585,7 +587,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Records assessment fields that staff record on the Case, professional findings included (for example assessment.outcome, assessment.legal_status for roadworthiness, assessment.salvage_category, assessment.values.engineer), under the expected case version; present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command. pegasus_vocabulary_get lists every path with its accepted codes. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag. Case-owned facts (use pegasus_case_update_details), fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field.")]
+    [Description("Records assessment fields that staff record on the Case, professional findings included (for example assessment.outcome, assessment.legal_status for roadworthiness, assessment.salvage_category, assessment.values.engineer), under the expected case version; present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command. pegasus_vocabulary_get lists every path with its accepted codes, and the unroadworthy wordings bank staff choose assessment.unroadworthy_reason from. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag. Case-owned facts (use pegasus_case_update_details), fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field.")]
     public async Task<AssessmentUpdateToolResult> UpdateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -593,6 +595,7 @@ internal sealed class AssessmentMcpTools(
         [Description("Why these values are being recorded (case history reason, at most 500 characters).")] string reason,
         [Description("Assessment values keyed by field path, each as a string, limited to fields staff can record on the Case; a null value clears the field. An enumerated field takes one of its codes; assessment.impacts (the impacts, each a severity, a location and a note) and damage.impacts (the damage markers drawn on the plan: the vehicle seen from above with its front at the top, y 0, and its left, nearside, at x 0; staff mark damage along its outline) each take a JSON array in the format pegasus_vocabulary_get gives for it.")] Dictionary<string, string?>? fields = null,
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description("True to also save the assessment.unroadworthy_reason this call records to the unroadworthy wordings bank, as Save this wording does on the Case page; the call must name that field.")] bool saveUnroadworthyReasonToBank = false,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(
@@ -612,6 +615,15 @@ internal sealed class AssessmentMcpTools(
                     RequireGenericWrite(path);
                 }
 
+                // A wording the bank cannot hold refuses the whole call before
+                // anything is written, as it refuses the Case page's save.
+                string? bankWording = null;
+                if (saveUnroadworthyReasonToBank)
+                {
+                    fields?.TryGetValue(AssessmentVocabulary.UnroadworthyReason, out bankWording);
+                    _ = UnroadworthyReasonBank.Normalize(bankWording);
+                }
+
                 var projection = await leases.RunCaseAsync(
                     caseId,
                     expectedVersion,
@@ -629,6 +641,16 @@ internal sealed class AssessmentMcpTools(
                             fields ?? new Dictionary<string, string?>(StringComparer.Ordinal)),
                         cancellationToken),
                     cancellationToken);
+                // The bank is not Case data: the save above stands whatever
+                // happens here, and a replay of the key saves the wording once.
+                string? bank = null;
+                if (saveUnroadworthyReasonToBank)
+                {
+                    bank = await saveUnroadworthyReason.ExecuteAsync(
+                        new(bankWording!, context.Actor), cancellationToken) is null
+                        ? "AlreadyOffered"
+                        : "Saved";
+                }
                 return new AssessmentUpdateToolResult(
                     projection.CaseId,
                     projection.CaseVersion,
@@ -637,7 +659,8 @@ internal sealed class AssessmentMcpTools(
                     projection.EstimateLines.Select(MapLine).ToArray(),
                     projection.Readiness.Select(MapReadiness).ToArray(),
                     normalizedKey,
-                    normalizedKey);
+                    normalizedKey,
+                    bank);
             }),
             cancellationToken);
     }
