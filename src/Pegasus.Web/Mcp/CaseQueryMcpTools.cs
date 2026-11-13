@@ -28,7 +28,6 @@ internal sealed class CaseQueryMcpTools(
     IReopenCaseQuery reopenQuery,
     IAssignCaseQuery assignQuery,
     ICaseWorkflowQueries workflows,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
     private static readonly string[] Actions = ["open", "mark_done", "reopen", "assign"];
@@ -53,15 +52,12 @@ internal sealed class CaseQueryMcpTools(
         [Description("assign: the staff identifier, from pegasus_vocabulary_get staff, or omit for Unassigned.")] Guid? assigneeStaffId = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_case_query", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         var subject = (queryId ?? caseId ?? Guid.Empty).ToString("D");
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_case_query",
             subject,
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, key) =>
             {
                 var verb = action?.Trim() ?? string.Empty;
                 if (!Actions.Contains(verb, StringComparer.Ordinal))
@@ -109,7 +105,7 @@ internal sealed class CaseQueryMcpTools(
                         return Result(verb, id, workflow, key, context);
                     }
                 }
-            }),
+            },
             cancellationToken);
     }
 

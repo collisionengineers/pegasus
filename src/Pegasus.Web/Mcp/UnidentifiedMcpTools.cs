@@ -109,7 +109,6 @@ internal sealed class UnidentifiedMcpTools(
     IVrmSuggestionStore vrmSuggestions,
     StaffIntakeActions intakeActions,
     IImageIntakeStore imageIntakes,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
     [McpServerTool(
@@ -127,13 +126,10 @@ internal sealed class UnidentifiedMcpTools(
         [Description("Items to return; omit for the default 50, maximum 100.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_unidentified_list", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_unidentified_list",
             "unidentified",
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 UnidentifiedMediaKind? filter = null;
                 if (!string.IsNullOrWhiteSpace(mediaKind))
@@ -154,7 +150,7 @@ internal sealed class UnidentifiedMcpTools(
                     page.NextCursor,
                     effectiveLimit,
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -171,13 +167,10 @@ internal sealed class UnidentifiedMcpTools(
         [Description("Exact canonical U-reference, for example U17.")] string reference,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_unidentified_get", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_unidentified_get",
             reference?.Trim() ?? "invalid",
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 var normalizedReference = RequireReference(reference);
                 var item = await store.GetByReferenceAsync(normalizedReference, cancellationToken)
@@ -192,7 +185,7 @@ internal sealed class UnidentifiedMcpTools(
                     itemContext.CanRegisterImages,
                     itemContext.SuggestedRegistration,
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -210,14 +203,11 @@ internal sealed class UnidentifiedMcpTools(
         [Description("Byte budget for inline content; 0 selects 100 KiB, at most 10 MiB.")] int maxInlineBytes = 0,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_unidentified_source_download", cancellationToken);
         var normalizedReference = reference?.Trim() ?? "invalid";
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_unidentified_source_download",
             normalizedReference,
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 normalizedReference = RequireReference(normalizedReference);
                 var item = await store.GetByReferenceAsync(normalizedReference, cancellationToken)
@@ -253,7 +243,7 @@ internal sealed class UnidentifiedMcpTools(
                     maxInlineBytes,
                     context.TraceIdentifier,
                     cancellationToken);
-            }),
+            },
             cancellationToken);
     }
 
@@ -325,14 +315,11 @@ internal sealed class UnidentifiedMcpTools(
         [Description("Optional display reference for the destination; not taken by Closed.")] string? targetReference = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_unidentified_resolve", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_unidentified_resolve",
             reference?.Trim() ?? "invalid",
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, key) =>
             {
                 var normalizedReference = RequireReference(reference);
                 var item = await store.GetByReferenceAsync(normalizedReference, cancellationToken)
@@ -363,7 +350,7 @@ internal sealed class UnidentifiedMcpTools(
                         DateTimeOffset.UtcNow),
                     cancellationToken);
                 return Map(result.Item);
-            }),
+            },
             cancellationToken);
     }
 
@@ -385,14 +372,11 @@ internal sealed class UnidentifiedMcpTools(
         [Description("dismiss_reading only: the reading identifier from pegasus_unidentified_get readings.")] Guid? readingId = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_unidentified_action", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_unidentified_action",
             reference?.Trim() ?? "invalid",
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, key) =>
             {
                 var normalizedReference = RequireReference(reference);
                 var item = await store.GetByReferenceAsync(normalizedReference, cancellationToken)
@@ -451,7 +435,7 @@ internal sealed class UnidentifiedMcpTools(
                     default:
                         throw new McpException("action must be register_images or dismiss_reading.");
                 }
-            }),
+            },
             cancellationToken);
     }
 
@@ -516,14 +500,11 @@ internal sealed class UnidentifiedMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_unidentified_reopen", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_unidentified_reopen",
             reference?.Trim() ?? "invalid",
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, key) =>
             {
                 var normalizedReference = RequireReference(reference);
                 var item = await store.GetByReferenceAsync(normalizedReference, cancellationToken)
@@ -532,7 +513,7 @@ internal sealed class UnidentifiedMcpTools(
                     new(item.Id, expectedVersion, context.Actor, key, reason, DateTimeOffset.UtcNow),
                     cancellationToken);
                 return Map(result.Item);
-            }),
+            },
             cancellationToken);
     }
 

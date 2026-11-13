@@ -98,7 +98,6 @@ internal sealed class ImageIntakeMcpTools(
     ITriageQueries triages,
     OneCommandEdit leases,
     ICursorProtector cursors,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
     private const string IdDescription = "The Image Intake record identifier (id from pegasus_image_intake_list).";
@@ -117,13 +116,10 @@ internal sealed class ImageIntakeMcpTools(
         [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_image_intake_list", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_image_intake_list",
             "image-intake",
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 var effectiveLimit = CursorPaging.NormalizeLimit(limit);
                 var scope = CursorPaging.CreateScope(
@@ -173,7 +169,7 @@ internal sealed class ImageIntakeMcpTools(
                     next,
                     effectiveLimit,
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -190,16 +186,13 @@ internal sealed class ImageIntakeMcpTools(
         [Description(IdDescription)] Guid imageIntakeId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_image_intake_get", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_image_intake_get",
-            Resource(imageIntakeId),
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(() => ReadDetailAsync(
+            AutomationMcpAuditor.Resource(imageIntakeId),
+            context => ReadDetailAsync(
                 AutomationMcpErrors.RequireId(imageIntakeId, "Image Intake record identifier"),
                 context.TraceIdentifier,
-                cancellationToken)),
+                cancellationToken),
             cancellationToken);
     }
 
@@ -222,14 +215,11 @@ internal sealed class ImageIntakeMcpTools(
         [Description("Edit lease token from pegasus_edit_begin (recordKind ImageIntake) for multi-step work; omit it and the tool holds the record's edit scope for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_image_intake_action", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_image_intake_action",
-            Resource(imageIntakeId),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(imageIntakeId),
+            operationKey,
+            async (context, key) =>
             {
                 var id = AutomationMcpErrors.RequireId(imageIntakeId, "Image Intake record identifier");
                 var close = action?.Trim() switch
@@ -283,7 +273,7 @@ internal sealed class ImageIntakeMcpTools(
                 }
 
                 return await ReadDetailAsync(id, AutomationMcpAuditor.CorrelationId(context, key), cancellationToken);
-            }),
+            },
             cancellationToken);
     }
 
@@ -357,6 +347,4 @@ internal sealed class ImageIntakeMcpTools(
                 entry.CaseReference)).ToArray(),
             correlationId);
     }
-
-    private static string Resource(Guid id) => id == Guid.Empty ? "invalid" : id.ToString("D");
 }

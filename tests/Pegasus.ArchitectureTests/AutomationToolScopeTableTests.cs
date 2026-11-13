@@ -54,8 +54,9 @@ public sealed partial class AutomationToolScopeTableTests
             }
         }
 
-        // The nine Triage writes share one gate, which takes the tool's name.
-        Assert.Equal(83 - 9, gated);
+        // Every tool gates on its own name: at the resolver, through the auditor's
+        // CallAsync, or through the Triage writes' MutateAsync, which passes it on.
+        Assert.Equal(AutomationToolScopes.Tools.Count(), gated);
     }
 
     [Fact]
@@ -118,6 +119,6 @@ public sealed partial class AutomationToolScopeTableTests
             .Order(StringComparer.Ordinal)];
     }
 
-    [GeneratedRegex(@"Name = ""(?<tool>pegasus_[a-z_]+)""|RequireAsync\(\s*""(?<gate>pegasus_[a-z_]+)""")]
+    [GeneratedRegex(@"Name = ""(?<tool>pegasus_[a-z_]+)""|(?:RequireAsync|CallAsync|MutateAsync)\(\s*""(?<gate>pegasus_[a-z_]+)""")]
     private static partial Regex ToolOrGate();
 }

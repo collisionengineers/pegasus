@@ -90,7 +90,7 @@ internal sealed class EditLeaseMcpTools(
         return await auditor.RecordAsync(
             context,
             "pegasus_edit_begin",
-            Resource(recordId),
+            AutomationMcpAuditor.Resource(recordId),
             normalizedKey,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
@@ -145,7 +145,7 @@ internal sealed class EditLeaseMcpTools(
         return await auditor.RecordDenialAsync(
             context,
             "pegasus_edit_renew",
-            Resource(recordId),
+            AutomationMcpAuditor.Resource(recordId),
             normalizedKey,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
@@ -194,7 +194,7 @@ internal sealed class EditLeaseMcpTools(
         return await auditor.RecordAsync(
             context,
             "pegasus_edit_end",
-            Resource(recordId),
+            AutomationMcpAuditor.Resource(recordId),
             normalizedKey,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
@@ -352,8 +352,6 @@ internal sealed class EditLeaseMcpTools(
     /// <summary>The record edit scope a Triage or Image Intake lease is (FRD-14 Record edit scopes).</summary>
     private static EditScopeKind ScopeKind(EditLeaseRecordKind kind) =>
         kind == EditLeaseRecordKind.ImageIntake ? EditScopeKind.ImageIntake : EditScopeKind.Triage;
-
-    private static string Resource(Guid id) => id == Guid.Empty ? "invalid" : id.ToString("D");
 
     private static string RequireToken(string? editLeaseToken) =>
         string.IsNullOrWhiteSpace(editLeaseToken)

@@ -44,7 +44,6 @@ internal sealed class IntakeMcpTools(
     ListIntakeByCursor listIntake,
     IIntakeSubmission intakeSubmission,
     TimeProvider timeProvider,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
     private const int MaximumExternalReceiptTokenLength = 200;
@@ -64,13 +63,10 @@ internal sealed class IntakeMcpTools(
         [Description("Items to return; omit for the default 50, maximum 100.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_intake_queue_list", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_intake_queue_list",
             "intake-queue",
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 IntakeDecision? decisionFilter = null;
                 if (!string.IsNullOrWhiteSpace(decision))
@@ -107,7 +103,7 @@ internal sealed class IntakeMcpTools(
                     result.NextCursor,
                     effectiveLimit,
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -128,15 +124,12 @@ internal sealed class IntakeMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_intake_submit", cancellationToken);
-        var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
         var normalizedToken = externalReceiptToken?.Trim();
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_intake_submit",
             normalizedToken is { Length: > 0 and <= 200 } ? normalizedToken : "invalid",
-            normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, normalizedKey) =>
             {
                 if (string.IsNullOrEmpty(normalizedToken)
                     || normalizedToken.Length > MaximumExternalReceiptTokenLength)
@@ -169,7 +162,7 @@ internal sealed class IntakeMcpTools(
                     normalizedToken,
                     normalizedKey,
                     AutomationMcpAuditor.CorrelationId(context, normalizedKey));
-            }),
+            },
             cancellationToken);
     }
 

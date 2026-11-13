@@ -95,7 +95,6 @@ internal sealed class ReportPreparationMcpTools(
     ICaseAssetPreparationQueries preparations,
     ISaveCaseWorkspace saveCaseWorkspace,
     TimeProvider timeProvider,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     OneCommandEdit leases)
 {
@@ -121,20 +120,17 @@ internal sealed class ReportPreparationMcpTools(
         [Description(WorkDescription)] string? work = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_report_wording_get", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_report_wording_get",
-            Resource(caseId),
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            async context =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var selector = ReportMcpTools.ParseWork(work);
                 var version = await CaseVersionAsync(caseId, context.Actor, cancellationToken);
                 return await WordingResultAsync(
                     caseId, selector, version, context.Actor, null, context.TraceIdentifier, cancellationToken);
-            }),
+            },
             cancellationToken);
     }
 
@@ -157,14 +153,11 @@ internal sealed class ReportPreparationMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_report_wording_save", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_report_wording_save",
-            Resource(caseId),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var selector = ReportMcpTools.ParseWork(work);
@@ -192,7 +185,7 @@ internal sealed class ReportPreparationMcpTools(
                 return await WordingResultAsync(
                     caseId, selector, saved.Version, context.Actor, key,
                     AutomationMcpAuditor.CorrelationId(context, key), cancellationToken);
-            }),
+            },
             cancellationToken);
     }
 
@@ -209,13 +202,10 @@ internal sealed class ReportPreparationMcpTools(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_image_preparation_get", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_image_preparation_get",
-            Resource(caseId),
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            async context =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var version = await CaseVersionAsync(caseId, context.Actor, cancellationToken);
@@ -225,7 +215,7 @@ internal sealed class ReportPreparationMcpTools(
                     Map(await preparations.ListForCaseAsync(caseId, cancellationToken)),
                     null,
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -247,14 +237,11 @@ internal sealed class ReportPreparationMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_image_prepare", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_image_prepare",
-            Resource(caseId),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 if (images is null || images.Count == 0)
@@ -289,7 +276,7 @@ internal sealed class ReportPreparationMcpTools(
                     Map(await preparations.ListForCaseAsync(caseId, cancellationToken)),
                     key,
                     AutomationMcpAuditor.CorrelationId(context, key));
-            }),
+            },
             cancellationToken);
     }
 
@@ -495,8 +482,6 @@ internal sealed class ReportPreparationMcpTools(
             }),
         ];
     }
-
-    private static string Resource(Guid id) => id == Guid.Empty ? "invalid" : id.ToString("D");
 
     private sealed record WordingEntry(string Key, string? Title, string? Text, int? Order, bool Included, bool Manual);
 }

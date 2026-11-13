@@ -98,14 +98,11 @@ internal sealed class DocumentMcpTools(
         [Description("Optional durable source-occurrence identity prefixed 'automation:'; reusing an identity records a new version of the same document. Defaults to one derived from the operation key.")] string? sourceOccurrenceIdentity = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_document_add", cancellationToken);
-        var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_document_add",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, normalizedKey) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var safeFileName = AutomationMcpErrors.RequireFileName(fileName);
@@ -175,7 +172,7 @@ internal sealed class DocumentMcpTools(
                     result.IsReplay,
                     normalizedKey,
                     AutomationMcpAuditor.CorrelationId(context, normalizedKey));
-            }),
+            },
             cancellationToken);
     }
 
@@ -199,7 +196,7 @@ internal sealed class DocumentMcpTools(
         return await auditor.RecordAsync(
             context,
             "pegasus_document_download",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
+            AutomationMcpAuditor.Resource(caseId),
             operationKey,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
@@ -259,7 +256,7 @@ internal sealed class DocumentMcpTools(
         return await auditor.RecordAsync(
             context,
             "pegasus_document_download_batch",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
+            AutomationMcpAuditor.Resource(caseId),
             operationKey,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {

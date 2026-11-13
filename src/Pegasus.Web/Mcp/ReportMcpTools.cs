@@ -101,7 +101,6 @@ internal sealed class ReportMcpTools(
     IAvailableReportSentEvidenceQueries availableEvidence,
     IGetAssessmentAccess getAssessmentAccess,
     ICaseWorkflowQueries workflowQueries,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     Pegasus.Web.Presentation.OneCommandEdit leases)
 {
@@ -127,13 +126,10 @@ internal sealed class ReportMcpTools(
         [Description("current (the default; the Audit once a Case has one) or inspection (the Inspection report of a Case that has its Audit).")] string? work = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_report_list", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_report_list",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            async context =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var selector = ParseWork(work);
@@ -173,7 +169,7 @@ internal sealed class ReportMcpTools(
                             null))
                         .ToArray(),
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -199,14 +195,11 @@ internal sealed class ReportMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_report_action", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_report_action",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var verb = action?.Trim() ?? string.Empty;
@@ -249,7 +242,7 @@ internal sealed class ReportMcpTools(
                     result.FeeNoteOutcome,
                     key,
                     AutomationMcpAuditor.CorrelationId(context, key));
-            }),
+            },
             cancellationToken);
     }
 

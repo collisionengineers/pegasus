@@ -206,7 +206,6 @@ internal sealed class AssessmentMcpTools(
     RestoreRepairSpecificationSnapshot restoreEstimateSnapshot,
     IRepairSpecificationSnapshotStore estimateSnapshots,
     ICaseWorkflowQueries workflowQueries,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     OneCommandEdit leases,
     IImportRawEstimate? importRawEstimate = null)
@@ -231,14 +230,11 @@ internal sealed class AssessmentMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_estimate_import", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_estimate_import",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 AutomationMcpErrors.RequireId(occurrenceId, "document occurrence identifier");
@@ -259,7 +255,7 @@ internal sealed class AssessmentMcpTools(
                 return new EstimateImportToolResult(
                     caseId, imported.EstimateId, name.Trim(), key,
                     AutomationMcpAuditor.CorrelationId(context, key));
-            }),
+            },
             cancellationToken);
     }
 
@@ -291,16 +287,11 @@ internal sealed class AssessmentMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(
+        return await auditor.CallAsync(
             "pegasus_estimate_save",
-            cancellationToken);
-        var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_estimate_save",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, normalizedKey) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 ArgumentNullException.ThrowIfNull(lines);
@@ -364,7 +355,7 @@ internal sealed class AssessmentMcpTools(
                     MapEstimate(saved),
                     normalizedKey,
                     AutomationMcpAuditor.CorrelationId(context, normalizedKey));
-            }),
+            },
             cancellationToken);
     }
 
@@ -382,13 +373,10 @@ internal sealed class AssessmentMcpTools(
         [Description("The estimate identifier (pegasus_estimate_list).")] Guid estimateId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_estimate_get", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_estimate_get",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            async context =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 AutomationMcpErrors.RequireId(estimateId, "estimate identifier");
@@ -403,7 +391,7 @@ internal sealed class AssessmentMcpTools(
                             snapshot.CreatedAtUtc, snapshot.Gross))
                         .ToArray(),
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -430,14 +418,11 @@ internal sealed class AssessmentMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_estimate_act", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_estimate_act",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 AutomationMcpErrors.RequireId(estimateId, "estimate identifier");
@@ -491,7 +476,7 @@ internal sealed class AssessmentMcpTools(
                     result is null ? null : MapEstimate(result),
                     key,
                     AutomationMcpAuditor.CorrelationId(context, key));
-            }),
+            },
             cancellationToken);
     }
 
@@ -510,15 +495,10 @@ internal sealed class AssessmentMcpTools(
         [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(
+        return await auditor.CallAsync(
             "pegasus_estimate_list",
-            cancellationToken);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_estimate_list",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            async context =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 if (await workflowQueries.GetAsync(caseId, cancellationToken) is null)
@@ -534,7 +514,7 @@ internal sealed class AssessmentMcpTools(
                     estimates.NextCursor,
                     effectiveLimit,
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -551,15 +531,10 @@ internal sealed class AssessmentMcpTools(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(
+        return await auditor.CallAsync(
             "pegasus_assessment_get",
-            cancellationToken);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_assessment_get",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            async context =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var projection = await getAssessment.ExecuteAsync(caseId, cancellationToken)
@@ -575,7 +550,7 @@ internal sealed class AssessmentMcpTools(
                     MapCaseOwned(projection.CaseOwned),
                     projection.Readiness.Select(MapReadiness).ToArray(),
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -598,16 +573,11 @@ internal sealed class AssessmentMcpTools(
         [Description("True to also save the assessment.unroadworthy_reason this call records to the unroadworthy wordings bank, as Save this wording does on the Case page; the call must name that field.")] bool saveUnroadworthyReasonToBank = false,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(
+        return await auditor.CallAsync(
             "pegasus_assessment_update",
-            cancellationToken);
-        var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_assessment_update",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, normalizedKey) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 foreach (var path in fields?.Keys ?? Enumerable.Empty<string>())
@@ -661,7 +631,7 @@ internal sealed class AssessmentMcpTools(
                     normalizedKey,
                     normalizedKey,
                     bank);
-            }),
+            },
             cancellationToken);
     }
 

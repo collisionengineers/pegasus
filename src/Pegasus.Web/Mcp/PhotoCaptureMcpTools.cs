@@ -134,7 +134,6 @@ internal sealed class PhotoCaptureMcpTools(
     ICaseWorkflowConfiguration workflowConfiguration,
     IConfiguration configuration,
     TimeProvider timeProvider,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     ILogger<PhotoCaptureMcpTools> logger,
     IOptions<PhotoCaptureOptions>? options = null)
@@ -175,13 +174,10 @@ internal sealed class PhotoCaptureMcpTools(
         [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_photo_link_list", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_photo_link_list",
             Resource(caseId, "photo_links"),
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 _ = RequireComposed();
                 var now = timeProvider.GetUtcNow();
@@ -250,7 +246,7 @@ internal sealed class PhotoCaptureMcpTools(
                             pair => Labels.ScopeKey(pair.Key), pair => pair.Value, StringComparer.Ordinal)
                         : null,
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -267,13 +263,10 @@ internal sealed class PhotoCaptureMcpTools(
         [Description(CaptureDescription)] Guid captureId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_photo_link_get", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_photo_link_get",
             Resource(captureId, "invalid"),
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 _ = RequireComposed();
                 var id = AutomationMcpErrors.RequireId(captureId, "photo link identifier");
@@ -315,7 +308,7 @@ internal sealed class PhotoCaptureMcpTools(
                         .ToArray(),
                     new PhotoLinkOffersView(offers.Resend, offers.LogCall, offers.Extend, offers.Cancel),
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -344,14 +337,11 @@ internal sealed class PhotoCaptureMcpTools(
         [Description(OriginalsDescription)] bool? originalsInBackground = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_photo_link_action", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_photo_link_action",
             Resource(captureId ?? caseId, "invalid"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, key) =>
             {
                 var mail = RequireComposed();
                 var verb = Verb(action, ActionVerbs, "action");
@@ -412,7 +402,7 @@ internal sealed class PhotoCaptureMcpTools(
                 }
 
                 return await ActedAsync(verb, captured, null, false, key, context, cancellationToken);
-            }),
+            },
             cancellationToken);
     }
 
@@ -445,14 +435,11 @@ internal sealed class PhotoCaptureMcpTools(
         [Description(DaysDescription)] int? days = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_photo_link_send", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_photo_link_send",
             Resource(captureId ?? caseId, "invalid"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, key) =>
             {
                 var mail = RequireComposed();
                 var verb = Verb(action, SendVerbs, "action");
@@ -499,7 +486,7 @@ internal sealed class PhotoCaptureMcpTools(
                         customerName is not null || accidentDate is not null || mode is not null || quickLinkFor is not null
                             || liveCameraOnly is not null || originalsInBackground is not null || days is not null,
                         cancellationToken);
-            }),
+            },
             cancellationToken);
     }
 

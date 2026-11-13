@@ -38,7 +38,6 @@ internal sealed class DocumentActionMcpTools(
     ILogicallyRemoveDocument removeDocument,
     IRetryCaseCustody retryCustody,
     ICaseWorkflowQueries workflowQueries,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     Pegasus.Web.Presentation.OneCommandEdit leases)
 {
@@ -74,14 +73,11 @@ internal sealed class DocumentActionMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_document_action", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_document_action",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var verb = action?.Trim() ?? string.Empty;
@@ -219,7 +215,7 @@ internal sealed class DocumentActionMcpTools(
                     retry?.Message,
                     key,
                     AutomationMcpAuditor.CorrelationId(context, key));
-            }),
+            },
             cancellationToken);
     }
 }

@@ -229,7 +229,6 @@ internal sealed class MailMcpTools(
     IReverseIntakeLink reverseLink,
     IOpenCaseQuery openCaseQuery,
     OneCommandEdit leases,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     ICursorProtector cursors,
     SearchApprovedMailboxes searchMailboxes,
@@ -252,13 +251,10 @@ internal sealed class MailMcpTools(
         [Description("Messages per mailbox, 1 to 100.")] int pageSize = OldSystemLookupBounds.MaximumItems,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_mail_mailbox_search", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_mail_mailbox_search",
             mailbox?.ToString("D") ?? "approved-mailboxes",
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 var result = await searchMailboxes.ExecuteAsync(
                     context.Actor, mailbox, query, pageSize, cancellationToken);
@@ -279,7 +275,7 @@ internal sealed class MailMcpTools(
                     result.IsTruncated,
                     LookupState(result.State),
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -297,13 +293,10 @@ internal sealed class MailMcpTools(
         [Description("Folders to return, 1 to 100.")] int pageSize = OldSystemLookupBounds.MaximumItems,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_old_system_folder_search", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_old_system_folder_search",
             "old-system-folders",
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 var result = await searchOldSystemFolders.ExecuteAsync(
                     context.Actor, query, pageSize, cancellationToken);
@@ -314,7 +307,7 @@ internal sealed class MailMcpTools(
                     result.IsTruncated,
                     LookupState(result.State),
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -337,13 +330,10 @@ internal sealed class MailMcpTools(
         [Description("Page size from 1 to 100; 0 selects 50.")] int pageSize = 0,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_mail_list", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_mail_list",
             "mail",
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 var requested = string.IsNullOrWhiteSpace(folder) ? "inbox" : folder.Trim();
                 var dismissed = string.Equals(requested, "dismissed", StringComparison.Ordinal);
@@ -398,7 +388,7 @@ internal sealed class MailMcpTools(
                         IndexModel.FreshnessStatus(freshness.State),
                         freshness.LastSuccessfulUpdateAtUtc),
                     awaitingDecisionCount);
-            }),
+            },
             cancellationToken);
     }
 
@@ -415,13 +405,10 @@ internal sealed class MailMcpTools(
         [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_mail_get", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_mail_get",
             messageId.ToString("D"),
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(() => ReadDetailAsync(context, messageId, cancellationToken)),
+            context => ReadDetailAsync(context, messageId, cancellationToken),
             cancellationToken);
     }
 
@@ -439,14 +426,11 @@ internal sealed class MailMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_mail_open_query", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_mail_open_query",
             messageId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, key) =>
             {
                 var id = AutomationMcpErrors.RequireId(messageId, "retained message identifier");
                 var detail = await getRetainedMail.ExecuteAsync(context.Actor, id, cancellationToken)
@@ -460,7 +444,7 @@ internal sealed class MailMcpTools(
                     new(caseId, context.Actor, key, id, null, null),
                     cancellationToken);
                 return new MailOpenQueryToolResult(queryId, caseId, id, key, AutomationMcpAuditor.CorrelationId(context, key));
-            }),
+            },
             cancellationToken);
     }
 
@@ -482,14 +466,11 @@ internal sealed class MailMcpTools(
         [Description("The case type a New instruction names: Inspection, Audit or InspectionAndAudit; required only with the new-instruction key.")] string? workType = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_mail_correct_classification", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_mail_correct_classification",
             messageId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, key) =>
             {
                 if (!MailClassificationSelection.TryParseSelection(
                         classificationKey, workType, out var category, out var caseType))
@@ -509,7 +490,7 @@ internal sealed class MailMcpTools(
                     ?? throw new McpException(
                         "The retained message was not found or has no classification decision to correct.");
                 return Map(dossier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -528,14 +509,11 @@ internal sealed class MailMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_mail_action", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_mail_action",
             messageId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, key) =>
             {
                 var id = AutomationMcpErrors.RequireId(messageId, "retained message identifier");
                 var parsed = ParseMailAction(action);
@@ -551,7 +529,7 @@ internal sealed class MailMcpTools(
                     dismissal.IsReplay,
                     key,
                     correlation);
-            }),
+            },
             cancellationToken);
     }
 
@@ -569,13 +547,10 @@ internal sealed class MailMcpTools(
         [Description("Optional search text; omit it for the matched suggestions.")] string? query = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_mail_link_destinations", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_mail_link_destinations",
             messageId.ToString("D"),
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 var receipt = await RequireReceiptAsync(context, messageId, cancellationToken);
                 var items = string.IsNullOrWhiteSpace(query)
@@ -597,7 +572,7 @@ internal sealed class MailMcpTools(
                         item.IsTriageCase,
                         item.Version)).ToArray(),
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -623,14 +598,11 @@ internal sealed class MailMcpTools(
         [Description("change only: the linked Case's edit lease token from pegasus_edit_begin; omit it and the tool holds that lease for this one command.")] string? linkedCaseEditLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_mail_link_case", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_mail_link_case",
             messageId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(() => AutomationMcpErrors.IntakeRefusalsAsync("pegasus_mail_get", async () =>
+            operationKey,
+            (context, key) => AutomationMcpErrors.IntakeRefusalsAsync("pegasus_mail_get", async () =>
             {
                 var parsed = ParseLinkAction(action);
                 if (parsed != MailLinkAction.Change
@@ -672,7 +644,7 @@ internal sealed class MailMcpTools(
                 }
 
                 return await ReadDetailAsync(context, messageId, cancellationToken);
-            })),
+            }),
             cancellationToken);
     }
 
@@ -824,13 +796,10 @@ internal sealed class MailMcpTools(
         [Description("Characters to return, 1 to 20000.")] int maximumCharacters = GetRetainedMailAttachmentText.MaximumCharacters,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_mail_attachment_text", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_mail_attachment_text",
             messageId.ToString("D"),
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 var id = AutomationMcpErrors.RequireId(messageId, "retained message identifier");
                 var text = await attachmentText.ExecuteAsync(
@@ -844,7 +813,7 @@ internal sealed class MailMcpTools(
                     text.Text,
                     text.IsTruncated,
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -861,13 +830,10 @@ internal sealed class MailMcpTools(
         [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_mail_photo_registrations", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_mail_photo_registrations",
             messageId.ToString("D"),
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 var id = AutomationMcpErrors.RequireId(messageId, "retained message identifier");
                 var reads = await photoRegistrations.ExecuteAsync(context.Actor, id, cancellationToken)
@@ -883,7 +849,7 @@ internal sealed class MailMcpTools(
                     reads.Registration,
                     reads.ReadRegistrations,
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 

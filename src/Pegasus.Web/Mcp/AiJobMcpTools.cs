@@ -151,14 +151,11 @@ internal sealed class AiJobMcpTools(
         [Description("UnidentifiedResolution only: the open item's exact U-reference, for example U17.")] string? unidentifiedReference = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_ai_job_create", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_ai_job_create",
             kind?.Trim() ?? "invalid",
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, key) =>
             {
                 var parsedKind = ParseKind(kind);
                 RefuseUnused(parsedKind, caseId, targetPercentOfEngineerValue, guideMonth, messageId, unidentifiedReference);
@@ -216,7 +213,7 @@ internal sealed class AiJobMcpTools(
                         cancellationToken)
                 };
                 return Map(created);
-            }),
+            },
             cancellationToken);
     }
 
@@ -371,14 +368,11 @@ internal sealed class AiJobMcpTools(
         [Description("Optional guide month the research is for, yyyy-MM; the valuation for that month replaces an earlier card for it.")] string? guideMonth = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_ai_job_complete_market_research", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_ai_job_complete_market_research",
             jobId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, key) =>
             {
                 var validJobId = RequireJobId(jobId);
                 var validCaseId = AutomationMcpErrors.RequireId(caseId, "case identifier");
@@ -414,7 +408,7 @@ internal sealed class AiJobMcpTools(
                     completion.Document.Version.Id,
                     completion.Valuation.ValuationId,
                     completion.IsReplay);
-            }),
+            },
             cancellationToken);
     }
 

@@ -105,7 +105,7 @@ internal sealed class DocumentUploadMcpTools(
         return await auditor.RecordRefusalAsync(
             context,
             "pegasus_upload_part",
-            uploadId == Guid.Empty ? "invalid" : uploadId.ToString("D"),
+            AutomationMcpAuditor.Resource(uploadId),
             null,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {

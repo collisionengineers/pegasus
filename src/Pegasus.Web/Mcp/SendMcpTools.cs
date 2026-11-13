@@ -69,7 +69,6 @@ internal sealed class SendMcpTools(
     GetRetainedMail getRetainedMail,
     IGetTriage getTriage,
     ICaseQueryStore caseQueries,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     OneCommandEdit leases)
 {
@@ -105,14 +104,11 @@ internal sealed class SendMcpTools(
         [Description("true to move the Case's received e-mails to Deleted Items once the Sent item is observed, as the send form's Delete case correspondence tick does. The move is recoverable and leaves Pegasus's copies, links and history as they are.")] bool deleteCaseCorrespondence = false,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_report_send", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_report_send",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var actor = context.Actor;
@@ -202,7 +198,7 @@ internal sealed class SendMcpTools(
                     AutomationMcpAuditor.CorrelationId(context, key),
                     second?.GenerationId,
                     operation.AttachmentFileNames ?? []);
-            }),
+            },
             cancellationToken);
     }
 
@@ -232,14 +228,11 @@ internal sealed class SendMcpTools(
         [Description("reply, reply_all and triage_reply only: true to move the Case's received e-mails to Deleted Items once the Sent item is observed, as the composer's Delete case correspondence tick does. A reply takes it only when the message holds an open query on the Case; triage_reply only for the outcome reply, not the chaser. The move is recoverable and leaves Pegasus's copies, links and history as they are.")] bool deleteCaseCorrespondence = false,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_mail_send", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_mail_send",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var verb = mode?.Trim() ?? string.Empty;
@@ -335,7 +328,7 @@ internal sealed class SendMcpTools(
                     operation.AiJobRefusal is { } refusal
                         ? OperatorLabels.QueryResponseJobs.NotCompleted(refusal)
                         : null);
-            }),
+            },
             cancellationToken);
     }
 

@@ -139,6 +139,7 @@ internal sealed class AutomationActorResolver(
 /// record that the Admin activity view consolidates.
 /// </summary>
 internal sealed class AutomationMcpAuditor(
+    AutomationActorResolver resolver,
     IActionHistoryWriter actionHistory,
     TimeProvider timeProvider,
     ILogger<AutomationMcpAuditor> logger)
@@ -150,6 +151,56 @@ internal sealed class AutomationMcpAuditor(
             LogLevel.Information,
             new EventId(1, nameof(RecordDenialAsync)),
             "Automation MCP {Tool} succeeded for {AggregateId} (correlation {CorrelationId}).");
+
+    /// <summary>
+    /// One tool call that carries no operation key: gates it on the tool's
+    /// scope, then records it as case work around <paramref name="body"/>,
+    /// whose refusals become content-safe MCP errors.
+    /// </summary>
+    public async Task<TResult> CallAsync<TResult>(
+        string toolName,
+        string aggregateId,
+        Func<AutomationActorContext, Task<TResult>> body,
+        CancellationToken cancellationToken)
+    {
+        var context = await resolver.RequireAsync(toolName, cancellationToken);
+        return await RecordAsync(
+            context,
+            toolName,
+            aggregateId,
+            operationKey: null,
+            () => AutomationMcpErrors.ExecuteAsync(() => body(context)),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// As the call above, for a tool that carries the caller's operation key:
+    /// the key is validated after the gate and is the call's correlation
+    /// identifier.
+    /// </summary>
+    public async Task<TResult> CallAsync<TResult>(
+        string toolName,
+        string aggregateId,
+        string operationKey,
+        Func<AutomationActorContext, string, Task<TResult>> body,
+        CancellationToken cancellationToken)
+    {
+        var context = await resolver.RequireAsync(toolName, cancellationToken);
+        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
+        return await RecordAsync(
+            context,
+            toolName,
+            aggregateId,
+            key,
+            () => AutomationMcpErrors.ExecuteAsync(() => body(context, key)),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// The audit resource of a call about one record: its identifier, or
+    /// <c>invalid</c> for the empty one the call then refuses.
+    /// </summary>
+    public static string Resource(Guid id) => id == Guid.Empty ? "invalid" : id.ToString("D");
 
     /// <summary>
     /// Records a tool call whose success is itself attributable case work.

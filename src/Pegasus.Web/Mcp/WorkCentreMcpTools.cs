@@ -16,7 +16,6 @@ internal sealed record WorkCentreDismissToolResult(
 [McpServerToolType]
 internal sealed class WorkCentreMcpTools(
     DismissWorkCentreItem dismissItem,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
     [McpServerTool(
@@ -33,14 +32,11 @@ internal sealed class WorkCentreMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_work_centre_dismiss", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_work_centre_dismiss",
-            recordId == Guid.Empty ? "invalid" : recordId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(recordId),
+            operationKey,
+            async (context, key) =>
             {
                 await dismissItem.ExecuteAsync(
                     new(AutomationMcpErrors.RequireId(recordId, "record identifier"), context.Actor),
@@ -49,7 +45,7 @@ internal sealed class WorkCentreMcpTools(
                     recordId,
                     key,
                     AutomationMcpAuditor.CorrelationId(context, key));
-            }),
+            },
             cancellationToken);
     }
 }

@@ -98,7 +98,6 @@ internal sealed class CaseMcpTools(
     INotReadyCaseQueries notReadyCases,
     IListCaseDocumentsByCursor listDocuments,
     IListCaseHistoryByCursor listHistory,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
     [McpServerTool(
@@ -122,13 +121,10 @@ internal sealed class CaseMcpTools(
         [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_case_search", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_case_search",
             "case-search",
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 CaseLifecycleState? stateFilter = null;
                 if (!string.IsNullOrWhiteSpace(state))
@@ -163,7 +159,7 @@ internal sealed class CaseMcpTools(
                     result.NextCursor,
                     effectiveLimit,
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -183,13 +179,10 @@ internal sealed class CaseMcpTools(
         [Description("Maximum documents and history entries per page, 1 to 100; omit for 50.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_case_get", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_case_get",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            async context =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 // The frame and data are the Case save's own read; the
@@ -268,7 +261,7 @@ internal sealed class CaseMcpTools(
                     history,
                     historyPage.NextCursor,
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 

@@ -75,7 +75,6 @@ internal sealed class UploadGroupMcpTools(
     IUploadCaseDecision caseDecision,
     IDeclineImageMatch declineImageMatch,
     DiscardIntakeSubmissionGroup discardSubmission,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
     private const string GroupIdDescription = "The upload's submission group identifier: originId of a SubmissionGroup Unidentified item from pegasus_unidentified_get, or submissionGroupId from pegasus_image_intake_get.";
@@ -94,17 +93,14 @@ internal sealed class UploadGroupMcpTools(
         [Description("Optional search text over reference, registration, claimant and claim number for the Cases every open file may join; omit it for the suggested Cases.")] string? query = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_upload_group_get", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_upload_group_get",
-            Resource(groupId),
-            null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(groupId),
+            async context =>
             {
                 var state = await RequireStateAsync(context, groupId, cancellationToken);
                 return await DetailAsync(context, state, query, context.TraceIdentifier, cancellationToken);
-            }),
+            },
             cancellationToken);
     }
 
@@ -127,14 +123,11 @@ internal sealed class UploadGroupMcpTools(
         [Description("attach and discard: every file's receipt with its reviewed version, from attachVersions or discardVersions.")] IReadOnlyList<UploadGroupToolReceiptVersion>? receiptVersions = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_upload_group_action", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_upload_group_action",
-            Resource(groupId),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(groupId),
+            operationKey,
+            async (context, key) =>
             {
                 var correlation = AutomationMcpAuditor.CorrelationId(context, key);
                 var state = await RequireStateAsync(context, groupId, cancellationToken);
@@ -215,7 +208,7 @@ internal sealed class UploadGroupMcpTools(
                     default:
                         throw new McpException("action must be attach, leave or discard.");
                 }
-            }),
+            },
             cancellationToken);
     }
 
@@ -319,6 +312,4 @@ internal sealed class UploadGroupMcpTools(
             .Where(versions.ContainsKey)
             .Select(receiptId => new UploadGroupToolReceiptVersion(receiptId, versions[receiptId]))
             .ToArray();
-
-    private static string Resource(Guid id) => id == Guid.Empty ? "invalid" : id.ToString("D");
 }

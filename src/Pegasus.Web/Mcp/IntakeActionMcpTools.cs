@@ -119,7 +119,6 @@ internal sealed class IntakeActionMcpTools(
     ITriageQueries triages,
     StaffIntakeActions intakeActions,
     IImageIntakeStore imageIntakes,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
     /// <summary>The creation provenance the staff page records on the reviewed draft.</summary>
@@ -140,13 +139,10 @@ internal sealed class IntakeActionMcpTools(
         [Description(ReceiptIdDescription)] Guid receiptId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_intake_get", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_intake_get",
-            Resource(receiptId),
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(receiptId),
+            async context =>
             {
                 var receipt = await RequireReceiptAsync(receiptId, context.Actor, cancellationToken);
                 var resolution = await ResolutionAsync(receipt, cancellationToken);
@@ -202,7 +198,7 @@ internal sealed class IntakeActionMcpTools(
                             asset.CustodyState.ToString()))
                         .ToArray(),
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -237,14 +233,11 @@ internal sealed class IntakeActionMcpTools(
         [Description("resolve_inspection_address only: inspectionAddressSuggestionFingerprint from pegasus_intake_get, naming the suggestion accepted or corrected; omit when nothing was suggested.")] string? addressSuggestionFingerprint = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_intake_action", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_intake_action",
-            Resource(receiptId),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(() => AutomationMcpErrors.IntakeRefusalsAsync("pegasus_intake_get", async () =>
+            AutomationMcpAuditor.Resource(receiptId),
+            operationKey,
+            (context, key) => AutomationMcpErrors.IntakeRefusalsAsync("pegasus_intake_get", async () =>
             {
                 var parsed = action?.Trim() switch
                 {
@@ -417,7 +410,7 @@ internal sealed class IntakeActionMcpTools(
                     InspectionAddressResolvedValue: null,
                     key,
                     AutomationMcpAuditor.CorrelationId(context, key));
-            })),
+            }),
             cancellationToken);
     }
 
@@ -450,14 +443,11 @@ internal sealed class IntakeActionMcpTools(
         [Description("Not for Triage: an active Claim Source's organisation identifier from the Contacts directory.")] Guid? claimSourceId = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_case_create", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_case_create",
             principalCode?.Trim() is { Length: > 0 } subject ? subject : privateCustomer ? "private-customer" : "invalid",
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(() => AutomationMcpErrors.IntakeRefusalsAsync("pegasus_intake_get", async () =>
+            operationKey,
+            (context, key) => AutomationMcpErrors.IntakeRefusalsAsync("pegasus_intake_get", async () =>
             {
                 var type = Enum.TryParse<CaseType>(caseType?.Trim(), ignoreCase: true, out var parsedType)
                     && Enum.IsDefined(parsedType)
@@ -532,7 +522,7 @@ internal sealed class IntakeActionMcpTools(
                     identity.AuditReference,
                     key,
                     AutomationMcpAuditor.CorrelationId(context, key));
-            })),
+            }),
             cancellationToken);
     }
 
@@ -887,8 +877,6 @@ internal sealed class IntakeActionMcpTools(
             : DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
                 ? parsed
                 : throw new McpException($"{name} must be a yyyy-MM-dd date.");
-
-    private static string Resource(Guid id) => id == Guid.Empty ? "invalid" : id.ToString("D");
 
     /// <summary>The draft fields an accept names, with each date's raw text so an empty string clears.</summary>
     private sealed record DraftChanges(
