@@ -69,7 +69,7 @@ internal sealed class TriageMcpTools(
     private const string LeaseDescription = "Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the Triage lease for this one command.";
 
     [McpServerTool(Name = "pegasus_triage_list", Title = "List Triage work", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Lists a bounded page of Triage records through the protected Core continuation query. Each item carries the Triage Case id, its t. reference, state and version.")]
+    [Description("Lists a bounded page of Triage records. Each item carries the Triage Case id, its t. reference, state and version.")]
     public async Task<TriageListToolResult> ListAsync(
         [Description("Optional state filter: Open, AwaitingInformation, FindingRecorded, Completed or Cancelled.")] string? state = null,
         [Description(AutomationToolText.Cursor)] string? cursor = null,
@@ -225,7 +225,7 @@ internal sealed class TriageMcpTools(
             (actor, key, token) => reopen.ExecuteAsync(new(caseId, expectedVersion, actor, key, reason) { EditLeaseToken = token }, cancellationToken), cancellationToken);
 
     [McpServerTool(Name = "pegasus_triage_case_link", Title = "Link or unlink Triage and instruction Case", ReadOnly = false, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Link joins the Triage to the instruction Case it belongs with; Unlink separates them. Both records change, so both versions are checked. Present a lease token for each record held for multi-step work, or omit them and the tool holds each lease for this one command.")]
+    [Description("Link joins the Triage to the instruction Case it belongs with; Unlink separates them. Both records change, so both versions are checked.")]
     public Task<TriageDetailToolResult> CaseLinkAsync(
         [Description(TriageIdDescription)] Guid caseId,
         [Description("The instruction Case identifier.")] Guid instructionCaseId,

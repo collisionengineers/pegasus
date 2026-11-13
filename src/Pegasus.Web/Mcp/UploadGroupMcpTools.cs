@@ -111,7 +111,7 @@ internal sealed class UploadGroupMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("The one submission decision on a stored upload, through the same commands as its page. attach adds every file to one Case or Triage Case: caseId and expectedCaseVersion from pegasus_upload_group_get destinations, and receiptVersions, every file's receipt with the version attachVersions gives; refused unless canAttach. leave leaves the matched Cases undecided, so the images register as a Vehicle images record. discard retains the upload but discards it as a terminal decision: expectedGroupVersion and receiptVersions from discardVersions; refused unless canDiscard. Requires a mcp:-prefixed operation key; an attach sent again under it carries on from the files it already added.")]
+    [Description("The one submission decision on a stored upload, as on its page. attach adds every file to one Case or Triage Case: caseId and expectedCaseVersion from pegasus_upload_group_get destinations, and receiptVersions, every file's receipt with the version attachVersions gives; refused unless canAttach. leave leaves the matched Cases undecided, so the images register as a Vehicle images record. discard retains the upload but discards it as a terminal decision: expectedGroupVersion and receiptVersions from discardVersions; refused unless canDiscard. Requires a mcp:-prefixed operation key; an attach sent again under it carries on from the files it already added.")]
     public async Task<UploadGroupActionToolResult> ActAsync(
         [Description(GroupIdDescription)] Guid groupId,
         [Description("attach, leave or discard.")] string action,

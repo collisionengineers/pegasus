@@ -214,7 +214,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Imports one already-retained exact estimate document through Pegasus's canonical named raw-estimate import. The same Case version, parser route and replay rules as the Case UI apply; present an edit lease token for multi-step work or omit it and the tool holds the lease for this one command. An automation import lands as a Draft; a staff member puts it in use with Use repair spec.")]
+    [Description("Imports one already-retained exact estimate document through Pegasus's canonical named raw-estimate import. The same Case version, parser route and replay rules as the Case UI apply. An automation import lands as a Draft; a staff member puts it in use with Use repair spec.")]
     public async Task<EstimateImportToolResult> ImportEstimateAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
@@ -260,7 +260,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Saves an estimate (repair spec) on a case, as the Case's Repair Spec editor does: creates a named estimate, which lands as an AI draft in Draft, or, with estimateId, edits any live estimate in place (the Current one included; its report goes stale). On an edit, send each kept line's lineId (pegasus_estimate_get) so it keeps its source evidence; header values you omit keep their recorded values. Only a staff member puts an estimate in use (Use repair spec). Citing the Estimate AI job the work fulfils (aiJobId) is optional. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). Rates are per hour in pounds. VAT follows the repairer's VAT status: Registered charges VAT on everything, NotRegistered on parts and materials; an omitted status keeps the recorded choice, or records Registered when none is recorded or the recorded status is Unknown, and an explicit Unknown is refused; vatCategories overrides which categories carry VAT. Line types and evidence labels are listed by pegasus_vocabulary_get.")]
+    [Description("Saves an estimate (repair spec) on a case, as the Case's Repair Spec editor does: creates a named estimate, which lands as an AI draft in Draft, or, with estimateId, edits any live estimate in place (the Current one included; its report goes stale). On an edit, send each kept line's lineId (pegasus_estimate_get) so it keeps its source evidence; header values you omit keep their recorded values. Only a staff member puts an estimate in use (Use repair spec). Citing the Estimate AI job the work fulfils (aiJobId) is optional. Needs the expected case version. Rates are per hour in pounds. VAT follows the repairer's VAT status: Registered charges VAT on everything, NotRegistered on parts and materials; an omitted status keeps the recorded choice, or records Registered when none is recorded or the recorded status is Unknown, and an explicit Unknown is refused; vatCategories overrides which categories carry VAT. Line types and evidence labels are listed by pegasus_vocabulary_get.")]
     public async Task<EstimateSaveToolResult> SaveEstimateAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
@@ -395,7 +395,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Performs one of the Repair Spec acts a member of staff performs on an estimate: duplicate (a new copy; needs a reason), discard (deletes the estimate, so the result carries none; needs a reason; the estimate in use cannot be discarded), scale (scale the estimate to targetPercentOfValue of the Engineer's Value, with optional labour-rate and price floors), remove_scaling, or restore (back to a snapshot from pegasus_estimate_get). Putting an estimate in use stays a staff act. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
+    [Description("Performs one of the Repair Spec acts a member of staff performs on an estimate: duplicate (a new copy; needs a reason), discard (deletes the estimate, so the result carries none; needs a reason; the estimate in use cannot be discarded), scale (scale the estimate to targetPercentOfValue of the Engineer's Value, with optional labour-rate and price floors), remove_scaling, or restore (back to a snapshot from pegasus_estimate_get). Putting an estimate in use stays a staff act. Needs the expected case version.")]
     public async Task<EstimateActToolResult> ActOnEstimateAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
@@ -553,7 +553,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Records assessment fields that staff record on the Case, professional findings included (for example assessment.outcome, assessment.legal_status for roadworthiness, assessment.salvage_category, assessment.values.engineer), under the expected case version; present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command. pegasus_vocabulary_get lists every path with its accepted codes, and the unroadworthy wordings bank staff choose assessment.unroadworthy_reason from. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag. Case-owned facts (use pegasus_case_update_details), fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field.")]
+    [Description("Records assessment fields that staff record on the Case, professional findings included (for example assessment.outcome, assessment.legal_status for roadworthiness, assessment.salvage_category, assessment.values.engineer), under the expected case version. pegasus_vocabulary_get lists every path with its accepted codes, and the unroadworthy wordings bank staff choose assessment.unroadworthy_reason from. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag. Case-owned facts (use pegasus_case_update_details), fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field.")]
     public async Task<AssessmentUpdateToolResult> UpdateAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,

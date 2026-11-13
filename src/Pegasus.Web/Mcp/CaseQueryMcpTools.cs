@@ -38,7 +38,7 @@ internal sealed class CaseQueryMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("One query act, through the same Core command as the Case page, with no edit lease, expected version or reason. open logs a query (channel one of Email, Phone, WhatsApp or Other, optional details); a query on a linked message is pegasus_mail_open_query. A new query is Unassigned. mark_done closes one open query. reopen reopens one Done query while the Case is not archived or closed. assign sets the assignee (assigneeStaffId) or Unassigned when omitted. Needs a mcp:-prefixed operation key.")]
+    [Description("One query act, as on the Case page, with no edit lease, expected version or reason. open logs a query (channel one of Email, Phone, WhatsApp or Other, optional details); a query on a linked message is pegasus_mail_open_query. A new query is Unassigned. mark_done closes one open query. reopen reopens one Done query while the Case is not archived or closed. assign sets the assignee (assigneeStaffId) or Unassigned when omitted. Needs a mcp:-prefixed operation key.")]
     public async Task<CaseQueryToolResult> ActAsync(
         [Description("open, mark_done, reopen or assign.")] string action,
         [Description(AutomationToolText.OperationKey)] string operationKey,

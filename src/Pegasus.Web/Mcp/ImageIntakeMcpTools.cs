@@ -204,7 +204,7 @@ internal sealed class ImageIntakeMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("One change to an Image Intake record (staff label Vehicle images), through the same store commands as its page. set_principal records, replaces or clears the known Principal: principalId from pegasus_image_intake_get principalOptions, or omitted for Not known; it takes no reason. close is Close with reason: the record leaves those awaiting instruction for good. Each needs the record version from pegasus_image_intake_get and returns the updated record.")]
+    [Description("One change to an Image Intake record (staff label Vehicle images), as on its page. set_principal records, replaces or clears the known Principal: principalId from pegasus_image_intake_get principalOptions, or omitted for Not known; it takes no reason. close is Close with reason: the record leaves those awaiting instruction for good. Each needs the record version from pegasus_image_intake_get and returns the updated record.")]
     public async Task<ImageIntakeToolDetail> ActAsync(
         [Description(IdDescription)] Guid imageIntakeId,
         [Description("set_principal or close.")] string action,
