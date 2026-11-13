@@ -190,16 +190,9 @@ public static class CaseDataPolicy
             ClaimSourceContactName = Text(data.ClaimSourceContactName, 300, nameof(data.ClaimSourceContactName)),
             ClaimSourceContactTelephone = Text(data.ClaimSourceContactTelephone, 100, nameof(data.ClaimSourceContactTelephone)),
             ClaimSourceContactEmailAddress = Text(data.ClaimSourceContactEmailAddress, 320, nameof(data.ClaimSourceContactEmailAddress)),
-            StorageBusinessName = Text(data.StorageBusinessName, 300, nameof(data.StorageBusinessName)),
-            StorageBusinessContactName = Text(data.StorageBusinessContactName, 300, nameof(data.StorageBusinessContactName)),
-            StorageBusinessContactTelephone = Text(data.StorageBusinessContactTelephone, 100, nameof(data.StorageBusinessContactTelephone)),
-            StorageBusinessContactEmailAddress = Text(data.StorageBusinessContactEmailAddress, 320, nameof(data.StorageBusinessContactEmailAddress)),
             VehicleMileageDisplayUnit = OdometerUnit(data.VehicleMileageDisplayUnit),
             InspectionLocationSourceLabel = Text(data.InspectionLocationSourceLabel, 300, nameof(data.InspectionLocationSourceLabel)),
             InspectionCondition = Text(data.InspectionCondition, 300, nameof(data.InspectionCondition)),
-            InspectionContactName = Text(data.InspectionContactName, 300, nameof(data.InspectionContactName)),
-            InspectionContactTelephone = Text(data.InspectionContactTelephone, 100, nameof(data.InspectionContactTelephone)),
-            InspectionContactEmailAddress = Text(data.InspectionContactEmailAddress, 320, nameof(data.InspectionContactEmailAddress)),
             InspectionNotes = Paragraphs(data.InspectionNotes, 2000, nameof(data.InspectionNotes)),
             PrincipalNotes = Paragraphs(data.PrincipalNotes, 2000, nameof(data.PrincipalNotes)),
             ClaimSourceNotes = Paragraphs(data.ClaimSourceNotes, 2000, nameof(data.ClaimSourceNotes)),
@@ -232,10 +225,6 @@ public static class CaseDataPolicy
             normalized.ClaimSourceVersion.HasValue,
             "A claim source identifier and its version must be saved together.");
         RequireTogether(
-            normalized.StorageBusinessId.HasValue,
-            normalized.StorageBusinessVersion.HasValue,
-            "A storage business identifier and its version must be saved together.");
-        RequireTogether(
             normalized.InspectionLocationSourceId.HasValue,
             normalized.InspectionLocationSourceVersion.HasValue,
             "An inspection location source identifier and its version must be saved together.");
@@ -247,7 +236,6 @@ public static class CaseDataPolicy
         }
 
         if (normalized.ClaimSourceId == Guid.Empty
-            || normalized.StorageBusinessId == Guid.Empty
             || normalized.InspectionLocationSourceId == Guid.Empty)
         {
             throw new ArgumentException(

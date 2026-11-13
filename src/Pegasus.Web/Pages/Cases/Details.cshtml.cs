@@ -2559,9 +2559,11 @@ public sealed partial class DetailsModel(
                         var chosen = await contactDirectory.FindActiveByRoleAsync(
                                 actor, ContactRole.ClaimSource, sourceId, cancellationToken)
                             ?? throw new InvalidOperationException("The selected claim source is not an active Claim source record.");
+                        // A Claim Source record holds no contact name: the Case's
+                        // own is what staff type (operator, 13 November 2026; R1047, R1048).
                         claimSource = new CaseWorkspaceClaimSource(
                             chosen.OrganizationId, chosen.Version, chosen.Name,
-                            chosen.ContactPerson, chosen.Telephone, chosen.Email);
+                            null, chosen.Telephone, chosen.Email);
                     }
                 }
                 // The contact boxes show the effective contact; Core keeps an
@@ -2674,12 +2676,10 @@ public sealed partial class DetailsModel(
                                     ?? Accepted(data.Inspection.Deadline)?.Value)),
                         Inspection = !inspectionSubmitted ? null : new(treatment, address, persisted?.InspectionLocationProvenance,
                             Submitted(nameof(storageLocation), storageLocation, Accepted(data.Inspection.StorageLocation)?.Value),
-                            persisted?.StorageBusiness,
                             Submitted(nameof(inspectionDate), inspectionDate, Accepted(data.Inspection.InspectionDate)?.Value),
                             Submitted(nameof(inspectionDeadline), inspectionDeadline, Accepted(data.Inspection.Deadline)?.Value),
                             persisted?.InspectionVehiclePresent, persisted?.InspectionCondition,
-                            persisted?.InspectionContactName, persisted?.InspectionContactTelephone,
-                            persisted?.InspectionContactEmailAddress, persisted?.InspectionNotes,
+                            persisted?.InspectionNotes,
                             Submitted(nameof(storagePerDay), storagePerDay, Money(AssessmentVocabulary.SettlementStoragePerDay)),
                             Submitted(nameof(recoveryCharge), recoveryCharge, Money(AssessmentVocabulary.CostRecoveryCharge))),
                         Vehicle = !vehicleSubmitted ? null : new(

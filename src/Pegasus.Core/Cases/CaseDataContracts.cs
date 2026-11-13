@@ -226,14 +226,10 @@ public sealed record CaseDataProjection(
 /// </summary>
 public sealed record CaseWorkspaceData(
     CaseWorkspaceClaimSource? ClaimSource,
-    CaseWorkspaceStorageBusiness? StorageBusiness,
     CaseReportAddressTreatment? InspectionAddressTreatment,
     CaseLocationProvenance? InspectionLocationProvenance,
     bool? InspectionVehiclePresent,
     string? InspectionCondition,
-    string? InspectionContactName,
-    string? InspectionContactTelephone,
-    string? InspectionContactEmailAddress,
     string? InspectionNotes,
     CaseOdometerUnit? VehicleMileageDisplayUnit,
     CaseWorkspaceRepairer? Repairer = null,
@@ -258,9 +254,9 @@ public sealed record CaseEditableData(
     string? ClaimantContactNumber = null,
     string? ClaimantAddress = null,
     string? StorageLocation = null,
-    // The v1 Case workspace: the claim source snapshot, the storage
-    // business, the report-address treatment and its provenance, the
-    // inspection values and the repairer address.
+    // The v1 Case workspace: the claim source snapshot, the
+    // report-address treatment and its provenance, the inspection values
+    // and the repairer address.
     string? RepairerAddress = null,
     Guid? ClaimSourceId = null,
     long? ClaimSourceVersion = null,
@@ -268,12 +264,6 @@ public sealed record CaseEditableData(
     string? ClaimSourceContactName = null,
     string? ClaimSourceContactTelephone = null,
     string? ClaimSourceContactEmailAddress = null,
-    Guid? StorageBusinessId = null,
-    long? StorageBusinessVersion = null,
-    string? StorageBusinessName = null,
-    string? StorageBusinessContactName = null,
-    string? StorageBusinessContactTelephone = null,
-    string? StorageBusinessContactEmailAddress = null,
     string? VehicleMileageDisplayUnit = null,
     CaseReportAddressTreatment? InspectionAddressTreatment = null,
     InspectionAddressChoiceKind? InspectionLocationChoice = null,
@@ -283,9 +273,6 @@ public sealed record CaseEditableData(
     string? InspectionLocationSourceLabel = null,
     bool? InspectionVehiclePresent = null,
     string? InspectionCondition = null,
-    string? InspectionContactName = null,
-    string? InspectionContactTelephone = null,
-    string? InspectionContactEmailAddress = null,
     string? InspectionNotes = null,
     // Appended for the Case repairer: the repairer's name beside
     // the address already above, and the linked Contacts directory row.

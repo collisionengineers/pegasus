@@ -262,7 +262,7 @@ public sealed class CaseDataCompletenessPersistenceTests
             EstablishedIntakeClaimSource.IntroducerField, "FLEET ROUTE SOLUTIONS",
             [new("FLEET ROUTE SOLUTIONS", IntakeEvidenceSource.PdfContent, "introducer-line")], false, false);
         var contact = new ContactChoice(
-            Guid.NewGuid(), "Fleet Route Solutions", ContactRole.ClaimSource, 4, "A Handler",
+            Guid.NewGuid(), "Fleet Route Solutions", ContactRole.ClaimSource, 4,
             "desk@fleet-route.example", "0113 000 0002", null, null, null);
 
         var snapshot = PhoneSnapshot(
@@ -287,7 +287,8 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.Equal(contact.OrganizationId.ToString("D"), Confirmed(CaseDataFieldNames.ClaimSourceId));
         Assert.Equal("4", Confirmed(CaseDataFieldNames.ClaimSourceVersion));
         Assert.Equal("Fleet Route Solutions", Confirmed(CaseDataFieldNames.ClaimSourceName));
-        Assert.Equal("A Handler", Confirmed(CaseDataFieldNames.ClaimSourceContactName));
+        // A Claim Source record holds no contact name to copy (R1047).
+        Assert.DoesNotContain(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceContactName);
         Assert.Equal("0113 000 0002", Confirmed(CaseDataFieldNames.ClaimSourceContactTelephone));
         Assert.Equal("desk@fleet-route.example", Confirmed(CaseDataFieldNames.ClaimSourceContactEmailAddress));
     }
@@ -296,7 +297,7 @@ public sealed class CaseDataCompletenessPersistenceTests
     public void TheClaimSourceASenderProvedIsSourcedToItsMailRoute()
     {
         var contact = new ContactChoice(
-            Guid.NewGuid(), "Claims Route", ContactRole.ClaimSource, 1, null,
+            Guid.NewGuid(), "Claims Route", ContactRole.ClaimSource, 1,
             "desk@claims-route.example", null, null, null, null);
 
         var snapshot = PhoneSnapshot(
@@ -350,7 +351,7 @@ public sealed class CaseDataCompletenessPersistenceTests
             "Repairer address", "1 Quay Road, Leeds, LS1 1AA",
             [new("1 Quay Road, Leeds, LS1 1AA", IntakeEvidenceSource.PdfContent, "bodyshop-address-line")], false, false);
         var contact = new ContactChoice(
-            Guid.NewGuid(), "Harbour Body Repairs", ContactRole.Repairer, 3, null,
+            Guid.NewGuid(), "Harbour Body Repairs", ContactRole.Repairer, 3,
             null, null, "9 Directory Street", null, null);
 
         var snapshot = PhoneSnapshot(

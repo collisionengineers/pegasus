@@ -95,7 +95,6 @@ public sealed class EstablishedIntakeRepairerTests
             name,
             ContactRole.Repairer,
             Version: 1,
-            ContactPerson: null,
             Email: null,
             Telephone: null,
             Address: null,

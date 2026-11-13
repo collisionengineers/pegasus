@@ -1015,7 +1015,7 @@ public sealed class PrincipalApiSubmissionTests
         var services = scope.ServiceProvider;
         await services.GetRequiredService<IContactDirectoryAdministration>().SaveAsync(
             new SaveContactRequest(
-                Administrator, Guid.NewGuid(), 0, "Other Provider", null, null, null, null, null, true,
+                Administrator, Guid.NewGuid(), 0, "Other Provider", null, null, null, null, true,
                 ContactRole.Principal, "OTHER", CaseInspectionMode.PhysicalAddress, [],
                 "principal-api:principal:other"),
             default);

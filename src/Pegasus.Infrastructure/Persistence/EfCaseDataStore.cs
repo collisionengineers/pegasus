@@ -190,13 +190,6 @@ public sealed class EfCaseDataStore(
                     data.ClaimSourceOverrideContactTelephone,
                     data.ClaimSourceOverrideContactEmailAddress)
                 : null,
-            new(
-                data.StorageBusinessId,
-                data.StorageBusinessVersion,
-                data.StorageBusinessName,
-                data.StorageBusinessContactName,
-                data.StorageBusinessContactTelephone,
-                data.StorageBusinessContactEmailAddress),
             data.InspectionAddressTreatment,
             new(
                 data.InspectionLocationChoice,
@@ -206,9 +199,6 @@ public sealed class EfCaseDataStore(
                 data.InspectionLocationSourceLabel),
             data.InspectionVehiclePresent,
             data.InspectionCondition,
-            data.InspectionContactName,
-            data.InspectionContactTelephone,
-            data.InspectionContactEmailAddress,
             data.InspectionNotes,
             data.VehicleMileageDisplayUnit is { } displayUnit
                 && CaseOdometer.TryParseUnit(displayUnit, out var unit)
@@ -376,14 +366,6 @@ internal static class CaseDataFieldWriter
         Text(CaseDataFieldNames.ClaimSourceContactName, data.ClaimSourceContactName);
         Text(CaseDataFieldNames.ClaimSourceContactTelephone, data.ClaimSourceContactTelephone);
         Text(CaseDataFieldNames.ClaimSourceContactEmailAddress, data.ClaimSourceContactEmailAddress);
-        Text(CaseDataFieldNames.StorageBusinessId, Identifier(data.StorageBusinessId));
-        Whole(CaseDataFieldNames.StorageBusinessVersion, data.StorageBusinessVersion);
-        Text(CaseDataFieldNames.StorageBusinessName, data.StorageBusinessName);
-        Text(CaseDataFieldNames.StorageBusinessContactName, data.StorageBusinessContactName);
-        Text(CaseDataFieldNames.StorageBusinessContactTelephone, data.StorageBusinessContactTelephone);
-        Text(
-            CaseDataFieldNames.StorageBusinessContactEmailAddress,
-            data.StorageBusinessContactEmailAddress);
         Text(CaseDataFieldNames.VehicleMileageDisplayUnit, data.VehicleMileageDisplayUnit);
         Text(CaseDataFieldNames.InspectionAddressTreatment, Named(data.InspectionAddressTreatment));
         Text(CaseDataFieldNames.InspectionLocationChoice, Named(data.InspectionLocationChoice));
@@ -393,9 +375,6 @@ internal static class CaseDataFieldWriter
         Text(CaseDataFieldNames.InspectionLocationSourceLabel, data.InspectionLocationSourceLabel);
         Text(CaseDataFieldNames.InspectionVehiclePresent, Flag(data.InspectionVehiclePresent));
         Text(CaseDataFieldNames.InspectionCondition, data.InspectionCondition);
-        Text(CaseDataFieldNames.InspectionContactName, data.InspectionContactName);
-        Text(CaseDataFieldNames.InspectionContactTelephone, data.InspectionContactTelephone);
-        Text(CaseDataFieldNames.InspectionContactEmailAddress, data.InspectionContactEmailAddress);
         Text(CaseDataFieldNames.InspectionNotes, data.InspectionNotes);
         Text(CaseDataFieldNames.PrincipalNotes, data.PrincipalNotes);
         Text(CaseDataFieldNames.ClaimSourceNotes, data.ClaimSourceNotes);
@@ -473,12 +452,6 @@ internal static class CaseDataFieldWriter
         AcceptedText(snapshot, CaseDataFieldNames.ClaimSourceContactName),
         AcceptedText(snapshot, CaseDataFieldNames.ClaimSourceContactTelephone),
         AcceptedText(snapshot, CaseDataFieldNames.ClaimSourceContactEmailAddress),
-        AcceptedGuid(snapshot, CaseDataFieldNames.StorageBusinessId),
-        AcceptedLong(snapshot, CaseDataFieldNames.StorageBusinessVersion),
-        AcceptedText(snapshot, CaseDataFieldNames.StorageBusinessName),
-        AcceptedText(snapshot, CaseDataFieldNames.StorageBusinessContactName),
-        AcceptedText(snapshot, CaseDataFieldNames.StorageBusinessContactTelephone),
-        AcceptedText(snapshot, CaseDataFieldNames.StorageBusinessContactEmailAddress),
         AcceptedText(snapshot, CaseDataFieldNames.VehicleMileageDisplayUnit),
         AcceptedEnum<CaseReportAddressTreatment>(snapshot, CaseDataFieldNames.InspectionAddressTreatment),
         AcceptedEnum<InspectionAddressChoiceKind>(snapshot, CaseDataFieldNames.InspectionLocationChoice),
@@ -488,9 +461,6 @@ internal static class CaseDataFieldWriter
         AcceptedText(snapshot, CaseDataFieldNames.InspectionLocationSourceLabel),
         AcceptedFlag(snapshot, CaseDataFieldNames.InspectionVehiclePresent),
         AcceptedText(snapshot, CaseDataFieldNames.InspectionCondition),
-        AcceptedText(snapshot, CaseDataFieldNames.InspectionContactName),
-        AcceptedText(snapshot, CaseDataFieldNames.InspectionContactTelephone),
-        AcceptedText(snapshot, CaseDataFieldNames.InspectionContactEmailAddress),
         AcceptedText(snapshot, CaseDataFieldNames.InspectionNotes),
         AcceptedText(snapshot, CaseDataFieldNames.RepairerName),
         AcceptedGuid(snapshot, CaseDataFieldNames.RepairerId),

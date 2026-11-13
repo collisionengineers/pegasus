@@ -107,8 +107,9 @@ and the secret is write-only
 
 ### Contacts
 
-Contacts is the one directory for Principals, Claim Sources, Repairers,
-Storage and Third Party Engineers. Each Contact has one type; its page shows
+Contacts is the one directory for Principals, Claim Sources and Repairers
+(operator, 13 November 2026; [R1049](../rulings.md), [R1050](../rulings.md)).
+Each Contact has one type; its page shows
 the type read-only and only that type's sections. The list is one panel per
 type, with no lede, no Sort control and no Type column; its order, columns and
 filters are in

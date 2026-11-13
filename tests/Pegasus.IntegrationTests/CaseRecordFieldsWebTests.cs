@@ -90,7 +90,7 @@ public sealed class CaseRecordFieldsWebTests
         var store = new RecordingCaseDetailsStore();
         var ports = new RecordGapPorts(store);
         var source = new ContactChoice(
-            Guid.NewGuid(), "Acme Claims", ContactRole.ClaimSource, 4, "A Handler", "claims@acme.example",
+            Guid.NewGuid(), "Acme Claims", ContactRole.ClaimSource, 4, "claims@acme.example",
             "0113 000 0000", null, null, "Quote the Acme reference.");
         ports.ClaimSources.Add(source);
         using var workspace = await EnterEditModeAsync(store, ports.Register);
@@ -98,7 +98,7 @@ public sealed class CaseRecordFieldsWebTests
         var editing = WebUtility.HtmlDecode(OverviewPanel(await workspace.GetWorkspaceAsync()));
         Assert.Contains("name=\"claimSourceId\" form=\"case-edit-form\" data-claim-source-select", editing, StringComparison.Ordinal);
         Assert.Matches(
-            $"<option value=\"{source.OrganizationId:D}\" data-notes=\"Quote the Acme reference.\" data-contact-name=\"A Handler\" data-contact-phone=\"0113 000 0000\" data-contact-email=\"claims@acme.example\">Acme Claims</option>",
+            $"<option value=\"{source.OrganizationId:D}\" data-notes=\"Quote the Acme reference.\" data-contact-phone=\"0113 000 0000\" data-contact-email=\"claims@acme.example\">Acme Claims</option>",
             editing);
         Assert.Contains("data-record-notes-slot=\"claim-source\" hidden", editing, StringComparison.Ordinal);
 
@@ -108,7 +108,7 @@ public sealed class CaseRecordFieldsWebTests
         }
         var snapshot = Assert.Single(store.Saves).Overview!.ClaimSource;
         Assert.Equal(new CaseWorkspaceClaimSource(
-            source.OrganizationId, 4, "Acme Claims", "A Handler", "0113 000 0000", "claims@acme.example"), snapshot);
+            source.OrganizationId, 4, "Acme Claims", null, "0113 000 0000", "claims@acme.example"), snapshot);
 
         using (var none = await SaveAsync(workspace, ("claimSourceId", string.Empty)))
         {
@@ -140,7 +140,7 @@ public sealed class CaseRecordFieldsWebTests
         var ports = new RecordGapPorts(store);
         // The directory record has moved on since the Case copied it.
         ports.Repairers.Add(new ContactChoice(
-            linkId, "Kingsway Bodyshop Ltd", ContactRole.Repairer, 7, null, null, null, "1 New Road, Leeds LS2 2BB", "LS2 2BB", null));
+            linkId, "Kingsway Bodyshop Ltd", ContactRole.Repairer, 7, null, null, "1 New Road, Leeds LS2 2BB", "LS2 2BB", null));
         using var workspace = await EnterEditModeAsync(store, services =>
         {
             ports.Register(services);

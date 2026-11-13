@@ -121,7 +121,6 @@ internal sealed record DirectoryToolItem(
     Guid OrganizationId,
     long Version,
     string Name,
-    string? ContactPerson,
     string? Email,
     string? Telephone,
     string? Address,
@@ -265,7 +264,7 @@ internal sealed class CaseEditMcpTools(
                                         ?? throw new McpException("The selected claim source is not an active Claim source record.");
                                     claimSource = new CaseWorkspaceClaimSource(
                                         chosen.OrganizationId, chosen.Version, chosen.Name,
-                                        chosen.ContactPerson, chosen.Telephone, chosen.Email);
+                                        null, chosen.Telephone, chosen.Email);
                                 }
                             }
                             claimSource = claimSource is { } source
@@ -328,14 +327,10 @@ internal sealed class CaseEditMcpTools(
                                 address,
                                 persisted?.InspectionLocationProvenance,
                                 Text(storageLocation, Accepted(data.Inspection.StorageLocation)),
-                                persisted?.StorageBusiness,
                                 Date(inspectionDate, nameof(inspectionDate), Accepted(data.Inspection.InspectionDate)),
                                 Date(inspectionDeadline, nameof(inspectionDeadline), Accepted(data.Inspection.Deadline)),
                                 persisted?.InspectionVehiclePresent,
                                 persisted?.InspectionCondition,
-                                persisted?.InspectionContactName,
-                                persisted?.InspectionContactTelephone,
-                                persisted?.InspectionContactEmailAddress,
                                 persisted?.InspectionNotes,
                                 Money(AssessmentVocabulary.SettlementStoragePerDay),
                                 Money(AssessmentVocabulary.CostRecoveryCharge));
@@ -758,7 +753,6 @@ internal sealed class CaseEditMcpTools(
                             record.OrganizationId,
                             record.Version,
                             record.Name,
-                            record.ContactPerson,
                             record.Email,
                             record.Telephone,
                             record.Address,

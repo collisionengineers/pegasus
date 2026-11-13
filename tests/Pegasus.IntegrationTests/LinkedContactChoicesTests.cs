@@ -52,6 +52,6 @@ public sealed class LinkedContactChoicesTests
 
     private static ContactChoice Choice(string name, params string[] linkedPrincipalCodes) =>
         new(
-            Guid.NewGuid(), name, ContactRole.ClaimSource, 1, null, null, null, null, null, null,
+            Guid.NewGuid(), name, ContactRole.ClaimSource, 1, null, null, null, null, null,
             linkedPrincipalCodes);
 }

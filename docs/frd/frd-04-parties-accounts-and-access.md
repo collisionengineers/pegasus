@@ -5,8 +5,8 @@
 ## Short version
 
 - Contacts are external organisations. Each has exactly one type, chosen
-  when it is added and never changed: Principal, Claim Source, Repairer,
-  Storage provider or Third Party Engineer. Staff accounts are separate.
+  when it is added and never changed: Principal, Claim Source or Repairer.
+  Staff accounts are separate.
 - Each Case keeps its own copy of the parties it was accepted with. Editing
   the Contacts directory later never changes that copy.
 - Every staff account has exactly one role: Administrator, Engineer or User.
@@ -33,8 +33,10 @@ and what goes into permanent history. Case identity is in
 ### Parties, principals, organisations, accounts, and access
 
 A Principal is the customer role that instructs and pays Collision
-Engineers. Every Contact has one type: Principal, Claim Source, Repairer,
-Storage provider or Third Party Engineer (operator, 13 October 2026). A
+Engineers. Every Contact has one type: Principal, Claim Source or Repairer
+(operator, 13 October 2026; the Storage and Third Party Engineer types
+removed, operator, 13 November 2026; [R1049](../rulings.md),
+[R1050](../rulings.md)). A
 Principal never links to another Principal. A Contact of any other type may
 link to several Principals; the links are shown on the Contacts list and the
 Contact's page. A Case's Claim Source list and its Repairer list draw the
@@ -47,8 +49,13 @@ replacing "they do not narrow a Case's Claim Source or Repairer choices",
 operator, 13 October 2026). A Claim Source's links also make it an
 intermediary for those Principals' mail (operator, 15 October 2026;
 [FRD-09](frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association)).
-A Storage or Third Party Engineer Contact is directory information only: no
-Case field, report or reader uses one today.
+Nothing read a Storage or Third Party Engineer Contact, so neither type is
+kept: the Third Party Engineer contacts were removed, and each Storage contact
+that held an address and a postcode became an inspection location with the
+same name, address, postcode, active state and Principal links, which a Case
+of a linked Principal chooses under Inspect at (operator, 13 November 2026;
+[R1049](../rulings.md), [R1050](../rulings.md), [R1051](../rulings.md);
+[FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)).
 Staff accounts are not Contacts.
 
 An intermediary is a Claim Source Contact. An organisation that is also a
@@ -128,24 +135,24 @@ access.
 ### Contacts administration
 
 **Contacts** lists the external organisations in one panel per type, in the
-order Principals, Claim Sources, Repairers, Storage, Third Party Engineers,
+order Principals, Claim Sources, Repairers,
 each sorted by name; a type with no matching contact is absent. Search, labelled
 Name, matches the start of a contact's name and runs across every panel
 (operator, 29 October 2026, R535), and the Type filter narrows the list to one panel. Each
 panel shows 50 contacts at a time; where a type has more, Previous and Next
 open that type's list one page at a time. A panel's columns follow its type:
 Principals show Principal code, name,
-contact person, email, phone, last Case and state; Claim Sources and Third
-Party Engineers show name, contact person, email, phone, linked Principals
-(their codes), last Case and state; Repairers and Storage show postcode
-before linked Principals (operator, 13 October 2026). A contact has an
-organisation name, contact person, email, phone, address, postcode and
-active state. Phone accepts digits, spaces and one optional leading `+` only. UK
+email, phone, last Case and state; Claim Sources show name, email, phone,
+linked Principals (their codes), last Case and state; Repairers show postcode
+before linked Principals (operator, 13 October 2026). A Claim Source's or
+Repairer's last Case is the latest Case that names it. A contact has an
+organisation name, email, phone, address, postcode and active state; it holds
+no contact person (operator, 13 November 2026; [R1047](../rulings.md)). Phone accepts digits, spaces and one optional leading `+` only. UK
 numbers are written with a leading `0` and internal spaces. Letters and other
 characters are rejected in the field and on the server.
 
-**Add contact** first asks for the type: Principal, Claim Source, Repairer,
-Storage or Third Party Engineer. It then creates a new Contact of that type.
+**Add contact** first asks for the type: Principal, Claim Source or
+Repairer. It then creates a new Contact of that type.
 Matching names are suggestions only, each opening the existing Contact.
 Check existing contacts checks any name of one character or more; when none
 matches, the dialog says No contacts found. (operator, 29 October 2026, R537).
@@ -306,12 +313,15 @@ capitals; otherwise, for mail accepted through an intermediary, the one active C
 that the sender matches, by the rule that made it an intermediary. Two or more matches, or none, fill nothing, and a name
 that is not a Contact never creates one. It is recorded as a choice on the Case is, so staff change or clear it; Cases made
 before the change are not filled (operator, 12 November 2026; [R1014](../rulings.md), [R1017](../rulings.md),
-[R1018](../rulings.md)). The Case keeps a copy of the chosen name and contact, its
+[R1018](../rulings.md)). The Case keeps a copy of the chosen name, telephone and e-mail, its
 notes follow the chosen record, and a changed choice must still be an active
 Claim Source when the Case is saved. The Case may override the chosen
-source's contact name, telephone and e-mail for that Case alone. The override
-wins per field; changing or clearing the chosen source clears it. Repairer,
-Storage and Third Party Engineer contacts have no notes.
+source's telephone and e-mail for that Case alone. The override
+wins per field; changing or clearing the chosen source clears it. The card's
+contact name is the Case's own: a Claim Source holds none to copy, so it is
+what staff type on the Case, and a name a Case copied before 13 November 2026
+stays on that Case (operator, 13 November 2026; [R1047](../rulings.md),
+[R1048](../rulings.md)). Repairer contacts have no notes.
 
 A Principal, Claim Source or Repairer contact may have a **standing photo
 link** (operator, 9 November 2026; R774): its URL and QR code, Pause and

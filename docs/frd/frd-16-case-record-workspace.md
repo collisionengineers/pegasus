@@ -485,7 +485,8 @@ report has been sent, when and from which mailbox. A select's empty option carri
 absent word (Not recorded, Unassigned), so the control reads as the box does. The Claim source card lays its cells two
 across, like the Case card: the Claim source, chosen from the active Claim Source contacts with those linked to the Case's
 Principal first under its code and the rest under "Other claim sources" (operator, 12 November 2026;
-[R1013](../rulings.md), [R1016](../rulings.md)), and its contact name, telephone and e-mail; then the Claim source's Notes on every Case, read-only and absent when the record has none
+[R1013](../rulings.md), [R1016](../rulings.md)), and its contact name, telephone and e-mail, the telephone and e-mail
+copied from the chosen contact and the name typed on the Case (operator, 13 November 2026; [R1048](../rulings.md)); then the Claim source's Notes on every Case, read-only and absent when the record has none
 ([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)), beside this Case's own Claim source notes.
 Below the cards, a full-width Principal panel holds the Principal's Notes on every Case, read-only and absent when the
 record has none, beside this Case's own Principal notes, which keep their half-width place when the record has none. A

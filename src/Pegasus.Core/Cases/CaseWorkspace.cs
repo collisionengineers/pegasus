@@ -135,14 +135,6 @@ public sealed record CaseWorkspaceRepairer(
     long? DirectoryOrganizationVersion,
     string? Name);
 
-public sealed record CaseWorkspaceStorageBusiness(
-    Guid? DirectoryOrganizationId,
-    long? DirectoryOrganizationVersion,
-    string? Name,
-    string? ContactName,
-    string? ContactTelephone,
-    string? ContactEmailAddress);
-
 /// <summary>
 /// The claim source recorded on this case: a copied snapshot of the selected
 /// maintained record plus optional Case-local contact overrides. The claim
@@ -207,14 +199,10 @@ public sealed record CaseWorkspaceInspection(
     string? Address,
     CaseLocationProvenance? Provenance,
     string? StorageLocation,
-    CaseWorkspaceStorageBusiness? StorageBusiness,
     DateOnly? InspectionDate,
     DateOnly? InspectionDeadline,
     bool? VehiclePresent,
     string? VehicleConditionAtInspection,
-    string? ContactName,
-    string? ContactTelephone,
-    string? ContactEmailAddress,
     string? Notes,
     decimal? StoragePerDay,
     decimal? RecoveryCharge);
@@ -1108,19 +1096,10 @@ public static class CaseWorkspacePolicy
                 InspectionLocationSourceVersion = inspection.Provenance?.DirectorySourceVersion,
                 InspectionLocationSourceLabel = inspection.Provenance?.DirectorySourceLabel,
                 StorageLocation = inspection.StorageLocation,
-                StorageBusinessId = inspection.StorageBusiness?.DirectoryOrganizationId,
-                StorageBusinessVersion = inspection.StorageBusiness?.DirectoryOrganizationVersion,
-                StorageBusinessName = inspection.StorageBusiness?.Name,
-                StorageBusinessContactName = inspection.StorageBusiness?.ContactName,
-                StorageBusinessContactTelephone = inspection.StorageBusiness?.ContactTelephone,
-                StorageBusinessContactEmailAddress = inspection.StorageBusiness?.ContactEmailAddress,
                 InspectionDate = inspection.InspectionDate,
                 InspectionDeadline = inspection.InspectionDeadline,
                 InspectionVehiclePresent = inspection.VehiclePresent,
                 InspectionCondition = inspection.VehicleConditionAtInspection,
-                InspectionContactName = inspection.ContactName,
-                InspectionContactTelephone = inspection.ContactTelephone,
-                InspectionContactEmailAddress = inspection.ContactEmailAddress,
                 InspectionNotes = inspection.Notes
             };
         }

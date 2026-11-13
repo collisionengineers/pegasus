@@ -59,7 +59,6 @@ public sealed class ContactDirectoryPolicyTests
         Guid.NewGuid(),
         ExpectedVersion: 0,
         Name: "Acme Repairs",
-        ContactPerson: null,
         Email: null,
         Telephone: telephone,
         Address: null,
@@ -97,11 +96,11 @@ public sealed class ContactNotesOnEveryCaseTests
 
         Assert.Equal(
             [principalId],
-            ContactDirectoryPolicy.Normalize(Request(ContactRole.Storage, null) with { LinkedPrincipalIds = [principalId] }).LinkedPrincipalIds);
+            ContactDirectoryPolicy.Normalize(Request(ContactRole.Repairer, null) with { LinkedPrincipalIds = [principalId] }).LinkedPrincipalIds);
         Assert.Throws<ArgumentException>(() => ContactDirectoryPolicy.Normalize(
             Request(ContactRole.Principal, null) with { PrincipalCode = "ACME", LinkedPrincipalIds = [principalId] }));
         Assert.Throws<ArgumentException>(() => ContactDirectoryPolicy.Normalize(
-            Request(ContactRole.Storage, null) with { LinkedPrincipalIds = [principalId, principalId] }));
+            Request(ContactRole.Repairer, null) with { LinkedPrincipalIds = [principalId, principalId] }));
     }
 
     private static SaveContactRequest Request(ContactRole role, string? notes) => new(
@@ -109,7 +108,6 @@ public sealed class ContactNotesOnEveryCaseTests
         Guid.NewGuid(),
         ExpectedVersion: 0,
         Name: "Acme Claims",
-        ContactPerson: null,
         Email: null,
         Telephone: null,
         Address: null,

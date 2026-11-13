@@ -482,7 +482,6 @@ internal sealed class IntakeActionMcpTools(
                         ClaimSourceId: claimSource?.OrganizationId,
                         ClaimSourceVersion: claimSource?.Version,
                         ClaimSourceName: claimSource?.Name,
-                        ClaimSourceContactName: claimSource?.ContactPerson,
                         ClaimSourceContactTelephone: claimSource?.Telephone,
                         ClaimSourceContactEmailAddress: claimSource?.Email);
                 }

@@ -5911,10 +5911,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
-                    b.Property<string>("ContactPerson")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<string>("Email")
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
@@ -5963,7 +5959,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_Organizations_Name", "[Name] <> ''");
 
-                            t.HasCheckConstraint("CK_Organizations_Role", "[Role] IN ('principal', 'claim_source', 'repairer', 'storage', 'third_party_engineer')");
+                            t.HasCheckConstraint("CK_Organizations_Role", "[Role] IN ('principal', 'claim_source', 'repairer')");
 
                             t.HasCheckConstraint("CK_Organizations_Version", "[Version] >= 0");
                         });

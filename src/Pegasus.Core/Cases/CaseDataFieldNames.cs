@@ -41,12 +41,6 @@ public static class CaseDataFieldNames
     public const string ClaimSourceContactName = "claim_source_contact_name";
     public const string ClaimSourceContactTelephone = "claim_source_contact_telephone";
     public const string ClaimSourceContactEmailAddress = "claim_source_contact_email";
-    public const string StorageBusinessId = "storage_business_id";
-    public const string StorageBusinessVersion = "storage_business_version";
-    public const string StorageBusinessName = "storage_business_name";
-    public const string StorageBusinessContactName = "storage_business_contact_name";
-    public const string StorageBusinessContactTelephone = "storage_business_contact_telephone";
-    public const string StorageBusinessContactEmailAddress = "storage_business_contact_email";
     public const string VehicleMileageDisplayUnit = "vehicle_mileage_display_unit";
     public const string InspectionAddressTreatment = "inspection_address_treatment";
     public const string InspectionLocationChoice = "inspection_location_choice";
@@ -56,9 +50,6 @@ public static class CaseDataFieldNames
     public const string InspectionLocationSourceLabel = "inspection_location_source_label";
     public const string InspectionVehiclePresent = "inspection_vehicle_present";
     public const string InspectionCondition = "inspection_condition";
-    public const string InspectionContactName = "inspection_contact_name";
-    public const string InspectionContactTelephone = "inspection_contact_telephone";
-    public const string InspectionContactEmailAddress = "inspection_contact_email";
     public const string InspectionNotes = "inspection_notes";
 
     // The Case's own notes beside the Principal and Claim source records' "Notes on

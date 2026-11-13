@@ -242,7 +242,8 @@ report prints as the date the damage was assessed, change through
 value is unchanged, an empty string clears a text or date value, and a value
 the call does not name never changes. It edits the claimant, claim, contact,
 accident, VAT status and repairer; the Principal, Claim source and Client
-notes; the due by date and the Claim source contact; the vehicle's identity,
+notes; the due by date and the Claim source contact (its name the Case's
+own, [R1048](../rulings.md)); the vehicle's identity,
 year and mileage; the inspection; and the Sign-off Engineer. As on the Case
 page, it links the repairer to an active directory Repairer and records the
 Claim source from the active Claim source records, each copied onto the Case

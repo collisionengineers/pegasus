@@ -598,7 +598,6 @@ public sealed partial class CreateModel(
             ClaimSourceId: claimSource?.OrganizationId,
             ClaimSourceVersion: claimSource?.Version,
             ClaimSourceName: claimSource?.Name,
-            ClaimSourceContactName: claimSource?.ContactPerson,
             ClaimSourceContactTelephone: claimSource?.Telephone,
             ClaimSourceContactEmailAddress: claimSource?.Email);
         var draft = new InstructionDraft(
