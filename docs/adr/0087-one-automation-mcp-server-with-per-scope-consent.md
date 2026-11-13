@@ -27,6 +27,10 @@ approve-all-or-refuse consent; its other clauses stand. ADR-0011, ADR-0026
 and ADR-0064 are unchanged.
 Raised by issue #1733 from the release-readiness decision E7 (R509).
 
+Amended 13 November 2026 (R1044): decision 4's "No new words" no longer holds
+for the scope descriptions, which now say what each scope grants; the scope
+words themselves and the buttons are unchanged.
+
 ## Context
 
 Observed at `9a92a20` (`dev`, 29 October 2026). Since Release 123 the
