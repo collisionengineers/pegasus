@@ -193,12 +193,6 @@ internal sealed record MailOpenQueryToolResult(
     string OperationKey,
     string CorrelationId);
 
-internal enum MailAction
-{
-    Dismiss,
-    Restore
-}
-
 internal enum MailLinkAction
 {
     Link,
@@ -516,15 +510,15 @@ internal sealed class MailMcpTools(
             async (context, key) =>
             {
                 var id = AutomationMcpErrors.RequireId(messageId, "retained message identifier");
-                var parsed = ParseMailAction(action);
+                var dismissing = IsDismiss(action);
                 var correlation = AutomationMcpAuditor.CorrelationId(context, key);
-                var dismissal = (parsed == MailAction.Dismiss
+                var dismissal = (dismissing
                     ? await dismiss.ExecuteAsync(new(id, context.Actor, key), cancellationToken)
                     : await restore.ExecuteAsync(new(id, context.Actor, key), cancellationToken))
                     ?? throw new McpException("The retained message was not found.");
                 return new MailActionToolResult(
                     id,
-                    parsed == MailAction.Dismiss ? "dismiss" : "restore",
+                    dismissing ? "dismiss" : "restore",
                     dismissal.IsDismissed,
                     dismissal.IsReplay,
                     key,
@@ -925,10 +919,10 @@ internal sealed class MailMcpTools(
         _ => throw new McpException("action must be link, unlink or change.")
     };
 
-    private static MailAction ParseMailAction(string? action) => action?.Trim() switch
+    private static bool IsDismiss(string? action) => action?.Trim() switch
     {
-        "dismiss" => MailAction.Dismiss,
-        "restore" => MailAction.Restore,
+        "dismiss" => true,
+        "restore" => false,
         _ => throw new McpException("action must be dismiss or restore.")
     };
 

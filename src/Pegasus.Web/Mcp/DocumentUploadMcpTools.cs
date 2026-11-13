@@ -34,8 +34,7 @@ internal sealed record UploadPartToolResult(
 /// </summary>
 [McpServerToolType]
 internal sealed class DocumentUploadMcpTools(
-    DocumentUploads begin,
-    DocumentUploads append,
+    DocumentUploads uploads,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
@@ -69,7 +68,7 @@ internal sealed class DocumentUploadMcpTools(
             key,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
-                var ticket = await begin.ExecuteAsync(
+                var ticket = await uploads.ExecuteAsync(
                     new BeginDocumentUploadRequest(uploadId, context.ClientId, totalBytes, sha256),
                     cancellationToken);
                 return new UploadBeginToolResult(
@@ -114,7 +113,7 @@ internal sealed class DocumentUploadMcpTools(
                     contentBase64,
                     DocumentUploadLimits.PartBytes,
                     "The part content");
-                var receipt = await append.ExecuteAsync(
+                var receipt = await uploads.ExecuteAsync(
                     new AppendDocumentUploadPartRequest(uploadId, context.ClientId, partNumber, content, sha256),
                     cancellationToken);
                 return new UploadPartToolResult(

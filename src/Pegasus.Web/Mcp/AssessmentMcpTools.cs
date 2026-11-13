@@ -208,7 +208,7 @@ internal sealed class AssessmentMcpTools(
     ICaseWorkflowQueries workflowQueries,
     AutomationMcpAuditor auditor,
     OneCommandEdit leases,
-    IImportRawEstimate? importRawEstimate = null)
+    IImportRawEstimate importRawEstimate)
 {
     [McpServerTool(
         Name = "pegasus_estimate_import",
@@ -239,15 +239,13 @@ internal sealed class AssessmentMcpTools(
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 AutomationMcpErrors.RequireId(occurrenceId, "document occurrence identifier");
                 AutomationMcpErrors.RequireId(documentVersionId, "document version identifier");
-                var importer = importRawEstimate
-                    ?? throw new McpException("Estimate import is unavailable in this runtime.");
                 var imported = await leases.RunCaseAsync(
                     caseId,
                     expectedVersion,
                     editLeaseToken,
                     context.Actor,
                     key,
-                    token => importer.ExecuteAsync(
+                    token => importRawEstimate.ExecuteAsync(
                         new(context.Actor, caseId, expectedVersion, token,
                             occurrenceId, documentVersionId, sha256, key, name),
                         cancellationToken),

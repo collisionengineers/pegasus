@@ -73,7 +73,7 @@ internal sealed class DocumentMcpTools(
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
-    public const int MaximumBatchDocuments = 25;
+    private const int MaximumBatchDocuments = 25;
     private const string SourceIdentityPrefix = "automation:";
 
     [McpServerTool(

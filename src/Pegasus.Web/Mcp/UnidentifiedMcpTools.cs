@@ -109,6 +109,7 @@ internal sealed class UnidentifiedMcpTools(
     IVrmSuggestionStore vrmSuggestions,
     StaffIntakeActions intakeActions,
     IImageIntakeStore imageIntakes,
+    TimeProvider timeProvider,
     AutomationMcpAuditor auditor)
 {
     [McpServerTool(
@@ -327,7 +328,7 @@ internal sealed class UnidentifiedMcpTools(
                     }
 
                     var closed = await close.ExecuteAsync(
-                        new(item.Id, expectedVersion, context.Actor, key, reason, DateTimeOffset.UtcNow),
+                        new(item.Id, expectedVersion, context.Actor, key, reason, timeProvider.GetUtcNow()),
                         cancellationToken);
                     return Map(closed.Item);
                 }
@@ -342,7 +343,7 @@ internal sealed class UnidentifiedMcpTools(
                         targetKind,
                         targetId ?? throw new McpException("targetId is required for a destination."),
                         targetReference,
-                        DateTimeOffset.UtcNow),
+                        timeProvider.GetUtcNow()),
                     cancellationToken);
                 return Map(result.Item);
             },
@@ -505,7 +506,7 @@ internal sealed class UnidentifiedMcpTools(
                 var item = await store.GetByReferenceAsync(normalizedReference, cancellationToken)
                     ?? throw new McpException("The Unidentified reference was not found.");
                 var result = await reopen.ExecuteAsync(
-                    new(item.Id, expectedVersion, context.Actor, key, reason, DateTimeOffset.UtcNow),
+                    new(item.Id, expectedVersion, context.Actor, key, reason, timeProvider.GetUtcNow()),
                     cancellationToken);
                 return Map(result.Item);
             },
