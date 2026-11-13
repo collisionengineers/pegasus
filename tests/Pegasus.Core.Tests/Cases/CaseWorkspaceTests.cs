@@ -590,10 +590,6 @@ public sealed class CaseWorkspaceTests
         null,
         null,
         null,
-        null,
-        null,
-        null,
-        null,
         null);
 
     private static SaveCaseWorkspaceRequest Request(
