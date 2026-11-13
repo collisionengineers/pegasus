@@ -752,3 +752,61 @@ public sealed class CompleteMarketResearchAiJob(
         return store.CompleteAsync(command, cancellationToken);
     }
 }
+
+/// <summary>
+/// A page of the Automation client's AI job ledger: every queued job and the
+/// jobs <see cref="GrantId"/> holds. <see cref="Cursor"/> null starts from the
+/// first page; <see cref="Limit"/> null takes <see cref="CursorPaging.DefaultLimit"/>.
+/// </summary>
+public sealed record ListOpenAiJobsByCursorQuery(
+    ActionActor Actor,
+    string GrantId,
+    AiJobKind? Kind,
+    string? Cursor = null,
+    int? Limit = null);
+
+/// <summary>
+/// The keyset-paged open AI job list, oldest first. The scope binds a cursor
+/// to the actor, the kind filter and the order; its query name is the MCP
+/// tool's, which issued the cursors before this class did, so a cursor issued
+/// earlier still decodes.
+/// </summary>
+public sealed class ListOpenAiJobsByCursor(IAiJobQueries queries, ICursorProtector protector)
+{
+    private const string QueryName = "pegasus_ai_job_list";
+    private const string Order = "created-id-asc";
+
+    private readonly IAiJobQueries queries =
+        queries ?? throw new ArgumentNullException(nameof(queries));
+
+    private readonly ICursorProtector protector =
+        protector ?? throw new ArgumentNullException(nameof(protector));
+
+    public async Task<CursorPage<AiJobRecord>> ExecuteAsync(
+        ListOpenAiJobsByCursorQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        var limit = CursorPaging.NormalizeLimit(query.Limit);
+        var scope = CursorPaging.CreateScope(
+            QueryName, query.Actor, query.Kind?.ToString() ?? string.Empty, Order);
+        DateTimeOffset? afterCreated = null;
+        Guid? afterId = null;
+        if (!string.IsNullOrWhiteSpace(query.Cursor))
+        {
+            var position = protector.Unprotect(query.Cursor, scope);
+            afterCreated = CursorPaging.DecodeUtcTimestamp(position.SortKey);
+            afterId = position.Id;
+        }
+
+        var page = await queries.ListOpenPageAsync(
+            query.Kind, query.GrantId, afterCreated, afterId, limit, cancellationToken);
+        var next = page.HasMore && page.Jobs.Count > 0
+            ? protector.Protect(
+                scope,
+                CursorPaging.EncodeUtcTimestamp(page.Jobs[^1].CreatedAtUtc),
+                page.Jobs[^1].JobId)
+            : null;
+        return new(page.Jobs, next);
+    }
+}

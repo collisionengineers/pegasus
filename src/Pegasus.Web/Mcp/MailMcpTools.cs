@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Pegasus.Core;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using ModelContextProtocol;
@@ -211,6 +210,7 @@ internal enum MailLinkAction
 [McpServerToolType]
 internal sealed class MailMcpTools(
     ListRetainedMail listRetainedMail,
+    ListRetainedMailByCursor listRetainedMailByCursor,
     GetRetainedMail getRetainedMail,
     GetRetainedMailFreshness getFreshness,
     CorrectRetainedMailClassification correctClassification,
@@ -223,7 +223,6 @@ internal sealed class MailMcpTools(
     IOpenCaseQuery openCaseQuery,
     OneCommandEdit leases,
     AutomationMcpAuditor auditor,
-    ICursorProtector cursors,
     SearchApprovedMailboxes searchMailboxes,
     SearchOldSystemCaseFolders searchOldSystemFolders,
     GetRetainedMailAttachmentText attachmentText,
@@ -344,24 +343,9 @@ internal sealed class MailMcpTools(
                         : null,
                     folderScope,
                     DismissedOnly: dismissed);
-                var limit = CursorPaging.NormalizeLimit(pageSize == 0 ? null : pageSize);
-                var cursorScope = CursorPaging.CreateScope(
-                    "pegasus_mail_list", context.Actor, scope.MailboxId?.ToString("D"),
-                    dismissed ? "dismissed" : scope.Folder.ToString(), "received-id-desc");
-                DateTimeOffset? beforeReceived = null;
-                Guid? beforeId = null;
-                if (!string.IsNullOrWhiteSpace(continuation))
-                {
-                    var position = cursors.Unprotect(continuation, cursorScope);
-                    beforeReceived = CursorPaging.DecodeUtcTimestamp(position.SortKey);
-                    beforeId = position.Id;
-                }
-                var page = await listRetainedMail.ExecuteCursorAsync(
-                    context.Actor, scope, beforeReceived, beforeId, limit, cancellationToken);
-                var next = page.HasMore && page.Items.Count > 0
-                    ? cursors.Protect(cursorScope,
-                        CursorPaging.EncodeUtcTimestamp(page.Items[^1].ReceivedAtUtc), page.Items[^1].Id)
-                    : null;
+                var page = await listRetainedMailByCursor.ExecuteAsync(
+                    context.Actor, scope, continuation, pageSize == 0 ? null : pageSize, cancellationToken);
+                var next = page.NextCursor;
                 var mailboxes = await listRetainedMail.ListMailboxesAsync(
                     context.Actor,
                     cancellationToken);

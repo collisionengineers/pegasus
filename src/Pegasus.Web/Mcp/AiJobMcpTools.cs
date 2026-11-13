@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Pegasus.Core;
 using System.Globalization;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
@@ -68,7 +67,7 @@ internal enum AiJobTransitionAction
 /// </summary>
 [McpServerToolType]
 internal sealed class AiJobMcpTools(
-    IAiJobQueries queries,
+    ListOpenAiJobsByCursor listOpen,
     ICreateAiJob create,
     IStartMarketResearch startMarketResearch,
     IWorkAiJob work,
@@ -78,8 +77,7 @@ internal sealed class AiJobMcpTools(
     Pegasus.Core.Documents.DocumentUploads uploads,
     StartQueryResponse startQueryResponse,
     AutomationActorResolver resolver,
-    AutomationMcpAuditor auditor,
-    ICursorProtector cursors)
+    AutomationMcpAuditor auditor)
 {
     [McpServerTool(
         Name = "pegasus_ai_job_list",
@@ -105,27 +103,11 @@ internal sealed class AiJobMcpTools(
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
                 AiJobKind? filter = string.IsNullOrWhiteSpace(kind) ? null : ParseKind(kind);
-                var limit = CursorPaging.NormalizeLimit(pageSize == 0 ? null : pageSize);
-                var normalizedFilter = filter?.ToString() ?? string.Empty;
-                var cursorScope = CursorPaging.CreateScope(
-                    "pegasus_ai_job_list", context.Actor, normalizedFilter, "created-id-asc");
-                DateTimeOffset? afterCreated = null;
-                Guid? afterId = null;
-                if (!string.IsNullOrWhiteSpace(continuation))
-                {
-                    var position = cursors.Unprotect(continuation, cursorScope);
-                    afterCreated = CursorPaging.DecodeUtcTimestamp(position.SortKey);
-                    afterId = position.Id;
-                }
-                var page = await queries.ListOpenPageAsync(
-                    filter, context.GrantId, afterCreated, afterId, limit, cancellationToken);
-                var next = page.HasMore && page.Jobs.Count > 0
-                    ? cursors.Protect(
-                        cursorScope,
-                        CursorPaging.EncodeUtcTimestamp(page.Jobs[^1].CreatedAtUtc),
-                        page.Jobs[^1].JobId)
-                    : null;
-                return new AiJobToolList(page.Jobs.Select(Map).ToArray(), next, context.TraceIdentifier);
+                var page = await listOpen.ExecuteAsync(
+                    new(context.Actor, context.GrantId, filter, continuation, pageSize == 0 ? null : pageSize),
+                    cancellationToken);
+                var next = page.NextCursor;
+                return new AiJobToolList(page.Items.Select(Map).ToArray(), next, context.TraceIdentifier);
             }),
             cancellationToken);
     }

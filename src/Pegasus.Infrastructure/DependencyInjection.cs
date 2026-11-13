@@ -140,6 +140,7 @@ public static class DependencyInjection
         services.AddScoped<IRetainedMailboxMessageStore>(
             provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<ListRetainedMail>();
+        services.AddScoped<ListRetainedMailByCursor>();
         services.AddScoped<GetRetainedMail>();
         services.AddScoped<GetRetainedMailPreview>();
         services.AddScoped<CorrectRetainedMailClassification>();
@@ -624,6 +625,7 @@ public static class DependencyInjection
         services.AddScoped<IFileGuideValuationReport, FileGuideValuationReport>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
         services.AddScoped<CancelAiJob>();
+        services.AddScoped<ListOpenAiJobsByCursor>();
         services.AddScoped<ConfirmAiJob>();
         services.AddScoped<IConfirmAiJob>(provider => provider.GetRequiredService<ConfirmAiJob>());
         services.AddScoped<EfCaseTaskStore>();
