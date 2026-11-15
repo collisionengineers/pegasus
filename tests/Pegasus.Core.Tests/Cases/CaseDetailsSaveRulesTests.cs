@@ -55,11 +55,10 @@ public sealed class CaseDetailsSaveRulesTests
         Assert.Null(CaseDetailsSaveRules.ClaimSourceToCopy(held, null));
         Assert.Equal(OtherId, CaseDetailsSaveRules.ClaimSourceToCopy(held, OtherId));
         Assert.Equal(
-            new CaseWorkspaceClaimSource(OtherId, 3, "Other Claims", "Bob", "0200", "bob@example.test"),
+            new CaseWorkspaceClaimSource(OtherId, 3, "Other Claims", null, "0200", "bob@example.test"),
             CaseDetailsSaveRules.ClaimSourceCopy(
                 Choice(OtherId, ContactRole.ClaimSource, 3, "Other Claims") with
                 {
-                    ContactPerson = "Bob",
                     Telephone = "0200",
                     Email = "bob@example.test",
                 }));
@@ -102,5 +101,5 @@ public sealed class CaseDetailsSaveRulesTests
     }
 
     private static ContactChoice Choice(Guid id, ContactRole role, long version, string name) =>
-        new(id, name, role, version, null, null, null, $"{name} address", null, null);
+        new(id, name, role, version, null, null, $"{name} address", null, null);
 }

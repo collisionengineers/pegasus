@@ -258,13 +258,13 @@ public sealed class AutomationCaseDetailsParityIngressTests
             [StaffRole.Administrator]);
         await administration.SaveAsync(
             new(
-                actor, linkedId, 0, "Zulu Parity Fixture Repairer", null, null, null, null, null, true,
+                actor, linkedId, 0, "Zulu Parity Fixture Repairer", null, null, null, null, true,
                 ContactRole.Repairer, null, CaseInspectionMode.PhysicalAddress, [principalId],
                 $"parity-repairer:{linkedId:N}"),
             CancellationToken.None);
         await administration.SaveAsync(
             new(
-                actor, otherId, 0, "Alpha Parity Fixture Repairer", null, null, null, null, null, true,
+                actor, otherId, 0, "Alpha Parity Fixture Repairer", null, null, null, null, true,
                 ContactRole.Repairer, null, CaseInspectionMode.PhysicalAddress, [],
                 $"parity-repairer:{otherId:N}"),
             CancellationToken.None);

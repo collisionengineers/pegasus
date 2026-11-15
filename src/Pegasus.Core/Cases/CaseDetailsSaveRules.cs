@@ -53,13 +53,17 @@ public static class CaseDetailsSaveRules
     public static Guid? ClaimSourceToCopy(CaseWorkspaceClaimSource? held, Guid? named) =>
         named is { } id && id != held?.ClaimSourceId ? id : null;
 
-    /// <summary>A directory Claim source copied onto the Case as its snapshot, with its contact.</summary>
+    /// <summary>
+    /// A directory Claim source copied onto the Case as its snapshot, with its
+    /// telephone and e-mail. A Claim Source record holds no contact name: the
+    /// Case's own is what staff type (operator, 13 November 2026; R1047, R1048).
+    /// </summary>
     public static CaseWorkspaceClaimSource ClaimSourceCopy(ContactChoice chosen)
     {
         ArgumentNullException.ThrowIfNull(chosen);
         return new(
             chosen.OrganizationId, chosen.Version, chosen.Name,
-            chosen.ContactPerson, chosen.Telephone, chosen.Email);
+            null, chosen.Telephone, chosen.Email);
     }
 
     /// <summary>
