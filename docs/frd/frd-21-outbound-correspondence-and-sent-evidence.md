@@ -139,7 +139,7 @@ finds it in that mailbox by the Message-ID the forward answers, wherever it
 is filed, and moves it; the mailbox must still be Approved and activated
 (R916), and its own Sent Items copy is left (R903) (operator, 11 November
 2026; [R975](../rulings.md)). A forward sent as an attachment names no original
-([#2079](https://github.com/collisionengineers/pegasus/issues/2079)).
+([#2079](https://gitlab.com/collisionengineers-group/pegasus/-/issues/2079)).
 Pegasus's own Sent items, uploaded `.eml` files and
 mail that arrives after the send are left (R903, R962). The move is recoverable and changes nothing
 in Pegasus: the retained copies, their links, the Case, its state and its
@@ -206,7 +206,7 @@ Actor's `pegasus_report_send`
 **Where the controls are.** Reply, Reply all and Forward appear on the Inbox
 message, which opens as a dialog over the Inbox and composes inside it (v41
 items I2 and I15, signed off 19 October 2026,
-[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md);
+[v41 notes](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md);
 [FRD-20](frd-20-mailbox-workspace.md#message-dialog-and-message-detail)), and
 on the Case correspondence surface. Reply also appears on Inbox
 list rows and on a closed Unidentified item's record, where Request again is

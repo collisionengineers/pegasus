@@ -49,7 +49,7 @@ Case at the same route renders as the Triage Case page instead
 - registration, claimant, principal and Engineer (the registration has its
   own cell, operator, 8 October 2026); before the report a Case with no
   Engineer reads Unassigned (#1213, operator, 16 October 2026,
-  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md));
+  [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md));
 - chips for state, Case type (Audit, Inspection + Audit) and, while someone
   else holds the edit lease, "{name} is editing" with a lock. A held Case
   reads "Held · review on {date}" when the hold has a review date;
@@ -117,7 +117,7 @@ whose control says what the step says, such as Assign Engineer or Create
 audit, is that control alone, except that while the Case is Unassigned
 Assign Engineer has **Take** beside it (#1213, v41 K9, operator,
 19 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)),
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)),
 and any other step names itself above its section's control. The
 **Damage markers** step has **View images** beside its Damage control, once
 one of the Case's images can be read: it opens the images window the Files
@@ -165,7 +165,7 @@ In Review, and With Engineer while the Case has no Engineer, the Next action
 is **Assign Engineer**, with the Actions menu's own control that opens its
 dialog and, while the Case is Unassigned, **Take** beside it (#1213, v41 K9,
 operator, 19 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md));
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md));
 where the menu does not offer it, the step is named without a control
 (issue 1025).
 Once the report is ready, the Next action is **Generate report** until the
@@ -194,7 +194,7 @@ Once Report sent is recorded, the Next action also lists the Case's open
 tasks after its step, oldest first, each opening the [Tasks](#tasks) dialog
 (operator, 6 and 13 October 2026); the row itself is the control, with no
 Tasks button on it (v41 K3, operator, 15 and 19 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
 While a Triage Case is linked to the Case, a **Linked cases** card follows
@@ -321,7 +321,7 @@ its address is ignored.
 **The Original report card** follows Figures in the Audit view's aside, and
 only there: not on the Inspection view, a standalone Audit, a Triage Case, or
 before the Audit exists (operator, 4 November 2026, R665, R666;
-[v48 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v48-send-dialog-original-report/v48_planning)).
+[v48 round](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/tree/design/v48-send-dialog-original-report/v48_planning)).
 Headed "Original report", it reads the Inspection report as generated, the
 newest Inspection generation's frozen snapshot, never the Inspection work's
 live values, and draws its figures as Figures draws its own: "Repair cost inc
@@ -393,7 +393,7 @@ Return to Engineer needs no session. The rules behind each action are in
   eligible enabled staff account, the signed-in person listed first as
   "Name (you)", or Unassigned, and asks no reason (#1213, v41 K9, operator,
   19 October 2026,
-  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+  [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
   The one handoff assigns them, or none, and moves a Review Case to With
   Engineer. There is no reviewed checkbox and no separate start action
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#assign-engineer)).
@@ -404,7 +404,7 @@ Return to Engineer needs no session. The rules behind each action are in
   2026). It opens the [Tasks](#tasks) dialog; without script its link draws
   the dialog open. Its icon, and the one on the dialog's empty list, is the
   sprite's square-check (v41 K1, operator, 15 and 19 October 2026,
-  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+  [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 - **Mark report sent**, in With Engineer. It confirms detected or linked
   Sent evidence and moves the Case to Report sent, an Inspection + Audit
   Case with no Audit included (operator, 5 November 2026; R705). It never
@@ -419,7 +419,7 @@ Return to Engineer needs no session. The rules behind each action are in
   record a reason.
 - **Return to work**, on a closed Case other than Created in error, before
   Archive (operator, 16 October 2026; v41 K10, 19 October 2026,
-  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+  [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
   Its dialog takes the Case stage to return to and a reason, and the Case
   returns through the destination gates
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-transitions)).
@@ -1050,7 +1050,7 @@ dialogs do. Each records one fixed reason, so there is no reason box. The
 Add task field takes the field style the other Case inputs use, and an open
 task's Assign, Complete and Cancel task sit on one line (v41 K4, operator,
 15 and 19 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 A Held or closed Case, and a Case a colleague is editing, show the list
 without these. There is no due date yet.
 
@@ -1219,7 +1219,7 @@ once the separate fee note is confirmed the report card offers Open fee note
 beside Open report (issue 912).
 The delivery form is the **Send report** dialog (operator, 4 November 2026,
 R665, R668;
-[v48 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v48-send-dialog-original-report/v48_planning)).
+[v48 round](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/tree/design/v48-send-dialog-original-report/v48_planning)).
 While the Case is in the viewer's edit session and the report is stored, the
 section head offers Send report as its primary beside Generate report, and
 the aside's Send report step opens the same dialog; reading offers neither,
@@ -1249,7 +1249,7 @@ removed; Add To recipient and Add Cc recipient add a removable box (R669).
 Its foot holds Cancel and the one Send report. A refused send returns to the
 page with the dialog open on its notice; an accepted send closes it as the
 page refreshes. The dialog's quoted words are the v48 mockup's
-([`pegasus_v48.html`](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v48-send-dialog-original-report/v48_planning/pegasus_v48.html),
+([`pegasus_v48.html`](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/design/v48-send-dialog-original-report/v48_planning/pegasus_v48.html),
 R665; issue 1914, 9 November 2026).
 
 The dialog also shows what the Principal's report sending rules decided
@@ -1275,7 +1275,7 @@ The dialog also shows what the Principal's report sending rules decided
 
 The Yes and No answers show their labels, and a hold's Done tick sits on the
 hold's own line (v41 K2, operator, 15 and 19 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 The v41 K5 read-mode cells (From, To, Cc, Attach, File name, Message, greyed)
 are retired: reading shows the Already sent line alone (v48 item G, R665).
 

@@ -70,7 +70,7 @@ is set only when an approval names a Web region other than the platform region.
 The preflight prints the live head, the candidate's identity and the migration
 sources the range adds. CI's migration class check
 (`scripts/Test-MigrationClass.ps1`) is the first reader of each one's class,
-and its pull request body's `## Migration` section records it (R760); the
+and its merge request description's `## Migration` section records it (R760); the
 agent still confirms it here. The agent reads those sources and classifies them by
 the rule in [engineering](../../../docs/engineering.md#migrations) (R605):
 additive runs on the normal route; non-additive runs only on the destructive
@@ -87,7 +87,7 @@ released SHA gets its annotated tag `v<version>` in the promotion push after
 the smoke (R688). Nothing in source carries a release version:
 `Directory.Build.props` stamps `0.0.0-dev` into every build that is not a
 release, the test instance included. The read-only run proposes the next
-version (R687): PATCH when every pull request in the range closes only
+version (R687): PATCH when every merge request in the range closes only
 `type:bug` issues, MAJOR when the route is destructive, MINOR otherwise. The
 approval names the version it grants; the script refuses one that is not one
 step above the live version, or not the one the manifest was built with. A
@@ -102,8 +102,8 @@ pwsh ./scripts/Invoke-Release.ps1
 ```
 
 It fetches, checks `main` is an ancestor of `dev`, lists the range, the
-candidate's push-to-`dev` CI run (R683) and the pull requests in it with their
-checks, reads the deployed state (Web state and stack, `/diagnostics/version`,
+candidate's pipeline on `dev` (R683) and the merge requests in it with their
+pipelines, reads the deployed state (Web state and stack, `/diagnostics/version`,
 Worker and classifier states, the schedule and Disabled settings), reads the
 live migration head, prints the route and whether provision is needed, refuses
 a deployable candidate whose azd environment lacks a key the provision needs
@@ -115,16 +115,16 @@ the test instance's `/diagnostics/version` over the tailnet and refuses a
 deployable candidate the instance is not serving (R684), prints the live
 version and the proposed next one (R687), then builds the artifacts at that
 version in a detached worktree at `../pegasus-worktrees/release-<sha8>` and
-validates them. It writes nothing to GitHub or Azure. `-PreflightOnly` stops
+validates them. It writes nothing to GitLab or Azure. `-PreflightOnly` stops
 before the build; `-Version <v>` builds another version than the proposal,
 the MAJOR when the agent classifies the range's migration as non-additive.
 
-Read the report. A candidate whose push-to-`dev` run or any pull request in
+Read the report. A candidate whose pipeline on `dev` or any merge request in
 the range is not green waits; nothing is waived, and `-Execute` refuses it
-(R691). The `--- Protection ---` section reads the repository's rulesets back
-([runbook](../../../docs/runbook.md#branch-and-tag-protection)); `dev` and
-`main` each carry an active one, and a missing one is a question before the
-approval. A head that differs from the candidate identity while the range adds
+(R691). The `--- Protection ---` section reads the project's protected branches and
+tags back ([runbook](../../../docs/runbook.md#branch-and-tag-protection));
+`dev`, `main` and the `v*` tags each carry a protection, and a missing one is a
+question before the approval. A head that differs from the candidate identity while the range adds
 no migration is a question, not a route.
 
 ## 2. The one approval
@@ -219,7 +219,7 @@ of the approved line. The record in
 `docs/operations.md` is at most 15 lines (R459): what was released, the route,
 the SHAs and hashes, the migration head, the restore point when a migration
 ran, the deployment ids (the Web OneDeploy id, and the Worker and classifier
-`config-zip` ids the CLI reports), the smoke time and what is owed. Owed items become GitHub issues, not sentences carried from
+`config-zip` ids the CLI reports), the smoke time and what is owed. Owed items become issues, not sentences carried from
 record to record. `docs/current-architecture.md` changes only when source
 structure changed. The exact artifacts are retained at
 `artifacts/releases/release-<version>-<sha8>` (ignored), beside the previous
