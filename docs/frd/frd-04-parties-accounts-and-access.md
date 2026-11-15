@@ -279,7 +279,13 @@ The Principal section of a Contact carries:
   [report_sending_sop.v5.yaml](../principal-profiles/sop-guides/report_sending_sop.v5.yaml),
   which keeps its v5 name and holds version 8, 15 October 2026; operator,
   16 October 2026), with the SOP's TL thresholds and QCL's contract repair
-  line appended to Notes on every Case. The
+  line appended to Notes on every Case. Where the
+  [Report Sending Quick Reference](../principal-profiles/sop-guides/report_sending_quick_reference.docx)
+  of 29 October 2026 differs it is followed: QCL's line is that reference's
+  QCL note, and the job sheet's "Sending Report:" passages are out of the
+  notes of the Principals it names, so this tab alone says how a report goes
+  (operator, 13 November 2026; [R1034](../rulings.md),
+  [R1035](../rulings.md)). The
   delivery behaviour is owned by
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md);
 - the Principal API credential (API-04): issue, reset, revoke, pause and

@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Reports;
@@ -35,7 +36,11 @@ public sealed class PrincipalReportSendingSeedTests
     /// <c>bodyshop_mentions</c> (AX) and <c>images_from</c> (YML) conditions
     /// had no Case fact and were only ever asked of staff, so the operator
     /// restated them on the Case's Repairer and Claim Source (12 November
-    /// 2026; R1023, R1025, R1026). The YAML stays as supplied evidence (R3).
+    /// 2026; R1023, R1025, R1026). Two more follow the Report Sending Quick
+    /// Reference of 29 October 2026 instead: SBL never copies
+    /// SBL@connexus.co.uk, and PCH's iRevolution rule reads the Case's
+    /// Repairer (13 November 2026; R1031, R1033). The YAML stays as supplied
+    /// evidence (R3).
     /// </summary>
     private static Dictionary<string, PrincipalReportSendingRules> SopRules(Func<string, string> claimSource)
     {
@@ -129,7 +134,7 @@ public sealed class PrincipalReportSendingSeedTests
                 Rules =
                 [
                     new(RuleMatch.All,
-                        [new(Kind.ClaimSource, [claimSource("iRevolution Repair Network")]), new(Kind.Outcome, ["repairable"])],
+                        [new(Kind.Repairer, [ContactsFollowQuickReference.IRevolutionRepairerId]), new(Kind.Outcome, ["repairable"])],
                         new(["repairs@irevolutionrepairnetwork.co.uk"], [], Remind: "Authorise the garage", RateCard: true)),
                     new(RuleMatch.Any,
                         [new(Kind.Mentions, ["audit"]), new(Kind.RefPrefix, ["a"]), new(Kind.PreviousJob, [])],
@@ -161,7 +166,7 @@ public sealed class PrincipalReportSendingSeedTests
             ["SBL"] = sop with
             {
                 SendTo = ["Claims@smartbusinesslink.com"],
-                Cc = ["SBL@connexus.co.uk"],
+                NeverCc = ["SBL@connexus.co.uk"],
                 Attach = attach with { FeeNoteSeparate = false },
                 Rules =
                 [
@@ -208,7 +213,8 @@ public sealed class PrincipalReportSendingSeedTests
     private static readonly (string Name, string Role)[] SourceOrganizations =
     [
         ("Car 2 Go", "claim_source"), ("SMC", "claim_source"), ("CarClaims", "claim_source"), ("Expert Claims", "claim_source"),
-        ("Rapid Rental Solutions", "claim_source"), ("iRevolution Repair Network", "claim_source")
+        ("Rapid Rental Solutions", "claim_source"), ("iRevolution Repair Network", "claim_source"),
+        ("iRevolution Repair Network", "repairer")
     ];
 
     private sealed record SeededPrincipal(PrincipalEntity Principal, PrincipalReportSendingRules Rules);
@@ -245,9 +251,10 @@ public sealed class PrincipalReportSendingSeedTests
 
     /// <summary>
     /// Every Principal Report Sending SOP v8 names has the rules and TL
-    /// threshold the SOP gives it (operator, 15 October 2026). FRZ is created
-    /// inactive and its route activates it; SWADE, which v8 drops, keeps its
-    /// rules for its existing Cases (operator, 16 October 2026).
+    /// threshold the SOP gives it (operator, 15 October 2026). FRZ was created
+    /// inactive for its route to activate; it is active without one (operator,
+    /// 13 November 2026; R1036). SWADE, which v8 drops, keeps its rules for
+    /// its existing Cases (operator, 16 October 2026).
     /// </summary>
     [Fact]
     public async Task LiveRulesEqualTheSopYaml()
@@ -261,7 +268,7 @@ public sealed class PrincipalReportSendingSeedTests
         foreach (var (code, rules) in SopRules(ClaimSource))
         {
             Assert.True(principals.ContainsKey(code), $"{code} must be seeded.");
-            Assert.True(principals[code].Principal.IsActive == (code != "FRZ"), code);
+            Assert.True(principals[code].Principal.IsActive, code);
             Assert.Equal(
                 $"{code} {EfOrganizationAdministration.ToReportSendingJson(rules)}",
                 $"{code} {EfOrganizationAdministration.ToReportSendingJson(principals[code].Rules)}");
@@ -278,7 +285,7 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Equal(Guid.Parse("00000000-0000-4000-8000-00000000d035"), frz.OrganizationId);
         Assert.Equal(Guid.Parse("00000000-0000-4000-8000-00000000e035"), frz.SequenceLineageId);
         Assert.Equal("Fraz", organizations[frz.OrganizationId].Name);
-        Assert.False(organizations[frz.OrganizationId].Active);
+        Assert.True(organizations[frz.OrganizationId].Active);
         Assert.Equal("00000000-0000-4000-8000-00000000f00b", ClaimSource("iRevolution Repair Network"));
         Assert.Equal("PCH / Connexus", organizations[principals["PCH"].Principal.OrganizationId].Name);
         Assert.Equal(["Ontrack789@gmail.com"], principals["SWADE"].Rules.SendTo.ToArray());
@@ -341,6 +348,104 @@ public sealed class PrincipalReportSendingSeedTests
     }
 
     /// <summary>
+    /// The Contact records follow the Report Sending Quick Reference of 29
+    /// October 2026 (operator, 13 November 2026; R1030 to R1036). A fresh
+    /// database is left with the introducers Oakwood's instructions name as
+    /// Claim Sources linked to OAK and the iRevolution Repairer linked to
+    /// PCH. Met again over records it did not seed, the restatement retires
+    /// the placeholder Claim Source, takes a passage out only where it ends
+    /// its block, restores nothing staff reworded, and changes nothing the
+    /// second time.
+    /// </summary>
+    [Fact]
+    public async Task TheQuickReferenceRestatementFollowsTheRulingsAndLeavesHandEditsAlone()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        // ExecuteSqlRaw reads braces as placeholders, and the rules are JSON.
+        var restate = ContactsFollowQuickReference.RestateSql
+            .Replace("{", "{{", StringComparison.Ordinal)
+            .Replace("}", "}}", StringComparison.Ordinal);
+        async Task<string[]> LinkedAsync(string code, string role) => [.. (await context.Organizations.AsNoTracking()
+            .Where(item => item.Role == role && item.Active && item.PrincipalLinks.Any(link => link.Principal.Code == code))
+            .Select(item => item.Name)
+            .ToArrayAsync()).Order(StringComparer.Ordinal)];
+        Task<string?> NotesAsync(string code) => context.Organizations.AsNoTracking()
+            .Where(item => item.Principals.Any(principal => principal.Code == code))
+            .Select(item => item.NotesOnEveryCase)
+            .SingleAsync();
+        Task<int> SetNotesAsync(string code, string notes) => context.Organizations
+            .Where(item => item.Principals.Any(principal => principal.Code == code))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.NotesOnEveryCase, notes));
+        async Task<string> StoredAsync() => JsonSerializer.Serialize(new
+        {
+            Organizations = await context.Organizations.AsNoTracking().OrderBy(item => item.Id)
+                .Select(item => new { item.Id, item.Name, item.Role, item.Active, item.NotesOnEveryCase }).ToArrayAsync(),
+            Principals = await context.Principals.AsNoTracking().OrderBy(item => item.Code)
+                .Select(item => new { item.Code, item.IsActive, item.ReportSendingRulesJson }).ToArrayAsync(),
+            Links = await context.Set<ContactPrincipalLinkEntity>().AsNoTracking()
+                .OrderBy(item => item.PrincipalId).ThenBy(item => item.OrganizationId)
+                .Select(item => new { item.PrincipalId, item.OrganizationId }).ToArrayAsync()
+        });
+
+        Assert.Equal(
+            ContactsFollowQuickReference.OakIntroducers.Select(item => item.Name).Order(StringComparer.Ordinal).ToArray(),
+            await LinkedAsync("OAK", "claim_source"));
+        Assert.Equal(["iRevolution Repair Network"], await LinkedAsync("PCH", "repairer"));
+
+        // The records production holds and a fresh database does not.
+        const string placeholder = "Paul Mandy / instructed garages";
+        context.Organizations.Add(new OrganizationEntity { Id = Guid.NewGuid(), Name = placeholder, Role = "claim_source" });
+        await context.SaveChangesAsync();
+        const string reworded =
+            "Inbox: Engineers\r\nSending Report: Fee note separate - copy in engreport@robertjameslaw.co.uk and someone@principal.example";
+        await SetNotesAsync("RJS", reworded);
+        await SetNotesAsync(
+            "TEN",
+            "Inbox: Engineers\r\nSending Report: Fee note separate return to file handler\r\n\r\nInbox: Andrew");
+        await SetNotesAsync("QCL", "Contract repair at 75%.\r\n\r\nInbox: Engineers");
+        var seededSbl = await context.Principals.AsNoTracking()
+            .Where(principal => principal.Code == "SBL")
+            .Select(principal => principal.ReportSendingRulesJson)
+            .SingleAsync();
+        var copied = seededSbl.Replace(
+            "\"cc\":[],\"neverCc\":[\"SBL@connexus.co.uk\"]",
+            "\"cc\":[\"SBL@connexus.co.uk\"],\"neverCc\":[]",
+            StringComparison.Ordinal);
+        Assert.NotEqual(seededSbl, copied);
+        await context.Principals
+            .Where(principal => principal.Code == "SBL")
+            .ExecuteUpdateAsync(setters => setters.SetProperty(principal => principal.ReportSendingRulesJson, copied));
+        await context.Principals
+            .Where(principal => principal.Code == "FRZ")
+            .ExecuteUpdateAsync(setters => setters.SetProperty(principal => principal.IsActive, false));
+
+        await context.Database.ExecuteSqlRawAsync(restate);
+
+        Assert.False(await context.Organizations.AsNoTracking()
+            .Where(item => item.Name == placeholder)
+            .Select(item => item.Active)
+            .SingleAsync());
+        Assert.Equal(reworded, await NotesAsync("RJS"));
+        Assert.Equal("Inbox: Engineers\r\n\r\nInbox: Andrew", await NotesAsync("TEN"));
+        Assert.Equal("Contract repair at 75%.\r\n\r\nInbox: Engineers", await NotesAsync("QCL"));
+        Assert.Equal(seededSbl, await context.Principals.AsNoTracking()
+            .Where(principal => principal.Code == "SBL")
+            .Select(principal => principal.ReportSendingRulesJson)
+            .SingleAsync());
+        Assert.True(await context.Principals.AsNoTracking()
+            .Where(principal => principal.Code == "FRZ")
+            .Select(principal => principal.IsActive)
+            .SingleAsync());
+
+        var restated = await StoredAsync();
+        await context.Database.ExecuteSqlRawAsync(restate);
+
+        Assert.Equal(restated, await StoredAsync());
+    }
+
+    /// <summary>
     /// The rules and TL threshold tables were derived from this file, so an
     /// edit to the SOP that does not regenerate them fails here. The file is
     /// compared with LF line endings, as committed.
@@ -398,8 +503,7 @@ public sealed class PrincipalReportSendingSeedTests
 
         foreach (var (name, role) in SourceOrganizations)
         {
-            var organization = Assert.Single(organizations.Values, item => item.Name == name);
-            Assert.Equal(role, organization.Role);
+            Assert.Single(organizations.Values, item => item.Name == name && item.Role == role);
         }
 
         // Every contact a condition names is a real organisation with the right role.
@@ -467,6 +571,17 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.True(Rules("MP").Attach.FigureBreakdown);
         Assert.Equal("WhatsApp the report to Midas to check before it is sent.", Rules("MIDAS").Hold);
         Assert.Equal("credithire@hackneysolutions.co.uk", Assert.Single(Rules("QCL").NeverCc));
+
+        // PCH: Repairer is iRevolution Repair Network and the outcome is
+        // repairable (R1033). SBL never copies its Connexus address (R1031).
+        var pch = Rules("PCH").Rules[0];
+        Assert.Equal(
+            [ReportSendingConditionKind.Repairer, ReportSendingConditionKind.Outcome],
+            pch.If.Select(condition => condition.Kind).ToArray());
+        Assert.Equal([ContactsFollowQuickReference.IRevolutionRepairerId], pch.If[0].Values.ToArray());
+        Assert.Equal("repairs@irevolutionrepairnetwork.co.uk", Assert.Single(pch.Then.CcAdd));
+        Assert.Empty(Rules("SBL").Cc);
+        Assert.Equal("SBL@connexus.co.uk", Assert.Single(Rules("SBL").NeverCc));
         Assert.True(Rules("BLACK").Attach.Estimate);
         Assert.True(Rules("ALS").Attach.Estimate);
     }
@@ -485,7 +600,8 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Contains("TL threshold: 70%", Notes("RJS"), StringComparison.Ordinal);
         Assert.Contains("TL threshold: 66%", Notes("SBL"), StringComparison.Ordinal);
         Assert.StartsWith("TL threshold: 66% (always)", Notes("PCH"), StringComparison.Ordinal);
-        Assert.Contains("Contract repair at 73%.", Notes("QCL"), StringComparison.Ordinal);
+        // QCL's contract repair line is the quick reference's QCL note (R1035).
+        Assert.StartsWith(ContactsFollowQuickReference.QclNote + "\r\n", Notes("QCL"), StringComparison.Ordinal);
         // Release 103 kept only the TL thresholds and QCL's contract repair line;
         // the contact SOP seed of 13 October 2026 adds the job sheet, not these v5 notes.
         Assert.DoesNotContain("Engineers (Ben)", Notes("HTU"), StringComparison.Ordinal);
@@ -533,7 +649,14 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.StartsWith("TL threshold: 70%", Notes("RJS"), StringComparison.Ordinal);
         Assert.Contains("Solicitors Instructions: Claim Specialists", Notes("RJS"), StringComparison.Ordinal);
         Assert.Contains("Solicitors Instructions: Accident Specialist", Notes("RJS"), StringComparison.Ordinal);
-        Assert.Contains("Copy in mdakri@montrealprestige.co.uk", Notes("MP"), StringComparison.Ordinal);
+        // The Report sending tab says how a report goes, so the job sheet's
+        // "Sending Report:" passages are gone from the Principals the quick
+        // reference names (R1034) and stay on the others.
+        Assert.EndsWith("Image based or address: Inspection address listed in report", Notes("MP"), StringComparison.Ordinal);
+        Assert.All(
+            ContactsFollowQuickReference.SendingPassages.Select(item => item.Code).Distinct(),
+            code => Assert.DoesNotContain("Sending Report:", Notes(code), StringComparison.Ordinal));
+        Assert.Contains("Sending Report: ", Notes("LEX"), StringComparison.Ordinal);
         // The v5 notes and received-via the sheet lacks.
         Assert.Contains("\"[reg] Initial\" or \"[reg] Supplementary\"", Notes("PCH"), StringComparison.Ordinal);
         Assert.Equal("Inbox: Engineers", Notes("SWADE"));
