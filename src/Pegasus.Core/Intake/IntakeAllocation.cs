@@ -302,7 +302,7 @@ public sealed class AllocateIntake(
             cancellationToken);
         if (binding is not null)
         {
-            await WritePrincipalNoteAsync(binding, receipt, result, cancellationToken);
+            await WritePrincipalNoteAsync(binding, receipt.Id, result, cancellationToken);
         }
 
         return result;
@@ -326,9 +326,15 @@ public sealed class AllocateIntake(
     /// goes where a person's words go — the case timeline — attributed to the
     /// Principal that wrote it, and never merged into an evidence field.
     /// </summary>
+    /// <remarks>
+    /// Every route that creates the Case writes it: automatic allocation, a
+    /// member of staff creating the Case from a declaration kept for sorting,
+    /// and a reasoned retry (R1054). The operation key is the receipt's, so
+    /// whichever route succeeds writes the one note.
+    /// </remarks>
     private async Task WritePrincipalNoteAsync(
         PrincipalSubmissionBinding binding,
-        IntakeReceipt receipt,
+        Guid receiptId,
         IntakeAllocationResult result,
         CancellationToken cancellationToken)
     {
@@ -344,12 +350,43 @@ public sealed class AllocateIntake(
             new(
                 caseId,
                 ActionActor.Principal(binding.PrincipalId),
-                $"principal-note:{receipt.Id:N}",
+                $"principal-note:{receiptId:N}",
                 binding.Instruction.Draft.Notes),
             cancellationToken);
     }
 
-    public Task<IntakeAllocationResult> AttemptStaffCreateAsync(
+    /// <summary>
+    /// The note of the Principal submission a staff-created or retried Case
+    /// came from, read only once the Case exists and only for a Principal API
+    /// receipt.
+    /// </summary>
+    private async Task WritePrincipalNoteAsync(
+        Guid receiptId,
+        IntakeReceipt? receipt,
+        IntakeAllocationResult result,
+        CancellationToken cancellationToken)
+    {
+        if (caseNotes is null
+            || principalSubmissionBindings is null
+            || result.State.Status != IntakeAllocationProjectionStatus.Succeeded)
+        {
+            return;
+        }
+
+        receipt ??= await receiptQueries.GetAsync(receiptId, cancellationToken);
+        if (receipt?.SourceIdentity.Channel != IntakeSourceChannel.PrincipalApi)
+        {
+            return;
+        }
+
+        var binding = await principalSubmissionBindings.FindAsync(receipt.SourceIdentity, cancellationToken);
+        if (binding is not null)
+        {
+            await WritePrincipalNoteAsync(binding, receiptId, result, cancellationToken);
+        }
+    }
+
+    public async Task<IntakeAllocationResult> AttemptStaffCreateAsync(
         AcceptIntakeRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -363,7 +400,7 @@ public sealed class AllocateIntake(
             request.Completeness,
             request.StandaloneAuditEvidenceId,
             request.AcceptedInspectionDeadline);
-        return ExecuteAsync(
+        var result = await ExecuteAsync(
             IntakeAllocationAttemptKind.StaffCreate,
             command,
             request.Actor,
@@ -371,6 +408,8 @@ public sealed class AllocateIntake(
             StaffCreationReason,
             expectedCurrentAttemptId: null,
             cancellationToken);
+        await WritePrincipalNoteAsync(request.ReceiptId, receipt: null, result, cancellationToken);
+        return result;
     }
 
     public async Task<IntakeAllocationResult> RetryAsync(
@@ -427,7 +466,7 @@ public sealed class AllocateIntake(
             throw new IntakeAllocationConcurrencyException();
         }
 
-        return await ExecuteAsync(
+        var result = await ExecuteAsync(
             IntakeAllocationAttemptKind.StaffRetry,
             current.Command,
             request.Actor,
@@ -435,6 +474,8 @@ public sealed class AllocateIntake(
             request.Reason,
             current.Id,
             cancellationToken);
+        await WritePrincipalNoteAsync(request.ReceiptId, receipt, result, cancellationToken);
+        return result;
     }
 
     private async Task<IntakeAllocationResult> ExecuteAsync(

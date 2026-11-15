@@ -85,8 +85,8 @@ internal static class CaseMatchModelConfiguration
 /// <summary>
 /// Derives the index row for a case from its current typed case data through the
 /// Principal's one normalization grammar (Confirmed value wins over Suggestion over
-/// Fact, matching CaseField semantics). Returns null when the case has no Principal or
-/// the Principal has no accepted case-match policy — matching simply is not active there.
+/// Fact, matching CaseField semantics). Returns null when the case has no Principal; a
+/// Principal with no instruction profile is indexed by <see cref="DeclaredCaseMatchPolicy"/>.
 /// </summary>
 internal static class CaseMatchIndexProjector
 {
@@ -104,14 +104,14 @@ internal static class CaseMatchIndexProjector
         }
 
         var principal = CurrentValue(fields, CaseDataFieldNames.PrincipalCode);
-        var policy = principal is null
-            ? null
-            : policies.SingleOrDefault(candidate =>
-                string.Equals(candidate.PrincipalCode, principal, StringComparison.Ordinal));
-        if (policy is null)
+        if (principal is null)
         {
             return null;
         }
+
+        // Every Principal's Cases are indexed, so a declared instruction from
+        // a Principal with no instruction profile is matched too (R1055).
+        var policy = DeclaredCaseMatchPolicy.For(policies, principal);
 
         var keys = policy.DeriveIndexKeys(new(
             CurrentValue(fields, CaseDataFieldNames.ClaimNumber),

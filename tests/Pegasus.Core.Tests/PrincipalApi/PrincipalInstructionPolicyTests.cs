@@ -16,6 +16,8 @@ public sealed class PrincipalInstructionPolicyTests
           "vehicle": { "registration": "ab12 cde", "make": "Peugeot", "model": "RCZ GT THP 156", "mileage": 48210, "mileageUnit": "miles" },
           "incident": { "dateOfIncident": "2031-04-01", "circumstances": "Rear-ended at a junction." },
           "inspection": { "dateRequested": "2031-05-20", "location": "Repairer Ltd\nLeeds" },
+          "repairer": { "name": "Example  Garage", "address": " 2 Example Road \n Leeds " },
+          "claimSource": "Example Introducer",
           "vatStatus": "Yes",
           "notes": "Vehicle is at the repairer."
         }
@@ -95,8 +97,9 @@ public sealed class PrincipalInstructionPolicyTests
         var empty = new InstructionDraft(
             null, null, null, null, null, null, null, null, null, null);
         var required = InstructionDraftCompleteness.MissingFieldNames(empty);
+        var instruction = Parse(Complete).Instruction;
         var declared = PrincipalInstructionPolicy
-            .ReviewFields(Parse(Complete).Instruction.Draft)
+            .ReviewFields(instruction.Draft, instruction)
             .Select(field => field.Name)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -127,7 +130,7 @@ public sealed class PrincipalInstructionPolicyTests
         Assert.Equal("application/pdf", file.MediaType);
         Assert.Equal(PrincipalInstructionPolicy.AssetSourceLabel(0), file.SourceLabel);
         Assert.DoesNotContain(
-            PrincipalInstructionPolicy.ReviewFields(instruction.Draft),
+            PrincipalInstructionPolicy.ReviewFields(instruction.Draft, instruction),
             field => field.Name == "Instruction date");
     }
 
@@ -184,6 +187,98 @@ public sealed class PrincipalInstructionPolicyTests
         var error = Assert.Throws<PrincipalInstructionValidationException>(() => Parse(body));
 
         Assert.Equal("originalReportVerdict", error.Field);
+    }
+
+    /// <summary>
+    /// R1053: the repairer and claim source a Principal names travel as the
+    /// review fields e-mail intake prints for them, each naming the
+    /// declaration, so the one owner of each decides what the Case takes.
+    /// </summary>
+    [Fact]
+    public void TheRepairerAndClaimSourceAreDeclaredReviewFields()
+    {
+        var instruction = Parse(Complete).Instruction;
+
+        Assert.Equal("Example Garage", instruction.RepairerName);
+        Assert.Equal("2 Example Road\nLeeds", instruction.RepairerAddress);
+        Assert.Equal("Example Introducer", instruction.ClaimSource);
+        var fields = PrincipalInstructionPolicy.ReviewFields(instruction.Draft, instruction);
+        var repairer = EstablishedIntakeRepairer.NamedIn(fields);
+        Assert.NotNull(repairer);
+        Assert.Equal("Example Garage", repairer.SuggestedValue);
+        Assert.Equal(IntakeEvidenceSource.PrincipalDeclaration, Assert.Single(repairer.Candidates).Source);
+        var claimSource = EstablishedIntakeClaimSource.NamedIn(fields);
+        Assert.NotNull(claimSource);
+        Assert.Equal("Example Introducer", claimSource.SuggestedValue);
+        Assert.Contains(
+            fields,
+            field => field.ToCaseDataFieldName() == CaseDataFieldNames.RepairerAddress
+                && field.SuggestedValue == "2 Example Road\nLeeds");
+    }
+
+    [Theory]
+    [InlineData("""{"caseType":"inspection","repairer":{"name":"   "},"claimSource":""}""")]
+    [InlineData("""{"caseType":"inspection"}""")]
+    public void AnUnnamedRepairerOrClaimSourceAddsNoReviewField(string body)
+    {
+        var instruction = Parse(body).Instruction;
+        var fields = PrincipalInstructionPolicy.ReviewFields(instruction.Draft, instruction);
+
+        Assert.DoesNotContain(fields, field => field.Name is PrincipalInstructionPolicy.RepairerNameField
+            or PrincipalInstructionPolicy.RepairerAddressField
+            or EstablishedIntakeClaimSource.ClaimSourceField);
+    }
+
+    [Fact]
+    public void AnOverlongRepairerOrClaimSourceIsNamedByItsFieldPath()
+    {
+        var name = new string('x', ContactDirectoryPolicy.MaximumNameLength + 1);
+
+        Assert.Equal(
+            "repairer.name",
+            Assert.Throws<PrincipalInstructionValidationException>(
+                () => Parse($$$"""{"caseType":"inspection","repairer":{"name":"{{{name}}}"}}""")).Field);
+        Assert.Equal(
+            "claimSource",
+            Assert.Throws<PrincipalInstructionValidationException>(
+                () => Parse($$"""{"caseType":"inspection","claimSource":"{{name}}"}""")).Field);
+    }
+
+    /// <summary>
+    /// The odometer's two units, in the spellings its one owner reads, stored
+    /// canonically; any other unit is refused rather than read as miles.
+    /// </summary>
+    [Theory]
+    [InlineData("Miles", "miles")]
+    [InlineData("km", "kilometres")]
+    [InlineData("Kilometres", "kilometres")]
+    public void AMileageUnitIsStoredInItsCanonicalSpelling(string sent, string stored)
+    {
+        var draft = Parse($$$"""{"caseType":"inspection","vehicle":{"mileage":1000,"mileageUnit":"{{{sent}}}"}}""")
+            .Instruction.Draft;
+
+        Assert.Equal(stored, draft.VehicleMileageUnit);
+    }
+
+    [Fact]
+    public void AnUnknownMileageUnitIsRefused()
+    {
+        var error = Assert.Throws<PrincipalInstructionValidationException>(
+            () => Parse("""{"caseType":"inspection","vehicle":{"mileage":1000,"mileageUnit":"furlongs"}}"""));
+
+        Assert.Equal("vehicle.mileageUnit", error.Field);
+    }
+
+    [Theory]
+    [InlineData("inspection")]
+    [InlineData("auditreport")]
+    [InlineData("triage")]
+    public void OnlyAStandaloneAuditCarriesAnOriginalReport(string caseType)
+    {
+        var error = Assert.Throws<PrincipalInstructionValidationException>(
+            () => Parse($$$"""{"caseType":"{{{caseType}}}","originalReport":{"fileName":"report.pdf","contentBase64":"JVBERi0="}}"""));
+
+        Assert.Equal("originalReport", error.Field);
     }
 
     [Fact]

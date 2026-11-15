@@ -58,10 +58,10 @@ public sealed class EvaluateIntakeCaseMatch(
     /// cref="IPrincipalCaseMatchPolicy.DeriveIndexKeys"/> — the very method the
     /// write side uses to index cases — so read and write can never drift into
     /// two grammars, and the shared eliminator below is the only decision
-    /// procedure. Returns null when no policy owns the Principal's code; the
-    /// caller treats that exactly as a no-match.
+    /// procedure. A Principal no registered policy owns is matched by
+    /// <see cref="DeclaredCaseMatchPolicy"/>.
     /// </summary>
-    public async Task<CaseMatchEvaluationResult?> ExecuteDeclaredAsync(
+    public async Task<CaseMatchEvaluationResult> ExecuteDeclaredAsync(
         string principalCode,
         CaseMatchSourceData sourceData,
         CancellationToken cancellationToken)
@@ -69,16 +69,9 @@ public sealed class EvaluateIntakeCaseMatch(
         ArgumentException.ThrowIfNullOrWhiteSpace(principalCode);
         ArgumentNullException.ThrowIfNull(sourceData);
 
-        var policy = policies.SingleOrDefault(candidate =>
-            string.Equals(
-                candidate.PrincipalCode,
-                principalCode,
-                StringComparison.Ordinal));
-        if (policy is null)
-        {
-            return null;
-        }
-
+        // A Principal with no instruction profile is matched too, by the
+        // default every full reference takes (R1055).
+        var policy = DeclaredCaseMatchPolicy.For(policies, principalCode);
         return await EvaluateDeclaredAsync(policy, sourceData, cancellationToken);
     }
 
