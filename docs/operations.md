@@ -87,7 +87,9 @@ Release 124 are one line each in [operations history](operations-history.md).
   metadata list the `authorization_code` grant, `/connect/authorize` sends the
   claude.ai redirect to sign-in, and the client-credentials helper still gets a
   token. The public route was not checked from the host; the first connector
-  sign-in is that check.
+  sign-in is that check. Correction, 13 November 2026: the consent page is
+  `/authorize`, and `/connect/authorize` has no endpoint, so its redirect to
+  sign-in showed nothing about the consent page.
 - A `Start` without `-RunId` made a second run, `94d575fb`, with an empty
   database. It was stopped about a minute later, before any function ran or
   any Graph subscription was made. On the operator's word ("remove the

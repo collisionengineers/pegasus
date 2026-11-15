@@ -61,37 +61,27 @@ internal sealed class TriageMcpTools(
     AddTriageNote addNote,
     ICaseEngineerChoices engineerChoices,
     Pegasus.Web.Presentation.OneCommandEdit leases,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
     private const string TriageIdDescription = "The Triage Case identifier (caseId from pegasus_triage_list).";
     private const string VersionDescription = "The Triage version the caller observed; a stale value fails closed.";
-    private const string KeyDescription = "Caller idempotency key prefixed 'mcp:'.";
     private const string ReasonDescription = "Why, for the Triage history (at most 500 characters).";
     private const string LeaseDescription = "Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the Triage lease for this one command.";
 
     [McpServerTool(Name = "pegasus_triage_list", Title = "List Triage work", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Lists a bounded page of Triage records through the protected Core continuation query. Each item carries the Triage Case id, its t. reference, state and version.")]
+    [Description("Lists a bounded page of Triage records. Each item carries the Triage Case id, its t. reference, state and version.")]
     public async Task<TriageListToolResult> ListAsync(
         [Description("Optional state filter: Open, AwaitingInformation, FindingRecorded, Completed or Cancelled.")] string? state = null,
-        [Description("Opaque cursor returned by the previous page; omit for the first page.")] string? cursor = null,
-        [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
+        [Description(AutomationToolText.Cursor)] string? cursor = null,
+        [Description(AutomationToolText.PageSize)] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_triage_list", cancellationToken);
-        return await auditor.RecordAsync(context, "pegasus_triage_list", "triage", null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+        return await auditor.CallAsync("pegasus_triage_list", "triage",
+            async context =>
             {
-                TriageState? parsedState = null;
-                if (!string.IsNullOrWhiteSpace(state))
-                {
-                    if (!Enum.TryParse<TriageState>(state.Trim(), true, out var parsed)
-                        || !Enum.IsDefined(parsed))
-                    {
-                        throw new McpException("The Triage state is not recognized.");
-                    }
-                    parsedState = parsed;
-                }
+                TriageState? parsedState = string.IsNullOrWhiteSpace(state)
+                    ? null
+                    : AutomationMcpErrors.ParseName<TriageState>(state, "The Triage state is not recognized.");
                 var effectiveLimit = CursorPaging.NormalizeLimit(limit);
                 var result = await listTriage.ExecuteAsync(
                     new(context.Actor, parsedState, cursor, effectiveLimit), cancellationToken);
@@ -100,7 +90,7 @@ internal sealed class TriageMcpTools(
                     result.NextCursor,
                     effectiveLimit,
                     context.TraceIdentifier);
-            }), cancellationToken);
+            }, cancellationToken);
     }
 
     [McpServerTool(Name = "pegasus_triage_get", Title = "Get Triage detail", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
@@ -109,15 +99,14 @@ internal sealed class TriageMcpTools(
         [Description(TriageIdDescription)] Guid caseId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_triage_get", cancellationToken);
-        return await auditor.RecordAsync(context, "pegasus_triage_get", Resource(caseId), null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+        return await auditor.CallAsync("pegasus_triage_get", AutomationMcpAuditor.Resource(caseId),
+            async context =>
             {
                 AutomationMcpErrors.RequireId(caseId, "Triage identifier");
                 var detail = await getTriage.ExecuteAsync(new(caseId, context.Actor), cancellationToken)
                     ?? throw new McpException("The Triage record was not found.");
                 return new TriageDetailToolResult(detail, context.TraceIdentifier);
-            }), cancellationToken);
+            }, cancellationToken);
     }
 
     [McpServerTool(Name = "pegasus_triage_source_download", Title = "Download Triage source", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
@@ -127,9 +116,8 @@ internal sealed class TriageMcpTools(
         [Description("Byte budget for inline content; 0 selects 100 KiB, at most 10 MiB.")] int maxInlineBytes = 0,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_triage_source_download", cancellationToken);
-        return await auditor.RecordAsync(context, "pegasus_triage_source_download", Resource(caseId), null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+        return await auditor.CallAsync("pegasus_triage_source_download", AutomationMcpAuditor.Resource(caseId),
+            async context =>
             {
                 AutomationMcpErrors.RequireId(caseId, "Triage identifier");
                 var detail = await getTriage.ExecuteAsync(new(caseId, context.Actor), cancellationToken)
@@ -139,7 +127,7 @@ internal sealed class TriageMcpTools(
                 return await IntakeSourceMcpContent.DownloadAsync(getSourceMetadata, downloadSource, images, pdfText,
                     origin.ReceiptId, context.Actor, maxInlineBytes,
                     context.TraceIdentifier, cancellationToken);
-            }), cancellationToken);
+            }, cancellationToken);
     }
 
     [McpServerTool(Name = "pegasus_triage_await_information", Title = "Mark Triage awaiting information", ReadOnly = false, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
@@ -147,7 +135,7 @@ internal sealed class TriageMcpTools(
     public Task<TriageDetailToolResult> AwaitInformationAsync(
         [Description(TriageIdDescription)] Guid caseId,
         [Description(VersionDescription)] long expectedVersion,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default) =>
         MutateAsync("pegasus_triage_await_information", caseId, expectedVersion, operationKey, editLeaseToken,
@@ -159,7 +147,7 @@ internal sealed class TriageMcpTools(
         [Description(TriageIdDescription)] Guid caseId,
         [Description(VersionDescription)] long expectedVersion,
         [Description(ReasonDescription)] string reason,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("Roadworthy or Unroadworthy; omit when the finding is assessment only.")] RoadworthinessFinding? roadworthiness = null,
         [Description("The assessment finding; omit when the finding is roadworthiness only.")] AssessmentFinding? assessment = null,
         [Description("The earlier finding this one supersedes; omit to add a finding.")] Guid? supersedesFindingId = null,
@@ -179,7 +167,7 @@ internal sealed class TriageMcpTools(
         [Description("Link or Unlink.")] string action,
         [Description("The sent evidence identifier.")] Guid sentEvidenceId,
         [Description(ReasonDescription)] string reason,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("Link only: the poll outcome the evidence answers.")] Guid? pollOutcomeId = null,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
@@ -206,7 +194,7 @@ internal sealed class TriageMcpTools(
     public Task<TriageDetailToolResult> CompleteAsync(
         [Description(TriageIdDescription)] Guid caseId,
         [Description(VersionDescription)] long expectedVersion,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default) =>
         MutateAsync("pegasus_triage_complete", caseId, expectedVersion, operationKey, editLeaseToken,
@@ -218,7 +206,7 @@ internal sealed class TriageMcpTools(
         [Description(TriageIdDescription)] Guid caseId,
         [Description(VersionDescription)] long expectedVersion,
         [Description(ReasonDescription)] string reason,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default) =>
         MutateAsync("pegasus_triage_cancel", caseId, expectedVersion, operationKey, editLeaseToken,
@@ -230,14 +218,14 @@ internal sealed class TriageMcpTools(
         [Description(TriageIdDescription)] Guid caseId,
         [Description(VersionDescription)] long expectedVersion,
         [Description(ReasonDescription)] string reason,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default) =>
         MutateAsync("pegasus_triage_reopen", caseId, expectedVersion, operationKey, editLeaseToken,
             (actor, key, token) => reopen.ExecuteAsync(new(caseId, expectedVersion, actor, key, reason) { EditLeaseToken = token }, cancellationToken), cancellationToken);
 
     [McpServerTool(Name = "pegasus_triage_case_link", Title = "Link or unlink Triage and instruction Case", ReadOnly = false, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Link joins the Triage to the instruction Case it belongs with; Unlink separates them. Both records change, so both versions are checked. Present a lease token for each record held for multi-step work, or omit them and the tool holds each lease for this one command.")]
+    [Description("Link joins the Triage to the instruction Case it belongs with; Unlink separates them. Both records change, so both versions are checked.")]
     public Task<TriageDetailToolResult> CaseLinkAsync(
         [Description(TriageIdDescription)] Guid caseId,
         [Description("The instruction Case identifier.")] Guid instructionCaseId,
@@ -245,7 +233,7 @@ internal sealed class TriageMcpTools(
         [Description(VersionDescription)] long expectedTriageVersion,
         [Description("The instruction Case version the caller observed; a stale value fails closed.")] long expectedCaseVersion,
         [Description(ReasonDescription)] string reason,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         [Description("The instruction Case's edit lease token from pegasus_edit_begin; omit it and the tool holds the Case lease for this one command.")] string? caseEditLeaseToken = null,
         CancellationToken cancellationToken = default)
@@ -280,15 +268,12 @@ internal sealed class TriageMcpTools(
         [Description(TriageIdDescription)] Guid caseId,
         [Description(VersionDescription)] long expectedVersion,
         [Description("Assign or Unassign.")] string action,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("Assign only: the staff identifier of an enabled member of staff, from pegasus_vocabulary_get staff.")] Guid? assigneeId = null,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var parsedAction = Enum.TryParse<TriageAssignAction>(action?.Trim(), ignoreCase: true, out var parsed)
-            && Enum.IsDefined(parsed)
-                ? parsed
-                : throw new McpException("action must be Assign or Unassign.");
+        var parsedAction = AutomationMcpErrors.ParseName<TriageAssignAction>(action, "action must be Assign or Unassign.");
         return MutateAsync("pegasus_triage_assign", caseId, expectedVersion, operationKey, editLeaseToken,
             async (actor, key, token) =>
             {
@@ -322,7 +307,7 @@ internal sealed class TriageMcpTools(
         [Description(TriageIdDescription)] Guid caseId,
         [Description(VersionDescription)] long expectedVersion,
         [Description("The note text, at most 500 characters.")] string note,
-        [Description(KeyDescription)] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description(LeaseDescription)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default) =>
         MutateAsync("pegasus_triage_note_add", caseId, expectedVersion, operationKey, editLeaseToken,
@@ -337,10 +322,8 @@ internal sealed class TriageMcpTools(
         Func<ActionActor, string, string, Task> action,
         CancellationToken cancellationToken)
     {
-        var context = await resolver.RequireAsync(tool, cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(context, tool, Resource(caseId), key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+        return await auditor.CallAsync(tool, AutomationMcpAuditor.Resource(caseId), operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "Triage identifier");
                 await leases.RunTriageAsync(
@@ -360,13 +343,9 @@ internal sealed class TriageMcpTools(
                 return new TriageDetailToolResult(
                     detail,
                     AutomationMcpAuditor.CorrelationId(context, key));
-            }), cancellationToken);
+            }, cancellationToken);
     }
 
-    private static string Resource(Guid id) => id == Guid.Empty ? "invalid" : id.ToString("D");
-
     private static TriageLinkAction ParseAction(string? action) =>
-        Enum.TryParse<TriageLinkAction>(action?.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
-            ? parsed
-            : throw new McpException("action must be Link or Unlink.");
+        AutomationMcpErrors.ParseName<TriageLinkAction>(action, "action must be Link or Unlink.");
 }

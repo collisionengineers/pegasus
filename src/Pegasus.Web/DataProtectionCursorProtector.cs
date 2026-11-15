@@ -3,7 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Pegasus.Core;
 
-namespace Pegasus.Web.Mcp;
+namespace Pegasus.Web;
 
 internal sealed class DataProtectionCursorProtector(IDataProtectionProvider provider) : ICursorProtector
 {

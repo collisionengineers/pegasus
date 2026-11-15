@@ -3,7 +3,7 @@ id: ADR-0027
 status: accepted
 date: 2026-08-18
 supersedes: []
-superseded_by: [ADR-0041]
+superseded_by: [ADR-0041, ADR-0087]
 related_capabilities: [MCP-01, MCP-02, MCP-03, MCP-04, MCP-06]
 related_frd: [frd-10]
 tags: [mcp, automation, oauth]
@@ -16,6 +16,19 @@ tags: [mcp, automation, oauth]
 Accepted. Adds a second grant to the Automation MCP authorization server
 decided by ADR-0011/ADR-0021 and enabled in production by ADR-0026; it changes
 neither the actor boundary nor the tool inventory.
+
+This record is replaced in part:
+
+- by [ADR-0041](0041-persistent-automation-keys-and-grant-attribution.md):
+  refresh tokens no longer die with a Web restart, because production keys
+  are persistent certificates, not ephemeral keys;
+- by [ADR-0087](0087-one-automation-mcp-server-with-per-scope-consent.md)
+  decision 4 (29 October 2026, R548): the Administrator approves each
+  requested scope with a tick box rather than approving or refusing the
+  requested scopes as a whole, the code holds the scopes left ticked, and
+  approving none is the refusal.
+
+Every other clause stands.
 
 ## Context
 
@@ -58,4 +71,4 @@ keys). Dynamic client registration and per-staff MCP tokens remain excluded.
 ## Links
 
 - [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md)
-- [ADR-0011](0011-restrict-mcp-to-automation-actor.md), [ADR-0021](superseded/0021-automation-actor-direct-write-assessment-contract.md), [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md)
+- [ADR-0011](0011-restrict-mcp-to-automation-actor.md), [ADR-0021](superseded/0021-automation-actor-direct-write-assessment-contract.md), [ADR-0026](superseded/0026-enable-automation-mcp-by-explicit-deployment-configuration.md)

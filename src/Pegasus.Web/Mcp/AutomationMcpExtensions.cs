@@ -29,7 +29,6 @@ public static class AutomationMcpExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(productVersion);
 
         services.AddSingleton(options);
-        services.AddHttpContextAccessor();
         services.AddScoped<AutomationClientRegistry>();
         services.AddScoped<AutomationActorResolver>();
         services.AddScoped<AutomationMcpAuditor>();
@@ -172,6 +171,7 @@ public static class AutomationMcpExtensions
             .WithRequestFilters(filters => filters.AddListToolsFilter(toolListing.Filter))
             .WithTools<CaseMcpTools>()
             .WithTools<CaseEditMcpTools>()
+            .WithTools<ValuationMcpTools>()
             .WithTools<CaseLifecycleMcpTools>()
             .WithTools<CaseQueryMcpTools>()
             .WithTools<EditLeaseMcpTools>()
@@ -184,16 +184,15 @@ public static class AutomationMcpExtensions
             .WithTools<AssessmentMcpTools>()
             .WithTools<MailMcpTools>()
             .WithTools<UnidentifiedMcpTools>()
+            .WithTools<ImageIntakeMcpTools>()
+            .WithTools<UploadGroupMcpTools>()
             .WithTools<TriageMcpTools>()
             .WithTools<AiJobMcpTools>()
-            .WithTools<IntakeActionMcpTools>()
             .WithTools<WorkCentreMcpTools>()
+            .WithTools<PhotoCaptureMcpTools>()
             .WithTools<SendMcpTools>();
         return services;
     }
-
-    private const string DocumentContentPath = "/automation/documents";
-    private const string IntakeSourceContentPath = "/automation/intake-sources";
 
     private static X509Certificate2 CreateIsolatedCertificate(string subject)
     {
@@ -246,12 +245,12 @@ public static class AutomationMcpExtensions
             .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
 
         app.MapGet(
-                DocumentContentPath + "/{occurrenceId:guid}/versions/{versionId:guid}",
+                AutomationMcp.DocumentContentPath + "/{occurrenceId:guid}/versions/{versionId:guid}",
                 AutomationDocumentStreaming.GetAsync)
             .RequireAuthorization(AutomationMcp.DocumentsEndpointPolicy)
             .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
         app.MapGet(
-                IntakeSourceContentPath + "/{receiptId:guid}",
+                AutomationMcp.IntakeSourceContentPath + "/{receiptId:guid}",
                 AutomationDocumentStreaming.GetIntakeSourceAsync)
             .RequireAuthorization(AutomationMcp.IntakeEndpointPolicy)
             .RequireRateLimiting(AutomationMcp.RateLimitPolicy);

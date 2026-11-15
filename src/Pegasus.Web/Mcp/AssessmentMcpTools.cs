@@ -93,8 +93,7 @@ internal sealed record EstimateSaveToolResult(
     Guid CaseId,
     long CaseVersion,
     EstimateToolItem Estimate,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record EstimateSnapshotToolItem(
     Guid SnapshotId,
@@ -113,15 +112,13 @@ internal sealed record EstimateActToolResult(
     Guid CaseId,
     long CaseVersion,
     EstimateToolItem? Estimate,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record EstimateImportToolResult(
     Guid CaseId,
     Guid EstimateId,
     string Name,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 internal sealed record EstimateListToolItem(
     Guid EstimateId,
     int Version,
@@ -179,7 +176,7 @@ internal sealed record AssessmentUpdateToolResult(
     IReadOnlyList<EstimateLineToolItem> EstimateLines,
     IReadOnlyList<AssessmentReadinessToolItem> Readiness,
     string OperationKey,
-    string CorrelationId);
+    [property: Description("Set when saveUnroadworthyReasonToBank was asked: Saved, or AlreadyOffered when the bank already holds the wording.")] string? UnroadworthyReasonBank = null);
 
 /// <summary>
 /// Automation Actor assessment and estimate tools (FRD-10, ADR-0064): direct
@@ -194,6 +191,7 @@ internal sealed record AssessmentUpdateToolResult(
 internal sealed class AssessmentMcpTools(
     IGetCaseAssessment getAssessment,
     SaveAssessment saveAssessment,
+    ISaveUnroadworthyReason saveUnroadworthyReason,
     ISaveEstimate saveEstimate,
     IListCaseEstimates caseEstimates,
     IListCaseEstimatesByCursor listEstimates,
@@ -204,10 +202,9 @@ internal sealed class AssessmentMcpTools(
     RestoreRepairSpecificationSnapshot restoreEstimateSnapshot,
     IRepairSpecificationSnapshotStore estimateSnapshots,
     ICaseWorkflowQueries workflowQueries,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     OneCommandEdit leases,
-    IImportRawEstimate? importRawEstimate = null)
+    IImportRawEstimate importRawEstimate)
 {
     [McpServerTool(
         Name = "pegasus_estimate_import",
@@ -217,47 +214,41 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Imports one already-retained exact estimate document through Pegasus's canonical named raw-estimate import. The same Case version, parser route and replay rules as the Case UI apply; present an edit lease token for multi-step work or omit it and the tool holds the lease for this one command. An automation import lands as a Draft; a staff member puts it in use with Use repair spec.")]
+    [Description("Imports one already-retained exact estimate document through Pegasus's canonical named raw-estimate import. The same Case version, parser route and replay rules as the Case UI apply. An automation import lands as a Draft; a staff member puts it in use with Use repair spec.")]
     public async Task<EstimateImportToolResult> ImportEstimateAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("The estimate's name on its tab (at most 100 characters).")] string name,
         [Description("The retained document's occurrence identifier (from pegasus_case_get).")] Guid occurrenceId,
         [Description("The retained document's exact version identifier.")] Guid documentVersionId,
         [Description("The retained document's SHA-256, as pegasus_case_get and the download report it.")] string sha256,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_estimate_import", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_estimate_import",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 AutomationMcpErrors.RequireId(occurrenceId, "document occurrence identifier");
                 AutomationMcpErrors.RequireId(documentVersionId, "document version identifier");
-                var importer = importRawEstimate
-                    ?? throw new McpException("Estimate import is unavailable in this runtime.");
                 var imported = await leases.RunCaseAsync(
                     caseId,
                     expectedVersion,
                     editLeaseToken,
                     context.Actor,
                     key,
-                    token => importer.ExecuteAsync(
+                    token => importRawEstimate.ExecuteAsync(
                         new(context.Actor, caseId, expectedVersion, token,
                             occurrenceId, documentVersionId, sha256, key, name),
                         cancellationToken),
                     cancellationToken);
                 return new EstimateImportToolResult(
-                    caseId, imported.EstimateId, name.Trim(), key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
-            }),
+                    caseId, imported.EstimateId, name.Trim(), key);
+            },
             cancellationToken);
     }
 
@@ -269,10 +260,10 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Saves an estimate (repair spec) on a case, as the Case's Repair Spec editor does: creates a named estimate, which lands as an AI draft in Draft, or, with estimateId, edits any live estimate in place (the Current one included; its report goes stale). On an edit, send each kept line's lineId (pegasus_estimate_get) so it keeps its source evidence; header values you omit keep their recorded values. Only a staff member puts an estimate in use (Use repair spec). Citing the Estimate AI job the work fulfils (aiJobId) is optional. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). Rates are per hour in pounds. VAT follows the repairer's VAT status: Registered charges VAT on everything, NotRegistered on parts and materials; an omitted status keeps the recorded choice, or records Registered when none is recorded or the recorded status is Unknown, and an explicit Unknown is refused; vatCategories overrides which categories carry VAT. Line types and evidence labels are listed by pegasus_vocabulary_get.")]
+    [Description("Saves an estimate (repair spec) on a case, as the Case's Repair Spec editor does: creates a named estimate, which lands as an AI draft in Draft, or, with estimateId, edits any live estimate in place (the Current one included; its report goes stale). On an edit, send each kept line's lineId (pegasus_estimate_get) so it keeps its source evidence; header values you omit keep their recorded values. Only a staff member puts an estimate in use (Use repair spec). Citing the Estimate AI job the work fulfils (aiJobId) is optional. Needs the expected case version. Rates are per hour in pounds. VAT follows the repairer's VAT status: Registered charges VAT on everything, NotRegistered on parts and materials; an omitted status keeps the recorded choice, or records Registered when none is recorded or the recorded status is Unknown, and an explicit Unknown is refused; vatCategories overrides which categories carry VAT. Line types and evidence labels are listed by pegasus_vocabulary_get.")]
     public async Task<EstimateSaveToolResult> SaveEstimateAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same result.")] string operationKey,
         [Description("Why the estimate is being recorded (case history reason, at most 500 characters).")] string reason,
         [Description("Estimate name shown on its tab (at most 100 characters).")] string name,
@@ -286,19 +277,14 @@ internal sealed class AssessmentMcpTools(
         [Description("Override of which categories carry VAT: any of Labour, Parts, Materials, Specialist; an empty list charges none.")] IReadOnlyList<string>? vatCategories = null,
         [Description("Discounts by category, each a fraction of one (0.1 is 10%).")] EstimateDiscountsToolInput? discounts = null,
         [Description("Whether the regional labour uplift applies.")] bool? regionalUplift = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(
+        return await auditor.CallAsync(
             "pegasus_estimate_save",
-            cancellationToken);
-        var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_estimate_save",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, normalizedKey) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 ArgumentNullException.ThrowIfNull(lines);
@@ -360,9 +346,8 @@ internal sealed class AssessmentMcpTools(
                     caseId,
                     workflow.Version,
                     MapEstimate(saved),
-                    normalizedKey,
-                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
-            }),
+                    normalizedKey);
+            },
             cancellationToken);
     }
 
@@ -376,17 +361,14 @@ internal sealed class AssessmentMcpTools(
         UseStructuredContent = true)]
     [Description("Returns one estimate in full: its header (rate, VAT treatment, discounts, uplift), every line with its lineId and evidence, its totals, and the snapshots it can be restored to.")]
     public async Task<EstimateGetToolResult> GetEstimateAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("The estimate identifier (pegasus_estimate_list).")] Guid estimateId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_estimate_get", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_estimate_get",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            async context =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 AutomationMcpErrors.RequireId(estimateId, "estimate identifier");
@@ -401,7 +383,7 @@ internal sealed class AssessmentMcpTools(
                             snapshot.CreatedAtUtc, snapshot.Gross))
                         .ToArray(),
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -413,11 +395,11 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Performs one of the Repair Spec acts a member of staff performs on an estimate: duplicate (a new copy; needs a reason), discard (deletes the estimate, so the result carries none; needs a reason; the estimate in use cannot be discarded), scale (scale the estimate to targetPercentOfValue of the Engineer's Value, with optional labour-rate and price floors), remove_scaling, or restore (back to a snapshot from pegasus_estimate_get). Putting an estimate in use stays a staff act. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
+    [Description("Performs one of the Repair Spec acts a member of staff performs on an estimate: duplicate (a new copy; needs a reason), discard (deletes the estimate, so the result carries none; needs a reason; the estimate in use cannot be discarded), scale (scale the estimate to targetPercentOfValue of the Engineer's Value, with optional labour-rate and price floors), remove_scaling, or restore (back to a snapshot from pegasus_estimate_get). Putting an estimate in use stays a staff act. Needs the expected case version.")]
     public async Task<EstimateActToolResult> ActOnEstimateAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("The estimate acted on.")] Guid estimateId,
         [Description("duplicate, discard, scale, remove_scaling or restore.")] string action,
         [Description("Why (case history reason); required to duplicate or discard.")] string? reason = null,
@@ -425,17 +407,14 @@ internal sealed class AssessmentMcpTools(
         [Description("scale: the lowest labour rate per hour scaling may reach; defaults to 50.")] decimal? floorLabourRate = null,
         [Description("scale: the lowest percentage of a price scaling may reach; defaults to 65.")] decimal? floorPricePercent = null,
         [Description("restore: the snapshot to restore.")] Guid? snapshotId = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_estimate_act", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_estimate_act",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 AutomationMcpErrors.RequireId(estimateId, "estimate identifier");
@@ -487,9 +466,8 @@ internal sealed class AssessmentMcpTools(
                     caseId,
                     workflow.Version,
                     result is null ? null : MapEstimate(result),
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
-            }),
+                    key);
+            },
             cancellationToken);
     }
 
@@ -503,20 +481,15 @@ internal sealed class AssessmentMcpTools(
         UseStructuredContent = true)]
     [Description("Lists a bounded page of estimate headers on a case in version order with state, source route and Current status.")]
     public async Task<EstimateListToolResult> ListEstimatesAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("Opaque cursor returned by the previous page; omit for the first page.")] string? cursor = null,
-        [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.Cursor)] string? cursor = null,
+        [Description(AutomationToolText.PageSize)] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(
+        return await auditor.CallAsync(
             "pegasus_estimate_list",
-            cancellationToken);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_estimate_list",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            async context =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 if (await workflowQueries.GetAsync(caseId, cancellationToken) is null)
@@ -532,7 +505,7 @@ internal sealed class AssessmentMcpTools(
                     estimates.NextCursor,
                     effectiveLimit,
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -546,18 +519,13 @@ internal sealed class AssessmentMcpTools(
         UseStructuredContent = true)]
     [Description("Returns the recorded assessment surface for one case: every recorded field value with its provenance, the ordered estimate lines, the case-owned fields the assessment reads (registration, make, model, mileage, incident, received and inspection dates, inspection mode and address; receivedDate is the Case's received date, which the report prints as the date instructions were received), and the readiness list naming what is still outstanding.")]
     public async Task<AssessmentGetToolResult> GetAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(
+        return await auditor.CallAsync(
             "pegasus_assessment_get",
-            cancellationToken);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_assessment_get",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            async context =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var projection = await getAssessment.ExecuteAsync(caseId, cancellationToken)
@@ -573,7 +541,7 @@ internal sealed class AssessmentMcpTools(
                     MapCaseOwned(projection.CaseOwned),
                     projection.Readiness.Select(MapReadiness).ToArray(),
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -585,31 +553,36 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Records assessment fields that staff record on the Case, professional findings included (for example assessment.outcome, assessment.legal_status for roadworthiness, assessment.salvage_category, assessment.values.engineer), under the expected case version; present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command. pegasus_vocabulary_get lists every path with its accepted codes. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag. Case-owned facts (use pegasus_case_update_details), fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field.")]
+    [Description("Records assessment fields that staff record on the Case, professional findings included (for example assessment.outcome, assessment.legal_status for roadworthiness, assessment.salvage_category, assessment.values.engineer), under the expected case version. pegasus_vocabulary_get lists every path with its accepted codes, and the unroadworthy wordings bank staff choose assessment.unroadworthy_reason from. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag. Case-owned facts (use pegasus_case_update_details), fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field.")]
     public async Task<AssessmentUpdateToolResult> UpdateAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same result.")] string operationKey,
         [Description("Why these values are being recorded (case history reason, at most 500 characters).")] string reason,
         [Description("Assessment values keyed by field path, each as a string, limited to fields staff can record on the Case; a null value clears the field. An enumerated field takes one of its codes; assessment.impacts (the impacts, each a severity, a location and a note) and damage.impacts (the damage markers drawn on the plan: the vehicle seen from above with its front at the top, y 0, and its left, nearside, at x 0; staff mark damage along its outline) each take a JSON array in the format pegasus_vocabulary_get gives for it.")] Dictionary<string, string?>? fields = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
+        [Description("True to also save the assessment.unroadworthy_reason this call records to the unroadworthy wordings bank, as Save this wording does on the Case page; the call must name that field.")] bool saveUnroadworthyReasonToBank = false,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(
+        return await auditor.CallAsync(
             "pegasus_assessment_update",
-            cancellationToken);
-        var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_assessment_update",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, normalizedKey) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 foreach (var path in fields?.Keys ?? Enumerable.Empty<string>())
                 {
                     RequireGenericWrite(path);
+                }
+
+                // A wording the bank cannot hold refuses the whole call before
+                // anything is written, as it refuses the Case page's save.
+                string? bankWording = null;
+                if (saveUnroadworthyReasonToBank)
+                {
+                    fields?.TryGetValue(AssessmentVocabulary.UnroadworthyReason, out bankWording);
+                    _ = UnroadworthyReasonBank.Normalize(bankWording);
                 }
 
                 var projection = await leases.RunCaseAsync(
@@ -629,6 +602,16 @@ internal sealed class AssessmentMcpTools(
                             fields ?? new Dictionary<string, string?>(StringComparer.Ordinal)),
                         cancellationToken),
                     cancellationToken);
+                // The bank is not Case data: the save above stands whatever
+                // happens here, and a replay of the key saves the wording once.
+                string? bank = null;
+                if (saveUnroadworthyReasonToBank)
+                {
+                    bank = await saveUnroadworthyReason.ExecuteAsync(
+                        new(bankWording!, context.Actor), cancellationToken) is null
+                        ? "AlreadyOffered"
+                        : "Saved";
+                }
                 return new AssessmentUpdateToolResult(
                     projection.CaseId,
                     projection.CaseVersion,
@@ -637,8 +620,8 @@ internal sealed class AssessmentMcpTools(
                     projection.EstimateLines.Select(MapLine).ToArray(),
                     projection.Readiness.Select(MapReadiness).ToArray(),
                     normalizedKey,
-                    normalizedKey);
-            }),
+                    bank);
+            },
             cancellationToken);
     }
 
@@ -686,10 +669,7 @@ internal sealed class AssessmentMcpTools(
     private static RepairerVatStatus? ParseVatStatus(string? value) =>
         string.IsNullOrWhiteSpace(value)
             ? null
-            : Enum.TryParse<RepairerVatStatus>(value.Trim(), ignoreCase: true, out var status)
-                && Enum.IsDefined(status)
-                ? status
-                : throw new McpException(RepairerVatStatuses.NotAChoice);
+            : AutomationMcpErrors.ParseName<RepairerVatStatus>(value, RepairerVatStatuses.NotAChoice);
 
     private static EstimateVatCategories? ParseVatCategories(IReadOnlyList<string>? values)
     {

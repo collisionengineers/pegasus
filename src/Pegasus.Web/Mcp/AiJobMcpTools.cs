@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Pegasus.Core;
 using System.Globalization;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
@@ -68,19 +67,17 @@ internal enum AiJobTransitionAction
 /// </summary>
 [McpServerToolType]
 internal sealed class AiJobMcpTools(
-    IAiJobQueries queries,
-    IAiJobStore store,
+    ListOpenAiJobsByCursor listOpen,
     ICreateAiJob create,
     IStartMarketResearch startMarketResearch,
     IWorkAiJob work,
     CancelAiJob cancel,
-    IConfirmAiJob confirm,
+    ConfirmAiJob confirm,
     ICompleteMarketResearchAiJob completeMarketResearch,
     Pegasus.Core.Documents.DocumentUploads uploads,
     StartQueryResponse startQueryResponse,
     AutomationActorResolver resolver,
-    AutomationMcpAuditor auditor,
-    ICursorProtector cursors)
+    AutomationMcpAuditor auditor)
 {
     [McpServerTool(
         Name = "pegasus_ai_job_list",
@@ -106,27 +103,11 @@ internal sealed class AiJobMcpTools(
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
                 AiJobKind? filter = string.IsNullOrWhiteSpace(kind) ? null : ParseKind(kind);
-                var limit = CursorPaging.NormalizeLimit(pageSize == 0 ? null : pageSize);
-                var normalizedFilter = filter?.ToString() ?? string.Empty;
-                var cursorScope = CursorPaging.CreateScope(
-                    "pegasus_ai_job_list", context.Actor, normalizedFilter, "created-id-asc");
-                DateTimeOffset? afterCreated = null;
-                Guid? afterId = null;
-                if (!string.IsNullOrWhiteSpace(continuation))
-                {
-                    var position = cursors.Unprotect(continuation, cursorScope);
-                    afterCreated = CursorPaging.DecodeUtcTimestamp(position.SortKey);
-                    afterId = position.Id;
-                }
-                var page = await queries.ListOpenPageAsync(
-                    filter, context.GrantId, afterCreated, afterId, limit, cancellationToken);
-                var next = page.HasMore && page.Jobs.Count > 0
-                    ? cursors.Protect(
-                        cursorScope,
-                        CursorPaging.EncodeUtcTimestamp(page.Jobs[^1].CreatedAtUtc),
-                        page.Jobs[^1].JobId)
-                    : null;
-                return new AiJobToolList(page.Jobs.Select(Map).ToArray(), next, context.TraceIdentifier);
+                var page = await listOpen.ExecuteAsync(
+                    new(context.Actor, context.GrantId, filter, continuation, pageSize == 0 ? null : pageSize),
+                    cancellationToken);
+                var next = page.NextCursor;
+                return new AiJobToolList(page.Items.Select(Map).ToArray(), next, context.TraceIdentifier);
             }),
             cancellationToken);
     }
@@ -142,7 +123,7 @@ internal sealed class AiJobMcpTools(
     [Description("Creates one AI job of any kind through the same Core command and subject checks as the staff action that starts it, so external agents on automated runs can queue work for each other. Estimate needs caseId (a Case With Engineer or later that has an Engineer's Value) and takes an optional instruction and targetPercentOfEngineerValue. MarketResearch needs caseId and guideMonth; while one is already queued or taken for the Case, that job is returned instead. QueryResponse needs messageId, a retained post-report query linked to its Case. UnidentifiedResolution needs unidentifiedReference, an open item. UnidentifiedQueuePass needs instruction. Refused while the Administrator has stopped AI work. Requires a mcp:-prefixed operation key; replaying the same key returns the same job.")]
     public async Task<AiJobToolItem> CreateAsync(
         [Description("Estimate, MarketResearch, QueryResponse, UnidentifiedResolution or UnidentifiedQueuePass.")] string kind,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("Estimate: optional direction, at most 500 characters; omitted, the job asks for an estimate for the Case. UnidentifiedQueuePass: required, at most 500 characters. The other kinds carry the fixed instruction staff send, and a value is refused for them.")] string? instruction = null,
         [Description("Estimate and MarketResearch: the Case identifier.")] Guid? caseId = null,
         [Description("Estimate only: optional target from 0 to 80 percent of the Case's recorded Engineer's Value; guidance for the drafter, never an accepted figure.")] int? targetPercentOfEngineerValue = null,
@@ -151,14 +132,11 @@ internal sealed class AiJobMcpTools(
         [Description("UnidentifiedResolution only: the open item's exact U-reference, for example U17.")] string? unidentifiedReference = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_ai_job_create", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_ai_job_create",
             kind?.Trim() ?? "invalid",
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, key) =>
             {
                 var parsedKind = ParseKind(kind);
                 RefuseUnused(parsedKind, caseId, targetPercentOfEngineerValue, guideMonth, messageId, unidentifiedReference);
@@ -216,7 +194,7 @@ internal sealed class AiJobMcpTools(
                         cancellationToken)
                 };
                 return Map(created);
-            }),
+            },
             cancellationToken);
     }
 
@@ -304,7 +282,7 @@ internal sealed class AiJobMcpTools(
         [Description("The job identifier from pegasus_ai_job_list.")] Guid jobId,
         [Description("The job version the caller observed; a stale value fails closed.")] long expectedVersion,
         [Description("Take, Progress, Complete, Fail, Release, Cancel or Confirm.")] string action,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("Progress: the note, at most 500 characters.")] string? progressNote = null,
         [Description("Complete: Estimate, ProposedResolution or DraftReply.")] string? resultKind = null,
         [Description("Complete: reference to the draft written through the attributed tools, at most 200 characters.")] string? resultReference = null,
@@ -334,7 +312,8 @@ internal sealed class AiJobMcpTools(
                     new(id, expectedVersion, context.Actor, key, reason), cancellationToken),
                 AiJobTransitionAction.Cancel => cancel.ExecuteAsync(
                     new(id, expectedVersion, context.Actor, key, Require(reason, "Cancel", "reason")), cancellationToken),
-                AiJobTransitionAction.Confirm => ConfirmAsync(id, expectedVersion, context, key, cancellationToken),
+                AiJobTransitionAction.Confirm => confirm.ExecuteByHandAsync(
+                    new(id, expectedVersion, context.Actor, key), cancellationToken),
                 _ => throw new McpException(ActionValues)
             });
             return Map(job);
@@ -359,7 +338,7 @@ internal sealed class AiJobMcpTools(
         [Description("The MarketResearch job identifier this client holds.")] Guid jobId,
         [Description("The job version the caller observed; a stale value fails closed.")] long expectedJobVersion,
         [Description("The Case the research is for.")] Guid caseId,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("Leaf name for the findings document, at most 255 characters.")] string fileName,
         [Description("Media type for the findings document, at most 200 characters.")] string mediaType,
         [Description("Valuation date, yyyy-MM-dd.")] string recordedDate,
@@ -371,14 +350,11 @@ internal sealed class AiJobMcpTools(
         [Description("Optional guide month the research is for, yyyy-MM; the valuation for that month replaces an earlier card for it.")] string? guideMonth = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_ai_job_complete_market_research", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_ai_job_complete_market_research",
             jobId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, key) =>
             {
                 var validJobId = RequireJobId(jobId);
                 var validCaseId = AutomationMcpErrors.RequireId(caseId, "case identifier");
@@ -402,7 +378,7 @@ internal sealed class AiJobMcpTools(
                         safeFileName,
                         safeMediaType,
                         content,
-                        ParseDate(recordedDate),
+                        AutomationMcpErrors.RequireDate(recordedDate, "recordedDate must use yyyy-MM-dd."),
                         ParseTime(recordedTime),
                         mileage,
                         retailValue,
@@ -414,29 +390,8 @@ internal sealed class AiJobMcpTools(
                     completion.Document.Version.Id,
                     completion.Valuation.ValuationId,
                     completion.IsReplay);
-            }),
+            },
             cancellationToken);
-    }
-
-    /// <summary>
-    /// Confirm closes only a job the Work Centre completes by hand; the others
-    /// complete through their record's own act (FRD-27).
-    /// </summary>
-    private async Task<AiJobRecord> ConfirmAsync(
-        Guid jobId,
-        long expectedVersion,
-        AutomationActorContext context,
-        string key,
-        CancellationToken cancellationToken)
-    {
-        var job = await store.GetAsync(jobId, cancellationToken);
-        if (job is null || !AiJobPolicy.CompletesByHand(job))
-        {
-            throw new McpException(
-                "Only a Draft ready QueryResponse or UnidentifiedQueuePass job is confirmed by hand.");
-        }
-
-        return await confirm.ExecuteAsync(new(jobId, expectedVersion, context.Actor, key), cancellationToken);
     }
 
     private const string ActionValues = "action must be Take, Progress, Complete, Fail, Release, Cancel or Confirm.";
@@ -449,29 +404,18 @@ internal sealed class AiJobMcpTools(
             : value;
 
     private static AiJobTransitionAction ParseAction(string? action) =>
-        Enum.TryParse<AiJobTransitionAction>(action?.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
-            ? parsed
-            : throw new McpException(ActionValues);
+        AutomationMcpErrors.ParseName<AiJobTransitionAction>(action, ActionValues);
 
     private static AiJobResultKind ParseResultKind(string? resultKind) =>
-        Enum.TryParse<AiJobResultKind>(resultKind?.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
-            ? parsed
-            : throw new McpException("Complete needs resultKind: Estimate, ProposedResolution or DraftReply.");
+        AutomationMcpErrors.ParseName<AiJobResultKind>(
+            resultKind,
+            "Complete needs resultKind: Estimate, ProposedResolution or DraftReply.");
 
     private static AiJobKind ParseKind(string? kind) =>
-        Enum.TryParse<AiJobKind>(kind?.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
-            ? parsed
-            : throw new McpException("The AI job kind is not recognized.");
-
-    private static DateOnly ParseDate(string value) =>
-        DateOnly.TryParseExact(value?.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
-            ? parsed
-            : throw new McpException("recordedDate must use yyyy-MM-dd.");
+        AutomationMcpErrors.ParseName<AiJobKind>(kind, "The AI job kind is not recognized.");
 
     private static DateOnly ParseGuideMonth(string value) =>
-        DateOnly.TryParseExact(value.Trim(), "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
-            ? parsed
-            : throw new McpException("guideMonth must use yyyy-MM.");
+        AutomationMcpErrors.RequireMonth(value, "guideMonth must use yyyy-MM.");
 
     private static TimeOnly ParseTime(string value) =>
         TimeOnly.TryParseExact(

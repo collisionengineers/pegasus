@@ -412,11 +412,7 @@ public sealed partial class DetailsModel(
             null,
             async (actor, context) =>
             {
-                if (context.RegistrationReadings.All(reading => reading.Id != suggestionId))
-                {
-                    throw new InvalidOperationException("The reading is not on this item.");
-                }
-
+                context.RequireReading(suggestionId);
                 await vrmSuggestions.SetDispositionAsync(
                     new(suggestionId, ImageVrmSuggestionDisposition.Dismissed, actor, reason, operationKey),
                     cancellationToken);

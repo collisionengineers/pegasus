@@ -195,6 +195,61 @@ public sealed class RetainedMailTests
     }
 
     [Fact]
+    public async Task CursorListKeepsTheToolsCursorScopeSoAnEarlierCursorStillDecodes()
+    {
+        var queries = new Queries();
+        var protector = new RecordingCursorProtector();
+        var actor = Caseworker();
+        var newest = new RetainedMailSummary(
+            Guid.NewGuid(), MailboxA, "mailbox@example.test", null, null, null,
+            null, null, NowUtc, true, 0, null, null, null, null);
+        queries.CursorPageToReturn = new([newest], HasMore: true, HasUnretainedHistory: true);
+        var list = new ListRetainedMailByCursor(queries, protector);
+
+        var first = await list.ExecuteAsync(
+            actor,
+            new(MailboxA, MailFolderScope.Inbox, DismissedOnly: true),
+            null,
+            null,
+            CancellationToken.None);
+
+        // The scope the pegasus_mail_list tool minted its cursors under.
+        var toolScope = CursorPaging.CreateScope(
+            "pegasus_mail_list", actor, MailboxA.ToString("D"), "dismissed", "received-id-desc");
+        var issued = Assert.Single(protector.Protected);
+        Assert.Equal(toolScope, issued.Scope);
+        Assert.Equal(CursorPaging.EncodeUtcTimestamp(NowUtc), issued.SortKey);
+        Assert.Equal(newest.Id, issued.Id);
+        Assert.Equal(issued.Cursor, first.NextCursor);
+        Assert.True(first.HasUnretainedHistory);
+        Assert.Equal(CursorPaging.DefaultLimit, queries.CursorReads[0].Limit);
+        Assert.Null(queries.CursorReads[0].BeforeId);
+
+        queries.CursorPageToReturn = new([], HasMore: false, HasUnretainedHistory: false);
+        var second = await list.ExecuteAsync(
+            actor,
+            new(MailboxA, MailFolderScope.Inbox, DismissedOnly: true),
+            first.NextCursor,
+            25,
+            CancellationToken.None);
+
+        Assert.Null(second.NextCursor);
+        Assert.Equal(NowUtc, queries.CursorReads[1].BeforeReceivedAtUtc);
+        Assert.Equal(newest.Id, queries.CursorReads[1].BeforeId);
+        Assert.Equal(25, queries.CursorReads[1].Limit);
+
+        // A cursor from the Inbox scope does not apply to the dismissed one.
+        await Assert.ThrowsAsync<CursorRejectedException>(() =>
+            list.ExecuteAsync(
+                actor,
+                new(MailboxA, MailFolderScope.Inbox),
+                first.NextCursor,
+                null,
+                CancellationToken.None));
+        Assert.Equal(2, queries.CursorReads.Count);
+    }
+
+    [Fact]
     public async Task CountNormalizesTheScopeExactlyAsTheListDoes()
     {
         var queries = new Queries();
@@ -825,6 +880,26 @@ public sealed class RetainedMailTests
         _ => Guid.Parse("33333333-3333-3333-3333-333333333333")
     };
 
+    private sealed class RecordingCursorProtector : ICursorProtector
+    {
+        public List<(string Scope, string SortKey, Guid Id, string Cursor)> Protected { get; } = [];
+
+        public string Protect(string scope, string sortKey, Guid id)
+        {
+            var cursor = $"cursor-{Protected.Count + 1}";
+            Protected.Add((scope, sortKey, id, cursor));
+            return cursor;
+        }
+
+        public (string SortKey, Guid Id) Unprotect(string cursor, string scope)
+        {
+            var issued = Protected.Find(item => string.Equals(item.Cursor, cursor, StringComparison.Ordinal));
+            return issued.Cursor is not null && string.Equals(issued.Scope, scope, StringComparison.Ordinal)
+                ? (issued.SortKey, issued.Id)
+                : throw new CursorRejectedException();
+        }
+    }
+
     private sealed class Queries : IRetainedMailQueries
     {
         internal List<(MailWorkspaceScope Scope, int Page, int PageSize)> Scopes { get; } = [];
@@ -861,13 +936,20 @@ public sealed class RetainedMailTests
             return Task.FromResult(new RetainedMailPage([], page, pageSize, 0, false));
         }
 
+        internal List<(MailWorkspaceScope Scope, DateTimeOffset? BeforeReceivedAtUtc, Guid? BeforeId, int Limit)> CursorReads { get; } = [];
+
+        internal RetainedMailCursorPage CursorPageToReturn { get; set; } = new([], false, false);
+
         public Task<RetainedMailCursorPage> ListByCursorAsync(
             MailWorkspaceScope scope,
             DateTimeOffset? beforeReceivedAtUtc,
             Guid? beforeId,
             int limit,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new RetainedMailCursorPage([], false, false));
+            CancellationToken cancellationToken)
+        {
+            CursorReads.Add((scope, beforeReceivedAtUtc, beforeId, limit));
+            return Task.FromResult(CursorPageToReturn);
+        }
 
         public Task<IReadOnlyList<int>> CountManyAsync(
             IReadOnlyList<MailWorkspaceScope> scopes,

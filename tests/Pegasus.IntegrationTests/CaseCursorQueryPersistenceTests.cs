@@ -7,7 +7,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Tasks;
 using Pegasus.Infrastructure.Persistence;
-using Pegasus.Web.Mcp;
+using Pegasus.Web;
 
 namespace Pegasus.IntegrationTests;
 

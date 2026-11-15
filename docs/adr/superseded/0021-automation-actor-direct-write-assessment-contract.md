@@ -16,7 +16,7 @@ tags: [mcp, automation, ai]
 Superseded by [ADR-0031](../0031-automation-actor-contract-without-eva-export-tools.md).
 The DevelopmentOffline-only composition gate for
 `Features:AutomationMcp` (decision 1's final consequence) is amended by
-[ADR-0026](../0026-enable-automation-mcp-by-explicit-deployment-configuration.md),
+[ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md),
 and decision 2's structural absence of a finding tool and of a
 report-approval tool is replaced by
 [ADR-0064](../0064-automation-actor-staff-casework-parity.md);

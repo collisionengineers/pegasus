@@ -16,8 +16,7 @@ internal sealed record DocumentAddToolResult(
     long ContentLength,
     string SourceOccurrenceIdentity,
     bool IsReplay,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
 /// The structured half of a download: the file's identity, size and hash,
@@ -64,6 +63,8 @@ internal sealed class DocumentMcpTools(
     IGetCaseDocumentMetadata getDocumentMetadata,
     IDownloadCaseDocument downloadDocument,
     IOpenCaseDocumentBatch openBatch,
+    IReadCaseDocumentPreview readPreview,
+    IRenderDocumentAsPdf renderDocumentAsPdf,
     IRenderImageForDelivery images,
     IExtractPdfPageText pdfText,
     DocumentUploads uploads,
@@ -71,7 +72,7 @@ internal sealed class DocumentMcpTools(
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
-    public const int MaximumBatchDocuments = 25;
+    private const int MaximumBatchDocuments = 25;
     private const string SourceIdentityPrefix = "automation:";
 
     [McpServerTool(
@@ -82,40 +83,32 @@ internal sealed class DocumentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Retains one document of at most 10 MiB in the canonical case custody boundary, provenance-labelled as Automation-sourced. Send the content as base64 in contentBase64, or stage it with pegasus_upload_begin and pegasus_upload_part and pass the uploadId; exactly one of the two. Needs the observed case version; present an edit lease token from pegasus_edit_begin for multi-step work, or omit it and the tool holds the lease for this one command. Replaying the same operation key with identical inputs returns the original custody record.")]
+    [Description("Retains one document of at most 10 MiB in the canonical case custody boundary, provenance-labelled as Automation-sourced. A document added as an Image must be a JPEG or PNG and completes the Case's images. Send the content as base64 in contentBase64, or stage it with pegasus_upload_begin and pegasus_upload_part and pass the uploadId; exactly one of the two. Needs the observed case version. Replaying the same operation key with identical inputs returns the original custody record.")]
     public async Task<DocumentAddToolResult> AddAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("The leaf file name; path components are rejected.")] string fileName,
         [Description("The document media type.")] string mediaType,
         [Description("The document semantic role name: OriginalSource, Instruction, Image, Correspondence, EngineerReport, AuditReport, Estimate, ValuationEvidence, or Other.")] string semanticRole,
         [Description("The case version observed by the caller; a stale value fails closed.")] long expectedCaseVersion,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("The complete document content encoded as base64; omit it when uploadId is given.")] string? contentBase64 = null,
         [Description("A staged upload from pegasus_upload_begin whose parts are all sent; omit it when contentBase64 is given.")] Guid? uploadId = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
         [Description("Optional durable source-occurrence identity prefixed 'automation:'; reusing an identity records a new version of the same document. Defaults to one derived from the operation key.")] string? sourceOccurrenceIdentity = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_document_add", cancellationToken);
-        var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_document_add",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, normalizedKey) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var safeFileName = AutomationMcpErrors.RequireFileName(fileName);
                 var safeMediaType = AutomationMcpErrors.RequireMediaType(mediaType);
-                if (!Enum.TryParse<DocumentSemanticRole>(
-                        semanticRole?.Trim(),
-                        ignoreCase: true,
-                        out var parsedRole)
-                    || !Enum.IsDefined(parsedRole))
-                {
-                    throw new McpException("The document semantic role is not recognized.");
-                }
+                var parsedRole = AutomationMcpErrors.ParseName<DocumentSemanticRole>(
+                    semanticRole,
+                    "The document semantic role is not recognized.");
                 if (expectedCaseVersion < 0)
                 {
                     throw new McpException("The expected case version cannot be negative.");
@@ -171,9 +164,8 @@ internal sealed class DocumentMcpTools(
                     result.Version.ContentLength,
                     result.Occurrence.SourceOccurrenceIdentity,
                     result.IsReplay,
-                    normalizedKey,
-                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
-            }),
+                    normalizedKey);
+            },
             cancellationToken);
     }
 
@@ -184,12 +176,12 @@ internal sealed class DocumentMcpTools(
         Destructive = false,
         Idempotent = true,
         OpenWorld = false)]
-    [Description("Returns one exact case document version as native content the client can show: an image as one JPEG image block re-encoded to fit maxInlineBytes (longest edge 1568 px), a PDF as its page text, a small text file as its text. Any other type, or a file over 10 MiB, returns metadata only. Every result carries the file name, media type, size, SHA-256 and an authenticated contentUrl for the original bytes (same bearer token, Documents scope). Document identifiers come from pegasus_case_get.")]
+    [Description("Returns one exact case document version as native content the client can show: an image as one JPEG image block re-encoded to fit maxInlineBytes (longest edge 1568 px), a PDF as its page text, a Word document (.doc or .docx) as the page text of the PDF rendering staff view, a small text file as its text. Any other type, or a file over 10 MiB, returns metadata only. Every result carries the file name, media type, size, SHA-256 and an authenticated contentUrl for the original bytes (same bearer token, Documents scope). Document identifiers come from pegasus_case_get.")]
     public async Task<CallToolResult> DownloadAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("The case-scoped document occurrence identifier.")] Guid occurrenceId,
         [Description("The exact immutable document-version identifier.")] Guid versionId,
-        [Description("Byte budget for inline content; 0 selects 100 KiB, at most 10 MiB. An image is re-encoded to fit it; PDF text is cut at this many characters; a text file must already fit it.")] int maxInlineBytes = 0,
+        [Description("Byte budget for inline content; 0 selects 100 KiB, at most 10 MiB. An image is re-encoded to fit it; PDF and Word text is cut at this many characters; a text file must already fit it.")] int maxInlineBytes = 0,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync("pegasus_document_download", cancellationToken);
@@ -197,7 +189,7 @@ internal sealed class DocumentMcpTools(
         return await auditor.RecordAsync(
             context,
             "pegasus_document_download",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
+            AutomationMcpAuditor.Resource(caseId),
             operationKey,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
@@ -245,9 +237,9 @@ internal sealed class DocumentMcpTools(
         Destructive = false,
         Idempotent = true,
         OpenWorld = false)]
-    [Description("Returns 1 to 25 exact case document versions in one call as native content the client can show. maxInlineBytes is charged at the encoded size of what is sent, items in request order, and the batch stops at the first item that does not fit whole: a whole file either fits or is withheld with its reason, and every later item returns metadata only. An image is re-encoded as JPEG up to 1568 px to fit what remains, a PDF comes back as its page text and a small text file as its text; any other type, or a file over 10 MiB, returns metadata only. Every item carries its file name, media type, size, SHA-256 and authenticated contentUrl in request order. Document identifiers come from pegasus_case_get.")]
+    [Description("Returns 1 to 25 exact case document versions in one call as native content the client can show. maxInlineBytes is charged at the encoded size of what is sent, items in request order, and the batch stops at the first item that does not fit whole: a whole file either fits or is withheld with its reason, and every later item returns metadata only. An image is re-encoded as JPEG up to 1568 px to fit what remains, a PDF comes back as its page text and a small text file as its text; any other type, or a file over 10 MiB, returns metadata only (a Word document's page text comes from pegasus_document_download, one document at a time). Every item carries its file name, media type, size, SHA-256 and authenticated contentUrl in request order. Document identifiers come from pegasus_case_get.")]
     public async Task<CallToolResult> DownloadBatchAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("The 1 to 25 exact document versions to download, each named once.")] IReadOnlyList<DocumentDownloadBatchItemInput> documents,
         [Description("Total byte budget for inline content across the batch, charged at the encoded size of what is sent (UTF-8 text, base64 image data) in request order; 0 selects 100 KiB, at most 10 MiB.")] int maxInlineBytes = 0,
         CancellationToken cancellationToken = default)
@@ -257,7 +249,7 @@ internal sealed class DocumentMcpTools(
         return await auditor.RecordAsync(
             context,
             "pegasus_document_download_batch",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
+            AutomationMcpAuditor.Resource(caseId),
             operationKey,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
@@ -362,6 +354,11 @@ internal sealed class DocumentMcpTools(
         string contentUrl,
         CancellationToken cancellationToken)
     {
+        if (CaseDocumentPreviews.KindOf(metadata.MediaType, metadata.FileName) == CaseDocumentPreviewKind.WordAsPdf)
+        {
+            return await DeliverWordAsync(metadata, actor, inlineLimit, contentUrl, cancellationToken);
+        }
+
         if (!AutomationFileContent.CanDeliverInline(metadata.MediaType, metadata.ContentLength, inlineLimit))
         {
             return AutomationFileContent.Withheld(
@@ -391,5 +388,52 @@ internal sealed class DocumentMcpTools(
             inlineLimit,
             contentUrl,
             cancellationToken);
+    }
+
+    /// <summary>
+    /// A Word document is read as staff view it (R949 to R951): the PDF
+    /// rendering of the stored version, handed back as page text. Like the
+    /// staff view it reads the rendering, not the document, so it records no
+    /// download; the original stays at contentUrl, which does.
+    /// </summary>
+    private async Task<AutomationFileDelivery> DeliverWordAsync(
+        CaseDocumentMetadata metadata,
+        Pegasus.Core.Identity.ActionActor actor,
+        int inlineLimit,
+        string contentUrl,
+        CancellationToken cancellationToken)
+    {
+        AutomationFileDelivery Withheld(string notice) => AutomationFileContent.Withheld(
+            metadata.FileName, metadata.MediaType, metadata.ContentLength, metadata.Sha256, notice, contentUrl);
+
+        var preview = await readPreview.ExecuteAsync(
+            new(metadata.CaseId, metadata.OccurrenceId, metadata.VersionId, actor), cancellationToken);
+        if (preview is null)
+        {
+            return Withheld(AutomationFileContent.UnrenderedWordNotice);
+        }
+
+        byte[]? rendering;
+        try
+        {
+            rendering = await renderDocumentAsPdf.RenderAsync(actor, preview, cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            return Withheld(AutomationFileContent.PendingWordRenderingNotice);
+        }
+
+        return rendering is null
+            ? Withheld(AutomationFileContent.UnrenderedWordNotice)
+            : await AutomationFileContent.DeliverWordRenderingAsync(
+                pdfText,
+                metadata.FileName,
+                metadata.MediaType,
+                metadata.ContentLength,
+                metadata.Sha256,
+                rendering,
+                inlineLimit,
+                contentUrl,
+                cancellationToken);
     }
 }

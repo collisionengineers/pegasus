@@ -141,7 +141,7 @@ public sealed class IdentityUseCaseTests
     [Fact]
     public void ResetPasswordResultNeverFormatsItsTemporarySecret()
     {
-        var result = new ResetStaffPasswordResult(Guid.NewGuid(), "temporary-secret", 1, 2, false);
+        var result = new ResetStaffPasswordResult(Guid.NewGuid(), "temporary-secret", false);
         Assert.Equal(nameof(ResetStaffPasswordResult), result.ToString());
     }
 
@@ -208,17 +208,17 @@ public sealed class IdentityUseCaseTests
         public Task<CreateStaffAccountResult> CreateAsync(CreateStaffAccountRequest request, CancellationToken cancellationToken) =>
             Task.FromResult(new CreateStaffAccountResult(Account(Guid.NewGuid()), false));
         public Task<DisableStaffAccountResult> DisableAsync(DisableStaffAccountRequest request, CancellationToken cancellationToken)
-        { DisableRequest = request; return Task.FromResult(new DisableStaffAccountResult(Account(request.StaffId), 0, 0, false)); }
+        { DisableRequest = request; return Task.FromResult(new DisableStaffAccountResult(Account(request.StaffId), false)); }
         public Task<UpdateStaffAccountSettingsResult> UpdateAsync(UpdateStaffAccountSettingsRequest request, CancellationToken cancellationToken)
-        { SettingsRequest = request; return Task.FromResult(new UpdateStaffAccountSettingsResult(Account(request.StaffId), 0, 0, false)); }
+        { SettingsRequest = request; return Task.FromResult(new UpdateStaffAccountSettingsResult(Account(request.StaffId), false)); }
         public Task<EnableStaffAccountResult> EnableAsync(EnableStaffAccountRequest request, CancellationToken cancellationToken) =>
             Task.FromResult(new EnableStaffAccountResult(Account(request.StaffId), false));
         public Task<ForceStaffLogoutResult> ForceLogoutAsync(ForceStaffLogoutRequest request, CancellationToken cancellationToken)
-        { LogoutRequest = request; return Task.FromResult(new ForceStaffLogoutResult(request.StaffId, 0, 0, false)); }
+        { LogoutRequest = request; return Task.FromResult(new ForceStaffLogoutResult(request.StaffId, false)); }
         public Task<ResetStaffPasswordResult> ResetPasswordAsync(ResetStaffPasswordRequest request, CancellationToken cancellationToken) =>
-            Task.FromResult(new ResetStaffPasswordResult(request.StaffId, "temporary", 0, 0, false));
+            Task.FromResult(new ResetStaffPasswordResult(request.StaffId, "temporary", false));
         public Task<DeleteStaffAccountResult> DeleteAsync(DeleteStaffAccountRequest request, CancellationToken cancellationToken) =>
-            Task.FromResult(new DeleteStaffAccountResult(request.StaffId, 0, 0, true, false));
+            Task.FromResult(new DeleteStaffAccountResult(request.StaffId, true, false));
     }
 
     /// <summary>

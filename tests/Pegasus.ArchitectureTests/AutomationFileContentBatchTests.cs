@@ -46,6 +46,50 @@ public sealed class AutomationFileContentBatchTests
         Assert.Equal(AutomationFileContent.DoesNotFitWholeNotice(charged - 1), oneShort[2].Notice);
     }
 
+    /// <summary>
+    /// A Word document comes back as the page text of the PDF rendering staff
+    /// view, under the Word document's own summary (R1043); a rendering that
+    /// cannot be read is withheld with its reason.
+    /// </summary>
+    [Fact]
+    public async Task AWordDocumentIsDeliveredAsThePageTextOfItsRendering()
+    {
+        const string wordMediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        var rendering = Encoding.UTF8.GetBytes("letter.docx");
+
+        var delivery = await AutomationFileContent.DeliverWordRenderingAsync(
+            new Extractor().Reads("letter.docx", "Please inspect the vehicle at the bodyshop"),
+            "letter.docx",
+            wordMediaType,
+            4000,
+            "abc123",
+            rendering,
+            100_000,
+            "/automation/documents/letter",
+            CancellationToken.None);
+
+        Assert.True(delivery.ContentIncluded);
+        Assert.Null(delivery.Notice);
+        var text = string.Concat(delivery.Blocks.OfType<TextContentBlock>().Select(block => block.Text));
+        Assert.Contains(wordMediaType, text, StringComparison.Ordinal);
+        Assert.Contains("The Word document itself is at contentUrl.", text, StringComparison.Ordinal);
+        Assert.Contains("Please inspect the vehicle at the bodyshop", text, StringComparison.Ordinal);
+
+        var unreadable = await AutomationFileContent.DeliverWordRenderingAsync(
+            new Extractor().CannotRead("letter.docx"),
+            "letter.docx",
+            wordMediaType,
+            4000,
+            "abc123",
+            rendering,
+            100_000,
+            "/automation/documents/letter",
+            CancellationToken.None);
+
+        Assert.False(unreadable.ContentIncluded);
+        Assert.Equal(AutomationFileContent.UnrenderedWordNotice, unreadable.Notice);
+    }
+
     [Fact]
     public async Task UnusedBytesCarryToTheNextItem()
     {

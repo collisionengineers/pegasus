@@ -115,6 +115,35 @@ public sealed class AiJobTests
         Assert.Equal(byHand, AiJobPolicy.CompletesByHand(JobRecord(kind) with { State = state }));
 
     [Fact]
+    public async Task ConfirmByHandClosesOnlyAJobThatCompletesByHand()
+    {
+        var harness = new Harness();
+        var confirm = new ConfirmAiJob(harness.Store);
+        harness.Store.ReadJob = JobRecord(AiJobKind.Estimate) with { State = AiJobState.DraftReady };
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            confirm.ExecuteByHandAsync(
+                new(harness.Store.ReadJob.JobId, 3, Staff, "op-confirm-estimate"),
+                CancellationToken.None));
+        Assert.Equal(ConfirmAiJob.NotConfirmedByHand, refused.Message);
+        Assert.Empty(harness.Store.Transitions);
+
+        harness.Store.ReadJob = null;
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            confirm.ExecuteByHandAsync(
+                new(Guid.NewGuid(), 3, Staff, "op-confirm-missing"),
+                CancellationToken.None));
+        Assert.Empty(harness.Store.Transitions);
+
+        harness.Store.ReadJob = JobRecord(AiJobKind.QueryResponse) with { State = AiJobState.DraftReady };
+        await confirm.ExecuteByHandAsync(
+            new(harness.Store.ReadJob.JobId, 3, Staff, "op-confirm-query"),
+            CancellationToken.None);
+        var transition = Assert.Single(harness.Store.Transitions);
+        Assert.Equal(AiJobState.Completed, transition.TargetState);
+        Assert.Equal(3L, transition.ExpectedVersion);
+    }
+
+    [Fact]
     public void AnEstimateJobNeedsAnEngineerValueAndAllowsAnOptionalTargetUpToEighty()
     {
         var caseId = Guid.NewGuid();

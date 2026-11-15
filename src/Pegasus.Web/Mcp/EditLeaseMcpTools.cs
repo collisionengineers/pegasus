@@ -2,6 +2,7 @@ using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 
@@ -10,7 +11,8 @@ namespace Pegasus.Web.Mcp;
 internal enum EditLeaseRecordKind
 {
     Case,
-    Triage
+    Triage,
+    ImageIntake
 }
 
 internal sealed record EditLeaseToolResult(
@@ -21,28 +23,28 @@ internal sealed record EditLeaseToolResult(
     string Holder,
     long Version,
     DateTimeOffset ExpiresAtUtc,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record EditLeaseReleaseToolResult(
     string RecordKind,
     Guid RecordId,
     bool Released,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
-/// The explicit edit lease for multi-step automation work on a Case or a
-/// Triage Case: the same server-owned lease staff editing claims, through the
-/// same Core ports and the same rules for both kinds (R515 to R519): a claim is
+/// The explicit edit lease for multi-step automation work on a Case, a Triage
+/// Case or an Image Intake record: the same server-owned lease staff editing
+/// claims, through the same Core ports and the same rules for every kind (R515
+/// to R519): a claim is
 /// made at the record's current version and refused only for a newer one, a
 /// replayed claim returns the same token, and a lapsed lease nobody claimed
 /// since carries on. With <c>takeOver</c> on a Case, <c>pegasus_edit_begin</c>
 /// asks the member of staff holding the lease to hand it over and waits inside
 /// the call for the answer (R554, 30 October 2026); the Automation Actor never
-/// forces a hand-over. With <c>takeOver</c> on a Triage Case it takes over a
-/// staff scope at once (R556). Never over another Automation session's lease;
-/// nothing here merges another holder's edit. A Case lease needs <c>automation.cases</c>, a Triage lease
+/// forces a hand-over. With <c>takeOver</c> on a Triage Case or an Image Intake
+/// record it takes over a staff scope at once (R556). Never over another
+/// Automation session's lease; nothing here merges another holder's edit. A
+/// Case lease needs <c>automation.cases</c>, a Triage or Image Intake lease
 /// <c>automation.intake</c>, as the records' own tools do. The lease stands
 /// through every write made under it until <c>pegasus_edit_end</c> releases it
 /// (operator, 8 October 2026). A single write needs none of this: a write tool
@@ -55,10 +57,13 @@ internal sealed class EditLeaseMcpTools(
     CaseEditRequestWatch requestWatch,
     IEditScopeLeases editScopes,
     IGetTriage getTriage,
+    IImageIntakeQueries imageIntakes,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
-    private const string RecordKindDescription = "Case or Triage: which record's lease.";
+    private const string RecordKindDescription = "Case, Triage or ImageIntake: which record's lease.";
+
+    private const string RecordIdDescription = "The Case identifier, the Triage Case identifier, or the Image Intake record identifier.";
 
     [McpServerTool(
         Name = "pegasus_edit_begin",
@@ -68,13 +73,13 @@ internal sealed class EditLeaseMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Claims the server-owned five-minute edit lease on one Case or Triage Case for multi-step work, using the same guard as staff editing. The lease is issued at the record's current version, which the result returns. The token carries every write made under it: present it on each write until pegasus_edit_end releases it. When a member of staff is editing the Case (a write or a claim is refused because edit authority is already held), call this again with takeOver true: the member of staff is shown the request and can hand the Case over, and the call waits up to 45 seconds for their answer and returns the lease if they accept. That request is how the Automation Actor gets a Case a member of staff holds; it is a request they can decline, not a force. A refusal names declined, no answer or already asked; ask again later. A lease another Automation session holds is not requested: takeOver then claims as a plain claim would. With takeOver on a Triage Case it takes over a staff scope at once, and the takeover is recorded in the record's history. The claim fails closed when the expected version is newer than the record's. A single write needs no lease call: every write tool takes the lease itself for that one command when editLeaseToken is omitted.")]
+    [Description("Claims the server-owned five-minute edit lease on one Case, Triage Case or Image Intake record for multi-step work, using the same guard as staff editing. The lease is issued at the record's current version, which the result returns. The token carries every write made under it: present it on each write until pegasus_edit_end releases it. When a member of staff is editing the Case (a write or a claim is refused because edit authority is already held), call this again with takeOver true: the member of staff is shown the request and can hand the Case over, and the call waits up to 45 seconds for their answer and returns the lease if they accept. That request is how the Automation Actor gets a Case a member of staff holds; it is a request they can decline, not a force. A refusal names declined, no answer or already asked; ask again later. A lease another Automation session holds is not requested: takeOver then claims as a plain claim would. With takeOver on a Triage Case or an Image Intake record it takes over a staff scope at once, and the takeover is recorded in the record's history. The claim fails closed when the expected version is newer than the record's. A single write needs no lease call: every write tool takes the lease itself for that one command when editLeaseToken is omitted.")]
     public async Task<EditLeaseToolResult> BeginAsync(
         [Description(RecordKindDescription)] string recordKind,
-        [Description("The Case identifier, or the Triage Case identifier.")] Guid recordId,
+        [Description(RecordIdDescription)] Guid recordId,
         [Description("The record version the caller observed; a version newer than the record's fails closed.")] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key with the same inputs returns the same lease token while that lease is live.")] string operationKey,
-        [Description("Set true when a member of staff holds the Case: asks them to hand it over and waits up to 45 seconds for their answer (a request they can decline, not a force). On a Triage Case: takes over a staff scope at once. Leave false to claim only a free record.")] bool takeOver = false,
+        [Description("Set true when a member of staff holds the Case: asks them to hand it over and waits up to 45 seconds for their answer (a request they can decline, not a force). On a Triage Case or an Image Intake record: takes over a staff scope at once. Leave false to claim only a free record.")] bool takeOver = false,
         CancellationToken cancellationToken = default)
     {
         var kind = ParseKind(recordKind);
@@ -83,7 +88,7 @@ internal sealed class EditLeaseMcpTools(
         return await auditor.RecordAsync(
             context,
             "pegasus_edit_begin",
-            Resource(recordId),
+            AutomationMcpAuditor.Resource(recordId),
             normalizedKey,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
@@ -97,19 +102,19 @@ internal sealed class EditLeaseMcpTools(
                             cancellationToken);
                     return new EditLeaseToolResult(
                         kind.ToString(), recordId, null, lease.Token, lease.Holder, lease.Version,
-                        lease.ExpiresAtUtc, normalizedKey, AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                        lease.ExpiresAtUtc, normalizedKey);
                 }
 
                 var scopeLease = await editScopes.ClaimAsync(
-                    new(EditScopeKind.Triage, recordId, expectedVersion, context.Actor, normalizedKey)
+                    new(ScopeKind(kind), recordId, expectedVersion, context.Actor, normalizedKey)
                     {
                         TakeOver = takeOver
                     },
                     cancellationToken);
                 return new EditLeaseToolResult(
-                    kind.ToString(), recordId, await TriageReferenceAsync(recordId, context, cancellationToken),
+                    kind.ToString(), recordId, await ScopeReferenceAsync(kind, recordId, context, cancellationToken),
                     scopeLease.Token, scopeLease.Holder, scopeLease.RecordVersion, scopeLease.ExpiresAtUtc,
-                    normalizedKey, AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                    normalizedKey);
             }),
             cancellationToken);
     }
@@ -122,12 +127,12 @@ internal sealed class EditLeaseMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Extends the edit lease claimed with pegasus_edit_begin so work that outlasts five minutes continues without re-claiming. A renewal is a heartbeat, for a Case as for a Triage, and takes no version; it returns the same token. A lease that lapsed with nobody claiming the record since carries on. Fails closed for a non-holder, or once another editor has claimed the record.")]
+    [Description("Extends the edit lease claimed with pegasus_edit_begin so work that outlasts five minutes continues without re-claiming. A renewal is a heartbeat, for every record kind, and takes no version; it returns the same token. A lease that lapsed with nobody claiming the record since carries on. Fails closed for a non-holder, or once another editor has claimed the record.")]
     public async Task<EditLeaseToolResult> RenewAsync(
         [Description(RecordKindDescription)] string recordKind,
-        [Description("The Case identifier, or the Triage Case identifier.")] Guid recordId,
+        [Description(RecordIdDescription)] Guid recordId,
         [Description("The lease token returned by pegasus_edit_begin.")] string editLeaseToken,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         CancellationToken cancellationToken = default)
     {
         var kind = ParseKind(recordKind);
@@ -138,7 +143,7 @@ internal sealed class EditLeaseMcpTools(
         return await auditor.RecordDenialAsync(
             context,
             "pegasus_edit_renew",
-            Resource(recordId),
+            AutomationMcpAuditor.Resource(recordId),
             normalizedKey,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
@@ -151,16 +156,16 @@ internal sealed class EditLeaseMcpTools(
                         cancellationToken);
                     return new EditLeaseToolResult(
                         kind.ToString(), recordId, null, lease.Token, lease.Holder, lease.Version,
-                        lease.ExpiresAtUtc, normalizedKey, AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                        lease.ExpiresAtUtc, normalizedKey);
                 }
 
                 var scopeLease = await editScopes.HeartbeatAsync(
-                    new(EditScopeKind.Triage, recordId, context.Actor, token),
+                    new(ScopeKind(kind), recordId, context.Actor, token),
                     cancellationToken);
                 return new EditLeaseToolResult(
-                    kind.ToString(), recordId, await TriageReferenceAsync(recordId, context, cancellationToken),
+                    kind.ToString(), recordId, await ScopeReferenceAsync(kind, recordId, context, cancellationToken),
                     scopeLease.Token, scopeLease.Holder, scopeLease.RecordVersion, scopeLease.ExpiresAtUtc,
-                    normalizedKey, AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                    normalizedKey);
             }),
             cancellationToken);
     }
@@ -176,9 +181,9 @@ internal sealed class EditLeaseMcpTools(
     [Description("Releases an edit lease claimed with pegasus_edit_begin, so the record is free for colleagues at once. A lease that has already been released answers released false; one that lapsed with nobody claiming the record since is released.")]
     public async Task<EditLeaseReleaseToolResult> EndAsync(
         [Description(RecordKindDescription)] string recordKind,
-        [Description("The Case identifier, or the Triage Case identifier.")] Guid recordId,
+        [Description(RecordIdDescription)] Guid recordId,
         [Description("The lease token returned by pegasus_edit_begin.")] string editLeaseToken,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         CancellationToken cancellationToken = default)
     {
         var kind = ParseKind(recordKind);
@@ -187,7 +192,7 @@ internal sealed class EditLeaseMcpTools(
         return await auditor.RecordAsync(
             context,
             "pegasus_edit_end",
-            Resource(recordId),
+            AutomationMcpAuditor.Resource(recordId),
             normalizedKey,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
@@ -206,7 +211,7 @@ internal sealed class EditLeaseMcpTools(
                     else
                     {
                         await editScopes.ReleaseAsync(
-                            new(EditScopeKind.Triage, recordId, context.Actor, normalizedKey, token),
+                            new(ScopeKind(kind), recordId, context.Actor, normalizedKey, token),
                             cancellationToken);
                     }
                 }
@@ -215,8 +220,7 @@ internal sealed class EditLeaseMcpTools(
                     released = false;
                 }
                 return new EditLeaseReleaseToolResult(
-                    kind.ToString(), recordId, released, normalizedKey,
-                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
+                    kind.ToString(), recordId, released, normalizedKey);
             }),
             cancellationToken);
     }
@@ -334,26 +338,32 @@ internal sealed class EditLeaseMcpTools(
     }
 
     private static EditLeaseRecordKind ParseKind(string? recordKind) =>
-        Enum.TryParse<EditLeaseRecordKind>(recordKind?.Trim(), ignoreCase: true, out var parsed)
-        && Enum.IsDefined(parsed)
-            ? parsed
-            : throw new McpException("recordKind must be Case or Triage.");
+        AutomationMcpErrors.ParseName<EditLeaseRecordKind>(recordKind, "recordKind must be Case, Triage or ImageIntake.");
 
     private static string Scope(EditLeaseRecordKind kind) =>
         kind == EditLeaseRecordKind.Case ? AutomationMcp.CasesScope : AutomationMcp.IntakeScope;
 
-    private static string Resource(Guid id) => id == Guid.Empty ? "invalid" : id.ToString("D");
+    /// <summary>The record edit scope a Triage or Image Intake lease is (FRD-14 Record edit scopes).</summary>
+    private static EditScopeKind ScopeKind(EditLeaseRecordKind kind) =>
+        kind == EditLeaseRecordKind.ImageIntake ? EditScopeKind.ImageIntake : EditScopeKind.Triage;
 
     private static string RequireToken(string? editLeaseToken) =>
         string.IsNullOrWhiteSpace(editLeaseToken)
             ? throw new McpException("An active edit lease token is required.")
             : editLeaseToken;
 
-    /// <summary>The Triage Case's Case/PO, returned with its lease (decision V).</summary>
-    private async Task<string> TriageReferenceAsync(
-        Guid triageId,
+    /// <summary>
+    /// The Triage Case's Case/PO (decision V), or the Image Intake record's Image Intake
+    /// Reference, returned with its lease.
+    /// </summary>
+    private async Task<string> ScopeReferenceAsync(
+        EditLeaseRecordKind kind,
+        Guid recordId,
         AutomationActorContext context,
         CancellationToken cancellationToken) =>
-        (await getTriage.ExecuteAsync(new(triageId, context.Actor), cancellationToken)
-            ?? throw new McpException("The Triage record was not found.")).Record.Reference;
+        kind == EditLeaseRecordKind.ImageIntake
+            ? (await imageIntakes.GetAsync(recordId, cancellationToken)
+                ?? throw new McpException("The Image Intake record was not found.")).Record.ImageIntakeReference
+            : (await getTriage.ExecuteAsync(new(recordId, context.Actor), cancellationToken)
+                ?? throw new McpException("The Triage record was not found.")).Record.Reference;
 }

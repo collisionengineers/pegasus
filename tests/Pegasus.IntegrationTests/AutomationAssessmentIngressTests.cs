@@ -538,7 +538,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(caseVersion + 1, structured.GetProperty("caseVersion").GetInt64());
             Assert.Equal(
                 "mcp:ingress-assessment-1",
-                structured.GetProperty("correlationId").GetString());
+                structured.GetProperty("operationKey").GetString());
             var fields = structured.GetProperty("fields").EnumerateArray().ToArray();
         }
 
@@ -746,7 +746,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(stateBefore, structured.GetProperty("state").GetString());
             Assert.Equal(
                 "mcp:ingress-details-1",
-                structured.GetProperty("correlationId").GetString());
+                structured.GetProperty("operationKey").GetString());
         }
 
         // Case-detail values save through the staff Case save: they land as the
@@ -1548,7 +1548,9 @@ public sealed class AutomationAssessmentIngressTests
         using (var response = await PostMcpAsync(client, token, ToolCallPayload(17, "pegasus_case_note_add", note)))
         {
             var structured = await ReadStructuredContentAsync(response);
-            Assert.Equal("mcp:note-1", structured.GetProperty("correlationId").GetString());
+            Assert.Equal("mcp:note-1", structured.GetProperty("operationKey").GetString());
+            // A write result carries the caller's key once (R1042).
+            Assert.False(structured.TryGetProperty("correlationId", out _));
         }
         using (var replay = await PostMcpAsync(client, token, ToolCallPayload(18, "pegasus_case_note_add", note)))
         {
@@ -1676,7 +1678,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.False(estimate.GetProperty("isCurrent").GetBoolean());
             Assert.True(!estimate.TryGetProperty("aiJobId", out var citedJob)
                 || citedJob.ValueKind == JsonValueKind.Null);
-            Assert.Equal("mcp:ingress-estimate-1", structured.GetProperty("correlationId").GetString());
+            Assert.Equal("mcp:ingress-estimate-1", structured.GetProperty("operationKey").GetString());
             var totals = estimate.GetProperty("totals");
             Assert.Equal(220.40m, totals.GetProperty("parts").GetDecimal());
             Assert.Equal(100m, totals.GetProperty("panelLabour").GetDecimal());

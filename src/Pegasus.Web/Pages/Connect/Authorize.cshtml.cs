@@ -28,13 +28,13 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
     internal static readonly IReadOnlyDictionary<string, string> ScopeDescriptions =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [AutomationMcp.CasesScope] = "Search and read cases, take and renew edit leases, update case details.",
-            [AutomationMcp.IntakeScope] = "List the queue, submit, and work Unidentified and Triage records.",
-            [AutomationMcp.DocumentsScope] = "Add and download case documents.",
-            [AutomationMcp.AssessmentScope] = "Read and update assessment values under an edit lease.",
-            [AutomationMcp.MailScope] = "List and read retained mail and correct a message's classification.",
+            [AutomationMcp.CasesScope] = "Search and read Cases; update Case details and notes; hold, release, assign, close, reopen and archive Cases; open and work queries; dismiss Work Centre records; issue, extend and cancel photo links; take and renew edit leases.",
+            [AutomationMcp.IntakeScope] = "List the queue and submit sources; create Cases and accept received items; work Unidentified, Triage and Vehicle images records and upload groups, and register images.",
+            [AutomationMcp.DocumentsScope] = "Add, download, tag, retype and remove Case documents; generate the report, Repair Spec and images; record report approval; write report wording and prepare report images.",
+            [AutomationMcp.AssessmentScope] = "Read and update assessment values, valuations and estimates under an edit lease.",
+            [AutomationMcp.MailScope] = "List, read and search retained mail and the approved mailboxes; correct a message's classification; link, unlink, dismiss and restore messages; open a query on a message.",
             [AutomationMcp.JobsScope] = "List, create, take, progress, complete, fail, release, cancel and confirm AI jobs.",
-            [AutomationMcp.SendScope] = "Send a generated report to the Principal, and send e-mail: new, reply, forward and the Triage reply."
+            [AutomationMcp.SendScope] = "Send a generated report to the Principal; send e-mail: chaser, reply, forward and the Triage reply; send a photo link by e-mail or text."
         };
 
     public string ClientDisplayName { get; private set; } = string.Empty;

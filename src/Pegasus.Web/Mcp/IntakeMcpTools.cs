@@ -2,9 +2,93 @@ using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core;
+using Pegasus.Core.Address;
+using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
+using Pegasus.Web.Intake;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Mcp;
+
+internal sealed record IntakeToolAllocation(
+    Guid AttemptId,
+    string Status,
+    string? AttemptedCaseType,
+    string? SafeReason,
+    bool CanRetry,
+    Guid? CaseId,
+    string? CaseReference);
+
+/// <summary>
+/// One file the received item holds. A Triage reply attaches these by
+/// <see cref="AssetId"/> (<c>pegasus_mail_send</c> triage_reply).
+/// </summary>
+internal sealed record IntakeToolFile(
+    Guid AssetId,
+    string FileName,
+    string MediaType,
+    long ContentLength,
+    string CustodyState);
+
+internal sealed record IntakeToolDetail(
+    Guid ReceiptId,
+    long Version,
+    string SourceFileName,
+    string MediaType,
+    DateTimeOffset ReceivedAtUtc,
+    string Decision,
+    string DecisionReason,
+    Guid? CaseId,
+    string? CaseReference,
+    string? ClassifiedCaseType,
+    string? EstablishedPrincipalCode,
+    string? SenderDirectoryPrincipalCode,
+    bool WebsiteEnquiry,
+    InstructionDraft? Draft,
+    IReadOnlyList<string> MissingIdentityFields,
+    IntakeToolAllocation? Allocation,
+    string InspectionAddressState,
+    string? InspectionAddressSuggestion,
+    string? InspectionAddressSuggestionFingerprint,
+    string? InspectionAddressResolvedValue,
+    string? InspectionAddressResolvedByKind,
+    string? InspectionAddressResolvedBy,
+    IReadOnlyList<IntakeToolFile> Files,
+    string CorrelationId);
+
+internal sealed record IntakeActionToolResult(
+    Guid ReceiptId,
+    string Action,
+    string? AllocationStatus,
+    Guid? CaseId,
+    string? CaseReference,
+    string? AuditReference,
+    string? SafeReason,
+    bool IsReplay,
+    long? ReceiptVersion,
+    string? InspectionAddressState,
+    string? InspectionAddressResolvedValue,
+    string OperationKey,
+    Guid? ImageIntakeId = null,
+    string? ImageIntakeReference = null);
+
+internal sealed record CaseCreateToolResult(
+    Guid CaseId,
+    string Reference,
+    string? AuditReference,
+    string OperationKey);
+
+internal enum IntakeAction
+{
+    Accept,
+    Allocate,
+    ResolveInspectionAddress,
+    OpenTriage,
+    RegisterImages
+}
 
 internal sealed record IntakeQueueToolItem(
     Guid ReceiptId,
@@ -27,26 +111,49 @@ internal sealed record IntakeQueueToolResult(
 internal sealed record IntakeSubmitToolResult(
     Guid ReceiptId,
     bool IsDuplicate,
-    string Disposition,
-    string ExternalReceiptToken,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
-/// Automation Actor intake-queue tools (MCP-03): the same Core intake list
-/// query and durable intake receipt submission the staff app composes,
-/// guarded by the automation.intake scope. A submission is an immutable
-/// source occurrence on the dedicated automation channel; custody begins only
-/// at an authenticated accepted submission.
+/// Automation Actor intake tools. The queue list and durable intake receipt
+/// submission (MCP-03) are the same Core intake list query and submission the
+/// staff app composes; a submission is an immutable source occurrence on the
+/// dedicated automation channel, and custody begins only at an authenticated
+/// accepted submission. The staff intake acts (ADR-0064, FRD-02): read one
+/// received item, turn it into a Case (Create case from a received item),
+/// retry a failed allocation, settle the inspection address, open the Triage
+/// from an item classified, or corrected to, Triage request (R223), register
+/// its images as an Image Intake record, and create a Case directly. Each calls
+/// the same Core commands as the staff Create case page, the message's Open the
+/// Triage and Register images, and the Action Logs retry, under
+/// <c>automation.intake</c>, with the resolved Automation identity. A settled
+/// address names the Automation actor as its settler (ADR-0064), never a
+/// member of staff.
 /// </summary>
 [McpServerToolType]
 internal sealed class IntakeMcpTools(
     ListIntakeByCursor listIntake,
     IIntakeSubmission intakeSubmission,
+    IGetIntake getIntake,
+    ResolveIntake resolveIntake,
+    IAllocateIntake allocateIntake,
+    IntakeCaseCreation caseCreation,
+    IInspectionAddressResolutionStore addressResolutions,
+    IPrincipalInspectionModeStore principalInspectionModes,
+    IPrincipalSenderDirectory principalSenders,
+    IIntermediaryRegistry intermediaries,
+    ICreateManualCase createManualCase,
+    IContactDirectoryQueries contacts,
+    ITriageQueries triages,
+    StaffIntakeActions intakeActions,
+    IImageIntakeStore imageIntakes,
     TimeProvider timeProvider,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
+    /// <summary>The creation provenance the staff page records on the reviewed draft.</summary>
+    private const string ReviewedDraftReason = "Case created from reviewed intake.";
+
+    private const string ReceiptIdDescription = "The intake receipt identifier (receiptId from pegasus_intake_queue_list).";
+
     private const int MaximumExternalReceiptTokenLength = 200;
 
     [McpServerTool(
@@ -57,20 +164,17 @@ internal sealed class IntakeMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists intake receipts with processing decision and allocation state kept separate. Filters are case_created, unidentified, unsupported, ocr_required, technical_failure, or no filter for all. Uses protected continuations; limit defaults to 50 and is at most 100.")]
+    [Description("Lists intake receipts with processing decision and allocation state kept separate. Filters are case_created, unidentified, unsupported, ocr_required, technical_failure, or no filter for all. Uses protected continuations.")]
     public async Task<IntakeQueueToolResult> ListAsync(
         [Description("Optional decision filter code; omit for every decision.")] string? decision = null,
         [Description("Opaque continuation returned by the preceding list call.")] string? cursor = null,
         [Description("Items to return; omit for the default 50, maximum 100.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_intake_queue_list", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_intake_queue_list",
             "intake-queue",
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 IntakeDecision? decisionFilter = null;
                 if (!string.IsNullOrWhiteSpace(decision))
@@ -107,7 +211,7 @@ internal sealed class IntakeMcpTools(
                     result.NextCursor,
                     effectiveLimit,
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -119,24 +223,21 @@ internal sealed class IntakeMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Submits one immutable intake source document (email, PDF, document, or image) into the durable intake queue on the automation channel. Content is base64 and is limited to 10 MB before decoding. The external receipt token is the durable source-occurrence identity: replaying the same token with identical content is a duplicate, and different content under the same token fails closed.")]
+    [Description("Submits one immutable intake source document (email, PDF, document, or image) into the durable intake queue on the automation channel. Content is base64; the decoded file is at most 100,000,000 bytes. The external receipt token is the durable source-occurrence identity: replaying the same token with identical content is a duplicate, and different content under the same token fails closed.")]
     public async Task<IntakeSubmitToolResult> SubmitAsync(
         [Description("The leaf file name; path components are rejected.")] string fileName,
         [Description("The source media type.")] string mediaType,
         [Description("The complete source content encoded as base64.")] string contentBase64,
         [Description("The durable source-occurrence identity for this exact submission, at most 200 characters.")] string externalReceiptToken,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_intake_submit", cancellationToken);
-        var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
         var normalizedToken = externalReceiptToken?.Trim();
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_intake_submit",
             normalizedToken is { Length: > 0 and <= 200 } ? normalizedToken : "invalid",
-            normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            operationKey,
+            async (context, normalizedKey) =>
             {
                 if (string.IsNullOrEmpty(normalizedToken)
                     || normalizedToken.Length > MaximumExternalReceiptTokenLength)
@@ -165,11 +266,8 @@ internal sealed class IntakeMcpTools(
                 return new IntakeSubmitToolResult(
                     result.StagedReceiptId,
                     result.IsDuplicate,
-                    "Queued",
-                    normalizedToken,
-                    normalizedKey,
-                    AutomationMcpAuditor.CorrelationId(context, normalizedKey));
-            }),
+                    normalizedKey);
+            },
             cancellationToken);
     }
 
@@ -180,6 +278,7 @@ internal sealed class IntakeMcpTools(
         IntakeDecision.Unsupported => "unsupported",
         IntakeDecision.OcrRequired => "ocr_required",
         IntakeDecision.TechnicalFailure => "technical_failure",
+        IntakeDecision.ImageIntakeRegistered => "image_intake_registered",
         _ => throw new InvalidOperationException(
             $"Unknown intake decision '{(int)decision}'.")
     };
@@ -193,4 +292,754 @@ internal sealed class IntakeMcpTools(
         { Decision: IntakeDecision.CaseCreated } => "ready_for_allocation",
         _ => "not_applicable"
     };
+
+    [McpServerTool(
+        Name = "pegasus_intake_get",
+        Title = "Get received item",
+        ReadOnly = true,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Gets one received item as the Create case page reviews it: its version, processing decision, the Case it already belongs to, the classified case type, the Principal the item has established (establishedPrincipalCode: the draft's suggested Principal, else an accepted mail route's unless the instruction profile conflicts with it) or, when it has established none, the one active Principal Contact its sender belongs to by the Contacts directory (senderDirectoryPrincipalCode, a code to give accept as principalCode), whether it is a website enquiry (websiteEnquiry: a private customer's, made a one-off Case with pegasus_case_create), the instruction draft and which identity-critical fields it still lacks, the allocation attempt (with attemptId and whether it can be retried), the inspection address: its state (Unresolved, Suggested, Accepted, Corrected or Supplied), the address extraction suggested with the fingerprint pegasus_intake_action resolve_inspection_address takes, and the settled value with the actor kind and subject that settled it; and the item's files (assetId, name, type, size and custody state; a Triage reply attaches Confirmed files by assetId).")]
+    public async Task<IntakeToolDetail> GetAsync(
+        [Description(ReceiptIdDescription)] Guid receiptId,
+        CancellationToken cancellationToken = default)
+    {
+        return await auditor.CallAsync(
+            "pegasus_intake_get",
+            AutomationMcpAuditor.Resource(receiptId),
+            async context =>
+            {
+                var receipt = await RequireReceiptAsync(receiptId, context.Actor, cancellationToken);
+                var resolution = await ResolutionAsync(receipt, cancellationToken);
+                var established = EstablishedIntakePrincipal.CodeFor(receipt);
+                var sender = receipt.MailRouteDecision?.EffectiveSender?.Address;
+                var websiteEnquiry = WebsiteEnquiryMail.IsFrom(sender);
+                return new IntakeToolDetail(
+                    receipt.Id,
+                    receipt.Version,
+                    receipt.SourceFileName,
+                    receipt.MediaType,
+                    receipt.ReceivedAtUtc,
+                    DecisionCode(receipt.Decision),
+                    receipt.DecisionReason,
+                    receipt.CurrentCaseId,
+                    receipt.ManualAssociationVersion is null
+                        ? receipt.AcceptedCaseReference
+                        : receipt.ManualLinkedCaseReference,
+                    receipt.MailClassificationDecision?.CaseType?.ToString(),
+                    established,
+                    established is null && !websiteEnquiry
+                        ? (await principalSenders.LoadAsync(cancellationToken)).SingleFor(
+                            sender,
+                            await intermediaries.LoadAsync(cancellationToken))
+                        : null,
+                    websiteEnquiry,
+                    receipt.InstructionDraft,
+                    receipt.InstructionDraft is { } draft
+                        ? InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft)
+                        : Array.Empty<string>(),
+                    receipt.AllocationState is { } allocation
+                        ? new IntakeToolAllocation(
+                            allocation.AttemptId,
+                            allocation.Status.ToString(),
+                            allocation.AttemptedCaseType?.ToString(),
+                            allocation.SafeReason,
+                            allocation.CanRetry,
+                            allocation.CaseId,
+                            allocation.CaseReference)
+                        : null,
+                    resolution.State.ToString(),
+                    resolution.Evaluation.Suggestion?.Value,
+                    resolution.Evaluation.Suggestion?.Fingerprint,
+                    resolution.ResolvedValue,
+                    resolution.ResolvedByKind?.ToString(),
+                    resolution.ResolvedBy,
+                    IntakeFileIdentity.Ordered(receipt)
+                        .Select(asset => new IntakeToolFile(
+                            asset.Id,
+                            asset.FileName,
+                            asset.MediaType,
+                            asset.ContentLength,
+                            asset.CustodyState.ToString()))
+                        .ToArray(),
+                    context.TraceIdentifier);
+            },
+            cancellationToken);
+    }
+
+    [McpServerTool(
+        Name = "pegasus_intake_action",
+        Title = "Act on a received item",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("One staff intake act on a received item. accept turns the item into a Case, as Create case on a received item does: the reviewed draft is recorded (the draft fields named here replace the item's; an omitted field keeps its value and an empty string clears it), then the Case is allocated for principalCode (default: the Principal the item established, pegasus_intake_get's establishedPrincipalCode) and caseType (default: the classified type; Audit only for an item classified as an Audit). It is refused while an identity-critical field is missing. An unsettled inspection address does not refuse it: the Case then starts Not ready with Inspection address among its missing instruction items (a Principal that inspects by images needs none). resolve_inspection_address settles the address as the Create case page does: omit inspectionAddress to accept the suggested address, or give it to correct the suggestion (both need addressSuggestionFingerprint from pegasus_intake_get); where nothing was suggested, give inspectionAddress to supply it, with no fingerprint. Image Based Assessment is never typed. The settlement is recorded as the Automation actor's and advances the item version by one. allocate retries a failed allocation with a reason, naming the attempt it retries. open_triage opens the Triage Case from an item classified, or corrected to, Triage request, as Open the Triage on its message does, for vehicleRegistration, which it requires; it is refused where the message does not offer Open the Triage. register_images registers the item's images as an Image Intake record (staff label Vehicle images) under vehicleRegistration, with a reason, as Register images on its message does; it is refused where the message does not offer Register images. Each needs the item version from pegasus_intake_get; the result names the allocation status and, once allocated, the Case, or the opened Triage Case, or the registered Image Intake record, or the settled address and the item's new version.")]
+    public async Task<IntakeActionToolResult> ActAsync(
+        [Description(ReceiptIdDescription)] Guid receiptId,
+        [Description("accept, resolve_inspection_address, allocate, open_triage or register_images.")] string action,
+        [Description("The item version from pegasus_intake_get; a stale value fails closed.")] long expectedReceiptVersion,
+        [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key resumes the same act rather than starting another.")] string operationKey,
+        [Description("accept only: the Principal code the Case is allocated for, at most 20 characters; omit to use the Principal the item established.")] string? principalCode = null,
+        [Description("accept only: Inspection, Audit or InspectionAndAudit; omit to use the classified case type, or Inspection when there is none.")] string? caseType = null,
+        [Description("accept only: claimant name.")] string? claimantName = null,
+        [Description("accept only: claim number.")] string? claimNumber = null,
+        [Description("accept, open_triage and register_images: vehicle registration; open_triage and register_images require it and take no other draft field.")] string? vehicleRegistration = null,
+        [Description("accept only: vehicle make.")] string? vehicleMake = null,
+        [Description("accept only: vehicle model.")] string? vehicleModel = null,
+        [Description("accept only: vehicle mileage.")] long? vehicleMileage = null,
+        [Description("accept only: accident circumstances.")] string? accidentCircumstances = null,
+        [Description("accept only: date of incident, yyyy-MM-dd.")] string? incidentDate = null,
+        [Description("accept only: inspection date, yyyy-MM-dd; it is also the Case's accepted inspection deadline.")] string? inspectionDate = null,
+        [Description("allocate only: the allocation attemptId from pegasus_intake_get that failed and is being retried.")] Guid? expectedAttemptId = null,
+        [Description("allocate: why the allocation is retried; register_images: why the images are registered under this registration; 1 to 500 characters.")] string? reason = null,
+        [Description("resolve_inspection_address only: the address that corrects the suggestion, or is supplied where nothing was suggested, at most 1000 characters; omit to accept the suggestion.")] string? inspectionAddress = null,
+        [Description("resolve_inspection_address only: inspectionAddressSuggestionFingerprint from pegasus_intake_get, naming the suggestion accepted or corrected; omit when nothing was suggested.")] string? addressSuggestionFingerprint = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await auditor.CallAsync(
+            "pegasus_intake_action",
+            AutomationMcpAuditor.Resource(receiptId),
+            operationKey,
+            (context, key) => AutomationMcpErrors.IntakeRefusalsAsync("pegasus_intake_get", async () =>
+            {
+                var parsed = action?.Trim() switch
+                {
+                    "accept" => IntakeAction.Accept,
+                    "allocate" => IntakeAction.Allocate,
+                    "resolve_inspection_address" => IntakeAction.ResolveInspectionAddress,
+                    "open_triage" => IntakeAction.OpenTriage,
+                    "register_images" => IntakeAction.RegisterImages,
+                    _ => throw new McpException("action must be accept, resolve_inspection_address, allocate, open_triage or register_images.")
+                };
+                var draftFields = new object?[]
+                {
+                    principalCode, caseType, claimantName, claimNumber, vehicleRegistration, vehicleMake,
+                    vehicleModel, vehicleMileage, accidentCircumstances, incidentDate, inspectionDate
+                };
+                if (parsed != IntakeAction.ResolveInspectionAddress
+                    && (inspectionAddress is not null || addressSuggestionFingerprint is not null))
+                {
+                    throw new McpException(
+                        "inspectionAddress and addressSuggestionFingerprint belong to resolve_inspection_address.");
+                }
+                if (parsed == IntakeAction.ResolveInspectionAddress)
+                {
+                    if (draftFields.Any(value => value is not null) || expectedAttemptId is not null || reason is not null)
+                    {
+                        throw new McpException(
+                            "resolve_inspection_address takes only inspectionAddress and addressSuggestionFingerprint.");
+                    }
+
+                    var settled = await ResolveAddressAsync(
+                        context.Actor,
+                        receiptId,
+                        expectedReceiptVersion,
+                        key,
+                        inspectionAddress,
+                        addressSuggestionFingerprint,
+                        cancellationToken);
+                    return new IntakeActionToolResult(
+                        receiptId,
+                        "resolve_inspection_address",
+                        AllocationStatus: null,
+                        CaseId: null,
+                        CaseReference: null,
+                        AuditReference: null,
+                        SafeReason: null,
+                        IsReplay: false,
+                        settled.ReceiptVersion,
+                        settled.State.ToString(),
+                        settled.ResolvedValue,
+                        key);
+                }
+                if (parsed == IntakeAction.OpenTriage)
+                {
+                    // vehicleRegistration is one of the draft fields.
+                    if (draftFields.Count(value => value is not null) > (vehicleRegistration is null ? 0 : 1)
+                        || expectedAttemptId is not null
+                        || reason is not null)
+                    {
+                        throw new McpException("open_triage takes only vehicleRegistration.");
+                    }
+
+                    var (triage, isReplay) = await OpenTriageAsync(
+                        context.Actor, receiptId, expectedReceiptVersion, key, vehicleRegistration, cancellationToken);
+                    return new IntakeActionToolResult(
+                        receiptId,
+                        "open_triage",
+                        AllocationStatus: null,
+                        triage.CaseId,
+                        triage.Reference,
+                        AuditReference: null,
+                        SafeReason: null,
+                        isReplay,
+                        ReceiptVersion: null,
+                        InspectionAddressState: null,
+                        InspectionAddressResolvedValue: null,
+                        key);
+                }
+
+                if (parsed == IntakeAction.RegisterImages)
+                {
+                    // vehicleRegistration is one of the draft fields.
+                    if (draftFields.Count(value => value is not null) > (vehicleRegistration is null ? 0 : 1)
+                        || expectedAttemptId is not null)
+                    {
+                        throw new McpException("register_images takes only vehicleRegistration and reason.");
+                    }
+
+                    var (record, isReplay) = await RegisterImagesAsync(
+                        context.Actor, receiptId, expectedReceiptVersion, key, vehicleRegistration, reason, cancellationToken);
+                    return new IntakeActionToolResult(
+                        receiptId,
+                        "register_images",
+                        AllocationStatus: null,
+                        CaseId: null,
+                        CaseReference: null,
+                        AuditReference: null,
+                        SafeReason: null,
+                        isReplay,
+                        ReceiptVersion: null,
+                        InspectionAddressState: null,
+                        InspectionAddressResolvedValue: null,
+                        key,
+                        record.Id,
+                        record.ImageIntakeReference);
+                }
+
+                IntakeAllocationResult result;
+                if (parsed == IntakeAction.Allocate)
+                {
+                    if (draftFields.Any(value => value is not null))
+                    {
+                        throw new McpException("allocate retries the recorded command; it takes no Principal, case type or draft field.");
+                    }
+
+                    result = await allocateIntake.RetryAsync(
+                        new(
+                            AutomationMcpErrors.RequireId(receiptId, "receipt identifier"),
+                            expectedReceiptVersion,
+                            AutomationMcpErrors.RequireId(
+                                expectedAttemptId ?? throw new McpException("allocate needs expectedAttemptId."),
+                                "allocation attempt identifier"),
+                            context.Actor,
+                            key,
+                            reason ?? throw new McpException("allocate needs reason.")),
+                        cancellationToken);
+                }
+                else
+                {
+                    if (expectedAttemptId is not null || reason is not null)
+                    {
+                        throw new McpException("accept takes no expectedAttemptId or reason; those belong to allocate.");
+                    }
+
+                    result = await AcceptAsync(
+                        context.Actor,
+                        receiptId,
+                        expectedReceiptVersion,
+                        key,
+                        principalCode,
+                        caseType,
+                        new DraftChanges(
+                            claimantName,
+                            claimNumber,
+                            vehicleRegistration,
+                            vehicleMake,
+                            vehicleModel,
+                            vehicleMileage,
+                            accidentCircumstances,
+                            ParseDate(incidentDate, "incidentDate"),
+                            incidentDate,
+                            ParseDate(inspectionDate, "inspectionDate"),
+                            inspectionDate),
+                        cancellationToken);
+                }
+
+                return new IntakeActionToolResult(
+                    receiptId,
+                    parsed == IntakeAction.Accept ? "accept" : "allocate",
+                    result.State.Status.ToString(),
+                    result.State.CaseId,
+                    result.State.CaseReference,
+                    result.State.AuditReference,
+                    result.State.SafeReason,
+                    result.IsReplay,
+                    ReceiptVersion: null,
+                    InspectionAddressState: null,
+                    InspectionAddressResolvedValue: null,
+                    key);
+            }),
+            cancellationToken);
+    }
+
+    [McpServerTool(
+        Name = "pegasus_case_create",
+        Title = "Create a Case directly",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Creates a Case directly from entered facts, as the staff New case does, with no received item or source document. An Inspection, Audit or Inspection and Audit Case needs the identity-critical facts (claimant, claim number, registration and the rest the staff form asks for); a Triage Case takes only its Principal and the vehicle registration. A one-off Case for a private customer (privateCustomer true, no principalCode) is an Inspection, Audit or Inspection and Audit Case: it needs the claimant's name and the registration, takes claimantAddress and no claim number, and its Case/PO is the registration (a.-prefixed for an Audit). An Audit created here starts with its original report missing until a filed document is recorded as the report. A Case reference is allocated once and never reused. Requires a mcp:-prefixed operation key; replaying the same key with the same facts returns the same Case.")]
+    public async Task<CaseCreateToolResult> CreateCaseAsync(
+        [Description("Inspection, Audit, InspectionAndAudit or Triage.")] string caseType,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
+        [Description("The Principal code, at most 20 characters; omitted for a one-off Case for a private customer.")] string? principalCode = null,
+        [Description("True for a one-off Case for a private customer, which names no principalCode and is not a Triage.")] bool privateCustomer = false,
+        [Description("Private customer only: the claimant's address, the report's addressee.")] string? claimantAddress = null,
+        [Description("Vehicle registration.")] string? vehicleRegistration = null,
+        [Description("Not for Triage: claimant name.")] string? claimantName = null,
+        [Description("Not for Triage: claim number.")] string? claimNumber = null,
+        [Description("Not for Triage: vehicle make.")] string? vehicleMake = null,
+        [Description("Not for Triage: vehicle model.")] string? vehicleModel = null,
+        [Description("Not for Triage: vehicle mileage; give vehicleMileageUnit with it.")] long? vehicleMileage = null,
+        [Description("Not for Triage: the mileage unit, miles or kilometres; only with vehicleMileage.")] string? vehicleMileageUnit = null,
+        [Description("Not for Triage: accident circumstances.")] string? accidentCircumstances = null,
+        [Description("Not for Triage: date of incident, yyyy-MM-dd.")] string? incidentDate = null,
+        [Description("Not for Triage: inspection date, yyyy-MM-dd; it is also the inspection deadline.")] string? inspectionDate = null,
+        [Description("Not for Triage: inspection address; the inspection mode is inferred from it as on the staff form, unless the Principal inspects by images, whose Case takes Image Based Assessment.")] string? inspectionAddress = null,
+        [Description("Not for Triage: an active Claim Source's organisation identifier from the Contacts directory.")] Guid? claimSourceId = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await auditor.CallAsync(
+            "pegasus_case_create",
+            principalCode?.Trim() is { Length: > 0 } subject ? subject : privateCustomer ? "private-customer" : "invalid",
+            operationKey,
+            (context, key) => AutomationMcpErrors.IntakeRefusalsAsync("pegasus_intake_get", async () =>
+            {
+                var type = AutomationMcpErrors.ParseName<CaseType>(
+                    caseType,
+                    "caseType must be Inspection, Audit, InspectionAndAudit or Triage.");
+                // A one-off for a private customer names no Principal and is
+                // never a Triage (R574, R577); every other Case names one.
+                if (privateCustomer == !string.IsNullOrWhiteSpace(principalCode))
+                {
+                    throw new McpException("Give principalCode for a Principal's Case, or privateCustomer true for a one-off Case, not both.");
+                }
+                if (privateCustomer && type == CaseType.Triage)
+                {
+                    throw new McpException("A one-off Case for a private customer is Inspection, Audit or InspectionAndAudit.");
+                }
+                if (!privateCustomer && claimantAddress is not null)
+                {
+                    throw new McpException("claimantAddress is for a one-off Case for a private customer.");
+                }
+                var principal = privateCustomer ? null : RequirePrincipalCode(principalCode);
+                CaseEditableData data;
+                if (type == CaseType.Triage)
+                {
+                    if (new object?[]
+                        {
+                            claimantName, claimNumber, vehicleMake, vehicleModel, vehicleMileage, vehicleMileageUnit,
+                            accidentCircumstances, incidentDate, inspectionDate, inspectionAddress, claimSourceId
+                        }.Any(value => value is not null))
+                    {
+                        throw new McpException("A Triage Case takes only principalCode and vehicleRegistration.");
+                    }
+
+                    data = new CaseEditableData(VehicleRegistration: vehicleRegistration);
+                }
+                else
+                {
+                    var claimSource = claimSourceId is { } sourceId
+                        ? await contacts.FindActiveByRoleAsync(
+                                context.Actor, ContactRole.ClaimSource, sourceId, cancellationToken)
+                            ?? throw new McpException("claimSourceId is not an active Claim Source in the directory.")
+                        : null;
+                    var inspection = ParseDate(inspectionDate, "inspectionDate");
+                    data = new CaseEditableData(
+                        claimantName,
+                        claimNumber,
+                        vehicleRegistration,
+                        vehicleMake,
+                        vehicleModel,
+                        vehicleMileage,
+                        vehicleMileage.HasValue ? vehicleMileageUnit : null,
+                        accidentCircumstances,
+                        ParseDate(incidentDate, "incidentDate"),
+                        InspectionDate: inspection,
+                        InspectionDeadline: inspection,
+                        InspectionAddress: inspectionAddress,
+                        InspectionMode: CaseDataPolicy.InferInspectionMode(inspectionAddress),
+                        ClaimantAddress: claimantAddress,
+                        ClaimSourceId: claimSource?.OrganizationId,
+                        ClaimSourceVersion: claimSource?.Version,
+                        ClaimSourceName: claimSource?.Name,
+                        ClaimSourceContactName: claimSource?.ContactPerson,
+                        ClaimSourceContactTelephone: claimSource?.Telephone,
+                        ClaimSourceContactEmailAddress: claimSource?.Email);
+                }
+
+                var identity = await createManualCase.ExecuteAsync(
+                    new(context.Actor, key, principal, type, data),
+                    cancellationToken);
+                return new CaseCreateToolResult(
+                    identity.CaseId,
+                    identity.Reference,
+                    identity.AuditReference,
+                    key);
+            }),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Create case on a received item, step for step as the staff page runs
+    /// it: the reviewed draft, then the acceptance at the version that draft
+    /// left. A replay of the same key replays the draft and resumes.
+    /// </summary>
+    private async Task<IntakeAllocationResult> AcceptAsync(
+        ActionActor actor,
+        Guid receiptId,
+        long expectedReceiptVersion,
+        string key,
+        string? principalCode,
+        string? caseType,
+        DraftChanges changes,
+        CancellationToken cancellationToken)
+    {
+        var receipt = await RequireReceiptAsync(receiptId, actor, cancellationToken);
+        if ((receipt.AcceptedCaseId ?? receipt.CurrentCaseId) is not null)
+        {
+            throw new McpException("This item already has a case.");
+        }
+        if (!IntakeCaseCreation.AcceptsByHand(receipt.Decision))
+        {
+            throw new McpException(OperatorLabels.IntakeCannotBecomeCaseReason(receipt.Decision));
+        }
+
+        var classifiedType = receipt.MailClassificationDecision?.CaseType;
+        var type = caseType is null
+            ? classifiedType ?? CaseType.Inspection
+            : AutomationMcpErrors.TryParseName<CaseType>(caseType, out var parsedType)
+                && parsedType != CaseType.Triage
+                    ? parsedType
+                    : throw new McpException("caseType must be Inspection, Audit or InspectionAndAudit.");
+        if (type == CaseType.Audit && classifiedType != CaseType.Audit)
+        {
+            throw new McpException("Only an item classified as an Audit becomes an Audit case.");
+        }
+
+        var current = receipt.InstructionDraft
+            ?? new InstructionDraft(null, null, null, null, null, null, null, null, null, null);
+        // Omitted, the Principal is the one the item established: the draft's
+        // suggestion, else its accepted mail route's (R966).
+        var principal = RequirePrincipalCode(principalCode ?? EstablishedIntakePrincipal.CodeFor(receipt));
+        var principalIsImageBased = await principalInspectionModes.GetForPrincipalAsync(principal, cancellationToken)
+            == CaseInspectionMode.ImageBasedAssessment;
+        var resolution = await ResolutionAsync(receipt, cancellationToken);
+        // An unsettled address does not refuse the Case (R965): it starts Not
+        // ready, with Inspection address among its missing instruction items.
+        var addressSettled = InspectionAddressResolutionPolicy.SatisfiesCaseCreation(resolution.State, principalIsImageBased);
+
+        var draft = current with
+        {
+            SuggestedPrincipalCode = current.SuggestedPrincipalCode ?? principal,
+            ClaimantName = Text(changes.ClaimantName, current.ClaimantName),
+            ClaimNumber = Text(changes.ClaimNumber, current.ClaimNumber),
+            VehicleRegistration = Text(changes.VehicleRegistration, current.VehicleRegistration),
+            VehicleMake = Text(changes.VehicleMake, current.VehicleMake),
+            VehicleModel = Text(changes.VehicleModel, current.VehicleModel),
+            VehicleMileage = changes.VehicleMileage ?? current.VehicleMileage,
+            AccidentCircumstances = Text(changes.AccidentCircumstances, current.AccidentCircumstances),
+            DateOfIncident = changes.IncidentDateText is null ? current.DateOfIncident : changes.IncidentDate,
+            InspectionDate = changes.InspectionDateText is null ? current.InspectionDate : changes.InspectionDate,
+            // The address the page puts in the draft: the Principal's own
+            // image-based mode, or the address that was settled.
+            InspectionAddress = principalIsImageBased
+                ? IntakeCaseCreation.ImageBasedInspectionAddress(resolution)
+                : resolution.ResolvedValue
+        };
+        var missing = InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
+        if (missing.Count > 0)
+        {
+            throw new McpException(
+                $"{string.Join(", ", missing)} is needed before this item can become a case.");
+        }
+
+        _ = await resolveIntake.ExecuteAsync(
+            new(
+                receipt.Id,
+                expectedReceiptVersion,
+                actor,
+                Pegasus.Core.Workflow.OneCommandEditAuthority.DeriveOperationKey(key, ":draft"),
+                ReviewedDraftReason,
+                IntakeResolutionKind.CorrectDraft,
+                draft),
+            cancellationToken);
+        var auditEvidenceId = await caseCreation.StandaloneAuditEvidenceIdAsync(receipt.Id, cancellationToken);
+        return await allocateIntake.AttemptStaffCreateAsync(
+            new(
+                receipt.Id,
+                // The draft correction advances the reviewed version once,
+                // whether newly applied or replayed, as on the staff page.
+                expectedReceiptVersion + 1,
+                actor,
+                key,
+                type,
+                principal,
+                new CaseCompleteness(
+                    InstructionComplete: addressSettled,
+                    ImagesComplete: IntakeCaseCreation.ImagesComplete(receipt)),
+                auditEvidenceId,
+                draft.InspectionDate),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// The inspection address step of Create case, decided as the staff page
+    /// decides it: with nothing suggested the address is supplied; a
+    /// suggestion is accepted when no address is given and corrected when one
+    /// is. The fingerprint proves which suggestion the caller read. A replay
+    /// of the same key returns what it already recorded.
+    /// </summary>
+    private async Task<InspectionAddressResolutionSnapshot> ResolveAddressAsync(
+        ActionActor actor,
+        Guid receiptId,
+        long expectedReceiptVersion,
+        string key,
+        string? inspectionAddress,
+        string? fingerprint,
+        CancellationToken cancellationToken)
+    {
+        var receipt = await RequireReceiptAsync(receiptId, actor, cancellationToken);
+        if ((receipt.AcceptedCaseId ?? receipt.CurrentCaseId) is not null)
+        {
+            throw new McpException("This item already has a case.");
+        }
+
+        var resolution = await ResolutionAsync(receipt, cancellationToken);
+        var address = string.IsNullOrWhiteSpace(inspectionAddress) ? null : inspectionAddress.Trim();
+        var suggested = resolution.Evaluation.Suggestion is not null;
+        if (!suggested)
+        {
+            if (address is null)
+            {
+                throw new McpException(
+                    "Nothing was suggested for this item's inspection address; give inspectionAddress to supply it.");
+            }
+            if (fingerprint is not null)
+            {
+                throw new McpException("Nothing was suggested, so there is no addressSuggestionFingerprint to give.");
+            }
+        }
+        else if (string.IsNullOrWhiteSpace(fingerprint))
+        {
+            throw new McpException(
+                "Accepting or correcting the suggested address needs addressSuggestionFingerprint from pegasus_intake_get.");
+        }
+
+        return await addressResolutions.ResolveAsync(
+            new(
+                receipt.Id,
+                expectedReceiptVersion,
+                suggested ? fingerprint!.Trim() : null,
+                !suggested
+                    ? InspectionAddressStaffDecision.SupplyAddress
+                    : address is null
+                        ? InspectionAddressStaffDecision.AcceptSuggestion
+                        : InspectionAddressStaffDecision.CorrectSuggestion,
+                address,
+                actor,
+                AutomationMcpErrors.DeriveOperationGuid("inspection-address", actor, key),
+                key),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Open the Triage on a received item as the message page runs it (R223:
+    /// a correction to Triage request opens nothing by itself). The offer is
+    /// checked there, so an item whose Triage is open is refused as on the
+    /// page; only then is the refusal read as a replay of the same key, which
+    /// returns the Triage Case it opened.
+    /// </summary>
+    private async Task<(TriageRecord Triage, bool IsReplay)> OpenTriageAsync(
+        ActionActor actor,
+        Guid receiptId,
+        long expectedReceiptVersion,
+        string key,
+        string? vehicleRegistration,
+        CancellationToken cancellationToken)
+    {
+        var receipt = await RequireReceiptAsync(receiptId, actor, cancellationToken);
+        if (receipt.Version != expectedReceiptVersion)
+        {
+            throw new IntakeVersionConflictException();
+        }
+
+        // The caller's key may take the whole operation-key length, so the
+        // creation is keyed by its derived identity instead.
+        var operationKey = AutomationMcpErrors.DeriveOperationGuid("open-triage", actor, key).ToString("N");
+        try
+        {
+            return (await intakeActions.OpenTriageAsync(
+                    actor,
+                    receipt,
+                    vehicleRegistration,
+                    operationKey,
+                    cancellationToken),
+                false);
+        }
+        catch (InvalidOperationException)
+        {
+            var creationKey = StaffIntakeActions.OpenTriageOperationKey(operationKey);
+            if (await triages.GetRecordByOriginOperationAsync(receipt.Id, creationKey, cancellationToken) is { } opened)
+            {
+                return (opened, true);
+            }
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Register images on a received item as its message page runs it
+    /// (<see cref="StaffIntakeActions.RegisterImagesAsync"/>): the offer is
+    /// checked there, so an item whose images are registered is refused as on
+    /// the page; only then is the refusal read as a replay of the same key,
+    /// which returns the record it registered.
+    /// </summary>
+    private async Task<(ImageIntakeRecord Record, bool IsReplay)> RegisterImagesAsync(
+        ActionActor actor,
+        Guid receiptId,
+        long expectedReceiptVersion,
+        string key,
+        string? vehicleRegistration,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        var receipt = await RequireReceiptAsync(receiptId, actor, cancellationToken);
+        // The caller's key may take the whole operation-key length, so the
+        // registration is keyed by its derived identity instead.
+        var operationKey = RegistrationOperationKey(actor, key);
+        if (receipt.Version != expectedReceiptVersion)
+        {
+            // The registration moves the item on, so a replay reads it as it
+            // stands now.
+            return (await RegistrationReplayAsync(
+                    imageIntakes,
+                    await imageIntakes.GetRecordByOriginReceiptAsync(receipt.Id, cancellationToken),
+                    vehicleRegistration,
+                    actor,
+                    operationKey,
+                    reason,
+                    submissionGroupId: null,
+                    cancellationToken)
+                ?? throw new IntakeVersionConflictException(),
+                true);
+        }
+
+        try
+        {
+            return (await intakeActions.RegisterImagesAsync(
+                    actor, receipt, vehicleRegistration, reason ?? string.Empty, operationKey, cancellationToken),
+                false);
+        }
+        catch (InvalidOperationException)
+        {
+            var replayed = await RegistrationReplayAsync(
+                imageIntakes,
+                await imageIntakes.GetRecordByOriginReceiptAsync(receipt.Id, cancellationToken),
+                vehicleRegistration,
+                actor,
+                operationKey,
+                reason,
+                submissionGroupId: null,
+                cancellationToken);
+            if (replayed is null)
+            {
+                throw;
+            }
+
+            return (replayed, true);
+        }
+    }
+
+    /// <summary>The Image Intake registration's operation key for the caller's own key.</summary>
+    internal static string RegistrationOperationKey(ActionActor actor, string key) =>
+        AutomationMcpErrors.DeriveOperationGuid("register-images", actor, key).ToString("N");
+
+    /// <summary>
+    /// The record a registration under this key already made, read back
+    /// through the store's own replay probe, which refuses the key used with
+    /// different details; null when the key made none.
+    /// </summary>
+    internal static async Task<ImageIntakeRecord?> RegistrationReplayAsync(
+        IImageIntakeStore store,
+        ImageIntakeRecord? registered,
+        string? vehicleRegistration,
+        ActionActor actor,
+        string operationKey,
+        string? reason,
+        Guid? submissionGroupId,
+        CancellationToken cancellationToken) =>
+        registered is null
+            ? null
+            : (await store.ProbeRegisterReplayAsync(
+                new(
+                    registered.Origin,
+                    ImageIntakeLifecycleRules.NormalizeRegistrationInput(vehicleRegistration),
+                    actor,
+                    operationKey,
+                    reason ?? string.Empty,
+                    submissionGroupId),
+                cancellationToken))?.Result;
+
+    private async Task<IntakeReceipt> RequireReceiptAsync(
+        Guid receiptId,
+        ActionActor actor,
+        CancellationToken cancellationToken) =>
+        await getIntake.ExecuteAsync(
+            new(AutomationMcpErrors.RequireId(receiptId, "receipt identifier"), actor),
+            cancellationToken)
+        ?? throw new McpException("The received item was not found.");
+
+    private async Task<InspectionAddressResolutionSnapshot> ResolutionAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken) =>
+        await addressResolutions.GetAsync(receipt.Id, cancellationToken)
+        ?? new(
+            receipt.Id,
+            receipt.Version,
+            InspectionAddressResolutionState.Unresolved,
+            Ext18InspectionAddressPolicy.Evaluate(receipt),
+            null,
+            null,
+            null,
+            null);
+
+    private static string RequirePrincipalCode(string? principalCode)
+    {
+        var normalized = principalCode?.Trim().ToUpperInvariant();
+        return string.IsNullOrEmpty(normalized)
+            ? throw new McpException("A principal code is required.")
+            : normalized.Length > CasePrincipalCode.MaximumLength
+                ? throw new McpException($"The principal code must be {CasePrincipalCode.MaximumLength} characters or fewer.")
+                : normalized;
+    }
+
+    /// <summary>Omitted keeps the current value; an empty string clears it.</summary>
+    private static string? Text(string? submitted, string? current) =>
+        submitted is null ? current : string.IsNullOrWhiteSpace(submitted) ? null : submitted.Trim();
+
+    private static DateOnly? ParseDate(string? value, string name) =>
+        AutomationMcpErrors.OptionalDate(value, $"{name} must be a yyyy-MM-dd date.");
+
+    /// <summary>The draft fields an accept names, with each date's raw text so an empty string clears.</summary>
+    private sealed record DraftChanges(
+        string? ClaimantName,
+        string? ClaimNumber,
+        string? VehicleRegistration,
+        string? VehicleMake,
+        string? VehicleModel,
+        long? VehicleMileage,
+        string? AccidentCircumstances,
+        DateOnly? IncidentDate,
+        string? IncidentDateText,
+        DateOnly? InspectionDate,
+        string? InspectionDateText);
 }

@@ -631,29 +631,7 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
         return queries.CountAwaitingAutomationDecisionAsync(cancellationToken);
     }
 
-    public async Task<RetainedMailCursorPage> ExecuteCursorAsync(
-        ActionActor actor,
-        MailWorkspaceScope scope,
-        DateTimeOffset? beforeReceivedAtUtc,
-        Guid? beforeId,
-        int limit,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(scope);
-        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if ((beforeReceivedAtUtc is null) != (beforeId is null))
-        {
-            throw new ArgumentException("Both retained-mail cursor values are required together.");
-        }
-        if (limit is < 1 or > 100)
-        {
-            throw new ArgumentOutOfRangeException(nameof(limit));
-        }
-        return await queries.ListByCursorAsync(
-            Normalize(scope), beforeReceivedAtUtc, beforeId, limit, cancellationToken);
-    }
-
-    private static MailWorkspaceScope Normalize(MailWorkspaceScope scope)
+    internal static MailWorkspaceScope Normalize(MailWorkspaceScope scope)
     {
         if (!Enum.IsDefined(scope.Folder))
         {
@@ -707,6 +685,69 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         return queries.ListPrincipalsAsync(cancellationToken);
+    }
+}
+
+/// <summary>
+/// One page of the retained mail workspace, newest first, with the next
+/// page's cursor and whether older mail exists that was never retained.
+/// </summary>
+public sealed record RetainedMailByCursorPage(
+    IReadOnlyList<RetainedMailSummary> Items,
+    string? NextCursor,
+    bool HasUnretainedHistory);
+
+/// <summary>
+/// The keyset-paged retained mail workspace, newest first. The scope binds a
+/// cursor to the actor, the mailbox, the folder (or dismissed) and the order;
+/// its query name is the MCP tool's, which issued the cursors before this
+/// class did, so a cursor issued earlier still decodes.
+/// </summary>
+public sealed class ListRetainedMailByCursor(IRetainedMailQueries queries, ICursorProtector protector)
+{
+    private const string QueryName = "pegasus_mail_list";
+    private const string Order = "received-id-desc";
+
+    private readonly IRetainedMailQueries queries =
+        queries ?? throw new ArgumentNullException(nameof(queries));
+
+    private readonly ICursorProtector protector =
+        protector ?? throw new ArgumentNullException(nameof(protector));
+
+    public async Task<RetainedMailByCursorPage> ExecuteAsync(
+        ActionActor actor,
+        MailWorkspaceScope scope,
+        string? cursor,
+        int? limit,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        var pageLimit = CursorPaging.NormalizeLimit(limit);
+        var cursorScope = CursorPaging.CreateScope(
+            QueryName,
+            actor,
+            scope.MailboxId?.ToString("D"),
+            scope.DismissedOnly ? "dismissed" : scope.Folder.ToString(),
+            Order);
+        DateTimeOffset? beforeReceived = null;
+        Guid? beforeId = null;
+        if (!string.IsNullOrWhiteSpace(cursor))
+        {
+            var position = protector.Unprotect(cursor, cursorScope);
+            beforeReceived = CursorPaging.DecodeUtcTimestamp(position.SortKey);
+            beforeId = position.Id;
+        }
+
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        var page = await queries.ListByCursorAsync(
+            ListRetainedMail.Normalize(scope), beforeReceived, beforeId, pageLimit, cancellationToken);
+        var next = page.HasMore && page.Items.Count > 0
+            ? protector.Protect(
+                cursorScope,
+                CursorPaging.EncodeUtcTimestamp(page.Items[^1].ReceivedAtUtc),
+                page.Items[^1].Id)
+            : null;
+        return new(page.Items, next, page.HasUnretainedHistory);
     }
 }
 
