@@ -579,7 +579,7 @@ the Case, and only that (operator, 10 November 2026; R843;
 with no count (R774;
 [FRD-12](frd-12-operator-experience.md#shell-and-routes)). It has two tabs,
 named for the two kinds of link Collision Engineers runs (operator, 11
-November 2026, approving the [v51 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v51-photo-capture/v51_planning)
+November 2026, approving the [v51 round](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/tree/design/v51-photo-capture/v51_planning)
 as drawn; [R948](../rulings.md)):
 
 - **Direct links**, the default: the links HQ sent for a Case, with Vehicle

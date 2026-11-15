@@ -15,7 +15,7 @@
 - Administrators manage accounts from one Settings dialog. No account action
   asks for a reason, and none asks for confirmation except Delete, which
   confirms in the shared dialog (operator, 15 October 2026,
-  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/plan-2026-10-15.md)).
+  [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/plan-2026-10-15.md)).
 - Every change is written to permanent action history with who, when and
   the before and after values.
 
@@ -284,7 +284,7 @@ The Principal section of a Contact carries:
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md);
 - the Principal API credential (API-04): issue, reset, revoke, pause and
   resume. Each acts on the click and goes into permanent history
-  ([v41 A29](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+  ([v41 A29](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
   The secret is shown once, at issue or reset, and never
   again, even on an exact replay. The response is non-cacheable. The secret
   is never put in TempData, URLs or history; only its hash is kept. The
@@ -338,7 +338,7 @@ photo link" for the website link (operator, 10 November 2026; R846).
 
 The staff accounts table lists Username, Role, Sign-off, Glass's and State
 in compact rows
-([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+([v41 A14](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 The table shows 50 accounts at a time with Previous and Next, and its
 heading counts every account (operator, 22 October 2026; R233, R417, R418,
 R421; built 29 October 2026, R527). Each row opens a Settings dialog for its one role and its account
@@ -348,7 +348,7 @@ Saving Settings posts on the click and records the
 `staff_account_settings_updated` history event. No Administration action
 asks for a reason, and none opens a confirmation dialog except Delete
 (operator, 15 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/plan-2026-10-15.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/plan-2026-10-15.md)).
 `Reason` is optional on every staff-account command in Core.
 
 The account actions are Create, Enable, Disable, Delete access, Force logout
@@ -368,7 +368,7 @@ sign-in. That forced screen asks only for the new password and its
 confirmation; the issued password is replaced, not re-entered, and it cannot be
 chosen again. A voluntary change still asks for the current password first.
 The reset is a permanent history event with actor and time
-([v41 A29](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+([v41 A29](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 The temporary secret is never emailed, logged, stored in raw form or sent to
 analytics.
 
@@ -386,7 +386,7 @@ removes active access, the role and credential material, but keeps the
 minimal actor identity that business history and printed reports need. It
 never deletes a Case. Disable acts at once from the Settings dialog; Delete
 confirms first in the shared dialog (operator, 15 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/plan-2026-10-15.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/plan-2026-10-15.md)).
 Force logout also clears the account's Triage
 and Image Intake edit scopes
 ([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)), so an old token
