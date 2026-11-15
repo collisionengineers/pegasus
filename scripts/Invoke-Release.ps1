@@ -6,8 +6,8 @@ preflights, builds and prints the approval request, then an approved run
 that promotes, deploys and prints the record.
 
 .DESCRIPTION
-The default run writes nothing to GitHub or Azure. It fetches both remote
-heads, lists the candidate range and its pull requests, reads the deployed
+The default run writes nothing to GitLab or Azure. It fetches both remote
+heads, lists the candidate range and its merge requests, reads the deployed
 state and the live migration head, says which route the candidate needs and
 whether provisioning is needed, builds the exact-SHA artifacts in a detached
 worktree, validates them, and prints the one approval request.
@@ -124,7 +124,9 @@ $workerApp = 'pegasus-prod-worker-252ow37gij'
 $classifierApp = 'pegasus-prod-classifier-252ow37gij'
 $keyVault = 'pegasusprodkv252ow37g'
 $webStack = 'DOTNETCORE|10.0'
-$gitHubRepository = 'collisionengineers/pegasus'
+$gitLabProject = 'collisionengineers-group/pegasus'
+# The project as an API path: its path, URL-encoded, names it.
+$gitLabProjectApi = "projects/$([uri]::EscapeDataString($gitLabProject))"
 
 $RepositoryRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 . (Join-Path $RepositoryRoot 'scripts/PegasusPlatform.ps1')
@@ -278,7 +280,7 @@ function Assert-VersionStep {
 }
 
 function Get-ProposedVersion {
-    # R687: PATCH when every pull request in the range closes only type:bug
+    # R687: PATCH when every merge request in the range closes only type:bug
     # issues, MAJOR when the route is destructive, MINOR otherwise. The route
     # is classified after the preflight, so a range that adds a migration is
     # proposed both ways. A proposal: the approval names the version.
@@ -871,8 +873,8 @@ function Invoke-Promotion {
 function Assert-DevStillAt {
     # R567: the approval named dev's head; a moved head needs a fresh message.
     # A resumed run is the exception: the estate is part way through the
-    # approved SHA, dev may have taken a later merge meanwhile (the rulesets
-    # allow it), and the only way forward is the same SHA, so dev need only
+    # approved SHA, dev may have taken a later merge meanwhile (its protection
+    # allows it), and the only way forward is the same SHA, so dev need only
     # still contain it.
     param([Parameter(Mandatory)][string] $Sha, [switch] $Resumed)
     Invoke-Git -Arguments @('fetch', 'origin', '--prune') | Out-Null
@@ -903,144 +905,149 @@ function Test-ReleaseResumed {
 
 # --- Default run: preflight, build, approval request -------------------------------
 
+function Invoke-GitLabGet {
+    # One read-only GET of the project's API through glab, parsed. glab's own
+    # standard error (a notice included) is kept out of the JSON, and a
+    # failed call throws with what glab said. A list arrives as its items.
+    param([Parameter(Mandatory)][string] $Path, [switch] $Paginate)
+    $arguments = @('api', "$gitLabProjectApi/$Path")
+    if ($Paginate) { $arguments += '--paginate' }
+    $output = @(& glab @arguments 2>&1)
+    $exitCode = $LASTEXITCODE
+    $body = @($output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" }) -join "`n"
+    if ($exitCode -ne 0) {
+        $detail = @($output | ForEach-Object { "$_" }) -join ' '
+        throw "glab api $Path failed: $detail"
+    }
+    $parsed = $null
+    try { $parsed = $body | ConvertFrom-Json -NoEnumerate }
+    catch { throw "glab api $Path did not answer JSON." }
+    return $parsed
+}
+
+function Get-AccessLevels {
+    # A protected branch's or tag's access levels as GitLab names them.
+    param([object] $Item, [Parameter(Mandatory)][string] $Name)
+    $property = $Item.PSObject.Properties[$Name]
+    if ($null -eq $property -or $null -eq $property.Value) { return 'none' }
+    $levels = @(@($property.Value) | ForEach-Object {
+        $description = $_.PSObject.Properties['access_level_description']
+        if ($null -ne $description -and $description.Value) { [string]$description.Value } else { "level $($_.access_level)" }
+    })
+    return $(if ($levels.Count -gt 0) { $levels -join ', ' } else { 'none' })
+}
+
 function Read-Protection {
-    # R691: dev and main carry rulesets whose specification is the runbook's
-    # "Branch and tag protection". The preflight reads them back and warns;
-    # it never writes one.
-    $json = (& gh api "repos/$gitHubRepository/rulesets" 2>&1) -join "`n"
-    $rulesets = @()
-    if ($LASTEXITCODE -eq 0) { try { $rulesets = @($json | ConvertFrom-Json) } catch { $rulesets = @() } }
-    if ($rulesets.Count -eq 0) { Write-Host "Warning: no ruleset read back from $gitHubRepository (R691)." }
-    foreach ($ruleset in $rulesets) { Write-Host "ruleset $($ruleset.name): $($ruleset.target), $($ruleset.enforcement)" }
+    # R691: dev and main are protected branches and v* a protected tag, as the
+    # runbook's "Branch and tag protection" specifies. The preflight reads them
+    # back and warns; it never writes one.
+    $branches = @()
+    $tags = @()
+    try {
+        $branches = @(Invoke-GitLabGet -Path 'protected_branches' -Paginate)
+        $tags = @(Invoke-GitLabGet -Path 'protected_tags' -Paginate)
+    }
+    catch { Write-Host "Warning: protection could not be read back from ${gitLabProject}: $($_.Exception.Message)" }
+    if ($branches.Count -eq 0) { Write-Host "Warning: no protected branch read back from $gitLabProject (R691)." }
+    foreach ($branch in $branches) {
+        $forcePush = if ($branch.PSObject.Properties['allow_force_push'] -and $branch.allow_force_push) { 'allowed' } else { 'no' }
+        Write-Host "protected branch $($branch.name): push $(Get-AccessLevels $branch 'push_access_levels'); merge $(Get-AccessLevels $branch 'merge_access_levels'); force-push $forcePush"
+    }
+    foreach ($tag in $tags) { Write-Host "protected tag $($tag.name): create $(Get-AccessLevels $tag 'create_access_levels')" }
     foreach ($name in 'dev', 'main') {
-        if (@($rulesets | Where-Object { [string]$_.name -ceq $name -and [string]$_.enforcement -ceq 'active' }).Count -eq 0) {
-            Write-Host "Warning: $name has no active ruleset named $name (R691)."
+        if (@($branches | Where-Object { [string]$_.name -ceq $name }).Count -eq 0) {
+            Write-Host "Warning: $name is not a protected branch (R691)."
         }
     }
-}
-
-function Get-CheckValue {
-    param([Parameter(Mandatory)][object] $Check, [Parameter(Mandatory)][string[]] $Names)
-    foreach ($name in $Names) {
-        $property = $Check.PSObject.Properties[$name]
-        if ($null -ne $property -and -not [string]::IsNullOrWhiteSpace([string]$property.Value)) { return [string]$property.Value }
-    }
-    return ''
-}
-
-function Get-CheckTime {
-    # ConvertFrom-Json turns gh's ISO timestamps into DateTime values. A check
-    # run still queued or running is the newest attempt of its name whatever
-    # its times say: a re-run's queued attempt has no start yet, and must not
-    # lose to the finished attempt it replaces.
-    param([Parameter(Mandatory)][object] $Check)
-    $status = Get-CheckValue -Check $Check -Names @('status')
-    if ($status -and $status -cne 'COMPLETED') { return [datetimeoffset]::MaxValue }
-    foreach ($name in 'startedAt', 'completedAt', 'createdAt') {
-        $property = $Check.PSObject.Properties[$name]
-        if ($null -eq $property -or $null -eq $property.Value) { continue }
-        if ($property.Value -is [datetime]) { return [datetimeoffset]::new(([datetime]$property.Value).ToUniversalTime()) }
-        $parsed = [datetimeoffset]::MinValue
-        if ([datetimeoffset]::TryParse([string]$property.Value, [cultureinfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal, [ref]$parsed)) { return $parsed }
-    }
-    return [datetimeoffset]::MinValue
-}
-
-function Select-CurrentChecks {
-    # A pull request's rollup keeps every run its head ever had: a run that a
-    # later push or a re-run superseded stays in it, cancelled or failed. Each
-    # workflow is judged by its latest run, and within that run each check by
-    # its latest attempt; a commit status by its latest report. A latest run
-    # that is not green still counts, so nothing is waived (R691, R924).
-    param([object[]] $Checks)
-    $latestRun = @{}
-    foreach ($check in @($Checks)) {
-        $workflow = Get-CheckValue -Check $check -Names @('workflowName')
-        $url = Get-CheckValue -Check $check -Names @('detailsUrl')
-        if ($workflow -and $url -match '/actions/runs/(\d+)') {
-            $run = [long]$Matches[1]
-            if (-not $latestRun.ContainsKey($workflow) -or $run -gt $latestRun[$workflow]) { $latestRun[$workflow] = $run }
-        }
-    }
-    $current = [ordered]@{}
-    foreach ($check in @($Checks)) {
-        $workflow = Get-CheckValue -Check $check -Names @('workflowName')
-        $url = Get-CheckValue -Check $check -Names @('detailsUrl')
-        if ($workflow -and $url -match '/actions/runs/(\d+)') {
-            if ([long]$Matches[1] -ne $latestRun[$workflow]) { continue }
-            $key = "run:$workflow/$(Get-CheckValue -Check $check -Names @('name'))"
-        }
-        else {
-            $key = "other:$(Get-CheckValue -Check $check -Names @('name', 'context'))"
-        }
-        if (-not $current.Contains($key) -or (Get-CheckTime -Check $check) -gt (Get-CheckTime -Check $current[$key])) {
-            $current[$key] = $check
-        }
-    }
-    return @($current.Values)
 }
 
 function Read-CandidateChecks {
-    # The push-to-dev run on the candidate is its exact-head evidence (R683);
-    # the merged pull requests in the range and their checks are listed with
-    # it, and what they close decides the proposed version step (R687). A run
-    # that is not green is counted and never waived (R691): the read-only run
-    # reports it and the approved run refuses before any write.
+    # The push-to-dev pipeline on the candidate is its exact-head evidence
+    # (R683); the merge requests in the range and their head pipelines are
+    # listed with it, and what they close decides the proposed version step
+    # (R687). A pipeline that is not green is counted and never waived (R691):
+    # the read-only run reports it and the approved run refuses before any
+    # write.
     param([Parameter(Mandatory)][string] $MainSha, [Parameter(Mandatory)][string] $DevSha)
-    $runsJson = (& gh run list --repo $gitHubRepository --workflow repository-check --branch dev --commit $devSha --json 'status,conclusion,url' 2>&1) -join "`n"
-    $devRun = $null
-    if ($LASTEXITCODE -eq 0) { try { $devRun = @($runsJson | ConvertFrom-Json) | Select-Object -First 1 } catch { $devRun = $null } }
-    if ($null -eq $devRun) { Write-Host "No repository-check run found for $devSha on dev: the candidate waits (R691)."; $notGreen = 1 }
-    elseif ([string]$devRun.conclusion -cne 'success') { Write-Host "The dev run for $devSha is $($devRun.status)/$($devRun.conclusion): $($devRun.url)"; $notGreen = 1 }
-    else { Write-Host "dev run for ${devSha}: success ($($devRun.url))"; $notGreen = 0 }
+    # The newest repository-check pipeline a push to dev ran on the candidate.
+    $devPipeline = $null
+    try { $devPipeline = @(Invoke-GitLabGet -Path "pipelines?ref=dev&sha=$DevSha&source=push&name=repository-check" -Paginate) | Select-Object -First 1 }
+    catch { $devPipeline = $null }
+    if ($null -eq $devPipeline) { Write-Host "No repository-check pipeline found for $DevSha on dev: the candidate waits (R691)."; $notGreen = 1 }
+    elseif ([string]$devPipeline.status -cne 'success') { Write-Host "The dev pipeline for $DevSha is $($devPipeline.status): $($devPipeline.web_url)"; $notGreen = 1 }
+    else { Write-Host "dev pipeline for ${DevSha}: success ($($devPipeline.web_url))"; $notGreen = 0 }
     Write-Host ''
-    Write-Host '--- Pull requests in the range ---'
-    $pullNumbers = @(Invoke-Git -Arguments @('log', '--merges', '--format=%s', "$mainSha..$devSha") |
-        ForEach-Object { if ($_ -match 'Merge pull request #(\d+)') { [int]$Matches[1] } } | Sort-Object -Unique)
-    # R687: what the pull requests close decides the proposed version step.
-    # GitHub links a closing reference only on a pull request into the default
-    # branch, and these target dev, so the body's own "Closes #N" lines are
-    # read as well as any linked reference (R470).
-    $bugFixesOnly = $pullNumbers.Count -gt 0
-    $bugFixesReason = if ($bugFixesOnly) { 'every pull request in the range closes only type:bug issues' } else { 'the range has no merged pull request' }
-    foreach ($number in $pullNumbers) {
-        $json = (& gh pr view $number --repo $gitHubRepository --json 'number,title,state,body,statusCheckRollup,closingIssuesReferences' 2>&1) -join "`n"
-        if ($LASTEXITCODE -ne 0) { Write-Host "#$number : gh could not read it ($json)"; $notGreen++; continue }
-        $pull = $json | ConvertFrom-Json
-        $closingProperty = $pull.PSObject.Properties['closingIssuesReferences']
-        $closing = @(if ($null -ne $closingProperty) { @($closingProperty.Value) | ForEach-Object { [int]$_.number } })
-        $bodyProperty = $pull.PSObject.Properties['body']
-        if ($null -ne $bodyProperty -and -not [string]::IsNullOrWhiteSpace([string]$bodyProperty.Value)) {
-            $closing += @([regex]::Matches([string]$bodyProperty.Value, '(?i)\b(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s*:?\s+#(\d+)\b') |
+    Write-Host '--- Merge requests in the range ---'
+    # A GitLab merge reads "Merge !<iid> from <branch>" (the project's merge
+    # commit template). A merge before 15 November 2026 reads "Merge pull
+    # request #<n> from ...": that pull request was on GitHub and can no
+    # longer be read from anywhere.
+    $requestNumbers = [System.Collections.Generic.List[int]]::new()
+    $gitHubMerges = [System.Collections.Generic.List[object]]::new()
+    foreach ($subject in @(Invoke-Git -Arguments @('log', '--merges', '--format=%s', "$MainSha..$DevSha"))) {
+        if ($subject -match '^Merge !(\d+) from ') { if (-not $requestNumbers.Contains([int]$Matches[1])) { $requestNumbers.Add([int]$Matches[1]) } }
+        elseif ($subject -match '^Merge pull request #(\d+) from ') { $gitHubMerges.Add([pscustomobject]@{ Number = [int]$Matches[1]; Subject = $subject }) }
+    }
+    $requestNumbers.Sort()
+    # R687: what the merge requests close decides the proposed version step.
+    # GitLab acts on a closing reference only in a merge request into the
+    # default branch, and these target dev, so the description's own
+    # "Closes #N" lines are read as well as any the API links (R470).
+    # Operator question pending, 15 November 2026: a GitHub-era merge in the
+    # range cannot be read, so the range cannot show that every change closes
+    # only type:bug issues; until the operator rules, such a range is never
+    # proposed as PATCH on that basis and falls to MINOR, as a merge request
+    # closing no bug does.
+    $bugFixesOnly = $requestNumbers.Count -gt 0 -and $gitHubMerges.Count -eq 0
+    $bugFixesReason = if ($gitHubMerges.Count -gt 0) { "#$($gitHubMerges[0].Number) is a GitHub pull request merge, which can no longer be read" }
+        elseif ($bugFixesOnly) { 'every merge request in the range closes only type:bug issues' }
+        else { 'the range has no merge request' }
+    foreach ($number in $requestNumbers) {
+        try {
+            $request = Invoke-GitLabGet -Path "merge_requests/$number"
+            $linked = @(Invoke-GitLabGet -Path "merge_requests/$number/closes_issues" -Paginate)
+        }
+        catch { Write-Host "!$number : glab could not read it ($($_.Exception.Message))"; $notGreen++; continue }
+        $closing = @($linked | ForEach-Object { [int]$_.iid })
+        $descriptionProperty = $request.PSObject.Properties['description']
+        if ($null -ne $descriptionProperty -and -not [string]::IsNullOrWhiteSpace([string]$descriptionProperty.Value)) {
+            $closing += @([regex]::Matches([string]$descriptionProperty.Value, '(?i)\b(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s*:?\s+#(\d+)\b') |
                 ForEach-Object { [int]$_.Groups[1].Value })
         }
         $closing = @($closing | Sort-Object -Unique)
-        if ($closing.Count -eq 0 -and $bugFixesOnly) { $bugFixesOnly = $false; $bugFixesReason = "#$number closes no issue" }
+        if ($closing.Count -eq 0 -and $bugFixesOnly) { $bugFixesOnly = $false; $bugFixesReason = "!$number closes no issue" }
         foreach ($issue in $closing) {
-            $labelsJson = (& gh issue view $issue --repo $gitHubRepository --json 'labels' 2>&1) -join "`n"
-            if ($LASTEXITCODE -ne 0) { throw "gh could not read issue #${issue}: $labelsJson" }
-            $typeLabels = @(($labelsJson | ConvertFrom-Json).labels | ForEach-Object { [string]$_.name } | Where-Object { $_ -like 'type:*' })
+            try { $issueRead = Invoke-GitLabGet -Path "issues/$issue" }
+            catch { throw "glab could not read issue #${issue}: $($_.Exception.Message)" }
+            $labelsProperty = $issueRead.PSObject.Properties['labels']
+            $typeLabels = @(if ($null -ne $labelsProperty) { @($labelsProperty.Value) | ForEach-Object { [string]$_ } | Where-Object { $_ -like 'type:*' } })
             if ($bugFixesOnly -and ($typeLabels -join ',') -cne 'type:bug') {
                 $bugFixesOnly = $false
-                $bugFixesReason = "#$number closes #$issue ($(if ($typeLabels.Count -gt 0) { $typeLabels -join ', ' } else { 'no type label' }))"
+                $bugFixesReason = "!$number closes #$issue ($(if ($typeLabels.Count -gt 0) { $typeLabels -join ', ' } else { 'no type label' }))"
             }
         }
-        $checks = @(Select-CurrentChecks -Checks @($pull.statusCheckRollup))
-        # A check run carries a conclusion; a commit status carries a state.
-        $failing = @($checks | Where-Object {
-            $verdict = ''
-            foreach ($name in 'conclusion', 'state') {
-                $property = $_.PSObject.Properties[$name]
-                if ($null -ne $property -and -not [string]::IsNullOrWhiteSpace([string]$property.Value)) { $verdict = [string]$property.Value; break }
-            }
-            $verdict -notin @('SUCCESS', 'SKIPPED', 'NEUTRAL')
-        })
-        # A pull request that reports no check at all (merged past the ruleset
-        # by the bypass actor, or before it existed) is not green either.
-        if ($checks.Count -eq 0 -or $failing.Count -gt 0) { $notGreen++ }
-        Write-Host ("#{0} {1}: {2} checks, {3} not successful{4}" -f $pull.number, $pull.title, $checks.Count, $failing.Count, $(if ($checks.Count -eq 0) { ' (no check reported: not green)' } else { '' }))
+        # The head pipeline is the merge request's latest, so a pipeline a
+        # later push or a re-run superseded is not judged (R924). One that is
+        # not green still counts, so nothing is waived (R691); a merge request
+        # with no pipeline at all (merged past protection by the operator, or
+        # before CI ran) is not green either.
+        $pipelineProperty = $request.PSObject.Properties['head_pipeline']
+        $pipeline = if ($null -ne $pipelineProperty) { $pipelineProperty.Value } else { $null }
+        if ($null -eq $pipeline) {
+            $notGreen++
+            Write-Host "!$number $($request.title): no head pipeline (not green)"
+        }
+        else {
+            if ([string]$pipeline.status -cne 'success') { $notGreen++ }
+            Write-Host "!$number $($request.title): head pipeline $($pipeline.id) $($pipeline.status) ($($pipeline.web_url))"
+        }
     }
-    if ($notGreen -gt 0) { Write-Host "$notGreen run(s) are not green: the candidate waits; nothing is waived (R691)." }
+    if ($gitHubMerges.Count -gt 0) {
+        Write-Host ''
+        Write-Host '--- GitHub pull request merges in the range (not readable; not evidence) ---'
+        foreach ($merge in $gitHubMerges) { Write-Host "#$($merge.Number) $($merge.Subject)" }
+    }
+    if ($notGreen -gt 0) { Write-Host "$notGreen pipeline(s) are not green: the candidate waits; nothing is waived (R691)." }
     return [pscustomobject]@{ NotGreen = $notGreen; BugFixesOnly = $bugFixesOnly; BugFixesReason = $bugFixesReason }
 }
 
@@ -1485,11 +1492,11 @@ switch ($PSCmdlet.ParameterSetName) {
         Assert-DevStillAt -Sha $ApprovedReleaseSha -Resumed:$resumed
         if ($resumed) { Write-Host "Resuming: the estate is part way through $ApprovedReleaseSha; the test instance was read before the first write and is not read again." }
         else { Assert-TestInstanceServes -Sha $ApprovedReleaseSha }
-        # R683, R691: the candidate's push-to-dev run and every pull request in
-        # the range are read again here; one that is not green is a refusal,
-        # never a waiver.
+        # R683, R691: the candidate's push-to-dev pipeline and every merge
+        # request in the range are read again here; one that is not green is a
+        # refusal, never a waiver.
         $checks = Read-CandidateChecks -MainSha (@(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()) -DevSha $ApprovedReleaseSha
-        if ($checks.NotGreen -gt 0) { throw "$($checks.NotGreen) run(s) on the candidate are not green: the candidate waits; nothing is waived (R691)." }
+        if ($checks.NotGreen -gt 0) { throw "$($checks.NotGreen) pipeline(s) on the candidate are not green: the candidate waits; nothing is waived (R691)." }
         # The same completeness the preflight required, on the refreshed copy,
         # before any write (#1931).
         Assert-AzdEnvironmentComplete -Values (Get-AzdValues -Root $root) -Sha $ApprovedReleaseSha -ClassifierPresent (Test-ClassifierPresent)

@@ -97,7 +97,7 @@ bar and the page content.
 is marked by more than colour. The rail foot shows the freshness line and the signed-in account
 (name, role, and an account dialog with idle lock and sign out; session start is
 not required, operator, 15 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/plan-2026-10-15.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/plan-2026-10-15.md)).
 
 The rail foot also carries **Collapse**, which folds the rail to icons
 (labels become titles) and back. The choice is remembered per browser
@@ -107,13 +107,13 @@ down, there is no collapse.
 **The utility bar** carries the global search input (Enter or Ctrl K opens
 the command palette), **New case**, and the bell; the rail foot's freshness
 line is the one clock (v41 S4, operator, 15 and 19 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 Upload and Inbox keep their named navigation.
 
 **The account dialog** holds **Release notes**, **Report a problem** and
 **Change password** in its body, and its foot keeps Close and Sign out (v41
 S1, operator, 15 and 19 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 
 **New case** opens direct staff creation (`/Cases/Create`) with the
 identity-critical Case facts and no invented intake receipt or source
@@ -147,12 +147,12 @@ identity panel becomes a strip above the card. Sign in reads "Sign in" with
 Username, Password (with a Show / Hide control) and one Sign in button.
 Change password's fields carry the same Show / Hide control and its one button
 sits directly in the form (v41 S6, operator, 15 and 19 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 Access denied renders in the navless frame with the rest of the error family:
 the area as the eyebrow, the refusal in one sentence and Return to Work
 Centre. The Not found page's one action is the primary button (v41 S7,
 operator, 15 and 19 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 
 **The bell** is the signed-in person's own notifications, never office-wide
 work or queue counts. It shows the unread count, absent at zero. Each page
@@ -174,7 +174,7 @@ dialog lists notifications newest first with the Case reference,
 registration, the cause in operator words, when, and Unread until opened.
 Opening one marks it read and goes to its place. **Mark all read**, in the
 dialog's head, marks every one read (v41 S2, operator, 15 and 19 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 Notifications are kept for 30 days and then drop off. A
 notification-query failure must not block the page unless it is a
 cancellation or a failed authorisation. The dialog then shows
@@ -256,7 +256,7 @@ editing", stays on the record.
 The command palette (Ctrl K, the global search field, the Open button) finds
 Cases, references and routes by typing and opens the selection. Its Cases
 result carries the rail's Cases icon (v41 S3, operator, 15 and 19 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 
 | Key | Action |
 | --- | --- |

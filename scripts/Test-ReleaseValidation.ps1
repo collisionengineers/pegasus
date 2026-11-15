@@ -207,27 +207,25 @@ function New-Estate {
         [string] $InstanceSourceSha = '',
         # What the Web App reports before the release; the release version once it serves the candidate.
         [string] $WebVersion = $liveVersion,
-        # The one pull request's closing issue and its labels (R687).
-        [bool] $PullClosesIssue = $true,
+        # The one merge request's closing issue and its labels (R687).
+        [bool] $RequestClosesIssue = $true,
         [string[]] $IssueLabels = @('type:feature'),
-        # The push-to-dev run's conclusion (R683), whether the pull request reports
-        # any check, and the rulesets gh reads back (R691).
-        [string] $DevRunConclusion = 'success',
-        [bool] $PullHasChecks = $true,
-        # The pull request's rollup as gh returns it, when a case needs more than one green check.
-        [string] $PullChecksJson = '',
-        [string[]] $Rulesets = @('dev', 'main', 'release tags'),
+        # The push-to-dev pipeline's status (R683), empty for none; the merge
+        # request's pipelines, oldest first, the last its head pipeline (R924);
+        # and the protected branches glab reads back (R691).
+        [string] $DevPipelineStatus = 'success',
+        [AllowEmptyCollection()][string[]] $MergeRequestPipelines = @('success'),
+        [AllowEmptyCollection()][string[]] $ProtectedBranches = @('dev', 'main'),
         [Parameter(Mandatory)][string] $NewSha
     )
     return [ordered]@{
         web = [ordered]@{ state = $WebState; serving = $WebServing; sourceSha = $WebSourceSha; deployedSha = $WebSourceSha; version = $WebVersion; releaseVersion = $releaseVersion; stickyServing = $StickyServing }
         instance = [ordered]@{ sourceSha = $(if ($InstanceSourceSha) { $InstanceSourceSha } else { $NewSha }) }
-        pullClosesIssue = $PullClosesIssue
-        pullHasChecks = $PullHasChecks
-        pullChecksJson = $PullChecksJson
+        requestClosesIssue = $RequestClosesIssue
         issueLabels = @($IssueLabels)
-        devRunConclusion = $DevRunConclusion
-        rulesets = @($Rulesets)
+        devPipelineStatus = $DevPipelineStatus
+        mergeRequestPipelines = @($MergeRequestPipelines)
+        protectedBranches = @($ProtectedBranches)
         worker = [ordered]@{ state = $WorkerState; disabled = $WorkerDisabled }
         classifier = [ordered]@{ present = $ClassifierPresent; state = $ClassifierState }
         newSha = $NewSha
@@ -239,7 +237,8 @@ function Write-FakeReleaseCli {
         The stateful fakes. `az` answers reads from the estate file and
         rewrites it on stop, start, deploy and census writes; its HTTP probes
         (`az rest`) answer from the same file. `azd` reads and rewrites the
-        environment fixture. `gh` answers one green pull request. Every call
+        environment fixture. `glab` answers the protection, the push-to-dev
+        pipeline and one merge request from the estate file. Every call
         is appended to the arguments file with its command name first.
     #>
     param([Parameter(Mandatory)][string] $Directory)
@@ -355,25 +354,56 @@ if ($joined.StartsWith('provision')) {
 }
 [Console]::Error.WriteLine("fake azd: unhandled call: $joined"); exit 2
 '@
-    Set-Content -LiteralPath (Join-Path $Directory 'gh.ps1') -Encoding ascii -Value @'
+    Set-Content -LiteralPath (Join-Path $Directory 'glab.ps1') -Encoding ascii -Value @'
 param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
-Add-Content -LiteralPath $env:PEGASUS_TEST_AZ_ARGUMENTS_PATH -Value "gh $($Arguments -join ' ')"
+Add-Content -LiteralPath $env:PEGASUS_TEST_AZ_ARGUMENTS_PATH -Value "glab $($Arguments -join ' ')"
 $state = Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_RELEASE_STATE_PATH | ConvertFrom-Json
-# The push-to-dev run with the estate's conclusion (R683), the rulesets the
-# estate names (R691), one green pull request closing issue 7 when the estate
-# says so, whose labels the estate holds (R687).
-if ($Arguments[0] -eq 'run') { "[{`"status`":`"completed`",`"conclusion`":`"$($state.devRunConclusion)`",`"url`":`"https://example.test/runs/1`"}]"; exit 0 }
-if ($Arguments[0] -eq 'api') {
-    @(@($state.rulesets) | ForEach-Object { @{ name = $_; target = $(if ($_ -like '*tags*') { 'tag' } else { 'branch' }); enforcement = 'active' } }) | ConvertTo-Json -Compress -AsArray -Depth 3
+function Fail([string] $Reason) { [Console]::Error.WriteLine("fake glab: $Reason"); exit 2 }
+# `glab api <path>` with flags in any order: the path is the one argument that
+# is neither `api` nor a flag, and its query is read by name.
+$paths = @($Arguments | Where-Object { $_ -cne 'api' -and -not $_.StartsWith('-') })
+if ($Arguments -notcontains 'api' -or $paths.Count -ne 1) { Fail "unhandled call: $($Arguments -join ' ')" }
+$project = 'projects/collisionengineers-group%2Fpegasus/'
+if (-not $paths[0].StartsWith($project)) { Fail "not the project: $($paths[0])" }
+$parts = $paths[0].Substring($project.Length).Split('?', 2)
+$endpoint = $parts[0]
+$query = @{}
+if ($parts.Count -gt 1) { foreach ($pair in $parts[1].Split('&')) { $nameValue = $pair.Split('=', 2); $query[$nameValue[0]] = [uri]::UnescapeDataString($(if ($nameValue.Count -gt 1) { $nameValue[1] } else { '' })) } }
+function Get-Level([int] $Level) { @{ access_level = $Level; access_level_description = $(if ($Level -eq 0) { 'No one' } else { 'Maintainers' }) } }
+# The protection the estate names (R691), as the live project holds it.
+if ($endpoint -ceq 'protected_branches') {
+    $branches = @(@($state.protectedBranches) | ForEach-Object {
+        $push = if ($_ -eq 'dev') { 0 } else { 40 }
+        $merge = if ($_ -eq 'dev') { 40 } else { 0 }
+        [ordered]@{ name = $_; push_access_levels = @(Get-Level $push); merge_access_levels = @(Get-Level $merge); allow_force_push = $false }
+    })
+    ConvertTo-Json -InputObject $branches -Compress -Depth 5; exit 0
+}
+if ($endpoint -ceq 'protected_tags') { ConvertTo-Json -InputObject @([ordered]@{ name = 'v*'; create_access_levels = @(Get-Level 40) }) -Compress -Depth 5; exit 0 }
+# The push-to-dev repository-check pipeline with the estate's status (R683);
+# any other query finds none, so a wrong filter reads as a waiting candidate.
+if ($endpoint -ceq 'pipelines') {
+    if ($state.devPipelineStatus -and $query['ref'] -ceq 'dev' -and $query['source'] -ceq 'push' -and $query['name'] -ceq 'repository-check' -and $query['sha'] -match '^[0-9a-f]{40}$') {
+        ConvertTo-Json -InputObject @([ordered]@{ id = 1; status = $state.devPipelineStatus; source = 'push'; ref = 'dev'; sha = $query['sha']; name = 'repository-check'; web_url = 'https://example.test/pipelines/1' }) -Compress -Depth 3
+    }
+    else { '[]' }
     exit 0
 }
-if ($Arguments[0] -eq 'issue') { @{ labels = @(@($state.issueLabels) | ForEach-Object { @{ name = $_ } }) } | ConvertTo-Json -Compress -Depth 4; exit 0 }
-# A pull request into dev carries no linked closing reference (GitHub links
-# them on the default branch alone); its body says what it closes.
-$body = if ($state.pullClosesIssue) { 'Summary. Closes #7' } else { 'Summary.' }
-$checks = if ($state.pullChecksJson) { $state.pullChecksJson } elseif ($state.pullHasChecks) { '[{"name":"unit","conclusion":"SUCCESS"}]' } else { '[]' }
-"{`"number`":1,`"title`":`"fixture`",`"state`":`"MERGED`",`"body`":`"$body`",`"statusCheckRollup`":$checks,`"closingIssuesReferences`":[]}"
-exit 0
+# One merge request, closing issue 7 when the estate says so. A merge request
+# into dev links no closing issue (GitLab acts on the default branch alone);
+# its description says what it closes. Its head pipeline is the newest of the
+# estate's pipelines, oldest first, as GitLab reports it (R924).
+if ($endpoint -match '^merge_requests/(\d+)/closes_issues$') { '[]'; exit 0 }
+if ($endpoint -match '^merge_requests/(\d+)$') {
+    $pipelines = @($state.mergeRequestPipelines)
+    $head = if ($pipelines.Count -gt 0) { [ordered]@{ id = 99 + $pipelines.Count; status = $pipelines[-1]; web_url = "https://example.test/pipelines/$(99 + $pipelines.Count)" } } else { $null }
+    $description = if ($state.requestClosesIssue) { 'Summary. Closes #7' } else { 'Summary.' }
+    [ordered]@{ iid = [int]$Matches[1]; title = 'fixture'; state = 'merged'; description = $description; source_branch = 'fixture/change'; target_branch = 'dev'; web_url = "https://example.test/merge_requests/$($Matches[1])"; head_pipeline = $head; labels = @() } | ConvertTo-Json -Compress -Depth 4
+    exit 0
+}
+# The closing issue's labels, which the estate holds (R687).
+if ($endpoint -match '^issues/(\d+)$') { ConvertTo-Json -InputObject ([ordered]@{ iid = [int]$Matches[1]; labels = @(@($state.issueLabels)) }) -Compress -Depth 3; exit 0 }
+Fail "unhandled call: $($Arguments -join ' ')"
 '@
 }
 
@@ -881,18 +911,18 @@ try {
     Assert-True ($result.Output.Contains('Version: none; a promotion-only range deploys nothing')) $case 'proposed a version for a promotion-only range.' $result.Diagnostic
     Assert-True ($result.Output.Contains("Migration head: $identity; candidate identity: $identity")) $case 'did not compare the head with the candidate identity.' $result.Diagnostic
     Assert-True ($result.Output.Contains('Provision: needed (no retained release')) $case 'did not say provision is needed without a retained baseline.' $result.Diagnostic
-    Assert-True ($result.Output.Contains("dev run for $($releaseSha): success")) $case 'did not read the push-to-dev run (R683).' $result.Diagnostic
-    Assert-True ($result.Output.Contains('ruleset dev: branch, active') -and $result.Output.Contains('ruleset main: branch, active') -and $result.Output.Contains('ruleset release tags: tag, active')) $case 'did not read the rulesets back (R691).' $result.Diagnostic
-    Assert-True (-not $result.Output.Contains('has no active ruleset')) $case 'warned about a ruleset the estate holds.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("dev pipeline for $($releaseSha): success")) $case 'did not read the push-to-dev pipeline (R683).' $result.Diagnostic
+    Assert-True ($result.Output.Contains('protected branch dev: push No one; merge Maintainers; force-push no') -and $result.Output.Contains('protected branch main: push Maintainers; merge No one; force-push no') -and $result.Output.Contains('protected tag v*: create Maintainers')) $case 'did not read the protection back (R691).' $result.Diagnostic
+    Assert-True (-not $result.Output.Contains('is not a protected branch')) $case 'warned about protection the estate holds.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns ($writes + @('az rest*cemattypc-1*'))
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
 
-    # R691: a missing ruleset is a warning in the read-only run, which still writes nothing.
-    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $releaseSha -WebVersion '0.1.0-alpha.1' -Rulesets @('dev')) -MigrationHead $identity
-    $case = 'Preflight without a ruleset on main'
+    # R691: missing protection is a warning in the read-only run, which still writes nothing.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $releaseSha -WebVersion '0.1.0-alpha.1' -ProtectedBranches @('dev')) -MigrationHead $identity
+    $case = 'Preflight without protection on main'
     Assert-True ($result.ExitCode -eq 0) $case 'should pass: the preflight warns and writes nothing.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('Warning: main has no active ruleset named main (R691)')) $case 'did not warn about the missing ruleset.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('ruleset dev: branch, active')) $case 'did not read the dev ruleset back.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Warning: main is not a protected branch (R691)')) $case 'did not warn about the missing protection.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('protected branch dev: push No one')) $case 'did not read the dev protection back.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns $writes
 
     # main carries the first Semantic Version's tag (R686, R688): every
@@ -1078,10 +1108,10 @@ try {
     Assert-NoCall -Result $result -Case $case -Patterns $writes
     Assert-True ((& git -C $fixture.Bare rev-parse main).Trim() -eq $fixture.MainSha) $case 'moved main.' $result.Diagnostic
 
-    # R691: a candidate whose push-to-dev run is not green is refused before
-    # any write; nothing is waived.
-    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeNormal -Estate (New-Estate -NewSha $releaseSha -DevRunConclusion 'failure') -MigrationHead $identity
-    $case = 'Candidate without a green dev run'
+    # R691: a candidate whose push-to-dev pipeline is not green is refused
+    # before any write; nothing is waived.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeNormal -Estate (New-Estate -NewSha $releaseSha -DevPipelineStatus 'failed') -MigrationHead $identity
+    $case = 'Candidate without a green dev pipeline'
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
     Assert-True ($result.Output.Contains('the candidate waits; nothing is waived (R691)')) $case 'did not refuse the non-green candidate.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns $writes
@@ -1214,75 +1244,55 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Unable to put the fixture refs back after the resumed promotion.' }
 
     # --- The version proposal (R686, R687) on a deployable range ---------------
-    # dev gains a merged pull request that changes src/; main stays tagged
-    # v1.0.0. The proposal reads what the pull request closes and the issue's
-    # type labels; the approval names the version, so -Version overrides.
+    # dev gains a merge request that changes src/; main stays tagged v1.0.0.
+    # The proposal reads what the merge request closes and the issue's type
+    # labels; the approval names the version, so -Version overrides.
     & git -C $fixture.Work @($fixture.Git) checkout --quiet -b fixture/change
     Set-Content -LiteralPath (Join-Path $fixture.Work 'src/Pegasus.Web/placeholder.txt') -Value 'changed' -Encoding ascii
     & git -C $fixture.Work @($fixture.Git) add -A
     & git -C $fixture.Work @($fixture.Git) commit --quiet -m 'feat: change'
     & git -C $fixture.Work @($fixture.Git) checkout --quiet dev
-    & git -C $fixture.Work @($fixture.Git) merge --quiet --no-ff -m 'Merge pull request #1 from fixture/change' fixture/change
+    & git -C $fixture.Work @($fixture.Git) merge --quiet --no-ff -m 'Merge !1 from fixture/change' fixture/change
     & git -C $fixture.Work push --quiet origin dev
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to merge the fixture pull request.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to merge the fixture merge request.' }
     $proposalSha = (& git -C $fixture.Work rev-parse HEAD).Trim()
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha) -MigrationHead $identity
     $case = 'Proposal for a feature'
     Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
     Assert-True ($result.Output.Contains("Live version: $liveVersion (tag v$liveVersion on main); the Web App reports $liveVersion")) $case 'did not read the live tag.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('Proposed: 1.1.0 (MINOR: #1 closes #7 (type:feature))')) $case 'did not propose a MINOR step for a feature.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Proposed: 1.1.0 (MINOR: !1 closes #7 (type:feature))')) $case 'did not propose a MINOR step for a feature.' $result.Diagnostic
     Assert-True ($result.Output.Contains('Build version: 1.1.0 (proposed')) $case 'did not build the proposal.' $result.Diagnostic
-    Assert-True ($result.Calls.Contains('gh issue view 7 --repo collisionengineers/pegasus --json labels')) $case 'did not read the closing issue.' $result.Diagnostic
+    Assert-True ($result.Calls.Contains('glab api projects/collisionengineers-group%2Fpegasus/issues/7')) $case 'did not read the closing issue.' $result.Diagnostic
     Assert-NoCall -Result $result -Case $case -Patterns $writes
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -IssueLabels @('type:bug')) -MigrationHead $identity
     $case = 'Proposal for bug fixes only'
     Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('Proposed: 1.0.1 (PATCH: every pull request in the range closes only type:bug issues)')) $case 'did not propose a PATCH step.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Proposed: 1.0.1 (PATCH: every merge request in the range closes only type:bug issues)')) $case 'did not propose a PATCH step.' $result.Diagnostic
 
-    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -PullClosesIssue $false) -MigrationHead $identity
-    $case = 'Proposal when a pull request closes nothing'
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -RequestClosesIssue $false) -MigrationHead $identity
+    $case = 'Proposal when a merge request closes nothing'
     Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('Proposed: 1.1.0 (MINOR: #1 closes no issue)')) $case 'did not propose a MINOR step.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Proposed: 1.1.0 (MINOR: !1 closes no issue)')) $case 'did not propose a MINOR step.' $result.Diagnostic
 
-    # R691: a pull request that reports no check at all is not green.
-    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -PullHasChecks $false) -MigrationHead $identity
-    $case = 'Preflight with a pull request reporting no check'
-    Assert-True ($result.Output.Contains('#1 fixture: 0 checks, 0 not successful (no check reported: not green)')) $case 'did not count the check-less pull request.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('1 run(s) are not green: the candidate waits; nothing is waived (R691)')) $case 'did not report the candidate as waiting.' $result.Diagnostic
+    # R691: a merge request with no pipeline at all is not green.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -MergeRequestPipelines @()) -MigrationHead $identity
+    $case = 'Preflight with a merge request without a pipeline'
+    Assert-True ($result.Output.Contains('!1 fixture: no head pipeline (not green)')) $case 'did not count the merge request without a pipeline.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('1 pipeline(s) are not green: the candidate waits; nothing is waived (R691)')) $case 'did not report the candidate as waiting.' $result.Diagnostic
 
-    # R924: a run that a later run superseded is not judged; the latest run is.
-    $runA = 'https://github.com/o/r/actions/runs/100/job/1'
-    $runB = 'https://github.com/o/r/actions/runs/101/job/2'
-    $superseded = (@(
-        @{ name = 'changes'; conclusion = 'CANCELLED'; workflowName = 'repository-check'; detailsUrl = $runA; startedAt = '2026-11-10T02:42:47Z' },
-        @{ name = 'sql-integration-result'; conclusion = 'FAILURE'; workflowName = 'repository-check'; detailsUrl = $runA; startedAt = '2026-11-10T02:42:48Z' },
-        @{ name = 'changes'; conclusion = 'SUCCESS'; workflowName = 'repository-check'; detailsUrl = $runB; startedAt = '2026-11-10T02:43:02Z' },
-        @{ name = 'sql-integration-result'; conclusion = 'SUCCESS'; workflowName = 'repository-check'; detailsUrl = $runB; startedAt = '2026-11-10T03:10:00Z' }
-    ) | ConvertTo-Json -Compress -AsArray)
-    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -PullChecksJson $superseded) -MigrationHead $identity
-    $case = 'Preflight with a superseded run on a pull request'
-    Assert-True ($result.Output.Contains('#1 fixture: 2 checks, 0 not successful')) $case 'judged the superseded run.' $result.Diagnostic
-    Assert-True (-not $result.Output.Contains('run(s) are not green')) $case 'reported the candidate as waiting.' $result.Diagnostic
+    # R924: a pipeline that a later one superseded is not judged; the head
+    # pipeline, the merge request's latest, is.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -MergeRequestPipelines @('failed', 'success')) -MigrationHead $identity
+    $case = 'Preflight with a superseded failed pipeline on a merge request'
+    Assert-True ($result.Output.Contains('!1 fixture: head pipeline 101 success')) $case 'did not judge the head pipeline.' $result.Diagnostic
+    Assert-True (-not $result.Output.Contains('pipeline(s) are not green')) $case 'reported the candidate as waiting.' $result.Diagnostic
 
-    $failedLatest = (@(
-        @{ name = 'unit'; conclusion = 'SUCCESS'; workflowName = 'repository-check'; detailsUrl = $runA; startedAt = '2026-11-10T02:42:47Z' },
-        @{ name = 'unit'; conclusion = 'FAILURE'; workflowName = 'repository-check'; detailsUrl = $runB; startedAt = '2026-11-10T02:43:02Z' }
-    ) | ConvertTo-Json -Compress -AsArray)
-    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -PullChecksJson $failedLatest) -MigrationHead $identity
-    $case = 'Preflight with a failed latest run on a pull request'
-    Assert-True ($result.Output.Contains('#1 fixture: 1 checks, 1 not successful')) $case 'did not count the failed latest run.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('1 run(s) are not green: the candidate waits; nothing is waived (R691)')) $case 'did not report the candidate as waiting.' $result.Diagnostic
-
-    $queuedRerun = (@(
-        @{ name = 'unit'; status = 'COMPLETED'; conclusion = 'SUCCESS'; workflowName = 'repository-check'; detailsUrl = $runB; startedAt = '2026-11-10T02:43:02Z' },
-        @{ name = 'unit'; status = 'QUEUED'; conclusion = ''; workflowName = 'repository-check'; detailsUrl = $runB; startedAt = '0001-01-01T00:00:00Z' }
-    ) | ConvertTo-Json -Compress -AsArray)
-    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -PullChecksJson $queuedRerun) -MigrationHead $identity
-    $case = 'Preflight with a re-run still queued on a pull request'
-    Assert-True ($result.Output.Contains('#1 fixture: 1 checks, 1 not successful')) $case 'passed on the finished attempt the re-run replaces.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('1 run(s) are not green: the candidate waits; nothing is waived (R691)')) $case 'did not report the candidate as waiting.' $result.Diagnostic
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -MergeRequestPipelines @('success', 'failed')) -MigrationHead $identity
+    $case = 'Preflight with a failed head pipeline on a merge request'
+    Assert-True ($result.Output.Contains('!1 fixture: head pipeline 101 failed')) $case 'did not report the failed head pipeline.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('1 pipeline(s) are not green: the candidate waits; nothing is waived (R691)')) $case 'did not report the candidate as waiting.' $result.Diagnostic
 
     # #1931: a deployable candidate's approval is given on a complete azd
     # environment; the read-only run refuses before the version and the
@@ -1315,6 +1325,28 @@ try {
     $case = 'Preflight with a version that is not one step'
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
     Assert-True ($result.Output.Contains("1.2.0 is not one step above the live v$liveVersion")) $case 'did not refuse the version.' $result.Diagnostic
+
+    # Operator question pending, 15 November 2026: a GitHub-era merge in the
+    # range cannot be read. It is listed under its own heading, fails nothing,
+    # and is no evidence for the version step, so a range whose one readable
+    # merge request closes only bugs is still not proposed as PATCH.
+    & git -C $fixture.Work @($fixture.Git) checkout --quiet -b fixture/github-era
+    Set-Content -LiteralPath (Join-Path $fixture.Work 'src/Pegasus.Web/github-era.txt') -Value 'older' -Encoding ascii
+    & git -C $fixture.Work @($fixture.Git) add -A
+    & git -C $fixture.Work @($fixture.Git) commit --quiet -m 'fix: older'
+    & git -C $fixture.Work @($fixture.Git) checkout --quiet dev
+    & git -C $fixture.Work @($fixture.Git) merge --quiet --no-ff -m 'Merge pull request #2120 from collisionengineers/github-era' fixture/github-era
+    & git -C $fixture.Work push --quiet origin dev
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to merge the fixture GitHub-era pull request.' }
+    $gitHubEraSha = (& git -C $fixture.Work rev-parse HEAD).Trim()
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $gitHubEraSha -IssueLabels @('type:bug')) -MigrationHead $identity
+    $case = 'Preflight with a GitHub-era merge in the range'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass: the unreadable merge fails nothing.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('--- GitHub pull request merges in the range (not readable; not evidence) --- #2120 Merge pull request #2120 from collisionengineers/github-era')) $case 'did not list the GitHub-era merge under its heading.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('!1 fixture: head pipeline 100 success')) $case 'did not read the merge request beside it.' $result.Diagnostic
+    Assert-True (-not $result.Output.Contains('pipeline(s) are not green')) $case 'counted the GitHub-era merge as not green.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Proposed: 1.1.0 (MINOR: #2120 is a GitHub pull request merge, which can no longer be read)')) $case 'proposed PATCH on evidence the range cannot give.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns @('glab*merge_requests/2120*')
 
     # A completed release removes its worktree itself (Complete-Release).
     if (Test-Path -LiteralPath $worktree) { & git -C $fixture.Work worktree remove --force $worktree }

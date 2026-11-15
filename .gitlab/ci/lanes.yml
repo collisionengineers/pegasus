@@ -1,0 +1,196 @@
+# The lanes of repository-check, run as a child pipeline of .gitlab-ci.yml.
+# The `lanes` trigger there passes down what `changes` decided: LANE_CODE,
+# LANE_INFRASTRUCTURE, LANE_CLASSIFIER ("true" or "false") and LANE_MIGRATIONS
+# (the changed migration sources, comma separated).
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
+
+default:
+  image: $CI_REGISTRY_IMAGE/ci:1
+  tags: [pegasus]
+  interruptible: true
+
+stages:
+  - lanes
+  - coverage
+
+# The locked restore and the Release build every test lane needs. The NuGet
+# package folder sits on the runner's `/ci-cache` volume, shared by every job
+# on that runner; on a runner without the volume the path is an empty folder
+# and the restore is a cold one.
+#
+# A shared folder cannot be stale. The global packages folder is addressed by
+# package id and version, those contents are immutable, and --locked-mode
+# validates the graph against the committed lock files rather than against
+# whatever the folder happens to hold.
+.dotnet-build:
+  variables:
+    NUGET_PACKAGES: /ci-cache/nuget
+  before_script:
+    - dotnet restore ./Pegasus.slnx --locked-mode
+    - dotnet build ./Pegasus.slnx --configuration Release --no-restore
+
+lanes-selected:
+  # Always runs, so a change set that needs no lane still has a child pipeline
+  # with a verdict.
+  stage: lanes
+  timeout: 2m
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - echo "Lanes - code=$LANE_CODE infrastructure=$LANE_INFRASTRUCTURE classifier=$LANE_CLASSIFIER migrations=$LANE_MIGRATIONS"
+
+infrastructure:
+  # Local mode checks committed fail-closed invariants and compiles Bicep.
+  # It does not authenticate, read Azure state, run azd or deploy anything.
+  # Linux, the platform the release deploys to.
+  stage: lanes
+  timeout: 10m
+  rules:
+    - if: $LANE_INFRASTRUCTURE == "true"
+  script:
+    # Migration class declaration. A changed migration is classified from the
+    # operations its Up runs: an additive one passes; one that drops, renames
+    # or narrows passes only when the description's "## Migration" section
+    # declares it non-additive and names the destructive route; raw SQL passes
+    # only when that section declares its class (docs/engineering.md
+    # "Migrations", R605, R760, R761). The description is read whole from the
+    # API: the predefined variable holds only its first 2,700 characters. A
+    # push to dev has no description, so the step skips there; the release
+    # preflight still classifies the range.
+    - |
+      if [ "$PARENT_PIPELINE_SOURCE" = merge_request_event ] && [ -n "$LANE_MIGRATIONS" ]; then
+        pwsh -NoProfile -Command '$request = Invoke-RestMethod -Headers @{ "JOB-TOKEN" = $env:CI_JOB_TOKEN } -Uri "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID/merge_requests/$env:PARENT_MERGE_REQUEST_IID"; ./scripts/Test-MigrationClass.ps1 -MigrationPaths ($env:LANE_MIGRATIONS -split ",") -PullRequestBody ([string]$request.description); exit $LASTEXITCODE'
+      fi
+    # Release validation behaviour tests: the Worker smoke, the PreProvision
+    # validation and the release route against a fake Azure CLI and a fixture
+    # repository: what they refuse before a live write, the order of the
+    # containment writes, and which exact target they bind to.
+    - pwsh ./scripts/Test-ReleaseValidation.ps1
+    # Validate the infrastructure plan locally.
+    - pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local
+
+classifier:
+  # The classifier agent is a Node Functions app; it typechecks, compiles and
+  # runs its unit tests (node:test, no model call) here and nowhere else.
+  # Gated on its own flag: it costs about a minute and reads nothing the .NET
+  # lanes build.
+  stage: lanes
+  timeout: 10m
+  rules:
+    - if: $LANE_CLASSIFIER == "true"
+  variables:
+    npm_config_cache: /ci-cache/npm
+  script:
+    - cd src/pegasus-classifier-agent
+    - npm ci --no-audit --no-fund
+    - npm run typecheck
+    - npm run build
+    - npm test
+
+unit:
+  # Both projects run whole and unfiltered. Core's Category=Corpus theories
+  # read the private reference pack and skip themselves with a stated reason
+  # when PEGASUS_REFERENCE_PACK_ROOT is absent, so no filter is needed here
+  # and the skips are visible in the run, not hidden by a filter.
+  #
+  # Linux, the platform Web and Worker deploy to.
+  extends: .dotnet-build
+  stage: lanes
+  timeout: 20m
+  rules:
+    - if: $LANE_CODE == "true"
+  script:
+    - dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build
+    - dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build
+
+sql-integration:
+  # All integration tests except the separately scoped corpus tests. Two
+  # levels of overlap: test classes run in parallel within a shard, capped by
+  # tests/Pegasus.IntegrationTests/xunit.runner.json, and the shards divide
+  # whole classes across six jobs. Allow setup/build plus the longest shard:
+  # the 2026-09-09 run exhausted a 30-minute job budget.
+  #
+  # Linux with a SQL Server container. LocalDB exists only on Windows; the
+  # container is the runbook's Linux route, reached through the
+  # PEGASUS_TEST_SQL_* variables the harness already reads. The password is
+  # not a secret: the container is reachable from this job alone and is
+  # discarded with it.
+  extends: .dotnet-build
+  stage: lanes
+  timeout: 45m
+  rules:
+    - if: $LANE_CODE == "true"
+  # The shard count is set here; the partition verification and the duration
+  # refresh below name the same number.
+  parallel: 6
+  services:
+    # The digest scripts/PegasusPlatform.ps1 pins for local development.
+    - name: mcr.microsoft.com/mssql/server@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+      alias: mssql
+      variables:
+        ACCEPT_EULA: "Y"
+        MSSQL_PID: Developer
+        MSSQL_SA_PASSWORD: Pegasus-Test-$CI_PIPELINE_ID
+  variables:
+    PEGASUS_TEST_SQL_DATASOURCE: mssql,1433
+    PEGASUS_TEST_SQL_USER: sa
+    PEGASUS_TEST_SQL_PASSWORD: Pegasus-Test-$CI_PIPELINE_ID
+    # PhotoCaptureListScaleTests appends its readings here.
+    PEGASUS_CI_SUMMARY: $CI_PROJECT_DIR/artifacts/test-shards/summary-$CI_NODE_INDEX.md
+  script:
+    # The runner waits for the service's port, not for SQL Server to accept a
+    # login, so wait for a query to answer before the tests open connections.
+    - >
+      pwsh -NoProfile -Command '$deadline = (Get-Date).AddMinutes(3);
+      while ($true) { try { $connection = [System.Data.SqlClient.SqlConnection]::new("Server=$env:PEGASUS_TEST_SQL_DATASOURCE;User Id=$env:PEGASUS_TEST_SQL_USER;Password=$env:PEGASUS_TEST_SQL_PASSWORD;Connect Timeout=5");
+      $connection.Open(); $connection.Close(); break }
+      catch { if ((Get-Date) -gt $deadline) { throw "SQL Server did not answer within three minutes: $_" }; Start-Sleep -Seconds 3 } }'
+    - pwsh ./scripts/Invoke-TestShard.ps1 -Project ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj -Filter "Category!=Corpus" -Shard $CI_NODE_INDEX -ShardCount $CI_NODE_TOTAL
+  artifacts:
+    # What this shard enumerated and ran, and the reports rendered against the
+    # template: the conformance test renders the four sample jobs, so only the
+    # shard that ran it holds them.
+    name: test-shard-$CI_NODE_INDEX
+    when: always
+    expire_in: 90 days
+    paths:
+      - artifacts/test-shards/
+      - tests/Pegasus.IntegrationTests/bin/Release/net10.0/rendered-reports/
+
+sql-integration-coverage:
+  # Proves the shards reassemble into exactly the tests the lane's filter
+  # selects. It matters more than the count alone: `dotnet test` exits 0 when a
+  # filter matches nothing, so a shard that quietly ran none of its assigned
+  # tests would otherwise pass. `when: always` so a failing shard still gets
+  # its coverage reported.
+  stage: coverage
+  needs: [sql-integration]
+  timeout: 5m
+  rules:
+    - if: $LANE_CODE == "true"
+      when: always
+  script:
+    # Every enumerated test ran in exactly one shard.
+    - pwsh ./scripts/Invoke-TestShard.ps1 -VerifyPartition -ShardCount 6
+
+test-shard-durations:
+  # The shards are dealt from scripts/test-shard-durations.json, which only
+  # stays right if someone refreshes it. Every complete run measures the real
+  # per-shard test time and offers the refreshed table as an artifact, so a
+  # stale table shows up as a ratio in this log rather than as one shard
+  # quietly setting the critical path again. Runs only when every shard passed.
+  stage: coverage
+  needs: [sql-integration]
+  timeout: 5m
+  rules:
+    - if: $LANE_CODE == "true"
+  script:
+    - pwsh ./scripts/Update-TestShardDurations.ps1 -ArtifactRoot artifacts/test-shards -ShardCount 6 -Path artifacts/test-shard-durations.json
+  artifacts:
+    name: test-shard-durations
+    expire_in: 90 days
+    paths:
+      - artifacts/test-shard-durations.json

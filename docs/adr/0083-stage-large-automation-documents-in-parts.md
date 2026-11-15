@@ -78,4 +78,4 @@ re-typed base64 PDF, and neither tool checked a declared SHA-256.
 - [ADR-0059](0059-native-mcp-file-content-and-consolidated-tool-inventory.md)
 - [ADR-0080](superseded/0080-automation-mcp-one-server-per-scope.md) (superseded),
   [ADR-0087](0087-one-automation-mcp-server-with-per-scope-consent.md)
-- Issue [#1474](https://github.com/collisionengineers/pegasus/issues/1474)
+- Issue #1474

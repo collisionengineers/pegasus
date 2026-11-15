@@ -93,7 +93,7 @@ menu's dialog, and With Engineer the first blocker ([FRD-16](frd-16-case-record-
 A With Engineer Case with no Engineer has Assign Engineer as its step too,
 with **Take** beside it while the Case is Unassigned (#1213, v41 K9,
 operator, 19 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 
 **Required items are configuration.** Instruction completeness and image
 completeness are each a versioned list of items marked required or not
@@ -178,7 +178,7 @@ eligible enabled staff account, the signed-in person listed first as "Name
 taking it in one step. Neither asks for a reason: the history line reads
 "Taken by {name}", "Assigned to {name}" or "Set to Unassigned" (#1213,
 operator, 15 and 16 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 In one operation, under a Case edit lease — the session's, or
 one claimed for the action ([FRD-16](frd-16-case-record-workspace.md#actions-menu))
 — and the current version, Pegasus assigns the Engineer, or none, sets the
@@ -235,7 +235,7 @@ never changes the Case state and records no handoff.
   when more engineering changes are needed. A Case with no Engineer returns
   Unassigned, for an Engineer to take; one with an Engineer needs that
   Engineer still eligible (#1213, operator, 15 October 2026,
-  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+  [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
   It is not needed to receive, attach or answer a query. **Return to Review**
   records a reason from With Engineer or Report sent (operator, 11 October
   2026).
@@ -343,7 +343,7 @@ in the Actions menu only.
 With no assigned Engineer it is refused, "Report preparation requires an
 assigned Engineer.": an Engineer must take an Unassigned Case first (#1213,
 operator, 15 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 The assigned Engineer must still be eligible, as for Return to Engineer. It
 asks for no reason and no outcome.
 
@@ -506,8 +506,8 @@ Automation Actor action.
 | From | To | Trigger |
 | --- | --- | --- |
 | Not ready | Review | Every required item present (automatic) |
-| Review | With Engineer | Assign Engineer or Take, to an Engineer or Unassigned (#1213, [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)), or the headless start command |
-| With Engineer | With Engineer, another Engineer or Unassigned | Assign Engineer or Take (#1213, [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
+| Review | With Engineer | Assign Engineer or Take, to an Engineer or Unassigned (#1213, [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)), or the headless start command |
+| With Engineer | With Engineer, another Engineer or Unassigned | Assign Engineer or Take (#1213, [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)) |
 | Not ready, Review, With Engineer | Held | Place on Hold (reason) |
 | Held | previous state | Release Hold (reason) |
 | With Engineer | Report sent | Mark report sent, or the Worker's automatic link of the report's Sent evidence, an Inspection + Audit Case with no Audit included (operator, 5 November 2026; R705) |
@@ -522,7 +522,7 @@ Automation Actor action.
 | any open state | Created in error | Corrected-Principal replacement action |
 | any open state | Source email unlinked | Unlink the source email |
 | closed disposition | archived | Archive |
-| closed disposition other than Created in error | working state | Return to work (reason), through the normal gates; to With Engineer Unassigned when the Case has no Engineer (#1213, [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
+| closed disposition other than Created in error | working state | Return to work (reason), through the normal gates; to With Engineer Unassigned when the Case has no Engineer (#1213, [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)) |
 
 ## Edge cases and fail-closed behaviour
 
