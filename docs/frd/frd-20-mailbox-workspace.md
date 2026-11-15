@@ -55,7 +55,7 @@ it), Type (one select), Query (Open query or Mark query done), Change case
 a Decided line. Each section carries one label and a divider, and its actions
 are small buttons in a row; the menu holds no Case / PO field (operator,
 2 November 2026, R632 to R637,
-[v44 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v44-mail-link-settings/v44_planning/notes/v44-notes.md)).
+[v44 notes](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/design/v44-mail-link-settings/v44_planning/notes/v44-notes.md)).
 Register images is offered on an unlinked, uncategorised image-only message.
 
 Sent mail remains a retained folder for Case correspondence and the
@@ -85,7 +85,7 @@ Images › Unidentified until it is linked.
 Each row shows sender, subject and a short excerpt of the body. The subject
 opens the message as a dialog over the list; the address `/Inbox/{id}` stays
 for a new tab and for no script (operator, 16 October 2026, R159 (c),
-[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41 notes](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 Every other in-app link to a message (the Case's message dialog and its
 Reply, Reply all and Forward, the Case's query Reply, Unidentified, Image
 Intake, Create case, the Logs drawer and notifications) opens the Inbox with
@@ -95,7 +95,7 @@ Clicking elsewhere on a row selects it. The selected row is marked. Up and
 Down move through the rows. In All incoming, No Case Found and Dismissed each
 row carries a checkbox in its left gutter; ticking it neither opens nor
 selects the row (v41 item I18, signed off 19 October 2026,
-[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41 notes](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 A received row offers **Reply** when an Outgoing mailbox can send, since
 staff choose the reply's From, starting on the mailbox it arrived in, or for
 a staff forward held in instructions@ the mailbox that forwarded it (R651,
@@ -119,7 +119,7 @@ external access requirement.
 
 The message is the one reader, and it is a dialog over the Inbox (v41 items
 I2, I4 and I17, signed off 19 October 2026,
-[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41 notes](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 The list has no quick preview. The dialog has one head: the subject, with
 From, To and received beneath, and Previous message and Next message at the
 right beside Close, so the list can be read without closing it. Then come the
@@ -195,7 +195,7 @@ the reason (operator, 2 November 2026, R632); the choice and the
 reason post together, in one step with no prepare round trip, still claiming
 the Case's edit authority and releasing it (v41 items I9 and I13, signed off
 19 October 2026,
-[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41 notes](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 Linking may
 happen while classification is still unresolved, when the link evidence on
 its own is enough. The Automation Actor links through the same command
@@ -210,7 +210,7 @@ the history rule in
 linked Case, R633) and Unlink sit beside the Case in the settings menu, each
 asking for a reason in one step (v41 items I9 and I13,
 signed off 19 October 2026,
-[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41 notes](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 
 The message record shows its current Case association even while its
 classification is Unclassified. Classification, Case association and custody
@@ -241,7 +241,7 @@ from the Dismissed scope brings it back. Both are always allowed, to staff
 and to the Automation Actor (`pegasus_mail_action`). In the message dialog,
 Dismiss moves on to the next message, else the one before it, else the list
 (v41 item I10,
-[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41 notes](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 Ticked rows can be
 dismissed together in All and No Case Found and restored together in
 Dismissed, each message on its own. The bulk bar is hidden until a row is
@@ -250,7 +250,7 @@ There is a select-all tick. There is no Correct classification.
 A bulk post that could not change some messages says "N not changed" once
 above the list, and those rows stay ticked so they can be retried (operator,
 22 October 2026, R180,
-[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+[v41 notes](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 An open
 Unidentified item stays open, and the message keeps its evidence,
 associations and history. Dismiss is Pegasus data only: the Outlook item

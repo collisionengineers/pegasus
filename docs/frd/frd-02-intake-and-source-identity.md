@@ -353,7 +353,7 @@ suggested fields, decision evidence, and allocation attempts. The head-line
 Failed files count is the number of files whose outcome is a retryable
 failure (Allocation failed, OCR failed, or Processing failed). The Intake
 log alone owns that set and its actions
-([v41 A24](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+([v41 A24](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 
 Three technical actions live in the Intake log row dialog, Administrators only.
 Each needs a reason
