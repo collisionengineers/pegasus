@@ -93,7 +93,7 @@ and approval boundaries. No container image, registry or image tooling is part
 of the release.
 
 Hosted workflow runner choices and their evidence limits are owned by
-[the executable CI workflow](../.github/workflows/ci.yml). Linux development
+[the executable CI definition](../.gitlab-ci.yml). Linux development
 is supported by these procedures; record the platform actually exercised.
 
 ### Platform capability differences
@@ -502,7 +502,7 @@ action. Never manually repurpose these commands to remove another run,
 ## Locked restore, build, and test
 
 CI on the exact head is the evidence, and nothing it runs is repeated here.
-`.github/workflows/ci.yml` decides the lanes from the paths a change set
+`.gitlab-ci.yml` decides the lanes from the paths a change set
 touches: Markdown, `docs/`, the skills, the Python helper tests, the
 reference-data generator and the classifier agent are prose to the .NET lanes
 and run only the `invariants` checks; any other path runs the unit and SQL
@@ -524,7 +524,7 @@ dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category
 
 These commands are identical on both platforms; `pwsh` runs them either way.
 
-A [daily run](../.github/workflows/dependency-advisories.yml) repeats this
+A [daily scheduled pipeline](../.gitlab-ci.yml) repeats this
 locked restore against `dev` and raises one issue when it fails.
 
 The focused forms are below:

@@ -28,7 +28,7 @@ public sealed class PhotoCaptureListScaleSerialTests
 /// The Photo capture lists' speed at 500 and at 2,000 captures of 30 items
 /// (#2020; R812): the captures are written straight to CI's own database, both
 /// tabs are loaded 2 times to warm and 20 times timed at each size, and p50
-/// and p95 are written to the test output and to the run's step summary. It
+/// and p95 are written to the test output and to the CI job's summary file. It
 /// stays as the before-and-after measure for the fix (operator, 10 November
 /// 2026; R881); the budget is 500 ms (R882). Nothing here asserts a time:
 /// a request sends the same statements at 2,000 captures as at 500 (a
@@ -279,13 +279,13 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The figures as a small Markdown table on the CI run's page, when the
-    /// run has a step summary. A failure to write it is reported here and
+    /// The figures as a small Markdown table in the file PEGASUS_CI_SUMMARY
+    /// names, which the CI job keeps as an artifact. A failure to write it is reported here and
     /// never fails the test.
     /// </summary>
     private async Task AppendStepSummaryAsync(List<Reading> readings)
     {
-        var path = Environment.GetEnvironmentVariable("GITHUB_STEP_SUMMARY");
+        var path = Environment.GetEnvironmentVariable("PEGASUS_CI_SUMMARY");
         if (string.IsNullOrWhiteSpace(path))
         {
             return;
@@ -315,7 +315,7 @@ public sealed class PhotoCaptureListScaleTests(ITestOutputHelper output)
             or ArgumentException
             or System.Security.SecurityException)
         {
-            output.WriteLine($"The step summary was not written: {exception.Message}");
+            output.WriteLine($"The summary file was not written: {exception.Message}");
         }
     }
 
