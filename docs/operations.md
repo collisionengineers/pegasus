@@ -28,8 +28,12 @@ Release 124 are one line each in [operations history](operations-history.md).
 - Lost with GitHub: closed issues and merged pull requests as records, review
   comments, CI run history and artifacts, and anything done in its web
   interface after the last read.
-- CI runs on the runner `pegasus-wsl` (id 59248102) on the operator's WSL
-  box, in the image `ci:1` (R1058; [runbook](runbook.md#ci-runner-and-image)).
+- CI runs in the image `ci:1` on two runners, one job each: `pegasus-wsl`
+  (id 59248102) on the operator's WSL box (R1058) and `pegasus-s1m5c7p` (id
+  59250103) on `desktop-s1m5c7p`, added the same day (R1061;
+  [runbook](runbook.md#ci-runner-and-image)). The first box was set to two
+  jobs and ran out of memory and swap with two SQL shards beside the test
+  instance, so it takes one.
 - Still open: problem reports still post to GitHub (#2142, R1059); the
   dependency-advisories job has no token to file its issue with; GitLab's
   Ultimate trial ends on 15 December 2026, and merged results pipelines stop

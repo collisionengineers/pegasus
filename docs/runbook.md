@@ -147,12 +147,16 @@ No configuration is required. The path limit is 4096 characters, so the tracked 
 
 ### CI runner and image
 
-CI runs on one GitLab runner, `pegasus-wsl`, on the operator's WSL box
-(R1058): Docker executor, two jobs at a time (`concurrent = 2` in
-`/etc/gitlab-runner/config.toml`), tag `pegasus`. The project's shared
-runners are switched off, so nothing runs anywhere else. Pipelines queue
-behind each other, and the box also hosts the test instance, so CI runs only
-while it is on.
+CI runs on GitLab runners on the operator's own machines, each a WSL
+distribution with the Docker executor and the tag `pegasus`: `pegasus-wsl` on
+the box that hosts the test instance (R1058) and `pegasus-s1m5c7p` on
+`desktop-s1m5c7p` (R1061). Each takes one job at a time (`concurrent = 1` in
+`/etc/gitlab-runner/config.toml`): a SQL shard needs about 6 GB with its SQL
+Server container, and two at once exhausted the first box's memory and swap
+on 15 November 2026. GitLab gives a queued job to whichever runner is free,
+so the six shards spread across them. The project's shared runners are
+switched off, so nothing runs anywhere else, and a runner works only while
+its machine is on.
 
 The runner's configuration carries two settings `.gitlab-ci.yml` relies on:
 
@@ -160,7 +164,7 @@ The runner's configuration carries two settings `.gitlab-ci.yml` relies on:
   package folders, shared by every job. A runner without the volume restores
   cold.
 - `service_memory = "2560m"`: the ceiling on each shard's SQL Server
-  container, so two shards fit beside the test instance.
+  container.
 
 Every job runs in the image `.gitlab/ci/Dockerfile` builds, held in the
 project's container registry. When the Dockerfile changes, build and push the
@@ -171,11 +175,12 @@ docker build -t registry.gitlab.com/collisionengineers-group/pegasus/ci:<n> .git
 docker push registry.gitlab.com/collisionengineers-group/pegasus/ci:<n>
 ```
 
-A replacement runner is created with
+Another runner, or a replacement, is created with
 `glab api -X POST user/runners -f runner_type=project_type -F project_id=<id> -f tag_list=pegasus`,
 registered with the token that call returns
 (`sudo gitlab-runner register --non-interactive --url https://gitlab.com --token <token> --executor docker --docker-image mcr.microsoft.com/dotnet/sdk:10.0-noble`),
-and given the two settings above.
+and given the two settings above and `concurrent` for its memory. It needs
+Linux on x86-64 with Docker and makes outbound connections only.
 
 ## Offline development profile
 
