@@ -297,11 +297,9 @@ public sealed class GetServiceHealth(
         var aiCountsRead = aiJobs.GetCountsAsync(cancellationToken);
         var recentJobsRead = aiJobs.ListRecentAsync(1, cancellationToken);
         var sendToAiRead = sendToAiControl.IsEnabledAsync(cancellationToken);
-        // The row reads the activity port directly and exposes only the
-        // newest timestamp to a PerformCasework reader. Nothing else from the
-        // record leaves here.
-        var newestActivityRead = automationActivity.ListAsync(
-            new(actor, Page: 1, PageSize: 1),
+        // The row exposes only the newest Automation activity time to a
+        // PerformCasework reader.
+        var newestActivityRead = automationActivity.GetNewestActivityAtUtcAsync(
             cancellationToken);
         await Task.WhenAll(
             mailboxPollRead,
@@ -364,12 +362,11 @@ public sealed class GetServiceHealth(
             aiEvidence,
             ServiceHealthDependency.AiConnector));
 
-        var newestActivity = await newestActivityRead;
         rows.Add(new(
             ServiceHealthArea.Automation,
             ServiceHealthPolicy.AutomationService,
             ServiceHealthPolicy.AutomationState(ingressEnabled),
-            newestActivity.Records.Count == 0 ? null : newestActivity.Records[0].OccurredAtUtc,
+            await newestActivityRead,
             ServiceHealthDependency.AutomationClient));
 
         return new(nowUtc, rows);

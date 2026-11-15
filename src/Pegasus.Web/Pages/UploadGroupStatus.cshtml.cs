@@ -188,6 +188,8 @@ public sealed class UploadGroupStatusModel(
 
     private bool _groupReadyForAttachment;
 
+    private UploadGroupState _state = null!;
+
     // This surface owns the group-only handler below. Refusing the inherited
     // single-file handler prevents a forged post from treating a group id as a
     // receipt route.
@@ -266,7 +268,7 @@ public sealed class UploadGroupStatusModel(
                 || receiptVersions is null
                 || !TryGetPostedRoster(receiptVersions, out var roster))
             {
-                TempData["UploadConfirmationError"] = "This submission is incomplete or a file is not ready. No further files were added. Refresh and review every file before trying again.";
+                TempData["UploadConfirmationError"] = UploadGroupState.AttachIncompleteMessage;
                 PreserveGroupForm(receiptVersions, caseVersion, operationId, caseId, reference);
                 return await RenderSurfaceAsync(id, cancellationToken);
             }
@@ -373,8 +375,7 @@ public sealed class UploadGroupStatusModel(
         if (!CanDiscard || groupVersion is null || receiptVersions is null
             || !HasCurrentDiscardRoster(groupVersion.Value, receiptVersions))
         {
-            TempData["UploadConfirmationError"] =
-                "This submission changed or is still being processed. Refresh and try again.";
+            TempData["UploadConfirmationError"] = UploadGroupState.DiscardChangedMessage;
             return RedirectToSurface(id);
         }
 
@@ -402,45 +403,29 @@ public sealed class UploadGroupStatusModel(
 
     private async Task<IActionResult?> LoadAsync(Guid id, CancellationToken cancellationToken)
     {
-        var group = await groups.GetAsync(id, cancellationToken);
-        if (group is null)
+        // The upload as its one decision reads it, shared with the Automation
+        // upload-group tools (UploadGroupState): each member's status, receipt
+        // and outcome are read concurrently, since this page polls itself while
+        // a member or its later group-level outcome is still working.
+        var state = await UploadGroupState.LoadAsync(
+            groups,
+            statuses,
+            intake,
+            outcomeQueries,
+            id,
+            TryGetActor(out var actor) ? actor : null,
+            cancellationToken);
+        if (state is null)
         {
             return NotFound();
         }
 
-        Group = group;
-        var haveActor = TryGetActor(out var actor);
-
-        // Each member's status read, its receipt and — once terminal — its
-        // confirmation outcome are independent reads against their own
-        // DbContext (every store behind these ports is IDbContextFactory-backed,
-        // not shared), so a group's members are read concurrently rather than
-        // one durable round-trip at a time. This page polls itself while a
-        // queue member or its later group-level outcome is still working, so
-        // the saving is real.
-        var memberResults = await Task.WhenAll(group.Members.Select(async member =>
-        {
-            var status = await statuses.GetAsync(member.StagedReceiptId, cancellationToken);
-            UploadOutcomeView? outcome = null;
-            IntakeReceipt? receipt = null;
-            if (haveActor)
-            {
-                // One receipt read serves both the outcome and the page.
-                receipt = await intake.ExecuteAsync(
-                    new(status?.ProcessedReceiptId ?? member.StagedReceiptId, actor!), cancellationToken);
-                if (status is { Status: QueuedIntakeStatusKind.Complete or QueuedIntakeStatusKind.Failed })
-                {
-                    outcome = await outcomeQueries.BuildAsync(status, receipt, group.Id, actor!, cancellationToken);
-                }
-            }
-
-            return (member.StagedReceiptId, status, outcome, receipt);
-        }));
-
-        Statuses = memberResults.ToDictionary(result => result.StagedReceiptId, result => result.status);
-        Outcomes = memberResults.ToDictionary(result => result.StagedReceiptId, result => result.outcome);
-        Receipts = memberResults.ToDictionary(result => result.StagedReceiptId, result => result.receipt);
-        var outcomes = memberResults.Select(result => result.outcome).ToArray();
+        _state = state;
+        Group = state.Group;
+        Statuses = state.Members.ToDictionary(member => member.Member.StagedReceiptId, member => member.Status);
+        Outcomes = state.Members.ToDictionary(member => member.Member.StagedReceiptId, member => member.Outcome);
+        Receipts = state.Members.ToDictionary(member => member.Member.StagedReceiptId, member => member.Receipt);
+        var outcomes = state.Members.Select(member => member.Outcome).ToArray();
         Decision = DecideSubmission(outcomes);
         UnidentifiedItemId = outcomes
             .Select(outcome => outcome?.UnidentifiedItemId)
@@ -454,52 +439,15 @@ public sealed class UploadGroupStatusModel(
             GroupRegistrationOutcome = outcomes[0];
         }
 
-        // A registered image group is reported once through
-        // GroupRegistrationOutcome but AwaitingInstruction still has one
-        // submission-level destination decision.  Its Image record's origin
-        // is lifecycle data, not the posted receipt for every member.
-        var open = memberResults
-            .Where(result => result.outcome is { IsOpenDecision: true, Attach: not null })
-            .ToArray();
-        _groupReadyForAttachment = group.Channel == IntakeSourceChannel.ManualUpload
-            && group.Members.Count == group.ExpectedMemberCount
-            && group.Members.Count > 0
-            && memberResults.All(result => result.status is { Status: QueuedIntakeStatusKind.Complete }
-                && result.outcome is not null
-                && (result.outcome.Attach is not null
-                    || result.outcome.Kind is UploadOutcomeKind.Attached or UploadOutcomeKind.Resolved)
-                && !result.outcome.IsStillWorking);
+        _groupReadyForAttachment = state.ReadyForAttachment;
         OpenGroupDecision = _groupReadyForAttachment
-            && (open.Length == group.Members.Count
+            && (state.OpenMemberReceiptIds.Count == state.Group.Members.Count
                 || (GroupConfirmationReceiptVersions is not null && UploadCaseConfirmation is not null));
-        OpenMemberReceiptIds = open
-            .Select(result => result.status!.ProcessedReceiptId ?? result.status.StagedReceiptId)
-            .ToArray();
-        GroupMemberReceiptIds = memberResults
-            .Select(result => result.status?.ProcessedReceiptId ?? result.status?.StagedReceiptId)
-            .Where(receiptId => receiptId is not null)
-            .Select(receiptId => receiptId!.Value)
-            .ToArray();
-        OpenMemberReceiptVersions = open.ToDictionary(
-            result => result.status!.ProcessedReceiptId ?? result.status.StagedReceiptId,
-            result => result.outcome!.Attach!.ReceiptVersion);
-        GroupMemberReceiptVersions = new Dictionary<Guid, long>();
-        CanDiscard = false;
-        if (haveActor && group.Discard is null && group.Channel == IntakeSourceChannel.ManualUpload
-            && group.Members.Count == group.ExpectedMemberCount
-            && memberResults.All(result => result.status is { Status: QueuedIntakeStatusKind.Complete,
-                ProcessedReceiptId: not null } && result.receipt is not null))
-        {
-            var receipts = memberResults.Select(result => result.receipt!).ToArray();
-            if (receipts.Select(receipt => receipt.Id).Distinct().Count() == group.Members.Count)
-            {
-                GroupMemberReceiptVersions = receipts.ToDictionary(
-                    receipt => receipt.Id,
-                    receipt => receipt.Version);
-                CanDiscard = GroupMemberReceiptVersions.Count == group.Members.Count;
-            }
-        }
-
+        OpenMemberReceiptIds = state.OpenMemberReceiptIds;
+        GroupMemberReceiptIds = state.GroupMemberReceiptIds;
+        OpenMemberReceiptVersions = state.OpenMemberReceiptVersions;
+        GroupMemberReceiptVersions = state.GroupMemberReceiptVersions;
+        CanDiscard = state.CanDiscard;
         return null;
     }
 
@@ -683,35 +631,8 @@ public sealed class UploadGroupStatusModel(
 
     private bool TryGetPostedRoster(
         Dictionary<Guid, long>? receiptVersions,
-        out IReadOnlyList<Guid> roster)
-    {
-        roster = [];
-        if (receiptVersions is null || receiptVersions.Count == 0
-            || receiptVersions.Any(pair => pair.Key == Guid.Empty || pair.Value < 0))
-        {
-            return false;
-        }
-
-        // Form keys can be reordered by the binder.  The group is the only
-        // source of execution order, and it also prevents a post from naming
-        // a receipt outside this submission. Include every member, including
-        // completed members whose identical decision the attachment owner must
-        // prove before continuing a partial retry.
-        var ordered = GroupMemberReceiptIds
-            .Where(receiptVersions.ContainsKey)
-            .ToArray();
-        if (ordered.Length != receiptVersions.Count || ordered.Length != GroupMemberReceiptIds.Count)
-        {
-            return false;
-        }
-        if (OpenMemberReceiptIds.Any(member => !receiptVersions.ContainsKey(member)))
-        {
-            return false;
-        }
-
-        roster = ordered;
-        return true;
-    }
+        out IReadOnlyList<Guid> roster) =>
+        _state.TryGetRoster(receiptVersions, out roster);
 
     private void PreserveGroupForm(
         Dictionary<Guid, long>? receiptVersions,
@@ -737,8 +658,5 @@ public sealed class UploadGroupStatusModel(
     private bool HasCurrentDiscardRoster(
         long groupVersion,
         Dictionary<Guid, long> receiptVersions) =>
-        groupVersion == Group.Version
-        && receiptVersions.Count == GroupMemberReceiptVersions.Count
-        && receiptVersions.All(item => GroupMemberReceiptVersions.TryGetValue(item.Key, out var current)
-            && current == item.Value);
+        _state.HasCurrentDiscardRoster(groupVersion, receiptVersions);
 }

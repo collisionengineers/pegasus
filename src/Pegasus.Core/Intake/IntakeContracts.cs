@@ -767,8 +767,9 @@ public sealed record InstructionDraft(
     DateOnly? DateOfIncident,
     string? InspectionAddress,
     DateOnly? InspectionDate = null,
-    // Below here: fields no extraction policy reads today. A Principal that
-    // declares its instruction over the API (API-01) states them directly, and
+    // Below here: optional fields. Some extraction profiles read them (VAT
+    // status, the claimant's address and telephone), and a Principal that
+    // declares its instruction over the API (API-01) states them directly;
     // the draft is the one carrier every downstream owner already reads, so
     // they belong here rather than in a second pre-case record.
     string? VehicleMileageUnit = null,

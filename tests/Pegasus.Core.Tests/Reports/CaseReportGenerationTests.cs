@@ -1147,6 +1147,101 @@ public sealed class CaseReportGenerationTests
             GenerateCaseReport.OccurrenceIdentityOf(generationId, CaseReportArtifactKind.FeeNote));
     }
 
+    [Theory]
+    [InlineData(CaseReportArtifactKind.AssessmentReport, "Generate the immutable case report")]
+    [InlineData(CaseReportArtifactKind.FeeNote, "Generate the immutable fee note")]
+    [InlineData(CaseReportArtifactKind.RepairSpecification, "Generate the immutable Repair Spec")]
+    [InlineData(CaseReportArtifactKind.ImagePack, "Generate the immutable images")]
+    public void EachArtifactRequestRecordsItsKindsReason(CaseReportArtifactKind kind, string reason)
+    {
+        var request = CaseReportActs.RequestFor(
+            Engineer, CaseId, 7, "lease-1", "operation-1", kind, null, CaseWorkSelector.Primary);
+
+        Assert.Equal(
+            new GenerateCaseReportRequest(
+                Engineer, CaseId, 7, "lease-1", "operation-1", kind, reason, null, CaseWorkSelector.Primary),
+            request);
+    }
+
+    [Fact]
+    public void AConfirmedReportGoesOnToItsFeeNoteUnderTheSameLeaseVersionAndWork()
+    {
+        var store = new FakeStore();
+        var report = CaseReportActs.RequestFor(
+            Engineer, CaseId, 7, "lease-1", "operation-1", CaseReportArtifactKind.AssessmentReport, null,
+            CaseWorkSelector.Primary);
+        var confirmed = new CaseReportGenerationResult(
+            CaseReportGenerationOutcome.Generated,
+            store.Generation(
+                CaseReportGenerationState.Confirmed,
+                [store.Artifact(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactStatus.Confirmed)]),
+            []);
+
+        Assert.Equal(
+            report with
+            {
+                OperationKey = "operation-1:fee-note",
+                Kind = CaseReportArtifactKind.FeeNote,
+                Reason = "Generate the immutable fee note",
+                TargetGenerationId = store.GenerationId,
+            },
+            CaseReportActs.FeeNoteRequestAfter(report, confirmed, "operation-1:fee-note"));
+
+        // Nothing confirmed to pair with, or a companion request: no fee note.
+        Assert.Null(CaseReportActs.FeeNoteRequestAfter(
+            report,
+            new CaseReportGenerationResult(CaseReportGenerationOutcome.Pending, null, []),
+            "operation-1:fee-note"));
+        Assert.Null(CaseReportActs.FeeNoteRequestAfter(
+            report with { Kind = CaseReportArtifactKind.RepairSpecification },
+            confirmed,
+            "operation-1:fee-note"));
+    }
+
+    [Theory]
+    [InlineData(Pegasus.Core.Workflow.CaseLifecycleState.ReportPreparation, CaseReportActAccess.Open)]
+    [InlineData(Pegasus.Core.Workflow.CaseLifecycleState.Held, CaseReportActAccess.NotOpen)]
+    public async Task TheReportGateOpensOnlyAnAssessmentThatOpens(
+        Pegasus.Core.Workflow.CaseLifecycleState state,
+        CaseReportActAccess expected)
+    {
+        var header = new CountingCaseHeader();
+        var acts = new CaseReportActs(new FixedAssessmentAccess(new(state)), header);
+
+        Assert.Equal(
+            expected,
+            await acts.GetAccessAsync(Engineer, CaseId, CaseWorkSelector.Primary, CancellationToken.None));
+        Assert.Equal(0, header.Reads);
+    }
+
+    [Fact]
+    public async Task TheReportGateRefusesACaseItCannotFind()
+    {
+        var acts = new CaseReportActs(new FixedAssessmentAccess(null), new CountingCaseHeader());
+
+        Assert.Equal(
+            CaseReportActAccess.NotOpen,
+            await acts.GetAccessAsync(Engineer, CaseId, CaseWorkSelector.Current, CancellationToken.None));
+    }
+
+    private sealed class FixedAssessmentAccess(AssessmentAccessState? access) : IGetAssessmentAccess
+    {
+        public Task<AssessmentAccessState?> ExecuteAsync(
+            GetAssessmentAccessQuery query,
+            CancellationToken cancellationToken = default) => Task.FromResult(access);
+    }
+
+    private sealed class CountingCaseHeader : IGetCaseHeader
+    {
+        public int Reads { get; private set; }
+
+        public Task<CaseHeader?> ExecuteAsync(GetCaseHeaderQuery query, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return Task.FromResult<CaseHeader?>(null);
+        }
+    }
+
     private static GenerateCaseReport Use(
         FakeStore store,
         RecordingRenderer renderer,

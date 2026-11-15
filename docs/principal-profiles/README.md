@@ -55,7 +55,12 @@ owners; the owning FRD, ADR, or Core policy still wins on any disagreement.
 The live report sending rules differ from the Report sending SOP's YAML for
 two Principals by the operator's ruling of 12 November 2026: AX's
 `bodyshop_mentions` rule reads the Case's Repairer and Claim Source, and
-YML's `images_from` rule the Claim Source (R1025, R1026).
+YML's `images_from` rule the Claim Source (R1025, R1026). The Report sending
+quick reference of 29 October 2026 is newer than that YAML, and the live
+records follow it where the two differ (operator, 13 November 2026; R1030 to
+R1036): SBL never copies `SBL@connexus.co.uk`, QCL's note carries the Hackney
+Solutions thresholds, and FRZ is active. Its KBS rule for Harrys Auto
+Replacement is not taken up (R1037).
 
 | Guide | File |
 | --- | --- |
@@ -63,5 +68,6 @@ YML's `images_from` rule the Claim Source (R1025, R1026).
 | PCH SOP | `sop-guides/pch_sop_guide.docx` |
 | SBL SOP | `sop-guides/sbl_sop_guide.docx` |
 | Report sending SOP | `sop-guides/report_sending_sop_guide.docx`, `sop-guides/report_sending_sop.v5.yaml` (version 8, 15 October 2026, under its v5 file name; the structured per-Principal data) |
+| Report sending quick reference | `sop-guides/report_sending_quick_reference.docx` (29 October 2026; one row per Principal) |
 | AX salvage and salvage matrix | `sop-guides/ax_salvage.xlsx`, `sop-guides/ax_salvage_matrix.xlsx` |
 | Unidentified and re-work reasons | `sop-guides/un_rw_reasons_sop.xlsx` |

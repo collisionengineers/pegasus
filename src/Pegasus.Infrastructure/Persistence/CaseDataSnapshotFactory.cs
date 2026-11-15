@@ -473,7 +473,7 @@ internal static class CaseDataSnapshotFactory
             var candidate = candidates.FirstOrDefault(item =>
                     string.Equals(item.Value, named, StringComparison.OrdinalIgnoreCase))
                 ?? (candidates.Count > 0 ? candidates[0] : null);
-            sourceKind = CaseDataCodes.IntakeEvidence;
+            sourceKind = candidate is null ? CaseDataCodes.IntakeEvidence : SourceKindOf(candidate.Source);
             sourceLabel = candidate is null
                 ? "instruction claim source"
                 : $"{candidate.Source}:{candidate.SourceLabel}";
@@ -526,7 +526,6 @@ internal static class CaseDataSnapshotFactory
             CaseDataCodes.Integer,
             contact.Version.ToString(CultureInfo.InvariantCulture));
         Confirm(CaseDataFieldNames.ClaimSourceName, CaseDataCodes.Text, contact.Name);
-        Confirm(CaseDataFieldNames.ClaimSourceContactName, CaseDataCodes.Text, contact.ContactPerson);
         Confirm(CaseDataFieldNames.ClaimSourceContactTelephone, CaseDataCodes.Text, contact.Telephone);
         Confirm(CaseDataFieldNames.ClaimSourceContactEmailAddress, CaseDataCodes.Text, contact.Email);
     }
@@ -564,6 +563,7 @@ internal static class CaseDataSnapshotFactory
         var sourceLabel = candidate is null
             ? "instruction repairer"
             : $"{candidate.Source}:{candidate.SourceLabel}";
+        var sourceKind = candidate is null ? CaseDataCodes.IntakeEvidence : SourceKindOf(candidate.Source);
         var contact = established.Repairer;
         void Confirm(string fieldName, string valueType, string value) =>
             UpsertConfirmed(
@@ -575,7 +575,7 @@ internal static class CaseDataSnapshotFactory
                 acceptedAtUtc,
                 policyKey,
                 policyVersion,
-                CaseDataCodes.IntakeEvidence,
+                sourceKind,
                 sourceLabel,
                 inheritUnderlying: false);
 
@@ -785,21 +785,23 @@ internal static class CaseDataSnapshotFactory
             // on the field. Recording it as evidence would have the case claim
             // the document said something it never said, and the confirmed row
             // inherits this kind, so the mislabelling would carry through.
-            SourceKind = candidate.Source switch
-            {
-                IntakeEvidenceSource.StaffCorrection => CaseDataCodes.StaffCorrection,
-                // FRD-23 names the Principal API as a provenance in its own
-                // right. A value the instructing Principal stated is neither
-                // something a document said nor something a person here keyed.
-                IntakeEvidenceSource.PrincipalDeclaration => CaseDataCodes.PrincipalApi,
-                _ => CaseDataCodes.IntakeEvidence
-            },
+            SourceKind = SourceKindOf(candidate.Source),
             SourceIdentity = receipt.Id.ToString("D"),
             SourceLabel = $"{candidate.Source}:{candidate.SourceLabel}",
             PolicyKey = hasExtractionPolicy ? receipt.ExtractionPolicyKey! : snapshot.CompletenessPolicyKey,
             PolicyVersion = hasExtractionPolicy ? receipt.ExtractionPolicyVersion!.Value : snapshot.CompletenessPolicyVersion
         });
     }
+
+    private static string SourceKindOf(IntakeEvidenceSource source) => source switch
+    {
+        IntakeEvidenceSource.StaffCorrection => CaseDataCodes.StaffCorrection,
+        // FRD-23 names the Principal API as a provenance in its own
+        // right. A value the instructing Principal stated is neither
+        // something a document said nor something a person here keyed.
+        IntakeEvidenceSource.PrincipalDeclaration => CaseDataCodes.PrincipalApi,
+        _ => CaseDataCodes.IntakeEvidence
+    };
 
     private static void UpsertConfirmed(
         CaseDataSnapshotEntity snapshot,

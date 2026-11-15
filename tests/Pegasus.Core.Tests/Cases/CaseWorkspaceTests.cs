@@ -522,8 +522,6 @@ public sealed class CaseWorkspaceTests
         Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
             new(ClaimSourceId: Guid.NewGuid())));
         Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
-            new(StorageBusinessId: Guid.NewGuid())));
-        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
             new(InspectionLocationSourceId: Guid.NewGuid())));
     }
 
@@ -585,10 +583,6 @@ public sealed class CaseWorkspaceTests
         treatment,
         address,
         provenance,
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,

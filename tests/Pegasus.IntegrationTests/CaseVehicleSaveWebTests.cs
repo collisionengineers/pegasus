@@ -396,7 +396,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             var name = $"Repairer Rows Fixture {repairerId:N}";
             await administration.SaveAsync(
                 new(
-                    actor, repairerId, 0, name, null, null, null, null, null, true, ContactRole.Repairer, null,
+                    actor, repairerId, 0, name, null, null, null, null, true, ContactRole.Repairer, null,
                     CaseInspectionMode.PhysicalAddress,
                     linkedPrincipalId is { } principalId ? [principalId] : [],
                     $"case-repairer-rows:{repairerId:N}"),

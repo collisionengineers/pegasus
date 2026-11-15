@@ -13,8 +13,7 @@ internal sealed record UploadBeginToolResult(
     DateTimeOffset ExpiresAtUtc,
     IReadOnlyList<int> ReceivedParts,
     bool IsReplay,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record UploadPartToolResult(
     Guid UploadId,
@@ -34,8 +33,7 @@ internal sealed record UploadPartToolResult(
 /// </summary>
 [McpServerToolType]
 internal sealed class DocumentUploadMcpTools(
-    DocumentUploads begin,
-    DocumentUploads append,
+    DocumentUploads uploads,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
@@ -53,7 +51,7 @@ internal sealed class DocumentUploadMcpTools(
     public async Task<UploadBeginToolResult> BeginAsync(
         [Description("The whole document's size in bytes, 1 to 10485760.")] long totalBytes,
         [Description("The whole document's SHA-256, 64 hexadecimal digits.")] string sha256,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync("pegasus_upload_begin", cancellationToken);
@@ -69,7 +67,7 @@ internal sealed class DocumentUploadMcpTools(
             key,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
-                var ticket = await begin.ExecuteAsync(
+                var ticket = await uploads.ExecuteAsync(
                     new BeginDocumentUploadRequest(uploadId, context.ClientId, totalBytes, sha256),
                     cancellationToken);
                 return new UploadBeginToolResult(
@@ -79,8 +77,7 @@ internal sealed class DocumentUploadMcpTools(
                     ticket.ExpiresAtUtc,
                     ticket.ReceivedParts,
                     ticket.IsReplay,
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
+                    key);
             }),
             cancellationToken);
     }
@@ -105,7 +102,7 @@ internal sealed class DocumentUploadMcpTools(
         return await auditor.RecordRefusalAsync(
             context,
             "pegasus_upload_part",
-            uploadId == Guid.Empty ? "invalid" : uploadId.ToString("D"),
+            AutomationMcpAuditor.Resource(uploadId),
             null,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
@@ -114,7 +111,7 @@ internal sealed class DocumentUploadMcpTools(
                     contentBase64,
                     DocumentUploadLimits.PartBytes,
                     "The part content");
-                var receipt = await append.ExecuteAsync(
+                var receipt = await uploads.ExecuteAsync(
                     new AppendDocumentUploadPartRequest(uploadId, context.ClientId, partNumber, content, sha256),
                     cancellationToken);
                 return new UploadPartToolResult(

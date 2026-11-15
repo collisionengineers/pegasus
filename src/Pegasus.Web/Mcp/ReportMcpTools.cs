@@ -77,8 +77,7 @@ internal sealed record ReportActionToolResult(
     IReadOnlyList<ReportArtifactToolItem> Artifacts,
     IReadOnlyList<ReportReadinessToolItem> NotReadyReasons,
     string? FeeNoteOutcome,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 /// <summary>
 /// Automation Actor report tools (FRD-10, ADR-0064): the Case's report
@@ -99,14 +98,11 @@ internal sealed class ReportMcpTools(
     IUnlinkReportEvidence unlinkEvidence,
     IGetCaseHeader getCaseHeader,
     IAvailableReportSentEvidenceQueries availableEvidence,
-    IGetAssessmentAccess getAssessmentAccess,
+    CaseReportActs reportActs,
     ICaseWorkflowQueries workflowQueries,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     Pegasus.Web.Presentation.OneCommandEdit leases)
 {
-    private const int MaximumOperationKeyLength = 100;
-
     private static readonly string[] Actions =
     [
         "generate_report", "generate_repair_spec", "generate_image_pack",
@@ -123,17 +119,14 @@ internal sealed class ReportMcpTools(
         UseStructuredContent = true)]
     [Description("Lists a Case's report generations for one work, as the Case page reads them: each generation's identifier, state (Pending, Confirmed or Stale), whether it is the work's current one, when it was generated and at which case version, and its artifacts (AssessmentReport, FeeNote, RepairSpecification, ImagePack) with filing state, file name, SHA-256 and whether the recorded report approval names it. Also returns the work's recorded report approval, its linked report-Sent evidence, and the retained Sent evidence available to link.")]
     public async Task<ReportListToolResult> ListAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("current (the default; the Audit once a Case has one) or inspection (the Inspection report of a Case that has its Audit).")] string? work = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_report_list", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_report_list",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            async context =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var selector = ParseWork(work);
@@ -145,7 +138,7 @@ internal sealed class ReportMcpTools(
                 var available = await availableEvidence.ListAsync(cancellationToken);
                 return new ReportListToolResult(
                     caseId,
-                    selector == CaseWorkSelector.Primary ? "inspection" : "current",
+                    WorkName(selector),
                     header.Workflow.Version,
                     header.Workflow.State.ToString(),
                     generations
@@ -173,7 +166,7 @@ internal sealed class ReportMcpTools(
                             null))
                         .ToArray(),
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -185,10 +178,10 @@ internal sealed class ReportMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Takes one report act a member of staff takes on the Case page, through the same Core command and guards: generate_report (freezes the Case's accepted facts and renders the immutable report, filed to the Case; once it is confirmed the separate fee note is made from the same generation), generate_repair_spec or generate_image_pack (a companion document of a confirmed generation, generationId defaulting to the work's current one), record_approval (records approval of one stored generated artifact, artifactId from pegasus_report_list; while the Case is With Engineer, or on the Inspection report of a Case that has its Audit; this is not a send), link_sent_evidence (links retained report-Sent evidence, evidenceId from pegasus_report_list; the current work's report moves the Case to Post report) or unlink_sent_evidence (reason; the currently linked evidence unless evidenceId names it). Nothing here sends a report; pegasus_report_send does. A generation that is not ready answers outcome NotReady with the reasons and records nothing. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). A generation keeps the lease; approval and the evidence acts end it.")]
+    [Description("Takes one report act a member of staff takes on the Case page: generate_report (freezes the Case's accepted facts and renders the immutable report, filed to the Case; once it is confirmed the separate fee note is made from the same generation), generate_repair_spec or generate_image_pack (a companion document of a confirmed generation, generationId defaulting to the work's current one), record_approval (records approval of one stored generated artifact, artifactId from pegasus_report_list; while the Case is With Engineer, or on the Inspection report of a Case that has its Audit; this is not a send), link_sent_evidence (links retained report-Sent evidence, evidenceId from pegasus_report_list; the current work's report moves the Case to Post report) or unlink_sent_evidence (reason; the currently linked evidence unless evidenceId names it). Nothing here sends a report; pegasus_report_send does. A generation that is not ready answers outcome NotReady with the reasons and records nothing. Needs the expected case version. A generation keeps the lease; approval and the evidence acts end it.")]
     public async Task<ReportActionToolResult> ActAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same outcome without rendering again.")] string operationKey,
         [Description("The act: generate_report, generate_repair_spec, generate_image_pack, record_approval, link_sent_evidence or unlink_sent_evidence.")] string action,
         [Description("current (the default; the Audit once a Case has one) or inspection (the Inspection report of a Case that has its Audit). unlink_sent_evidence acts on the current work only.")] string? work = null,
@@ -196,17 +189,14 @@ internal sealed class ReportMcpTools(
         [Description("record_approval: the stored generated artifact approved (pegasus_report_list).")] Guid? artifactId = null,
         [Description("link_sent_evidence: the retained report-Sent evidence to link; unlink_sent_evidence: the linked evidence, defaulting to the one linked now.")] Guid? evidenceId = null,
         [Description("Why (case history reason, at most 500 characters). Required for record_approval, link_sent_evidence and unlink_sent_evidence.")] string? reason = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_report_action", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_report_action",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var verb = action?.Trim() ?? string.Empty;
@@ -247,9 +237,8 @@ internal sealed class ReportMcpTools(
                             item.Requirement, item.Source, item.WhyOutstanding, item.HowToResolve))
                         .ToArray(),
                     result.FeeNoteOutcome,
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
-            }),
+                    key);
+            },
             cancellationToken);
     }
 
@@ -273,16 +262,12 @@ internal sealed class ReportMcpTools(
         CancellationToken cancellationToken)
     {
         var actor = context.Actor;
-        var access = await getAssessmentAccess.ExecuteAsync(new(caseId, actor), cancellationToken);
-        if (access is null || !access.CanOpen)
+        switch (await reportActs.GetAccessAsync(actor, caseId, selector, cancellationToken))
         {
-            throw new McpException("The case was not found or its report cannot be generated in its state.");
-        }
-        if (access.IsReadOnly
-            && !(selector == CaseWorkSelector.Primary
-                && (await getCaseHeader.ExecuteAsync(new(caseId, actor), cancellationToken))?.Works is { HasAudit: true }))
-        {
-            throw new McpException("The case is read-only once Complete.");
+            case CaseReportActAccess.NotOpen:
+                throw new McpException("The case was not found or its report cannot be generated in its state.");
+            case CaseReportActAccess.ReadOnly:
+                throw new McpException("The case is read-only once Complete.");
         }
         if (kind != CaseReportArtifactKind.AssessmentReport && targetGenerationId is null)
         {
@@ -301,16 +286,16 @@ internal sealed class ReportMcpTools(
                 // One custody batch around the report and its fee note: the
                 // Case folder is proved once for both (FRD-05, #1952).
                 await using var batch = generateReport.BeginBatch();
-                var result = await GenerateOneAsync(
-                    actor, caseId, expectedVersion, token, key, kind, targetGenerationId, selector, cancellationToken);
+                var request = CaseReportActs.RequestFor(
+                    actor, caseId, expectedVersion, token, key, kind, targetGenerationId, selector);
+                var result = await GenerateOneAsync(request, cancellationToken);
                 string? feeNote = null;
-                if (GenerateCaseReport.FeeNoteTargetOf(kind, result.Generation) is { } feeNoteTarget)
+                if (CaseReportActs.FeeNoteRequestAfter(
+                    request, result, OneCommandEditAuthority.DeriveOperationKey(key, ":fee-note")) is { } feeNoteRequest)
                 {
                     // The report stands whatever the fee note's outcome (R771: a
                     // fee note's failure still fails this call, as it did).
-                    var feeNoteResult = await GenerateOneAsync(
-                        actor, caseId, expectedVersion, token, Derive(key, ":fee-note"),
-                        CaseReportArtifactKind.FeeNote, feeNoteTarget, selector, cancellationToken);
+                    var feeNoteResult = await GenerateOneAsync(feeNoteRequest, cancellationToken);
                     feeNote = feeNoteResult.Outcome.ToString();
                     if (feeNoteResult.Generation is { } withFeeNote)
                     {
@@ -323,37 +308,13 @@ internal sealed class ReportMcpTools(
     }
 
     private async Task<CaseReportGenerationResult> GenerateOneAsync(
-        ActionActor actor,
-        Guid caseId,
-        long expectedVersion,
-        string token,
-        string key,
-        CaseReportArtifactKind kind,
-        Guid? targetGenerationId,
-        CaseWorkSelector selector,
+        GenerateCaseReportRequest request,
         CancellationToken cancellationToken)
     {
         CaseReportGenerationResult result;
         try
         {
-            result = await generateReport.ExecuteAsync(
-                new(
-                    actor,
-                    caseId,
-                    expectedVersion,
-                    token,
-                    key,
-                    kind,
-                    kind switch
-                    {
-                        CaseReportArtifactKind.AssessmentReport => "Generate the immutable case report",
-                        CaseReportArtifactKind.FeeNote => "Generate the immutable fee note",
-                        CaseReportArtifactKind.RepairSpecification => "Generate the immutable Repair Spec",
-                        _ => "Generate the immutable images",
-                    },
-                    targetGenerationId,
-                    selector),
-                cancellationToken);
+            result = await generateReport.ExecuteAsync(request, cancellationToken);
         }
         catch (ReportRenderRejectedException refusal)
         {
@@ -450,6 +411,10 @@ internal sealed class ReportMcpTools(
         _ => throw new McpException("The work must be current or inspection."),
     };
 
+    /// <summary>The selected work's name, as <see cref="ParseWork"/> reads it.</summary>
+    internal static string WorkName(CaseWorkSelector selector) =>
+        selector == CaseWorkSelector.Primary ? "inspection" : "current";
+
     /// <summary>
     /// The selected work's recorded approval and linked Sent evidence. The
     /// Case's current work keeps them on the Case's workflow; only the
@@ -495,13 +460,6 @@ internal sealed class ReportMcpTools(
     /// <summary>A stable approval identity for one Case and operation key.</summary>
     private static Guid ApprovalId(Guid caseId, string operationKey) =>
         new(SHA256.HashData(Encoding.UTF8.GetBytes($"report-approval:{caseId:D}:{operationKey}")).AsSpan(0, 16));
-
-    /// <summary>A follow-on act's own operation key, derived within Core's key length.</summary>
-    private static string Derive(string operationKey, string suffix)
-    {
-        var room = MaximumOperationKeyLength - suffix.Length;
-        return (operationKey.Length > room ? operationKey[..room] : operationKey) + suffix;
-    }
 
     /// <summary>One act's outcome before the Case's new version is read back.</summary>
     private sealed record ActOutcome(

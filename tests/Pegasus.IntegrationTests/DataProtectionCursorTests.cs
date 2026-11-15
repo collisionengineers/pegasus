@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core;
-using Pegasus.Web.Mcp;
+using Pegasus.Web;
 
 namespace Pegasus.IntegrationTests;
 

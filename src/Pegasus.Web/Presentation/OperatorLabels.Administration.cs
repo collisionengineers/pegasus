@@ -210,8 +210,6 @@ public static partial class OperatorLabels
             ContactRole.Principal => "Principal",
             ContactRole.ClaimSource => "Claim Source",
             ContactRole.Repairer => "Repairer",
-            ContactRole.Storage => "Storage",
-            ContactRole.ThirdPartyEngineer => "Third Party Engineer",
             _ => role.ToString()
         };
 
@@ -221,8 +219,6 @@ public static partial class OperatorLabels
             ContactRole.Principal => "Principals",
             ContactRole.ClaimSource => "Claim Sources",
             ContactRole.Repairer => "Repairers",
-            ContactRole.Storage => "Storage",
-            ContactRole.ThirdPartyEngineer => "Third Party Engineers",
             _ => role.ToString()
         };
 
@@ -247,7 +243,6 @@ public static partial class OperatorLabels
 
         // The form's own field words, as an over-long field's refusal names them (R539).
         public const string OrganisationNameField = "organisation name";
-        public const string ContactPersonField = "contact person";
         public const string EmailField = "email";
         public const string PhoneField = "phone";
         public const string AddressField = "address";

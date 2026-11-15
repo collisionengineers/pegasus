@@ -665,6 +665,17 @@ only its latest, and lists under Retained files only what the Images do not
 show (R948); the Case shows the capture's photos once any of those records
 has reached it.
 
+**Automation.** The Automation Actor does on photo links what a member of
+staff with casework does on these pages, through the same Core commands
+(operator, 13 November 2026; R1039, R1040;
+[ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)): it reads
+the lists, one Case's links and a link's page, issues a link to copy or a
+fresh address for a live one, and extends, cancels and logs a call where the
+link's page offers it, under its `automation.cases` scope; sending a link by
+e-mail or text needs its `automation.send` scope
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#photo-links)).
+Standing and website links stay with Administrators.
+
 ### Limits
 
 | Limit | Value |
@@ -822,6 +833,11 @@ Integration tests hold the rest:
   refused, and the composer's notice);
 - `AcsPhotoLinkTextSendTests`: the one request the text provider is sent,
   and each of its failures as a code;
+- `AutomationPhotoLinkIngressTests`: the Automation Actor's photo link tools
+  over /mcp: issue and its replay, one Case's links and the Direct links
+  list, a link's page, extend, log call and cancel recorded as the
+  Automation Actor's, Core's refusals passed through, the e-mail send as the
+  Photo link staff send, and no send without `automation.send`;
 - `WorkflowConfigurationWebTests`: the Photo links settings' refusals;
 - `StandingCaptureWebTests`: a standing capture opened as it starts, waiting
   with no Case and never Unidentified, taking paperwork with no Case, routed
@@ -847,10 +863,11 @@ Deployment and live acceptance are separate evidence tiers
 
 - Capabilities: `EXT-21`, `INT-34`, `MAIL-27`, `UI-20` in
   [capabilities](../capabilities.md).
-- Rulings: R773 to R817, R836 to R878 and R983 to R985 in [rulings](../rulings.md).
+- Rulings: R773 to R817, R836 to R878, R983 to R985, R1039 and R1040 in [rulings](../rulings.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration),
   [FRD-05](frd-05-documents-extraction-and-custody.md),
+  [FRD-10](frd-10-mcp-automation-and-actor-boundary.md#photo-links),
   [FRD-12](frd-12-operator-experience.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-16](frd-16-case-record-workspace.md),
@@ -861,5 +878,6 @@ Deployment and live acceptance are separate evidence tiers
   [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md).
 - Technical constraints:
   [ADR-0090](../adr/0090-public-photo-capture-surface.md),
+  [ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md),
   [ADR-0088](../adr/0088-one-hosted-test-instance.md) (the test instance's
   Funnel).

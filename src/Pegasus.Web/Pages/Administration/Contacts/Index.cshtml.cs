@@ -30,8 +30,6 @@ public sealed class IndexModel(
     [BindProperty] public string OperationKey { get; set; } = NewOperationKey();
     [BindProperty, Display(Name = OperatorLabels.Contacts.OrganisationNameField), Required(ErrorMessage = OperatorLabels.Contacts.NameRequired), StringLength(ContactDirectoryPolicy.MaximumNameLength, ErrorMessage = OperatorLabels.TooLongFormat)]
     public string Name { get; set; } = string.Empty;
-    [BindProperty, Display(Name = OperatorLabels.Contacts.ContactPersonField), StringLength(ContactDirectoryPolicy.MaximumContactPersonLength, ErrorMessage = OperatorLabels.TooLongFormat)]
-    public string? ContactPerson { get; set; }
     [BindProperty, Display(Name = OperatorLabels.Contacts.EmailField), StringLength(ContactDirectoryPolicy.MaximumEmailLength, ErrorMessage = OperatorLabels.TooLongFormat)]
     public string? Email { get; set; }
     [BindProperty, Display(Name = OperatorLabels.Contacts.PhoneField), StringLength(ContactDirectoryPolicy.MaximumTelephoneLength, ErrorMessage = OperatorLabels.TooLongFormat)]
@@ -122,7 +120,6 @@ public sealed class IndexModel(
             ContactId == Guid.Empty ? Guid.NewGuid() : ContactId,
             0,
             Name,
-            ContactPerson,
             Email,
             Telephone,
             Address,

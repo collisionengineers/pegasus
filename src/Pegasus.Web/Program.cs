@@ -455,10 +455,7 @@ builder.Services.AddRateLimiter(options =>
             "/Account/SignIn",
             StringComparison.OrdinalIgnoreCase)
             ? "sign_in_rate_limited"
-            : rejectedPath.StartsWithSegments(AutomationMcp.McpEndpointPath)
-                || rejectedPath.Equals(
-                    AutomationMcp.TokenEndpointPath,
-                    StringComparison.OrdinalIgnoreCase)
+            : AutomationMcp.IsIngressPath(rejectedPath)
                 ? "automation_rate_limited"
                 : rejectedPath.StartsWithSegments(PrincipalApi.BasePath)
                     ? "principal_api_rate_limited"
@@ -501,7 +498,7 @@ builder.Services.AddRateLimiter(options =>
             _ => new FixedWindowRateLimiterOptions
             {
                 AutoReplenishment = true,
-                PermitLimit = AutomationMcp.RequestsPerClientPerMinute,
+                PermitLimit = AutomationMcp.RequestsPerIpAddressPerMinute,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
@@ -949,10 +946,8 @@ builder.Services.AddScoped<Pegasus.Web.Pages.Cases.TriageCasePorts>();
 builder.Services.AddScoped<Pegasus.Web.Pages.Cases.TriageCaseRouteFilter>();
 builder.Services.AddScoped<DiscardIntakeSubmissionGroup>();
 builder.Services.AddScoped<IDeclineImageMatch, DeclineImageMatch>();
-// No Administration view reads the Automation activity use case: automation
-// activity is read in Action logs (FRD-04). GetServiceHealth reads the newest
-// activity through this port in every profile; the ingress itself stays
-// behind the composition gate.
+// GetServiceHealth reads the newest Automation activity time through this
+// port in every profile; Action logs (FRD-04) list the activity itself.
 builder.Services.AddScoped<IAutomationActivityQueries, EfAutomationActivityStore>();
 // Administration health remains available when the Automation ingress is disabled.
 builder.Services.AddScoped<Pegasus.Core.Operations.IAutomationIngressStatusQueries, AutomationIngressStatusQueries>();
@@ -1268,12 +1263,10 @@ if (automationMcpOptions is not null)
         var isTokenEndpoint = automationPath.Equals(
             AutomationMcp.TokenEndpointPath,
             StringComparison.OrdinalIgnoreCase);
-        var isMcpEndpoint = automationPath.StartsWithSegments(
-            AutomationMcp.McpEndpointPath);
         var isAuthorizationEndpoint = automationPath.Equals(
             AutomationMcp.AuthorizationEndpointPath,
             StringComparison.OrdinalIgnoreCase);
-        if (!isTokenEndpoint && !isMcpEndpoint && !isAuthorizationEndpoint)
+        if (!AutomationMcp.IsIngressPath(automationPath) && !isAuthorizationEndpoint)
         {
             await next(context);
             return;
@@ -1443,8 +1436,7 @@ app.Run();
 static bool IsMachineSurface(PathString path) =>
     path.StartsWithSegments("/health")
     || path.StartsWithSegments("/diagnostics")
-    || path.StartsWithSegments(AutomationMcp.McpEndpointPath)
-    || path.Equals(AutomationMcp.TokenEndpointPath, StringComparison.OrdinalIgnoreCase)
+    || AutomationMcp.IsIngressPath(path)
     || path.StartsWithSegments(PrincipalApi.BasePath)
     || path.StartsWithSegments("/capture/api");
 

@@ -101,15 +101,38 @@ public static class PrincipalInstructionJson
                 "Only an Audit instruction carries an original report verdict.");
         }
 
+        // Only a standalone Audit audits another firm's report, so only it
+        // carries one (FRD-09 § Accepted API-01 submission contract).
+        if (caseType != CaseType.Audit && body.OriginalReport is not null)
+        {
+            throw new PrincipalInstructionValidationException(
+                "originalReport",
+                "Only an Audit instruction carries an original report.");
+        }
+
         var claimant = body.Claimant ?? new();
         var vehicle = body.Vehicle ?? new();
         var incident = body.Incident ?? new();
         var inspection = body.Inspection ?? new();
+        var repairer = body.Repairer ?? new();
         if (vehicle.Mileage < 0)
         {
             throw new PrincipalInstructionValidationException(
                 "vehicle.mileage",
                 "The vehicle mileage cannot be negative.");
+        }
+
+        // The two units the Case's odometer converts between, as the New case
+        // page and the Automation tool offer them; one the odometer cannot
+        // read would otherwise be shown as miles.
+        string? mileageUnit = null;
+        if (!string.IsNullOrWhiteSpace(vehicle.MileageUnit))
+        {
+            mileageUnit = CaseOdometer.TryParseUnit(vehicle.MileageUnit, out var unit)
+                ? CaseOdometer.Format(unit)
+                : throw new PrincipalInstructionValidationException(
+                    "vehicle.mileageUnit",
+                    "The mileage unit must be miles or kilometres.");
         }
 
         // The case store's own normalisation and bounds, reporting the field by
@@ -129,12 +152,18 @@ public static class PrincipalInstructionJson
                 DateOfIncident: incident.DateOfIncident,
                 InspectionAddress: CaseDataPolicy.Text(inspection.Location, CaseDataLimits.Address, "inspection.location"),
                 InspectionDate: inspection.DateRequested,
-                VehicleMileageUnit: CaseDataPolicy.Text(vehicle.MileageUnit, CaseDataLimits.MileageUnit, "vehicle.mileageUnit"),
+                VehicleMileageUnit: mileageUnit,
                 VatStatus: CaseDataPolicy.Text(body.VatStatus, CaseDataLimits.VatStatus, "vatStatus"),
                 ClaimantAddress: CaseDataPolicy.Paragraphs(claimant.Address, CaseDataLimits.Address, "claimant.address"),
                 ClaimantContactNumber: CaseDataPolicy.Text(claimant.ContactNumber, CaseDataLimits.Telephone, "claimant.contactNumber"),
                 Notes: CaseDataPolicy.Paragraphs(body.Notes, AddCaseNote.MaximumLength, "notes"));
-            return new(caseType, verdict, draft);
+            return new(
+                caseType,
+                verdict,
+                draft,
+                RepairerName: CaseDataPolicy.Text(repairer.Name, ContactDirectoryPolicy.MaximumNameLength, "repairer.name"),
+                RepairerAddress: CaseDataPolicy.Paragraphs(repairer.Address, CaseDataLimits.Address, "repairer.address"),
+                ClaimSource: CaseDataPolicy.Text(body.ClaimSource, ContactDirectoryPolicy.MaximumNameLength, "claimSource"));
         }
         catch (ArgumentException exception) when (exception.ParamName is { } field)
         {
@@ -212,6 +241,10 @@ public sealed record PrincipalInstructionIncidentBody(
     DateOnly? DateOfIncident = null,
     string? Circumstances = null);
 
+public sealed record PrincipalInstructionRepairerBody(
+    string? Name = null,
+    string? Address = null);
+
 public sealed record PrincipalInstructionInspectionBody(
     DateOnly? DateRequested = null,
     string? Location = null);
@@ -231,6 +264,8 @@ public sealed record PrincipalSubmissionBody(
     PrincipalInstructionVehicleBody? Vehicle = null,
     PrincipalInstructionIncidentBody? Incident = null,
     PrincipalInstructionInspectionBody? Inspection = null,
+    PrincipalInstructionRepairerBody? Repairer = null,
+    string? ClaimSource = null,
     string? VatStatus = null,
     string? Notes = null,
     IReadOnlyList<PrincipalSubmissionFileBody>? Files = null,

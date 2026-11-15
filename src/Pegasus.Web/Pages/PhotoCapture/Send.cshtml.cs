@@ -364,9 +364,7 @@ public sealed class SendModel(
             {
                 // An edited text is sent as staff wrote it; an unedited one is
                 // the standard wording for the link as issued.
-                var message = textEdited
-                    ? PhotoLinkMail.Complete(TextBody!, values, IssuedUrl)
-                    : PhotoLinkMail.Complete(await _mail.RenderTextAsync(actor, values, cancellationToken), values, IssuedUrl);
+                var message = await _mail.ComposeTextAsync(actor, textEdited ? TextBody : null, values, IssuedUrl, cancellationToken);
                 TextOutcome = await sendText.ExecuteAsync(actor, capture.Id, Mobile, message, OperationKey, cancellationToken);
                 if (TextOutcome.Accepted && HasReturnUrl)
                 {
@@ -398,9 +396,7 @@ public sealed class SendModel(
             {
                 // An edited message is sent as staff wrote it; an unedited one
                 // is the standard wording for the link as issued.
-                var message = edited
-                    ? PhotoLinkMail.Complete(Body!, values, IssuedUrl)
-                    : PhotoLinkMail.Complete(await _mail.RenderAsync(actor, values, cancellationToken), values, IssuedUrl);
+                var message = await _mail.ComposeAsync(actor, edited ? Body : null, values, IssuedUrl, cancellationToken);
                 Operation = await _mail.SendAsync(
                     actor,
                     CaseId,

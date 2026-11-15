@@ -6,6 +6,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Infrastructure.Persistence.Migrations;
 
 namespace Pegasus.IntegrationTests;
 
@@ -32,7 +33,6 @@ public sealed class ContactDirectoryPersistenceTests
             contactId,
             0,
             "Linked repairer",
-            null,
             null,
             null,
             "1 Contact Street",
@@ -70,7 +70,7 @@ public sealed class ContactDirectoryPersistenceTests
         await Assert.ThrowsAsync<ArgumentException>(() => SaveAsync(database, request with
         {
             ExpectedVersion = saved.Version,
-            Role = ContactRole.Storage,
+            Role = ContactRole.ClaimSource,
             OperationKey = Guid.NewGuid().ToString("N")
         }));
     }
@@ -266,8 +266,6 @@ public sealed class ContactDirectoryPersistenceTests
         await Contact("Blank e-mail claim source", ContactRole.ClaimSource, null, true, first);
         await Contact("Unlinked claim source", ContactRole.ClaimSource, "desk@unlinked-claims.example", true);
         await Contact("Linked repairer", ContactRole.Repairer, "desk@linked-repairer.example", true, first);
-        await Contact("Linked storage", ContactRole.Storage, "desk@linked-storage.example", true, first);
-        await Contact("Linked engineer", ContactRole.ThirdPartyEngineer, "desk@linked-engineer.example", true, first);
 
         await using var scope = database.CreateAsyncScope();
         var registry = scope.ServiceProvider.GetRequiredService<IIntermediaryRegistry>();
@@ -281,8 +279,6 @@ public sealed class ContactDirectoryPersistenceTests
         Assert.False(intermediaries.IsIntermediaryFor("claims@inactive-principal.example", "CPI03"));
         Assert.False(intermediaries.IsIntermediaryFor("claims@unlinked-claims.example", "CPI01"));
         Assert.False(intermediaries.IsIntermediaryFor("claims@linked-repairer.example", "CPI01"));
-        Assert.False(intermediaries.IsIntermediaryFor("claims@linked-storage.example", "CPI01"));
-        Assert.False(intermediaries.IsIntermediaryFor("claims@linked-engineer.example", "CPI01"));
     }
 
     [Fact]
@@ -319,10 +315,37 @@ public sealed class ContactDirectoryPersistenceTests
                     .ToDictionaryAsync(item => item.Id);
                 var first = principals[firstPrincipal.OwnPrincipalIds!.Single()];
                 var second = principals[secondPrincipal.OwnPrincipalIds!.Single()];
+                var repaired = Case(second, 1, "CASE-C", receivedAtUtc);
                 context.Cases.AddRange(
                     Case(first, 1, "CASE-B", receivedAtUtc),
                     Case(first, 2, "CASE-A", receivedAtUtc),
-                    Case(second, 1, "CASE-C", receivedAtUtc));
+                    repaired);
+                await context.SaveChangesAsync();
+                // CASE-C names the Repairer, as a link on the Case records it.
+                context.CaseDataSnapshots.Add(new CaseDataSnapshotEntity
+                {
+                    WorkId = repaired.Id,
+                    OriginReceivedAtUtc = receivedAtUtc,
+                    CompletenessPolicyKey = "test",
+                    CompletenessPolicyVersion = 1,
+                    AcceptedAtUtc = receivedAtUtc,
+                    Fields =
+                    [
+                        new CaseDataFieldEntity
+                        {
+                            WorkId = repaired.Id,
+                            FieldName = CaseDataFieldNames.RepairerId,
+                            ValueKind = "fact",
+                            ValueType = "text",
+                            Value = repairer.OrganizationId.ToString("D"),
+                            SourceKind = "intake_evidence",
+                            SourceIdentity = "test",
+                            SourceLabel = "test",
+                            PolicyKey = "test",
+                            PolicyVersion = 1
+                        }
+                    ]
+                });
                 await context.SaveChangesAsync();
             }
         }
@@ -345,8 +368,13 @@ public sealed class ContactDirectoryPersistenceTests
         Assert.Equal(receivedAtUtc, latest.LastCaseReceivedAtUtc);
         Assert.Equal("CASE-A", latest.LastCaseReference);
         Assert.Equal("LCD01", latest.PrincipalCode);
+        // A Repairer's last Case is the latest Case that names it (FRD-04).
+        var listedRepairer = Assert.Single(listedRepairers);
+        Assert.Equal(receivedAtUtc, listedRepairer.LastCaseReceivedAtUtc);
+        Assert.Equal("CASE-C", listedRepairer.LastCaseReference);
+        Assert.Null(listedRepairer.PrincipalCode);
         Assert.All(
-            listedRepairers.Concat(listedClaimSources),
+            listedClaimSources,
             item =>
             {
                 Assert.Null(item.LastCaseReceivedAtUtc);
@@ -375,7 +403,6 @@ public sealed class ContactDirectoryPersistenceTests
         {
             Name = prefix + "Zulu repairer",
             Role = ContactRole.Repairer,
-            ContactPerson = "Z Handler",
             Email = "zulu@example.test",
             Telephone = "0113 000 0001",
             Address = "1 Zulu Road",
@@ -408,7 +435,7 @@ public sealed class ContactDirectoryPersistenceTests
         Assert.Equal([alpha.OrganizationId, zulu.OrganizationId], listed.Select(item => item.OrganizationId));
         Assert.Equal(
             new ContactChoice(
-                zulu.OrganizationId, zulu.Name, ContactRole.Repairer, zulu.Version, "Z Handler", "zulu@example.test",
+                zulu.OrganizationId, zulu.Name, ContactRole.Repairer, zulu.Version, "zulu@example.test",
                 "0113 000 0001", "1 Zulu Road", "ZU1 1ZU", null),
             listed[1] with { LinkedPrincipalCodes = null });
         Assert.Equal("CHC01", Assert.Single(listed[1].LinkedPrincipalCodes!));
@@ -455,7 +482,6 @@ public sealed class ContactDirectoryPersistenceTests
         {
             Name = "Fill fixture sender",
             Email = "desk@fill-claims.example",
-            ContactPerson = "S Handler",
             LinkedPrincipalIds = principal.OwnPrincipalIds!
         });
         var named = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with { Name = "Fill fixture named" });
@@ -501,7 +527,6 @@ public sealed class ContactDirectoryPersistenceTests
         Assert.NotNull(fromSender);
         Assert.Equal(IntakeClaimSourceOrigin.Sender, fromSender.Origin);
         Assert.Equal(sender.OrganizationId, fromSender.ClaimSource.OrganizationId);
-        Assert.Equal("S Handler", fromSender.ClaimSource.ContactPerson);
 
         var fromInstruction = await CaseDataSnapshotFactory.EstablishClaimSourceAsync(
             context, Receipt("intermediary", introducer), CancellationToken.None);
@@ -684,12 +709,85 @@ public sealed class ContactDirectoryPersistenceTests
         Assert.Empty((await ReadPage(ContactRole.Repairer, 3, repairerPrefix + "0")).Items);
     }
 
+    /// <summary>
+    /// The removal of the Storage and Third Party Engineer types (operator,
+    /// 13 November 2026; R1049 to R1051): a Storage contact holding an address
+    /// and a postcode becomes an inspection location with its Principal links,
+    /// both types' contacts and links go, every other contact stays, and a
+    /// second run finds nothing left to do.
+    /// </summary>
+    [Fact]
+    public async Task StorageYardsBecomeInspectionLocationsAndTheTwoRemovedTypesGo()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var principal = (await SaveAsync(database, NewPrincipal("Yard fixture principal", "YRD01"))).OwnPrincipalIds!.Single();
+        var repairer = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            Name = "Yard fixture repairer",
+            Role = ContactRole.Repairer,
+            LinkedPrincipalIds = [principal]
+        });
+        var appended = Guid.NewGuid();
+        var kept = Guid.NewGuid();
+        var noPostcode = Guid.NewGuid();
+        var engineer = Guid.NewGuid();
+        await using var scope = database.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        // The schema no longer admits the two types, so the rows are seeded as they stood before it changed.
+        await context.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE [dbo].[Organizations] DROP CONSTRAINT [CK_Organizations_Role];");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO [dbo].[Organizations] ([Id], [Name], [Role], [Address], [Postcode], [Telephone], [Active], [Version]) VALUES
+                ({appended}, N'Yard fixture appended', N'storage', N' 1 Yard Road, Leeds ', N'ls1 1aa', N'0113 000 0003', 1, 2),
+                ({kept}, N'Yard fixture kept', N'storage', N'2 Yard Road, Leeds, LS2 2BB', N'LS2 2BB', NULL, 0, 0),
+                ({noPostcode}, N'Yard fixture no postcode', N'storage', N'3 Yard Road', NULL, NULL, 1, 0),
+                ({engineer}, N'Yard fixture engineer', N'third_party_engineer', N'4 Yard Road', N'LS4 4DD', NULL, 1, 0);
+            INSERT INTO [dbo].[ContactPrincipalLinks] ([PrincipalId], [OrganizationId]) VALUES
+                ({principal}, {appended}), ({principal}, {noPostcode}), ({principal}, {engineer});
+            """);
+
+        await context.Database.ExecuteSqlRawAsync(ContactsThreeTypes.RemoveTypesSql);
+        await context.Database.ExecuteSqlRawAsync(ContactsThreeTypes.RemoveTypesSql);
+
+        var yards = await context.Set<InspectionLocationEntity>().AsNoTracking()
+            .Where(item => item.Source == ContactsThreeTypes.YardSource)
+            .OrderBy(item => item.Name)
+            .Select(item => new
+            {
+                item.Id,
+                item.Address,
+                item.Postcode,
+                item.Active,
+                item.SourceRecordId,
+                Links = item.PrincipalLinks.Select(link => link.PrincipalId).ToList()
+            })
+            .ToArrayAsync();
+        Assert.Equal([appended, kept], yards.Select(item => item.Id));
+        Assert.Equal(
+            ("1 Yard Road, Leeds, LS1 1AA", "LS1 1AA", true, appended.ToString("D")),
+            (yards[0].Address, yards[0].Postcode, yards[0].Active, yards[0].SourceRecordId));
+        Assert.Equal(principal, Assert.Single(yards[0].Links));
+        Assert.Equal(
+            ("2 Yard Road, Leeds, LS2 2BB", "LS2 2BB", false),
+            (yards[1].Address, yards[1].Postcode, yards[1].Active));
+        Assert.Empty(yards[1].Links);
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM Organizations WHERE Role IN (N'storage', N'third_party_engineer')"));
+        Assert.Equal(
+            repairer.OrganizationId,
+            Assert.Single(await context.Set<ContactPrincipalLinkEntity>().AsNoTracking()
+                .Where(item => item.PrincipalId == principal)
+                .Select(item => item.OrganizationId)
+                .ToArrayAsync()));
+    }
+
     private static SaveContactRequest NewPrincipal(string name, string code) => new(
         Administrator,
         Guid.NewGuid(),
         0,
         name,
-        null,
         null,
         null,
         null,
@@ -726,7 +824,6 @@ public sealed class ContactDirectoryPersistenceTests
         contactId,
         expectedVersion,
         "Migrated contact",
-        null,
         null,
         null,
         null,

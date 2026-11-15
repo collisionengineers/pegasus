@@ -102,12 +102,20 @@ public sealed partial class PrincipalCaseMatchPolicy(
             date);
     }
 
-    public CaseMatchIndexKeys DeriveIndexKeys(CaseMatchSourceData caseData)
+    public CaseMatchIndexKeys DeriveIndexKeys(CaseMatchSourceData caseData) =>
+        DeriveIndexKeys(PrincipalCode, caseData);
+
+    /// <summary>
+    /// The index keys for <paramref name="principalCode"/>'s Case facts. Only
+    /// QDOS has a claim-reference grammar of its own; every other Principal
+    /// keeps its full reference, so the keys depend on the code alone.
+    /// </summary>
+    internal static CaseMatchIndexKeys DeriveIndexKeys(string principalCode, CaseMatchSourceData caseData)
     {
         ArgumentNullException.ThrowIfNull(caseData);
         var name = NormalizeName(caseData.ClaimantName ?? string.Empty);
         return new(
-            PrincipalCode == QdosInstructionExtractionPolicy.SupportedPrincipalCode
+            principalCode == QdosInstructionExtractionPolicy.SupportedPrincipalCode
                 ? NormalizeClaimReference(caseData.ClaimNumber ?? string.Empty)
                 : NormalizeFullReference(caseData.ClaimNumber),
             NormalizeVrm(caseData.VehicleRegistration ?? string.Empty),

@@ -105,7 +105,7 @@ explicit Core authorization contract"
 ([ADR-0011](../0011-restrict-mcp-to-automation-actor.md)). Pegasus "does not
 create a new Pegasus-side tool-permission policy or take ownership of the
 external MCP client's client-selection or tool-access policy"
-([ADR-0026](../0026-enable-automation-mcp-by-explicit-deployment-configuration.md)).
+([ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md)).
 `automation.send` exists "so a grant can hold casework without sending"
 ([ADR-0064](../0064-automation-actor-staff-casework-parity.md) decision 9).
 
@@ -263,7 +263,7 @@ tool-permission policy (decision 5).
 
 - [FRD-10](../../frd/frd-10-mcp-automation-and-actor-boundary.md)
 - [ADR-0011](../0011-restrict-mcp-to-automation-actor.md),
-  [ADR-0026](../0026-enable-automation-mcp-by-explicit-deployment-configuration.md),
+  [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md),
   [ADR-0027](../0027-authorization-code-for-external-mcp-connectors.md),
   [ADR-0059](../0059-native-mcp-file-content-and-consolidated-tool-inventory.md),
   [ADR-0064](../0064-automation-actor-staff-casework-parity.md)

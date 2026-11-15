@@ -846,6 +846,31 @@ public sealed class AutomationQueueIngressTests
             SELECT COUNT(*) FROM WorkCentreDismissals
             WHERE RecordId = '{recordId:D}' AND DismissedBySubjectId = N'{ClientId}'
             """));
+
+        // The key only labels the call's history, so a dismissal without one
+        // is made and recorded all the same (R1042).
+        var keyless = Guid.NewGuid();
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_work_centre_dismiss", new
+        {
+            recordId = keyless
+        })))
+        {
+            Assert.Equal(keyless, (await ReadStructuredContentAsync(response)).GetProperty("recordId").GetGuid());
+        }
+
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM WorkCentreDismissals
+            WHERE RecordId = '{keyless:D}' AND DismissedBySubjectId = N'{ClientId}'
+            """));
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE AggregateType = N'automation_mcp'
+              AND AggregateId = N'{keyless:D}'
+              AND EventKind = N'pegasus_work_centre_dismiss'
+              AND Outcome = N'Succeeded'
+            """));
     }
 
     [Fact]

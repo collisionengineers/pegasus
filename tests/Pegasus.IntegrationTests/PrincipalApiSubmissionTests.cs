@@ -909,6 +909,51 @@ public sealed class PrincipalApiSubmissionTests
         Assert.Equal(2, await context.CaseIntakeLinks.CountAsync());
     }
 
+    /// <summary>
+    /// R1055: a Principal with no instruction profile, so no route-owned
+    /// case-match policy, still has its Cases indexed and a second declaration
+    /// of the same claim refused, rather than allocated as a duplicate.
+    /// </summary>
+    [Fact]
+    public async Task APrincipalWithNoInstructionProfileIsRefusedForAClaimItAlreadyHas()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var api = WithPrincipalApi(factory);
+        using var client = IntakeWebDriver.CreateClient(api);
+        var secret = await IssueOtherPrincipalCredentialAsync(api);
+
+        using var first = await SubmitAsync(client, secret, "other-claim-1", [], claimNumber: "OTH-0001");
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        await DrainAsync(api, (await ReadJsonAsync(first)).GetProperty("submissionId").GetGuid());
+
+        await using (var scope = api.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            Assert.Equal(1, await context.Cases.CountAsync());
+            var indexed = await context.Set<CaseMatchIndexEntity>().AsNoTracking().SingleAsync();
+            Assert.Equal("OTHER", indexed.PrincipalCode);
+            Assert.Equal("OTH-0001", indexed.DurableClaimToken);
+        }
+
+        using var repeated = await SubmitAsync(client, secret, "other-claim-2", [], claimNumber: "oth-0001");
+        Assert.Equal(HttpStatusCode.Created, repeated.StatusCode);
+        var repeatedId = (await ReadJsonAsync(repeated)).GetProperty("submissionId").GetGuid();
+        await using (var scope = api.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var staged = await StagedReceiptAsync(services, repeatedId);
+            var (status, _) = await DrainStagedToTerminalAsync(services, staged.Id);
+            Assert.Equal(QueuedIntakeStatusKind.Failed, status.Status);
+            Assert.Equal(PrincipalExistingCaseMatchException.FailureCode, status.FailureCode);
+
+            var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            Assert.Equal(1, await context.Cases.CountAsync());
+        }
+    }
+
     private static async Task<HttpResponseMessage> SubmitAsync(
         HttpClient client,
         string secret,
@@ -1015,7 +1060,7 @@ public sealed class PrincipalApiSubmissionTests
         var services = scope.ServiceProvider;
         await services.GetRequiredService<IContactDirectoryAdministration>().SaveAsync(
             new SaveContactRequest(
-                Administrator, Guid.NewGuid(), 0, "Other Provider", null, null, null, null, null, true,
+                Administrator, Guid.NewGuid(), 0, "Other Provider", null, null, null, null, true,
                 ContactRole.Principal, "OTHER", CaseInspectionMode.PhysicalAddress, [],
                 "principal-api:principal:other"),
             default);

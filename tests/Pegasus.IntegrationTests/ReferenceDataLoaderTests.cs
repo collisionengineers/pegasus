@@ -113,18 +113,14 @@ public sealed class ReferenceDataLoaderTests
             PrincipalRow("P0002", "Loader Inactive Principal", "RDLI", "add-inactive", "false", "physical_address"),
             Row(ReferenceFiles.ClaimSources, "C0001", "Loader Claim Source", "add", (ReferenceFiles.NotesOnEveryCase, "Loader note")),
             Row(ReferenceFiles.Repairers, "R0001", "Loader Repairer", "add"),
-            Row(ReferenceFiles.Storage, "S0001", "Loader Storage", "add"),
-            Row(ReferenceFiles.Engineers, "E0001", "Loader Engineer", "add"),
             Link("C0001", "claim_source", "RDLL"),
             Link("C0001", "claim_source", "RDLI"),
             Link("R0001", "repairer", "RDLI"),
-            Link("S0001", "storage", "RDLL"),
-            Link("E0001", "third_party_engineer", "RDLL"),
             Location("X0001", "Loader Body Centre", "1 Loader Street, Testtown, LD1 1AA", "ld1 1aa", "RDLI;RDLL"));
 
         var applied = await LoadAsync(database, root, data, administrator);
 
-        Assert.Equal(7, applied.GetProperty("outcome").GetProperty("written").GetInt32());
+        Assert.Equal(5, applied.GetProperty("outcome").GetProperty("written").GetInt32());
         var livePrincipal = live.OwnPrincipalIds!.Single();
         var updated = await GetContactAsync(database, live.OrganizationId);
         Assert.NotNull(updated);
@@ -142,10 +138,6 @@ public sealed class ReferenceDataLoaderTests
         Assert.Equal(new[] { livePrincipal, inactivePrincipal }.Order(), claimSource.LinkedPrincipalIds);
         Assert.Equal("Loader note", claimSource.NotesOnEveryCase);
         Assert.Equal([inactivePrincipal], (await GetContactAsync(database, ReferenceFiles.OrganizationId("repairer", "R0001")))!.LinkedPrincipalIds);
-        Assert.Equal([livePrincipal], (await GetContactAsync(database, ReferenceFiles.OrganizationId("storage", "S0001")))!.LinkedPrincipalIds);
-        Assert.Equal(
-            [livePrincipal],
-            (await GetContactAsync(database, ReferenceFiles.OrganizationId("third_party_engineer", "E0001")))!.LinkedPrincipalIds);
         Assert.Equal(
             "1 Loader Street, Testtown, LD1 1AA|LD1 1AA|2",
             await database.ScalarAsync<string>(
@@ -162,7 +154,7 @@ public sealed class ReferenceDataLoaderTests
             .Split(';')
             .Select(key => key.Split(':')[2] switch { "principal" => 0, "inspection_location" => 2, _ => 1 })
             .ToArray();
-        Assert.Equal(7, steps.Length);
+        Assert.Equal(5, steps.Length);
         Assert.Equal(steps.Order(), steps);
     }
 
@@ -341,8 +333,7 @@ public sealed class ReferenceDataLoaderTests
             "C0001",
             "Loader Stored Source",
             "update-live",
-            (ReferenceFiles.Telephone, "0161 496 0999"),
-            (ReferenceFiles.ContactPerson, "Loader Contact")));
+            (ReferenceFiles.Telephone, "0161 496 0999")));
 
         var applied = await LoadAsync(database, root, data, administrator);
 
@@ -350,8 +341,8 @@ public sealed class ReferenceDataLoaderTests
         var reread = await GetContactAsync(database, stored.OrganizationId);
         Assert.NotNull(reread);
         Assert.Equal(
-            ("claims@loader.example.invalid", "1 Stored Street", "0161 496 0999", "Loader Contact"),
-            (reread.Email, reread.Address, reread.Telephone, reread.ContactPerson));
+            ("claims@loader.example.invalid", "1 Stored Street", "0161 496 0999"),
+            (reread.Email, reread.Address, reread.Telephone));
         Assert.Null(await GetContactAsync(database, ReferenceFiles.OrganizationId("claim_source", "C0001")));
         var overwrite = Assert.Single(applied.GetProperty("plan").GetProperty("overwrites").EnumerateArray());
         Assert.Equal(
@@ -484,7 +475,6 @@ public sealed class ReferenceDataLoaderTests
         Guid.NewGuid(),
         0,
         name,
-        null,
         null,
         null,
         null,

@@ -574,7 +574,7 @@ public sealed class CaseActionsMenuWebTests
         return data! with
         {
             Workspace = new CaseWorkspaceData(
-                null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null,
                 PrincipalNotes: principalNotes,
                 ClaimSourceNotes: claimSourceNotes)
         };

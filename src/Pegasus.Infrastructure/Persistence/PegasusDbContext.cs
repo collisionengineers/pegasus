@@ -1174,7 +1174,6 @@ internal sealed class OrganizationEntity
     public Guid Id { get; set; }
     public required string Name { get; set; }
     public string NormalizedName { get; private set; } = string.Empty;
-    public string? ContactPerson { get; set; }
     public string? Email { get; set; }
     public string? Telephone { get; set; }
     public string? Address { get; set; }
@@ -1183,7 +1182,7 @@ internal sealed class OrganizationEntity
     public string? NotesOnEveryCase { get; set; }
     public bool Active { get; set; } = true;
     public long Version { get; set; }
-    // The one contact type: principal, claim_source, repairer, storage or third_party_engineer.
+    // The one contact type: principal, claim_source or repairer.
     public required string Role { get; set; }
     public List<ContactPrincipalLinkEntity> PrincipalLinks { get; set; } = [];
     public List<PrincipalEntity> Principals { get; set; } = [];

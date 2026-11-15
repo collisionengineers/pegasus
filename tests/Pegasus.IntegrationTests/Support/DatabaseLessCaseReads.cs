@@ -105,32 +105,53 @@ internal sealed class DatabaseLessCaseReads :
     ];
 
     /// <summary>
-    /// The claim sources the schema seeds (slots 01 to 0b, from the SOP seeds
-    /// of 12, 13 and 17 October 2026), in the store's name order.
+    /// The claim sources the schema seeds, in the store's name order: slots
+    /// 01 to 0b from the SOP seeds of 12, 13 and 17 October 2026, and slots
+    /// 0e to 19, the introducers Oakwood's instructions name, each linked to
+    /// OAK (migration ContactsFollowQuickReference, R1030).
     /// </summary>
     private static readonly IReadOnlyList<ContactChoice> ClaimSources =
     [
+        OakIntroducer("00000000-0000-4000-8000-00000000f00e", "A To Z Scotland Limited"),
+        OakIntroducer("00000000-0000-4000-8000-00000000f00f", "A76 Recovery Ltd"),
+        OakIntroducer("00000000-0000-4000-8000-00000000f010", "Assured Accident Repairs Centre Ltd"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f001", "Car 2 Go"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f003", "CarClaims"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f006", "Easdons"),
+        OakIntroducer("00000000-0000-4000-8000-00000000f011", "Ecs Accident Repair Ltd"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f004", "Expert Claims"),
+        OakIntroducer("00000000-0000-4000-8000-00000000f012", "Glasgow Smart Repair"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f007", "Guardian Accident Claims"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f008", "Hackney Solutions"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f00b", "iRevolution Repair Network"),
+        OakIntroducer("00000000-0000-4000-8000-00000000f013", "J P Auto Repairs Clydebank Ltd"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f009", "James Claims"),
+        OakIntroducer("00000000-0000-4000-8000-00000000f014", "Mr Claim"),
+        OakIntroducer("00000000-0000-4000-8000-00000000f015", "O'malley Recovery"),
+        OakIntroducer("00000000-0000-4000-8000-00000000f016", "Premier 1 Accident Repair Centre"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f005", "Rapid Rental Solutions"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f002", "SMC"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f00a", "Swinton"),
+        OakIntroducer("00000000-0000-4000-8000-00000000f017", "The Coachworks"),
+        OakIntroducer("00000000-0000-4000-8000-00000000f018", "Thomas Ash & Sons Ltd"),
+        OakIntroducer("00000000-0000-4000-8000-00000000f019", "Tradeston Performance"),
     ];
 
     /// <summary>
-    /// The one repairer the schema seeds: the Easdons Bodyshop AX's report
-    /// sending rule names (migration SendingRulesReadCaseFacts, R1025). A
-    /// seeded contact has the same shape whatever its type.
+    /// The repairers the schema seeds, in the store's name order: the Easdons
+    /// Bodyshop AX's report sending rule names (migration
+    /// SendingRulesReadCaseFacts, R1025) and the iRevolution Repair Network
+    /// PCH's names, linked to PCH (migration ContactsFollowQuickReference,
+    /// R1033). A seeded contact has the same shape whatever its type.
     /// </summary>
     private static readonly IReadOnlyList<ContactChoice> Repairers =
     [
-        SeededClaimSource("00000000-0000-4000-8000-00000000f00c", "Easdons Bodyshop") with { Role = ContactRole.Repairer }
+        SeededClaimSource("00000000-0000-4000-8000-00000000f00c", "Easdons Bodyshop") with { Role = ContactRole.Repairer },
+        SeededClaimSource("00000000-0000-4000-8000-00000000f00d", "iRevolution Repair Network") with
+        {
+            Role = ContactRole.Repairer,
+            LinkedPrincipalCodes = ["PCH"]
+        }
     ];
 
     Task<CaseType?> ICaseKindQueries.GetAsync(Guid caseId, CancellationToken cancellationToken) =>
@@ -367,7 +388,10 @@ internal sealed class DatabaseLessCaseReads :
     /// <summary>An active claim source as the seed writes it: a name and nothing else, linked to no
     /// Principal, at version 0.</summary>
     private static ContactChoice SeededClaimSource(string id, string name) =>
-        new(new Guid(id), name, ContactRole.ClaimSource, 0, null, null, null, null, null, null, []);
+        new(new Guid(id), name, ContactRole.ClaimSource, 0, null, null, null, null, null, []);
+
+    private static ContactChoice OakIntroducer(string id, string name) =>
+        SeededClaimSource(id, name) with { LinkedPrincipalCodes = ["OAK"] };
 
     private static Task<T> Refused<T>(string port) =>
         Task.FromException<T>(new NotSupportedException(

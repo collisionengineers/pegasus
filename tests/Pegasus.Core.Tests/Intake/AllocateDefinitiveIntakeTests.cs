@@ -1,6 +1,7 @@
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.PrincipalApi;
 
 namespace Pegasus.Core.Tests.Intake;
 
@@ -152,6 +153,100 @@ public sealed class AllocateDefinitiveIntakeTests
         Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, retried.State.Status);
         Assert.Equal(ActorKind.Automation, accept.Requests[1].Actor.Kind);
         Assert.Equal(evidenceId, accept.Requests[1].StandaloneAuditEvidenceId);
+    }
+
+    /// <summary>
+    /// R1054: the Principal's note reaches the Case whichever route creates
+    /// it. A declaration kept for sorting that a member of staff creates
+    /// carries its note, attributed to the Principal, under the receipt's one
+    /// note key.
+    /// </summary>
+    [Fact]
+    public async Task AStaffCreatedCaseFromAPrincipalSubmissionCarriesThePrincipalsNote()
+    {
+        var receipt = PrincipalApiReceipt();
+        var principalId = Guid.NewGuid();
+        var notes = new RecordingNotes();
+        var sut = new AllocateIntake(
+            new ReceiptQueries(receipt),
+            new RecordingAllocationStore(),
+            new RecordingAcceptance(),
+            TimeProvider.System,
+            principalSubmissionBindings: new Bindings(receipt.SourceIdentity, principalId, "Keys are in the office."),
+            caseNotes: notes);
+
+        var created = await sut.AttemptStaffCreateAsync(new(
+            receipt.Id,
+            receipt.Version,
+            ActionActor.Automation("grant-1"),
+            "create:principal-note",
+            CaseType.Inspection,
+            "QDOS",
+            new(InstructionComplete: true, ImagesComplete: false)));
+
+        Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, created.State.Status);
+        var note = Assert.Single(notes.Requests);
+        Assert.Equal(created.State.CaseId, note.CaseId);
+        Assert.Equal(ActorKind.Principal, note.Actor.Kind);
+        Assert.Equal(principalId.ToString("D"), note.Actor.SubjectId);
+        Assert.Equal($"principal-note:{receipt.Id:N}", note.OperationKey);
+        Assert.Equal("Keys are in the office.", note.Note);
+    }
+
+    [Fact]
+    public async Task ARetriedAllocationOfAPrincipalSubmissionWritesThePrincipalsNoteOnce()
+    {
+        var receipt = PrincipalApiReceipt();
+        var notes = new RecordingNotes();
+        var accept = new RecordingAcceptance(new InvalidOperationException("transient fault"));
+        var sut = new AllocateIntake(
+            new ReceiptQueries(receipt),
+            new RecordingAllocationStore(),
+            accept,
+            TimeProvider.System,
+            principalSubmissionBindings: new Bindings(receipt.SourceIdentity, Guid.NewGuid(), "Call before visiting."),
+            caseNotes: notes);
+
+        var failed = await sut.AttemptAutomaticAsync(receipt, Guid.NewGuid());
+        Assert.Empty(notes.Requests);
+        accept.Failure = null;
+        var retried = await sut.RetryAsync(new(
+            receipt.Id,
+            receipt.Version,
+            failed!.State.AttemptId,
+            ActionActor.Automation("grant-1"),
+            "mcp:retry-note",
+            "Retry after the fault cleared."));
+
+        Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, retried.State.Status);
+        var note = Assert.Single(notes.Requests);
+        Assert.Equal("Call before visiting.", note.Note);
+        Assert.Equal($"principal-note:{receipt.Id:N}", note.OperationKey);
+    }
+
+    [Fact]
+    public async Task AStaffCreatedCaseFromMailWritesNoPrincipalNote()
+    {
+        var receipt = Receipt(CaseType.Inspection, "QDOS");
+        var notes = new RecordingNotes();
+        var sut = new AllocateIntake(
+            new ReceiptQueries(receipt),
+            new RecordingAllocationStore(),
+            new RecordingAcceptance(),
+            TimeProvider.System,
+            principalSubmissionBindings: new Bindings(receipt.SourceIdentity, Guid.NewGuid(), "Not for mail."),
+            caseNotes: notes);
+
+        await sut.AttemptStaffCreateAsync(new(
+            receipt.Id,
+            receipt.Version,
+            ActionActor.Automation("grant-1"),
+            "mcp:accept-mail",
+            CaseType.Inspection,
+            "QDOS",
+            new(InstructionComplete: true, ImagesComplete: false)));
+
+        Assert.Empty(notes.Requests);
     }
 
     [Fact]
@@ -394,6 +489,43 @@ public sealed class AllocateDefinitiveIntakeTests
             "test-classifier",
             1,
             caseType));
+
+    private static IntakeReceipt PrincipalApiReceipt() =>
+        Receipt(CaseType.Inspection, "QDOS") with
+        {
+            SourceIdentity = new(IntakeSourceChannel.PrincipalApi, "submission-token")
+        };
+
+    private sealed class Bindings(IntakeSourceIdentity identity, Guid principalId, string note)
+        : IPrincipalSubmissionBindings
+    {
+        public Task<PrincipalSubmissionBinding?> FindAsync(
+            IntakeSourceIdentity sourceIdentity,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<PrincipalSubmissionBinding?>(sourceIdentity == identity
+                ? new(
+                    Guid.NewGuid(),
+                    principalId,
+                    "QDOS",
+                    new(
+                        CaseType.Inspection,
+                        null,
+                        new InstructionDraft(
+                            null, "Claimant", "12345/1", "AB12CDE", null, null, null, null, null, null,
+                            Notes: note)))
+                : null);
+    }
+
+    private sealed class RecordingNotes : IAddCaseNote
+    {
+        public List<AddCaseNoteRequest> Requests { get; } = [];
+
+        public Task ExecuteAsync(AddCaseNoteRequest request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.CompletedTask;
+        }
+    }
 
     private sealed class ReceiptQueries(IntakeReceipt receipt) : IIntakeReceiptQueries
     {

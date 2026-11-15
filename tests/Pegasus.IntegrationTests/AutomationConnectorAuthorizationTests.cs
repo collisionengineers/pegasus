@@ -252,6 +252,9 @@ public sealed partial class AutomationConnectorAuthorizationTests
             "pegasus_edit_renew",
             "pegasus_image_preparation_get",
             "pegasus_image_prepare",
+            "pegasus_photo_link_action",
+            "pegasus_photo_link_get",
+            "pegasus_photo_link_list",
             "pegasus_report_action",
             "pegasus_report_list",
             "pegasus_report_wording_get",
@@ -369,7 +372,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
             var names = document.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray()
                 .Select(tool => tool.GetProperty("name").GetString())
                 .ToArray();
-            Assert.Equal(12, names.Length);
+            Assert.Equal(15, names.Length);
             Assert.Contains("pegasus_case_search", names);
             Assert.DoesNotContain("pegasus_mail_send", names);
             Assert.DoesNotContain("pegasus_report_send", names);
@@ -436,12 +439,10 @@ public sealed partial class AutomationConnectorAuthorizationTests
     /// ADR-0087 decision 6, stated from the code. A token carries the shared
     /// audience, its scopes and its grant, never a path, so the one server
     /// takes a token whose consent predates it and a refresh naming /mcp or
-    /// no resource. A per-scope server's resource does not survive: a refresh
-    /// naming one is refused, so an Administrator adds the one connector at
-    /// /mcp and consents once.
+    /// no resource.
     /// </summary>
     [Fact]
-    public async Task ARefreshNamingAPerScopeServerIsRefusedAndTheOneResourceIsMcp()
+    public async Task ARefreshNamingMcpOrNoResourceServesTheOneServer()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
@@ -473,15 +474,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
             Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         }
 
-        // A refresh naming the resource a per-scope connector held is refused.
-        using (var oldResource = await RefreshAsync(connector, refreshToken, "http://localhost/mcp/cases"))
-        {
-            Assert.Equal(HttpStatusCode.BadRequest, oldResource.StatusCode);
-            using var error = JsonDocument.Parse(await oldResource.Content.ReadAsStringAsync());
-            Assert.Equal("invalid_target", error.RootElement.GetProperty("error").GetString());
-        }
-
-        // One naming /mcp works, and so does one naming no resource.
+        // A refresh naming /mcp works, and so does one naming no resource.
         var rpcId = 2;
         foreach (var resource in new[] { "http://localhost/mcp", null })
         {

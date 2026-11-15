@@ -1,8 +1,6 @@
-using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -1881,27 +1879,19 @@ public sealed class IntakeAllocationConsumerTests
             Assert.Equal(new(0, 0, 0, 0), stages);
         }
 
-        using var mcpFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Features:AutomationMcp", "true");
-            builder.UseSetting("AutomationMcp:UseDevelopmentKeys", "true");
-            builder.UseSetting("AutomationMcp:ClientId", AutomationClientId);
-            builder.UseSetting("AutomationMcp:ClientSecret", AutomationClientSecret);
-            builder.UseSetting("AutomationMcp:PublicOrigin", "http://localhost/");
-            builder.UseSetting("AutomationMcp:RegistrationCacheSeconds", "0");
-        });
+        using var mcpFactory = AutomationMcpTestSupport.WithAutomationMcp(factory);
         using var client = mcpFactory.CreateClient();
-        var accessToken = await RequestAutomationTokenAsync(client);
+        var accessToken = await AutomationMcpTestSupport.RequestTokenAsync(client, AutomationMcp.IntakeScope);
 
-        using (var response = await PostAutomationMcpAsync(
+        using (var response = await AutomationMcpTestSupport.PostMcpAsync(
             client,
             accessToken,
-            ToolCallPayload(
+            AutomationMcpTestSupport.ToolCallPayload(
                 1,
                 "pegasus_intake_queue_list",
                 new { page = 1, pageSize = 25 })))
         {
-            using var document = await ReadJsonRpcAsync(response);
+            using var document = await AutomationMcpTestSupport.ReadJsonRpcAsync(response);
             var item = Assert.Single(
                 document.RootElement.GetProperty("result").GetProperty("structuredContent")
                     .GetProperty("items").EnumerateArray());
@@ -1931,15 +1921,15 @@ public sealed class IntakeAllocationConsumerTests
             Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, retry.State.Status);
         }
 
-        using (var response = await PostAutomationMcpAsync(
+        using (var response = await AutomationMcpTestSupport.PostMcpAsync(
             client,
             accessToken,
-            ToolCallPayload(
+            AutomationMcpTestSupport.ToolCallPayload(
                 2,
                 "pegasus_intake_queue_list",
                 new { page = 1, pageSize = 25 })))
         {
-            using var document = await ReadJsonRpcAsync(response);
+            using var document = await AutomationMcpTestSupport.ReadJsonRpcAsync(response);
             var item = Assert.Single(
                 document.RootElement.GetProperty("result").GetProperty("structuredContent")
                     .GetProperty("items").EnumerateArray());
@@ -1950,71 +1940,6 @@ public sealed class IntakeAllocationConsumerTests
             Assert.False(string.IsNullOrWhiteSpace(item.GetProperty("caseReference").GetString()));
         }
     }
-
-    private const string AutomationClientId = "pegasus-automation";
-    private const string AutomationClientSecret = "integration-test-automation-secret-0123456789";
-
-    private static async Task<string> RequestAutomationTokenAsync(HttpClient client)
-    {
-        using var response = await client.PostAsync(
-            "/connect/token",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["grant_type"] = "client_credentials",
-                ["client_id"] = AutomationClientId,
-                ["client_secret"] = AutomationClientSecret,
-                ["scope"] = "automation.intake"
-            }));
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.True(response.IsSuccessStatusCode, $"Token issuance failed: {body}");
-        using var document = JsonDocument.Parse(body);
-        return document.RootElement.GetProperty("access_token").GetString()
-            ?? throw new InvalidOperationException("The token response is missing access_token.");
-    }
-
-    private static async Task<HttpResponseMessage> PostAutomationMcpAsync(
-        HttpClient client,
-        string accessToken,
-        string payload)
-    {
-        // The one server: this file's token and tools are intake's.
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp");
-        request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
-        request.Headers.Accept.ParseAdd("application/json");
-        request.Headers.Accept.ParseAdd("text/event-stream");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        return await client.SendAsync(request);
-    }
-
-    private static async Task<JsonDocument> ReadJsonRpcAsync(HttpResponseMessage response)
-    {
-        var body = await response.Content.ReadAsStringAsync();
-        if (response.Content.Headers.ContentType?.MediaType == "text/event-stream")
-        {
-            var data = body
-                .Split('\n')
-                .Select(line => line.TrimEnd('\r'))
-                .Where(line => line.StartsWith("data:", StringComparison.Ordinal))
-                .Select(line => line[5..].Trim())
-                .First(line => line.Length > 0);
-            return JsonDocument.Parse(data);
-        }
-
-        return JsonDocument.Parse(body);
-    }
-
-    private static string ToolCallPayload(int id, string tool, object arguments) =>
-        JsonSerializer.Serialize(new
-        {
-            jsonrpc = "2.0",
-            id,
-            method = "tools/call",
-            @params = new
-            {
-                name = tool,
-                arguments
-            }
-        });
 
     [Fact]
     public async Task FailedFormalAllocationAndRetryDoNotAlterAnExistingTriage()

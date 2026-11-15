@@ -28,14 +28,11 @@ internal static class ReferenceFiles
     internal const string Principals = "principals.csv";
     internal const string ClaimSources = "claim-sources.csv";
     internal const string Repairers = "repairers.csv";
-    internal const string Storage = "storage.csv";
-    internal const string Engineers = "engineers.csv";
     internal const string InspectionLocations = "inspection-locations.csv";
     internal const string Links = "links.csv";
 
     internal const string RowId = "row_id";
     internal const string Name = "name";
-    internal const string ContactPerson = "contact_person";
     internal const string Email = "email";
     internal const string Telephone = "telephone";
     internal const string Address = "address";
@@ -74,16 +71,14 @@ internal static class ReferenceFiles
     private static readonly Guid IdentityNamespace = new("c9cb12ec-9ac0-4ba2-b9f8-337a7809dd58");
     private static readonly char[] Separators = [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar];
     private static readonly string[] ContactColumns =
-        [RowId, Name, ContactPerson, Email, Telephone, Address, Postcode, Active, Action, RestListed, Review];
+        [RowId, Name, Email, Telephone, Address, Postcode, Active, Action, RestListed, Review];
 
     /// <summary>The contact files in load order: the Principals first, so every other type can link them.</summary>
     internal static readonly ContactFile[] ContactFiles =
     [
         new(Principals, ContactRole.Principal, "principal", [.. ContactColumns, PrincipalCode, InspectionMode, NotesOnEveryCase]),
         new(ClaimSources, ContactRole.ClaimSource, "claim_source", [.. ContactColumns, NotesOnEveryCase]),
-        new(Repairers, ContactRole.Repairer, "repairer", ContactColumns),
-        new(Storage, ContactRole.Storage, "storage", ContactColumns),
-        new(Engineers, ContactRole.ThirdPartyEngineer, "third_party_engineer", ContactColumns)
+        new(Repairers, ContactRole.Repairer, "repairer", ContactColumns)
     ];
 
     internal static readonly string[] LocationColumns =

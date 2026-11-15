@@ -4,6 +4,7 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.PrincipalApi;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
@@ -262,7 +263,7 @@ public sealed class CaseDataCompletenessPersistenceTests
             EstablishedIntakeClaimSource.IntroducerField, "FLEET ROUTE SOLUTIONS",
             [new("FLEET ROUTE SOLUTIONS", IntakeEvidenceSource.PdfContent, "introducer-line")], false, false);
         var contact = new ContactChoice(
-            Guid.NewGuid(), "Fleet Route Solutions", ContactRole.ClaimSource, 4, "A Handler",
+            Guid.NewGuid(), "Fleet Route Solutions", ContactRole.ClaimSource, 4,
             "desk@fleet-route.example", "0113 000 0002", null, null, null);
 
         var snapshot = PhoneSnapshot(
@@ -287,7 +288,8 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.Equal(contact.OrganizationId.ToString("D"), Confirmed(CaseDataFieldNames.ClaimSourceId));
         Assert.Equal("4", Confirmed(CaseDataFieldNames.ClaimSourceVersion));
         Assert.Equal("Fleet Route Solutions", Confirmed(CaseDataFieldNames.ClaimSourceName));
-        Assert.Equal("A Handler", Confirmed(CaseDataFieldNames.ClaimSourceContactName));
+        // A Claim Source record holds no contact name to copy (R1047).
+        Assert.DoesNotContain(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceContactName);
         Assert.Equal("0113 000 0002", Confirmed(CaseDataFieldNames.ClaimSourceContactTelephone));
         Assert.Equal("desk@fleet-route.example", Confirmed(CaseDataFieldNames.ClaimSourceContactEmailAddress));
     }
@@ -296,7 +298,7 @@ public sealed class CaseDataCompletenessPersistenceTests
     public void TheClaimSourceASenderProvedIsSourcedToItsMailRoute()
     {
         var contact = new ContactChoice(
-            Guid.NewGuid(), "Claims Route", ContactRole.ClaimSource, 1, null,
+            Guid.NewGuid(), "Claims Route", ContactRole.ClaimSource, 1,
             "desk@claims-route.example", null, null, null, null);
 
         var snapshot = PhoneSnapshot(
@@ -350,7 +352,7 @@ public sealed class CaseDataCompletenessPersistenceTests
             "Repairer address", "1 Quay Road, Leeds, LS1 1AA",
             [new("1 Quay Road, Leeds, LS1 1AA", IntakeEvidenceSource.PdfContent, "bodyshop-address-line")], false, false);
         var contact = new ContactChoice(
-            Guid.NewGuid(), "Harbour Body Repairs", ContactRole.Repairer, 3, null,
+            Guid.NewGuid(), "Harbour Body Repairs", ContactRole.Repairer, 3,
             null, null, "9 Directory Street", null, null);
 
         var snapshot = PhoneSnapshot(
@@ -397,6 +399,55 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.DoesNotContain(
             snapshot.Fields,
             item => item.FieldName == CaseDataFieldNames.RepairerName && item.ValueKind == CaseDataCodes.Confirmed);
+    }
+
+    /// <summary>
+    /// R1053: a repairer and a claim source a Principal stated over the
+    /// Principal API are linked the way an instruction's are, recorded with
+    /// the Principal API provenance every other declared value has.
+    /// </summary>
+    [Fact]
+    public void ADeclaredRepairerAndClaimSourceAreRecordedAsPrincipalApiValues()
+    {
+        var name = new InstructionReviewField(
+            "Repairer name", "Harbour Body Repairs",
+            [new("Harbour Body Repairs", IntakeEvidenceSource.PrincipalDeclaration, PrincipalInstructionPolicy.PolicyKey)],
+            false, false);
+        var address = new InstructionReviewField(
+            "Repairer address", "1 Quay Road, Leeds",
+            [new("1 Quay Road, Leeds", IntakeEvidenceSource.PrincipalDeclaration, PrincipalInstructionPolicy.PolicyKey)],
+            false, false);
+        var claimSourceField = new InstructionReviewField(
+            EstablishedIntakeClaimSource.ClaimSourceField, "Fleet Route Solutions",
+            [new("Fleet Route Solutions", IntakeEvidenceSource.PrincipalDeclaration, PrincipalInstructionPolicy.PolicyKey)],
+            false, false);
+        var repairer = new ContactChoice(
+            Guid.NewGuid(), "Harbour Body Repairs", ContactRole.Repairer, 3, null, null, null, null, null);
+        var claimSource = new ContactChoice(
+            Guid.NewGuid(), "Fleet Route Solutions", ContactRole.ClaimSource, 4, null, null, null, null, null);
+
+        var snapshot = PhoneSnapshot(
+            [
+                new("Claimant mobile telephone", "selected",
+                    [new("selected", IntakeEvidenceSource.PdfContent, "selected-source")], false, false),
+                name,
+                address,
+                claimSourceField
+            ],
+            new(claimSource, IntakeClaimSourceOrigin.Instruction, claimSourceField),
+            repairer: new(repairer, name));
+
+        Assert.All(
+            snapshot.Fields.Where(item => item.FieldName is CaseDataFieldNames.RepairerId
+                or CaseDataFieldNames.RepairerName or CaseDataFieldNames.RepairerAddress
+                or CaseDataFieldNames.ClaimSourceId or CaseDataFieldNames.ClaimSourceName),
+            item => Assert.Equal(CaseDataCodes.PrincipalApi, item.SourceKind));
+        Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.RepairerId
+            && item.Value == repairer.OrganizationId.ToString("D"));
+        Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceId
+            && item.Value == claimSource.OrganizationId.ToString("D"));
+        Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.RepairerAddress
+            && item.Value == "1 Quay Road, Leeds");
     }
 
     private static CaseDataSnapshotEntity PhoneSnapshot(

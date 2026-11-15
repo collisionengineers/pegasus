@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Globalization;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
-using Pegasus.Core;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -15,68 +14,11 @@ internal sealed record CaseUpdateDetailsToolResult(
     Guid CaseId,
     long CaseVersion,
     string State,
-    string OperationKey,
-    string CorrelationId);
+    string OperationKey);
 
 internal sealed record CaseNoteAddToolResult(
     Guid CaseId,
-    string OperationKey,
-    string CorrelationId);
-
-internal sealed record ValuationToolItem(
-    Guid ValuationId,
-    string Source,
-    string Date,
-    long? Mileage,
-    decimal? RetailValue,
-    decimal? TradeValue,
-    string? GuideMonth,
-    string RecordedBy,
-    DateTimeOffset RecordedAtUtc);
-
-internal sealed record ValuationListToolResult(
-    Guid CaseId,
-    IReadOnlyList<ValuationToolItem> Valuations,
-    string CorrelationId);
-
-internal sealed record ValuationSaveToolResult(
-    Guid CaseId,
-    long CaseVersion,
-    IReadOnlyList<ValuationToolItem> Valuations,
-    string OperationKey,
-    string CorrelationId);
-
-internal sealed record ValuationGetToolResult(
-    Guid CaseId,
-    [property: Description("Recorded, Unavailable, VehicleAge, NoVehicleData or AlreadyAsked.")] string Outcome,
-    string? Message,
-    decimal? RetailValue,
-    decimal? TradeValue,
-    string? GuideMonth,
-    long? CaseVersion,
-    IReadOnlyList<ValuationToolItem> Valuations,
-    string OperationKey,
-    string CorrelationId);
-
-internal sealed record GuideCardToolInput(
-    [property: Description("The guide the figures come from: Glasses, Cazana, EngineersValue, Brego, SuperCap or Cap.")] string Source,
-    [property: Description("Retail value in pounds.")] decimal? RetailValue = null,
-    [property: Description("Trade value in pounds.")] decimal? TradeValue = null,
-    [property: Description("The guide month the figures are for, yyyy-MM.")] string? GuideMonth = null);
-
-internal sealed record ValuationAdditionToolInput(
-    [property: Description("The valuation addition preset identifier.")] Guid PresetId,
-    [property: Description("The preset version the amount was read at.")] long PresetVersion,
-    [property: Description("The addition's label.")] string? Label,
-    [property: Description("The addition amount in pounds.")] decimal Amount);
-
-internal sealed record ValuationAdoptionToolInput(
-    [property: Description("The recorded guide card the calculation is based on (pegasus_valuation_list); omit when the basis is a card saved in this same call, and name its guideSource instead.")] Guid? GuideValuationId,
-    [property: Description("The basis card's source when it is saved in this same call.")] string? GuideSource,
-    [property: Description("Whether commercial VAT applies.")] bool CommercialVat,
-    [property: Description("A prior total-loss percentage deduction, if any.")] decimal? PriorTotalLossPercentage,
-    [property: Description("Additions to the basis value.")] IReadOnlyList<ValuationAdditionToolInput>? Additions,
-    [property: Description("Condition deduction in pounds.")] decimal ConditionDeduction);
+    string OperationKey);
 
 internal sealed record AssessmentFieldVocabularyItem(
     string Path,
@@ -115,17 +57,18 @@ internal sealed record VocabularyToolResult(
     IReadOnlyList<ImageTagVocabularyItem> ImageTags,
     [property: Description("The enabled staff, by username: the identifiers pegasus_case_action assign_engineer, pegasus_triage_assign and pegasus_case_query assign accept.")] IReadOnlyList<StaffVocabularyItem> Staff,
     [property: Description("The eligible Sign-off Engineers, by printed name: the identifiers pegasus_case_update_details signOffEngineerId accepts.")] IReadOnlyList<SignOffEngineerVocabularyItem> SignOffEngineers,
+    [property: Description("The unroadworthy wordings bank, oldest first: the one list offered on every Case for assessment.unroadworthy_reason, which also takes free text.")] IReadOnlyList<string> UnroadworthyReasons,
     string CorrelationId);
 
 internal sealed record DirectoryToolItem(
     Guid OrganizationId,
     long Version,
     string Name,
-    string? ContactPerson,
     string? Email,
     string? Telephone,
     string? Address,
-    string? Postcode);
+    string? Postcode,
+    [property: Description("The codes of the Principals this organisation is linked to; a Case of one of them lists it first.")] IReadOnlyList<string> LinkedPrincipalCodes);
 
 internal sealed record DirectorySearchToolResult(
     string Role,
@@ -133,9 +76,9 @@ internal sealed record DirectorySearchToolResult(
     string CorrelationId);
 
 /// <summary>
-/// Automation Actor Case edits (FRD-10, ADR-0064): the Case facts, notes and
-/// valuation cards a staff member records on the Case, written through the
-/// same Core commands as the staff Case page. The Automation Actor does
+/// Automation Actor Case edits (FRD-10, ADR-0064): the Case facts and notes a
+/// staff member records on the Case, written through the same Core commands
+/// as the staff Case page; the valuation cards are ValuationMcpTools'. The Automation Actor does
 /// anything a staff member can on the Case (operator, 7 October 2026). A
 /// Case-detail edit is the staff Case save: each section it touches is
 /// submitted whole, built from the Case's current values with the caller's
@@ -147,14 +90,11 @@ internal sealed class CaseEditMcpTools(
     IGetCaseAssessment getAssessment,
     ISaveCaseWorkspace saveCaseWorkspace,
     IAddCaseNote addCaseNote,
-    IListCaseValuations listValuations,
-    IFetchGuideValuation fetchGuideValuation,
     IContactDirectoryQueries contactDirectory,
     IReadImageTagVocabulary imageTags,
+    IUnroadworthyReasonBankStore unroadworthyReasonBank,
     Pegasus.Core.Identity.ICaseEngineerChoices staffChoices,
     Pegasus.Core.Identity.IStaffAccountQueries staffAccounts,
-    TimeProvider timeProvider,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     OneCommandEdit leases)
 {
@@ -166,11 +106,11 @@ internal sealed class CaseEditMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Edits the Case facts staff edit on the Case page, through the same Case save: claimant, claim, accident, VAT status, repairer (typed, or linked to a directory Repairer), claim source (a directory Claim source) and its contact for this Case, Principal and Claim source notes, due by, vehicle identity and mileage, inspection and the Sign-off Engineer. Omit a value to leave it as it is; send an empty string to clear a text or date value. Values not named are never changed. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). Dates are yyyy-MM-dd; inspectionMode is 'physical_address' or 'image_based_assessment'. Assessment fields (outcome, roadworthiness, values, damage and the rest) are written with pegasus_assessment_update.")]
+    [Description("Edits the Case facts staff edit on the Case page: claimant, claim, accident, VAT status, repairer (typed, or linked to a directory Repairer), claim source (a directory Claim source) and its contact for this Case, Principal and Claim source notes, due by, vehicle identity and mileage, inspection and the Sign-off Engineer. Omit a value to leave it as it is; send an empty string to clear a text or date value. Values not named are never changed. Needs the expected case version. Dates are yyyy-MM-dd; inspectionMode is 'physical_address' or 'image_based_assessment'. Assessment fields (outcome, roadworthiness, values, damage and the rest) are written with pegasus_assessment_update.")]
     public async Task<CaseUpdateDetailsToolResult> UpdateDetailsAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("Why these details are being changed (case history reason).")] string? reason = null,
         [Description("Claimant name.")] string? claimantName = null,
         [Description("Claimant contact number.")] string? claimantContactNumber = null,
@@ -181,7 +121,7 @@ internal sealed class CaseEditMcpTools(
         [Description("VAT status text.")] string? vatStatus = null,
         [Description("Repairer name.")] string? repairerName = null,
         [Description("Repairer address.")] string? repairerAddress = null,
-        [Description("Links the Case's repairer to an active directory Repairer (pegasus_directory_search, role Repairer): its name, address and version are copied onto the Case, so a later directory edit never rewrites it. The empty identifier 00000000-0000-0000-0000-000000000000 removes the link and keeps the typed name.")] Guid? repairerDirectoryId = null,
+        [Description("Links the Case's repairer to an active directory Repairer (pegasus_directory_search, role Repairer): its name, address and version are copied onto the Case, so a later directory edit never rewrites it. Naming the Repairer the Case is already linked to keeps that link and its copy as they are. The empty identifier 00000000-0000-0000-0000-000000000000 removes the link and keeps the typed name.")] Guid? repairerDirectoryId = null,
         [Description("Records the Case's claim source as an active directory Claim source (pegasus_directory_search, role ClaimSource), copied onto the Case with its contact. The empty identifier 00000000-0000-0000-0000-000000000000 records none.")] Guid? claimSourceId = null,
         [Description("The Case's own notes beside its Principal.")] string? principalNotes = null,
         [Description("The Case's own notes beside its Claim source.")] string? claimSourceNotes = null,
@@ -200,18 +140,15 @@ internal sealed class CaseEditMcpTools(
         [Description("Storage location for the vehicle.")] string? storageLocation = null,
         [Description("Inspection date, yyyy-MM-dd; the report prints it as the date the damage was assessed.")] string? inspectionDate = null,
         [Description("Inspection deadline, yyyy-MM-dd.")] string? inspectionDeadline = null,
-        [Description("The Sign-off Engineer's staff identifier, from pegasus_vocabulary_get signOffEngineers.")] Guid? signOffEngineerId = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
+        [Description("The Sign-off Engineer's staff identifier, from pegasus_vocabulary_get signOffEngineers. Naming the engineer the Case already shows records nothing. The empty identifier 00000000-0000-0000-0000-000000000000 removes the recorded pick, so the default applies again.")] Guid? signOffEngineerId = null,
+        [Description(AutomationToolText.EditLeaseToken)] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_case_update_details", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_case_update_details",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var mode = ParseInspectionMode(inspectionMode);
@@ -258,14 +195,12 @@ internal sealed class CaseEditMcpTools(
                                 {
                                     claimSource = null;
                                 }
-                                else if (sourceId != claimSource?.ClaimSourceId)
+                                else if (CaseDetailsSaveRules.ClaimSourceToCopy(claimSource, sourceId) is { } copied)
                                 {
                                     var chosen = await contactDirectory.FindActiveByRoleAsync(
-                                            context.Actor, ContactRole.ClaimSource, sourceId, cancellationToken)
+                                            context.Actor, ContactRole.ClaimSource, copied, cancellationToken)
                                         ?? throw new McpException("The selected claim source is not an active Claim source record.");
-                                    claimSource = new CaseWorkspaceClaimSource(
-                                        chosen.OrganizationId, chosen.Version, chosen.Name,
-                                        chosen.ContactPerson, chosen.Telephone, chosen.Email);
+                                    claimSource = CaseDetailsSaveRules.ClaimSourceCopy(chosen);
                                 }
                             }
                             claimSource = claimSource is { } source
@@ -282,8 +217,13 @@ internal sealed class CaseEditMcpTools(
                                 throw new McpException("The Case has no claim source to set a contact for.");
                             }
                             // A linked directory organisation is copied onto the
-                            // Case: its identity, version, name and address.
-                            var linkedRepairer = repairerDirectoryId is { } directoryId && directoryId != Guid.Empty
+                            // Case: its identity, version, name and address. The
+                            // link the Case already holds is not linked again: it
+                            // keeps the copy it has, whether or not the record is
+                            // still active, as the Case page's save keeps it (R1022).
+                            var linkedRepairer = CaseDetailsSaveRules.RepairerToLink(
+                                    persisted?.Repairer,
+                                    repairerDirectoryId == Guid.Empty ? null : repairerDirectoryId) is { } directoryId
                                 ? await contactDirectory.FindActiveByRoleAsync(
                                         context.Actor, ContactRole.Repairer, directoryId, cancellationToken)
                                     ?? throw new McpException("The selected repairer is not an active directory Repairer.")
@@ -300,13 +240,11 @@ internal sealed class CaseEditMcpTools(
                                 linkedRepairer?.Address
                                     ?? Text(repairerAddress, Accepted(data.Inspection.RepairerAddress)),
                                 claimSource,
-                                linkedRepairer is not null
-                                    ? new CaseWorkspaceRepairer(
-                                        linkedRepairer.OrganizationId, linkedRepairer.Version, linkedRepairer.Name)
-                                    : new CaseWorkspaceRepairer(
-                                        unlinkRepairer ? null : persisted?.Repairer?.DirectoryOrganizationId,
-                                        unlinkRepairer ? null : persisted?.Repairer?.DirectoryOrganizationVersion,
-                                        Text(repairerName, Accepted(data.Inspection.RepairerName))),
+                                CaseDetailsSaveRules.Repairer(
+                                    persisted?.Repairer,
+                                    linkedRepairer,
+                                    unlinkRepairer,
+                                    Text(repairerName, Accepted(data.Inspection.RepairerName))),
                                 Text(principalNotes, persisted?.PrincipalNotes),
                                 Text(claimSourceNotes, persisted?.ClaimSourceNotes),
                                 Date(dueBy, nameof(dueBy),
@@ -318,24 +256,17 @@ internal sealed class CaseEditMcpTools(
                         {
                             await LoadAssessmentAsync();
                             var address = Text(inspectionAddress, Accepted(data.Inspection.Address));
-                            var treatment = mode is not null
-                                ? Treatment(mode)
-                                : inspectionAddress is null && persisted?.InspectionAddressTreatment is { } recorded
-                                    ? recorded
-                                    : Treatment(CaseDataPolicy.InferInspectionMode(address));
+                            var treatment = CaseDetailsSaveRules.InspectionTreatment(
+                                mode, inspectionAddress is not null, persisted?.InspectionAddressTreatment, address);
                             inspection = new(
                                 treatment,
                                 address,
                                 persisted?.InspectionLocationProvenance,
                                 Text(storageLocation, Accepted(data.Inspection.StorageLocation)),
-                                persisted?.StorageBusiness,
                                 Date(inspectionDate, nameof(inspectionDate), Accepted(data.Inspection.InspectionDate)),
                                 Date(inspectionDeadline, nameof(inspectionDeadline), Accepted(data.Inspection.Deadline)),
                                 persisted?.InspectionVehiclePresent,
                                 persisted?.InspectionCondition,
-                                persisted?.InspectionContactName,
-                                persisted?.InspectionContactTelephone,
-                                persisted?.InspectionContactEmailAddress,
                                 persisted?.InspectionNotes,
                                 Money(AssessmentVocabulary.SettlementStoragePerDay),
                                 Money(AssessmentVocabulary.CostRecoveryCharge));
@@ -360,7 +291,7 @@ internal sealed class CaseEditMcpTools(
                                 Text(vehicleMake, Accepted(data.Vehicle.Make)),
                                 Text(vehicleModel, Accepted(data.Vehicle.Model)),
                                 new(mileage,
-                                    mileage is null ? null : unit ?? CaseOdometerUnit.Miles,
+                                    CaseDetailsSaveRules.MileageUnit(mileage, unit),
                                     persisted?.VehicleMileageDisplayUnit),
                                 AssessmentFields: null,
                                 Text(vehicleYear, Accepted(data.Vehicle.Year)));
@@ -370,15 +301,16 @@ internal sealed class CaseEditMcpTools(
                         {
                             await LoadAssessmentAsync();
                         }
+                        // The empty identifier names no one: where an engineer
+                        // was shown, that removes the recorded pick and the
+                        // default applies again, as Unassigned does on the Case
+                        // page (R1019).
                         CaseWorkspaceReport? report = signOffEngineerId is not { } engineerId
                             ? null
                             : new(
                                 AssessmentFields: null,
-                                engineerId,
-                                DateOnly.TryParseExact(Recorded(AssessmentVocabulary.ReportDate), "yyyy-MM-dd",
-                                    CultureInfo.InvariantCulture, DateTimeStyles.None, out var reportDate)
-                                    ? reportDate
-                                    : null);
+                                engineerId == Guid.Empty ? null : engineerId,
+                                CaseDetailsSaveRules.RecordedReportDate(Recorded(AssessmentVocabulary.ReportDate)));
 
                         if (overview is null && inspection is null && vehicle is null && report is null)
                         {
@@ -399,9 +331,8 @@ internal sealed class CaseEditMcpTools(
                     caseId,
                     saved.Version,
                     saved.Data.State.ToString(),
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
-            }),
+                    key);
+            },
             cancellationToken);
     }
 
@@ -415,243 +346,23 @@ internal sealed class CaseEditMcpTools(
         UseStructuredContent = true)]
     [Description("Adds a note to the case's timeline, as a member of staff adds one on the Case. A note is append-only and attributed to the Automation actor; it changes no case value and needs no version or edit lease. At most 2000 characters.")]
     public async Task<CaseNoteAddToolResult> AddNoteAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key adds the note once.")] string operationKey,
         [Description("The note text.")] string note,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_case_note_add", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_case_note_add",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 await addCaseNote.ExecuteAsync(new(caseId, context.Actor, key, note), cancellationToken);
-                return new CaseNoteAddToolResult(caseId, key, AutomationMcpAuditor.CorrelationId(context, key));
-            }),
+                return new CaseNoteAddToolResult(caseId, key);
+            },
             cancellationToken);
     }
-
-    [McpServerTool(
-        Name = "pegasus_valuation_list",
-        Title = "List case valuations",
-        ReadOnly = true,
-        Destructive = false,
-        Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Lists the valuation cards recorded on a case: each guide card, the Engineer's Value card and any AI market research card, with its figures and identifier.")]
-    public async Task<ValuationListToolResult> ListValuationsAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        CancellationToken cancellationToken = default)
-    {
-        var context = await resolver.RequireAsync("pegasus_valuation_list", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_valuation_list",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
-            {
-                AutomationMcpErrors.RequireId(caseId, "case identifier");
-                var valuations = await listValuations.ExecuteAsync(caseId, CaseWorkSelector.Current, cancellationToken);
-                return new ValuationListToolResult(
-                    caseId, valuations.Select(Map).ToArray(), context.TraceIdentifier);
-            }),
-            cancellationToken);
-    }
-
-    [McpServerTool(
-        Name = "pegasus_valuation_save",
-        Title = "Save case valuation cards",
-        ReadOnly = false,
-        Destructive = false,
-        Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Records valuation guide cards on a case and, optionally, the valuation calculation against a basis card, as the Valuation section's Save does. A card for the same source and guide month replaces the earlier one. A calculation writes the report's Retail and Trade values (assessment.values.retail, assessment.values.trade) from its basis card; nothing else writes them. The Engineer's Value (assessment.values.engineer) is written with pegasus_assessment_update. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
-    public async Task<ValuationSaveToolResult> SaveValuationsAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
-        [Description("The guide cards to record.")] IReadOnlyList<GuideCardToolInput>? guideCards = null,
-        [Description("The calculation to record against its basis card.")] ValuationAdoptionToolInput? adoption = null,
-        [Description("Why the valuation is being recorded (case history reason).")] string? reason = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
-        CancellationToken cancellationToken = default)
-    {
-        var context = await resolver.RequireAsync("pegasus_valuation_save", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_valuation_save",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
-            {
-                AutomationMcpErrors.RequireId(caseId, "case identifier");
-                var recordedAt = LondonCalendar.TimeAt(timeProvider.GetUtcNow());
-                var cards = (guideCards ?? [])
-                    .Select(card => new ValuationDetails(
-                        ParseSource(card.Source),
-                        DateOnly.FromDateTime(recordedAt),
-                        TimeOnly.FromDateTime(recordedAt),
-                        // A guide card carries no mileage: the Case's own is used
-                        // wherever a valuation needs one (operator, 24 September 2026).
-                        null,
-                        card.RetailValue,
-                        card.TradeValue,
-                        ParseGuideMonth(card.GuideMonth)))
-                    .ToArray();
-                var selection = adoption is null
-                    ? null
-                    : new ValuationCalculationSelection(
-                        adoption.GuideValuationId ?? Guid.Empty,
-                        adoption.CommercialVat,
-                        adoption.PriorTotalLossPercentage,
-                        (adoption.Additions ?? [])
-                            .Select(addition => new ValuationAdditionSelection(
-                                addition.PresetId, addition.PresetVersion, addition.Label, addition.Amount))
-                            .ToArray(),
-                        adoption.ConditionDeduction)
-                    {
-                        GuideSource = adoption.GuideSource is { } source ? ParseSource(source) : null,
-                    };
-                if (cards.Length == 0 && selection is null)
-                {
-                    throw new McpException("Name at least one guide card or a calculation to record.");
-                }
-                var saved = await leases.RunCaseAsync(
-                    caseId,
-                    expectedVersion,
-                    editLeaseToken,
-                    context.Actor,
-                    key,
-                    token => saveCaseWorkspace.ExecuteAsync(
-                        new(caseId, expectedVersion, context.Actor, key, reason, token)
-                        {
-                            Valuation = new(cards, selection),
-                        },
-                        cancellationToken),
-                    cancellationToken);
-                var valuations = await listValuations.ExecuteAsync(caseId, CaseWorkSelector.Current, cancellationToken);
-                return new ValuationSaveToolResult(
-                    caseId,
-                    saved.Version,
-                    valuations.Select(Map).ToArray(),
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
-            }),
-            cancellationToken);
-    }
-
-    [McpServerTool(
-        Name = "pegasus_valuation_get",
-        Title = "Get a guide valuation",
-        ReadOnly = false,
-        Destructive = false,
-        Idempotent = false,
-        OpenWorld = true,
-        UseStructuredContent = true)]
-    [Description("Runs the Valuation section's Get valuation for one guide source and records that source's card on the case with the figures it answers, as a member of staff pressing Get valuation and saving does. Pegasus asks the source's connected provider (Glass's, Brego or Cazana) for the case's confirmed registration and mileage in the guide month, files the provider's own valuation report on the case afterwards and fills an empty case VIN the provider names (Glass's, Brego and Cazana offer both). Outcome Recorded carries the figures; Unavailable (no connected provider, or it could not answer), VehicleAge (the source does not value a vehicle of this age), NoVehicleData (the source holds no data for the registration) and AlreadyAsked (the source has already answered for this case and guide month at its current registration and mileage, so it is not asked or charged again) record nothing. Adopting a basis card, which writes the report's Retail and Trade values, stays with pegasus_valuation_save; the Engineer's Value stays with pegasus_assessment_update. A source is asked once per case and guide month at its confirmed registration and mileage: only an answer with figures uses that ask, and a corrected registration or mileage allows one more. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command).")]
-    public async Task<ValuationGetToolResult> GetValuationAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
-        [Description("The guide source to value with: Glasses, Cazana, Brego, SuperCap or Cap.")] string source,
-        [Description("The guide month to value in, yyyy-MM; omit for the current month.")] string? guideMonth = null,
-        [Description("Why the valuation is being recorded (case history reason).")] string? reason = null,
-        [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
-        CancellationToken cancellationToken = default)
-    {
-        var context = await resolver.RequireAsync("pegasus_valuation_get", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_valuation_get",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
-            {
-                AutomationMcpErrors.RequireId(caseId, "case identifier");
-                var valuationSource = ParseSource(source);
-                var today = LondonCalendar.DateAt(timeProvider.GetUtcNow());
-                var month = ParseGuideMonth(guideMonth) ?? new DateOnly(today.Year, today.Month, 1);
-                var fetched = await leases.RunCaseAsync(
-                    caseId,
-                    expectedVersion,
-                    editLeaseToken,
-                    context.Actor,
-                    key,
-                    async token =>
-                    {
-                        GuideValuationQuote quote;
-                        try
-                        {
-                            quote = await fetchGuideValuation.ExecuteAsync(
-                                new(caseId, expectedVersion, context.Actor, key, token, valuationSource, month),
-                                cancellationToken);
-                        }
-                        catch (GuideValuationProviderUnavailableException)
-                        {
-                            return new FetchedValuation(
-                                "Unavailable", CaseWorkspaceLabels.Valuation.Unavailable(valuationSource), null, null);
-                        }
-                        catch (GuideValuationNotValuedException notValued)
-                        {
-                            return new FetchedValuation(
-                                notValued.Reason.ToString(), CaseWorkspaceLabels.Valuation.NotValued(valuationSource, notValued.Reason), null, null);
-                        }
-                        catch (GuideValuationAlreadyFetchedException)
-                        {
-                            return new FetchedValuation(
-                                "AlreadyAsked", CaseWorkspaceLabels.Valuation.AlreadyFetched(valuationSource), null, null);
-                        }
-
-                        // The fetched figures are recorded as the card's Save records them.
-                        // A VIN the fetch filled advanced the version as system work, which
-                        // the lease this command holds still covers.
-                        var recordedAt = LondonCalendar.TimeAt(timeProvider.GetUtcNow());
-                        var card = new ValuationDetails(
-                            valuationSource,
-                            DateOnly.FromDateTime(recordedAt),
-                            TimeOnly.FromDateTime(recordedAt),
-                            // A guide card carries no mileage: the Case's own is used.
-                            null,
-                            quote.RetailValue,
-                            quote.TradeValue,
-                            quote.GuideMonth);
-                        var saved = await saveCaseWorkspace.ExecuteAsync(
-                            new(caseId, expectedVersion, context.Actor, key, reason, token)
-                            {
-                                Valuation = new([card], null),
-                            },
-                            cancellationToken);
-                        return new FetchedValuation("Recorded", null, quote, saved.Version);
-                    },
-                    cancellationToken);
-                var valuations = await listValuations.ExecuteAsync(caseId, CaseWorkSelector.Current, cancellationToken);
-                return new ValuationGetToolResult(
-                    caseId,
-                    fetched.Outcome,
-                    fetched.Message,
-                    fetched.Quote?.RetailValue,
-                    fetched.Quote?.TradeValue,
-                    fetched.Quote?.GuideMonth.ToString("yyyy-MM", CultureInfo.InvariantCulture),
-                    fetched.CaseVersion,
-                    valuations.Select(Map).ToArray(),
-                    key,
-                    AutomationMcpAuditor.CorrelationId(context, key));
-            }),
-            cancellationToken);
-    }
-
-    private sealed record FetchedValuation(
-        string Outcome, string? Message, GuideValuationQuote? Quote, long? CaseVersion);
 
     [McpServerTool(
         Name = "pegasus_vocabulary_get",
@@ -661,22 +372,20 @@ internal sealed class CaseEditMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Returns the vocabularies the write tools accept: every assessment field path with its type, accepted codes, the format a structured value takes (assessment.impacts, the impacts; damage.impacts, the damage markers), staff label and whether pegasus_assessment_update may write it (for example Roadworthiness is assessment.legal_status and the outcome is assessment.outcome); the estimate line types and evidence labels with their meanings; repairer VAT statuses and VAT categories; valuation sources; the shared image tags pegasus_document_action applies; the enabled staff by username, whose identifiers the assign actions take; and the eligible Sign-off Engineers by printed name.")]
+    [Description("Returns the vocabularies the write tools accept: every assessment field path with its type, accepted codes, the format a structured value takes (assessment.impacts, the impacts; damage.impacts, the damage markers), staff label and whether pegasus_assessment_update may write it (for example Roadworthiness is assessment.legal_status and the outcome is assessment.outcome); the estimate line types and evidence labels with their meanings; repairer VAT statuses and VAT categories; valuation sources; the shared image tags pegasus_document_action applies; the enabled staff by username, whose identifiers the assign actions take; the eligible Sign-off Engineers by printed name; and the unroadworthy wordings bank.")]
     public async Task<VocabularyToolResult> GetVocabularyAsync(CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_vocabulary_get", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_vocabulary_get",
             "vocabulary",
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 // Each read opens its own context, so they run side by side.
                 var tagsRead = imageTags.ListAsync(cancellationToken);
                 var staffRead = staffChoices.GetAsync(context.Actor, cancellationToken);
                 var signOffRead = staffAccounts.ListSignOffEngineersAsync(cancellationToken);
-                await Task.WhenAll(tagsRead, staffRead, signOffRead);
+                var bankRead = unroadworthyReasonBank.ListAsync(cancellationToken);
+                await Task.WhenAll(tagsRead, staffRead, signOffRead, bankRead);
                 return new VocabularyToolResult(
                     AssessmentVocabulary.Definitions.Values
                         .Select(definition =>
@@ -714,8 +423,9 @@ internal sealed class CaseEditMcpTools(
                         .Select(engineer => new SignOffEngineerVocabularyItem(
                             engineer.StaffId, engineer.PrintedName, engineer.Qualifications, engineer.IsDefault))
                         .ToArray(),
+                    (await bankRead).Select(wording => wording.Text).ToArray(),
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -727,19 +437,17 @@ internal sealed class CaseEditMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists the active Contacts directory organisations holding one role, as the Case page offers them to link to a Case: Repairer (for pegasus_case_update_details repairerDirectoryId) or ClaimSource (for claimSourceId). An optional name filter keeps the organisations whose name contains it, ignoring case.")]
+    [Description("Lists the active Contacts directory organisations holding one role, as the Case page offers them to link to a Case: Repairer (for pegasus_case_update_details repairerDirectoryId) or ClaimSource (for claimSourceId). Each carries the codes of the Principals it is linked to; name the Case's principalCode and the organisations linked to that Principal come first, as the Case page lists them, each group in name order. An optional name filter keeps the organisations whose name contains it, ignoring case.")]
     public async Task<DirectorySearchToolResult> SearchDirectoryAsync(
         [Description("The directory role: Repairer or ClaimSource.")] string role,
         [Description("Optional text the organisation's name must contain, ignoring case.")] string? name = null,
+        [Description("Optional Principal code (a Case's summary.principal): the organisations linked to that Principal are listed first.")] string? principalCode = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_directory_search", cancellationToken);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_directory_search",
             "directory",
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            async context =>
             {
                 var parsed = role?.Trim() switch
                 {
@@ -754,18 +462,21 @@ internal sealed class CaseEditMcpTools(
                     records
                         .Where(record => string.IsNullOrEmpty(filter)
                             || record.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                        // The directory reads in name order and the sort is
+                        // stable, so each group keeps it (R1013, R1016).
+                        .OrderByDescending(record => record.IsLinkedTo(principalCode))
                         .Select(record => new DirectoryToolItem(
                             record.OrganizationId,
                             record.Version,
                             record.Name,
-                            record.ContactPerson,
                             record.Email,
                             record.Telephone,
                             record.Address,
-                            record.Postcode))
+                            record.Postcode,
+                            record.LinkedPrincipalCodes ?? []))
                         .ToArray(),
                     context.TraceIdentifier);
-            }),
+            },
             cancellationToken);
     }
 
@@ -784,21 +495,10 @@ internal sealed class CaseEditMcpTools(
     private static string? Text(string? submitted, string? current) =>
         submitted is null ? current : string.IsNullOrWhiteSpace(submitted) ? null : submitted;
 
-    private static DateOnly? Date(string? submitted, string name, DateOnly? current)
-    {
-        if (submitted is null)
-        {
-            return current;
-        }
-        if (string.IsNullOrWhiteSpace(submitted))
-        {
-            return null;
-        }
-        return DateOnly.TryParseExact(submitted.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture,
-            DateTimeStyles.None, out var parsed)
-            ? parsed
-            : throw new McpException($"The {name} value must be a yyyy-MM-dd date.");
-    }
+    private static DateOnly? Date(string? submitted, string name, DateOnly? current) =>
+        submitted is null
+            ? current
+            : AutomationMcpErrors.OptionalDate(submitted, $"The {name} value must be a yyyy-MM-dd date.");
 
     private static CaseInspectionMode? ParseInspectionMode(string? value) =>
         string.IsNullOrWhiteSpace(value)
@@ -810,37 +510,4 @@ internal sealed class CaseEditMcpTools(
                 _ => throw new McpException(
                     "The inspection mode must be physical_address or image_based_assessment.")
             };
-
-    private static CaseReportAddressTreatment Treatment(CaseInspectionMode? mode) => mode switch
-    {
-        CaseInspectionMode.ImageBasedAssessment => CaseReportAddressTreatment.ImageBasedAssessment,
-        CaseInspectionMode.PhysicalAddress => CaseReportAddressTreatment.PhysicalVehicleLocation,
-        _ => CaseReportAddressTreatment.Undetermined
-    };
-
-    private static ValuationSource ParseSource(string value) =>
-        Enum.TryParse<ValuationSource>(value?.Trim(), ignoreCase: true, out var source)
-            && Enum.IsDefined(source)
-            ? source
-            : throw new McpException(
-                "The valuation source must be one of: " + string.Join(", ", Enum.GetNames<ValuationSource>()) + ".");
-
-    private static DateOnly? ParseGuideMonth(string? value) =>
-        string.IsNullOrWhiteSpace(value)
-            ? null
-            : DateOnly.TryParseExact(value.Trim() + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture,
-                DateTimeStyles.None, out var month)
-                ? month
-                : throw new McpException("The guide month must be yyyy-MM.");
-
-    private static ValuationToolItem Map(CaseValuation valuation) => new(
-        valuation.ValuationId,
-        valuation.Details.Source.ToString(),
-        valuation.Details.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-        valuation.Details.Mileage,
-        valuation.Details.RetailValue,
-        valuation.Details.TradeValue,
-        valuation.Details.GuideMonth?.ToString("yyyy-MM", CultureInfo.InvariantCulture),
-        valuation.RecordedBy,
-        valuation.RecordedAtUtc);
 }

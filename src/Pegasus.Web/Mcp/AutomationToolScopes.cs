@@ -30,6 +30,9 @@ internal static class AutomationToolScopes
             "pegasus_case_action",
             "pegasus_case_query",
             "pegasus_work_centre_dismiss",
+            "pegasus_photo_link_list",
+            "pegasus_photo_link_get",
+            "pegasus_photo_link_action",
             "pegasus_edit_begin",
             "pegasus_edit_renew",
             "pegasus_edit_end"
@@ -45,7 +48,13 @@ internal static class AutomationToolScopes
             "pegasus_unidentified_get",
             "pegasus_unidentified_resolve",
             "pegasus_unidentified_reopen",
+            "pegasus_unidentified_action",
             "pegasus_unidentified_source_download",
+            "pegasus_image_intake_list",
+            "pegasus_image_intake_get",
+            "pegasus_image_intake_action",
+            "pegasus_upload_group_get",
+            "pegasus_upload_group_action",
             "pegasus_triage_list",
             "pegasus_triage_get",
             "pegasus_triage_source_download",
@@ -114,7 +123,8 @@ internal static class AutomationToolScopes
         (AutomationMcp.SendScope,
         [
             "pegasus_report_send",
-            "pegasus_mail_send"
+            "pegasus_mail_send",
+            "pegasus_photo_link_send"
         ])
     ];
 

@@ -38,14 +38,14 @@
             if (rows.Length == 0) continue;
             var heading = OperatorLabels.Contacts.Plural(role);
             var isPrincipal = role == ContactRole.Principal;
-            var hasPostcode = role is ContactRole.Repairer or ContactRole.Storage;
+            var hasPostcode = role == ContactRole.Repairer;
             var hasNextPage = Model.TypesWithNextPage.Contains(role);
             <section class="panel" aria-labelledby="contacts-@role-title">
                 <div class="panel-head"><h2 id="contacts-@role-title">@heading</h2></div>
-                <div class="table-wrap no-border"><table class="table table--compact"><caption class="sr-only">@heading</caption><thead><tr>@if (isPrincipal) { <th>@OperatorLabels.PrincipalAdministration.Code</th> }<th>Name</th><th>Contact person</th><th>Email</th><th>Phone</th>@if (hasPostcode) { <th>Postcode</th> }@if (!isPrincipal) { <th>Linked principals</th> }<th>Last case</th><th>Status</th><th><span class="sr-only">Open</span></th></tr></thead><tbody>
+                <div class="table-wrap no-border"><table class="table table--compact"><caption class="sr-only">@heading</caption><thead><tr>@if (isPrincipal) { <th>@OperatorLabels.PrincipalAdministration.Code</th> }<th>Name</th><th>Email</th><th>Phone</th>@if (hasPostcode) { <th>Postcode</th> }@if (!isPrincipal) { <th>Linked principals</th> }<th>Last case</th><th>Status</th><th><span class="sr-only">Open</span></th></tr></thead><tbody>
                 @foreach (var contact in rows)
                 {
-                    <tr>@if (isPrincipal) { <td class="mono">@(contact.PrincipalCode ?? "—")</td> }<td>@contact.Name</td><td>@(contact.ContactPerson ?? "—")</td><td class="mono">@(contact.Email ?? "—")</td><td class="mono">@(contact.Telephone ?? "—")</td>@if (hasPostcode) { <td>@(contact.Postcode ?? "—")</td> }@if (!isPrincipal) { var codes = Model.LinkedPrincipalCodes(contact); <td class="mono">@(codes.Length == 0 ? "—" : string.Join(", ", codes))</td> }<td>@(contact.LastCaseReference ?? "—")</td><td><partial name="Shared/_StatusChip" model="@(contact.Active ? "Active" : "Disabled")" /></td><td class="right"><a class="btn btn--small" asp-page="Edit" asp-route-id="@contact.OrganizationId">Open</a></td></tr>
+                    <tr>@if (isPrincipal) { <td class="mono">@(contact.PrincipalCode ?? "—")</td> }<td>@contact.Name</td><td class="mono">@(contact.Email ?? "—")</td><td class="mono">@(contact.Telephone ?? "—")</td>@if (hasPostcode) { <td>@(contact.Postcode ?? "—")</td> }@if (!isPrincipal) { var codes = Model.LinkedPrincipalCodes(contact); <td class="mono">@(codes.Length == 0 ? "—" : string.Join(", ", codes))</td> }<td>@(contact.LastCaseReference ?? "—")</td><td><partial name="Shared/_StatusChip" model="@(contact.Active ? "Active" : "Disabled")" /></td><td class="right"><a class="btn btn--small" asp-page="Edit" asp-route-id="@contact.OrganizationId">Open</a></td></tr>
                 }
                 </tbody></table></div>
                 @if (Model.PageNumber > 1 || hasNextPage)
@@ -91,7 +91,6 @@
                 <partial name="Shared/_ErrorSummary" />
                 <div class="form-grid form-grid--2">
                     <div class="field field-wide"><label class="req" asp-for="Name">Organisation name</label><input asp-for="Name" autocomplete="organization" /></div>
-                    <div class="field"><label asp-for="ContactPerson">Contact person</label><input asp-for="ContactPerson" autocomplete="name" /></div>
                     <div class="field"><label asp-for="Email">Email</label><input asp-for="Email" type="email" autocomplete="email" /></div>
                     <div class="field"><label asp-for="Telephone">Phone</label><input asp-for="Telephone" type="tel" inputmode="tel" pattern="^\+?[0-9 ]+$" autocomplete="tel" /></div>
                     <div class="field field-tall"><label asp-for="Address">Address</label><textarea asp-for="Address" rows="2" autocomplete="street-address"></textarea></div>

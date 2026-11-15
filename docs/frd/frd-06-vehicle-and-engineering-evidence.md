@@ -105,7 +105,9 @@ reviewed register and its operator-run loader
 ([ADR-0076](../adr/0076-reviewed-register-is-the-contact-directory-data-contract.md)).
 It accepts only reviewed full addresses. It keeps each complete display
 address with a normalised postcode, keeps operator-confirmed rows across
-refreshes, and is deterministic and auditable. Frequency,
+refreshes, and is deterministic and auditable. The yards that were Storage
+contacts are inspection locations too, each with the Principal links its
+contact held (operator, 13 November 2026; [R1051](../rulings.md)). Frequency,
 recency, proximity, accepted Principal, Repairer, Image Source and normalised
 search text may rank suggestions but never choose an address. Nothing here
 activates a spreadsheet import, route or caller before its own acceptance

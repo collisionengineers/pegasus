@@ -1449,7 +1449,6 @@ public sealed partial class CaseCreateWebTests
                 claimSourceId,
                 0,
                 "Manual guidance Claim Source",
-                "Case source contact",
                 "source@example.test",
                 "01234 567890",
                 null,

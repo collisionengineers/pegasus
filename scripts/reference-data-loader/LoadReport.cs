@@ -59,7 +59,6 @@ internal sealed record MatchedLocation(string RowId, string ContactRowId, string
 
 internal sealed record ContactFields(
     string Name,
-    string? ContactPerson,
     string? Email,
     string? Telephone,
     string? Address,

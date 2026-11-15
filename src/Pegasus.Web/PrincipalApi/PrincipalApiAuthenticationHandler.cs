@@ -48,7 +48,6 @@ internal sealed class PrincipalApiAuthenticationHandler(
 
         var identity = new ClaimsIdentity(
             [
-                new Claim(ClaimTypes.NameIdentifier, credential.PrincipalId.ToString("D")),
                 new Claim(PrincipalApi.PrincipalIdClaim, credential.PrincipalId.ToString("D")),
                 new Claim(PrincipalApi.KeyIdClaim, credential.KeyId),
                 new Claim(PrincipalApi.CredentialStateClaim, credential.State.ToString())

@@ -128,7 +128,7 @@ With port 443 Funnelled and `AutomationMcp__RedirectUris` set (R899),
 claude.ai reaches the MCP from Anthropic's cloud. Add a custom connector with
 URL `https://<host>.<tailnet>.ts.net/mcp`, client ID `pegasus-automation` and
 the instance's client secret; the connector's sign-in opens
-`/connect/authorize`, where an Administrator signs in and approves the
+`/authorize`, where an Administrator signs in and approves the
 scopes. A run started before the line went in needs Stop and
 `Start -RunId <id>` to pick it up.
 

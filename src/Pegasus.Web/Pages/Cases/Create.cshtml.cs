@@ -56,7 +56,7 @@ public sealed partial class CreateModel(
     IGetIntake getIntake,
     ResolveIntake resolveIntake,
     IAllocateIntake allocateIntake,
-    IStandaloneAuditEvidenceQueries standaloneAuditEvidenceQueries,
+    IntakeCaseCreation caseCreation,
     IInspectionAddressResolutionStore addressResolutionStore,
     IPrincipalInspectionModeStore principalInspectionModeStore,
     ICreateManualCase createManualCase,
@@ -389,7 +389,7 @@ public sealed partial class CreateModel(
         var principalCode = PrincipalCode!;
         var completeness = new CaseCompleteness(
             InstructionComplete: true,
-            ImagesComplete: InstructionEvidenceImages.Select(Receipt.AssetRecords).Count > 0);
+            ImagesComplete: IntakeCaseCreation.ImagesComplete(Receipt));
 
         var allocationStarted = false;
         var receiptReloaded = false;
@@ -598,7 +598,6 @@ public sealed partial class CreateModel(
             ClaimSourceId: claimSource?.OrganizationId,
             ClaimSourceVersion: claimSource?.Version,
             ClaimSourceName: claimSource?.Name,
-            ClaimSourceContactName: claimSource?.ContactPerson,
             ClaimSourceContactTelephone: claimSource?.Telephone,
             ClaimSourceContactEmailAddress: claimSource?.Email);
         var draft = new InstructionDraft(
@@ -875,9 +874,7 @@ public sealed partial class CreateModel(
             // The principal's own recorded mode, not something derived from the
             // document. The address panel says as much, and a physical address
             // can still be recorded on the case afterwards with a reason.
-            return AddressResolution.ResolvedValue
-                ?? AddressSuggestion?.Value
-                ?? Ext18InspectionAddressPolicy.ImageBasedAssessment;
+            return IntakeCaseCreation.ImageBasedInspectionAddress(AddressResolution);
         }
 
         if (AddressAlreadySettled)
@@ -895,9 +892,7 @@ public sealed partial class CreateModel(
         // Little or no text came out of the document, which is exactly the
         // hand-keyed case: the correction step normalises the decision, so it
         // is allowed through rather than refused.
-        if (Receipt.Decision == IntakeDecision.OcrRequired
-            || Receipt.Decision == IntakeDecision.NeedsSorting
-            || IntakeDecisionPolicy.CanBecomeCase(Receipt.Decision))
+        if (IntakeCaseCreation.AcceptsByHand(Receipt.Decision))
         {
             return null;
         }
@@ -925,12 +920,8 @@ public sealed partial class CreateModel(
             SourceMessageId = await getRetainedMail.FindIdBySourceAsync(actor, receipt.SourceIdentity, cancellationToken);
         }
 
-        var auditEvidence = await standaloneAuditEvidenceQueries.GetForReceiptAsync(
+        StandaloneAuditEvidenceId = await caseCreation.StandaloneAuditEvidenceIdAsync(
             receipt.Id, cancellationToken);
-        StandaloneAuditEvidenceId = auditEvidence is { IntakeReceiptId: var evidenceReceiptId }
-            && evidenceReceiptId == receipt.Id
-            ? auditEvidence.Id
-            : null;
         // The mode belongs to the principal the case is actually allocated
         // against. On the first GET that is the extracted suggestion, but as
         // soon as an operator confirms a different principal it is theirs —

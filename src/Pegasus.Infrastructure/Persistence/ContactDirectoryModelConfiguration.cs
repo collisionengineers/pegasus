@@ -8,7 +8,6 @@ internal static class ContactDirectoryModelConfiguration
     {
         builder.Entity<OrganizationEntity>(entity =>
         {
-            entity.Property(item => item.ContactPerson).HasMaxLength(200);
             entity.Property(item => item.Email).HasMaxLength(320);
             entity.Property(item => item.Telephone).HasMaxLength(50);
             entity.Property(item => item.Address).HasMaxLength(1000);
@@ -19,7 +18,7 @@ internal static class ContactDirectoryModelConfiguration
             entity.Property(item => item.Role).HasMaxLength(40).IsRequired();
             entity.ToTable(table => table.HasCheckConstraint(
                 "CK_Organizations_Role",
-                "[Role] IN ('principal', 'claim_source', 'repairer', 'storage', 'third_party_engineer')"));
+                "[Role] IN ('principal', 'claim_source', 'repairer')"));
         });
 
         builder.Entity<ContactPrincipalLinkEntity>(entity =>

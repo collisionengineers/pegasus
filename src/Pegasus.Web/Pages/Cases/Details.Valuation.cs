@@ -409,7 +409,7 @@ public sealed partial class DetailsModel
         /// calculation and refuses nothing.
         /// </summary>
         public static bool OtherRowCounts(string? label, decimal amount) =>
-            amount > 0m && !string.IsNullOrWhiteSpace(label);
+            ValuationAdditionSelection.OtherCounts(label, amount);
 
         /// <summary>
         /// One calculation written the one way, so the one the page opened on

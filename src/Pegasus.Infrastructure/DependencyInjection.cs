@@ -140,6 +140,7 @@ public static class DependencyInjection
         services.AddScoped<IRetainedMailboxMessageStore>(
             provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<ListRetainedMail>();
+        services.AddScoped<ListRetainedMailByCursor>();
         services.AddScoped<GetRetainedMail>();
         services.AddScoped<GetRetainedMailPreview>();
         services.AddScoped<CorrectRetainedMailClassification>();
@@ -171,6 +172,7 @@ public static class DependencyInjection
         services.AddScoped<PromoteAssociatedIntakeCaseEvidence>();
         services.AddScoped<IOriginalReportRecognitionDeferrals, EfOriginalReportRecognitionDeferrals>();
         services.AddScoped<ResolveIntake>();
+        services.AddScoped<IntakeCaseCreation>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
         services.AddScoped<IRetryIntakeOcr, RetryIntakeOcr>();
         services.AddScoped<ILinkIntake, LinkIntake>();
@@ -624,7 +626,9 @@ public static class DependencyInjection
         services.AddScoped<IFileGuideValuationReport, FileGuideValuationReport>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
         services.AddScoped<CancelAiJob>();
-        services.AddScoped<IConfirmAiJob, ConfirmAiJob>();
+        services.AddScoped<ListOpenAiJobsByCursor>();
+        services.AddScoped<ConfirmAiJob>();
+        services.AddScoped<IConfirmAiJob>(provider => provider.GetRequiredService<ConfirmAiJob>());
         services.AddScoped<EfCaseTaskStore>();
         services.AddScoped<ICaseTaskStore>(
             provider => provider.GetRequiredService<EfCaseTaskStore>());
@@ -894,6 +898,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfCaseReportGenerationStore>());
         services.AddScoped<ICaseReportContentSource, EfCaseReportContentSource>();
         services.AddScoped<IGenerateCaseReport, GenerateCaseReport>();
+        services.AddScoped<CaseReportActs>();
         services.AddScoped<IReportSendReadiness, ReportSendReadiness>();
         services.AddScoped<ISendCaseReport, SendCaseReport>();
         services.AddScoped<GenerateCaseAssessmentReportDraft>();

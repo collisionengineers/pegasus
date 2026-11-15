@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Net.Mail;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
-using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -26,7 +25,6 @@ internal sealed record ReportSendToolResult(
     [property: Description("The Case version after the send.")] long CaseVersion,
     [property: Description("The Case's lifecycle state after the send.")] string CaseState,
     string OperationKey,
-    string CorrelationId,
     [property: Description("The other work's report generation the same e-mail carried, when otherReport was asked for.")] Guid? OtherGenerationId = null,
     [property: Description("The file names the e-mail carries, in order: the report and the companion documents attached, the filed estimates the Principal's rules attach, then the other work's report and its documents when otherReport was asked for. Report what was sent from this list, not from what was asked for.")] IReadOnlyList<string>? Attachments = null);
 
@@ -39,7 +37,6 @@ internal sealed record MailSendToolResult(
     [property: Description("The Case the mail is filed against (the Triage Case for triage_reply).")] Guid CaseId,
     [property: Description("The retained message answered or forwarded; null for a chaser sent as a new message.")] Guid? MessageId,
     string OperationKey,
-    string CorrelationId,
     string? AiJobNotCompleted = null);
 
 /// <summary>
@@ -57,7 +54,7 @@ internal sealed record MailSendToolResult(
 internal sealed class SendMcpTools(
     ISendCaseReport sendCaseReport,
     ICaseReportGenerationStore reportGenerations,
-    IGetAssessmentAccess getAssessmentAccess,
+    CaseReportActs reportActs,
     IGetCaseHeader getCaseHeader,
     ISearchCases searchCases,
     ICaseWorkflowQueries workflowQueries,
@@ -69,7 +66,6 @@ internal sealed class SendMcpTools(
     GetRetainedMail getRetainedMail,
     IGetTriage getTriage,
     ICaseQueryStore caseQueries,
-    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     OneCommandEdit leases)
 {
@@ -83,10 +79,10 @@ internal sealed class SendMcpTools(
         Idempotent = true,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Sends a Case's generated report to the Principal, as Send report on the Case page does, through the same Core command: the work's current confirmed generation (or generationId), the reviewed To and Cc recipients (omit both for the Principal's suggested recipients), the companion documents chosen (omit attach for every confirmed document the generation holds, the fee note included; an empty attach sends the report alone, with any companion the Principal requires) and the covering message, which is sent as written. It is a reply to the Case's instruction e-mail, subject Re: and the instruction's subject; a Case with no instruction e-mail to reply to sends a new message, subject the registration and Report. It leaves from the Outgoing mailbox named by fromMailbox, by default the approved mailbox the instruction e-mail arrived in, else the Principal's Send from; a reply from another mailbox than the one holding the e-mail is sent as a new message. A Collision Engineers staff forward held in instructions@ is answered as though the original had arrived directly, to the original sender, by default from the approved mailbox that forwarded it. The Principal's report sending rules apply as on the Case page; this tool ticks no hold and overrides no Stop, so a send the rules hold or stop is refused. The report attaches under its delivery name. The Case must be open in a state its report can be sent in; a Complete Case sends only the Inspection report of a Case that has its Audit. On a Case that has its Audit, otherReport also attaches the other work's current confirmed report (the Inspection report beside the Audit's, or the Audit's beside the Inspection's) to the same e-mail, under its own delivery name, as the Case page's send form offers it. deleteCaseCorrespondence is the form's Delete case correspondence tick: once the Sent item is observed, the Case's received e-mails in approved mailboxes are moved to Deleted Items, recoverably; Pegasus keeps its copies, links and history. Needs automation.send and the expected case version (present an edit lease token, or omit it and the tool holds the lease for this one send). The result is the send's state and attachments, the file names the e-mail carries: report what was sent from attachments, not from what was asked for. Submitted is accepted, not yet Sent; Unknown must never be resent, replay the same operation key instead.")]
+    [Description("Sends a Case's generated report to the Principal, as Send report on the Case page does: the work's current confirmed generation (or generationId), the reviewed To and Cc recipients, the companion documents chosen and the covering message. It is a reply to the Case's instruction e-mail; a Case with no instruction e-mail to reply to sends a new message. It leaves from the Outgoing mailbox named by fromMailbox; a reply from another mailbox than the one holding the e-mail is sent as a new message. A Collision Engineers staff forward held in instructions@ is answered as though the original had arrived directly, to the original sender. The Principal's report sending rules apply as on the Case page; this tool ticks no hold and overrides no Stop, so a send the rules hold or stop is refused. The report attaches under its delivery name. The Case must be open in a state its report can be sent in; a Complete Case sends only the Inspection report of a Case that has its Audit. On a Case that has its Audit, otherReport also attaches the other work's current confirmed report (the Inspection report beside the Audit's, or the Audit's beside the Inspection's) to the same e-mail, under its own delivery name, as the Case page's send form offers it. Needs automation.send and the expected case version. The result is the send's state and attachments, the file names the e-mail carries: report what was sent from attachments, not from what was asked for. Submitted is accepted, not yet Sent; Unknown must never be resent, replay the same operation key instead.")]
     public async Task<ReportSendToolResult> SendReportAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
+        [Description(AutomationToolText.CaseId)] Guid caseId,
+        [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same send without sending again.")] string operationKey,
         [Description("The covering message sent with the report, as written (plain text, line breaks kept).")] string coveringMessage,
         [Description("current (the default; the Audit once a Case has one) or inspection (the Inspection report of a Case that has its Audit).")] string? work = null,
@@ -105,18 +101,15 @@ internal sealed class SendMcpTools(
         [Description("true to move the Case's received e-mails to Deleted Items once the Sent item is observed, as the send form's Delete case correspondence tick does. The move is recoverable and leaves Pegasus's copies, links and history as they are.")] bool deleteCaseCorrespondence = false,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_report_send", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_report_send",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var actor = context.Actor;
-                var selector = ParseWork(work);
+                var selector = ReportMcpTools.ParseWork(work);
                 var kinds = ParseAttach(attach);
                 var names = ParseAttachmentNames(attachmentNames);
                 ReportRecipientReview? review = to is null && cc is null
@@ -191,7 +184,7 @@ internal sealed class SendMcpTools(
                     ?? throw new McpException("The case was not found.");
                 return new ReportSendToolResult(
                     caseId,
-                    selector == CaseWorkSelector.Primary ? "inspection" : "current",
+                    ReportMcpTools.WorkName(selector),
                     generation.Id,
                     operation.Id,
                     operation.State.ToString(),
@@ -199,10 +192,9 @@ internal sealed class SendMcpTools(
                     workflow.Version,
                     workflow.State.ToString(),
                     key,
-                    AutomationMcpAuditor.CorrelationId(context, key),
                     second?.GenerationId,
                     operation.AttachmentFileNames ?? []);
-            }),
+            },
             cancellationToken);
     }
 
@@ -214,14 +206,14 @@ internal sealed class SendMcpTools(
         Idempotent = true,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Sends e-mail as staff do, through the same Core staff mail send, filed against a Case. mode chaser is the Case's Send chaser, recorded as a chase once it is Sent: a reply to the Case's instruction e-mail, or, for a Case with no instruction e-mail to reply to, a new message; it goes to the To and Cc given. reply, reply_all and forward answer one retained message (messageId from pegasus_mail_list): reply goes to its Reply-To or sender and reply_all adds its other recipients, so neither takes to or cc; forward takes to and cc and leaves from the approved mailbox that holds the message. Every other send leaves from the Outgoing mailbox named by fromMailbox, by default the approved mailbox the e-mail it answers arrived in, else the Principal's Send from; a reply from another mailbox than the one holding the e-mail is sent as a new message. A Collision Engineers staff forward held in instructions@ is answered as though the original had arrived directly, to the original sender, by default from the approved mailbox that forwarded it. triage_reply is the Triage Case's reply to the e-mail the Triage was opened from: the chaser until the outcome is recorded, the outcome reply once Completed, none once Cancelled; To defaults to the original sender. Subject and body are sent as written. deleteCaseCorrespondence is the composers' Delete case correspondence tick, offered where they offer it: a reply or reply_all to a message that holds an open query on the Case, and the Triage outcome reply; once the Sent item is observed, the Case's received e-mails in approved mailboxes are moved to Deleted Items, recoverably. Attachments are Case files by documentVersionId (pegasus_case_get documents), or for triage_reply the origin item's files by assetId (pegasus_intake_get). Needs automation.send, the expected version and a mcp:-prefixed operation key; replaying the key with the same content returns the same send. The result is the send's state: Submitted is accepted, not yet Sent; Unknown must never be resent.")]
+    [Description("Sends e-mail as staff do, filed against a Case. mode chaser is the Case's Send chaser, recorded as a chase once it is Sent: a reply to the Case's instruction e-mail, or, for a Case with no instruction e-mail to reply to, a new message; it goes to the To and Cc given. reply, reply_all and forward answer one retained message (messageId from pegasus_mail_list): reply goes to its Reply-To or sender and reply_all adds its other recipients, so neither takes to or cc; forward takes to and cc and leaves from the approved mailbox that holds the message. Every other send leaves from the Outgoing mailbox named by fromMailbox; a reply from another mailbox than the one holding the e-mail is sent as a new message. A Collision Engineers staff forward held in instructions@ is answered as though the original had arrived directly, to the original sender. triage_reply is the Triage Case's reply to the e-mail the Triage was opened from: the chaser until the outcome is recorded, the outcome reply once Completed, none once Cancelled. Needs automation.send, the expected version and a mcp:-prefixed operation key; replaying the key with the same content returns the same send. The result is the send's state: Submitted is accepted, not yet Sent; Unknown must never be resent.")]
     public async Task<MailSendToolResult> SendMailAsync(
         [Description("chaser, reply, reply_all, forward or triage_reply.")] string mode,
         [Description("The Case the mail is filed against: an instruction Case (pegasus_case_search) for chaser, reply, reply_all and forward; the Triage Case (pegasus_triage_list) for triage_reply.")] Guid caseId,
         [Description("The version the caller observed: the Case's version for chaser, reply, reply_all and forward; the Triage version for triage_reply. A stale value fails closed.")] long expectedVersion,
         [Description("The subject, sent as written.")] string subject,
         [Description("The message body, plain text, sent as written.")] string body,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("reply, reply_all and forward: the retained message answered or forwarded (pegasus_mail_list).")] Guid? messageId = null,
         [Description("To recipients, plain e-mail addresses: required for chaser and forward; triage_reply defaults to the original sender; reply and reply_all take none.")] string[]? to = null,
         [Description("Cc recipients, plain e-mail addresses: chaser, forward and triage_reply only.")] string[]? cc = null,
@@ -232,14 +224,11 @@ internal sealed class SendMcpTools(
         [Description("reply, reply_all and triage_reply only: true to move the Case's received e-mails to Deleted Items once the Sent item is observed, as the composer's Delete case correspondence tick does. A reply takes it only when the message holds an open query on the Case; triage_reply only for the outcome reply, not the chaser. The move is recoverable and leaves Pegasus's copies, links and history as they are.")] bool deleteCaseCorrespondence = false,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync("pegasus_mail_send", cancellationToken);
-        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        return await auditor.RecordAsync(
-            context,
+        return await auditor.CallAsync(
             "pegasus_mail_send",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            AutomationMcpAuditor.Resource(caseId),
+            operationKey,
+            async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var verb = mode?.Trim() ?? string.Empty;
@@ -331,11 +320,10 @@ internal sealed class SendMcpTools(
                     caseId,
                     message,
                     key,
-                    AutomationMcpAuditor.CorrelationId(context, key),
                     operation.AiJobRefusal is { } refusal
                         ? OperatorLabels.QueryResponseJobs.NotCompleted(refusal)
                         : null);
-            }),
+            },
             cancellationToken);
     }
 
@@ -632,16 +620,12 @@ internal sealed class SendMcpTools(
         CaseWorkSelector selector,
         CancellationToken cancellationToken)
     {
-        var access = await getAssessmentAccess.ExecuteAsync(new(caseId, actor), cancellationToken);
-        if (access is null || !access.CanOpen)
+        switch (await reportActs.GetAccessAsync(actor, caseId, selector, cancellationToken))
         {
-            throw new McpException("The case was not found or its report cannot be sent in its state.");
-        }
-        if (access.IsReadOnly
-            && !(selector == CaseWorkSelector.Primary
-                && (await getCaseHeader.ExecuteAsync(new(caseId, actor), cancellationToken))?.Works is { HasAudit: true }))
-        {
-            throw new McpException("The case is read-only once Complete.");
+            case CaseReportActAccess.NotOpen:
+                throw new McpException("The case was not found or its report cannot be sent in its state.");
+            case CaseReportActAccess.ReadOnly:
+                throw new McpException("The case is read-only once Complete.");
         }
     }
 
@@ -696,11 +680,4 @@ internal sealed class SendMcpTools(
         }
         return parsed.Count == 0 ? null : parsed;
     }
-
-    private static CaseWorkSelector ParseWork(string? work) => work?.Trim() switch
-    {
-        null or "" or "current" => CaseWorkSelector.Current,
-        "inspection" => CaseWorkSelector.Primary,
-        _ => throw new McpException("The work must be current or inspection."),
-    };
 }

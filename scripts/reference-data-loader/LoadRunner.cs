@@ -110,7 +110,6 @@ internal static class LoadRunner
         write.OrganizationId,
         write.ExpectedVersion,
         write.Fields.Name,
-        write.Fields.ContactPerson,
         write.Fields.Email,
         write.Fields.Telephone,
         write.Fields.Address,

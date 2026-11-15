@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using ModelContextProtocol;
@@ -5,6 +6,7 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.PhotoCapture;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Mcp;
@@ -12,7 +14,7 @@ namespace Pegasus.Web.Mcp;
 /// <summary>
 /// Translates Core refusals into content-safe MCP errors. Domain exceptions
 /// carry deliberately safe messages (version conflicts, lease state,
-/// operation replays, validation refusals) and pass through; anything
+/// operation replays, validation refusals, a photo link's refusals) and pass through; anything
 /// unexpected collapses to a generic failure so no infrastructure detail
 /// crosses the boundary. The three edit-guard refusals name which guard
 /// refused and the current case version, so the Automation Actor can reload
@@ -81,7 +83,8 @@ internal static class AutomationMcpErrors
         catch (Exception exception) when (
             exception is ArgumentException
                 or InvalidOperationException
-                or InvalidDataException)
+                or InvalidDataException
+                or PhotoCaptureRefusalException)
         {
             throw new McpException(Refusal(exception));
         }
@@ -180,6 +183,51 @@ internal static class AutomationMcpErrors
         value == Guid.Empty
             ? throw new McpException($"A non-empty {name} is required.")
             : value;
+
+    /// <summary>
+    /// An optional yyyy-MM-dd date: omitted or blank is none, and anything
+    /// else that is not one is refused with the caller's own sentence.
+    /// </summary>
+    public static DateOnly? OptionalDate(string? value, string refusal) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+                ? parsed
+                : throw new McpException(refusal);
+
+    /// <summary>A required yyyy-MM-dd date, refused with the same sentence when omitted.</summary>
+    public static DateOnly RequireDate(string? value, string refusal) =>
+        OptionalDate(value, refusal) ?? throw new McpException(refusal);
+
+    /// <summary>
+    /// An optional yyyy-MM month, as its first day: omitted or blank is none,
+    /// and anything else that is not one is refused with the caller's own sentence.
+    /// </summary>
+    public static DateOnly? OptionalMonth(string? value, string refusal) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : DateOnly.TryParseExact(value.Trim(), "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+                ? parsed
+                : throw new McpException(refusal);
+
+    /// <summary>A required yyyy-MM month, refused with the same sentence when omitted.</summary>
+    public static DateOnly RequireMonth(string? value, string refusal) =>
+        OptionalMonth(value, refusal) ?? throw new McpException(refusal);
+
+    /// <summary>
+    /// An enum value given by its name, in any case, never by its number;
+    /// anything else is refused with the caller's own sentence.
+    /// </summary>
+    public static TEnum ParseName<TEnum>(string? value, string refusal)
+        where TEnum : struct, Enum =>
+        TryParseName<TEnum>(value, out var parsed) ? parsed : throw new McpException(refusal);
+
+    /// <summary>As <see cref="ParseName{TEnum}"/>, for a caller that refuses more than a non-name.</summary>
+    public static bool TryParseName<TEnum>(string? value, out TEnum parsed)
+        where TEnum : struct, Enum =>
+        Enum.TryParse<TEnum>(value?.Trim(), ignoreCase: true, out parsed)
+            && Enum.IsDefined(parsed)
+            && !int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _);
 
     public static byte[] DecodeContent(string contentBase64, int maximumBytes, string description)
     {

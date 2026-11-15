@@ -38,7 +38,7 @@ public sealed class ContactDirectoryRoleLookupTests
     }
 
     private static ContactChoice Record(Guid organizationId) =>
-        new(organizationId, "Acme Repairs", ContactRole.Repairer, 1, null, null, null, null, null, null);
+        new(organizationId, "Acme Repairs", ContactRole.Repairer, 1, null, null, null, null, null);
 
     private sealed class RoleListing(
         ContactRole role,

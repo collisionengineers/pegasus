@@ -198,8 +198,8 @@ the Case's edit authority and releasing it (v41 items I9 and I13, signed off
 [v41 notes](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 Linking may
 happen while classification is still unresolved, when the link evidence on
-its own is enough. The Automation Actor links through the same command
-(`pegasus_mail_link_case`).
+its own is enough. The Automation Actor links, unlinks and changes the
+linked Case through the same commands (`pegasus_mail_link_case`; R1041).
 
 The opened message record also offers **Unlink**; where the Case is the one
 the message's own acceptance created, the dialog says that unlinking cancels

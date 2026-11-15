@@ -8,7 +8,7 @@ using Pegasus.Web.Mcp;
 namespace Pegasus.ArchitectureTests;
 
 /// <summary>
-/// ADR-0080 decision 3, carried by ADR-0087: <see cref="AutomationToolScopes"/>
+/// ADR-0087 decision 3: <see cref="AutomationToolScopes"/>
 /// is the one declaration of a tool's scope, read by the call gate and the
 /// tools/list filter. Every registered tool has a row, every row is a registered tool,
 /// every gate names the tool it guards, and a token lists exactly the tools
@@ -27,7 +27,6 @@ public sealed partial class AutomationToolScopeTableTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(73, registered.Length);
         Assert.Equal(registered, AutomationToolScopes.Tools.Order(StringComparer.Ordinal).ToArray());
     }
 
@@ -54,8 +53,9 @@ public sealed partial class AutomationToolScopeTableTests
             }
         }
 
-        // The nine Triage writes share one gate, which takes the tool's name.
-        Assert.Equal(73 - 9, gated);
+        // Every tool gates on its own name: at the resolver, through the auditor's
+        // CallAsync, or through the Triage writes' MutateAsync, which passes it on.
+        Assert.Equal(AutomationToolScopes.Tools.Count(), gated);
     }
 
     [Fact]
@@ -77,11 +77,16 @@ public sealed partial class AutomationToolScopeTableTests
         ];
         Assert.Equal(mailTools, Listed(AutomationMcp.MailScope));
         var casesAndDocuments = Listed(AutomationMcp.CasesScope, AutomationMcp.DocumentsScope);
-        Assert.Equal(24, casesAndDocuments.Length);
+        Assert.Equal(27, casesAndDocuments.Length);
         Assert.Contains("pegasus_edit_begin", casesAndDocuments);
-        Assert.Contains("pegasus_edit_begin", Listed(AutomationMcp.IntakeScope));
+        var intakeTools = Listed(AutomationMcp.IntakeScope);
+        Assert.Contains("pegasus_edit_begin", intakeTools);
+        Assert.Equal(31, intakeTools.Length);
+        Assert.Contains("pegasus_image_intake_action", intakeTools);
+        Assert.Contains("pegasus_upload_group_action", intakeTools);
+        Assert.Contains("pegasus_unidentified_action", intakeTools);
         Assert.Equal(10, Listed(AutomationMcp.AssessmentScope).Length);
-        Assert.Equal(73, Listed([.. AutomationMcp.Scopes]).Length);
+        Assert.Equal(AutomationToolScopes.Tools.Order(StringComparer.Ordinal).ToArray(), Listed([.. AutomationMcp.Scopes]));
         Assert.Empty(Listed());
     }
 
@@ -99,6 +104,8 @@ public sealed partial class AutomationToolScopeTableTests
         Assert.Throws<InvalidOperationException>(
             () => AutomationToolScopes.RequiredScope("pegasus_edit_begin"));
         Assert.Equal(AutomationMcp.SendScope, AutomationToolScopes.RequiredScope("pegasus_report_send"));
+        Assert.Equal(AutomationMcp.SendScope, AutomationToolScopes.RequiredScope("pegasus_photo_link_send"));
+        Assert.Equal(AutomationMcp.CasesScope, AutomationToolScopes.RequiredScope("pegasus_photo_link_action"));
         Assert.Throws<InvalidOperationException>(
             () => AutomationToolScopes.RequiredScope("pegasus_no_such_tool"));
     }
@@ -111,6 +118,6 @@ public sealed partial class AutomationToolScopeTableTests
             .Order(StringComparer.Ordinal)];
     }
 
-    [GeneratedRegex(@"Name = ""(?<tool>pegasus_[a-z_]+)""|RequireAsync\(\s*""(?<gate>pegasus_[a-z_]+)""")]
+    [GeneratedRegex(@"Name = ""(?<tool>pegasus_[a-z_]+)""|(?:RequireAsync|CallAsync|CallWithOptionalKeyAsync|MutateAsync)\(\s*""(?<gate>pegasus_[a-z_]+)""")]
     private static partial Regex ToolOrGate();
 }

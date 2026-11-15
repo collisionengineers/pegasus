@@ -206,7 +206,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
     private static CaseWorkspaceInspection Inspection(
         CaseReportAddressTreatment treatment,
         string address) =>
-        new(treatment, address, null, null, null, null, FixtureInspectionDate, null, null, null, null, null, null, null, null);
+        new(treatment, address, null, null, null, FixtureInspectionDate, null, null, null, null, null);
 
     private sealed class Harness : IAsyncDisposable
     {

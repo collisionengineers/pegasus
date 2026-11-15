@@ -158,7 +158,7 @@ public sealed class EfContactDirectoryAdministration(
     {
         var requestHash = EfOrganizationAdministration.HashRequest(new
         {
-            command = SaveKind, request.OrganizationId, request.ExpectedVersion, request.Name, request.ContactPerson,
+            command = SaveKind, request.OrganizationId, request.ExpectedVersion, request.Name,
             request.Email, request.Telephone, request.Address, request.Postcode, request.Active, request.Role, request.PrincipalCode,
             request.PrincipalInspectionMode, request.LinkedPrincipalIds, request.NotesOnEveryCase
         });
@@ -198,10 +198,10 @@ public sealed class EfContactDirectoryAdministration(
             throw new ContactDirectoryException(ContactDirectoryError.StaleVersion);
         }
         var before = creating ? null : ToRecord(entity!);
-        var changed = entity!.Name != request.Name || entity.ContactPerson != request.ContactPerson || entity.Email != request.Email
+        var changed = entity!.Name != request.Name || entity.Email != request.Email
             || entity.Telephone != request.Telephone || entity.Address != request.Address || entity.Postcode != request.Postcode || entity.Active != request.Active
             || entity.NotesOnEveryCase != request.NotesOnEveryCase;
-        entity.Name = request.Name; entity.ContactPerson = request.ContactPerson; entity.Email = request.Email;
+        entity.Name = request.Name; entity.Email = request.Email;
         entity.Telephone = request.Telephone; entity.Address = request.Address; entity.Postcode = request.Postcode; entity.Active = request.Active;
         entity.NotesOnEveryCase = request.NotesOnEveryCase;
 
@@ -273,7 +273,6 @@ public sealed class EfContactDirectoryAdministration(
                 item.Name,
                 item.Role,
                 item.Version,
-                item.ContactPerson,
                 item.Email,
                 item.Telephone,
                 item.Address,
@@ -283,7 +282,7 @@ public sealed class EfContactDirectoryAdministration(
             .ToArrayAsync(cancellationToken);
         return rows
             .Select(row => new ContactChoice(
-                row.Id, row.Name, ParseRole(row.Role), row.Version, row.ContactPerson, row.Email,
+                row.Id, row.Name, ParseRole(row.Role), row.Version, row.Email,
                 row.Telephone, row.Address, row.Postcode, row.NotesOnEveryCase))
             .ToArray();
     }
@@ -304,7 +303,6 @@ public sealed class EfContactDirectoryAdministration(
                 item.Name,
                 item.Role,
                 item.Version,
-                item.ContactPerson,
                 item.Email,
                 item.Telephone,
                 item.Address,
@@ -315,7 +313,7 @@ public sealed class EfContactDirectoryAdministration(
             .ToArrayAsync(cancellationToken);
         return rows
             .Select(row => new ContactChoice(
-                row.Id, row.Name, ParseRole(row.Role), row.Version, row.ContactPerson, row.Email,
+                row.Id, row.Name, ParseRole(row.Role), row.Version, row.Email,
                 row.Telephone, row.Address, row.Postcode, row.NotesOnEveryCase,
                 [.. row.LinkedPrincipalCodes.Order(StringComparer.Ordinal)]))
             .ToArray();
@@ -363,7 +361,7 @@ public sealed class EfContactDirectoryAdministration(
             from sourceKind in sourceKinds.DefaultIfEmpty()
             join organization in context.Organizations.AsNoTracking() on field.Value equals organization.Id.ToString()
             where field.FieldName == CaseDataFieldNames.ClaimSourceId
-                || field.FieldName == CaseDataFieldNames.StorageBusinessId
+                || field.FieldName == CaseDataFieldNames.RepairerId
                 || (field.FieldName == CaseDataFieldNames.InspectionLocationSourceId
                     && sourceKind.Value == InspectionLocationSourceKind.Directory.ToString())
             select new
@@ -405,7 +403,6 @@ public sealed class EfContactDirectoryAdministration(
         return new(
             entity.Id,
             entity.Name,
-            entity.ContactPerson,
             entity.Email,
             entity.Telephone,
             entity.Address,
@@ -433,7 +430,7 @@ public sealed class EfContactDirectoryAdministration(
     }
 
     private static PrincipalAdministrationDetails ToPrincipalChoice(PrincipalEntity item) => new(item.Organization.Name, new(item.Id, item.OrganizationId, item.Code, item.SequenceLineageId, item.PredecessorId, item.SuccessorId, item.IsActive, item.Version, 0, PrincipalInspectionModePolicy.Parse(item.InspectionMode), EfOrganizationAdministration.ReadReportSending(item.ReportSendingRulesJson)));
-    private static string ToCode(ContactRole role) => role switch { ContactRole.Principal => "principal", ContactRole.ClaimSource => "claim_source", ContactRole.Repairer => "repairer", ContactRole.Storage => "storage", ContactRole.ThirdPartyEngineer => "third_party_engineer", _ => throw new ArgumentOutOfRangeException(nameof(role)) };
-    private static ContactRole ParseRole(string role) => role switch { "principal" => ContactRole.Principal, "claim_source" => ContactRole.ClaimSource, "repairer" => ContactRole.Repairer, "storage" => ContactRole.Storage, "third_party_engineer" => ContactRole.ThirdPartyEngineer, _ => throw new InvalidOperationException("The contact role is invalid.") };
+    private static string ToCode(ContactRole role) => role switch { ContactRole.Principal => "principal", ContactRole.ClaimSource => "claim_source", ContactRole.Repairer => "repairer", _ => throw new ArgumentOutOfRangeException(nameof(role)) };
+    private static ContactRole ParseRole(string role) => role switch { "principal" => ContactRole.Principal, "claim_source" => ContactRole.ClaimSource, "repairer" => ContactRole.Repairer, _ => throw new InvalidOperationException("The contact role is invalid.") };
     private static bool IsRetryable(Exception error) => error is ContactDirectoryException { Error: ContactDirectoryError.StaleVersion or ContactDirectoryError.DuplicateOrganizationName or ContactDirectoryError.DuplicatePrincipalCode } || error is SqlException { Number: 1205 or 2601 or 2627 } || error.InnerException is not null && IsRetryable(error.InnerException);
 }

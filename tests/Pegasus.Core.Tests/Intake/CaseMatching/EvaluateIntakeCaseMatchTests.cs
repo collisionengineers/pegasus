@@ -82,17 +82,37 @@ public sealed class EvaluateIntakeCaseMatchTests
         Assert.Equal(CaseMatchOutcome.NoKeys, result!.Outcome);
     }
 
+    /// <summary>
+    /// R1055: a Principal with no instruction profile is still matched on
+    /// its declared facts, by the default policy's full-reference grammar.
+    /// </summary>
     [Fact]
-    public async Task APrincipalWithNoCaseMatchPolicyProducesNoDeclaredDecision()
+    public async Task APrincipalWithNoInstructionProfileIsMatchedByTheDefaultPolicy()
     {
         var sut = new EvaluateIntakeCaseMatch(
             [new StubPolicy(Keys()) { Principal = "PCH" }],
-            new StubQueries([]));
+            new StubQueries([Candidate(CaseA, claim: "API-CLAIM-1", vrm: "AB12CDE")]));
 
-        Assert.Null(await sut.ExecuteDeclaredAsync(
-            "QDOS",
-            new("AB/12345/1", null, null, null),
-            CancellationToken.None));
+        var result = await sut.ExecuteDeclaredAsync(
+            "APIONLY",
+            new(" api-claim-1 ", "ab12 cde", "Jane Smith", null),
+            CancellationToken.None);
+
+        Assert.Equal(CaseMatchOutcome.UniqueMatch, result.Outcome);
+        Assert.Equal(CaseA, result.MatchedCaseId);
+        Assert.Equal("API-CLAIM-1", result.Keys.DurableClaimToken);
+        Assert.Equal(PrincipalCaseMatchPolicy.Key, result.PolicyKey);
+    }
+
+    [Fact]
+    public void TheDefaultPolicyIsUsedOnlyWhereNoRegisteredPolicyOwnsTheCode()
+    {
+        var registered = new StubPolicy(Keys()) { Principal = "PCH" };
+
+        Assert.Same(registered, DeclaredCaseMatchPolicy.For([registered], "PCH"));
+        var fallback = Assert.IsType<DeclaredCaseMatchPolicy>(DeclaredCaseMatchPolicy.For([registered], "APIONLY"));
+        Assert.Equal("APIONLY", fallback.PrincipalCode);
+        Assert.False(fallback.ExtractMatchKeys(null!).HasAnyKey);
     }
 
     [Fact]
