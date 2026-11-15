@@ -1,6 +1,6 @@
 ---
 name: pegasus-test-instance
-description: Reach, update, point at a branch or pull request, seed, copy production data into and stop the one hosted Pegasus test instance (ADR-0088) - the DevelopmentOffline lifecycle on the operator's own WSL box and no other machine, reached over Tailscale, with live DVLA/DVSA, Box under the local-test root, Glass's, Graph parity on its own mailbox pegasustest@ and on the production mailboxes the operator enables on it (read, send, move, subscriptions), the Principal API and the Automation MCP, and the classifier agent in dry run. Use whenever the operator mentions the test instance, a test version, test server, dev server, staging, UAT environment, the WSL box, a Tailscale URL, release rehearsal on a copy of production, or wants Pegasus running anywhere that is not production, even if they never say "test instance". Not for production releases (pegasus-release), intake wipes (pegasus-wipe-intake-data), or a plain Offline run on a developer's own machine.
+description: Reach, update, point at a branch or pull request (merge request), seed, copy production data into and stop the one hosted Pegasus test instance (ADR-0088) - the DevelopmentOffline lifecycle on the operator's own WSL box and no other machine, reached over Tailscale, with live DVLA/DVSA, Box under the local-test root, Glass's, Graph parity on its own mailbox pegasustest@ and on the production mailboxes the operator enables on it (read, send, move, subscriptions), the Principal API and the Automation MCP, and the classifier agent in dry run. Use whenever the operator mentions the test instance, a test version, test server, dev server, staging, UAT environment, the WSL box, a Tailscale URL, release rehearsal on a copy of production, or wants Pegasus running anywhere that is not production, even if they never say "test instance". Not for production releases (pegasus-release), intake wipes (pegasus-wipe-intake-data), or a plain Offline run on a developer's own machine.
 ---
 
 # The hosted Pegasus test instance
@@ -89,7 +89,7 @@ together, with a ruling.
 | Seeding the Brego session (section 2) | the operator's word, and a blob read role on `pegcustody252ow37gij` for their `az` account | reads production's `authentication-ring/brego-session.json` (R933) |
 | `Copy-ProductionDatabaseToRun.ps1 -Approve` | the operator's word per copy | a live read of production SQL, into this run on this host alone |
 | `Invoke-LocalDevelopment.ps1 -Action Reset -Approve` | the operator's word for this run | removes the database and the run root; nothing brings the data back (R696) |
-| Serving a branch or pull request | the operator names it | the instance leaves `dev`'s tip (R695, section 6) |
+| Serving a branch or merge request | the operator names it | the instance leaves `dev`'s tip (R695, section 6) |
 | Enabling a production mailbox on the instance | the operator | names which production mailbox the instance also reads from, sends from and subscribes to, and for how long; `pegasustest@` is the instance's own (R693) |
 | A send from the instance | the operator names the recipient | a real e-mail from `pegasustest@` or an enabled production mailbox |
 | Anthropic key for the classifier | the operator supplies it | metered spend, not Azure |
@@ -300,17 +300,17 @@ says what each row proves; results land in
 `artifacts/local-verification/<run>/`. A browser walk from the Windows
 machine uses the Tailscale origin.
 
-## 6. Follow `dev`, or serve a branch or pull request when asked
+## 6. Follow `dev`, or serve a branch or merge request when asked
 
 The instance runs `dev` by default (R681): after each merge into `dev`, the
 agent on the host when asked, or the operator, moves it. When the operator
-names a branch or a pull request, it serves that head instead (R695): the
+names a branch or a merge request, it serves that head instead (R695): the
 same move, a different revision, and `dev`'s tip again afterwards.
 
 ```powershell
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Stop -RunId <id>
 git checkout dev && git pull --ff-only origin dev                 # dev's tip, clean tree
-git fetch origin pull/<n>/head && git checkout --detach FETCH_HEAD   # or a pull request's head
+git fetch origin merge-requests/<n>/head && git checkout --detach FETCH_HEAD   # or a merge request's head
 git fetch origin <branch> && git checkout --detach FETCH_HEAD        # or a branch's tip
 pwsh ./scripts/Initialize-LocalDevelopment.ps1
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -RunId <id>

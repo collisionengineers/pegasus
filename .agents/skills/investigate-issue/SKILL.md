@@ -1,6 +1,6 @@
 ---
 name: investigate-issue
-description: "Thoroughly investigate one GitHub issue before any code is written and post the findings as one comment on the issue - current behaviour at the tip, the governing requirement, blast radius (owner, callers, data, tests), two or more approaches with footprint and risk, a recommendation, the decisions only the operator can make, and a test plan. Use it whenever the user asks to investigate, look into, scope, assess, vet, size or triage an issue, asks \"what would it take\" or \"how risky is #N\", pastes an issue number or URL and wants analysis, or before implementing an issue (resolve-issue runs it first). Not for writing the fix itself (that is resolve-issue), not for reviewing a PR, and not for issues on non-GitHub hosts."
+description: "Thoroughly investigate one issue before any code is written and post the findings as one comment on the issue - current behaviour at the tip, the governing requirement, blast radius (owner, callers, data, tests), two or more approaches with footprint and risk, a recommendation, the decisions only the operator can make, and a test plan. Use it whenever the user asks to investigate, look into, scope, assess, vet, size or triage an issue, asks \"what would it take\" or \"how risky is #N\", pastes an issue number or URL and wants analysis, or before implementing an issue (resolve-issue runs it first). Not for writing the fix itself (that is resolve-issue), not for reviewing a PR or merge request."
 ---
 
 # Investigate an issue
@@ -11,7 +11,7 @@ be proved. The output is one comment on the issue, so the next person (or the
 `resolve-issue` skill) starts from facts rather than from the issue text,
 which is often older than the code.
 
-Inputs: an issue number or URL; optionally the repo (`owner/name`) and the
+Inputs: an issue number or URL; optionally the project (`group/name`) and the
 integration branch. If the repo's CLAUDE.md/AGENTS.md names an integration
 branch (for example `dev`), investigate against that, not the default branch.
 
@@ -20,7 +20,7 @@ branch (for example `dev`), investigate against that, not the default branch.
 This repository's AGENTS.md governs every write; invoking this skill authorises none.
 
 Invoking this skill authorises:
-- read-only inventory of the repo, GitHub and any branch;
+- read-only inventory of the repo, GitLab and any branch;
 - `git fetch`, and a throwaway detached worktree to read the tip cleanly;
 - posting **one** comment on the named issue (the write is implied by the
   invocation; do not ask again).
@@ -36,10 +36,10 @@ the docs index, glossary, integration branch, verification tooling and any
 
 ## Tools
 
-- `scripts/issue_context.py <N> [--base <branch>] [--repo owner/name]`: issue,
-  comments, cross-referenced PRs/issues, and the commits on the base since
+- `scripts/issue_context.py <N> [--base <branch>] [--repo group/name]`: issue,
+  comments, cross-referenced MRs/issues, and the commits on the base since
   the issue was opened that touched the paths, files and types it names.
-  Exit 2 means stop and ask (closed issue, or an open PR already references it).
+  Exit 2 means stop and ask (closed issue, or an open MR already references it).
 - `references/report-template.md`: the comment's shape. Read it before writing.
 
 ## Procedure
@@ -56,7 +56,7 @@ detached worktree (`git worktree add --detach <tmp> origin/<base>`) and read
 there; remove it at the end. An investigation done on a stale checkout
 describes code that no longer exists, and its plan is wrong before it starts.
 
-### 2. Gather what GitHub knows
+### 2. Gather what GitLab knows
 
 ```bash
 python <skill>/scripts/issue_context.py <N> --base <base>
@@ -65,7 +65,7 @@ python <skill>/scripts/issue_context.py <N> --base <base>
 Read the whole output. The last section matters most: commits on the base
 since the issue was written that touched the code it names. Each one may have
 already fixed, moved or renamed what the issue describes. On exit 2, tell the
-user what blocks (closed, or an open PR already covers it) and stop.
+user what blocks (closed, or an open MR already covers it) and stop.
 
 ### 3. Find the owner and the requirement
 
@@ -85,7 +85,7 @@ the blast radius, and a caller nobody listed is the regression.
 
 Read the code along the path the issue describes, at the tip. Record where
 the issue's file:line claims hold and where they moved (name the commit or
-PR). Write down verified facts with the command or file that proves them,
+MR). Write down verified facts with the command or file that proves them,
 separately from assumptions. If a five-minute read-only check would settle an
 assumption, run it instead of carrying it.
 
@@ -125,7 +125,7 @@ Write the comment from `references/report-template.md`, echo
 `#<N> <title>`, then:
 
 ```bash
-gh issue comment <N> --body-file <file>
+glab issue note <N> -m "$(cat <file>)"
 ```
 
 Report in chat: the comment URL, the verdict, the recommendation and the
@@ -138,4 +138,4 @@ operator decisions. Remove any throwaway worktree.
 - Blast radius is complete, not representative. If you grepped, say what for.
 - Approaches are different shapes, not one approach with two names.
 - Decisions are questions, not defaults.
-- Short sentences, few paths in prose. The operator reads this on GitHub.
+- Short sentences, few paths in prose. The operator reads this on GitLab.

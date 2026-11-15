@@ -1,77 +1,75 @@
-# GitHub and CI traps
+# GitLab and CI traps
 
 Each of these cost an earlier combination run time or correctness.
 
 ## CI coverage
 
-- **A PR with conflicts runs no CI at all.** GitHub cannot build its merge ref
-  (`refs/pull/N/merge`), so `pull_request` workflows never start and the PR shows
-  no checks, which is not the same as passing. Check
-  `gh pr view N --json mergeable,mergeStateStatus` (`CONFLICTING`/`DIRTY`), not
-  only check status.
-- **Individually green is not jointly green.** Each PR's run tested its own
-  merge ref. In one case PR A removed an interface member that PR B (merged first)
-  had started using. Both PRs were green, and the target stopped compiling once both
-  landed. Only a run on the combined tip is evidence for the combination.
+- **A conflicting MR still gets a pipeline**, on the branch head, so a pipeline
+  is not evidence that the MR merges. Check
+  `glab mr view N -F json` for `has_conflicts` and `detailed_merge_status`
+  (`conflict`), not only the pipeline status.
+- **Individually green is not jointly green.** Each MR's pipeline tested its own
+  head. In one case MR A removed an interface member that MR B (merged first)
+  had started using. Both MRs were green, and the target stopped compiling once both
+  landed. Only a pipeline on the combined tip is evidence for the combination.
 - **A green descendant covers its ancestor's code**, so a stacked parent does not
   need its own rerun when a child containing it is green
   (`git merge-base --is-ancestor parent child`). It does not prove that the parent
-  merges cleanly on its own; `mergeable` answers that.
+  merges cleanly on its own; `has_conflicts` answers that.
 - **Some repos run no CI on pushes** to the integration or target branch, only on
-  PRs. The combined PR's run is then the only union evidence. Do not plan on
+  MRs. The combined MR's pipeline is then the only union evidence. Do not plan on
   "CI will run after the merge".
-- **Stack-aware CI** may defer heavy jobs on a PR in the middle of a stack. A
-  deferred or skipped job is not evidence. Read which jobs actually ran.
+- **Path-selected lanes** run only the jobs the changed paths need. A skipped job
+  is not evidence. Read which jobs actually ran, including the child pipeline's.
+- **A pipeline can run for an hour.** CI shares one self-hosted runner, so a full
+  code pipeline takes roughly 45 to 60 minutes and pipelines queue. A pipeline
+  that is superseded or stuck is cancelled with `glab ci cancel pipeline <id>`.
 
 ## Watching checks
 
-- `gh pr checks N --watch` waits until every check finishes. Report the **first**
+- `glab ci status --wait` waits until the pipeline finishes. Report the **first**
   failure as soon as it appears instead: poll
-  `gh pr checks N --json name,state,bucket` and look for `bucket == "fail"`.
-- `gh pr checks` exits non-zero while checks are pending or failing, so
-  `gh pr checks N || echo failed` throws away the output you needed. Capture
-  stdout first, then read it.
-- Do not assume `jq` exists (Git Bash on Windows often has none). Use `gh --jq`
+  `glab api projects/:id/pipelines/<id>/jobs` (and the child pipeline's jobs) and
+  look for `status == "failed"`.
+- Do not assume `jq` exists (Git Bash on Windows often has none). Use `glab --jq`
   or Python.
-- A job log is readable while the run is live:
-  `gh api repos/{owner}/{repo}/actions/jobs/<job-id>/logs`.
+- A job log is readable while the job is live:
+  `glab api projects/:id/jobs/<job-id>/trace`, or `glab ci trace <job-id>`.
 - Arm any background poller only after running its command once by hand.
   A poller that dies on a missing tool looks the same as one that is still waiting.
+- Editing an MR's description starts no pipeline. After a change that CI reads
+  from the description (the `## Migration` section), start one with
+  `glab api -X POST projects/:id/merge_requests/<iid>/pipelines`.
 
-## Stale merge ref
-
-If `actions/checkout` hangs and dies after about 5 minutes on a PR, the merge ref
-is probably stale. Rerunning the job reuses the same ref and hangs again. Close
-and reopen the PR (`gh pr close N && gh pr reopen N`) to make GitHub rebuild the
-ref, then let the new run start.
-
-## Merging and PR state
+## Merging and MR state
 
 - **Squash and rebase merges break inclusion.** They create new commits, so the
-  constituent PR heads are not ancestors of the target. GitHub then leaves those PRs
-  "Closed", not "Merged", and nobody can prove from history that their commits
-  landed. Land the combined PR with a merge commit, or fast-forward the target to
-  the tested tip.
-- **Constituents flip to Merged on their own** when their head commit becomes
-  reachable from their base branch. This only works for PRs whose base *is* the
-  target. A PR based on another branch (a stack) stays open.
-- **Retargeting a stacked PR after the fact can be refused** with "no new commits"
-  because everything is already in the target. Close it with a comment:
-  `gh pr close N --comment "Merged into <target> via #M (<merge sha>); head <sha> is an ancestor."`
-- **Never close the originals before the combined PR lands.** They are the
-  fallback if the combination is abandoned. Closed-unmerged PRs also read as
+  constituent MR heads are not ancestors of the target, and nobody can prove from
+  history that their commits landed. The project forbids squash. Land the combined
+  MR with a merge commit, or fast-forward the target to the tested tip.
+- **Check each constituent's state after landing** (Landing step 3). An MR based on
+  another branch (a stack) stays open; source branches are not deleted on merge,
+  so it keeps targeting its base branch.
+- **Retargeting a stacked MR after the fact can be refused** because everything is
+  already in the target. Close it with a comment:
+  `glab mr note create N -m "Merged into <target> via !M (<merge sha>); head <sha> is an ancestor."`
+  then `glab mr close N`.
+- **Never close the originals before the combined MR lands.** They are the
+  fallback if the combination is abandoned. Closed-unmerged MRs also read as
   rejected work.
-- **Closing keywords** (`Closes #12`) only fire when the PR merges into the
-  repository's **default branch**. For any other target, list the issues and close
-  them after landing, with the evidence (Landing step 4).
-- **`closingIssuesReferences` is populated by the keyword, on any base branch.**
-  A PR body that merely mentions `#12` ("raised from #12", "see #12") links
-  nothing, so the inventory shows "none linked" even though the PR fixes it.
-  Grep such bodies for `#\d+` and ask the user which of those the PR resolves.
-- **Branch protection / required reviews** on the target may block the combined
-  PR even when every constituent was approved. Check
-  `gh pr view M --json reviewDecision,mergeStateStatus` and tell the user what is
-  missing.
+- **Closing keywords** (`Closes #12`) only fire when the MR merges into the
+  repository's **default branch** (`main`). For any other target, list the issues
+  and close them after landing, with the evidence (Landing step 4).
+- **`glab mr issues N` is empty for an MR into `dev`.** An MR body that merely
+  mentions `#12` ("raised from #12", "see #12") links nothing either. Read the
+  `Closes #N` lines from the description, grep for `#\d+`, and ask the user which
+  of the unkeyworded ones the MR resolves.
+- **Protected branches and "pipelines must succeed"** on the target block the
+  combined MR until its pipeline is green, even when every constituent was
+  green. Check `detailed_merge_status` and `head_pipeline.status` in
+  `glab mr view M -F json` and tell the user what is missing. Unresolved
+  discussions on a constituent are the review signal; there is no change-request
+  state.
 
 ## Local git
 

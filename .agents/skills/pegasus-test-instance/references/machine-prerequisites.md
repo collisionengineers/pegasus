@@ -16,7 +16,7 @@ to do them in on a fresh WSL distribution, and why each is there.
 | Azure CLI, signed in as the operator | Key Vault secret reads and the production extract | `az account show` names subscription `e6076573-23a5-46a8-acef-7e22d264e5db` |
 | SqlPackage | the production copy | `dotnet tool install --global microsoft.sqlpackage`; `sqlpackage /version`. The tool runs on the exact runtime its package targets (170.5.96 wants 10.0.11): when `/version` says that framework is missing, add it beside the SDK with `dotnet-install.sh --runtime dotnet --version <v> --install-dir ~/.dotnet` |
 | Tailscale on the node that will own the name | `tailscale serve` in front of the run | `tailscale status` |
-| Git with the operator's deploy key | the clone and later checkouts | `git ls-remote git@github.com:collisionengineers/pegasus.git HEAD` |
+| Git with the operator's deploy key | the clone and later checkouts | `git ls-remote git@gitlab.com:collisionengineers-group/pegasus.git HEAD` |
 
 Notes:
 
