@@ -152,7 +152,6 @@ public static class CaseListColumns
 
         columns.Add(Claim("party.repairer", "Repairer", CaseDataFieldNames.RepairerName) with { Group = CaseListColumnGroup.PartiesAndActivity });
         columns.Add(Claim("party.claim_source", "Claim source", CaseDataFieldNames.ClaimSourceName) with { Group = CaseListColumnGroup.PartiesAndActivity });
-        columns.Add(Claim("party.storage", "Storage", CaseDataFieldNames.StorageBusinessName) with { Group = CaseListColumnGroup.PartiesAndActivity });
         columns.Add(Activity("activity.images", "Images", activity => activity.Images));
         columns.Add(Activity("activity.images_in_report", "Images in report", activity => activity.ImagesInReport));
         columns.Add(Activity("activity.documents", "Documents", activity => activity.Documents));

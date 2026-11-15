@@ -816,7 +816,10 @@ operator-run loader through `IContactDirectoryAdministration.SaveAsync` from
 reviewed CSVs under `artifacts/`", with the "prod run under separate
 authorisation" (operator, 15 October 2026). The loader is
 `scripts/reference-data-loader/`. It reads the reviewed load CSVs, which
-are operator-held outside the repository, loads only rows whose `review` is
+are operator-held outside the repository (Principals, Claim Sources,
+Repairers, inspection locations and links; a Storage or engineers file and a
+`contact_person` column are not read, operator, 13 November 2026, R1047,
+R1049, R1050), loads only rows whose `review` is
 `approved`, and writes through the Contacts directory and
 inspection-location writers as an enabled Administrator. Its plan hash holds
 no clock: `apply` recomputes it from the stored state and the files and writes

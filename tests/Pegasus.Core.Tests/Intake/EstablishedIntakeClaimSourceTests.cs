@@ -160,7 +160,6 @@ public sealed class EstablishedIntakeClaimSourceTests
             name,
             ContactRole.ClaimSource,
             Version: 1,
-            ContactPerson: null,
             Email: email,
             Telephone: null,
             Address: null,

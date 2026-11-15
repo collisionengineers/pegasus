@@ -526,7 +526,6 @@ internal static class CaseDataSnapshotFactory
             CaseDataCodes.Integer,
             contact.Version.ToString(CultureInfo.InvariantCulture));
         Confirm(CaseDataFieldNames.ClaimSourceName, CaseDataCodes.Text, contact.Name);
-        Confirm(CaseDataFieldNames.ClaimSourceContactName, CaseDataCodes.Text, contact.ContactPerson);
         Confirm(CaseDataFieldNames.ClaimSourceContactTelephone, CaseDataCodes.Text, contact.Telephone);
         Confirm(CaseDataFieldNames.ClaimSourceContactEmailAddress, CaseDataCodes.Text, contact.Email);
     }

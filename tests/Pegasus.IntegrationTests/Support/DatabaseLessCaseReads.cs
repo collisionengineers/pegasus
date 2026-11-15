@@ -388,7 +388,7 @@ internal sealed class DatabaseLessCaseReads :
     /// <summary>An active claim source as the seed writes it: a name and nothing else, linked to no
     /// Principal, at version 0.</summary>
     private static ContactChoice SeededClaimSource(string id, string name) =>
-        new(new Guid(id), name, ContactRole.ClaimSource, 0, null, null, null, null, null, null, []);
+        new(new Guid(id), name, ContactRole.ClaimSource, 0, null, null, null, null, null, []);
 
     private static ContactChoice OakIntroducer(string id, string name) =>
         SeededClaimSource(id, name) with { LinkedPrincipalCodes = ["OAK"] };

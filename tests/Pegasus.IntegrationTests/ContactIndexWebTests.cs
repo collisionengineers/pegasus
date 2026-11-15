@@ -202,12 +202,12 @@ public sealed partial class ContactIndexWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         var administration = scope.ServiceProvider.GetRequiredService<IContactDirectoryAdministration>();
         await administration.SaveAsync(new(
-            Administrator, Guid.NewGuid(), 0, "9 one letter contact", null, null, null, null, null, true,
-            ContactRole.Storage, null, CaseInspectionMode.PhysicalAddress, [], "contact-index:one-letter"), default);
+            Administrator, Guid.NewGuid(), 0, "9 one letter contact", null, null, null, null, true,
+            ContactRole.ClaimSource, null, CaseInspectionMode.PhysicalAddress, [], "contact-index:one-letter"), default);
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var found = await PostNewContactAsync(client, "FindMatches", "Repairer", new() { ["Name"] = "9" });
-        Assert.Contains("9 one letter contact · Storage", found, StringComparison.Ordinal);
+        Assert.Contains("9 one letter contact · Claim Source", found, StringComparison.Ordinal);
         Assert.DoesNotContain("data-possible-matches-none", found, StringComparison.Ordinal);
 
         var none = await PostNewContactAsync(client, "FindMatches", "Repairer", new() { ["Name"] = "8" });
@@ -300,7 +300,6 @@ public sealed partial class ContactIndexWebTests
             existingId,
             0,
             "Match Contact",
-            "Existing person",
             "existing@example.test",
             null,
             null,
@@ -313,13 +312,13 @@ public sealed partial class ContactIndexWebTests
             "contact-index:seed"), default);
 
         using var client = IntakeWebDriver.CreateClient(factory);
-        using var start = await client.GetAsync("/Administration/Contacts?createType=ThirdPartyEngineer");
+        using var start = await client.GetAsync("/Administration/Contacts?createType=Repairer");
         var startHtml = await start.Content.ReadAsStringAsync();
         start.EnsureSuccessStatusCode();
         var findForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(startHtml, "__RequestVerificationToken"),
-            ["CreateType"] = "ThirdPartyEngineer",
+            ["CreateType"] = "Repairer",
             ["ContactId"] = InputValue(startHtml, "ContactId"),
             ["OperationKey"] = InputValue(startHtml, "OperationKey"),
             ["Name"] = "Match"
@@ -351,7 +350,7 @@ public sealed partial class ContactIndexWebTests
             var administration = scope.ServiceProvider.GetRequiredService<IContactDirectoryAdministration>();
             Task<ContactDirectoryRecord> Save(string name, ContactRole role, string? code = null, string? postcode = null, Guid[]? links = null) =>
                 administration.SaveAsync(new(
-                    Administrator, Guid.NewGuid(), 0, name, null, null, null, null, postcode, true, role, code,
+                    Administrator, Guid.NewGuid(), 0, name, null, null, null, postcode, true, role, code,
                     CaseInspectionMode.PhysicalAddress, links ?? [], $"contact-index:{name}"), default);
             var principal = await Save("Grouped Fixture Principal", ContactRole.Principal, code: "GFP1");
             await Save("Grouped Fixture Zulu Repairer", ContactRole.Repairer, postcode: "S9 2RQ", links: [principal.OwnPrincipalIds!.Single()]);
@@ -372,17 +371,15 @@ public sealed partial class ContactIndexWebTests
         var claimSources = html.IndexOf(">Claim Sources</h2>", StringComparison.Ordinal);
         var repairers = html.IndexOf(">Repairers</h2>", StringComparison.Ordinal);
         Assert.True(principals > 0 && principals < claimSources && claimSources < repairers, "The panels follow the type order.");
-        Assert.DoesNotContain(">Storage</h2>", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(">Third Party Engineers</h2>", html, StringComparison.Ordinal);
         Assert.Contains(
-            "<th>Principal code</th><th>Name</th><th>Contact person</th><th>Email</th><th>Phone</th><th>Last case</th><th>Status</th>",
+            "<th>Principal code</th><th>Name</th><th>Email</th><th>Phone</th><th>Last case</th><th>Status</th>",
             html, StringComparison.Ordinal);
         Assert.Contains(
-            "<th>Name</th><th>Contact person</th><th>Email</th><th>Phone</th><th>Linked principals</th><th>Last case</th><th>Status</th>",
+            "<th>Name</th><th>Email</th><th>Phone</th><th>Linked principals</th><th>Last case</th><th>Status</th>",
             html[claimSources..repairers], StringComparison.Ordinal);
         var repairerPanel = html[repairers..];
         Assert.Contains(
-            "<th>Name</th><th>Contact person</th><th>Email</th><th>Phone</th><th>Postcode</th><th>Linked principals</th><th>Last case</th><th>Status</th>",
+            "<th>Name</th><th>Email</th><th>Phone</th><th>Postcode</th><th>Linked principals</th><th>Last case</th><th>Status</th>",
             repairerPanel, StringComparison.Ordinal);
         Assert.Contains("<td class=\"mono\">GFP1</td><td>Grouped Fixture Principal</td>", html, StringComparison.Ordinal);
         Assert.Contains("<td>S9 2RQ</td><td class=\"mono\">GFP1</td>", repairerPanel, StringComparison.Ordinal);
@@ -533,17 +530,16 @@ public sealed partial class ContactIndexWebTests
             foreach (var (id, name) in new[] { (Guid.NewGuid(), "Duplicate Fixture One"), (secondId, "Duplicate Fixture Two") })
             {
                 await administration.SaveAsync(new(
-                    Administrator, id, 0, name, null, null, null, null, null, true, ContactRole.Storage, null,
+                    Administrator, id, 0, name, null, null, null, null, true, ContactRole.ClaimSource, null,
                     CaseInspectionMode.PhysicalAddress, [], $"contact-edit:{name}"), default);
             }
         }
         using var client = IntakeWebDriver.CreateClient(factory);
         var path = $"/Administration/Contacts/Edit/{secondId:D}";
         var editor = await IntakeWebDriver.GetHtmlAsync(client, path);
-        Assert.Contains("<input id=\"contact-type\" value=\"Storage\" readonly", editor, StringComparison.Ordinal);
+        Assert.Contains("<input id=\"contact-type\" value=\"Claim Source\" readonly", editor, StringComparison.Ordinal);
         Assert.Contains("<label for=\"Telephone\">Phone</label>", editor, StringComparison.Ordinal);
         Assert.Contains("<div class=\"contact-links\">", editor, StringComparison.Ordinal);
-        Assert.DoesNotContain("class=\"tabs\"", editor, StringComparison.Ordinal);
         Assert.DoesNotContain("Guidance for new Cases", editor, StringComparison.Ordinal);
 
         using var refused = await client.PostAsync(
@@ -578,7 +574,7 @@ public sealed partial class ContactIndexWebTests
         {
             var administration = scope.ServiceProvider.GetRequiredService<IContactDirectoryAdministration>();
             var principal = new SaveContactRequest(
-                Administrator, Guid.NewGuid(), 0, "Inactive Link Fixture Principal", null, null, null, null, null, true,
+                Administrator, Guid.NewGuid(), 0, "Inactive Link Fixture Principal", null, null, null, null, true,
                 ContactRole.Principal, "ILFP1", CaseInspectionMode.PhysicalAddress, [], "contact-edit:inactive-principal");
             var created = await administration.SaveAsync(principal, default);
             await administration.SaveAsync(principal with
@@ -589,7 +585,7 @@ public sealed partial class ContactIndexWebTests
             }, default);
             inactivePrincipalId = created.OwnPrincipalIds!.Single();
             await administration.SaveAsync(new(
-                Administrator, repairerId, 0, "Inactive Link Fixture Repairer", null, null, null, null, null, true,
+                Administrator, repairerId, 0, "Inactive Link Fixture Repairer", null, null, null, null, true,
                 ContactRole.Repairer, null, CaseInspectionMode.PhysicalAddress, [inactivePrincipalId],
                 "contact-edit:inactive-link"), default);
         }
@@ -634,7 +630,7 @@ public sealed partial class ContactIndexWebTests
             var services = scope.ServiceProvider;
             var administration = services.GetRequiredService<IContactDirectoryAdministration>();
             var request = new SaveContactRequest(
-                Administrator, contactId, 0, "Replaced Mode Fixture Principal", null, null, null, null, null, true,
+                Administrator, contactId, 0, "Replaced Mode Fixture Principal", null, null, null, null, true,
                 ContactRole.Principal, "RMFA1", CaseInspectionMode.PhysicalAddress, [], "contact-edit:replaced-mode");
             var created = await administration.SaveAsync(request, default);
             var predecessorId = created.OwnPrincipalIds!.Single();

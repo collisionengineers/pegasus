@@ -197,10 +197,6 @@ public sealed class InspectionAddressChoicesPersistenceTests
                     null,
                     null,
                     null,
-                    null,
-                    null,
-                    null,
-                    null,
                     null)
             },
             CancellationToken.None);

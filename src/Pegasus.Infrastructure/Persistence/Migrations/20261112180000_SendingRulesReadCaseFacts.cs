@@ -33,7 +33,9 @@ public partial class SendingRulesReadCaseFacts : Migration
         }
     }
 
-    /// <summary>The restatement, held apart so a test can run it over Principals it seeded.</summary>
+    /// <summary>The restatement, held apart so a test can run it over Principals it seeded. The
+    /// contact it adds names no contact person: the column was null here and has since gone
+    /// (migration ContactsThreeTypes), and a test still runs this text over the current schema.</summary>
     internal const string RestateSql =
         $$"""
         IF (SELECT COUNT(*) FROM [dbo].[Organizations]
@@ -51,7 +53,7 @@ public partial class SendingRulesReadCaseFacts : Migration
         IF NOT EXISTS (
             SELECT 1 FROM [dbo].[Organizations]
             WHERE [Role] = N'repairer' AND [NormalizedName] = N'EASDONS BODYSHOP')
-            INSERT INTO [dbo].[Organizations] ([Active], [Address], [ContactPerson], [Email], [Id], [Name], [NotesOnEveryCase], [Postcode], [Role], [Telephone], [Version]) VALUES (1, NULL, NULL, NULL, '{{EasdonsBodyshopId}}', N'Easdons Bodyshop', NULL, NULL, N'repairer', NULL, 0);
+            INSERT INTO [dbo].[Organizations] ([Active], [Address], [Email], [Id], [Name], [NotesOnEveryCase], [Postcode], [Role], [Telephone], [Version]) VALUES (1, NULL, NULL, '{{EasdonsBodyshopId}}', N'Easdons Bodyshop', NULL, NULL, N'repairer', NULL, 0);
 
         DECLARE @easdonsBodyshop nvarchar(36) = (
             SELECT LOWER(CONVERT(nvarchar(36), [Id])) FROM [dbo].[Organizations]

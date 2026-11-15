@@ -9,15 +9,12 @@ public enum ContactRole
 {
     Principal,
     ClaimSource,
-    Repairer,
-    Storage,
-    ThirdPartyEngineer
+    Repairer
 }
 
 public sealed record ContactDirectoryRecord(
     Guid OrganizationId,
     string Name,
-    string? ContactPerson,
     string? Email,
     string? Telephone,
     string? Address,
@@ -44,7 +41,6 @@ public sealed record ContactChoice(
     string Name,
     ContactRole Role,
     long Version,
-    string? ContactPerson,
     string? Email,
     string? Telephone,
     string? Address,
@@ -77,7 +73,6 @@ public sealed record SaveContactRequest(
     Guid OrganizationId,
     long ExpectedVersion,
     string Name,
-    string? ContactPerson,
     string? Email,
     string? Telephone,
     string? Address,
@@ -153,7 +148,6 @@ public sealed class ContactDirectoryException(ContactDirectoryError error)
 public static partial class ContactDirectoryPolicy
 {
     public const int MaximumNameLength = 300;
-    public const int MaximumContactPersonLength = 200;
     public const int MaximumEmailLength = 320;
     public const int MaximumTelephoneLength = 50;
     public const int MaximumAddressLength = 1000;
@@ -206,7 +200,6 @@ public static partial class ContactDirectoryPolicy
         return request with
         {
             Name = Required(request.Name, MaximumNameLength, nameof(request.Name)),
-            ContactPerson = Optional(request.ContactPerson, MaximumContactPersonLength, nameof(request.ContactPerson)),
             Email = Optional(request.Email, MaximumEmailLength, nameof(request.Email)),
             Telephone = OptionalTelephone(request.Telephone, MaximumTelephoneLength, nameof(request.Telephone)),
             Address = Optional(request.Address, MaximumAddressLength, nameof(request.Address)),

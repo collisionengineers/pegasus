@@ -251,12 +251,12 @@ public sealed class IntakePersistenceIntegrationTests
                 N'EditScopes',
                 N'ContactPrincipalLinks')
             """));
-        Assert.Equal(6, await database.ScalarAsync<int>(
+        Assert.Equal(5, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM sys.columns
             WHERE object_id = OBJECT_ID(N'Organizations')
               AND name IN (
-                  N'ContactPerson', N'Email', N'Telephone', N'Address',
+                  N'Email', N'Telephone', N'Address',
                   N'Active', N'Postcode')
             """));
         Assert.Equal(3, await database.ScalarAsync<int>(

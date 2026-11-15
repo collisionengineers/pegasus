@@ -1245,7 +1245,7 @@ internal static partial class CaseWebTestSupport
                     RepairerName is null ? null : Confirmed(RepairerName)),
                 Workspace: ClaimSource is null && Repairer is null
                     ? null
-                    : new(ClaimSource, null, null, null, null, null, null, null, null, null, null, Repairer),
+                    : new(ClaimSource, null, null, null, null, null, null, Repairer),
                 StandaloneAuditEvidenceId: StandaloneAuditEvidenceId,
                 AiDraftTargetDays: 1);
 

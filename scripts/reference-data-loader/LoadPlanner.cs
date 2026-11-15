@@ -235,7 +235,6 @@ internal sealed class LoadPlanner(ReferenceData data, LoadSettings settings, Loa
             organizationId,
             expectedVersion,
             name.Length > 0 ? name : current?.Name ?? string.Empty,
-            Clean(file, row, rowId, ReferenceFiles.ContactPerson) ?? current?.ContactPerson,
             Clean(file, row, rowId, ReferenceFiles.Email) ?? current?.Email,
             Clean(file, row, rowId, ReferenceFiles.Telephone) ?? current?.Telephone,
             Clean(file, row, rowId, ReferenceFiles.Address) ?? current?.Address,
@@ -257,7 +256,6 @@ internal sealed class LoadPlanner(ReferenceData data, LoadSettings settings, Loa
         string[] links = isPrincipal ? [] : LinksOf(file, rowId, current);
         var after = new ContactFields(
             normalized.Name,
-            normalized.ContactPerson,
             normalized.Email,
             normalized.Telephone,
             normalized.Address,
@@ -467,7 +465,6 @@ internal sealed class LoadPlanner(ReferenceData data, LoadSettings settings, Loa
             null,
             null,
             null,
-            null,
             true,
             file.Role,
             file.Role == ContactRole.Principal ? "PROBE" : null,
@@ -476,7 +473,6 @@ internal sealed class LoadPlanner(ReferenceData data, LoadSettings settings, Loa
             "probe");
         probe = column switch
         {
-            ReferenceFiles.ContactPerson => probe with { ContactPerson = value },
             ReferenceFiles.Email => probe with { Email = value },
             ReferenceFiles.Telephone => probe with { Telephone = value },
             ReferenceFiles.Address => probe with { Address = value },
@@ -514,7 +510,6 @@ internal sealed class LoadPlanner(ReferenceData data, LoadSettings settings, Loa
 
     private static ContactFields FieldsOf(ContactDirectoryRecord current, bool isPrincipal) => new(
         current.Name,
-        current.ContactPerson,
         current.Email,
         current.Telephone,
         current.Address,
@@ -529,7 +524,6 @@ internal sealed class LoadPlanner(ReferenceData data, LoadSettings settings, Loa
         (string Field, string? Before, string? After)[] pairs =
         [
             (ReferenceFiles.Name, before.Name, after.Name),
-            (ReferenceFiles.ContactPerson, before.ContactPerson, after.ContactPerson),
             (ReferenceFiles.Email, before.Email, after.Email),
             (ReferenceFiles.Telephone, before.Telephone, after.Telephone),
             (ReferenceFiles.Address, before.Address, after.Address),

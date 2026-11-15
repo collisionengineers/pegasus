@@ -127,7 +127,6 @@ public sealed class EditModel(
     [BindProperty] public Guid ContactId { get; set; }
     [BindProperty] public long ExpectedVersion { get; set; }
     [BindProperty, Display(Name = OperatorLabels.Contacts.OrganisationNameField), Required(ErrorMessage = OperatorLabels.Contacts.NameRequired), StringLength(ContactDirectoryPolicy.MaximumNameLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string Name { get; set; } = string.Empty;
-    [BindProperty, Display(Name = OperatorLabels.Contacts.ContactPersonField), StringLength(ContactDirectoryPolicy.MaximumContactPersonLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? ContactPerson { get; set; }
     [BindProperty, Display(Name = OperatorLabels.Contacts.EmailField), StringLength(ContactDirectoryPolicy.MaximumEmailLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? Email { get; set; }
     [BindProperty, Display(Name = OperatorLabels.Contacts.PhoneField), StringLength(ContactDirectoryPolicy.MaximumTelephoneLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? Telephone { get; set; }
     [BindProperty, Display(Name = OperatorLabels.Contacts.AddressField), StringLength(ContactDirectoryPolicy.MaximumAddressLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? Address { get; set; }
@@ -347,7 +346,7 @@ public sealed class EditModel(
             try
             {
                 var isPrincipal = Contact.Role == ContactRole.Principal;
-                await administration.SaveAsync(new(actor, ContactId, ExpectedVersion, Name, ContactPerson, Email, Telephone, Address, Postcode, Active, Contact.Role, isPrincipal ? PrincipalCode : null, PrincipalInspectionMode, isPrincipal ? [] : LinkedPrincipalIds, OperationKey,
+                await administration.SaveAsync(new(actor, ContactId, ExpectedVersion, Name, Email, Telephone, Address, Postcode, Active, Contact.Role, isPrincipal ? PrincipalCode : null, PrincipalInspectionMode, isPrincipal ? [] : LinkedPrincipalIds, OperationKey,
                     Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Contact.NotesOnEveryCase), cancellationToken);
                 TempData["AdministrationStatus"] = OperatorLabels.Contacts.Saved;
                 return RedirectToPage("Index");
@@ -817,7 +816,7 @@ public sealed class EditModel(
 
     private void CopyFrom(ContactDirectoryRecord contact)
     {
-        Name = contact.Name; ContactPerson = contact.ContactPerson; Email = contact.Email; Telephone = contact.Telephone; Address = contact.Address; Postcode = contact.Postcode; NotesOnEveryCase = contact.NotesOnEveryCase; Active = contact.Active; LinkedPrincipalIds = (contact.LinkedPrincipalIds ?? []).ToArray();
+        Name = contact.Name; Email = contact.Email; Telephone = contact.Telephone; Address = contact.Address; Postcode = contact.Postcode; NotesOnEveryCase = contact.NotesOnEveryCase; Active = contact.Active; LinkedPrincipalIds = (contact.LinkedPrincipalIds ?? []).ToArray();
     }
 
     private bool TargetsContact(Guid id) => id != Guid.Empty && ContactId == id;

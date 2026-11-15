@@ -54,7 +54,6 @@
                 {
                     <div class="field"><label asp-for="PrincipalCode">@OperatorLabels.PrincipalAdministration.Code</label><input asp-for="PrincipalCode" class="mono" readonly /></div>
                 }
-                <div class="field"><label asp-for="ContactPerson">Contact person</label><input asp-for="ContactPerson" autocomplete="name" /></div>
                 <div class="field"><label asp-for="Telephone">Phone</label><input asp-for="Telephone" type="tel" inputmode="tel" pattern="^\+?[0-9 ]+$" autocomplete="tel" /><span asp-validation-for="Telephone"></span></div>
                 <div class="field field-wide"><label asp-for="Email">Email</label><input asp-for="Email" type="email" autocomplete="email" /></div>
                 <div class="field"><label asp-for="Address">Address</label><textarea asp-for="Address" rows="3" autocomplete="street-address"></textarea></div>

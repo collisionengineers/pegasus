@@ -2663,12 +2663,10 @@ public sealed partial class DetailsModel(
                                     ?? Accepted(data.Inspection.Deadline)?.Value)),
                         Inspection = !inspectionSubmitted ? null : new(treatment, address, persisted?.InspectionLocationProvenance,
                             Submitted(nameof(storageLocation), storageLocation, Accepted(data.Inspection.StorageLocation)?.Value),
-                            persisted?.StorageBusiness,
                             Submitted(nameof(inspectionDate), inspectionDate, Accepted(data.Inspection.InspectionDate)?.Value),
                             Submitted(nameof(inspectionDeadline), inspectionDeadline, Accepted(data.Inspection.Deadline)?.Value),
                             persisted?.InspectionVehiclePresent, persisted?.InspectionCondition,
-                            persisted?.InspectionContactName, persisted?.InspectionContactTelephone,
-                            persisted?.InspectionContactEmailAddress, persisted?.InspectionNotes,
+                            persisted?.InspectionNotes,
                             Submitted(nameof(storagePerDay), storagePerDay, Money(AssessmentVocabulary.SettlementStoragePerDay)),
                             Submitted(nameof(recoveryCharge), recoveryCharge, Money(AssessmentVocabulary.CostRecoveryCharge))),
                         Vehicle = !vehicleSubmitted ? null : new(

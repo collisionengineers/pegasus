@@ -1471,10 +1471,6 @@ public sealed class AutomationAssessmentIngressTests
                         null,
                         null,
                         null,
-                        null,
-                        null,
-                        null,
-                        null,
                         null),
                     Vehicle = new("AB12 CDE", "Ford", "Focus", null, null, "2019")
                 },

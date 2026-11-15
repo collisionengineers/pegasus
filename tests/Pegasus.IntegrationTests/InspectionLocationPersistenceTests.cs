@@ -181,7 +181,6 @@ public sealed class InspectionLocationPersistenceTests
                 null,
                 null,
                 null,
-                null,
                 active,
                 ContactRole.Principal,
                 code,
