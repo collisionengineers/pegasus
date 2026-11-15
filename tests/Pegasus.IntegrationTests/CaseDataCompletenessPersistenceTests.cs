@@ -422,9 +422,9 @@ public sealed class CaseDataCompletenessPersistenceTests
             [new("Fleet Route Solutions", IntakeEvidenceSource.PrincipalDeclaration, PrincipalInstructionPolicy.PolicyKey)],
             false, false);
         var repairer = new ContactChoice(
-            Guid.NewGuid(), "Harbour Body Repairs", ContactRole.Repairer, 3, null, null, null, null, null, null);
+            Guid.NewGuid(), "Harbour Body Repairs", ContactRole.Repairer, 3, null, null, null, null, null);
         var claimSource = new ContactChoice(
-            Guid.NewGuid(), "Fleet Route Solutions", ContactRole.ClaimSource, 4, null, null, null, null, null, null);
+            Guid.NewGuid(), "Fleet Route Solutions", ContactRole.ClaimSource, 4, null, null, null, null, null);
 
         var snapshot = PhoneSnapshot(
             [
