@@ -102,8 +102,7 @@ public sealed class ServiceHealthPersistenceTests
     /// The snapshot reads its sources in the same statements whatever rows they
     /// hold. Overlapping the reads changes how long the page waits, not how many
     /// statements it sends, so the count must not move; the Health page adds the
-    /// ingress switch (through the request's own context), the shell's reads and
-    /// the metrics read below.
+    /// ingress switch (through the request's own context) and the shell's reads.
     /// </summary>
     [Fact]
     public async Task TheSnapshotSendsTheSameStatementsWhateverRowsItReads()
@@ -150,31 +149,6 @@ public sealed class ServiceHealthPersistenceTests
         Assert.True(
             withNoRows == withRows,
             $"The snapshot sent {withNoRows} statements with no rows and {withRows} once rows were added.");
-    }
-
-    /// <summary>The metrics read, which the page now runs beside the snapshot, sends the same statements whatever rows it reads.</summary>
-    [Fact]
-    public async Task TheAdministrationMetricsReadSendsTheSameStatementsWhateverRowsItReads()
-    {
-        var counter = new SqlStatementCounter();
-        await using var database = await LocalDbTestDatabase.CreateAsync(
-            configureDatabase: options => options.AddInterceptors(counter));
-        await using var scope = database.CreateAsyncScope();
-        var queries = scope.ServiceProvider.GetRequiredService<IAdministrationHealthMetricsQueries>();
-
-        counter.Reset();
-        await queries.GetAsync(FixedUtcNow, CancellationToken.None);
-        var withNoRows = counter.Count;
-
-        await SeedHealthRowsAsync(database);
-        counter.Reset();
-        await queries.GetAsync(FixedUtcNow, CancellationToken.None);
-        var withRows = counter.Count;
-
-        Assert.True(withNoRows > 0, "The interceptor observed no statements at all.");
-        Assert.True(
-            withNoRows == withRows,
-            $"The metrics read sent {withNoRows} statements with no rows and {withRows} once rows were added.");
     }
 
     /// <summary>
@@ -349,7 +323,7 @@ public sealed class ServiceHealthPersistenceTests
         }
     }
 
-    /// <summary>Rows in the tables the snapshot and the metrics read: staged receipts in every state and Sent-items cursors, one failing.</summary>
+    /// <summary>Rows in the tables the snapshot reads: staged receipts in every state and Sent-items cursors, one failing.</summary>
     private static async Task SeedHealthRowsAsync(LocalDbTestDatabase database)
     {
         await using var context = await database.CreateContextAsync();

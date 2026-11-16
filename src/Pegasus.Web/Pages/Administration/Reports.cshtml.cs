@@ -288,11 +288,11 @@ public sealed partial class ReportsModel(
                 cancellationToken);
             return file(actor, result);
         }
-        catch (ArgumentOutOfRangeException)
+        catch (ArgumentOutOfRangeException exception) when (exception.ParamName == "request")
         {
             message = OperatorLabels.CaseList.ChoosePeriod;
         }
-        catch (ArgumentException)
+        catch (ArgumentException exception) when (exception.ParamName == "keys")
         {
             message = OperatorLabels.CaseList.ChooseColumns;
         }
