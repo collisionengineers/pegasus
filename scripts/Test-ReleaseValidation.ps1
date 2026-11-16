@@ -1326,8 +1326,8 @@ try {
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
     Assert-True ($result.Output.Contains("1.2.0 is not one step above the live v$liveVersion")) $case 'did not refuse the version.' $result.Diagnostic
 
-    # Operator question pending, 15 November 2026: a GitHub-era merge in the
-    # range cannot be read. It is listed under its own heading, fails nothing,
+    # R1062: a GitHub-era merge in the range cannot be read. It is listed
+    # under its own heading, fails nothing,
     # and is no evidence for the version step, so a range whose one readable
     # merge request closes only bugs is still not proposed as PATCH.
     & git -C $fixture.Work @($fixture.Git) checkout --quiet -b fixture/github-era

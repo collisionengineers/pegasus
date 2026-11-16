@@ -89,6 +89,9 @@ the smoke (R688). Nothing in source carries a release version:
 release, the test instance included. The read-only run proposes the next
 version (R687): PATCH when every merge request in the range closes only
 `type:bug` issues, MAJOR when the route is destructive, MINOR otherwise. The
+range may hold a merge made on GitHub before 15 November 2026, whose pull
+request can no longer be read: it is listed, fails nothing and is never the
+basis for PATCH, so that range falls to MINOR (R1062). The
 approval names the version it grants; the script refuses one that is not one
 step above the live version, or not the one the manifest was built with. A
 fix is a PATCH of `dev`'s tip; there is no hotfix branch from `main` (R689).
