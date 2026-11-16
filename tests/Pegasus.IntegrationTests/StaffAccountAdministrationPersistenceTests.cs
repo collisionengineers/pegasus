@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
@@ -360,6 +361,90 @@ public sealed class StaffAccountAdministrationPersistenceTests
         var replay = await delete.ExecuteAsync(
             new(actor, engineer.Id, null, "delete-closed", version), default);
         Assert.True(replay.WasReplay);
+    }
+
+    /// <summary>
+    /// #1546 (FRD-17): a change another Administrator got to first, however the
+    /// store sees it (EF's concurrency exception, or Identity's failed result
+    /// when it saves the security stamp), is refused as a stale version and
+    /// leaves the newer row as it was; it is not a 500 or "not accepted".
+    /// </summary>
+    [Theory]
+    [InlineData("disable")]
+    [InlineData("update")]
+    [InlineData("enable")]
+    [InlineData("force-logout")]
+    [InlineData("reset-password")]
+    [InlineData("delete")]
+    public async Task AConcurrentChangeIsRefusedAsAStaleVersionAndLeavesTheNewerRow(string act)
+    {
+        var conflict = new ConcurrentChangeInterceptor();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureServices: IdentityPersistenceTestServices.Configure,
+            configureDatabase: options => options.AddInterceptors(conflict));
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var userManager = services.GetRequiredService<UserManager<PegasusIdentityUser>>();
+        var administrator = await CreateStaffAccountAsync(userManager, "stale-administrator", StaffRole.Administrator);
+        var engineer = await CreateStaffAccountAsync(userManager, "stale-engineer", StaffRole.Engineer);
+        var actor = ActionActor.Staff(administrator.Id, [StaffRole.Administrator]);
+        var context = services.GetRequiredService<PegasusDbContext>();
+        var before = await context.Users.AsNoTracking().SingleAsync(item => item.Id == engineer.Id);
+        var key = "stale-" + act;
+        conflict.Armed = true;
+
+        var refused = await Assert.ThrowsAsync<StaffAccountAdministrationException>(() => act switch
+        {
+            "disable" => services.GetRequiredService<IDisableStaffAccount>()
+                .ExecuteAsync(new(actor, engineer.Id, null, key, before.Version), default),
+            "update" => services.GetRequiredService<IUpdateStaffAccountSettings>()
+                .ExecuteAsync(new(actor, engineer.Id, StaffRole.User, false, null, null, null, false, key, before.Version), default),
+            "enable" => services.GetRequiredService<EnableStaffAccount>()
+                .ExecuteAsync(new(actor, engineer.Id, null, key, before.Version), default),
+            "force-logout" => services.GetRequiredService<IForceStaffLogout>()
+                .ExecuteAsync(new(actor, engineer.Id, null, key, before.Version), default),
+            "reset-password" => services.GetRequiredService<IResetStaffPassword>()
+                .ExecuteAsync(new(actor, engineer.Id, null, key, before.Version), default),
+            _ => services.GetRequiredService<IDeleteStaffAccount>()
+                .ExecuteAsync(new(actor, engineer.Id, null, key, before.Version), default)
+        });
+
+        Assert.Equal(StaffAccountAdministrationError.StaleVersion, refused.Error);
+        conflict.Armed = false;
+        var after = await context.Users.AsNoTracking().SingleAsync(item => item.Id == engineer.Id);
+        Assert.Equal(before.Version, after.Version);
+        Assert.Equal(before.IsEnabled, after.IsEnabled);
+        Assert.Equal(before.PasswordHash, after.PasswordHash);
+        Assert.Empty(await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateId == engineer.Id.ToString("D") && item.EventKind.StartsWith("staff_"))
+            .ToListAsync());
+    }
+
+    /// <summary>A concurrency exception, wrapped or not, is a stale version; any other fault maps to nothing.</summary>
+    [Fact]
+    public void ConcurrencyErrorsMapToTheStaleVersionAndNothingElse()
+    {
+        Assert.Equal(
+            StaffAccountAdministrationError.StaleVersion,
+            EfStaffAccountAdministration.ConcurrencyError(new DbUpdateConcurrencyException("x")));
+        Assert.Equal(
+            StaffAccountAdministrationError.StaleVersion,
+            EfStaffAccountAdministration.ConcurrencyError(
+                new InvalidOperationException("outer", new DbUpdateConcurrencyException("x"))));
+        Assert.Null(EfStaffAccountAdministration.ConcurrencyError(new InvalidOperationException("other")));
+    }
+
+    private sealed class ConcurrentChangeInterceptor : SaveChangesInterceptor
+    {
+        public volatile bool Armed;
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default) =>
+            Armed
+                ? throw new DbUpdateConcurrencyException("Another Administrator changed the account first.")
+                : base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 
     /// <summary>

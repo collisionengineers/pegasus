@@ -84,14 +84,7 @@ public sealed class EfStaffAccountAdministration(
         DisableStaffAccountRequest request,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            return await DisableCoreAsync(request, cancellationToken);
-        }
-        catch (Exception exception) when (IsConcurrencyConflict(exception))
-        {
-            throw OperationConflict();
-        }
+        return await RunMappedAsync(() => DisableCoreAsync(request, cancellationToken));
     }
 
     private async Task<DisableStaffAccountResult> DisableCoreAsync(
@@ -177,14 +170,7 @@ public sealed class EfStaffAccountAdministration(
         UpdateStaffAccountSettingsRequest request,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            return await UpdateSettingsCoreAsync(request, cancellationToken);
-        }
-        catch (Exception exception) when (IsConcurrencyConflict(exception))
-        {
-            throw OperationConflict();
-        }
+        return await RunMappedAsync(() => UpdateSettingsCoreAsync(request, cancellationToken));
     }
 
     private async Task<UpdateStaffAccountSettingsResult> UpdateSettingsCoreAsync(
@@ -299,6 +285,11 @@ public sealed class EfStaffAccountAdministration(
 
     public async Task<EnableStaffAccountResult> EnableAsync(
         EnableStaffAccountRequest request,
+        CancellationToken cancellationToken) =>
+        await RunMappedAsync(() => EnableCoreAsync(request, cancellationToken));
+
+    private async Task<EnableStaffAccountResult> EnableCoreAsync(
+        EnableStaffAccountRequest request,
         CancellationToken cancellationToken)
     {
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
@@ -351,6 +342,11 @@ public sealed class EfStaffAccountAdministration(
 
     public async Task<ForceStaffLogoutResult> ForceLogoutAsync(
         ForceStaffLogoutRequest request,
+        CancellationToken cancellationToken) =>
+        await RunMappedAsync(() => ForceLogoutCoreAsync(request, cancellationToken));
+
+    private async Task<ForceStaffLogoutResult> ForceLogoutCoreAsync(
+        ForceStaffLogoutRequest request,
         CancellationToken cancellationToken)
     {
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
@@ -394,6 +390,11 @@ public sealed class EfStaffAccountAdministration(
     }
 
     public async Task<ResetStaffPasswordResult> ResetPasswordAsync(
+        ResetStaffPasswordRequest request,
+        CancellationToken cancellationToken) =>
+        await RunMappedAsync(() => ResetPasswordCoreAsync(request, cancellationToken));
+
+    private async Task<ResetStaffPasswordResult> ResetPasswordCoreAsync(
         ResetStaffPasswordRequest request,
         CancellationToken cancellationToken)
     {
@@ -451,6 +452,11 @@ public sealed class EfStaffAccountAdministration(
     }
 
     public async Task<DeleteStaffAccountResult> DeleteAsync(
+        DeleteStaffAccountRequest request,
+        CancellationToken cancellationToken) =>
+        await RunMappedAsync(() => DeleteCoreAsync(request, cancellationToken));
+
+    private async Task<DeleteStaffAccountResult> DeleteCoreAsync(
         DeleteStaffAccountRequest request,
         CancellationToken cancellationToken)
     {
@@ -861,18 +867,38 @@ public sealed class EfStaffAccountAdministration(
         }
     }
 
-    private static bool IsConcurrencyConflict(Exception exception)
+    /// <summary>
+    /// A change another Administrator got to first (an EF concurrency conflict,
+    /// or this transaction chosen as a deadlock victim) is a stale version and
+    /// asks for a reload (FRD-17); a duplicate key is a reused operation key.
+    /// </summary>
+    internal static StaffAccountAdministrationError? ConcurrencyError(Exception exception)
     {
         for (var current = exception; current is not null; current = current.InnerException)
         {
-            if (current is DbUpdateConcurrencyException
-                || current is SqlException { Number: 1205 or 2601 or 2627 })
+            switch (current)
             {
-                return true;
+                case DbUpdateConcurrencyException:
+                case SqlException { Number: 1205 }:
+                    return StaffAccountAdministrationError.StaleVersion;
+                case SqlException { Number: 2601 or 2627 }:
+                    return StaffAccountAdministrationError.OperationConflict;
             }
         }
 
-        return false;
+        return null;
+    }
+
+    private static async Task<T> RunMappedAsync<T>(Func<Task<T>> operation)
+    {
+        try
+        {
+            return await operation();
+        }
+        catch (Exception exception) when (ConcurrencyError(exception) is not null)
+        {
+            throw new StaffAccountAdministrationException(ConcurrencyError(exception)!.Value);
+        }
     }
 
     private static string RoleName(StaffRole role) => role switch
@@ -883,12 +909,17 @@ public sealed class EfStaffAccountAdministration(
         _ => throw new ArgumentOutOfRangeException(nameof(role))
     };
 
+    private static readonly string ConcurrencyFailureCode = new IdentityErrorDescriber().ConcurrencyFailure().Code;
+
     private static void ThrowIfFailed(IdentityResult result)
     {
         if (!result.Succeeded)
         {
+            // Identity reports a concurrent change as a failed result, not an exception.
             throw new StaffAccountAdministrationException(
-                StaffAccountAdministrationError.InvalidAccount);
+                result.Errors.Any(error => error.Code == ConcurrencyFailureCode)
+                    ? StaffAccountAdministrationError.StaleVersion
+                    : StaffAccountAdministrationError.InvalidAccount);
         }
     }
 }
