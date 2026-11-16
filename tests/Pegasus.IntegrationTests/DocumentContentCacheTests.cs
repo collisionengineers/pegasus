@@ -323,36 +323,6 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task AdministrationHealthReadsRecordedCacheFactsWithoutTouchingContent()
-    {
-        var bytes = "health cache bytes"u8.ToArray();
-        var estate = await Estate.CreateAsync(bytes);
-        await using (estate)
-        {
-            await using (var cold = await estate.Reader.OpenAsync(estate.Request, CancellationToken.None))
-            {
-                _ = await ReadAsync(cold.Content);
-            }
-            await using (var db = await estate.Database.CreateContextAsync())
-            {
-                (await db.Set<DocumentContentCacheEntryEntity>().SingleAsync()).LastCleanupOutcome =
-                    "delete_failed";
-                await db.SaveChangesAsync();
-            }
-
-            await using var scope = estate.Database.CreateAsyncScope();
-            var health = scope.ServiceProvider
-                .GetRequiredService<IAdministrationHealthMetricsQueries>();
-            var metrics = await health.GetAsync(estate.Clock.GetUtcNow(), CancellationToken.None);
-
-            Assert.Equal(1, metrics.CacheEntries);
-            Assert.Equal(bytes.Length, metrics.CacheBytes);
-            Assert.Equal(1, metrics.CacheCleanupFailures);
-            Assert.Equal(1, estate.Box.Downloads);
-        }
-    }
-
-    [Fact]
     public async Task ActiveReadLeasePreventsCleanupAndCorruptWarmBytesAreRefused()
     {
         var bytes = "race cache bytes"u8.ToArray();

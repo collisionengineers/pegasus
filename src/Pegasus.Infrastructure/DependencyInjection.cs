@@ -85,8 +85,6 @@ public static class DependencyInjection
         services.AddScoped<RemoveCaseListPreset>();
         services.AddScoped<IAdministrationAiJobQueries, EfAdministrationAiJobQueries>();
         services.AddScoped<GetAdministrationAiJobs>();
-        services.AddScoped<IAdministrationHealthMetricsQueries, EfAdministrationHealthMetricsQueries>();
-        services.AddScoped<GetAdministrationHealthMetrics>();
         services.AddSingleton<DocumentContentCacheMetrics>();
         services.AddSingleton<IDocumentContentCacheMetrics>(provider =>
             provider.GetRequiredService<DocumentContentCacheMetrics>());
