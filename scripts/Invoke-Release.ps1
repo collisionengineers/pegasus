@@ -993,11 +993,10 @@ function Read-CandidateChecks {
     # GitLab acts on a closing reference only in a merge request into the
     # default branch, and these target dev, so the description's own
     # "Closes #N" lines are read as well as any the API links (R470).
-    # Operator question pending, 15 November 2026: a GitHub-era merge in the
-    # range cannot be read, so the range cannot show that every change closes
-    # only type:bug issues; until the operator rules, such a range is never
-    # proposed as PATCH on that basis and falls to MINOR, as a merge request
-    # closing no bug does.
+    # R1062: a GitHub-era merge in the range cannot be read, so the range
+    # cannot show that every change closes only type:bug issues; such a range
+    # is never proposed as PATCH on that basis and falls to MINOR, as a merge
+    # request closing no bug does.
     $bugFixesOnly = $requestNumbers.Count -gt 0 -and $gitHubMerges.Count -eq 0
     $bugFixesReason = if ($gitHubMerges.Count -gt 0) { "#$($gitHubMerges[0].Number) is a GitHub pull request merge, which can no longer be read" }
         elseif ($bugFixesOnly) { 'every merge request in the range closes only type:bug issues' }
