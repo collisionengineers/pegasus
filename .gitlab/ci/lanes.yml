@@ -3,8 +3,16 @@
 # LANE_INFRASTRUCTURE, LANE_CLASSIFIER ("true" or "false") and LANE_MIGRATIONS
 # (the changed migration sources, comma separated).
 
+# A child pipeline answers a new commit on its ref by its own setting, not its
+# parent's: with none here, its interruptible jobs were cancelled when the next
+# merge landed on dev, and the dev pipeline lost its verdict (#2145). The lanes
+# of a push are never cancelled, as .gitlab-ci.yml says of the push itself; a
+# merge request's lanes still give way to a newer head.
 workflow:
   rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $PARENT_PIPELINE_SOURCE == "push"
+      auto_cancel:
+        on_new_commit: none
     - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
 
 default:

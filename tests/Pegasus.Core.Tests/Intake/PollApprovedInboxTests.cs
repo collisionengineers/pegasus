@@ -240,6 +240,25 @@ public sealed class PollApprovedInboxTests
     }
 
     [Fact]
+    public async Task ATimeOutNobodyAskedForIsReleasedAsThatMailboxsFailureAndTheOthersStillPoll()
+    {
+        var harness = new Harness(FirstMailbox, SecondMailbox);
+        // HttpClient raises its own time-out as a cancellation nobody asked for.
+        harness.Source.Fail(
+            FirstMailbox.GraphMailboxId,
+            new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout of 100 seconds elapsing."));
+        harness.Source.Enqueue(SecondMailbox.GraphMailboxId, Message("b-1", "cursor-b1"));
+
+        await Assert.ThrowsAsync<TaskCanceledException>(() =>
+            harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None));
+
+        Assert.Equal(
+            ("mailbox-a", "mailbox_poll_failure"),
+            Assert.Single(harness.PollStore.Releases));
+        Assert.Equal("cursor-b1", harness.PollStore.Cursors["mailbox-b"]);
+    }
+
+    [Fact]
     public async Task TwoFailingMailboxesAreBothReportedTogether()
     {
         var harness = new Harness(FirstMailbox, SecondMailbox);
@@ -862,7 +881,7 @@ public sealed class PollApprovedInboxTests
     }
 
     [Fact]
-    public async Task CancellingThePollThrowsCancellationNotAFailure()
+    public async Task CancellingThePollThrowsCancellationAndRecordsEachCutOffPoll()
     {
         var harness = new Harness(FirstMailbox, SecondMailbox);
         harness.Source.ReadProbe.HoldUntil = 2;
@@ -875,7 +894,14 @@ public sealed class PollApprovedInboxTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => poll.WaitAsync(TimeSpan.FromSeconds(30)));
-        Assert.Empty(harness.PollStore.Releases);
+        // Each poll in flight records its failure under a token of its own: the
+        // store refuses the caller's cancelled one.
+        Assert.Equal(
+            [
+                ("mailbox-a", "mailbox_poll_failure"),
+                ("mailbox-b", "mailbox_poll_failure")
+            ],
+            harness.PollStore.Releases.OrderBy(release => release.MailboxId, StringComparer.Ordinal));
     }
 
     private static ApprovedIntakeMailbox NumberedMailbox(int number) =>
@@ -1201,6 +1227,11 @@ public sealed class PollApprovedInboxTests
             string failureCode,
             CancellationToken cancellationToken)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromCanceled(cancellationToken);
+            }
+
             if (releaseFailure is not null)
             {
                 return Task.FromException(releaseFailure);

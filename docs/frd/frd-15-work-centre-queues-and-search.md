@@ -128,7 +128,9 @@ rules are fixed, not settings:
 Failed external work (custody, vehicle lookup, intake OCR) is never a Needs
 attention item. Where a failure blocks a person's work, the record says so
 where it is used ("Lookup failed", "Storage not ready"), and a failed custody
-job is retried in the Case's Custody page. Intake OCR and allocation retries
+job is retried by the Automation Actor (`pegasus_document_action`,
+`retry_custody`); the Case's Custody page offers no retry (operator, 16
+November 2026; [R1082](../rulings.md)). Intake OCR and allocation retries
 are on Administration Logs. Service health, Administration only, states the
 external-work queue.
 

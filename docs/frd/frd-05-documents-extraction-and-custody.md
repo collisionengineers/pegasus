@@ -415,7 +415,8 @@ Repair Spec for one estimate; one source's Glass's or Brego valuation report
 for one registration; and one Glass's estimate's XML export, calculation-sheet
 PDF and rejected XML. Each regeneration is still its own document version in
 Pegasus, holding its own Box version. Earlier versions are kept within the
-Box plan's own version limit. The file is read first: a current version that
+Box plan's own version limit, 50 versions at 16 November 2026
+([R1085](../rulings.md)). The file is read first: a current version that
 already holds the same bytes is the earlier attempt's, so nothing is
 uploaded again. The upload names the file's etag; a version Box took in
 between is read and compared once more, and then the document stays pending

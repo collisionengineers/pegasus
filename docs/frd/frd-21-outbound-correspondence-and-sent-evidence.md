@@ -117,6 +117,10 @@ to tick again (11 November 2026, R960). The reply composer offers it exactly whe
 offers Mark query done: on a Reply or Reply all to a message that holds an
 open query on the Case (R904). Forward, Send chaser and the Triage chaser
 never offer it, and a send of any other kind that names it is refused. The
+Web reply composer does not refuse a reply whose query was resolved between
+opening the form and Send: the reply is sent and both ticks are dropped,
+while the Automation tool refuses a call that names Delete case
+correspondence there (operator, 16 November 2026; [R1072](../rulings.md)). The
 tick is kept on the send. Once the Sent item is confirmed, the Worker moves
 the Case's received e-mails to the Deleted Items folder of the mailbox each
 sits in (R902), within about two minutes of Send, in the same every-minute
@@ -139,7 +143,7 @@ finds it in that mailbox by the Message-ID the forward answers, wherever it
 is filed, and moves it; the mailbox must still be Approved and activated
 (R916), and its own Sent Items copy is left (R903) (operator, 11 November
 2026; [R975](../rulings.md)). A forward sent as an attachment names no original
-([#2079](https://gitlab.com/collisionengineers-group/pegasus/-/issues/2079)).
+and is moved alone (operator, 16 November 2026; [R1073](../rulings.md)).
 Pegasus's own Sent items, uploaded `.eml` files and
 mail that arrives after the send are left (R903, R962). The move is recoverable and changes nothing
 in Pegasus: the retained copies, their links, the Case, its state and its
@@ -438,6 +442,10 @@ document never moves a Case by itself.
 - Outlook later moves or deletes a confirmed Sent item: the confirmed event
   stays final.
 - A mailbox that fails to poll: other Sent mailboxes carry on.
+- A Sent-evidence poll cut off before it finishes, by a Graph time-out or
+  the Worker stopping: that mailbox records `sent_evidence_poll_failure` like
+  any other failed poll, and a time-out on one mailbox does not fail the run
+  for the others (operator, 16 November 2026; R1107, R1108).
 - A matched send whose observation fails: the poll records no outcome for the
   item, so the next poll reads it again and the send does not stay Submitted
   (QDOS26099, 12 October 2026).
