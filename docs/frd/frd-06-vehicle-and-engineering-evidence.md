@@ -147,7 +147,11 @@ to a candidate's confirmed registration:
 - A read missing exactly one character of a candidate's confirmed
   registration matches. The confirmed registration completes the read and is
   the registered identity. A truncated read is never registered as its own
-  value when a confirmed registration completes it.
+  value when a confirmed registration completes it. A manual upload is the
+  exception: once staff decline its match, or its wait runs out
+  ([FRD-19](frd-19-image-led-intake-and-pairing.md)), it registers with the
+  registration as read, for staff to correct on the record (operator, 16
+  November 2026; [R1083](../rulings.md)).
 - A substituted character is never a match.
 - A second consistent candidate makes the read ambiguous, unless the read is
   exactly equal to one candidate's confirmed registration, which is
