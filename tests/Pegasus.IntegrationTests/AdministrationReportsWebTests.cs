@@ -910,7 +910,7 @@ public sealed class AdministrationReportsWebTests
     private sealed class ArgumentFaultCaseListQueries : ICaseListQueries
     {
         public Task<IReadOnlyList<CaseListRecord>> GetAsync(CaseListQuery query, CancellationToken cancellationToken) =>
-            Task.FromException<IReadOnlyList<CaseListRecord>>(new ArgumentException("x", "value"));
+            Task.FromException<IReadOnlyList<CaseListRecord>>(new ArgumentException("x", nameof(query)));
     }
 
     /// <summary>One Principal: five sent (two Audit), three re-sends (one Audit), £500 of fees (£200 Audit).</summary>
