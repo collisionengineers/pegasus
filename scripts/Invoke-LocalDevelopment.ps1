@@ -1798,6 +1798,10 @@ function Start-LocalRun {
             -WorkingDirectory $webDirectory `
             -Environment $webEnvironment `
             -Tools $tools
+        Update-PegasusDatabaseStatistics `
+            -Command $tools.Database `
+            -ContainerName $databaseContext.ContainerName `
+            -Database $databaseContext.DatabaseName
 
         $manifest.identity.initializationCompleted = $true
         Write-OwnedManifest -Manifest $manifest
