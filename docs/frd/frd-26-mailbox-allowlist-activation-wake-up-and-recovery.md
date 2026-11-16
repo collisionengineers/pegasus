@@ -218,6 +218,11 @@ The states of a retained message are owned by
   message, is quarantined as `message_too_large` (operator, 15 October 2026).
 - A tenant that has not admitted the application: that mailbox alone fails
   and says so.
+- A poll cut off before it finishes, by the Worker's 60 second budget, a
+  Graph time-out or the Worker stopping: that mailbox records
+  `mailbox_poll_failure` like any other failed poll and is free for its next
+  poll at once; the next completed poll clears it (operator, 16 November
+  2026; R1107, R1108).
 - An unknown, expired, malformed or wrongly scoped notification: refused
   without queuing work or revealing the secret.
 

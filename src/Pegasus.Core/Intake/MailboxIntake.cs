@@ -319,6 +319,13 @@ public sealed class PollApprovedInbox(
     internal const int MaximumConcurrentMailboxPolls = 3;
 
     /// <summary>
+    /// How long a poll its caller cancelled has to record its failure and free
+    /// its lease, for the Inbox poll here and the Sent poll alike. The caller's
+    /// token is cancelled by then, so that release runs under this one.
+    /// </summary>
+    internal static readonly TimeSpan CutOffReleaseBudget = TimeSpan.FromSeconds(5);
+
+    /// <summary>
     /// Polls every mailbox the approved estate currently offers for inbound intake,
     /// each under its own lease and cursor, up to three at once.
     /// <paramref name="maximumMessages"/> bounds one mailbox, not the tick, so a
@@ -669,14 +676,25 @@ public sealed class PollApprovedInbox(
 
             return await PollOneAsync(lease, maximumMessages, actorCode, cancellationToken);
         }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        catch (Exception exception) when (
+            exception is OperationCanceledException
+            || IntakeExceptionPolicy.IsRecoverable(exception))
         {
+            // A poll that was cut off is a failed poll, visible on its mailbox
+            // (FRD-26; R1107). When the caller cancelled, which is the Worker's
+            // budget or the Worker stopping, no release can run under its token,
+            // so that release has its own short budget.
+            var callerCancelled = cancellationToken.IsCancellationRequested;
+
             // Only a lease that was actually claimed can be released, and a release
             // that fails must not replace the failure that caused it: the lease
             // lapses on its own, and the original exception is what the estate needs
             // to be told about.
             if (lease is not null)
             {
+                using var releaseBudget = callerCancelled
+                    ? new CancellationTokenSource(CutOffReleaseBudget)
+                    : null;
                 try
                 {
                     await pollStore.ReleaseAsync(
@@ -684,14 +702,22 @@ public sealed class PollApprovedInbox(
                         lease.LeaseToken,
                         timeProvider.GetUtcNow().Add(FailureRetryDelay),
                         FailureCode(exception),
-                        cancellationToken);
+                        releaseBudget?.Token ?? cancellationToken);
                 }
                 catch (Exception releaseFailure) when (
-                    IntakeExceptionPolicy.IsRecoverable(releaseFailure))
+                    releaseFailure is OperationCanceledException
+                    || IntakeExceptionPolicy.IsRecoverable(releaseFailure))
                 {
                     // Swallowed deliberately; the lease lapses and the original
                     // failure below is the one that matters.
                 }
+            }
+
+            // The caller's own cancellation still stops the poll. A time-out
+            // nobody asked for is this mailbox's failure like any other.
+            if (callerCancelled && exception is OperationCanceledException)
+            {
+                throw;
             }
 
             failures.Add(exception);
