@@ -202,9 +202,9 @@
                 <div class="panel-body">
                     <div class="metric-strip metric-strip--3" aria-label="@OperatorLabels.Reports.ReportsByPrincipalTotals">
                         @{
-                            Metric(AdministrationReportHeadings.ReportsSent, principal is null ? OperatorLabels.Reports.Unavailable : principal.Rows.Sum(row => row.Sent).ToString(invariant), principal is null ? null : previousPrincipal?.Sum(row => row.Sent).ToString(invariant));
-                            Metric(AdministrationReportHeadings.Resends, principal is null ? OperatorLabels.Reports.Unavailable : principal.Rows.Sum(row => row.Resends).ToString(invariant), principal is null ? null : previousPrincipal?.Sum(row => row.Resends).ToString(invariant));
-                            Metric(AdministrationReportHeadings.AgreedFees, principal is null ? OperatorLabels.Reports.Unavailable : Money(principal.Rows.Sum(row => row.AgreedFeeTotal)), principal is null || previousPrincipal is null ? null : Money(previousPrincipal.Sum(row => row.AgreedFeeTotal)));
+                            Metric(AdministrationReportHeadings.ReportsSent, principal is null ? OperatorLabels.Reports.Unavailable : principal.Rows.Sum(row => Model.Sent(row)).ToString(invariant), principal is null ? null : previousPrincipal?.Sum(row => Model.Sent(row)).ToString(invariant));
+                            Metric(AdministrationReportHeadings.Resends, principal is null ? OperatorLabels.Reports.Unavailable : principal.Rows.Sum(row => Model.Resends(row)).ToString(invariant), principal is null ? null : previousPrincipal?.Sum(row => Model.Resends(row)).ToString(invariant));
+                            Metric(AdministrationReportHeadings.AgreedFees, principal is null ? OperatorLabels.Reports.Unavailable : Money(principal.Rows.Sum(row => Model.Fees(row))), principal is null || previousPrincipal is null ? null : Money(previousPrincipal.Sum(row => Model.Fees(row))));
                         }
                     </div>
                     <div class="table-wrap section-gap">
