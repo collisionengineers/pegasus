@@ -577,7 +577,7 @@ Release 3.0.2 deployed `dev` at the merge of PR 2104, which combined #2083, #208
 | Smoke | passed at 15:16:47Z; intake liveness last poll 15:15:01Z, subscription expires 2026-11-16 08:30Z. No released journey was walked live |
 | Test instance | serving the candidate `2af9e0c22` (R684) |
 | Evidence | `artifacts/releases/release-3.0.2-2af9e0c2`, `artifacts/releases/logs/release-3.0.2-*.log` and Query Store before `artifacts/performance/query-store-3.0.2-before-20261112T1505Z.tsv` (24 h) on `cemattypc-1` |
-| Owed | #2118 (the live checks of #2099, #2101 and #2103, and the Query Store after window) |
+| Owed | none: #2118 (the live checks of #2099, #2101 and #2103, and the Query Store after window) was closed on the operator's word of 16 November 2026 (R1106) |
 
 ## Release 3.0.1 - 11 November 2026 (deployment live)
 
@@ -593,7 +593,7 @@ Release 3.0.1 deployed `dev` at the merge of PR 2090 alone: Delete case correspo
 | Smoke | passed at 15:49:13Z; intake liveness last poll 15:45:00Z, subscription expires 2026-11-16 08:30Z. No ticked send was made: the released move is unproven live |
 | Test instance | serving the candidate `23ba38779` (R684) |
 | Evidence | `artifacts/releases/release-3.0.1-23ba3877` and `artifacts/releases/logs/release-3.0.1-*.log` on `cemattypc-1` |
-| Owed | #2087 (the first ticked send, which moves real mail: the operator names the Case) |
+| Owed | none: the first ticked send went on 12 November 2026 (R986) and #2087 was closed on the operator's word of 16 November 2026 (R1106) |
 
 ## Release 3.0.0 - 11 November 2026 (deployment live)
 
@@ -609,7 +609,7 @@ Release 3.0.0 deployed `dev` at the merge of PR 2082: the range of #2028, from g
 | Settings read back | `Features__PhotoCapture=true` on Web and Worker; `PhotoCapture__PublicOrigin` the Web's origin; `TextMessages__Endpoint` the ACS host, `TextMessages__From` empty (texting off); the five Worker `Disabled` settings `false` |
 | Smoke | passed at 14:50:39Z; intake liveness last poll 14:50:00Z, subscription expires 2026-11-16 08:30Z; photo capture's unknown link answers its designed 404; the test instance served the candidate (R684) |
 | Evidence | `artifacts/releases/release-3.0.0-55dd3f0c` and `artifacts/releases/logs/release-3.0.0-*.log` on `cemattypc-1` |
-| Owed | #2085 (a forward's original is left where its mailbox is not Incoming; the Exchange grant is in place), #2086 (SMS number and R919 wording), #2087 (live checks), #2088 (Standing links budget), #2009, #2054 |
+| Owed | #2085 (a forward's original is left where its mailbox is not Incoming; the Exchange grant is in place), #2086 (SMS number and R919 wording), #2087 (live checks; closed 16 November 2026, R1106), #2088 (Standing links budget), #2009, #2054 |
 
 ## Release 2.4.1 - 9 November 2026 (deployment live)
 

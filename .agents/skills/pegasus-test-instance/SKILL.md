@@ -252,12 +252,10 @@ The redirect to `/Account/SignIn` must be on the `ts.net` host. If it is on
 localhost, stop and say so: the Web would need a forwarded-headers branch for
 the offline profile, which is a code change, not a configuration one.
 
-Staff accounts for a UAT round are created in Administration > Accounts on
-the instance; Glass's logins are per account (ADR-0043) and entered there. The
-round itself (#1863) runs on the date the operator sets: the pack's
-`environment.md`, kept outside the repository, names the instance's public
-origin, and the round's results file is recorded in operations as the first
-operator acceptance.
+Staff accounts are created in Administration > Accounts on the instance;
+Glass's logins are per account (ADR-0043) and entered there. No staff UAT
+round is planned: the operator dropped it on 16 November 2026 (R1103), live
+use since 2 November 2026 standing as the acceptance.
 
 ## 4. Mail, with parity
 
@@ -337,7 +335,7 @@ or the named head. The release preflight refuses a candidate the instance is
 not serving (R684), so the instance is back on `dev`'s tip before a release.
 Its `Version` reads `0.0.0-dev`, as in every build that is not a release
 (R686); the SHA is its identity. Whoever walks the instance is told which
-head it serves; the UAT pack's `environment.md` names it.
+head it serves.
 
 ## 7. Rehearse a release on a copy of production
 

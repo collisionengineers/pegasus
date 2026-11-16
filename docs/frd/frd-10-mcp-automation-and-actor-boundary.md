@@ -253,7 +253,11 @@ Claim source from the active Claim source records, each copied onto the Case
 so a later directory edit never rewrites it; `pegasus_directory_search`
 lists them with the codes of the Principals each is linked to and, given the
 Case's Principal code, lists that Principal's linked contacts first, as the
-Case page does (R1013, R1016). Naming the Repairer the Case is already linked
+Case page does (R1013, R1016). A Claim source contact given in the same call
+as a newly chosen Claim source is that source's contact, and one given while
+the Case has no Claim source is refused; the Case page ignores its contact
+boxes in both situations, because a page save reposts the previous source's
+contact (operator, 16 November 2026; [R1096](../rulings.md)). Naming the Repairer the Case is already linked
 to keeps the link and its copy as they are, whether or not the record is
 still active (R1022). Naming the Sign-off Engineer the Case already shows
 records nothing, and the empty identifier removes the recorded pick so the
@@ -507,7 +511,9 @@ history and replays by its operation key.
   attach every file to one Case and the Cases they share, and whether it may
   be discarded. `pegasus_upload_group_action` takes that decision: `attach`
   every file to one Case, `leave` the matched Cases undecided, or `discard`
-  the upload. Any member of staff who does casework may decide any upload, so
+  the upload. A `discard` call is its own confirmation: the tool asks for no
+  counterpart of the page's consequences tick (operator, 16 November 2026;
+  [R1094](../rulings.md)). Any member of staff who does casework may decide any upload, so
   the Automation Actor may too.
 - The Automation Actor reads, reclassifies and links mail through the mail
   tools in scope `automation.mail` (operator ruling, 15 October 2026).
