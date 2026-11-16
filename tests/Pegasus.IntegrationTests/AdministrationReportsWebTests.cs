@@ -779,6 +779,73 @@ public sealed class AdministrationReportsWebTests
         }
     }
 
+    /// <summary>
+    /// #1574 (FRD-17): the Work choice picks every figure Reports by Principal
+    /// shows, the three totals and their previous-period figures included.
+    /// </summary>
+    [Theory]
+    [InlineData("all", "5", "3", "£500.00")]
+    [InlineData("inspection", "3", "2", "£300.00")]
+    [InlineData("audit", "2", "1", "£200.00")]
+    public async Task ThePrincipalTotalsFollowTheWorkChoiceBesideTheRows(string work, string sent, string resends, string fees)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IV1ActivityReportQueries>();
+                services.AddSingleton<IV1ActivityReportQueries, MixedWorkPrincipalReportQueries>();
+            }));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await client.GetStringAsync($"{Page}?tab={ReportsModel.PrincipalsTab}&work={work}");
+
+        // The same rows answer both periods, so each total and its previous-period figure match.
+        foreach (var value in new[] { sent, resends, fees })
+        {
+            var encoded = System.Text.Encodings.Web.HtmlEncoder.Default.Encode(value);
+            Assert.Matches(
+                $"metric-value\">{encoded}</span>\\s*<span class=\"metric-meta\">{OperatorLabels.Reports.PreviousPeriod} {encoded}</span>",
+                html);
+        }
+    }
+
+    /// <summary>
+    /// #1576: only Core's two refusals read as a period or column choice; any
+    /// other ArgumentException from the read or the file is the unavailable Case list.
+    /// </summary>
+    [Fact]
+    public async Task AFailedCaseListReadIsUnavailableNotAMissingColumn()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseListQueries>();
+                services.AddSingleton<ICaseListQueries, ArgumentFaultCaseListQueries>();
+            }));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync($"{Page}?tab=case-list"));
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{Page}?handler=CaseListCsv")
+        {
+            Content = CaseListForm(token, ("AllTime", "true"), ("Columns", "case.reference"))
+        };
+        request.Headers.Add("X-Requested-With", "fetch");
+        using var scripted = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, scripted.StatusCode);
+        Assert.Equal(OperatorLabels.CaseList.Unavailable, await scripted.Content.ReadAsStringAsync());
+
+        using var plain = await client.PostAsync($"{Page}?handler=CaseListCsv", CaseListForm(
+            token, ("AllTime", "true"), ("Columns", "case.reference")));
+
+        Assert.Equal(HttpStatusCode.OK, plain.StatusCode);
+        var html = await plain.Content.ReadAsStringAsync();
+        Assert.Contains(OperatorLabels.CaseList.Unavailable, html, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.CaseList.ChooseColumns, html, StringComparison.Ordinal);
+    }
+
     private sealed class RecordingReportQueries : IEngineerActivityQueries, IMonthlyReportActivityQueries, IReportOutcomeQueries, IV1ActivityReportQueries
     {
         private int engineer;
@@ -838,6 +905,27 @@ public sealed class AdministrationReportsWebTests
             Interlocked.Increment(ref outcomes);
             return Task.FromResult<IReadOnlyList<ReportOutcomeFact>>([]);
         }
+    }
+
+    private sealed class ArgumentFaultCaseListQueries : ICaseListQueries
+    {
+        public Task<IReadOnlyList<CaseListRecord>> GetAsync(CaseListQuery query, CancellationToken cancellationToken) =>
+            Task.FromException<IReadOnlyList<CaseListRecord>>(new ArgumentException("x", "value"));
+    }
+
+    /// <summary>One Principal: five sent (two Audit), three re-sends (one Audit), £500 of fees (£200 Audit).</summary>
+    private sealed class MixedWorkPrincipalReportQueries : IV1ActivityReportQueries
+    {
+        public Task<IReadOnlyList<PrincipalReportActivity>> GetAsync(
+            DateTimeOffset fromUtc,
+            DateTimeOffset toUtc,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PrincipalReportActivity>>(
+            [
+                new(
+                    Guid.NewGuid(), "ACME", 5, 3, null, 0, null, 0, null, 0,
+                    AgreedFeeTotal: 500m, AuditSent: 2, AuditResends: 1, AuditAgreedFeeTotal: 200m)
+            ]);
     }
 
     private sealed class EmptyPrincipalReportQueries : IV1ActivityReportQueries
