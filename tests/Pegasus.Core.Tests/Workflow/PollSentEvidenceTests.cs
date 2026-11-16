@@ -1023,7 +1023,29 @@ public sealed class PollSentEvidenceTests
     }
 
     [Fact]
-    public async Task CancellingTheBatchThrowsCancellationAndCountsNoFailure()
+    public async Task ATimeOutNobodyAskedForIsThatMailboxsFailureAndTheBatchGoesOn()
+    {
+        var store = new RecordingPollStore(MailboxLease(1), MailboxLease(2), MailboxLease(3));
+        // HttpClient raises its own time-out as a cancellation nobody asked for.
+        var source = new SequencedSource(
+            new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout of 100 seconds elapsing."),
+            new ApprovedSentPage([], "second-cursor", HasMore: false),
+            new ApprovedSentPage([], "third-cursor", HasMore: false));
+        var poll = CreateUseCase(
+            store, source, new ResponsePort(), new ReportPort(), policy: new MultiMailboxPolicy());
+
+        var result = await poll.ExecuteBatchAsync(3, 1, 10, WorkerActor)
+            .WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(3, result.MailboxesAttempted);
+        Assert.Equal(1, result.MailboxesFailed);
+        Assert.StartsWith("TaskCanceledException: ", result.FirstFailure, StringComparison.Ordinal);
+        Assert.Equal("sent_evidence_poll_failure", Assert.Single(store.Releases).FailureCode);
+        Assert.Equal(2, store.Completions.Count);
+    }
+
+    [Fact]
+    public async Task CancellingTheBatchThrowsCancellationAndRecordsEachCutOffPoll()
     {
         var store = new RecordingPollStore(MailboxLease(1), MailboxLease(2), MailboxLease(3));
         var source = new SequencedSource(EmptyPages(3))
@@ -1040,7 +1062,12 @@ public sealed class PollSentEvidenceTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => batch.WaitAsync(TimeSpan.FromSeconds(30)));
-        Assert.Empty(store.Releases);
+        // Each poll in flight records its failure under a token of its own: the
+        // store refuses the caller's cancelled one.
+        Assert.Equal(3, store.Releases.Count);
+        Assert.All(
+            store.Releases,
+            release => Assert.Equal("sent_evidence_poll_failure", release.FailureCode));
         Assert.Empty(store.Completions);
     }
 
@@ -1257,6 +1284,11 @@ public sealed class PollSentEvidenceTests
             string failureCode,
             CancellationToken cancellationToken)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromCanceled(cancellationToken);
+            }
+
             lock (_sync)
             {
                 Releases.Add((dueAtUtc, failureCode));

@@ -246,8 +246,10 @@ public sealed class PollSentEvidence(
                         reportEvidence += result.ReportEvidenceRetained;
                     }
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
+                    // Only the caller's own cancellation ends the batch. A time-out
+                    // nobody asked for is that mailbox's failure, counted below.
                     throw;
                 }
                 catch (Exception exception)
@@ -417,17 +419,33 @@ public sealed class PollSentEvidence(
                 unlinkedItems,
                 quarantinedItems);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception)
         {
+            // A poll that was cut off is a failed poll, visible on its mailbox
+            // (FRD-21; R1107). When the caller cancelled, no release can run under
+            // its token, so that release has its own short budget.
+            var callerCancelled = cancellationToken.IsCancellationRequested;
+            using var releaseBudget = callerCancelled
+                ? new CancellationTokenSource(PollApprovedInbox.CutOffReleaseBudget)
+                : null;
             var retryDelay = exception is ApprovedSentSourceThrottledException throttled
                 ? throttled.RetryAfter
                 : FailureRetryDelay;
-            await pollStore.ReleaseAsync(
-                lease.MailboxId,
-                lease.LeaseToken,
-                timeProvider.GetUtcNow().Add(retryDelay),
-                FailureCode(exception),
-                cancellationToken);
+            try
+            {
+                await pollStore.ReleaseAsync(
+                    lease.MailboxId,
+                    lease.LeaseToken,
+                    timeProvider.GetUtcNow().Add(retryDelay),
+                    FailureCode(exception),
+                    releaseBudget?.Token ?? cancellationToken);
+            }
+            catch (Exception) when (callerCancelled)
+            {
+                // Swallowed deliberately; the lease lapses on its own and the
+                // caller is told of the cancellation, not of the release.
+            }
+
             throw;
         }
     }
