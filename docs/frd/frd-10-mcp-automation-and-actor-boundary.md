@@ -280,7 +280,9 @@ Review; assign the Engineer, or, with no `engineerId`, hand the Case to
 Unassigned (#1213, operator, 15 October 2026); return to Engineer; close
 with a named outcome; reopen to a named destination; archive; create the
 linked replacement of a Case created in error; Create audit; request the
-vehicle lookup; record a manual chase. Each needs the reason staff give for
+vehicle lookup; run the Experian vehicle history check
+([ADR-0089](../adr/0089-experian-vehicle-history-check.md)); record a manual
+chase. Each needs the reason staff give for
 it, except where staff give none. Queries are `pegasus_case_query`: it logs a query by its channel,
 marks one done, reopens one and assigns it (operator, 11 October 2026). A
 query on a linked message is opened with `pegasus_mail_open_query` (R1042).
@@ -680,7 +682,7 @@ its one command when none is given.
 | `automation.cases` | `pegasus_case_get` | One Case with its Claim source and Repairer, what still holds it from being ready, and its paged documents (occurrence and version ids for download) and history | none |
 | `automation.cases` | `pegasus_case_update_details` | Case-detail edit through the staff Case save; an omitted value is unchanged, an empty string clears | one-command lease |
 | `automation.cases` | `pegasus_case_note_add` | Add an append-only note to the Case timeline | key only |
-| `automation.cases` | `pegasus_case_action` | One Case lifecycle act with an `action`: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, manual_chase | one-command lease |
+| `automation.cases` | `pegasus_case_action` | One Case lifecycle act with an `action`: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, vehicle_history_check, manual_chase | one-command lease |
 | `automation.cases` | `pegasus_case_query` | One query act with an `action`: open (logged by its channel), mark_done, reopen, assign. No edit lease, expected version or reason. Reopen is refused on a closed or archived Case | key only |
 | `automation.cases` | `pegasus_directory_search` | The active directory Repairers or Claim sources a Case links to, each with its linked Principal codes; a named Principal's linked contacts first | none |
 | `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags; enabled staff by username; Sign-off Engineers by printed name; the unroadworthy wordings bank | none |
