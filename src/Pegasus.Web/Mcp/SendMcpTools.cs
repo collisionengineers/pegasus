@@ -5,12 +5,11 @@ using ModelContextProtocol.Server;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
-using Pegasus.Web.Pages.Cases;
-using Pegasus.Web.Pages.Mail;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Mcp;
@@ -67,7 +66,8 @@ internal sealed class SendMcpTools(
     IGetTriage getTriage,
     ICaseQueryStore caseQueries,
     AutomationMcpAuditor auditor,
-    OneCommandEdit leases)
+    OneCommandEdit leases,
+    ILogger<SendMcpTools> logger)
 {
     private static readonly string[] Modes = ["chaser", "reply", "reply_all", "forward", "triage_reply"];
 
@@ -79,7 +79,7 @@ internal sealed class SendMcpTools(
         Idempotent = true,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Sends a Case's generated report to the Principal, as Send report on the Case page does: the work's current confirmed generation (or generationId), the reviewed To and Cc recipients, the companion documents chosen and the covering message. It is a reply to the Case's instruction e-mail; a Case with no instruction e-mail to reply to sends a new message. It leaves from the Outgoing mailbox named by fromMailbox; a reply from another mailbox than the one holding the e-mail is sent as a new message. A Collision Engineers staff forward held in instructions@ is answered as though the original had arrived directly, to the original sender. The Principal's report sending rules apply as on the Case page; this tool ticks no hold and overrides no Stop, so a send the rules hold or stop is refused. The report attaches under its delivery name. The Case must be open in a state its report can be sent in; a Complete Case sends only the Inspection report of a Case that has its Audit. On a Case that has its Audit, otherReport also attaches the other work's current confirmed report (the Inspection report beside the Audit's, or the Audit's beside the Inspection's) to the same e-mail, under its own delivery name, as the Case page's send form offers it. Needs automation.send and the expected case version. The result is the send's state and attachments, the file names the e-mail carries: report what was sent from attachments, not from what was asked for. Submitted is accepted, not yet Sent; Unknown must never be resent, replay the same operation key instead.")]
+    [Description("Sends a Case's generated report to the Principal, as Send report on the Case page does: the work's current confirmed generation (or generationId), the reviewed To and Cc recipients, the companion documents chosen and the covering message. It is a reply to the Case's instruction e-mail; a Case with no instruction e-mail to reply to sends a new message. It leaves from the Outgoing mailbox named by fromMailbox; a reply from another mailbox than the one holding the e-mail is sent as a new message. A Collision Engineers staff forward held in instructions@ is answered as though the original had arrived directly, to the original sender. The Principal's report sending rules apply as on the Case page; this tool ticks no hold and overrides no Stop, so a send the rules hold or stop is refused. The report attaches under its delivery name. The Case must be open in a state its report can be sent in. On a Case that has its Audit, otherReport also attaches the other work's current confirmed report (the Inspection report beside the Audit's, or the Audit's beside the Inspection's) to the same e-mail, under its own delivery name, as the Case page's send form offers it. Needs automation.send and the expected case version. The result is the send's state and attachments, the file names the e-mail carries: report what was sent from attachments, not from what was asked for. Submitted is accepted, not yet Sent; Unknown must never be resent, replay the same operation key instead.")]
     public async Task<ReportSendToolResult> SendReportAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
@@ -117,7 +117,7 @@ internal sealed class SendMcpTools(
                     : new(
                         Recipients(to, "To").Select(recipient => recipient.Address).ToArray(),
                         Recipients(cc, "Cc").Select(recipient => recipient.Address).ToArray());
-                await RequireReportSendableAsync(actor, caseId, selector, cancellationToken);
+                await RequireReportSendableAsync(actor, caseId, cancellationToken);
                 // With no mailbox named, the send itself takes the default.
                 var from = fromMailbox is null
                     ? null
@@ -174,6 +174,11 @@ internal sealed class SendMcpTools(
                                 TidiesCaseCorrespondence: deleteCaseCorrespondence),
                             cancellationToken),
                         cancellationToken);
+                }
+                catch (StaffMailOutcomeUnknownException unknown)
+                {
+                    // Recorded Unknown: answered as a returned Unknown is (R1123).
+                    operation = OutcomeUnknown(unknown);
                 }
                 catch (KeyNotFoundException)
                 {
@@ -285,32 +290,46 @@ internal sealed class SendMcpTools(
                     }
                     if (command.Purpose == StaffMailPurpose.GeneralCorrespondence
                         && !(message is { } replied
-                            && await MessageModel.HoldsOpenQueryAsync(
+                            && await CaseQueryRules.HoldsOpenQueryAsync(
                                 caseQueries, command.ContextId, replied, cancellationToken)))
                     {
                         throw new McpException("deleteCaseCorrespondence applies to a reply to a message that holds an open query on the Case.");
                     }
                 }
 
-                var operation = command is null
+                StaffMailOperation operation;
+                if (command is null)
+                {
                     // The outcome reply for this completion is already Sent.
-                    ? message is { } answered
+                    operation = message is { } answered
                         ? await staffMailSend.GetLatestForOriginalAsync(context.Actor, answered, cancellationToken)
                             ?? throw new McpException("The outcome reply has already been sent.")
-                        : throw new McpException("The outcome reply has already been sent.")
-                    : await staffMailSend.SendAsync(
-                        command with
-                        {
-                            Subject = subject.Trim(),
-                            Body = body.Trim(),
-                            OperationKey = key,
-                            MarksQueryDone = markQueryDone,
-                            TidiesCaseCorrespondence = deleteCaseCorrespondence,
-                            AiJobId = aiJobId is { } cited
-                                ? AutomationMcpErrors.RequireId(cited, "AI job identifier")
-                                : null,
-                        },
-                        cancellationToken);
+                        : throw new McpException("The outcome reply has already been sent.");
+                }
+                else
+                {
+                    try
+                    {
+                        operation = await staffMailSend.SendAsync(
+                            command with
+                            {
+                                Subject = subject.Trim(),
+                                Body = body.Trim(),
+                                OperationKey = key,
+                                MarksQueryDone = markQueryDone,
+                                TidiesCaseCorrespondence = deleteCaseCorrespondence,
+                                AiJobId = aiJobId is { } cited
+                                    ? AutomationMcpErrors.RequireId(cited, "AI job identifier")
+                                    : null,
+                            },
+                            cancellationToken);
+                    }
+                    catch (StaffMailOutcomeUnknownException unknown)
+                    {
+                        // Recorded Unknown: answered as a returned Unknown is (R1123).
+                        operation = OutcomeUnknown(unknown);
+                    }
+                }
                 return new MailSendToolResult(
                     operation.Id,
                     verb,
@@ -325,6 +344,18 @@ internal sealed class SendMcpTools(
                         : null);
             },
             cancellationToken);
+    }
+
+    /// <summary>
+    /// A send the engine recorded Unknown and threw (R1069): its fault is
+    /// logged, and the tool answers the Unknown operation as it answers a
+    /// returned one, never as a failed call (R1123).
+    /// </summary>
+    private StaffMailOperation OutcomeUnknown(StaffMailOutcomeUnknownException unknown)
+    {
+        Pegasus.Web.Pages.Mail.StaffMailSendLog.OutcomeUnknown(
+            logger, unknown.Operation.Id, unknown.Operation.ApprovedMailboxId, unknown);
+        return unknown.Operation;
     }
 
     /// <summary>
@@ -426,15 +457,15 @@ internal sealed class SendMcpTools(
 
         var detail = await getRetainedMail.ExecuteAsync(actor, id, cancellationToken)
             ?? throw new McpException("The retained message was not found.");
-        var (holding, answer) = await MessageModel.CorrespondenceSendersAsync(detail, approvedMailboxes, cancellationToken);
+        var (holding, answer) = await StaffMailAnswer.ForMessageAsync(detail, approvedMailboxes, cancellationToken);
         var mailbox = (mode == StaffMailComposeMode.Forward
                 ? holding
                 : await AnswerFromAsync(answer, fromMailbox, detail.Summary.CaseId, cancellationToken))
             ?? throw new McpException("Correspondence is unavailable for this message: no send-ready approved mailbox can answer it.");
         var (toRecipients, ccRecipients) = mode switch
         {
-            StaffMailComposeMode.Reply => MessageModel.ReplyRecipients(detail),
-            StaffMailComposeMode.ReplyAll => MessageModel.ReplyAllRecipients(detail, mailbox.Address),
+            StaffMailComposeMode.Reply => StaffMailReplyRecipients.Reply(detail),
+            StaffMailComposeMode.ReplyAll => StaffMailReplyRecipients.ReplyAll(detail, mailbox.Address),
             _ => (Recipients(to, "To"), Recipients(cc, "Cc")),
         };
         if (toRecipients.Length == 0)
@@ -509,13 +540,13 @@ internal sealed class SendMcpTools(
                 $"Refused: the Triage changed since it was read. It is at version {triage.Record.Version}, not {expectedVersion}; reload it with pegasus_triage_get.");
         }
 
-        var answer = (await MessageModel.CorrespondenceSendersAsync(detail, approvedMailboxes, cancellationToken)).Reply;
+        var answer = (await StaffMailAnswer.ForMessageAsync(detail, approvedMailboxes, cancellationToken)).Reply;
         var mailbox = await AnswerFromAsync(answer, fromMailbox, triage.Record.CaseId, cancellationToken)
             ?? throw new McpException("No approved mailbox with staff send capability is available for this origin.");
         var toRecipients = Recipients(to, "To");
         if (toRecipients.Length == 0)
         {
-            toRecipients = DetailsModel.TriageReplyRecipients(detail);
+            toRecipients = StaffMailReplyRecipients.TriageReply(detail);
         }
         if (toRecipients.Length == 0)
         {
@@ -610,22 +641,15 @@ internal sealed class SendMcpTools(
                 ?? throw new McpException($"Attachment {id:D} is not a sendable file of this {source}."))
             .ToArray();
 
-    /// <summary>
-    /// The Case page's Send report gate: an open assessment, not read-only
-    /// unless it is the Inspection report of a Case that has its Audit.
-    /// </summary>
+    /// <summary>The Case page's Send report gate: an open assessment (R1095).</summary>
     private async Task RequireReportSendableAsync(
         ActionActor actor,
         Guid caseId,
-        CaseWorkSelector selector,
         CancellationToken cancellationToken)
     {
-        switch (await reportActs.GetAccessAsync(actor, caseId, selector, cancellationToken))
+        if (await reportActs.GetAccessAsync(actor, caseId, cancellationToken) == CaseReportActAccess.NotOpen)
         {
-            case CaseReportActAccess.NotOpen:
-                throw new McpException("The case was not found or its report cannot be sent in its state.");
-            case CaseReportActAccess.ReadOnly:
-                throw new McpException("The case is read-only once Complete.");
+            throw new McpException("The case was not found or its report cannot be sent in its state.");
         }
     }
 

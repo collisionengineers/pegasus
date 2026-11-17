@@ -369,6 +369,71 @@ public sealed class StaffMailSendTests
         Assert.Equal(operation, store.Operation);
     }
 
+    /// <summary>
+    /// An ambiguous provider answer (a Graph server error or a timeout) is
+    /// recorded Unknown and thrown named, carrying that operation and the
+    /// provider's fault, so the page the send came from shows the state
+    /// (R1069). A replay under the same key returns the Unknown operation
+    /// and asks the provider nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AnAmbiguousProviderAnswerIsRecordedUnknownAndThrownNamed(bool timedOut)
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var command = Command(actor);
+        var store = new Store();
+        Exception fault = timedOut
+            ? new TaskCanceledException("The request timed out.", new TimeoutException())
+            : new HttpRequestException(
+                "Microsoft Graph returned 503.", null, System.Net.HttpStatusCode.ServiceUnavailable);
+        var transport = new Transport { RejectCreate = fault };
+        var send = new StaffMailSend(store,
+            new Mailboxes(command.ApprovedMailboxId, command.ExpectedMailboxGeneration),
+            new Reader([], new(Guid.NewGuid(), Guid.NewGuid(), new string('A', 64), 1,
+                "unused", "application/octet-stream")), transport, TimeProvider.System,
+            new ExecutionLock(), NoJobs, NoConfirm);
+
+        var unknown = await Assert.ThrowsAsync<StaffMailOutcomeUnknownException>(() =>
+            send.SendAsync(command, CancellationToken.None));
+
+        Assert.Same(fault, unknown.InnerException);
+        Assert.Equal(StaffMailState.Unknown, unknown.Operation.State);
+        Assert.Equal("provider_outcome_unknown", unknown.Operation.FailureCode);
+        Assert.Equal(unknown.Operation, store.Operation);
+        var replay = await send.SendAsync(command, CancellationToken.None);
+        Assert.Equal(unknown.Operation, replay);
+        Assert.Equal(1, transport.CreateCount);
+        Assert.Equal(0, transport.SendCount);
+    }
+
+    /// <summary>
+    /// A send the caller abandoned is recorded Unknown and its cancellation
+    /// propagates as it is: no one is left to show the state to.
+    /// </summary>
+    [Fact]
+    public async Task ACallerCancellationIsRecordedUnknownAndPropagates()
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var command = Command(actor);
+        var store = new Store();
+        using var abandoned = new CancellationTokenSource();
+        await abandoned.CancelAsync();
+        var transport = new Transport { RejectCreate = new OperationCanceledException(abandoned.Token) };
+        var send = new StaffMailSend(store,
+            new Mailboxes(command.ApprovedMailboxId, command.ExpectedMailboxGeneration),
+            new Reader([], new(Guid.NewGuid(), Guid.NewGuid(), new string('A', 64), 1,
+                "unused", "application/octet-stream")), transport, TimeProvider.System,
+            new ExecutionLock(), NoJobs, NoConfirm);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            send.SendAsync(command, abandoned.Token));
+
+        Assert.Equal(StaffMailState.Unknown, store.Operation!.State);
+        Assert.Equal("provider_outcome_unknown", store.Operation.FailureCode);
+    }
+
     [Fact]
     public async Task StaffReportSendAcceptsThePreparedAssessmentReportRenamedForDelivery()
     {

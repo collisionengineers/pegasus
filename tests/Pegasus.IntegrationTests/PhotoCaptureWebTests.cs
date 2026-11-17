@@ -653,6 +653,42 @@ public sealed partial class PhotoCaptureWebTests
     }
 
     /// <summary>
+    /// The link's page takes only the acts the link offers (#2130; R1092):
+    /// Extend posted under a new key to a cancelled link is not applied, the
+    /// page saying the general sentence, and no act is recorded.
+    /// </summary>
+    [Fact]
+    public async Task ExtendOnACancelledLinkIsNotAppliedAndRecordsNothing()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory);
+        var link = await IssueLinkAsync(factory, caseId);
+        var page = $"/PhotoCapture/{link.Capture.Id:D}";
+        using (var cancelled = await PostStaffFormAsync(client, $"{page}?handler=Cancel", NewOperationKey()))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, cancelled.StatusCode);
+        }
+
+        using (var extended = await PostStaffFormAsync(client, $"{page}?handler=Extend", NewOperationKey(), "Days", "7"))
+        {
+            Assert.Equal(HttpStatusCode.OK, extended.StatusCode);
+            Assert.Contains(
+                HtmlEncoder.Default.Encode(OperatorLabels.ActionNotApplied),
+                await extended.Content.ReadAsStringAsync(),
+                StringComparison.Ordinal);
+        }
+
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
+        var aggregateId = link.Capture.Id.ToString("D");
+        Assert.Equal(
+            0,
+            await db.ActionHistory.AsNoTracking().CountAsync(item => item.AggregateType == "photo_capture"
+                && item.AggregateId == aggregateId
+                && item.EventKind == PhotoLinkActs.Extended));
+    }
+
+    /// <summary>
     /// Direct links rows carry no Cancel link (v51 N; R948): it stays on the
     /// link's page and the Case. Posted with a return address it goes back
     /// there, and a return address that is not this application's goes to the

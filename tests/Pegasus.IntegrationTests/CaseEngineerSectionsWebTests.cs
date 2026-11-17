@@ -184,7 +184,7 @@ public sealed class CaseEngineerSectionsWebTests
                 null,
                 Fields(),
                 [],
-                new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null,
+                new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null,
                     null, "Alex Example", "P-100"));
             workspace = AssessmentWorkspaceTestData.Create(assessment);
             frame = new(summary, workflow, null);

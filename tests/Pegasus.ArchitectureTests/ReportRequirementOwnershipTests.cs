@@ -30,7 +30,6 @@ public sealed class ReportRequirementOwnershipTests
         MileageSource: "owner",
         IncidentDate: new DateOnly(2026, 8, 1),
         ReceivedDate: new DateOnly(2026, 8, 2),
-        InspectionMode: nameof(CaseInspectionMode.ImageBasedAssessment),
         InspectionAddress: "Image Based Assessment",
         InspectionDate: new DateOnly(2026, 8, 3),
         ClaimantName: "Alex Example",
@@ -48,7 +47,6 @@ public sealed class ReportRequirementOwnershipTests
         MileageSource: "tbc",
         IncidentDate: null,
         ReceivedDate: new DateOnly(2026, 8, 2),
-        InspectionMode: null,
         InspectionAddress: null,
         InspectionDate: null,
         ClaimantName: null,
@@ -240,7 +238,6 @@ public sealed class ReportRequirementOwnershipTests
     [InlineData(AssessmentVocabulary.ReportValuationCommentaryText, null, "report")]
     [InlineData(CaseDataFieldNames.InspectionDate, null, "inspection")]
     [InlineData(CaseDataFieldNames.InspectionAddress, null, "inspection")]
-    [InlineData(CaseDataFieldNames.InspectionMode, null, "inspection")]
     [InlineData(CaseDataFieldNames.ClaimantName, null, "claim")]
     [InlineData(CaseDataFieldNames.ClaimNumber, null, "overview")]
     [InlineData(CaseDataFieldNames.IncidentDate, null, "overview")]
@@ -316,8 +313,8 @@ public sealed class ReportRequirementOwnershipTests
             [Named(AssessmentVocabulary.Outcome), Named(AssessmentVocabulary.LegalStatus), Named(AssessmentVocabulary.UnroadworthyReason), Named(AssessmentVocabulary.SalvageCategory)],
             [Named(AssessmentVocabulary.Outcome), Named(AssessmentVocabulary.SalvageCategory), Named(AssessmentVocabulary.LegalStatus), Named(AssessmentVocabulary.UnroadworthyReason)]);
         AssertPageOrder(
-            [Named(CaseDataFieldNames.InspectionMode), Named(CaseDataFieldNames.InspectionDate)],
-            [Named(CaseDataFieldNames.InspectionDate), Named(CaseDataFieldNames.InspectionMode)]);
+            [Named(CaseDataFieldNames.InspectionAddress), Named(CaseDataFieldNames.InspectionDate)],
+            [Named(CaseDataFieldNames.InspectionDate), Named(CaseDataFieldNames.InspectionAddress)]);
         // Sign-off Engineer names no field and sits below them on Case details.
         AssertPageOrder(
             [CaseReportReadiness.SignOffEngineerNotChosen, Named(CaseDataFieldNames.ClaimNumber), Named(CaseDataFieldNames.IncidentDate)],
@@ -404,11 +401,7 @@ public sealed class ReportRequirementOwnershipTests
             (AssessmentVocabulary.SettlementContractSum, null)));
         yield return NothingElseRecorded(complete with
         {
-            CaseOwned = complete.CaseOwned with
-            {
-                InspectionMode = nameof(CaseInspectionMode.PhysicalAddress),
-                InspectionAddress = null
-            }
+            CaseOwned = complete.CaseOwned with { InspectionAddress = null }
         });
         yield return NothingElseRecorded(With(
             complete,

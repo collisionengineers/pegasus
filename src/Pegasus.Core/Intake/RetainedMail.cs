@@ -164,6 +164,12 @@ public sealed record RetainedMailThreadEntry(
     string? Subject,
     DateTimeOffset ReceivedAtUtc);
 
+/// <summary>
+/// One retained message in full. <paramref name="BodyPlainText"/> is the cleaned
+/// whole body; <paramref name="FreshBodyPlainText"/> is what its sender wrote,
+/// without the history quoted beneath it
+/// (<see cref="StaffForwardBodyCleaner.FreshBody"/>).
+/// </summary>
 public sealed record RetainedMailDetail(
     RetainedMailSummary Summary,
     IReadOnlyList<string> ToAddresses,
@@ -178,7 +184,8 @@ public sealed record RetainedMailDetail(
     string ImmutableMessageId,
     string? InternetMessageId,
     string? ConversationId,
-    MailClassificationDossier? Classification = null);
+    MailClassificationDossier? Classification = null,
+    string? FreshBodyPlainText = null);
 
 /// <summary>
 /// What the Inbox preview pane renders of one message: its summary, the

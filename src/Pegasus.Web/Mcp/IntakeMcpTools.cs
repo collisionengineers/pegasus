@@ -312,7 +312,7 @@ internal sealed class IntakeMcpTools(
             async context =>
             {
                 var receipt = await RequireReceiptAsync(receiptId, context.Actor, cancellationToken);
-                var resolution = await ResolutionAsync(receipt, cancellationToken);
+                var resolution = await caseCreation.AddressResolutionAsync(receipt, cancellationToken);
                 var established = EstablishedIntakePrincipal.CodeFor(receipt);
                 var sender = receipt.MailRouteDecision?.EffectiveSender?.Address;
                 var websiteEnquiry = WebsiteEnquiryMail.IsFrom(sender);
@@ -730,7 +730,7 @@ internal sealed class IntakeMcpTools(
         var principal = RequirePrincipalCode(principalCode ?? EstablishedIntakePrincipal.CodeFor(receipt));
         var principalIsImageBased = await principalInspectionModes.GetForPrincipalAsync(principal, cancellationToken)
             == CaseInspectionMode.ImageBasedAssessment;
-        var resolution = await ResolutionAsync(receipt, cancellationToken);
+        var resolution = await caseCreation.AddressResolutionAsync(receipt, cancellationToken);
         // An unsettled address does not refuse the Case (R965): it starts Not
         // ready, with Inspection address among its missing instruction items.
         var addressSettled = InspectionAddressResolutionPolicy.SatisfiesCaseCreation(resolution.State, principalIsImageBased);
@@ -811,7 +811,7 @@ internal sealed class IntakeMcpTools(
             throw new McpException("This item already has a case.");
         }
 
-        var resolution = await ResolutionAsync(receipt, cancellationToken);
+        var resolution = await caseCreation.AddressResolutionAsync(receipt, cancellationToken);
         var address = string.IsNullOrWhiteSpace(inspectionAddress) ? null : inspectionAddress.Trim();
         var suggested = resolution.Evaluation.Suggestion is not null;
         if (!suggested)
@@ -996,20 +996,6 @@ internal sealed class IntakeMcpTools(
             new(AutomationMcpErrors.RequireId(receiptId, "receipt identifier"), actor),
             cancellationToken)
         ?? throw new McpException("The received item was not found.");
-
-    private async Task<InspectionAddressResolutionSnapshot> ResolutionAsync(
-        IntakeReceipt receipt,
-        CancellationToken cancellationToken) =>
-        await addressResolutions.GetAsync(receipt.Id, cancellationToken)
-        ?? new(
-            receipt.Id,
-            receipt.Version,
-            InspectionAddressResolutionState.Unresolved,
-            Ext18InspectionAddressPolicy.Evaluate(receipt),
-            null,
-            null,
-            null,
-            null);
 
     private static string RequirePrincipalCode(string? principalCode)
     {

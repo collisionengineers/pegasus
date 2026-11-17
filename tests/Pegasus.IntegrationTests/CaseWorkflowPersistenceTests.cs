@@ -3811,6 +3811,151 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         Assert.Equal("Rear-ended at lights", await circumstances.GetAsync(harness.CaseId, default));
     }
 
+    /// <summary>
+    /// A Case row reads each fact as the Case's own sections read it (R1112):
+    /// a make, model, registration or claim number only the vehicle lookup or
+    /// the instruction's extraction recorded shows before the instruction
+    /// draft's, on Search and the Cases list alike, Triage included or not.
+    /// Staff's value wins over it, and a make staff emptied shows nothing,
+    /// neither the looked-up one nor the draft's (R1077).
+    /// </summary>
+    [Fact]
+    public async Task CaseRowsReadStaffsValueThenTheLookedUpOneThenTheDraft()
+    {
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
+        var reference = await harness.ReadCaseReferenceAsync(harness.CaseId);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var receiptId = await context.Cases
+                .Where(item => item.Id == harness.CaseId)
+                .Select(item => item.OriginIntakeReceiptId)
+                .SingleAsync();
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO InstructionDrafts (IntakeReceiptId, VehicleMake, VehicleModel) VALUES ({receiptId}, {"DRAFT MAKE"}, {"DRAFT MODEL"})");
+            await InsertFactAsync(context, harness.CaseId, CaseDataFieldNames.VehicleMake, "FORD");
+            await InsertFactAsync(context, harness.CaseId, CaseDataFieldNames.VehicleModel, "FREEDOM");
+            await InsertFactAsync(context, harness.CaseId, CaseDataFieldNames.VehicleRegistration, "AB12CDE");
+            await InsertFactAsync(context, harness.CaseId, CaseDataFieldNames.ClaimNumber, "CLM-FACT-1");
+        }
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        async Task<CaseSearchItem> RowAsync(bool includeTriage) =>
+            Assert.Single((await harness.QueryStore.SearchAsync(
+                new(actor, new CaseSearchFilters(CaseReference: reference, IncludeTriage: includeTriage)),
+                default)).Items);
+        async Task AssertVehicleAsync(string? make, string? model)
+        {
+            foreach (var read in new[] { await RowAsync(includeTriage: false), await RowAsync(includeTriage: true) })
+            {
+                Assert.Equal(make, read.VehicleMake);
+                Assert.Equal(model, read.VehicleModel);
+            }
+        }
+
+        await AssertVehicleAsync("FORD", "FREEDOM");
+        var first = await RowAsync(includeTriage: false);
+        Assert.Equal("AB12CDE", first.Registration);
+        Assert.Equal("CLM-FACT-1", first.ClaimNumber);
+        Assert.Equal("Jane Workflow", first.Claimant);
+
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await InsertStaffValueAsync(context, harness.CaseId, CaseDataFieldNames.VehicleMake, "Ford Motor");
+        }
+        await AssertVehicleAsync("Ford Motor", "FREEDOM");
+
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseDataFields SET Value = {CaseDataFieldValues.ClearedValue} WHERE WorkId = {harness.CaseId} AND FieldName = {CaseDataFieldNames.VehicleMake} AND ValueKind = {CaseDataCodes.Confirmed}");
+        }
+        await AssertVehicleAsync(null, "FREEDOM");
+    }
+
+    /// <summary>
+    /// The Search preview's accident circumstances are the Case's accepted
+    /// value too (R1112): the extracted one before the draft's, and none where
+    /// staff emptied the box (R1077).
+    /// </summary>
+    [Fact]
+    public async Task ExtractedAccidentCircumstancesReadBeforeTheDraftsUntilStaffEmptyThem()
+    {
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var receiptId = await context.Cases
+                .Where(item => item.Id == harness.CaseId)
+                .Select(item => item.OriginIntakeReceiptId)
+                .SingleAsync();
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO InstructionDrafts (IntakeReceiptId, AccidentCircumstances) VALUES ({receiptId}, {"Struck on the roundabout"})");
+            await InsertFactAsync(
+                context, harness.CaseId, CaseDataFieldNames.AccidentCircumstances, "Hit from behind at the lights");
+        }
+        ICaseCircumstancesQueries circumstances = harness.QueryStore;
+
+        Assert.Equal("Hit from behind at the lights", await circumstances.GetAsync(harness.CaseId, default));
+
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await InsertStaffValueAsync(
+                context, harness.CaseId, CaseDataFieldNames.AccidentCircumstances, CaseDataFieldValues.ClearedValue);
+        }
+        Assert.Null(await circumstances.GetAsync(harness.CaseId, default));
+    }
+
+    /// <summary>
+    /// The row read stays one statement however many rows it returns: the
+    /// looked-up values come from keyed joins in the same query, never a read
+    /// per row (engineering, page budgets: a no-growth pair).
+    /// </summary>
+    [Fact]
+    public async Task ThreeCaseRowsReadInTheSameStatementsAsOne()
+    {
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            foreach (var caseId in new[] { harness.SecondCaseId, harness.NotReadyCaseId })
+            {
+                await context.Database.ExecuteSqlInterpolatedAsync(
+                    $"INSERT INTO CaseDataSnapshots (WorkId, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {"case-workflow"}, {1}, {true}, {DateTimeOffset.UtcNow})");
+            }
+
+            foreach (var caseId in new[] { harness.CaseId, harness.SecondCaseId, harness.NotReadyCaseId })
+            {
+                await InsertFactAsync(context, caseId, CaseDataFieldNames.VehicleMake, "FORD");
+                await InsertFactAsync(context, caseId, CaseDataFieldNames.VehicleModel, "FREEDOM");
+            }
+        }
+        var counter = new SqlStatementCounter();
+        var store = new EfCaseQueryStore(
+            new PooledDbContextFactory<PegasusDbContext>(new DbContextOptionsBuilder<PegasusDbContext>()
+                .UseSqlServer(harness.ConnectionString)
+                .AddInterceptors(counter)
+                .Options),
+            harness.TimeProvider);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        counter.Reset();
+        var one = await store.SearchAsync(new(actor, new CaseSearchFilters(), PageSize: 1), default);
+        var oneRow = counter.Count;
+        counter.Reset();
+        var three = await store.SearchAsync(new(actor, new CaseSearchFilters(), PageSize: 3), default);
+        var threeRows = counter.Count;
+
+        Assert.Single(one.Items);
+        Assert.Equal(3, three.Items.Count);
+        Assert.All(three.Items, item => Assert.Equal("FORD", item.VehicleMake));
+        Assert.True(threeRows <= oneRow, counter.Describe());
+    }
+
+    private static Task<int> InsertFactAsync(PegasusDbContext context, Guid caseId, string fieldName, string value) =>
+        context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {fieldName}, {"fact"}, {"text"}, {value}, {"vehicle_lookup"}, {"workflow-lookup-observation"}, {"offline-replay/fixture-v1"}, {"vehicle-lookup-gap-fill"}, {1})");
+
+    private static Task<int> InsertStaffValueAsync(PegasusDbContext context, Guid caseId, string fieldName, string value) =>
+        context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {fieldName}, {"confirmed"}, {"text"}, {value}, {"staff_correction"}, {"workflow-staff"}, {"staff case-data correction"}, {"case-data-edit"}, {1}, {"workflow-staff"}, {DateTimeOffset.UtcNow})");
+
     private static Task<int> InsertConfirmedCircumstancesAsync(PegasusDbContext context, Guid caseId, string text) =>
         context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"accident_circumstances"}, {"confirmed"}, {"text"}, {text}, {"intake_evidence"}, {"circumstances"}, {"workflow fixture evidence"}, {"workflow-fixture"}, {1}, {"workflow-staff"}, {DateTimeOffset.UtcNow})");

@@ -207,6 +207,9 @@ public sealed class AutomationMailIngressTests
             Assert.Equal(
                 "Please inspect the vehicle at the address supplied.",
                 structured.GetProperty("bodyPlainText").GetString());
+            Assert.Equal(
+                "Please inspect the vehicle at the address supplied.",
+                structured.GetProperty("freshBodyPlainText").GetString());
             var attachments = structured.GetProperty("attachments").EnumerateArray().ToArray();
             Assert.Single(attachments);
             Assert.Equal("estimate.pdf", attachments[0].GetProperty("fileName").GetString());

@@ -138,6 +138,43 @@ public sealed class StaffForwardBodyCleanerTests
     }
 
     [Fact]
+    public void FreshBodyOfAReplyIsTheTextAboveTheQuotedHeader()
+    {
+        const string body = "Please assess AB12 CDE.\n\n"
+            + "From: Desk <desk@ce.co.uk>\nSent: 1 November 2026\nTo: Sender <s@example.test>\nSubject: RE: An older job\n\n"
+            + "The older vehicle was ZZ99 ZZZ.";
+
+        var fresh = StaffForwardBodyCleaner.FreshBody(body, isStaffForward: false);
+
+        Assert.Equal("Please assess AB12 CDE.\n", fresh);
+    }
+
+    [Fact]
+    public void FreshBodyOfAStaffForwardIsTheForwardedOriginalWithoutOlderHistory()
+    {
+        const string cleaned = "From: Principal <p@principal.test>\nSent: 2 November 2026\nTo: Desk <desk@ce.co.uk>\nSubject: New job\n\n"
+            + "Please assess AB12 CDE.\n\n"
+            + "From: Desk <desk@ce.co.uk>\nSent: 1 November 2026\nTo: Principal <p@principal.test>\nSubject: An older job\n\n"
+            + "The older vehicle was ZZ99 ZZZ.";
+
+        var fresh = StaffForwardBodyCleaner.FreshBody(cleaned, isStaffForward: true);
+
+        Assert.Equal("Please assess AB12 CDE.\n", fresh);
+    }
+
+    [Fact]
+    public void FreshBodyWithNoQuotedHistoryIsTheWholeBody()
+    {
+        const string plain = "Please assess AB12 CDE.";
+        const string forwardOnly = "From: Principal <p@principal.test>\nSent: 2 November 2026\nTo: Desk <desk@ce.co.uk>\nSubject: New job\n\n"
+            + "Please assess AB12 CDE.";
+
+        Assert.Equal(plain, StaffForwardBodyCleaner.FreshBody(plain, isStaffForward: false));
+        Assert.Equal(forwardOnly, StaffForwardBodyCleaner.FreshBody(forwardOnly, isStaffForward: false));
+        Assert.Equal("Please assess AB12 CDE.", StaffForwardBodyCleaner.FreshBody(forwardOnly, isStaffForward: true));
+    }
+
+    [Fact]
     public void PrincipalFooterIsTrimmedAtTheEarliestMarkerKeepingTheSignOff()
     {
         // The letter-with-signature shape measured in the corpus: the

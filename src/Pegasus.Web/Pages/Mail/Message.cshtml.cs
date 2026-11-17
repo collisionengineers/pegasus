@@ -366,7 +366,7 @@ public sealed class MessageModel(
 
     public bool CanForward => StaffMailAvailable && CorrespondenceMailbox is not null;
 
-    public bool CanReply => StaffMailAvailable && ReplyAnswer.CanSend && ReplyRecipients(Detail).To.Length > 0;
+    public bool CanReply => StaffMailAvailable && ReplyAnswer.CanSend && StaffMailReplyRecipients.Reply(Detail).To.Length > 0;
 
     /// <summary>The mailbox a send in <paramref name="mode"/> leaves from; none when it cannot be sent.</summary>
     private ApprovedMailbox? SenderFor(StaffMailComposeMode mode) => mode == StaffMailComposeMode.Forward
@@ -1481,11 +1481,11 @@ public sealed class MessageModel(
 
         var (to, cc) = mode switch
         {
-            StaffMailComposeMode.Reply => ReplyRecipients(detail),
-            StaffMailComposeMode.ReplyAll => ReplyAllRecipients(detail, SenderFor(mode)?.Address),
+            StaffMailComposeMode.Reply => StaffMailReplyRecipients.Reply(detail),
+            StaffMailComposeMode.ReplyAll => StaffMailReplyRecipients.ReplyAll(detail, SenderFor(mode)?.Address),
             StaffMailComposeMode.Forward => (
-                ParseRecipients(CorrespondenceTo),
-                ParseRecipients(CorrespondenceCc)),
+                StaffMailReplyRecipients.Parse(CorrespondenceTo),
+                StaffMailReplyRecipients.Parse(CorrespondenceCc)),
             _ => ([], [])
         };
         var sender = SenderFor(mode);
@@ -1493,7 +1493,7 @@ public sealed class MessageModel(
             ModelState.AddModelError(nameof(CorrespondenceFromMailboxId), new CaseMailSenderRequiredException().Message);
         if (to.Length == 0)
             ModelState.AddModelError(nameof(CorrespondenceTo), "At least one recipient is required.");
-        if (to.Concat(cc).Any(recipient => !IsMailboxAddress(recipient.Address)))
+        if (to.Concat(cc).Any(recipient => !StaffMailReplyRecipients.IsMailboxAddress(recipient.Address)))
             ModelState.AddModelError(nameof(CorrespondenceTo), "Enter valid recipient addresses.");
 
         // The Case's files are read only when some are selected, and that one
@@ -1563,43 +1563,24 @@ public sealed class MessageModel(
             ModelState.AddModelError(string.Empty, exception.Message);
             return await ReloadAsync(actor, id, cancellationToken);
         }
+        catch (StaffMailOutcomeUnknownException exception)
+        {
+            // The provider's answer was ambiguous and the send is recorded
+            // Unknown: staff stay on this page with the sentence and the
+            // send's status (R1069). The composer keeps this operation key,
+            // so sending it again replays the Unknown send.
+            StaffMailSendLog.OutcomeUnknown(logger, exception.Operation.Id, sender!.Id, exception);
+            CorrespondenceOperation = exception.Operation;
+            CorrespondenceOperationId = exception.Operation.Id;
+            ModelState.AddModelError(string.Empty, CaseWorkspaceLabels.ReportDelivery.SendUnknown);
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
 
         return LandOn(id, ModeCode(mode), CorrespondenceOperation?.Id);
     }
 
     private async Task ResolveCorrespondenceSendersAsync(CancellationToken cancellationToken) =>
-        (CorrespondenceMailbox, ReplyAnswer) = await CorrespondenceSendersAsync(Detail, approvedMailboxes, cancellationToken);
-
-    /// <summary>
-    /// Who <paramref name="detail"/> is answered as, for staff and for the
-    /// Automation Actor's <c>pegasus_mail_send</c> alike: the send-ready
-    /// mailbox that holds it, which Forward sends as, and the
-    /// <see cref="StaffMailAnswer"/> Reply and Reply all leave from: any
-    /// send-ready mailbox, starting on the default (R655).
-    /// </summary>
-    internal static async Task<(ApprovedMailbox? Holding, StaffMailAnswer Reply)> CorrespondenceSendersAsync(
-        RetainedMailDetail detail,
-        IApprovedMailboxStore mailboxes,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(detail.ImmutableMessageId)
-            || detail.Summary.Id == Guid.Empty
-            || detail.Summary.MailboxId == Guid.Empty)
-        {
-            return (null, StaffMailAnswer.None);
-        }
-        var answer = StaffMailAnswer.For(
-            detail.Summary.MailboxId,
-            detail.Summary.MailboxAddress,
-            detail.Summary.SenderAddress,
-            detail.Summary.EffectiveSenderAddress,
-            await mailboxes.ListAsync(cancellationToken));
-        return (answer.Choices.Sender(detail.Summary.MailboxId), answer);
-    }
-
-    /// <summary>The original sender a staff forward held in instructions@ is answered to; null otherwise.</summary>
-    private static string? StaffForwardOriginalSender(RetainedMailSummary summary) =>
-        StaffMailAnswer.OriginalSender(summary.MailboxAddress, summary.SenderAddress, summary.EffectiveSenderAddress);
+        (CorrespondenceMailbox, ReplyAnswer) = await StaffMailAnswer.ForMessageAsync(Detail, approvedMailboxes, cancellationToken);
 
     private async Task<bool> LoadCorrespondenceContextAsync(
         ActionActor actor,
@@ -1635,7 +1616,7 @@ public sealed class MessageModel(
             ReplyAnswer = await ReplyAnswer.OrSendFromAsync(caseSendFrom, Detail.Summary.CaseId, cancellationToken);
         }
         if (mode is StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll
-            && ReplyRecipients(Detail).To.Length == 0)
+            && StaffMailReplyRecipients.Reply(Detail).To.Length == 0)
         {
             return false;
         }
@@ -1684,8 +1665,8 @@ public sealed class MessageModel(
         {
             var recipients = mode switch
             {
-                StaffMailComposeMode.Reply => ReplyRecipients(Detail),
-                StaffMailComposeMode.ReplyAll => ReplyAllRecipients(Detail, SenderFor(mode)?.Address),
+                StaffMailComposeMode.Reply => StaffMailReplyRecipients.Reply(Detail),
+                StaffMailComposeMode.ReplyAll => StaffMailReplyRecipients.ReplyAll(Detail, SenderFor(mode)?.Address),
                 _ => ([], [])
             };
             if (mode is StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)
@@ -1754,23 +1735,8 @@ public sealed class MessageModel(
         }
 
         var queries = HttpContext.RequestServices.GetRequiredService<ICaseQueryStore>();
-        return await HoldsOpenQueryAsync(
+        return await CaseQueryRules.HoldsOpenQueryAsync(
             queries, CorrespondenceCase.Summary.CaseId, Detail.Summary.Id, cancellationToken);
-    }
-
-    /// <summary>
-    /// Whether the retained message holds an open query on the Case: the rule
-    /// the composer offers Mark query done and Delete case correspondence by,
-    /// which the Automation send reads too.
-    /// </summary>
-    internal static async Task<bool> HoldsOpenQueryAsync(
-        ICaseQueryStore queries,
-        Guid caseId,
-        Guid retainedMessageId,
-        CancellationToken cancellationToken)
-    {
-        var listed = await queries.ListCaseQueriesAsync(caseId, cancellationToken);
-        return listed.Any(item => item.IsOpen && item.Message?.RetainedMessageId == retainedMessageId);
     }
 
     private Task<CaseHeader?> ResolveCaseAsync(
@@ -1851,89 +1817,14 @@ public sealed class MessageModel(
         return !string.IsNullOrWhiteSpace(normalized) && normalized.Length <= 300;
     }
 
-    /// <summary>
-    /// Reply answers the message's Reply-To, or From without one; a Collision
-    /// Engineers staff forward held in instructions@ is answered as though the
-    /// original had arrived directly, to its original sender (operator, 3
-    /// November 2026; R651, R652).
-    /// </summary>
-    internal static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyRecipients(
-        RetainedMailDetail detail) =>
-        (StaffForwardOriginalSender(detail.Summary) is { } original
-            ? ParseRecipients(original)
-            : ParseRecipients(detail.ReplyToAddresses), []);
-
-    /// <summary>
-    /// Reply all adds the message's To and Cc, less <paramref name="ownAddress"/>;
-    /// a staff forward held in instructions@ adds the original message's own,
-    /// read from its forwarded header, less the mailbox that forwarded it too
-    /// (operator, 3 November 2026; R652, R653).
-    /// </summary>
-    internal static (StaffMailRecipient[] To, StaffMailRecipient[] Cc) ReplyAllRecipients(
-        RetainedMailDetail detail,
-        string? ownAddress)
-    {
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (ownAddress is not null)
-            seen.Add(ownAddress);
-        var to = new List<StaffMailRecipient>();
-        var cc = new List<StaffMailRecipient>();
-        AddUnique(to, ReplyRecipients(detail).To, seen);
-        if (StaffForwardOriginalSender(detail.Summary) is null)
-        {
-            AddUnique(to, detail.ToAddresses.Select(AddressRecipient), seen);
-            AddUnique(cc, detail.CcAddresses.Select(AddressRecipient), seen);
-        }
-        else
-        {
-            seen.Add(detail.Summary.SenderAddress!.Trim());
-            var original = StaffForwardBodyCleaner.ForwardedRecipients(detail.BodyPlainText ?? string.Empty);
-            AddUnique(to, original.To.Select(AddressRecipient), seen);
-            AddUnique(cc, original.Cc.Select(AddressRecipient), seen);
-        }
-        return ([.. to], [.. cc]);
-    }
-
-    private static void AddUnique(
-        List<StaffMailRecipient> target,
-        IEnumerable<StaffMailRecipient> candidates,
-        HashSet<string> seen)
-    {
-        foreach (var candidate in candidates)
-        {
-            if (seen.Add(candidate.Address))
-                target.Add(candidate);
-        }
-    }
-
-    private static StaffMailRecipient AddressRecipient(string address) =>
-        new(address.Trim(), DisplayName: null);
-
-    private static StaffMailRecipient[] ParseRecipients(string? value) =>
-        (value ?? string.Empty)
-            .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(AddressRecipient)
-            .DistinctBy(item => item.Address, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-    private static StaffMailRecipient[] ParseRecipients(IReadOnlyList<string>? values) =>
-        (values ?? [])
-            .SelectMany(ParseRecipients)
-            .Where(item => IsMailboxAddress(item.Address))
-            .DistinctBy(item => item.Address, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-    private static bool IsMailboxAddress(string value) =>
-        System.Net.Mail.MailAddress.TryCreate(value, out var parsed)
-        && string.Equals(parsed.Address, value, StringComparison.OrdinalIgnoreCase);
-
     private static string SubjectFor(StaffMailComposeMode mode, RetainedMailSummary summary)
     {
         var value = summary.Subject?.Trim() ?? string.Empty;
         return mode switch
         {
             // Only a staff forward held in instructions@ drops its "FW:" here (R652).
-            StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll when StaffForwardOriginalSender(summary) is not null =>
+            StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll
+                when StaffMailAnswer.OriginalSender(summary.MailboxAddress, summary.SenderAddress, summary.EffectiveSenderAddress) is not null =>
                 StaffMailReplySubject.For(summary.Subject, summary.SenderAddress, summary.EffectiveSenderAddress),
             StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll
                 when value.StartsWith("Re:", StringComparison.OrdinalIgnoreCase) => value,

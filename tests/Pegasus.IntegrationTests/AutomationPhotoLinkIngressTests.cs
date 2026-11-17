@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.PhotoCapture;
@@ -25,6 +26,9 @@ public sealed class AutomationPhotoLinkIngressTests
     private const string CasesAndSend = "automation.cases automation.send";
 
     private static readonly ApprovedMailboxRouteScope[] Outgoing = [ApprovedMailboxRouteScope.Outgoing];
+
+    /// <summary>The history lines of the link the first test sends and acts on.</summary>
+    private static readonly string[] AutomationActs = [Labels.Created, Labels.LinkExtended, Labels.CallLoggedAt, Labels.Cancelled];
 
     [Fact]
     public async Task ALinksCaseworkRunsThroughTheStaffCommandsUnderTheCasesScope()
@@ -143,6 +147,42 @@ public sealed class AutomationPhotoLinkIngressTests
             Assert.Contains(PhotoLinkActions.LinkCancelled, await ReadErrorTextAsync(resent), StringComparison.Ordinal);
         }
 
+        // The cancel repeated under its key is answered as done, not refused (R1092).
+        using (var again = await PostMcpAsync(client, token, ToolCallPayload(11, "pegasus_photo_link_action", new
+        {
+            action = "cancel", captureId, operationKey = "mcp:photo-cancel",
+        })))
+        {
+            var link = (await ReadStructuredContentAsync(again)).GetProperty("link");
+            Assert.Equal(nameof(PhotoCaptureState.Cancelled), link.GetProperty("state").GetString());
+        }
+
+        // An act a cancelled link does not offer is refused under a new key (R1092).
+        using (var extendCancelled = await PostMcpAsync(client, token, ToolCallPayload(12, "pegasus_photo_link_action", new
+        {
+            action = "extend", captureId, days = 7, operationKey = "mcp:photo-extend-cancelled",
+        })))
+        {
+            Assert.Contains(
+                "extend is not offered on this link; pegasus_photo_link_get lists the acts it offers.",
+                await ReadErrorTextAsync(extendCancelled),
+                StringComparison.Ordinal);
+        }
+
+        // A link the Automation Actor sent and acted on reads Automation as
+        // its sender and on each of its acts (#2147; R1093).
+        using (var named = await PostMcpAsync(client, token, ToolCallPayload(13, "pegasus_photo_link_get", new { captureId })))
+        {
+            var result = await ReadStructuredContentAsync(named);
+            Assert.Equal(ActorDisplayNames.Automation, result.GetProperty("link").GetProperty("sentBy").GetString());
+            var history = result.GetProperty("history").EnumerateArray().ToArray();
+            foreach (var label in AutomationActs)
+            {
+                var line = Assert.Single(history, item => item.GetProperty("label").GetString() == label);
+                Assert.Equal(ActorDisplayNames.Automation, line.GetProperty("detail").GetString());
+            }
+        }
+
         // A token without automation.send cannot send a link.
         using (var send = await PostMcpAsync(client, token, ToolCallPayload(10, "pegasus_photo_link_send", new
         {
@@ -221,6 +261,55 @@ public sealed class AutomationPhotoLinkIngressTests
             $"SELECT COUNT(*) FROM PhotoCaptures WHERE CaseId = '{caseId:D}'"));
     }
 
+    /// <summary>
+    /// A photo link e-mail whose provider answer is ambiguous (a Graph server
+    /// error or a timeout) answers its Unknown operation with the link, as a
+    /// returned Unknown does, never "The automation action failed." (R1123).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SendingByEmailWithAnUnknownOutcomeAnswersItsUnknownOperation(bool timedOut)
+    {
+        var mail = new RecordingMailSend
+        {
+            ProviderFault = timedOut
+                ? new TaskCanceledException("The request timed out.", new TimeoutException())
+                : new HttpRequestException(
+                    "Microsoft Graph returned 503.", null, System.Net.HttpStatusCode.ServiceUnavailable)
+        };
+        var mailbox = OutgoingMailbox();
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IStaffMailSend>();
+                services.AddSingleton<IStaffMailSend>(mail);
+                services.RemoveAll<IApprovedMailboxStore>();
+                services.AddSingleton<IApprovedMailboxStore>(new FixedMailboxes(mailbox));
+            }));
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, CasesAndSend);
+
+        using var sent = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_photo_link_send", new
+        {
+            action = "send",
+            channel = "email",
+            caseId,
+            operationKey = "mcp:photo-send-unknown",
+            email = "sam.taylor@example.com",
+            customerName = "Sam Taylor",
+            fromMailbox = mailbox.Address,
+        }));
+        var result = await ReadStructuredContentAsync(sent);
+
+        Assert.Single(mail.Commands);
+        Assert.Equal(nameof(StaffMailState.Unknown), result.GetProperty("state").GetString());
+        Assert.False(result.GetProperty("replayed").GetBoolean());
+        Assert.False(string.IsNullOrWhiteSpace(result.GetProperty("linkUrl").GetString()));
+    }
+
     private static bool IsNullOrAbsent(JsonElement element, string property) =>
         !element.TryGetProperty(property, out var value) || value.ValueKind == JsonValueKind.Null;
 
@@ -253,10 +342,16 @@ public sealed class AutomationPhotoLinkIngressTests
                 && mailbox.RouteScopes.Contains(routeScope)));
     }
 
-    /// <summary>A staff send that records each message and reports it Submitted.</summary>
+    /// <summary>
+    /// A staff send that records each message and reports it Submitted; with
+    /// <see cref="ProviderFault"/>, it records it Unknown and throws as the
+    /// engine does when the provider's answer is ambiguous.
+    /// </summary>
     private sealed class RecordingMailSend : IStaffMailSend
     {
         private readonly List<StaffMailSendCommand> commands = [];
+
+        public Exception? ProviderFault { get; init; }
 
         public IReadOnlyList<StaffMailSendCommand> Commands
         {
@@ -274,6 +369,16 @@ public sealed class AutomationPhotoLinkIngressTests
             lock (commands)
             {
                 commands.Add(command);
+            }
+
+            if (ProviderFault is { } fault)
+            {
+                throw new StaffMailOutcomeUnknownException(
+                    new StaffMailOperation(
+                        Guid.NewGuid(), StaffMailState.Unknown, StaffMailAttemptStage.Send, 5, SeedUtcNow,
+                        null, null, "provider_outcome_unknown", command.ApprovedMailboxId, 3, new string('A', 64),
+                        SeedUtcNow, null, command.Purpose, command.ContextId, 1, null),
+                    fault);
             }
 
             return Task.FromResult(new StaffMailOperation(

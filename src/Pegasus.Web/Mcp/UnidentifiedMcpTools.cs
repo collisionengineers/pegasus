@@ -42,7 +42,7 @@ internal sealed record UnidentifiedToolDetail(
     UnidentifiedToolItem Item,
     IReadOnlyList<UnidentifiedSourceToolItem> Sources,
     IReadOnlyList<UnidentifiedHistoryEntry> History,
-    IReadOnlyList<RegistrationReadingToolItem> Readings,
+    IReadOnlyList<UnidentifiedReadingToolItem> Readings,
     bool CanRegisterImages,
     string? SuggestedRegistration,
     string CorrelationId);
@@ -51,7 +51,7 @@ internal sealed record UnidentifiedToolDetail(
 /// One registration reading of retained image material: what the plate
 /// recognition read from one image and the staff decision on it.
 /// </summary>
-internal sealed record RegistrationReadingToolItem(
+internal record RegistrationReadingToolItem(
     Guid Id,
     Guid ReceiptId,
     string Outcome,
@@ -70,6 +70,42 @@ internal sealed record RegistrationReadingToolItem(
         reading.Disposition.ToString(),
         reading.DispositionReason,
         reading.OccurredAtUtc);
+}
+
+/// <summary>
+/// A registration reading as the Unidentified record shows it, with whether
+/// the record offers Dismiss on it (R1092).
+/// </summary>
+internal sealed record UnidentifiedReadingToolItem(
+    Guid Id,
+    Guid ReceiptId,
+    string Outcome,
+    string? SuggestedRegistration,
+    double? Confidence,
+    string Disposition,
+    string? DispositionReason,
+    DateTimeOffset OccurredAtUtc,
+    bool CanDismiss)
+    : RegistrationReadingToolItem(
+        Id,
+        ReceiptId,
+        Outcome,
+        SuggestedRegistration,
+        Confidence,
+        Disposition,
+        DispositionReason,
+        OccurredAtUtc)
+{
+    public static UnidentifiedReadingToolItem From(ImageVrmSuggestion reading, UnidentifiedItemContext itemContext) => new(
+        reading.Id,
+        reading.IntakeReceiptId,
+        reading.Outcome.ToString(),
+        reading.SuggestedRegistration,
+        reading.Confidence,
+        reading.Disposition.ToString(),
+        reading.DispositionReason,
+        reading.OccurredAtUtc,
+        itemContext.OffersDismiss(reading));
 }
 
 internal sealed record UnidentifiedActionToolResult(
@@ -105,7 +141,7 @@ internal sealed class UnidentifiedMcpTools(
     IExtractPdfPageText pdfText,
     IIntakeSubmissionGroupStore groupStore,
     GetUnidentifiedItemContext getContext,
-    IVrmSuggestionStore vrmSuggestions,
+    DismissRegistrationReading dismissReading,
     StaffIntakeActions intakeActions,
     IImageIntakeStore imageIntakes,
     TimeProvider timeProvider,
@@ -178,7 +214,9 @@ internal sealed class UnidentifiedMcpTools(
                     Map(item),
                     await GetSourcesAsync(item, context.Actor, cancellationToken),
                     await store.HistoryAsync(item.Id, cancellationToken),
-                    ShownReadings(itemContext).Select(RegistrationReadingToolItem.From).ToArray(),
+                    ShownReadings(itemContext)
+                        .Select(reading => UnidentifiedReadingToolItem.From(reading, itemContext))
+                        .ToArray(),
                     itemContext.CanRegisterImages,
                     itemContext.SuggestedRegistration,
                     context.TraceIdentifier);
@@ -411,12 +449,17 @@ internal sealed class UnidentifiedMcpTools(
                             readingId ?? throw new McpException("dismiss_reading needs readingId."),
                             "reading identifier");
                         itemContext.RequireReading(reading);
+                        var current = itemContext.RegistrationReadings.First(candidate => candidate.Id == reading);
                         // A reading already decided is refused unless this key decided it.
-                        var decided = itemContext.RegistrationReadings.Any(candidate =>
-                            candidate.Id == reading && candidate.Disposition != ImageVrmSuggestionDisposition.Pending);
-                        var dismissed = await vrmSuggestions.SetDispositionAsync(
-                            new(reading, ImageVrmSuggestionDisposition.Dismissed, context.Actor, reason, key),
-                            cancellationToken);
+                        var decided = current.Disposition != ImageVrmSuggestionDisposition.Pending;
+                        if (!decided && !itemContext.OffersDismiss(current))
+                        {
+                            throw new McpException(
+                                "dismiss_reading is not offered on this reading; pegasus_unidentified_get lists the readings that offer it.");
+                        }
+
+                        var dismissed = await dismissReading.ExecuteAsync(
+                            itemContext, reading, context.Actor, reason, key, cancellationToken);
                         return new UnidentifiedActionToolResult(
                             await ReloadAsync(item, cancellationToken),
                             "dismiss_reading",

@@ -830,11 +830,13 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         var saved = await harness.WorkspaceStore.SaveAsync(
             Request(harness, initial.Version, lease.Token, "workspace-confirmed-make") with
             {
+                // The section posts its other boxes as shown, the extracted
+                // mileage included (R1077).
                 Vehicle = new(
                     "AB12 CDE",
                     "Ford",
                     null,
-                    null,
+                    new(Harness.FixtureMileage, CaseOdometerUnit.Miles, null),
                     new Dictionary<string, string?>(StringComparer.Ordinal))
             },
             CancellationToken.None);
@@ -1953,9 +1955,10 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         var second = await harness.WorkspaceStore.SaveAsync(
             Request(harness, first.Version, again.Token, "basis-save-2", engineer) with
             {
-                // The Case's own mileage, in kilometres, recorded by the same save.
+                // The Case's own mileage, in kilometres, recorded by the same
+                // save beside its extracted registration as shown (R1077).
                 Vehicle = new(
-                    null,
+                    "AB12 CDE",
                     null,
                     null,
                     new(100_000, CaseOdometerUnit.Kilometres, null),
@@ -2646,6 +2649,275 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         Assert.False(due.DueBySetByStaff);
     }
 
+    /// <summary>
+    /// Blank means blank (R1077): emptying a box whose value was extracted
+    /// records staff's clear, an empty value under their name and time. The
+    /// Case shows no value, the extracted one stays as history, and the
+    /// history line names the field once. Posting the empty box again names
+    /// nothing and leaves who cleared it alone; retyping the value brings it
+    /// back.
+    /// </summary>
+    [Fact]
+    public async Task EmptyingAnExtractedClaimNumberRecordsTheClearUntilStaffRetypeIt()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var initial = await harness.GetRequiredDataAsync();
+        var extracted = Assert.IsType<CaseDataValue<string>>(initial.Claim.Number.Fact);
+        Assert.Null(initial.Claim.Number.Confirmed);
+        var clearedAtUtc = harness.TimeProvider.GetUtcNow();
+        // The overview as the page shows it: Due by shows the accepted
+        // inspection deadline (R1120), so only the claim number changes.
+        var shown = Overview("Jane Example") with { DueBy = new DateOnly(2031, 5, 20) };
+
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "clear-claim-number-lease");
+        var cleared = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "clear-claim-number") with
+            {
+                Overview = shown with { ClaimNumber = null }
+            },
+            CancellationToken.None);
+
+        Assert.True(cleared.Data.Claim.Number.Cleared);
+        Assert.Null(cleared.Data.Claim.Number.Current);
+        Assert.Null(cleared.Data.Claim.Number.Fact);
+        Assert.Null(cleared.Assessment.CaseOwned.ClaimNumber);
+        Assert.Null((await ReadEditableCaseDataAsync(harness)).ClaimNumber);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var rows = await context.CaseDataFields.AsNoTracking()
+                .Where(item => item.WorkId == harness.CaseId && item.FieldName == CaseDataFieldNames.ClaimNumber)
+                .ToDictionaryAsync(item => item.ValueKind, StringComparer.Ordinal);
+            var staff = rows[CaseDataCodes.Confirmed];
+            Assert.Equal(string.Empty, staff.Value);
+            Assert.Equal(CaseDataCodes.Text, staff.ValueType);
+            Assert.Equal(CaseDataCodes.StaffCorrection, staff.SourceKind);
+            Assert.Equal(harness.StaffActor.SubjectId, staff.ConfirmedByActor);
+            Assert.Equal(clearedAtUtc, staff.ConfirmedAtUtc!.Value);
+            Assert.Equal(extracted.Value, rows[CaseDataCodes.Fact].Value);
+            Assert.Equal(CaseDataCodes.IntakeEvidence, rows[CaseDataCodes.Fact].SourceKind);
+            var line = await context.CaseHistory.AsNoTracking()
+                .Where(item => item.CaseId == harness.CaseId && item.OperationKey == "clear-claim-number")
+                .Select(item => item.Reason)
+                .SingleAsync();
+            Assert.StartsWith("Claim number · ", line, StringComparison.Ordinal);
+        }
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
+        var againLease = await harness.AcquireLeaseAsync(cleared.Version, harness.StaffActor, "clear-claim-number-again-lease");
+        var again = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, cleared.Version, againLease.Token, "clear-claim-number-again") with
+            {
+                Overview = shown with { ClaimNumber = null }
+            },
+            CancellationToken.None);
+
+        Assert.True(again.Data.Claim.Number.Cleared);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var staff = await context.CaseDataFields.AsNoTracking()
+                .SingleAsync(item => item.WorkId == harness.CaseId
+                    && item.FieldName == CaseDataFieldNames.ClaimNumber
+                    && item.ValueKind == CaseDataCodes.Confirmed);
+            Assert.Equal(string.Empty, staff.Value);
+            Assert.Equal(clearedAtUtc, staff.ConfirmedAtUtc!.Value);
+            var line = await context.CaseHistory.AsNoTracking()
+                .Where(item => item.CaseId == harness.CaseId && item.OperationKey == "clear-claim-number-again")
+                .Select(item => item.Reason)
+                .SingleAsync();
+            Assert.StartsWith("No field changed", line, StringComparison.Ordinal);
+        }
+
+        var retypeLease = await harness.AcquireLeaseAsync(again.Version, harness.StaffActor, "retype-claim-number-lease");
+        var retyped = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, again.Version, retypeLease.Token, "retype-claim-number") with
+            {
+                Overview = shown
+            },
+            CancellationToken.None);
+
+        Assert.False(retyped.Data.Claim.Number.Cleared);
+        Assert.Equal(extracted.Value, retyped.Data.Claim.Number.Current?.Value);
+        Assert.Equal(extracted.Value, retyped.Data.Claim.Number.Fact?.Value);
+        Assert.Equal(extracted.Value, (await ReadEditableCaseDataAsync(harness)).ClaimNumber);
+    }
+
+    /// <summary>
+    /// A value only staff had entered has nothing behind it: emptying its box
+    /// removes it, as before (R1077).
+    /// </summary>
+    [Fact]
+    public async Task EmptyingAValueOnlyStaffEnteredRemovesIt()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var initial = await harness.GetRequiredDataAsync();
+        Assert.Null(initial.Claimant.ContactNumber.Current);
+        var shown = Overview("Jane Example") with { DueBy = new DateOnly(2031, 5, 20) };
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "staff-contact-lease");
+        var entered = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "staff-contact") with
+            {
+                Overview = shown with { ClaimantContactNumber = "0113 496 0000" }
+            },
+            CancellationToken.None);
+        Assert.Equal("0113 496 0000", entered.Data.Claimant.ContactNumber.Confirmed?.Value);
+
+        var clearLease = await harness.AcquireLeaseAsync(entered.Version, harness.StaffActor, "staff-contact-clear-lease");
+        var emptied = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, entered.Version, clearLease.Token, "staff-contact-clear") with
+            {
+                Overview = shown
+            },
+            CancellationToken.None);
+
+        Assert.False(emptied.Data.Claimant.ContactNumber.Cleared);
+        Assert.Null(emptied.Data.Claimant.ContactNumber.Current);
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        Assert.False(await context.CaseDataFields.AnyAsync(item =>
+            item.WorkId == harness.CaseId && item.FieldName == CaseDataFieldNames.ClaimantContactNumber));
+    }
+
+    /// <summary>
+    /// Emptying an extracted inspection date leaves the report with no date
+    /// and stales the report that printed one (R1077).
+    /// </summary>
+    [Fact]
+    public async Task EmptyingAnExtractedInspectionDateEmptiesTheReportDateAndStalesTheReport()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var initial = await harness.GetRequiredDataAsync();
+        Assert.Equal(new DateOnly(2031, 5, 20), initial.Inspection.InspectionDate.Fact?.Value);
+        var inspection = Inspection(CaseReportAddressTreatment.PhysicalVehicleLocation, "1 Depot Road");
+        var firstLease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "inspection-clear-first-lease");
+        var inspected = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, firstLease.Token, "inspection-clear-first") with
+            {
+                Inspection = inspection
+            },
+            CancellationToken.None);
+        Assert.Equal(new DateOnly(2031, 5, 20), inspected.Assessment.CaseOwned.InspectionDate);
+        var generationId = await SeedCurrentGenerationAsync(harness, inspected.Version);
+
+        var clearLease = await harness.AcquireLeaseAsync(inspected.Version, harness.StaffActor, "inspection-clear-lease");
+        var cleared = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, inspected.Version, clearLease.Token, "inspection-clear") with
+            {
+                Inspection = inspection with { InspectionDate = null }
+            },
+            CancellationToken.None);
+
+        Assert.True(cleared.Data.Inspection.InspectionDate.Cleared);
+        Assert.Null(cleared.Assessment.CaseOwned.InspectionDate);
+        Assert.Null((await ReadEditableCaseDataAsync(harness)).InspectionDate);
+        await AssertGenerationStateAsync(
+            harness,
+            generationId,
+            CaseReportGenerationState.Stale,
+            expectedStaleEvents: 1,
+            expectedReason: CaseReportStaleReasons.AssessmentFactsChanged);
+    }
+
+    /// <summary>
+    /// Emptying an extracted mileage clears its unit with it (R1080). The
+    /// Not ready queue's gate reads no mileage recorded, the vehicle evidence
+    /// still loads with nothing confirmed, and a Case already in Review is
+    /// never sent back (R631, R759, R1081).
+    /// </summary>
+    [Fact]
+    public async Task EmptyingAnExtractedMileageClearsItsUnitAndTheGateButKeepsAReviewCaseInReview()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var initial = await harness.GetRequiredDataAsync();
+        Assert.Equal(CaseLifecycleState.Review, initial.State);
+        Assert.Equal(Harness.FixtureMileage, initial.Vehicle.Mileage.Fact?.Value);
+        Assert.NotNull(initial.Vehicle.MileageUnit.Fact);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "clear-mileage-lease");
+
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "clear-mileage") with
+            {
+                Vehicle = new("AB12 CDE", null, null, null, null)
+            },
+            CancellationToken.None);
+
+        Assert.Equal(CaseLifecycleState.Review, saved.Data.State);
+        Assert.True(saved.Data.Vehicle.Mileage.Cleared);
+        Assert.True(saved.Data.Vehicle.MileageUnit.Cleared);
+        Assert.Null(saved.Data.Vehicle.Mileage.Current);
+        Assert.Null(saved.Assessment.CaseOwned.Mileage);
+        var editable = await ReadEditableCaseDataAsync(harness);
+        Assert.Null(editable.VehicleMileage);
+        Assert.Null(editable.VehicleMileageUnit);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var staff = await context.CaseDataFields.AsNoTracking()
+                .Where(item => item.WorkId == harness.CaseId
+                    && item.ValueKind == CaseDataCodes.Confirmed
+                    && (item.FieldName == CaseDataFieldNames.VehicleMileage
+                        || item.FieldName == CaseDataFieldNames.VehicleMileageUnit))
+                .ToDictionaryAsync(item => item.FieldName, StringComparer.Ordinal);
+            Assert.Equal(string.Empty, staff[CaseDataFieldNames.VehicleMileage].Value);
+            Assert.Equal(CaseDataCodes.Integer, staff[CaseDataFieldNames.VehicleMileage].ValueType);
+            Assert.Equal(string.Empty, staff[CaseDataFieldNames.VehicleMileageUnit].Value);
+            Assert.Equal(2, await context.CaseDataFields.AsNoTracking().CountAsync(item =>
+                item.WorkId == harness.CaseId
+                && item.ValueKind == CaseDataCodes.Fact
+                && (item.FieldName == CaseDataFieldNames.VehicleMileage
+                    || item.FieldName == CaseDataFieldNames.VehicleMileageUnit)));
+        }
+
+        var blockers = await ((INotReadyCaseQueries)new EfCaseQueryStore(harness.Factory, harness.TimeProvider))
+            .GetBlockersAsync([harness.CaseId], CancellationToken.None);
+        Assert.Equal(new CaseVehicleGate(true, false), blockers[harness.CaseId].VehicleGate);
+        var evidence = await new EfVehicleWorkflowStore(harness.Factory, harness.TimeProvider)
+            .GetAsync(harness.CaseId, CancellationToken.None);
+        Assert.NotNull(evidence);
+        Assert.Null(evidence.Confirmed);
+    }
+
+    /// <summary>
+    /// The shared readers of a field (R1077): a cleared box has no accepted
+    /// and no current value, whatever fact or suggestion stands behind it.
+    /// </summary>
+    [Fact]
+    public void AClearedBoxNeverFallsBackToTheFactOrSuggestionBehindIt()
+    {
+        CaseDataFieldEntity Row(string kind, string value) => new()
+        {
+            WorkId = Guid.Empty,
+            FieldName = CaseDataFieldNames.VehicleMake,
+            ValueKind = kind,
+            ValueType = CaseDataCodes.Text,
+            Value = value,
+            SourceKind = kind == CaseDataCodes.Confirmed ? CaseDataCodes.StaffCorrection : CaseDataCodes.VehicleLookup,
+            SourceIdentity = "test",
+            SourceLabel = "test",
+            PolicyKey = "test",
+            PolicyVersion = 1,
+            ConfirmedByActor = kind == CaseDataCodes.Confirmed ? "staff" : null,
+            ConfirmedAtUtc = kind == CaseDataCodes.Confirmed ? DateTimeOffset.UnixEpoch : null
+        };
+
+        List<CaseDataFieldEntity> fields =
+        [
+            Row(CaseDataCodes.Fact, "FORD"),
+            Row(CaseDataCodes.Suggestion, "FIAT"),
+            Row(CaseDataCodes.Confirmed, CaseDataFieldValues.ClearedValue)
+        ];
+
+        Assert.True(CaseDataFieldValues.IsClearedField(fields, CaseDataFieldNames.VehicleMake));
+        Assert.Null(CaseDataFieldValues.AcceptedField(fields, CaseDataFieldNames.VehicleMake));
+        Assert.Null(CaseDataFieldValues.CurrentField(fields, CaseDataFieldNames.VehicleMake));
+        Assert.Null(CaseDataFieldValues.Accepted(fields, CaseDataFieldNames.VehicleMake));
+        Assert.Null(CaseDataFieldValues.Current(fields, CaseDataFieldNames.VehicleMake));
+
+        // Retyped, the value stands again; with no clear the fact stands.
+        fields[2].Value = "MAZDA";
+        Assert.Equal("MAZDA", CaseDataFieldValues.Current(fields, CaseDataFieldNames.VehicleMake));
+        fields.RemoveAt(2);
+        Assert.False(CaseDataFieldValues.IsClearedField(fields, CaseDataFieldNames.VehicleMake));
+        Assert.Equal("FORD", CaseDataFieldValues.Accepted(fields, CaseDataFieldNames.VehicleMake));
+    }
+
     [Fact]
     public async Task SavingDueByWithoutDueWorkCreatesAStoppedProjectionWithoutAChase()
     {
@@ -2991,6 +3263,9 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         null,
         null);
 
+    // The inspection section posts every box as the page shows it: the
+    // harness's extracted inspection date included, since an emptied box
+    // records a clear (R1077).
     private static CaseWorkspaceInspection Inspection(
         CaseReportAddressTreatment treatment,
         string? address) => new(
@@ -2998,7 +3273,7 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         address,
         null,
         null,
-        null,
+        new DateOnly(2031, 5, 20),
         new DateOnly(2031, 5, 20),
         null,
         null,

@@ -46,5 +46,4 @@ public sealed partial class DetailsModel
     private IAssignCaseQuery assignCaseQuery => field ??= PostService<IAssignCaseQuery>();
     private IStartMarketResearch startMarketResearch => field ??= PostService<IStartMarketResearch>();
     private IPreviewValuationCalculation previewValuation => field ??= PostService<IPreviewValuationCalculation>();
-    private GetCaseHasAuditWork getCaseHasAuditWork => field ??= PostService<GetCaseHasAuditWork>();
 }

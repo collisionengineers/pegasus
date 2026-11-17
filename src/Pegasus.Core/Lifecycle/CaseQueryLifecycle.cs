@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -89,6 +90,22 @@ public static class CaseQueryRules
     /// </summary>
     public static bool ResolvesOnObservedReply(bool flagged, bool messageHasOpenQuery) =>
         flagged && messageHasOpenQuery;
+
+    /// <summary>
+    /// Whether the retained message holds an open query on the Case: the rule
+    /// the composer offers Mark query done and Delete case correspondence by,
+    /// which the Automation send reads too.
+    /// </summary>
+    public static async Task<bool> HoldsOpenQueryAsync(
+        ICaseQueryStore queries,
+        Guid caseId,
+        Guid retainedMessageId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(queries);
+        var listed = await queries.ListCaseQueriesAsync(caseId, cancellationToken).ConfigureAwait(false);
+        return listed.Any(item => item.IsOpen && item.Message?.RetainedMessageId == retainedMessageId);
+    }
 
     /// <summary>
     /// The Query stage: an open Case with an open query reads as Query on every

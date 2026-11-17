@@ -26,21 +26,29 @@ internal static class CaseInstructionCompleteness
         CaseDataFieldWriter.ReadEditable(snapshot).VehicleMileage;
 
     /// <summary>
-    /// Whether the mileage gate lets the Case into Review from its stored
-    /// state (R759): a Case with no mileage stays Not ready; one past Not
+    /// The vehicle gate (R759, R1081) of a Case in <paramref name="state"/>,
+    /// or of one being created when it is null, from its accepted data: a
+    /// Case with no registration or no mileage stays Not ready; one past Not
     /// ready has passed the gate.
     /// </summary>
-    internal static bool MileageGateOpen(CaseDataSnapshotEntity snapshot, string workflowState) =>
-        CaseCompletenessPolicy.MileageGateOpen(Enum.Parse<CaseLifecycleState>(workflowState), Mileage(snapshot));
+    internal static CaseVehicleGate VehicleGate(CaseDataSnapshotEntity snapshot, CaseLifecycleState? state)
+    {
+        var data = CaseDataFieldWriter.ReadEditable(snapshot);
+        return CaseCompletenessPolicy.VehicleGate(state, data.VehicleRegistration, data.VehicleMileage);
+    }
 
-    /// <summary>The mileage gate (<see cref="MileageGateOpen(CaseDataSnapshotEntity, string)"/>) read from the Case's stored data.</summary>
-    internal static async Task<bool> MileageGateOpenAsync(
+    /// <summary>The vehicle gate of a Case from its stored workflow state.</summary>
+    internal static CaseVehicleGate StoredVehicleGate(CaseDataSnapshotEntity snapshot, string workflowState) =>
+        VehicleGate(snapshot, Enum.Parse<CaseLifecycleState>(workflowState));
+
+    /// <summary>The vehicle gate (<see cref="StoredVehicleGate"/>) read from the Case's stored data.</summary>
+    internal static async Task<CaseVehicleGate> StoredVehicleGateAsync(
         PegasusDbContext db, Guid caseId, string workflowState, CancellationToken cancellationToken)
     {
         var snapshot = await EfCaseDataStore.SnapshotQuery(db, tracking: false)
             .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken)
             ?? throw new InvalidDataException("The Case has no data snapshot.");
-        return MileageGateOpen(snapshot, workflowState);
+        return StoredVehicleGate(snapshot, workflowState);
     }
 
     /// <summary>
@@ -63,7 +71,7 @@ internal static class CaseInstructionCompleteness
     /// Re-evaluates readiness from the Case's stored facts after a system
     /// write changed one, and records the policy it used: a Not ready or
     /// Review Case with no Engineer moves to Review when nothing required is
-    /// missing, the mileage included (R759), and otherwise stays Not ready
+    /// missing, the registration and mileage included (R759, R1081), and otherwise stays Not ready
     /// with its chase scheduled.
     /// </summary>
     internal static async Task<CaseCompletenessEvaluation> ApplyReadinessAsync(
@@ -81,7 +89,7 @@ internal static class CaseInstructionCompleteness
                 snapshot.Work.Case.InstructionComplete,
                 snapshot.Work.Case.ImagesComplete),
             configuration,
-            MileageGateOpen(snapshot, workflow.State));
+            StoredVehicleGate(snapshot, workflow.State));
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;

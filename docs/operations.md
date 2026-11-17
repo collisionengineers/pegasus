@@ -5,6 +5,22 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Test instance OCR and old-system folder settings - 17 November 2026
+
+- On R1111, `Box__OldSystemRootFolderId=3220448509` (R970), `Features__LiveOcr=true`
+  and `DocumentIntelligence__Endpoint` (R931) were appended to the instance's
+  settings file, and run `83ec377dd6f249d59c2e8ae8e96459c3` was stopped and
+  started with its run id at 08:33 UTC, on `4645e8951`. Neither line had been
+  in the file, last written on 10 November: all 22 old-system folder lookups
+  the classifier made from 10 November answered `unavailable`, and all 15 OCR
+  operations had failed `queue_poisoned`, leaving 9 receipts at
+  `ocr_required`.
+- Read after the start: Smoke passed with `ocr=True`, `/health/ready` 200 on
+  both origins, and `pegasus_old_system_folder_search` for `QDOS26175`
+  answered `available` with the folder `A.QDOS26175`. No scanned page has
+  been read on the instance yet, and the 15 failed operations stand as they
+  were. Nothing in Azure changed.
+
 ## Repository moved to GitLab - 15 November 2026
 
 - The `collisionengineers` GitHub organisation read as suspended from 13

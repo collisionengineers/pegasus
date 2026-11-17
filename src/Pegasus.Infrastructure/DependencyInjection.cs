@@ -10,6 +10,7 @@ using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Cazana;
 using Pegasus.Infrastructure.Brego;
+using Pegasus.Infrastructure.Experian;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.ThirdPartyReports;
@@ -170,7 +171,6 @@ public static class DependencyInjection
         services.AddScoped<PromoteAssociatedIntakeCaseEvidence>();
         services.AddScoped<IOriginalReportRecognitionDeferrals, EfOriginalReportRecognitionDeferrals>();
         services.AddScoped<ResolveIntake>();
-        services.AddScoped<IntakeCaseCreation>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
         services.AddScoped<IRetryIntakeOcr, RetryIntakeOcr>();
         services.AddScoped<ILinkIntake, LinkIntake>();
@@ -178,6 +178,7 @@ public static class DependencyInjection
         services.AddScoped<EfImageIntakeStore>();
         services.AddScoped<IImageIntakeStore>(provider => provider.GetRequiredService<EfImageIntakeStore>());
         services.AddScoped<IImageIntakeQueries>(provider => provider.GetRequiredService<EfImageIntakeStore>());
+        services.AddScoped<ListAwaitingImageIntakesByCursor>();
         services.AddScoped<IImageIntakeOriginResolver, EfImageIntakeOriginResolver>();
         services.AddScoped<IImageIntakeCaseCandidates, EfImageIntakeCaseCandidates>();
         services.AddScoped<IRegisterImageIntake, RegisterImageIntake>();
@@ -248,6 +249,7 @@ public static class DependencyInjection
         services.AddSingleton<IExtractPdfPageText, PdfPigPageTextExtractor>();
         services.AddScoped<ReadPreCaseImageThumbnail>();
         services.AddScoped<GetUnidentifiedItemContext>();
+        services.AddScoped<DismissRegistrationReading>();
         services.AddScoped<GetIntakeOfferedActions>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
         services.AddScoped<EfTriageStore>();
@@ -508,8 +510,6 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ICaseCircumstancesQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
-        services.AddScoped<ICaseWorkQueries>(
-            provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ICaseDocumentQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<INotReadyCaseQueries>(
@@ -517,7 +517,6 @@ public static class DependencyInjection
         services.AddScoped<IAvailableReportSentEvidenceQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<IGetCaseKind, GetCaseKind>();
-        services.AddScoped<GetCaseHasAuditWork>();
         services.AddScoped<ISearchCases, SearchCases>();
         services.AddScoped<IGetCaseCircumstances, GetCaseCircumstances>();
         services.AddScoped<SearchCasesByCursor>();
@@ -604,6 +603,10 @@ public static class DependencyInjection
         services.AddScoped<IGetAssessmentWorkspace, GetAssessmentWorkspace>();
         services.AddScoped<IGetAssessmentWorkspaceVersion, GetAssessmentWorkspaceVersion>();
         services.AddScoped<SaveAssessment>();
+        // Run Experian check (ADR-0089): offered only where a host has called
+        // AddExperianVehicleHistoryCheck; with no provider it says Experian is
+        // not connected.
+        services.AddScoped<RunVehicleHistoryCheck>();
         services.AddScoped<ISendToAiControl, EfSendToAiControlStore>();
         services.AddScoped<IAutomaticGuideValuationControl, EfSendToAiControlStore>();
         services.AddScoped<Pegasus.Core.Cases.ICaseReferenceSuffixControl, EfSendToAiControlStore>();
@@ -1063,6 +1066,33 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(services);
         services.AddHostedService<CaseReferenceSuffixBoxRename>();
+        return services;
+    }
+
+    /// <summary>
+    /// Connects Experian as the vehicle history check (ADR-0089). A host that
+    /// does not call this has no provider, so the Vehicle history area says
+    /// Experian is not connected and offers no Run Experian check. The account
+    /// comes through a factory and is read on each check, because the platform
+    /// can hand over an unresolved Key Vault reference, which must not fail the
+    /// host at build.
+    /// </summary>
+    public static IServiceCollection AddExperianVehicleHistoryCheck(
+        this IServiceCollection services,
+        Func<IServiceProvider, ExperianAccount> accountFactory)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(accountFactory);
+
+        // Each call is bounded once by ExperianVehicleHistoryProvider.CallTimeout.
+        services.AddHttpClient(
+            ExperianVehicleHistoryProvider.HttpClientName,
+            client => client.Timeout = Timeout.InfiniteTimeSpan);
+        services.AddSingleton<IVehicleHistoryCheckProvider>(provider => new ExperianVehicleHistoryProvider(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            () => accountFactory(provider),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<ExperianVehicleHistoryProvider>>()));
         return services;
     }
 

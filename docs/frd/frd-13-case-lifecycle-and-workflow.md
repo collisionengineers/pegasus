@@ -116,15 +116,25 @@ ready, the Case a definitive instruction creates included, and stays there
 with the requirement **Vehicle mileage incomplete**, which opens the Vehicle
 section; while the instruction is incomplete its row lists the mileage among
 its missing items instead. The automatic route still waives every other
-instruction item. A vehicle lookup or a staff edit that records the mileage
-moves the Case on to Review by itself when nothing else is missing, and so
-does a recognised original report that states the mileage of an Audit with
-none (operator, 11 November 2026, [R930](../rulings.md)). The gate
-stands only on the way in: a Case already in Review or later is not sent back
-for its mileage, and clearing a mileage does not block a Case again (as R631).
+instruction item but one: a Case with no registration, as an instruction
+read on an accepted e-mail route can create
+([FRD-22](frd-22-pre-case-gates-matching-and-association.md)), stays Not ready
+with the requirement **Vehicle registration incomplete**, which opens the
+Vehicle section, until staff enter one, even when its mileage is recorded
+(operator, 16 November 2026, [R1081](../rulings.md)). The hold covers every
+Not ready Case with no registration, whichever route created it, and a Case
+with neither a registration nor a mileage names both, the registration first
+(operator, 17 November 2026, [R1126](../rulings.md),
+[R1127](../rulings.md)). A vehicle lookup or a
+staff edit that records the mileage moves the Case on to Review by itself
+when nothing else is missing, and so does a recognised original report that
+states the mileage of an Audit with none (operator, 11 November 2026,
+[R930](../rulings.md)). The gate stands only on the way in: a Case already in
+Review or later is not sent back for its mileage or its registration, and
+clearing either does not block a Case again (as R631).
 
 **How a Case reaches Review.** When every required instruction item and every
-required image is present, and the Case has its mileage, the Case moves from
+required image is present, and the Case has its registration and its mileage, the Case moves from
 Not ready to Review on its own. There is no staff act of reviewing instructions or images: no checkbox,
 no dialog, no history line. The transition checks the stored facts inside its
 own transaction and records which readiness policy and version it used. A

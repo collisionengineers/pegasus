@@ -210,9 +210,13 @@ internal sealed class EfStaffMailSendStore(
             .Where(value => value.ActorSubjectId == actorSubjectId
                 && value.OriginalRetainedMessageId == retainedMessageId
                 && value.Purpose != StaffMailPurpose.CaseReport)
+            // A send still under way comes first. An Unknown send ranks with
+            // the finished ones, so the newest of those is the latest: a later
+            // send that reached Sent reads Sent (R1128).
             .OrderBy(value => value.State == StaffMailState.Sent
                 || value.State == StaffMailState.Failed
-                || value.State == StaffMailState.Cancelled)
+                || value.State == StaffMailState.Cancelled
+                || value.State == StaffMailState.Unknown)
             .ThenByDescending(value => value.CreatedAtUtc)
             .ThenByDescending(value => value.Id)
             .FirstOrDefaultAsync(cancellationToken);

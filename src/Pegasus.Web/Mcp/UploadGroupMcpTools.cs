@@ -45,6 +45,7 @@ internal sealed record UploadGroupToolDetail(
     IReadOnlyList<UploadGroupToolDestination> Destinations,
     bool CanDiscard,
     IReadOnlyList<UploadGroupToolReceiptVersion> DiscardVersions,
+    bool CanLeave,
     string CorrelationId);
 
 internal sealed record UploadGroupActionToolResult(
@@ -173,7 +174,15 @@ internal sealed class UploadGroupMcpTools(
                             throw new McpException("leave takes no other parameter.");
                         }
 
-                        await declineImageMatch.ExecuteAsync(state.Group.Id, context.Actor, cancellationToken);
+                        // Leave on an upload already left is answered as done (R1130).
+                        if (!state.AlreadyLeft && !state.OffersLeave)
+                        {
+                            throw new McpException(
+                                "leave is not offered on this upload; pegasus_upload_group_get says whether it is.");
+                        }
+
+                        await declineImageMatch.ExecuteAsync(
+                            state.Group.Id, state.OffersLeave, state.LeaveFiles, context.Actor, cancellationToken);
                         return await ResultAsync(context, groupId, "leave", null, null, isReplay: false, key, correlation, cancellationToken);
                     }
                     case "discard":
@@ -258,9 +267,7 @@ internal sealed class UploadGroupMcpTools(
         string correlation,
         CancellationToken cancellationToken)
     {
-        var decisionOpen = state.ReadyForAttachment
-            && state.OpenMemberReceiptIds.Count == state.Group.Members.Count;
-        IReadOnlyList<UploadCaseSuggestion> destinations = !decisionOpen
+        IReadOnlyList<UploadCaseSuggestion> destinations = !state.AwaitsDecision
             ? []
             : string.IsNullOrWhiteSpace(query)
                 ? await caseDecision.GetSuggestionsForUploadsAsync(state.OpenMemberReceiptIds, context.Actor, cancellationToken)
@@ -299,6 +306,7 @@ internal sealed class UploadGroupMcpTools(
                 item.Version)).ToArray(),
             state.CanDiscard,
             Versions(state.GroupMemberReceiptIds, state.GroupMemberReceiptVersions),
+            state.OffersLeave,
             correlation);
     }
 

@@ -864,6 +864,17 @@ public interface IPhotoCaptureStore
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Whether the operation key already recorded <paramref name="act"/> on
+    /// this capture: the act above then replays, so a repeat is answered as
+    /// done even once the link no longer offers the act (R1092).
+    /// </summary>
+    Task<bool> HasRecordedActAsync(
+        Guid captureId,
+        string act,
+        string operationKey,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Writes one text act (<see cref="PhotoLinkActs.TextSubmitted"/>,
     /// <see cref="PhotoLinkActs.TextSent"/> or <see cref="PhotoLinkActs.TextFailed"/>)
     /// to the link's history. False when the operation key already recorded

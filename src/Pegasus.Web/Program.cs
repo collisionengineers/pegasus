@@ -141,6 +141,7 @@ var liveVehicleLookup = builder.Configuration.GetValue<bool>("Features:LiveVehic
 var liveBoxCustody = builder.Configuration.GetValue<bool>("Features:LiveBoxCustody");
 var liveGlass = builder.Configuration.GetValue<bool>("Features:LiveGlass");
 var liveGuideValuation = builder.Configuration.GetValue<bool>("Features:LiveGuideValuation");
+var liveExperian = builder.Configuration.GetValue<bool>("Features:LiveExperian");
 var passwordSignIn = builder.Configuration.GetValue<bool>("Features:PasswordSignIn");
 var liveGraphMail = builder.Configuration.GetValue<bool>(LocalGraphCredential.FeatureKey);
 foreach (var (featureKey, enabled) in new[]
@@ -149,6 +150,7 @@ foreach (var (featureKey, enabled) in new[]
     ("Features:LiveBoxCustody", liveBoxCustody),
     ("Features:LiveGlass", liveGlass),
     ("Features:LiveGuideValuation", liveGuideValuation),
+    ("Features:LiveExperian", liveExperian),
     ("Features:PasswordSignIn", passwordSignIn),
     (LocalGraphCredential.FeatureKey, liveGraphMail),
 })
@@ -228,6 +230,13 @@ if (productionProfile)
         // Brego valuation account (ADR-0084), read on each Get valuation.
         "Brego:ValuationAccount:Email",
         "Brego:ValuationAccount:Password",
+        // Experian's account and endpoints (ADR-0089), read on each check.
+        "Experian:BaseUri",
+        "Experian:TokenUri",
+        "Experian:Account:ClientId",
+        "Experian:Account:ClientSecret",
+        "Experian:Account:Username",
+        "Experian:Account:Password",
         "GitHub:ProblemReports:Token",
         "GitHub:ProblemReports:Repository"
     })
@@ -837,6 +846,16 @@ if (productionProfile || liveGuideValuation)
         provider => provider.GetService<Pegasus.Infrastructure.Brego.IBregoSessionStore>());
 }
 
+// Experian's vehicle history check (ADR-0089): Production, and an offline
+// host (the hosted test instance) under Features:LiveExperian; any other
+// offline host says Experian is not connected. The account is read on each
+// check for the same unresolved-Key-Vault-reference reason as Box's.
+if (productionProfile || liveExperian)
+{
+    builder.Services.AddExperianVehicleHistoryCheck(
+        _ => Pegasus.Infrastructure.Experian.ExperianAccount.Create(key => builder.Configuration[key]));
+}
+
 builder.Services.AddPegasusReportRendering();
 // EXT-06: Glass's is composed only by a host that reaches the provider;
 // every other host offers no control and refuses the command (fail closed).
@@ -911,6 +930,9 @@ else
 builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
 builder.Services.AddScoped<IInspectionAddressResolutionStore, InspectionAddressResolutionStore>();
+// Create case's steps and its address fallback read that store, so the owner
+// is composed here beside it; only the Web resolves it (#2130).
+builder.Services.AddScoped<IntakeCaseCreation>();
 builder.Services.AddSingleton<IIntakeWorkEnqueuer>(
     new AzureQueueIntakeWorkEnqueuer(
         intakeWorkQueue ?? throw new InvalidOperationException("The intake queue is not configured."),
@@ -1293,7 +1315,11 @@ if (automationMcpOptions is not null)
 
         // Transport-level denials on the automation surface are material and
         // become attributable security events. Tool-level denials (scope,
-        // kill switch) are written by the actor resolver instead.
+        // kill switch) are written by the actor resolver instead. A request the
+        // resolver refused because its client is stopped has written the
+        // client-disabled event and writes that event only (R1097). A stopped
+        // client's token request is refused before the client is read, and
+        // writes the token-rejected event alone, as before (R1133).
         var status = context.Response.StatusCode;
         var isDenied = isTokenEndpoint
             ? status is StatusCodes.Status400BadRequest
@@ -1301,7 +1327,7 @@ if (automationMcpOptions is not null)
                 or StatusCodes.Status403Forbidden
             : status is StatusCodes.Status401Unauthorized
                 or StatusCodes.Status403Forbidden;
-        if (isDenied)
+        if (isDenied && !context.Items.ContainsKey(AutomationMcp.ClientDisabledRecordedItem))
         {
             await AppendAutomationDeniedSecurityEventAsync(context, isTokenEndpoint);
         }

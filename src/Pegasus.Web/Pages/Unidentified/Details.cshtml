@@ -273,7 +273,7 @@
                                 <td class="@(reading.Outcome == VrmRecognitionOutcomeKind.Suggested ? "mono" : null)">@Record.ReadingLabel(reading)</td>
                                 <td>@Record.DispositionLabel(reading.Disposition)</td>
                                 <td>
-                                    @if (Model.Receipt is not null && Model.IsOpen && reading.Disposition == ImageVrmSuggestionDisposition.Pending && reading.Outcome == VrmRecognitionOutcomeKind.Suggested)
+                                    @if (Model.Context.OffersDismiss(reading))
                                     {
                                         <details class="unidentified-dismiss">
                                             <summary class="btn btn--small">Dismiss</summary>

@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
-using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Web.Presentation;
@@ -146,6 +145,11 @@ public sealed class UploadStatusModel(
             [UploadStatusAnswerMember.Of(status.StagedReceiptId, status.Status)]));
     }
 
+    /// <summary>
+    /// Leave undecided. Where Leave declines the image match (R1092) the
+    /// decline is recorded; anywhere else nothing is written and the post
+    /// returns to Upload, as the plain link the page then shows does.
+    /// </summary>
     public async Task<IActionResult> OnPostLeaveAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -167,7 +171,17 @@ public sealed class UploadStatusModel(
                 : await submissionGroups.FindForMemberSourceAsync(receipt.SourceIdentity, cancellationToken);
             if (group is not null)
             {
-                await declineImageMatch.ExecuteAsync(group.Id, actor, cancellationToken);
+                // The outcome as the page builds it, for the same rule the page offers Leave by.
+                var outcome = status.Status is QueuedIntakeStatusKind.Complete or QueuedIntakeStatusKind.Failed
+                    ? await outcomeQueries.BuildAsync(status, receipt, submissionGroupId: null, actor, cancellationToken)
+                    : null;
+                var awaitsDecision = AwaitsDecision(status, outcome);
+                ImageMatchLeaveFile[] files = [LeaveFile(outcome, receipt)];
+                // An upload already left is answered as done (R1130).
+                if (group.ImageMatchDeclined is not null || ImageMatchLeave.IsOffered(awaitsDecision, files))
+                {
+                    await declineImageMatch.ExecuteAsync(group.Id, awaitsDecision, files, actor, cancellationToken);
+                }
             }
         }
         catch (StaffAuthorizationException)
@@ -269,15 +283,26 @@ public sealed class UploadStatusModel(
             Report = report,
             Confirmation = ReviewConfirmation(UploadCaseConfirmation, known),
             CouldNotBeReadCount = unreadable ? 1 : 0,
-            LeaveDeclinesImageMatch = phase == UploadReviewPhase.Decision
-                && Outcome is { Kind: UploadOutcomeKind.PossibleMatch }
-                && Receipt is not null
-                && ImageIntakeLifecycleRules.IsImageOnlyMaterial(Receipt),
+            LeaveDeclinesImageMatch = ImageMatchLeave.IsOffered(
+                phase == UploadReviewPhase.Decision, [LeaveFile(Outcome, Receipt)]),
             SingleReceiptId = attachReceiptId,
             Registration = registration,
             OpenRegister = register && registration is not null
         };
     }
+
+    /// <summary>
+    /// The file awaits its decision: processed, with an add-to-Case decision
+    /// open, which is when the review below is in its Decision phase.
+    /// </summary>
+    private static bool AwaitsDecision(QueuedIntakeStatus status, UploadOutcomeView? outcome) =>
+        status.Status == QueuedIntakeStatusKind.Complete
+        && outcome is { Attach: not null }
+        && outcome.Kind is not (UploadOutcomeKind.Working or UploadOutcomeKind.Attached);
+
+    /// <summary>The file as Leave reads it: whether its outcome is a possible match, and its receipt.</summary>
+    private static ImageMatchLeaveFile LeaveFile(UploadOutcomeView? outcome, IntakeReceipt? receipt) =>
+        new(outcome is { Kind: UploadOutcomeKind.PossibleMatch }, receipt);
 
     private UploadReviewFile ReviewFile(bool unreadable)
     {

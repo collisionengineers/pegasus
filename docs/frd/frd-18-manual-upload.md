@@ -333,7 +333,12 @@ right part carries the upload's one decision and nothing else:
   review then reports the registration as it reports an automatic one
   (operator, 28 October 2026, R463). **Leave undecided** returns to Upload and
   changes nothing, except that for images that matched a Case it registers
-  them as an Image-initiated Case (operator, 11 October 2026); **Discard upload** opens its own confirmation with the
+  them as an Image-initiated Case (operator, 11 October 2026), which it does
+  only while the upload awaits its decision and every file is a possible
+  match and image-only: the pages, their handlers and the Automation tool
+  follow that one Core rule, and a Leave posted where it is not offered
+  changes nothing (operator, 16 and 17 November 2026; [R1092](../rulings.md),
+  [R1131](../rulings.md), [R1135](../rulings.md)); **Discard upload** opens its own confirmation with the
   acknowledgement that the source and processing record are retained, and
   is offered only once every file has completed.
 - A file that could not be read is marked on its row and in the filmstrip

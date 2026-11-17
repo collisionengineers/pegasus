@@ -211,6 +211,11 @@ public sealed class AssessmentReportWordingTests
                 AssessmentMethod = "physical",
                 LocationAddress = "1 Test Street, London",
             }));
+        // Every report since R1078 is image based and prints what Inspect at
+        // holds, a place included (R1116).
+        Assert.Equal(
+            "In accordance with your instructions received on 14/07/2026 requesting us to provide an independent accident damage report, we assessed the damage on 15/07/2026. Vehicle located at: 1 Test Street, London. Our findings are as detailed below.",
+            AssessmentReportWording.Introduction(snapshot with { LocationAddress = "1 Test Street, London" }));
     }
 
     /// <summary>
@@ -720,7 +725,7 @@ public sealed class AssessmentReportWordingTests
     {
         var owned = new Pegasus.Core.Assessment.AssessmentCaseOwnedData(
             "AB12CDE", "Ford", "Focus", "2012", 80_000, "miles", "owner",
-            new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 2), "PhysicalAddress", "1 Example Street",
+            new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 2), "1 Example Street",
             new DateOnly(2026, 8, 3), "Pat Private", null,
             ClaimantAddress: "1 Private Lane\r\nExampleton\r\nEX1 2AB");
 

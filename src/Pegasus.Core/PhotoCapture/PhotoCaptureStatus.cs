@@ -4,6 +4,33 @@ namespace Pegasus.Core.PhotoCapture;
 public sealed record DueCaptureReminder(string Code, string Label);
 
 /// <summary>
+/// One list row with what is derived from it as it is read (FRD-28: never
+/// stored), the same for the Photo capture pages and the photo link tools
+/// (#2130; R1092). <see cref="IsLive"/> is whether the link still takes
+/// photos, which Resend needs (Core refuses it on a dead link); a link whose
+/// Case is archived is dead (R793).
+/// </summary>
+public sealed record PhotoCaptureRowStatus(
+    PhotoCaptureListRow Source,
+    PhotoCaptureState State,
+    DueCaptureReminder? Due,
+    bool IsLive)
+{
+    public PhotoCapture Capture => Source.Capture;
+
+    /// <summary>The state and due reminder a row derives, from its own record and missing items.</summary>
+    public static PhotoCaptureRowStatus For(PhotoCaptureListRow row, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return new(
+            row,
+            PhotoCaptureStatus.Evaluate(row.Capture, PhotoCaptureStatus.MissingOf(row), row.Photographs, now, row.CaseArchived),
+            PhotoCaptureStatus.DueReminder(row, now),
+            PhotoCaptureAccess.IsLive(row.Capture, now, row.CaseArchived));
+    }
+}
+
+/// <summary>
 /// A capture's status and its due reminder, derived from the record each time
 /// they are read and never stored (FRD-28). Reminders are never sent by
 /// Pegasus: the list shows what is due and a member of staff sends it with

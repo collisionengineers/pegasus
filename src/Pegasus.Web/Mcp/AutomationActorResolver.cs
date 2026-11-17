@@ -74,6 +74,7 @@ internal sealed class AutomationActorResolver(
                 ActionActor.Automation(clientId),
                 "automation_client_disabled",
                 cancellationToken);
+            httpContext.Items[AutomationMcp.ClientDisabledRecordedItem] = true;
             throw new McpException("The Automation client registration is disabled.");
         }
 

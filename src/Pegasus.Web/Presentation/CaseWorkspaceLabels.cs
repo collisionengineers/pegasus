@@ -313,8 +313,7 @@ public static class CaseWorkspaceLabels
                 AssessmentVocabulary.ReportDate => "report",
                 // Storage per day and the recovery charge are recorded in Decisions (v36 item G).
                 AssessmentVocabulary.SettlementStoragePerDay or AssessmentVocabulary.CostRecoveryCharge => "settlement",
-                CaseDataFieldNames.InspectionDate or CaseDataFieldNames.InspectionMode
-                    or CaseDataFieldNames.InspectionAddress => "inspection",
+                CaseDataFieldNames.InspectionDate or CaseDataFieldNames.InspectionAddress => "inspection",
                 CaseDataFieldNames.ClaimantName => "claim",
                 CaseDataFieldNames.ClaimNumber or CaseDataFieldNames.IncidentDate => "overview",
                 _ => null
@@ -507,7 +506,6 @@ public static class CaseWorkspaceLabels
             CaseDataFieldNames.IncidentDate,
             CaseDataFieldNames.ClaimantName,
             CaseDataFieldNames.InspectionDate,
-            CaseDataFieldNames.InspectionMode,
             CaseDataFieldNames.InspectionAddress,
             CaseDataFieldNames.VehicleRegistration,
             AssessmentVocabulary.VehicleType,
@@ -730,6 +728,21 @@ public static class CaseWorkspaceLabels
         public const string Miles = "Miles";
         public const string Kilometres = "Kilometres";
         public const string History = "Vehicle history";
+
+        /// <summary>The Experian seam's control, in the design README's own words (ADR-0089; R746).</summary>
+        public const string RunExperianCheck = "Run Experian check";
+
+        /// <summary>Run Experian check when Experian could not answer (operator, 6 November 2026; R747).</summary>
+        public const string ExperianCheckUnavailable =
+            "The Experian check is unavailable. Contact an administrator or report a problem.";
+
+        /// <summary>
+        /// Run Experian check when Experian holds no vehicle for the registration
+        /// (operator, 6 November 2026; R748), shown as information: the Vehicle
+        /// history text is unchanged.
+        /// </summary>
+        public const string ExperianNoVehicleData =
+            "Experian cannot check this vehicle: it holds no data for its registration.";
 
         /// <summary>13 September (Work Centre D1): a blocking external failure reads in operator words at the point of use.</summary>
         public const string LookupFailedPrefix = "Lookup failed · ";

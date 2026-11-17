@@ -1,6 +1,6 @@
 # FRD-06: Vehicle and engineering evidence
 
-> Owner capabilities: AI-05, AI-06, CASE-29, CASE-34, DATA-02, EXT-01, EXT-02, EXT-18, INT-17 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: AI-05, AI-06, CASE-29, CASE-34, DATA-02, EXT-01, EXT-02, EXT-18, EXT-20, INT-17 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -42,25 +42,34 @@ came from and can be reviewed.
 
 ### Inspection address
 
-**What the report says.** The report records one of two things: the physical
-location of the vehicle or repairer, when that location was supplied or
-confirmed by a person, or the exact value `Image Based Assessment`. Collision
-Engineers does desktop assessments only. The report never claims anyone
-attended. The address field is blank, `Image Based Assessment`, or a chosen
-physical location with its source recorded.
+**What the report says.** Every Case's inspection type is Image Based
+Assessment (operator, 16 November 2026, [R1078](../rulings.md)). Collision
+Engineers does desktop assessments only, the report never claims anyone
+attended, and every report carries the Desktop Assessment section. What
+varies is Inspect at: the physical location of the vehicle or repairer, when
+that location was supplied or confirmed by a person, or the exact value
+`Image Based Assessment`. The report prints it after "Vehicle located at:"
+(operator, 17 November 2026, [R1116](../rulings.md)). The address field is
+blank, `Image Based Assessment`, or a chosen physical location with its
+source recorded. With the address blank the report is not ready: the blocker
+reads "Inspection address — No inspection address is recorded for the report
+to print. Choose Inspect at on the Inspection details section."
+([R1114](../rulings.md), [R1115](../rulings.md)).
 
-**Which mode applies.** The Principal record carries an inspection-mode
+**What fills Inspect at.** The Principal record carries an inspection-mode
 setting ([ADR-0018](../adr/0018-provider-inspection-mode-database-setting.md)).
-Instruction documents never contain the literal value, so the mode is never
-read from text.
+Instruction documents never contain the literal value, so it is never read
+from text. With nothing below to fill it, Inspect at stays empty
+([R1113](../rulings.md)).
 
 - For an always-image-based Principal (QDOS is set up this way), Pegasus
-  fills `Image Based Assessment` at Case creation even if the instruction
-  shows a physical location. Authorised staff may override it on that Case to
-  the supplied or confirmed location, with a reason recorded against them.
+  fills `Image Based Assessment` at Inspect at and the inspection address at
+  Case creation even if the instruction shows a physical location
+  ([R1078](../rulings.md)). Staff may change Inspect at on that Case to the
+  supplied or confirmed location, as an ordinary edit.
 - For a physical-address Principal, the location is extracted from the
-  instruction and confirmed by an operator. The setting picks the default
-  mode; it never invents or picks an address. A Robert James (RJS) letter
+  instruction and confirmed by an operator. The setting never invents or
+  picks an address. A Robert James (RJS) letter
   names the address its client "is available at"; that address is the
   inspection address unless the letter names an inspection or vehicle
   location itself (operator, 5 November 2026, [R715](../rulings.md)).
@@ -82,18 +91,19 @@ read from text.
 The Principal-domain reference package holds no address and no mode default.
 No address is ever inferred from a Principal or domain match.
 
-**Reasons and history.** Choosing `Image Based Assessment` by hand, or
-overriding the filled mode, needs a staff reason in permanent Case history.
-The automatic fill records its Principal-setting source and its own permanent
-history event.
+**History.** Changing Inspect at is an ordinary edit, recorded in Case
+history like any other with who and when; no reason is asked (operator, 16
+November 2026, [R1079](../rulings.md)). The automatic fill records its
+Principal-setting source and its own permanent history event.
 
 **Inspect at.** The Case record's Inspection section offers a quick choice:
 `Image Based Assessment`, Claimant address, Repairer location, Storage
 location, the Principal's reviewed locations, the previous addresses used
 for this Principal, and Manual entry.
-An option whose value is not on the Case is disabled, never shown empty. The
+An option whose value is not on the Case is left out of the list, never
+shown empty (operator, 17 November 2026, [R1117](../rulings.md)). The
 Case stores its storage location as its own field. Choosing an option records
-that value under the source and reason rules above. The choice never invents
+that value under the source rules above. The choice never invents
 an address. Manual entry is no value of its own: choosing it records nothing
 and leaves the address as it is, selected to type over, until an address is
 typed (operator, 12 November 2026, [R1020](../rulings.md)). The Case does not
@@ -318,7 +328,30 @@ the facts only the lookup holds.
   from Look up DVLA & MOT.
 - There are no per-field suggestion chips and no suggestion table.
 - The Model comes from the DVSA MOT history vehicle record. DVLA supplies no
-  model. Experian stays a disabled seam.
+  model.
+
+**Run Experian check** (`EXT-20`; operator, 6 November 2026;
+[ADR-0089](../adr/0089-experian-vehicle-history-check.md)). Experian's
+answer is the Vehicle history text, which the report prints verbatim.
+
+- The check asks Experian for the write-off (condition) records of the
+  current work's accepted registration and nothing else (R741).
+- With no current record it records "We confirm having checked this vehicle
+  on the Experian database and there is no record of any adverse history."
+  Otherwise it records "We confirm having checked this vehicle on the Experian
+  database, which records:" and one line per record, "Write-off: {category},
+  {cause}, loss date {dd/MM/yyyy}, {insurer}, claim {number}", leaving an
+  absent value out (R742). A record the insurer has removed is left out, so a
+  vehicle whose only records were removed reads as clean (R743).
+- The answer replaces whatever the Vehicle history text held, through the
+  same save, history and report staleness as a staff edit; staff may edit it
+  afterwards (R744). It never ticks Previous total loss (R745).
+- A vehicle Experian holds no data for writes nothing and says "Experian
+  cannot check this vehicle: it holds no data for its registration." (R748).
+  A check that could not answer writes nothing and says "The Experian check
+  is unavailable. Contact an administrator or report a problem." (R747).
+- Staff and the Automation Actor may run it (ADR-0064). A host without
+  Experian composed offers no check.
 
 **Glass's VIN.** DVLA and DVSA supply no VIN; Glass's names one. It appears
 on the vehicle a Get valuation saves to the Glass's stock list, which Glass's

@@ -796,7 +796,7 @@ public sealed class RepairSpecificationActTests
                 null,
                 fields,
                 [],
-                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 9, 21), null, null, null, null, null));
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 9, 21), null, null, null, null));
         }
 
         public Task<CaseAssessmentProjection> SaveAsync(

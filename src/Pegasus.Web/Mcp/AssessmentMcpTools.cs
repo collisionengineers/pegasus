@@ -147,7 +147,6 @@ internal sealed record AssessmentCaseOwnedToolData(
     // instructions were received; every Case has one.
     string ReceivedDate,
     string? InspectionDate,
-    string? InspectionMode,
     string? InspectionAddress);
 
 internal sealed record AssessmentReadinessToolItem(
@@ -797,7 +796,6 @@ internal sealed class AssessmentMcpTools(
         data.IncidentDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
         data.ReceivedDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
         data.InspectionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-        data.InspectionMode,
         data.InspectionAddress);
 
     private static AssessmentReadinessToolItem MapReadiness(AssessmentReadinessItem item) => new(

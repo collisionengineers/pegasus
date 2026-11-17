@@ -22,6 +22,13 @@ public static class PhotoCaptureRefusals
     public const string MintCapReached = "mint_cap_reached";
     public const string CaseUnavailable = "case_unavailable";
     public const string InvalidRequest = "invalid_request";
+
+    /// <summary>
+    /// A staff act the link does not offer now (<see cref="PhotoLinkOffers"/>;
+    /// #2130, R1092). Its message is never shown: the link's page says
+    /// <c>ActionNotApplied</c> and the photo link tool its own sentence.
+    /// </summary>
+    public const string NotOffered = "not_offered";
 }
 
 /// <summary>
@@ -116,7 +123,8 @@ public sealed class IssuePhotoLink(
                 request.Mode == PhotoCaptureMode.Quick ? request.QuickLinkFor : null,
                 request.LiveCameraOnly,
                 request.OriginalsInBackground,
-                Guid.TryParse(request.Actor.SubjectId, out var staffId) ? staffId : null,
+                // A staff issuer only when a member of staff issued it (#2147).
+                request.Actor.Kind == ActorKind.Staff && Guid.TryParse(request.Actor.SubjectId, out var staffId) ? staffId : null,
                 now,
                 now.AddDays(request.LifetimeDays),
                 OpenedAtUtc: null),
@@ -793,7 +801,11 @@ public sealed class CompletePhotoCapture(
 /// casework, and each records who did it under the form's operation key, so
 /// the link's history names them and a double click acts once (R805). A link
 /// whose Case is archived is dead (R793): it is neither extended nor sent
-/// again.
+/// again. Cancel, Extend and Log call are taken only where the link offers
+/// them (<see cref="PhotoLinkOffers"/>; #2130, R1092), refused otherwise as
+/// <see cref="PhotoCaptureRefusals.NotOffered"/>; a repeat of an operation
+/// key that already recorded the act is answered as done, as the store
+/// replays it.
 /// </summary>
 public sealed class PhotoLinkActions(
     IPhotoCaptureStore captures,
@@ -814,7 +826,10 @@ public sealed class PhotoLinkActions(
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        return await captures.RevokeAsync(captureId, actor, operationKey, timeProvider.GetUtcNow(), cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        var row = await RowAsync(captureId, cancellationToken);
+        await RequireOfferedAsync(row, now, PhotoLinkActs.Cancelled, offers => offers.Cancel, operationKey, cancellationToken);
+        return await captures.RevokeAsync(captureId, actor, operationKey, now, cancellationToken);
     }
 
     public async Task<PhotoCapture> ExtendAsync(
@@ -830,10 +845,12 @@ public sealed class PhotoLinkActions(
             throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.InvalidRequest, "The extension is not one of the offered lifetimes.");
         }
 
-        var capture = await captures.GetAsync(captureId, cancellationToken)
-            ?? throw new KeyNotFoundException("The photo link was not found.");
+        var row = await RowAsync(captureId, cancellationToken);
+        var capture = row.Capture;
         await RequireCaseNotArchivedAsync(capture, cancellationToken);
-        var from = capture.ExpiresAtUtc > timeProvider.GetUtcNow() ? capture.ExpiresAtUtc : timeProvider.GetUtcNow();
+        var now = timeProvider.GetUtcNow();
+        await RequireOfferedAsync(row, now, PhotoLinkActs.Extended, offers => offers.Extend, operationKey, cancellationToken);
+        var from = capture.ExpiresAtUtc > now ? capture.ExpiresAtUtc : now;
         return await captures.ExtendAsync(captureId, actor, operationKey, from.AddDays(days), cancellationToken);
     }
 
@@ -919,7 +936,37 @@ public sealed class PhotoLinkActions(
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        return await captures.RecordCallAsync(captureId, actor, operationKey, timeProvider.GetUtcNow(), cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        var row = await RowAsync(captureId, cancellationToken);
+        await RequireOfferedAsync(row, now, PhotoLinkActs.CallLogged, offers => offers.LogCall, operationKey, cancellationToken);
+        return await captures.RecordCallAsync(captureId, actor, operationKey, now, cancellationToken);
+    }
+
+    private async Task<PhotoCaptureListRow> RowAsync(Guid captureId, CancellationToken cancellationToken) =>
+        await queries.GetRowAsync(captureId, cancellationToken)
+            ?? throw new KeyNotFoundException("The photo link was not found.");
+
+    /// <summary>
+    /// Refuses an act the link does not offer now (#2130; R1092), unless this
+    /// operation key already recorded it on the link: that repeat is answered
+    /// as done, the store replaying it.
+    /// </summary>
+    private async Task RequireOfferedAsync(
+        PhotoCaptureListRow row,
+        DateTimeOffset now,
+        string act,
+        Func<PhotoLinkOffers, bool> offered,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (offered(PhotoLinkOffers.For(row, now))
+            || await captures.HasRecordedActAsync(row.Capture.Id, act, operationKey, cancellationToken))
+        {
+            return;
+        }
+
+        // Never shown: the link's page and the photo link tool each say it in their own words.
+        throw new PhotoCaptureRefusalException(PhotoCaptureRefusals.NotOffered, "The act is not offered on this link.");
     }
 
     /// <summary>

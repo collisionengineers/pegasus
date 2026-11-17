@@ -11,9 +11,6 @@ public enum CaseReportActAccess
 
     /// <summary>The Case was not found, or its assessment cannot be opened in its state.</summary>
     NotOpen,
-
-    /// <summary>The Case is read-only once Complete, and the act is not on the Inspection report of a Case that has its Audit.</summary>
-    ReadOnly,
 }
 
 /// <summary>
@@ -26,15 +23,10 @@ public enum CaseReportActAccess
 /// each outcome its own way; a fee note that fails after its report
 /// succeeded is the caller's to present (R771).
 /// </summary>
-public sealed class CaseReportActs(
-    IGetAssessmentAccess getAssessmentAccess,
-    IGetCaseHeader getCaseHeader)
+public sealed class CaseReportActs(IGetAssessmentAccess getAssessmentAccess)
 {
     private readonly IGetAssessmentAccess getAssessmentAccess =
         getAssessmentAccess ?? throw new ArgumentNullException(nameof(getAssessmentAccess));
-
-    private readonly IGetCaseHeader getCaseHeader =
-        getCaseHeader ?? throw new ArgumentNullException(nameof(getCaseHeader));
 
     /// <summary>The reason one artifact's generation records.</summary>
     public static string ReasonFor(CaseReportArtifactKind kind) => kind switch
@@ -95,27 +87,17 @@ public sealed class CaseReportActs(
 
     /// <summary>
     /// The Automation Actor's report gate, as the Case page's: an assessment
-    /// that opens, and a Case that is not read-only unless the act is on the
-    /// Inspection report of a Case that has its Audit (operator, 1 October
-    /// 2026). The Case header is read only for a read-only Case.
+    /// that opens. An assessment that opens is never read-only, so no
+    /// read-only exception follows (R1095).
     /// </summary>
     public async Task<CaseReportActAccess> GetAccessAsync(
         ActionActor actor,
         Guid caseId,
-        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         var access = await getAssessmentAccess.ExecuteAsync(new(caseId, actor), cancellationToken);
-        if (access is null || !access.CanOpen)
-        {
-            return CaseReportActAccess.NotOpen;
-        }
-        if (access.IsReadOnly
-            && !(work == CaseWorkSelector.Primary
-                && (await getCaseHeader.ExecuteAsync(new(caseId, actor), cancellationToken))?.Works is { HasAudit: true }))
-        {
-            return CaseReportActAccess.ReadOnly;
-        }
-        return CaseReportActAccess.Open;
+        return access is null || !access.CanOpen
+            ? CaseReportActAccess.NotOpen
+            : CaseReportActAccess.Open;
     }
 }

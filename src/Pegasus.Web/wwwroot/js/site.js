@@ -842,8 +842,7 @@
         root.querySelectorAll('[data-inspection-address-choice]').forEach(function (select) {
             if (select.dataset.inspectionAddressBound === 'true') return;
             var input = document.querySelector('[data-inspection-address-input]');
-            var mode = document.querySelector('input[name="inspectionMode"]');
-            if (!input || !mode) return;
+            if (!input) return;
 
             select.dataset.inspectionAddressBound = 'true';
             function choose() {
@@ -859,12 +858,8 @@
                     return;
                 }
                 input.value = option.dataset.address || '';
-                mode.value = option.value === 'ImageBasedAssessment' ? 'ImageBasedAssessment' : 'PhysicalAddress';
             }
             select.addEventListener('change', choose);
-            input.addEventListener('input', function () {
-                mode.value = input.value.trim() ? 'PhysicalAddress' : '';
-            });
         });
     }
     bind(document);
@@ -2841,36 +2836,52 @@ window.pegasusPreferences = (function () {
 })();
 
 // --- Estimate tabs: roving tabindex ---------------------------------------------
+// Bound by root, so a tab strip drawn again (a Case section a save redraws, a
+// spec tab chosen, a lazily mounted body) moves on the arrow keys too; the tabs
+// are read as a key is pressed. The Report tabs move on their own arrow keys
+// (case-workspace.js), so one press moves them once.
 (function () {
     'use strict';
-    document.querySelectorAll('[role="tablist"]').forEach(function (list) {
-        var tabs = Array.prototype.slice.call(list.querySelectorAll('[role="tab"]'));
-        if (tabs.length === 0) {
-            return;
-        }
-        function sync(active) {
-            tabs.forEach(function (tab) {
-                tab.setAttribute('tabindex', tab === active ? '0' : '-1');
-            });
-        }
-        sync(tabs.find(function (tab) { return tab.getAttribute('aria-selected') === 'true'; }) || tabs[0]);
-        list.addEventListener('keydown', function (event) {
-            var at = tabs.indexOf(document.activeElement);
-            if (at < 0) {
+    function bind(root) {
+        root.querySelectorAll('[role="tablist"]').forEach(function (list) {
+            if (list.dataset.rovingBound === 'true' || list.hasAttribute('data-report-tabs')) {
                 return;
             }
-            var next = null;
-            if (event.key === 'ArrowRight') { next = tabs[(at + 1) % tabs.length]; }
-            else if (event.key === 'ArrowLeft') { next = tabs[(at - 1 + tabs.length) % tabs.length]; }
-            else if (event.key === 'Home') { next = tabs[0]; }
-            else if (event.key === 'End') { next = tabs[tabs.length - 1]; }
-            if (next) {
-                event.preventDefault();
-                sync(next);
-                next.focus();
+            function tabs() {
+                return Array.prototype.slice.call(list.querySelectorAll('[role="tab"]'));
             }
+            var drawn = tabs();
+            if (drawn.length === 0) {
+                return;
+            }
+            list.dataset.rovingBound = 'true';
+            function sync(active) {
+                tabs().forEach(function (tab) {
+                    tab.setAttribute('tabindex', tab === active ? '0' : '-1');
+                });
+            }
+            sync(drawn.find(function (tab) { return tab.getAttribute('aria-selected') === 'true'; }) || drawn[0]);
+            list.addEventListener('keydown', function (event) {
+                var all = tabs();
+                var at = all.indexOf(document.activeElement);
+                if (at < 0) {
+                    return;
+                }
+                var next = null;
+                if (event.key === 'ArrowRight') { next = all[(at + 1) % all.length]; }
+                else if (event.key === 'ArrowLeft') { next = all[(at - 1 + all.length) % all.length]; }
+                else if (event.key === 'Home') { next = all[0]; }
+                else if (event.key === 'End') { next = all[all.length - 1]; }
+                if (next) {
+                    event.preventDefault();
+                    sync(next);
+                    next.focus();
+                }
+            });
         });
-    });
+    }
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
 })();
 
 // --- Image rotate ----------------------------------------------------------------

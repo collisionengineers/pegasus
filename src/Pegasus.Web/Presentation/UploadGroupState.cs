@@ -36,6 +36,33 @@ public sealed record UploadGroupState(
         "This submission changed or is still being processed. Refresh and try again.";
 
     /// <summary>
+    /// The whole upload awaits its one decision: every file is ready for one
+    /// attach and none is decided yet.
+    /// </summary>
+    public bool AwaitsDecision => ReadyForAttachment && OpenMemberReceiptIds.Count == Group.Members.Count;
+
+    /// <summary>Each file as Leave reads it: whether its outcome is a possible match, and its receipt.</summary>
+    public IReadOnlyList<ImageMatchLeaveFile> LeaveFiles => Members
+        .Select(member => new ImageMatchLeaveFile(
+            member.Outcome is { Kind: UploadOutcomeKind.PossibleMatch },
+            member.Receipt))
+        .ToArray();
+
+    /// <summary>
+    /// Whether Leave declines the image match on this upload now (R1092): it
+    /// awaits its decision as its page's Decision phase reads it, so it is not
+    /// discarded and no file still waits on custody.
+    /// </summary>
+    public bool OffersLeave => ImageMatchLeave.IsOffered(
+        AwaitsDecision
+            && Group.Discard is null
+            && !Members.Any(member => UploadReviewFile.AwaitsCustody(member.Receipt)),
+        LeaveFiles);
+
+    /// <summary>Whether the upload was already left, a repeat of which is answered as done (R1130).</summary>
+    public bool AlreadyLeft => Group.ImageMatchDeclined is not null;
+
+    /// <summary>
     /// Reads the upload, each member concurrently: its status, its receipt and, once
     /// terminal, its outcome (every store behind these ports is
     /// IDbContextFactory-backed, so the reads share no context). Without an actor no

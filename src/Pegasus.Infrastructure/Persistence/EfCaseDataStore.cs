@@ -70,12 +70,14 @@ public sealed class EfCaseDataStore(
             AiDraftTargetDays = configuration.AiDraftTargetDays,
             Completeness = data.Completeness with
             {
-                // The accepted mileage, as the stores' gate reads it (R759).
+                // The accepted registration and mileage, as the stores' gate
+                // reads them (R759, R1081).
                 Evaluation = CaseCompletenessPolicy.Evaluate(
                     data.Completeness.Values,
                     configuration,
-                    CaseCompletenessPolicy.MileageGateOpen(
+                    CaseCompletenessPolicy.VehicleGate(
                         data.State,
+                        (data.Vehicle.Registration.Confirmed ?? data.Vehicle.Registration.Fact)?.Value,
                         (data.Vehicle.Mileage.Confirmed ?? data.Vehicle.Mileage.Fact)?.Value))
             }
         };
@@ -238,6 +240,13 @@ public sealed class EfCaseDataStore(
         where T : notnull
     {
         var values = snapshot.Fields.Where(item => item.FieldName == fieldName).ToArray();
+        if (CaseDataFieldValues.IsClearedField(values, fieldName))
+        {
+            // A box staff emptied has no value, and the fact or suggestion
+            // behind it is not shown (R1077).
+            return new(null, null, null) { Cleared = true };
+        }
+
         return new(
             MapValue(values, CaseDataCodes.Fact, parse),
             MapValue(values, CaseDataCodes.Suggestion, parse),
@@ -330,6 +339,45 @@ internal static class CaseDataFieldWriter
             SetConfirmed(context, snapshot, name, CaseDataCodes.Integer, Integer(value), actor, now);
         void Day(string name, DateOnly? value) =>
             SetConfirmed(context, snapshot, name, CaseDataCodes.Date, Date(value), actor, now);
+        // A mileage with no stated unit is in miles: the default, never
+        // staff's choice (R1080). Staff's row holds a unit only where it
+        // differs from the one standing without it (CaseOdometer.UnitWrite).
+        void MileageUnit(string? unit)
+        {
+            const string name = CaseDataFieldNames.VehicleMileageUnit;
+            var staff = snapshot.Fields.SingleOrDefault(
+                item => item.FieldName == name && item.ValueKind == CaseDataCodes.Confirmed);
+            if (unit is null)
+            {
+                // A mileage staff emptied empties its unit with it (R1077).
+                // With no reading at all there is no unit to clear, so staff's
+                // own unit goes and nothing is recorded over the instruction's.
+                if (CaseDataFieldValues.IsClearedField(snapshot.Fields, CaseDataFieldNames.VehicleMileage))
+                {
+                    Text(name, null);
+                }
+                else if (staff is not null)
+                {
+                    context.CaseDataFields.Remove(staff);
+                    snapshot.Fields.Remove(staff);
+                }
+                return;
+            }
+
+            // A cleared unit row reads as no stated unit: miles (R1080).
+            var extracted = snapshot.Fields.SingleOrDefault(
+                item => item.FieldName == name && item.ValueKind == CaseDataCodes.Fact);
+            var write = CaseOdometer.UnitWrite((staff ?? extracted)?.Value, extracted?.Value, unit);
+            if (write == CaseOdometerUnitWrite.RecordStaffValue)
+            {
+                Text(name, unit);
+            }
+            else if (write == CaseOdometerUnitWrite.RemoveStaffValue && staff is not null)
+            {
+                context.CaseDataFields.Remove(staff);
+                snapshot.Fields.Remove(staff);
+            }
+        }
 
         Text(CaseDataFieldNames.ClaimantName, data.ClaimantName);
         Text(CaseDataFieldNames.ClaimantContactNumber, data.ClaimantContactNumber);
@@ -340,7 +388,7 @@ internal static class CaseDataFieldWriter
         Text(CaseDataFieldNames.VehicleModel, data.VehicleModel);
         Text(CaseDataFieldNames.VehicleYear, data.VehicleYear);
         Whole(CaseDataFieldNames.VehicleMileage, data.VehicleMileage);
-        Text(CaseDataFieldNames.VehicleMileageUnit, data.VehicleMileageUnit);
+        MileageUnit(data.VehicleMileageUnit);
         Text(CaseDataFieldNames.AccidentCircumstances, data.AccidentCircumstances);
         Day(CaseDataFieldNames.IncidentDate, data.IncidentDate);
         Text(CaseDataFieldNames.VatStatus, data.VatStatus);
@@ -434,7 +482,11 @@ internal static class CaseDataFieldWriter
         AcceptedText(snapshot, CaseDataFieldNames.VehicleMake),
         AcceptedText(snapshot, CaseDataFieldNames.VehicleModel),
         AcceptedLong(snapshot, CaseDataFieldNames.VehicleMileage),
-        AcceptedText(snapshot, CaseDataFieldNames.VehicleMileageUnit),
+        // A mileage with no stated unit is in miles (R1080), so an unrelated
+        // save neither changes the unit nor names it in history.
+        CaseOdometer.UnitOf(
+            AcceptedLong(snapshot, CaseDataFieldNames.VehicleMileage),
+            AcceptedText(snapshot, CaseDataFieldNames.VehicleMileageUnit)),
         AcceptedText(snapshot, CaseDataFieldNames.AccidentCircumstances),
         AcceptedDate(snapshot, CaseDataFieldNames.IncidentDate),
         AcceptedText(snapshot, CaseDataFieldNames.VatStatus),
@@ -486,11 +538,7 @@ internal static class CaseDataFieldWriter
             item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Confirmed);
         if (value is null)
         {
-            if (existing is not null)
-            {
-                context.CaseDataFields.Remove(existing);
-                snapshot.Fields.Remove(existing);
-            }
+            Clear(context, snapshot, fieldName, valueType, existing, actor, now);
             return;
         }
 
@@ -540,6 +588,77 @@ internal static class CaseDataFieldWriter
         existing.SourceLabel = underlying?.SourceLabel ?? "staff case-data correction";
         existing.PolicyKey = underlying?.PolicyKey ?? CaseDataPolicy.EditPolicyKey;
         existing.PolicyVersion = underlying?.PolicyVersion ?? CaseDataPolicy.EditPolicyVersion;
+    }
+
+    /// <summary>
+    /// Staff emptied the box (R1077). With an extracted, looked-up or
+    /// suggested value behind it, staff's row records the clear: an empty
+    /// value under their name and time, so the value behind it is no longer
+    /// shown or used, and it stays in history. A box already cleared is left
+    /// as it was. With nothing behind it, staff's own value is removed. A
+    /// suggestion alone is never shown in the box, so a box that stood on
+    /// nothing else was already empty and records nothing.
+    /// </summary>
+    private static void Clear(
+        PegasusDbContext context,
+        CaseDataSnapshotEntity snapshot,
+        string fieldName,
+        string valueType,
+        CaseDataFieldEntity? existing,
+        ActionActor actor,
+        DateTimeOffset now)
+    {
+        if (existing is not null && CaseDataFieldValues.IsCleared(existing))
+        {
+            return;
+        }
+
+        var standsBehind = snapshot.Fields.Any(
+            item => item.FieldName == fieldName
+                && (existing is null
+                    ? item.ValueKind == CaseDataCodes.Fact
+                    : item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Suggestion));
+        if (!standsBehind)
+        {
+            if (existing is not null)
+            {
+                context.CaseDataFields.Remove(existing);
+                snapshot.Fields.Remove(existing);
+            }
+            return;
+        }
+
+        if (existing is null)
+        {
+            existing = new()
+            {
+                WorkId = snapshot.WorkId,
+                Snapshot = snapshot,
+                FieldName = fieldName,
+                ValueKind = CaseDataCodes.Confirmed,
+                ValueType = valueType,
+                Value = CaseDataFieldValues.ClearedValue,
+                SourceKind = CaseDataCodes.StaffCorrection,
+                SourceIdentity = actor.SubjectId,
+                SourceLabel = "staff case-data correction",
+                PolicyKey = CaseDataPolicy.EditPolicyKey,
+                PolicyVersion = CaseDataPolicy.EditPolicyVersion,
+                ConfirmedByActor = actor.SubjectId,
+                ConfirmedAtUtc = now
+            };
+            snapshot.Fields.Add(existing);
+            return;
+        }
+
+        existing.ValueType = valueType;
+        existing.Value = CaseDataFieldValues.ClearedValue;
+        existing.SourceKind = CaseDataCodes.StaffCorrection;
+        existing.SourceIdentity = actor.SubjectId;
+        existing.SourceLabel = "staff case-data correction";
+        existing.PolicyKey = CaseDataPolicy.EditPolicyKey;
+        existing.PolicyVersion = CaseDataPolicy.EditPolicyVersion;
+        existing.ConfirmedByActor = actor.SubjectId;
+        existing.ConfirmedAtUtc = now;
     }
 
     private static string? AcceptedText(CaseDataSnapshotEntity snapshot, string name) =>

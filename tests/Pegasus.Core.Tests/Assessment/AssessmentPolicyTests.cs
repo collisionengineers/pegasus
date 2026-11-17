@@ -892,7 +892,7 @@ public sealed class AssessmentPolicyTests
 
         var recorded = Projection(
             [],
-            new(null, null, null, "2012", 80_000, "miles", "owner", null, ReceivedOn, null, null, null, null, null));
+            new(null, null, null, "2012", 80_000, "miles", "owner", null, ReceivedOn, null, null, null, null));
         Assert.DoesNotContain(
             AssessmentPolicy.EvaluateReadiness(recorded),
             item => item.Requirement is "Odometer reading" or "Vehicle year");
@@ -973,11 +973,22 @@ public sealed class AssessmentPolicyTests
     }
 
     [Theory]
+    [InlineData(AssessmentVocabulary.DamageMarkers, "[]", true)]
+    [InlineData(AssessmentVocabulary.Impacts, "[]", true)]
+    [InlineData(AssessmentVocabulary.ImpactsSkipped, "false", true)]
+    [InlineData(AssessmentVocabulary.ImpactsSkipped, "true", false)]
+    [InlineData(AssessmentVocabulary.DamageMarkers, "[{\"x\":0.5,\"y\":0.1,\"r\":0.12}]", false)]
+    [InlineData(AssessmentVocabulary.LegalStatus, "false", false)]
+    public void OnlyWhatAnUntouchedDamageControlPostsIsUnchosen(string path, string value, bool unchosen)
+    {
+        Assert.Equal(unchosen, AssessmentPolicy.IsUnchosen(path, value));
+    }
+
+    [Theory]
     [InlineData(CaseDataFieldNames.ClaimantName, "Claimant name", "the Claim section")]
     [InlineData(CaseDataFieldNames.ClaimNumber, "Claim reference", "the Case details section")]
     [InlineData(CaseDataFieldNames.IncidentDate, "Incident date", "the Case details section")]
     [InlineData(CaseDataFieldNames.VehicleRegistration, "Vehicle registration", "the Vehicle section")]
-    [InlineData(CaseDataFieldNames.InspectionMode, "Inspection type", "the Inspection details section")]
     [InlineData(CaseDataFieldNames.InspectionDate, "Inspection date", "the Inspection details section")]
     [InlineData(CaseDataFieldNames.InspectionAddress, "Inspection address", "the Inspection details section")]
     public void PostReviewReadinessNamesEachCaseFactTheReportPrints(
@@ -1104,7 +1115,7 @@ public sealed class AssessmentPolicyTests
     {
         var projection = Projection(
             [Field(AssessmentVocabulary.LegalStatus, "unroadworthy")],
-            NoCaseFacts with { InspectionMode = nameof(CaseInspectionMode.PhysicalAddress) });
+            NoCaseFacts);
 
         var readiness = AssessmentPolicy.EvaluateReadiness(projection);
 
@@ -1127,7 +1138,7 @@ public sealed class AssessmentPolicyTests
     {
         CaseAssessmentProjection[] projections =
         [
-            Projection([], NoCaseFacts with { InspectionMode = nameof(CaseInspectionMode.PhysicalAddress) }),
+            Projection([], NoCaseFacts),
             Projection([Field(AssessmentVocabulary.LegalStatus, "unroadworthy")]),
             Projection([Field(AssessmentVocabulary.Outcome, "total_loss")]),
             Projection([Field(AssessmentVocabulary.Outcome, "contract_repair")]),
@@ -1193,18 +1204,17 @@ public sealed class AssessmentPolicyTests
 
     /// <summary>A Case record with nothing recorded beyond its received date.</summary>
     private static readonly AssessmentCaseOwnedData NoCaseFacts =
-        new(null, null, null, null, null, null, "tbc", null, ReceivedOn, null, null, null, null, null);
+        new(null, null, null, null, null, null, "tbc", null, ReceivedOn, null, null, null, null);
 
     /// <summary>A Case record holding every fact the report prints.</summary>
     private static readonly AssessmentCaseOwnedData CompleteCaseOwned = new(
         "AB12CDE", "Ford", "Focus", "2012", 80_000, "miles", "owner",
-        new DateOnly(2026, 8, 1), ReceivedOn, "ImageBasedAssessment", "Image Based Assessment",
+        new DateOnly(2026, 8, 1), ReceivedOn, "Image Based Assessment",
         new DateOnly(2026, 8, 3), "Alex Example", "P-100");
 
     /// <summary>
     /// <paramref name="owned"/> without the one printed Case fact named by its
-    /// Case field. An address is printed only for a vehicle inspected at a
-    /// physical location, so the address is removed from such an inspection.
+    /// Case field.
     /// </summary>
     private static AssessmentCaseOwnedData WithoutCaseFact(AssessmentCaseOwnedData owned, string field) => field switch
     {
@@ -1212,13 +1222,8 @@ public sealed class AssessmentPolicyTests
         CaseDataFieldNames.ClaimNumber => owned with { ClaimNumber = null },
         CaseDataFieldNames.IncidentDate => owned with { IncidentDate = null },
         CaseDataFieldNames.VehicleRegistration => owned with { Registration = null },
-        CaseDataFieldNames.InspectionMode => owned with { InspectionMode = null },
         CaseDataFieldNames.InspectionDate => owned with { InspectionDate = null },
-        CaseDataFieldNames.InspectionAddress => owned with
-        {
-            InspectionMode = nameof(CaseInspectionMode.PhysicalAddress),
-            InspectionAddress = null
-        },
+        CaseDataFieldNames.InspectionAddress => owned with { InspectionAddress = null },
         _ => throw new ArgumentOutOfRangeException(nameof(field), field, "Not a Case fact the report prints.")
     };
 

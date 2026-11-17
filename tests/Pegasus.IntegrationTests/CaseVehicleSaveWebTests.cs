@@ -683,6 +683,38 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         Assert.Equal("Vauxhall", data!.Vehicle.Make.Confirmed?.Value);
     }
 
+    /// <summary>
+    /// A save refused for one field's value says which (#2111; operator, 17
+    /// November 2026, R1118): Core's own sentence for a registration it will
+    /// not take, and "Mileage is invalid." for a number the server cannot
+    /// read. Neither points at the lease, and nothing lands.
+    /// </summary>
+    [Theory]
+    [InlineData("vehicleRegistration", "AB-12.CDE", "The vehicle registration can contain only letters, digits and spaces.")]
+    [InlineData("vehicleMileage", "1e5", "Mileage is invalid.")]
+    public async Task ASaveRefusedForOneFieldsValueNamesTheField(string field, string value, string notice)
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            useIntegrationTestAuthentication: true);
+        var caseId = await AcceptCaseAsync(
+            factory, $"accept-case-refusal-{field}", withMileage: false);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        (string Name, string Value)[] posted =
+        [
+            .. CurrentCaseSaveValues(editing, caseId)
+                .Select(item => item.Name == field ? (item.Name, value) : item)
+        ];
+
+        var refused = await CommitAsync(client, editing, caseId, posted, script: true);
+
+        Assert.Equal(HttpStatusCode.OK, refused.Status);
+        Assert.DoesNotMatch("data-editor-commit=\"[^\"]+\"", refused.Body);
+        Assert.Contains(notice, refused.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("The case action was not applied", refused.Body, StringComparison.Ordinal);
+    }
+
     private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
         HttpClient client,
         string antiforgeryHtml,
@@ -736,11 +768,12 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The record form defaults the unit to miles when the Case carries neither
-    /// part of an odometer reading.
+    /// A mileage with no stated unit is in miles: the page shows Miles and
+    /// the save records no unit of staff's, since nobody chose one (operator,
+    /// 16 November 2026, R1080; #2109).
     /// </summary>
     [Fact]
-    public async Task TypingAMileageSavesItInMiles()
+    public async Task ATypedMileageIsInMilesAndRecordsNoUnitOfStaffs()
     {
         using var factory = new IntakeWebApplicationFactory(
             useIntegrationTestAuthentication: true);
@@ -756,7 +789,13 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(data);
         Assert.Equal(51234L, data!.Vehicle.Mileage.Confirmed?.Value);
-        Assert.Equal("miles", data.Vehicle.MileageUnit.Confirmed?.Value);
+        Assert.Null(data.Vehicle.MileageUnit.Confirmed);
+        Assert.Null(data.Vehicle.MileageUnit.Fact);
+
+        var saved = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Equal("miles", SelectValue(saved, "vehicleMileageUnit"));
+        // The read cell says Miles too, where it said Not recorded.
+        Assert.Contains(">Miles</div>", saved, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -785,6 +824,15 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         Assert.NotNull(data);
         Assert.Equal(42000L, data!.Vehicle.Mileage.Confirmed?.Value);
         Assert.Equal("kilometres", data.Vehicle.MileageUnit.Confirmed?.Value);
+
+        // Back to Miles is back to the default: staff's unit goes (R1080).
+        await SaveMileageAsync(client, caseId, "42000", "Changed the odometer unit back to miles.", "miles");
+
+        await using var after = factory.Services.CreateAsyncScope();
+        var restored = await after.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.Equal(42000L, restored!.Vehicle.Mileage.Confirmed?.Value);
+        Assert.Null(restored.Vehicle.MileageUnit.Confirmed);
     }
 
     /// <summary>
@@ -851,6 +899,84 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         Assert.Contains(">CD34EFG</span>", RibbonRegistrationCell(saved), StringComparison.Ordinal);
         var search = await GetHtmlAsync(client, "/Search?registration=CD34EFG");
         Assert.Contains(caseId.ToString("D"), search, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Blank means blank (R1077): emptying a looked-up make on the Case page
+    /// leaves the box empty after the save and on every later read, and
+    /// saving the page again keeps it empty.
+    /// </summary>
+    [Fact]
+    public async Task EmptyingALookedUpMakeKeepsTheBoxEmptyAfterTheSaveAndOnReload()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            useIntegrationTestAuthentication: true);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-vehicle-make-emptied", withMileage: true);
+        await using (var seed = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await seed.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            context.CaseDataFields.Add(new CaseDataFieldEntity
+            {
+                WorkId = caseId,
+                FieldName = CaseDataFieldNames.VehicleMake,
+                ValueKind = CaseDataCodes.Fact,
+                ValueType = CaseDataCodes.Text,
+                Value = "FORD",
+                SourceKind = CaseDataCodes.VehicleLookup,
+                SourceIdentity = Guid.NewGuid().ToString("D"),
+                SourceLabel = "offline-replay/fixture-v1",
+                PolicyKey = VehicleLookupFillPolicy.PolicyKey,
+                PolicyVersion = VehicleLookupFillPolicy.PolicyVersion
+            });
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Equal("FORD", InputValue(editing, "vehicleMake"));
+
+        using (var save = await client.PostAsync(
+                   $"/Cases/{caseId:D}?handler=Save",
+                   Form(
+                       AntiforgeryValue(editing),
+                       CurrentCaseSaveValues(
+                           editing,
+                           caseId,
+                           vehicleMake: string.Empty,
+                           reason: "The looked-up make is not this vehicle's."))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
+        }
+
+        var saved = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Equal(string.Empty, InputValue(saved, "vehicleMake"));
+        using (var again = await client.PostAsync(
+                   $"/Cases/{caseId:D}?handler=Save",
+                   Form(
+                       AntiforgeryValue(saved),
+                       CurrentCaseSaveValues(
+                           saved,
+                           caseId,
+                           vehicleMake: InputValue(saved, "vehicleMake"),
+                           reason: "Saved the page as it stands."))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, again.StatusCode);
+        }
+
+        var reloaded = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Equal(string.Empty, InputValue(reloaded, "vehicleMake"));
+        Assert.DoesNotContain("FORD", reloaded, StringComparison.Ordinal);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.NotNull(data);
+        Assert.True(data.Vehicle.Make.Cleared);
+        Assert.Null(data.Vehicle.Make.Current);
+        Assert.Equal("Focus", data.Vehicle.Model.Current?.Value);
     }
 
     private static string RibbonRegistrationCell(string html)
@@ -1094,7 +1220,6 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         ("inspectionDate", InputValue(html, "inspectionDate")),
         ("inspectionDeadline", InputValue(html, "inspectionDeadline")),
         ("inspectionAddress", InputValue(html, "inspectionAddress")),
-        ("inspectionMode", InputValue(html, "inspectionMode")),
         ("storageLocation", InputValue(html, "storageLocation"))
     ];
 

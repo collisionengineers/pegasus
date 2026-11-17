@@ -943,6 +943,57 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.DoesNotContain("Retry the operation", reloaded, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A send whose provider answer is ambiguous (a Graph server error or a
+    /// timeout, which the engine records Unknown and throws) lands back on
+    /// the Report section with "The send result is not yet known.", as a
+    /// returned Unknown does, never on the error page (R1069).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ASendWithAnUnknownProviderOutcomeStaysOnTheReport(bool timedOut)
+    {
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            sendReport: new AmbiguousSendReport(timedOut
+                ? new TaskCanceledException("The request timed out.", new TimeoutException())
+                : new HttpRequestException(
+                    "Microsoft Graph returned 503.", null, HttpStatusCode.ServiceUnavailable)));
+        using var client = Client(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SendReport&section=report",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "0"),
+                ("generationId", Guid.NewGuid().ToString("D")),
+                ("expectedGenerationVersion", "1"),
+                ("coveringMessage", "Please find attached our report."),
+                ("toRecipients", "reviewed@recipient.example")));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var location = response.Headers.Location!.OriginalString;
+        Assert.Contains("section=report", location, StringComparison.Ordinal);
+        Assert.DoesNotContain("Error", location, StringComparison.Ordinal);
+        var reloaded = WebUtility.HtmlDecode(await GetHtmlAsync(client, location));
+        Assert.Contains(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendUnknown,
+            reloaded,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("Retry the operation", reloaded, StringComparison.Ordinal);
+    }
+
     public static TheoryData<string> Refusals => new()
     {
         CaseReportDeliveryPolicy.DispatchChanged,
@@ -2230,6 +2281,24 @@ public sealed partial class AssessmentReportDraftWebTests
             SendCaseReportRequest request,
             CancellationToken cancellationToken) =>
             throw new InvalidOperationException(refusal);
+    }
+
+    /// <summary>
+    /// A send the engine recorded Unknown and threw, as it does when the
+    /// provider answers <paramref name="providerFault"/>.
+    /// </summary>
+    private sealed class AmbiguousSendReport(Exception providerFault) : ISendCaseReport
+    {
+        public Task<StaffMailOperation> ExecuteAsync(
+            SendCaseReportRequest request,
+            CancellationToken cancellationToken) =>
+            throw new StaffMailOutcomeUnknownException(
+                new StaffMailOperation(
+                    Guid.NewGuid(), StaffMailState.Unknown, StaffMailAttemptStage.CreateDraft, 2,
+                    ReportFixtureAtUtc, null, null, "provider_outcome_unknown", Guid.NewGuid(), 1,
+                    new string('a', 64), null, null, StaffMailPurpose.CaseReport,
+                    request.GenerationId, request.ExpectedGenerationVersion, null),
+                providerFault);
     }
 
     /// <summary>The dispatch facts of one Case, as the delivery form reads them.</summary>

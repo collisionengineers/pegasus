@@ -149,10 +149,9 @@ public static partial class OperatorLabels
         public const string VehicleFactsPanel = "Vehicle";
 
         /// <summary>
-        /// Why the Experian control is drawn disabled (operator decisions
-        /// D7/D22). Always supplied: <c>.gated::after</c> renders
-        /// <c>attr(data-condition)</c> unguarded, so a <c>.gated</c> span
-        /// without one paints an empty pill.
+        /// What the Vehicle history area says on a host that does not compose
+        /// Experian (operator decisions D7/D22; ADR-0089), where Run Experian
+        /// check would otherwise stand.
         /// </summary>
         public const string ExperianSeamCondition = "Experian is not connected";
 
@@ -317,7 +316,6 @@ public static partial class OperatorLabels
             public const string Type = "Type";
             public const string ToBeConfirmed = "To be confirmed";
 
-            public const string ReadOnlyOnceComplete = "Read-only once Complete";
             public const string SendingToAiDisabled = "Sending to AI is disabled by an Administrator";
             public const string EngineerValueRequired = "An Engineer's Value is required";
             public const string NotAvailableForCase = "Not available for this case";

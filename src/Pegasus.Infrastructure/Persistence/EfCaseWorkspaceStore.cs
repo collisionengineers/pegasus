@@ -142,6 +142,16 @@ public sealed class EfCaseWorkspaceStore(
         var beforeCompleteness = Completeness(snapshot);
         var data = CaseDataPolicy.Normalize(
             CaseWorkspacePolicy.Overlay(beforeData, request));
+        if (request.ExpectedVersion < workflow.Version && workId == currentWorkId)
+        {
+            // System work filled the work since the page read it: a box the
+            // page showed empty before the fill is not one staff emptied.
+            data = CaseWorkspacePolicy.KeepSystemCaseDataFills(
+                data,
+                beforeData,
+                await EfVehicleLookupWorkStore.FilledCaseDataSinceAsync(
+                    context, request.CaseId, request.ExpectedVersion, snapshot.Fields, cancellationToken));
+        }
         if (data.ClaimSourceId != beforeData.ClaimSourceId)
         {
             await ClaimSourceChoice.RequireActiveAsync(context, data.ClaimSourceId, cancellationToken);
@@ -354,7 +364,7 @@ public sealed class EfCaseWorkspaceStore(
         var evaluation = CaseCompletenessPolicy.Evaluate(
             afterCompleteness,
             configuration,
-            CaseCompletenessPolicy.MileageGateOpen(state, CaseInstructionCompleteness.Mileage(snapshot)));
+            CaseInstructionCompleteness.VehicleGate(snapshot, state));
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;
@@ -929,7 +939,9 @@ public sealed class EfCaseWorkspaceStore(
             VehicleMake: Current(CaseDataFieldNames.VehicleMake),
             VehicleModel: Current(CaseDataFieldNames.VehicleModel),
             VehicleMileage: CurrentLong(CaseDataFieldNames.VehicleMileage),
-            VehicleMileageUnit: Current(CaseDataFieldNames.VehicleMileageUnit),
+            VehicleMileageUnit: CaseOdometer.UnitOf(
+                CurrentLong(CaseDataFieldNames.VehicleMileage),
+                Current(CaseDataFieldNames.VehicleMileageUnit)),
             IncidentDate: CurrentDate(CaseDataFieldNames.IncidentDate),
             InspectionDate: CurrentDate(CaseDataFieldNames.InspectionDate),
             InspectionAddress: Current(CaseDataFieldNames.InspectionAddress),

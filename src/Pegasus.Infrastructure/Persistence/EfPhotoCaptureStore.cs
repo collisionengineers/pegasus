@@ -230,7 +230,10 @@ public sealed class EfPhotoCaptureStore(
             CaptureId = captureId,
             Purpose = PhotoCaptureCodes.ToCode(purpose),
             IssuedAtUtc = issuedAtUtc,
-            IssuedByStaffId = Guid.TryParse(actor.SubjectId, out var staffId) ? staffId : null
+            // A staff issuer only when a member of staff issued it (#2147).
+            IssuedByStaffId = actor.Kind == Pegasus.Core.Identity.ActorKind.Staff && Guid.TryParse(actor.SubjectId, out var staffId)
+                ? staffId
+                : null
         });
         context.ActionHistory.Add(DocumentActionHistory.Succeeded(
             HistoryAggregateType, captureId.ToString("D"), PhotoLinkActs.Issued, actor, issuedAtUtc, key));
@@ -1023,6 +1026,27 @@ public sealed class EfPhotoCaptureStore(
             entity.CallLoggedAtUtc = calledAtUtc;
             return true;
         }, cancellationToken);
+
+    /// <summary>The replay <see cref="RecordActAsync"/> finds, read on its own: the key's event for this act on this capture.</summary>
+    public async Task<bool> HasRecordedActAsync(
+        Guid captureId,
+        string act,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(act);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        var key = operationKey.Trim();
+        var aggregateId = captureId.ToString("D");
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.ActionHistory.AsNoTracking()
+            .AnyAsync(
+                item => item.AggregateType == HistoryAggregateType
+                    && item.CorrelationId == key
+                    && item.AggregateId == aggregateId
+                    && item.EventKind == act,
+                cancellationToken);
+    }
 
     /// <summary>
     /// One staff act on the capture row and its <c>ActionHistory</c> event,

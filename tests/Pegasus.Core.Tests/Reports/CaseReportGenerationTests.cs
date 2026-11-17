@@ -1198,30 +1198,30 @@ public sealed class CaseReportGenerationTests
             "operation-1:fee-note"));
     }
 
+    // An assessment that opens is never read-only, so the gate is the
+    // assessment's own (R1095): every writable state opens, no other does.
     [Theory]
+    [InlineData(Pegasus.Core.Workflow.CaseLifecycleState.NotReady, CaseReportActAccess.Open)]
+    [InlineData(Pegasus.Core.Workflow.CaseLifecycleState.Review, CaseReportActAccess.Open)]
     [InlineData(Pegasus.Core.Workflow.CaseLifecycleState.ReportPreparation, CaseReportActAccess.Open)]
+    [InlineData(Pegasus.Core.Workflow.CaseLifecycleState.ReportSent, CaseReportActAccess.Open)]
+    [InlineData(Pegasus.Core.Workflow.CaseLifecycleState.PrincipalCancelled, CaseReportActAccess.NotOpen)]
     [InlineData(Pegasus.Core.Workflow.CaseLifecycleState.Held, CaseReportActAccess.NotOpen)]
     public async Task TheReportGateOpensOnlyAnAssessmentThatOpens(
         Pegasus.Core.Workflow.CaseLifecycleState state,
         CaseReportActAccess expected)
     {
-        var header = new CountingCaseHeader();
-        var acts = new CaseReportActs(new FixedAssessmentAccess(new(state)), header);
+        var acts = new CaseReportActs(new FixedAssessmentAccess(new(state)));
 
-        Assert.Equal(
-            expected,
-            await acts.GetAccessAsync(Engineer, CaseId, CaseWorkSelector.Primary, CancellationToken.None));
-        Assert.Equal(0, header.Reads);
+        Assert.Equal(expected, await acts.GetAccessAsync(Engineer, CaseId, CancellationToken.None));
     }
 
     [Fact]
     public async Task TheReportGateRefusesACaseItCannotFind()
     {
-        var acts = new CaseReportActs(new FixedAssessmentAccess(null), new CountingCaseHeader());
+        var acts = new CaseReportActs(new FixedAssessmentAccess(null));
 
-        Assert.Equal(
-            CaseReportActAccess.NotOpen,
-            await acts.GetAccessAsync(Engineer, CaseId, CaseWorkSelector.Current, CancellationToken.None));
+        Assert.Equal(CaseReportActAccess.NotOpen, await acts.GetAccessAsync(Engineer, CaseId, CancellationToken.None));
     }
 
     private sealed class FixedAssessmentAccess(AssessmentAccessState? access) : IGetAssessmentAccess
@@ -1229,17 +1229,6 @@ public sealed class CaseReportGenerationTests
         public Task<AssessmentAccessState?> ExecuteAsync(
             GetAssessmentAccessQuery query,
             CancellationToken cancellationToken = default) => Task.FromResult(access);
-    }
-
-    private sealed class CountingCaseHeader : IGetCaseHeader
-    {
-        public int Reads { get; private set; }
-
-        public Task<CaseHeader?> ExecuteAsync(GetCaseHeaderQuery query, CancellationToken cancellationToken)
-        {
-            Reads++;
-            return Task.FromResult<CaseHeader?>(null);
-        }
     }
 
     private static GenerateCaseReport Use(

@@ -266,9 +266,14 @@ public sealed class RenderCaseEstimateDocument(
                 var model = workspace.Data.Vehicle.Model.Current?.Value;
                 var description = string.Join(" ", new[] { make, model }
                     .Where(value => !string.IsNullOrWhiteSpace(value)));
+                // The instruction's own description stands in only where staff
+                // emptied neither box: it would bring back what they cleared
+                // (R1077, R1121).
                 if (string.IsNullOrWhiteSpace(description))
                 {
-                    description = workspace.Data.Vehicle.Description.Current?.Value ?? "—";
+                    description = workspace.Data.Vehicle.Make.Cleared || workspace.Data.Vehicle.Model.Cleared
+                        ? "—"
+                        : workspace.Data.Vehicle.Description.Current?.Value ?? "—";
                 }
                 var snapshot = EstimateDocumentSnapshot.For(
                     estimate,

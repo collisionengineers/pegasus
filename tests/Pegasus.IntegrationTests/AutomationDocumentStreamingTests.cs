@@ -99,7 +99,8 @@ public sealed class AutomationDocumentStreamingTests
 
     /// <summary>
     /// Stop refuses a token issued before it: on a content route the refusal is
-    /// a 403 with the resolver's security event, and no bytes are read.
+    /// a 403 with the resolver's security event, and no bytes are read. That
+    /// event is the only one the refusal writes (R1097).
     /// </summary>
     [Fact]
     public async Task AStoppedClientsTokenIsForbiddenTheStream()
@@ -108,7 +109,8 @@ public sealed class AutomationDocumentStreamingTests
         var boundary = new DocumentBoundary();
         using var factory = WithBoundary(WithAutomationMcp(fixture), boundary);
         using var client = factory.CreateClient();
-        var token = await RequestTokenAsync(client, AutomationMcp.DocumentsScope);
+        var token = await RequestTokenAsync(
+            client, $"{AutomationMcp.DocumentsScope} {AutomationMcp.IntakeScope}");
         using (var scope = factory.Services.CreateScope())
         {
             var stopped = await scope.ServiceProvider
@@ -135,6 +137,29 @@ public sealed class AutomationDocumentStreamingTests
             WHERE ReasonCode = N'automation_client_disabled'
               AND Outcome = N'Denied'
               AND SubjectId = N'pegasus-automation'
+            """));
+        Assert.Equal(0, await (await fixture.DatabaseAsync).ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM SecurityEvents
+            WHERE ReasonCode = N'automation_access_denied'
+            """));
+
+        // The intake-source route refuses the stopped client the same way.
+        using var sourceRequest = Request($"/automation/intake-sources/{Guid.NewGuid():D}", token);
+        using var sourceResponse = await client.SendAsync(sourceRequest);
+
+        Assert.Equal(HttpStatusCode.Forbidden, sourceResponse.StatusCode);
+        Assert.Equal(2, await (await fixture.DatabaseAsync).ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM SecurityEvents
+            WHERE ReasonCode = N'automation_client_disabled'
+              AND Outcome = N'Denied'
+              AND SubjectId = N'pegasus-automation'
+            """));
+        Assert.Equal(0, await (await fixture.DatabaseAsync).ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM SecurityEvents
+            WHERE ReasonCode = N'automation_access_denied'
             """));
     }
 

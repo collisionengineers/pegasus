@@ -105,6 +105,145 @@ public sealed class CaseDataCompletenessPersistenceTests
     }
 
     [Fact]
+    public async Task AnAcceptedCaseWithNoRegistrationStaysNotReadyWithItsMileageUntilARegistrationIsEntered()
+    {
+        // R1081: an instruction read without a registration creates its Case
+        // Not ready even with its mileage, and the requirement names the
+        // registration; a saved mileage alone does not move it, and the saved
+        // registration moves it on by itself.
+        await using var harness = await CaseDataHarness.CreateAsync(registered: false);
+        var initial = await harness.GetRequiredDataAsync();
+        Assert.Equal(CaseLifecycleState.NotReady, initial.State);
+        Assert.Null(initial.Vehicle.Registration.Current);
+        Assert.NotNull(initial.Vehicle.Mileage.Current);
+        Assert.Equal(
+            [CaseWorkflowConfiguration.VehicleRegistrationRequirement],
+            initial.Completeness.Evaluation.MissingRequirements);
+
+        var mileageLease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "edit-registration-gate-mileage");
+        var mileageSaved = await harness.WorkspaceStore.SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                harness.CaseId,
+                initial.Version,
+                harness.StaffActor,
+                "save-registration-gate-mileage",
+                null,
+                mileageLease.Token)
+            {
+                Vehicle = new(
+                    null,
+                    initial.Vehicle.Make.Current?.Value,
+                    initial.Vehicle.Model.Current?.Value,
+                    new(52_300, CaseOdometerUnit.Miles, null),
+                    null,
+                    initial.Vehicle.Year.Current?.Value)
+            },
+            default);
+
+        Assert.Equal(CaseLifecycleState.NotReady, mileageSaved.Data.State);
+        Assert.Equal(
+            [CaseWorkflowConfiguration.VehicleRegistrationRequirement],
+            (await harness.GetRequiredDataAsync()).Completeness.Evaluation.MissingRequirements);
+
+        var registrationLease = await harness.AcquireLeaseAsync(
+            mileageSaved.Version, harness.StaffActor, "edit-registration-gate-registration");
+        var registrationSaved = await harness.WorkspaceStore.SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                harness.CaseId,
+                mileageSaved.Version,
+                harness.StaffActor,
+                "save-registration-gate-registration",
+                null,
+                registrationLease.Token)
+            {
+                Vehicle = new(
+                    "AB12CDE",
+                    initial.Vehicle.Make.Current?.Value,
+                    initial.Vehicle.Model.Current?.Value,
+                    new(52_300, CaseOdometerUnit.Miles, null),
+                    null,
+                    initial.Vehicle.Year.Current?.Value)
+            },
+            default);
+
+        Assert.Equal(CaseLifecycleState.Review, registrationSaved.Data.State);
+        Assert.Empty((await harness.GetRequiredDataAsync()).Completeness.Evaluation.MissingRequirements);
+    }
+
+    [Fact]
+    public async Task ANotReadyCaseWhoseExtractedMileageStaffEmptiedStaysNotReadyAndNamesIt()
+    {
+        // R1077 with R759 and R1081: a mileage staff emptied is no mileage,
+        // whatever the instruction said, so the Case waits for one as well as
+        // for its registration.
+        await using var harness = await CaseDataHarness.CreateAsync(registered: false);
+        var initial = await harness.GetRequiredDataAsync();
+        Assert.Equal(CaseLifecycleState.NotReady, initial.State);
+        Assert.NotNull(initial.Vehicle.Mileage.Fact);
+
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "edit-clear-mileage-gate");
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                harness.CaseId,
+                initial.Version,
+                harness.StaffActor,
+                "save-clear-mileage-gate",
+                null,
+                lease.Token)
+            {
+                Vehicle = new(
+                    null,
+                    initial.Vehicle.Make.Current?.Value,
+                    initial.Vehicle.Model.Current?.Value,
+                    null,
+                    null,
+                    initial.Vehicle.Year.Current?.Value)
+            },
+            default);
+
+        Assert.Equal(CaseLifecycleState.NotReady, saved.Data.State);
+        Assert.True(saved.Data.Vehicle.Mileage.Cleared);
+        var missing = (await harness.GetRequiredDataAsync()).Completeness.Evaluation.MissingRequirements;
+        Assert.Contains(CaseWorkflowConfiguration.VehicleRegistrationRequirement, missing);
+        Assert.Contains(CaseWorkflowConfiguration.VehicleMileageRequirement, missing);
+    }
+
+    [Fact]
+    public async Task ACaseInReviewIsNeverSentBackForItsRegistration()
+    {
+        // The gate stands only on the way in (R1081, as R631): a Review Case
+        // with no registration recorded stays in Review when it is saved.
+        await using var harness = await CaseDataHarness.CreateAsync();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.CaseDataFields
+                .Where(item => item.WorkId == harness.CaseId
+                    && item.FieldName == CaseDataFieldNames.VehicleRegistration)
+                .ExecuteDeleteAsync();
+        }
+        var initial = await harness.GetRequiredDataAsync();
+        Assert.Equal(CaseLifecycleState.Review, initial.State);
+        Assert.Null(initial.Vehicle.Registration.Current);
+        Assert.Empty(initial.Completeness.Evaluation.MissingRequirements);
+
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "edit-review-no-registration");
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                harness.CaseId,
+                initial.Version,
+                harness.StaffActor,
+                "save-review-no-registration",
+                null,
+                lease.Token)
+            {
+                Completeness = new(true, true)
+            },
+            default);
+
+        Assert.Equal(CaseLifecycleState.Review, saved.Data.State);
+    }
+
+    [Fact]
     public async Task ACaseInReviewIsNeverSentBackForItsMileage()
     {
         // The gate stands only on the way in (R759, as R631): a Review Case
@@ -660,18 +799,23 @@ public sealed class CaseDataCompletenessPersistenceTests
         /// The instruction's mileage; without one the Case is created Not
         /// ready (R759).
         /// </param>
+        /// <param name="registered">
+        /// Whether the instruction states the registration; without one the
+        /// Case is created Not ready (R1081).
+        /// </param>
         public static async Task<CaseDataHarness> CreateAsync(
             InspectionAddressStaffDecision addressDecision =
                 InspectionAddressStaffDecision.AcceptSuggestion,
             string? correctedAddress = null,
-            long? mileage = FixtureMileage)
+            long? mileage = FixtureMileage,
+            bool registered = true)
         {
             var database = await LocalDbTestDatabase.CreateAsync();
             var factory = new PooledDbContextFactory<PegasusDbContext>(
                 new DbContextOptionsBuilder<PegasusDbContext>()
                     .UseSqlServer(database.ConnectionString)
                     .Options);
-            return await OpenAsync(database, shared: null, factory, addressDecision, correctedAddress, mileage);
+            return await OpenAsync(database, shared: null, factory, addressDecision, correctedAddress, mileage, registered);
         }
 
         /// <summary>The instruction's mileage in the fixture.</summary>
@@ -688,7 +832,8 @@ public sealed class CaseDataCompletenessPersistenceTests
                 shared.Factory,
                 InspectionAddressStaffDecision.AcceptSuggestion,
                 correctedAddress: null,
-                mileage);
+                mileage,
+                registered: true);
 
         private static async Task<CaseDataHarness> OpenAsync(
             LocalDbTestDatabase database,
@@ -696,7 +841,8 @@ public sealed class CaseDataCompletenessPersistenceTests
             PooledDbContextFactory<PegasusDbContext> factory,
             InspectionAddressStaffDecision addressDecision,
             string? correctedAddress,
-            long? mileage)
+            long? mileage,
+            bool registered)
         {
             var receiptId = Guid.NewGuid();
             try
@@ -705,7 +851,7 @@ public sealed class CaseDataCompletenessPersistenceTests
                 var staffId = Guid.NewGuid();
                 var staffActor = ActionActor.Staff(staffId, [StaffRole.User]);
                 var sourceHash = new string('a', 64);
-                await SeedAsync(factory, receiptId, sourceHash, mileage);
+                await SeedAsync(factory, receiptId, sourceHash, mileage, registered);
 
                 var addressStore = new InspectionAddressResolutionStore(factory, timeProvider);
                 var address = await addressStore.GetAsync(receiptId, CancellationToken.None);
@@ -827,7 +973,8 @@ public sealed class CaseDataCompletenessPersistenceTests
             IDbContextFactory<PegasusDbContext> factory,
             Guid receiptId,
             string sourceHash,
-            long? mileage)
+            long? mileage,
+            bool registered)
         {
             await using var context = await factory.CreateDbContextAsync();
             var principal = await SeededPrincipals.QdosAsync(context);
@@ -844,12 +991,21 @@ public sealed class CaseDataCompletenessPersistenceTests
                 fieldsJson = fieldsJson[..^2]
                     + $$""",{"name":"Vehicle mileage","suggestedValue":"{{miles}} miles","candidates":[{"value":"{{miles}} miles","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false}]}""";
             }
+            // An instruction read without a registration (R981) is accepted
+            // without its review field and its draft value (R1081).
+            if (!registered)
+            {
+                fieldsJson = fieldsJson.Replace(
+                    """{"name":"Vehicle registration","suggestedValue":"AB12 CDE","candidates":[{"value":"AB12 CDE","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},""",
+                    string.Empty,
+                    StringComparison.Ordinal);
+            }
             var emptyEnvelope = """{"version":1,"data":[]}""";
 
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {"qdos.eml"}, {"message/rfc822"}, {100L}, {sourceHash}, {"mailbox"}, {"mailbox-item-immutable-1"}, {StartUtc}, {StartUtc}, {"fixture-reader"}, {"1"}, {"qdos_instruction"}, {1}, {0L}, {"case_created"}, {"Ready fixture"}, {emptyEnvelope}, {fieldsJson}, {emptyEnvelope})");
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO InstructionDrafts (IntakeReceiptId, SuggestedPrincipalCode, ClaimantName, ClaimNumber, VehicleRegistration, VehicleMileage, InspectionAddress, InspectionDate) VALUES ({receiptId}, {"QDOS"}, {"Jane Example"}, {"QDOS-123"}, {"AB12CDE"}, {mileage}, {"1 Test Street, London"}, {new DateOnly(2031, 5, 20)})");
+                $"INSERT INTO InstructionDrafts (IntakeReceiptId, SuggestedPrincipalCode, ClaimantName, ClaimNumber, VehicleRegistration, VehicleMileage, InspectionAddress, InspectionDate) VALUES ({receiptId}, {"QDOS"}, {"Jane Example"}, {"QDOS-123"}, {(registered ? "AB12CDE" : null)}, {mileage}, {"1 Test Street, London"}, {new DateOnly(2031, 5, 20)})");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO IntakeMailRouteDecisions (IntakeReceiptId, Disposition, RouteOwnerCode, RouteKind, PrincipalCode, PredicatesJson, Reason, PolicyKey, PolicyVersion, TransportIdentitiesJson, OriginalIdentitiesJson) VALUES ({receiptId}, {"accepted"}, {"QDOS"}, {"direct_principal"}, {"QDOS"}, {emptyEnvelope}, {"Accepted QDOS route"}, {"qdos_mail_route"}, {2}, {emptyEnvelope}, {emptyEnvelope})");
         }
