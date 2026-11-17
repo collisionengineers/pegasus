@@ -247,6 +247,13 @@ public sealed record CaseWorkflowRecord(
     /// <summary>The Case's type.</summary>
     public CaseType CaseType { get; init; }
 
+    /// <summary>
+    /// What a standalone Audit works from, taken from its Principal when the
+    /// Case was created (R1138); the original engineer's report on every other
+    /// Case type.
+    /// </summary>
+    public AuditWorkflowKind AuditWorkflow { get; init; }
+
     /// <summary>When the current hold was placed; null unless the Case is Held.</summary>
     public DateTimeOffset? HeldAtUtc { get; init; }
 

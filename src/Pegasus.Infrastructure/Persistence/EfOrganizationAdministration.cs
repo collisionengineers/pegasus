@@ -116,7 +116,11 @@ public sealed class EfOrganizationAdministration(
             request.Reason,
             request.DefaultFee,
             request.ReportNames,
-            request.FeeNoteVatNumber
+            request.FeeNoteVatNumber,
+            request.AuditWorkflow,
+            request.PrincipalInvoice,
+            request.InvoiceVatNumber,
+            request.InvoicePaymentTerms
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
@@ -143,11 +147,19 @@ public sealed class EfOrganizationAdministration(
             request.ExpectedVersion,
             request.DefaultFee,
             request.ReportNames,
-            request.FeeNoteVatNumber);
+            request.FeeNoteVatNumber,
+            request.AuditWorkflow,
+            request.PrincipalInvoice,
+            request.InvoiceVatNumber,
+            request.InvoicePaymentTerms);
 
         entity.DefaultFee = result.DefaultFee;
         WriteReportNames(entity, result.ReportNames);
         entity.FeeNoteVatNumber = result.FeeNoteVatNumber;
+        entity.AuditWorkflow = PrincipalAuditWorkflowPolicy.ToCode(result.AuditWorkflow);
+        entity.PrincipalInvoice = PrincipalInvoicePolicy.ToCode(result.PrincipalInvoice);
+        entity.InvoiceVatNumber = result.InvoiceVatNumber;
+        entity.InvoicePaymentTerms = result.InvoicePaymentTerms;
         entity.Version = result.Version;
 
         var now = _timeProvider.GetUtcNow();
@@ -486,6 +498,10 @@ public sealed class EfOrganizationAdministration(
             AuditReportNameFirst = result.ReportNames.AuditFirst,
             AuditReportNameResend = result.ReportNames.AuditResend,
             FeeNoteVatNumber = result.FeeNoteVatNumber,
+            AuditWorkflow = PrincipalAuditWorkflowPolicy.ToCode(result.AuditWorkflow),
+            PrincipalInvoice = PrincipalInvoicePolicy.ToCode(result.PrincipalInvoice),
+            InvoiceVatNumber = result.InvoiceVatNumber,
+            InvoicePaymentTerms = result.InvoicePaymentTerms,
             // A successor code keeps the way its Cases are referenced, so a
             // replaced Private customer code still gives registration references.
             ReferenceScheme = predecessor.ReferenceScheme,
@@ -591,7 +607,11 @@ public sealed class EfOrganizationAdministration(
             ReadSalvageMatrix(entity.SalvageMatrixJson),
             entity.DefaultFee,
             ReadReportNames(entity),
-            entity.FeeNoteVatNumber);
+            entity.FeeNoteVatNumber,
+            PrincipalAuditWorkflowPolicy.Parse(entity.AuditWorkflow),
+            PrincipalInvoicePolicy.Parse(entity.PrincipalInvoice),
+            entity.InvoiceVatNumber,
+            entity.InvoicePaymentTerms);
 
     internal static Principal ToPrincipal(PrincipalEntity entity) =>
         new(
@@ -609,7 +629,11 @@ public sealed class EfOrganizationAdministration(
             ReadSalvageMatrix(entity.SalvageMatrixJson),
             entity.DefaultFee,
             ReadReportNames(entity),
-            entity.FeeNoteVatNumber);
+            entity.FeeNoteVatNumber,
+            PrincipalAuditWorkflowPolicy.Parse(entity.AuditWorkflow),
+            PrincipalInvoicePolicy.Parse(entity.PrincipalInvoice),
+            entity.InvoiceVatNumber,
+            entity.InvoicePaymentTerms);
 
     /// <summary>A Principal's report names as its four columns hold them.</summary>
     internal static PrincipalReportNames ReadReportNames(PrincipalEntity entity) =>

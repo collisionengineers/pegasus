@@ -29,7 +29,14 @@ public sealed record Principal(
     // What its reports are called (6 November 2026, R740); none means the standard names.
     PrincipalReportNames? ReportNames = null,
     // The VAT number its fee notes print (12 November 2026, R1006); null means the standard number.
-    string? FeeNoteVatNumber = null)
+    string? FeeNoteVatNumber = null,
+    // What its standalone Audits work from (17 November 2026, R1138); a new Audit takes it at creation.
+    AuditWorkflowKind AuditWorkflow = AuditWorkflowKind.OriginalEngineerReport,
+    // The invoice Generate report also makes in its own name (R1147), and the
+    // VAT number and payment terms that invoice prints (R1148); null leaves the row out.
+    PrincipalInvoiceKind PrincipalInvoice = PrincipalInvoiceKind.None,
+    string? InvoiceVatNumber = null,
+    string? InvoicePaymentTerms = null)
 {
     /// <summary>
     /// The Principal's report sending rules (Report Sending SOP v8). Every
@@ -292,7 +299,11 @@ public sealed record UpdatePrincipalReportSettingsRequest(
     decimal DefaultFee,
     long ExpectedContactVersion,
     PrincipalReportNames? ReportNames = null,
-    string? FeeNoteVatNumber = null);
+    string? FeeNoteVatNumber = null,
+    AuditWorkflowKind AuditWorkflow = AuditWorkflowKind.OriginalEngineerReport,
+    PrincipalInvoiceKind PrincipalInvoice = PrincipalInvoiceKind.None,
+    string? InvoiceVatNumber = null,
+    string? InvoicePaymentTerms = null);
 
 public sealed record ReplacePrincipalRequest(
     Guid PrincipalId,

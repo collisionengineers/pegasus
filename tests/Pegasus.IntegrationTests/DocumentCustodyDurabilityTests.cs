@@ -1569,7 +1569,10 @@ public sealed class DocumentCustodyDurabilityTests
                     .Select(item => item.SemanticRole)
                     .ToArrayAsync();
                 Assert.True(OriginalReportPolicy.IsMissing(
-                    CaseType.Audit, null, roles.Contains(DocumentSemanticRole.AuditReport)));
+                    CaseType.Audit,
+                    AuditWorkflowKind.OriginalEngineerReport,
+                    null,
+                    roles.Contains(DocumentSemanticRole.AuditReport)));
                 Assert.Equal(
                     "Laird Assessors",
                     await verification.CaseAssessmentFields

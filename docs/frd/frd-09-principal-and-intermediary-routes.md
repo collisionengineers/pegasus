@@ -9,7 +9,7 @@
 - The Principal API is create-only. A Principal states its instruction in JSON
   with its files attached; Pegasus does not read the values back out of a
   document.
-- Twenty-two Principal email routes are accepted, each tied to exact domains
+- Twenty-three Principal email routes are accepted, each tied to exact domains
   or mailboxes. No wider domain matching is allowed.
 - A message links to an existing Case automatically only when exactly one
   Case matches and nothing contradicts it. Several matches fail closed.
@@ -203,7 +203,7 @@ already holds the fields, so it states them.
 
 ### Accepted principal email routes and automatic association
 
-**Twenty-two routes.** The twenty-two existing instruction profiles are
+**Twenty-three routes.** The twenty-three existing instruction profiles are
 active through the ordinary email path. Principal API credentials and mailbox
 onboarding are separate capabilities.
 
@@ -211,7 +211,7 @@ onboarding are separate capabilities.
 of the direct routes' evidenced exact domains and mailboxes. Principal
 Settings displays it. It
 covers ABRAHAMS, ALISON, ALS, AMS, AX, BC, BLACK, DFD, FW, KBS, KERR, KMR,
-MP, OAK, PCH, QCL, QDOS, RJS, SBL, SWAN, TEN and YML. YML accepts only its evidenced
+MP, OAK, PCH, QCL, QDOS, RJS, SBL, SWAN, TEN, ULA and YML. YML accepts only its evidenced
 mailbox, never the shared Gmail domain. HDUK-branded instructions in the
 supplied YML samples belong to the confirmed YML route; HDUK is recorded as
 document issuer, separately from the instructing Principal. Branding never
@@ -278,7 +278,17 @@ attached letter headed `URGENT VEHICLE INSPECTION REQUIRED` from the
 client's vehicle". The letter gives the firm's reference, the client and
 sometimes the accident date, and never a vehicle registration; the
 instruction still creates its Case, which starts `Not ready` (operator, 12
-November 2026, [R981](../rulings.md)).
+November 2026, [R981](../rulings.md)). A United Legal Assistance instruction
+is the Word letter attached to mail from the `united-legal.co.uk` route,
+recognised by that domain in its contact block and its `Our Reference:`,
+`Our Client`, `Vehicle:` and `Accident:` rows, whoever it is addressed to. It
+gives the claim reference, the client, the registration and vehicle, the
+accident date, the VAT status, the circumstances and the repairer ULA has
+instructed. Every such letter is a standalone Audit: it carries no wording
+that proves the work, so the letter itself does, and it has no original
+report to read (operator, 17 November 2026, [R1145](../rulings.md),
+[R1155](../rulings.md);
+[FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 
 **Case matching.** `PrincipalCaseMatchPolicy` is bound the same way. Its
 non-QDOS keys come from the profile's typed role-labelled fields and keep the
@@ -412,7 +422,7 @@ permission to guess.
 ## Acceptance evidence
 
 Core tests cover the submission contract (credential, replay, validation,
-existing-Case rejection), the twenty-two-route catalogue, the QDOS match keys
+existing-Case rejection), the twenty-three-route catalogue, the QDOS match keys
 and eliminator, and the two Triage tells. Integration tests cover the
 Principal API over real HTTP with the feature gate on and off. Live activation
 for a named Principal needs exact-target approval and its own evidence tier

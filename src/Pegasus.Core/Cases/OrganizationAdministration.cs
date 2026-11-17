@@ -45,7 +45,11 @@ public sealed record PrincipalAdministrationSummary(
     SalvageMatrix? SalvageMatrix = null,
     decimal DefaultFee = PrincipalDefaultFeePolicy.Standard,
     PrincipalReportNames? ReportNames = null,
-    string? FeeNoteVatNumber = null)
+    string? FeeNoteVatNumber = null,
+    AuditWorkflowKind AuditWorkflow = AuditWorkflowKind.OriginalEngineerReport,
+    PrincipalInvoiceKind PrincipalInvoice = PrincipalInvoiceKind.None,
+    string? InvoiceVatNumber = null,
+    string? InvoicePaymentTerms = null)
 {
     /// <summary>The Principal's report sending rules; the defaults when none were named.</summary>
     public PrincipalReportSendingRules ReportSending { get; init; } =
@@ -285,7 +289,11 @@ public static class OrganizationAdministrationPolicy
                 SalvageMatrix: predecessor.SalvageMatrix,
                 DefaultFee: predecessor.DefaultFee,
                 ReportNames: predecessor.ReportNames,
-                FeeNoteVatNumber: predecessor.FeeNoteVatNumber));
+                FeeNoteVatNumber: predecessor.FeeNoteVatNumber,
+                AuditWorkflow: predecessor.AuditWorkflow,
+                PrincipalInvoice: predecessor.PrincipalInvoice,
+                InvoiceVatNumber: predecessor.InvoiceVatNumber,
+                InvoicePaymentTerms: predecessor.InvoicePaymentTerms));
     }
 
     public static void RequireUniquePrincipalCode(bool alreadyExists)
@@ -305,10 +313,14 @@ public static class OrganizationAdministrationPolicy
         RequireIdentifier(request.PrincipalId, nameof(request.PrincipalId));
         RequireExpectedVersion(request.ExpectedContactVersion, nameof(request.ExpectedContactVersion));
         PrincipalDefaultFeePolicy.Require(request.DefaultFee, nameof(request.DefaultFee));
+        RequireDefined(request.AuditWorkflow, nameof(request.AuditWorkflow));
+        RequireDefined(request.PrincipalInvoice, nameof(request.PrincipalInvoice));
         return request with
         {
             ReportNames = PrincipalReportNames.Normalize(request.ReportNames),
             FeeNoteVatNumber = AssessmentReportContract.NormalizeVatNumber(request.FeeNoteVatNumber),
+            InvoiceVatNumber = PrincipalInvoicePolicy.NormalizeVatNumber(request.InvoiceVatNumber),
+            InvoicePaymentTerms = PrincipalInvoicePolicy.NormalizePaymentTerms(request.InvoicePaymentTerms),
             OperationKey = NormalizeRequiredText(
                 request.OperationKey,
                 MaximumOperationKeyLength,
@@ -413,17 +425,23 @@ public static class OrganizationAdministrationPolicy
     }
 
     /// <summary>
-    /// The default fee, the report names and the fee note VAT number change,
-    /// and nothing else does.
+    /// The default fee, the report names, the fee note VAT number, the Audit
+    /// workflow and the Principal's own invoice with its VAT number and
+    /// payment terms change, and nothing else does.
     /// The code, the organization, its notes, the lineage and the allocation
-    /// history are untouched.
+    /// history are untouched. A Case already created keeps the Audit workflow
+    /// it took (R1138).
     /// </summary>
     public static Principal PlanPrincipalReportSettingsUpdate(
         Principal current,
         long expectedVersion,
         decimal defaultFee,
         PrincipalReportNames? reportNames,
-        string? feeNoteVatNumber = null)
+        string? feeNoteVatNumber = null,
+        AuditWorkflowKind auditWorkflow = AuditWorkflowKind.OriginalEngineerReport,
+        PrincipalInvoiceKind principalInvoice = PrincipalInvoiceKind.None,
+        string? invoiceVatNumber = null,
+        string? invoicePaymentTerms = null)
     {
         ArgumentNullException.ThrowIfNull(current);
         RequireExpectedVersion(expectedVersion, nameof(expectedVersion));
@@ -445,14 +463,26 @@ public static class OrganizationAdministrationPolicy
         PrincipalDefaultFeePolicy.Require(defaultFee, nameof(defaultFee));
         var names = PrincipalReportNames.Normalize(reportNames);
         var vatNumber = AssessmentReportContract.NormalizeVatNumber(feeNoteVatNumber);
+        RequireDefined(auditWorkflow, nameof(auditWorkflow));
+        RequireDefined(principalInvoice, nameof(principalInvoice));
+        var invoiceVat = PrincipalInvoicePolicy.NormalizeVatNumber(invoiceVatNumber);
+        var invoiceTerms = PrincipalInvoicePolicy.NormalizePaymentTerms(invoicePaymentTerms);
         var changed = current.DefaultFee != defaultFee
             || current.ReportNames != names
-            || !string.Equals(current.FeeNoteVatNumber, vatNumber, StringComparison.Ordinal);
+            || !string.Equals(current.FeeNoteVatNumber, vatNumber, StringComparison.Ordinal)
+            || current.AuditWorkflow != auditWorkflow
+            || current.PrincipalInvoice != principalInvoice
+            || !string.Equals(current.InvoiceVatNumber, invoiceVat, StringComparison.Ordinal)
+            || !string.Equals(current.InvoicePaymentTerms, invoiceTerms, StringComparison.Ordinal);
         return current with
         {
             DefaultFee = defaultFee,
             ReportNames = names,
             FeeNoteVatNumber = vatNumber,
+            AuditWorkflow = auditWorkflow,
+            PrincipalInvoice = principalInvoice,
+            InvoiceVatNumber = invoiceVat,
+            InvoicePaymentTerms = invoiceTerms,
             Version = changed ? checked(current.Version + 1) : current.Version
         };
     }
@@ -578,6 +608,17 @@ public static class OrganizationAdministrationPolicy
             throw new ArgumentException(
                 "A stable identifier is required.",
                 parameterName);
+        }
+    }
+
+    private static void RequireDefined<TChoice>(TChoice value, string parameterName)
+        where TChoice : struct, Enum
+    {
+        if (!Enum.IsDefined(value))
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                "The value is not one of the choices.");
         }
     }
 

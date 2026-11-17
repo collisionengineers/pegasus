@@ -70,6 +70,7 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
             ["SBL"] = ["smartbusinesslink.com"],
             ["SWAN"] = ["swansolicitors.co.uk"],
             ["TEN"] = ["tenlegal.co.uk"],
+            ["ULA"] = ["united-legal.co.uk"],
             ["YML"] = ["networkhduk@gmail.com"]
         }.ToImmutableDictionary(StringComparer.Ordinal);
 

@@ -322,9 +322,10 @@ public sealed partial class DetailsModel(
     }
 
     public bool OriginalReportMissing =>
-        CurrentSummary?.CaseType is { } caseType
+        CurrentSummary is { CaseType: var caseType, AuditWorkflow: var auditWorkflow }
         && OriginalReportPolicy.IsMissing(
             caseType,
+            auditWorkflow,
             Case?.Data.StandaloneAuditEvidenceId ?? FilesSection?.StandaloneAuditEvidenceId,
             CaseFiles.Current(FilesSection?.Documents ?? Case?.Documents ?? [])
                 .Any(file => file.Occurrence.SemanticRole == DocumentSemanticRole.AuditReport));
@@ -1578,7 +1579,8 @@ public sealed partial class DetailsModel(
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 AssessmentPolicy.RequireOriginalReportScope(
                     settlementFields.Keys,
-                    current.Summary.CaseType);
+                    current.Summary.CaseType,
+                    current.Summary.AuditWorkflow);
                 // The report's three values are Valuation's own boxes (operator,
                 // 26 September 2026), saved like any field.
                 var valuationFields = assessmentFields.Where(field => EditorLabels.Valuation.ContainsKey(field.Key))
