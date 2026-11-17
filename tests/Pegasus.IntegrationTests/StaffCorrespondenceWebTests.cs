@@ -305,6 +305,51 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(1, send.SendCalls);
     }
 
+    /// <summary>
+    /// A chaser whose provider answer is ambiguous (a Graph server error or a
+    /// timeout, which the engine records Unknown and throws) keeps staff on
+    /// the composer with "The send result is not yet known." and its Unknown
+    /// Send status, never the error page, and offers no Send while it is
+    /// unresolved, as a returned Unknown does (R1069, R1123).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AnUnknownChaserOutcomeKeepsStaffOnTheComposerWithItsStatus(bool timedOut)
+    {
+        var send = new RecordingStaffMailSend
+        {
+            NextState = StaffMailState.Unknown,
+            ProviderFault = AmbiguousProviderAnswer(timedOut)
+        };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
+        var mailboxId = await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(
+            baseFactory, send, chaserRecipients: new FixedChaserRecipients(ChaserRecipients));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        using var get = await client.GetAsync($"/Cases/{caseId:D}/Chaser");
+        var html = await get.Content.ReadAsStringAsync();
+
+        using var response = await client.PostAsync(
+            FormAction(html, "Send"),
+            new FormUrlEncodedContent(ChaserForm(html, mailboxId)));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        Assert.Contains(CaseWorkspaceLabels.ReportDelivery.SendUnknown, page, StringComparison.Ordinal);
+        Assert.Contains("Send status", page, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), page, StringComparison.Ordinal);
+        Assert.DoesNotContain("notice--success", page, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Send</span>", page, StringComparison.Ordinal);
+        Assert.Equal(1, send.SendCalls);
+    }
+
+    /// <summary>What Graph answers that leaves a send's outcome unknown: a 503, or no answer in time.</summary>
+    private static Exception AmbiguousProviderAnswer(bool timedOut) => timedOut
+        ? new TaskCanceledException("The request timed out.", new TimeoutException())
+        : new HttpRequestException("Microsoft Graph returned 503.", null, HttpStatusCode.ServiceUnavailable);
+
     /// <summary>The chaser page's form as rendered, with the chosen From mailbox when one is posted.</summary>
     private static Dictionary<string, string> ChaserForm(string html, Guid? fromMailboxId)
     {
@@ -1045,10 +1090,7 @@ public sealed class StaffCorrespondenceWebTests
         var send = new RecordingStaffMailSend
         {
             NextState = StaffMailState.Unknown,
-            ProviderFault = timedOut
-                ? new TaskCanceledException("The request timed out.", new TimeoutException())
-                : new HttpRequestException(
-                    "Microsoft Graph returned 503.", null, HttpStatusCode.ServiceUnavailable)
+            ProviderFault = AmbiguousProviderAnswer(timedOut)
         };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);

@@ -1159,6 +1159,76 @@ public sealed partial class QdosTriageIntegrationTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// An Unknown reply does not block another, as on the Inbox reply (R1070,
+    /// R1122): a replay under its key sends nothing again, and the record
+    /// shows its Unknown status and offers the composer under a new key,
+    /// whose send goes out.
+    /// </summary>
+    [Fact]
+    public async Task AnUnknownReplyReplaysWithoutResendingAndAcceptsASecondReply()
+    {
+        var send = new RecordingStaffMailSend { NextState = StaffMailState.Unknown };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        var fixture = await SeedMailboxTriageAsync(factory);
+        var record = $"/Cases/{fixture.TriageCaseId}";
+        var (firstKey, token) = await TriageChaserTokensAsync(client, record);
+
+        async Task<HttpResponseMessage> PostReplyAsync(string operationKey, string body)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{record}?handler=TriageSendReply");
+            request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["expectedVersion"] = fixture.Version.ToString(CultureInfo.InvariantCulture),
+                ["operationKey"] = operationKey,
+                ["to"] = "reply@example.invalid",
+                ["subject"] = "Chaser subject",
+                ["body"] = body
+            });
+            return await client.SendAsync(request);
+        }
+
+        using (var first = await PostReplyAsync(firstKey, "Chaser body 1."))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+        }
+        using (var replay = await PostReplyAsync(firstKey, "Chaser body 1."))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
+        }
+        Assert.Equal(1, send.SendCalls);
+
+        using (var reloaded = await client.GetAsync(record))
+        {
+            var html = WebUtility.HtmlDecode(await reloaded.Content.ReadAsStringAsync());
+            Assert.Contains(
+                Pegasus.Web.Presentation.OperatorLabels.Triage.LatestSendStatus(StaffMailState.Unknown),
+                html,
+                StringComparison.Ordinal);
+            Assert.Contains("data-triage-reply-form", html, StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "The existing correspondence operation must finish or be resolved before another action.",
+                html,
+                StringComparison.Ordinal);
+        }
+        var (secondKey, _) = await TriageChaserTokensAsync(client, record);
+        Assert.NotEqual(firstKey, secondKey);
+
+        send.NextState = StaffMailState.Submitted;
+        using (var second = await PostReplyAsync(secondKey, "Chaser body 2."))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
+        }
+        Assert.Equal(2, send.SendCalls);
+        Assert.NotEqual(send.Commands[0].OperationKey, send.Commands[1].OperationKey);
+    }
+
     [Fact]
     public async Task ARefusedSendKeepsThePostedText()
     {
@@ -1734,9 +1804,11 @@ public sealed partial class QdosTriageIntegrationTests
             throw new NotSupportedException();
         }
 
+        /// <summary>An Unknown send does not hold the message: staff may send again (R1122).</summary>
         private static bool IsActive(StaffMailState state) =>
             state is not StaffMailState.Sent
                 and not StaffMailState.Failed
-                and not StaffMailState.Cancelled;
+                and not StaffMailState.Cancelled
+                and not StaffMailState.Unknown;
     }
 }

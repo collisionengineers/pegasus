@@ -67,7 +67,8 @@ internal sealed class SendMcpTools(
     IGetTriage getTriage,
     ICaseQueryStore caseQueries,
     AutomationMcpAuditor auditor,
-    OneCommandEdit leases)
+    OneCommandEdit leases,
+    ILogger<SendMcpTools> logger)
 {
     private static readonly string[] Modes = ["chaser", "reply", "reply_all", "forward", "triage_reply"];
 
@@ -174,6 +175,11 @@ internal sealed class SendMcpTools(
                                 TidiesCaseCorrespondence: deleteCaseCorrespondence),
                             cancellationToken),
                         cancellationToken);
+                }
+                catch (StaffMailOutcomeUnknownException unknown)
+                {
+                    // Recorded Unknown: answered as a returned Unknown is (R1123).
+                    operation = OutcomeUnknown(unknown);
                 }
                 catch (KeyNotFoundException)
                 {
@@ -292,25 +298,39 @@ internal sealed class SendMcpTools(
                     }
                 }
 
-                var operation = command is null
+                StaffMailOperation operation;
+                if (command is null)
+                {
                     // The outcome reply for this completion is already Sent.
-                    ? message is { } answered
+                    operation = message is { } answered
                         ? await staffMailSend.GetLatestForOriginalAsync(context.Actor, answered, cancellationToken)
                             ?? throw new McpException("The outcome reply has already been sent.")
-                        : throw new McpException("The outcome reply has already been sent.")
-                    : await staffMailSend.SendAsync(
-                        command with
-                        {
-                            Subject = subject.Trim(),
-                            Body = body.Trim(),
-                            OperationKey = key,
-                            MarksQueryDone = markQueryDone,
-                            TidiesCaseCorrespondence = deleteCaseCorrespondence,
-                            AiJobId = aiJobId is { } cited
-                                ? AutomationMcpErrors.RequireId(cited, "AI job identifier")
-                                : null,
-                        },
-                        cancellationToken);
+                        : throw new McpException("The outcome reply has already been sent.");
+                }
+                else
+                {
+                    try
+                    {
+                        operation = await staffMailSend.SendAsync(
+                            command with
+                            {
+                                Subject = subject.Trim(),
+                                Body = body.Trim(),
+                                OperationKey = key,
+                                MarksQueryDone = markQueryDone,
+                                TidiesCaseCorrespondence = deleteCaseCorrespondence,
+                                AiJobId = aiJobId is { } cited
+                                    ? AutomationMcpErrors.RequireId(cited, "AI job identifier")
+                                    : null,
+                            },
+                            cancellationToken);
+                    }
+                    catch (StaffMailOutcomeUnknownException unknown)
+                    {
+                        // Recorded Unknown: answered as a returned Unknown is (R1123).
+                        operation = OutcomeUnknown(unknown);
+                    }
+                }
                 return new MailSendToolResult(
                     operation.Id,
                     verb,
@@ -325,6 +345,18 @@ internal sealed class SendMcpTools(
                         : null);
             },
             cancellationToken);
+    }
+
+    /// <summary>
+    /// A send the engine recorded Unknown and threw (R1069): its fault is
+    /// logged, and the tool answers the Unknown operation as it answers a
+    /// returned one, never as a failed call (R1123).
+    /// </summary>
+    private StaffMailOperation OutcomeUnknown(StaffMailOutcomeUnknownException unknown)
+    {
+        StaffMailSendLog.OutcomeUnknown(
+            logger, unknown.Operation.Id, unknown.Operation.ApprovedMailboxId, unknown);
+        return unknown.Operation;
     }
 
     /// <summary>

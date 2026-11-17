@@ -631,6 +631,27 @@ public sealed class CaseReportDeliveryTests
         Assert.Equal("DVR-31001 PK12 TMZ Repairable report.pdf", Assert.Single(operation.AttachmentFileNames!));
     }
 
+    /// <summary>
+    /// A send the engine recorded Unknown is thrown on carrying the file
+    /// names the e-mail carries, as a returned send does (R703, R1123), and
+    /// the provider's fault.
+    /// </summary>
+    [Fact]
+    public async Task AnUnknownSendCarriesWhatTheEmailCarries()
+    {
+        var fault = new HttpRequestException("Microsoft Graph returned 503.");
+        var send = new RecordingSend { ProviderFault = fault };
+
+        var unknown = await Assert.ThrowsAsync<StaffMailOutcomeUnknownException>(() => Use(
+                new FixedGenerations(Generation(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote)),
+                send)
+            .ExecuteAsync(Request() with { Attach = [] }, CancellationToken.None));
+
+        Assert.Same(fault, unknown.InnerException);
+        Assert.Equal(StaffMailState.Unknown, unknown.Operation.State);
+        Assert.Equal("DVR-31001 PK12 TMZ Repairable report.pdf", Assert.Single(unknown.Operation.AttachmentFileNames!));
+    }
+
     [Fact]
     public async Task SendRefusesTheSameGenerationAsItsSecondReport()
     {
@@ -1793,18 +1814,26 @@ public sealed class CaseReportDeliveryTests
             Guid.NewGuid(), 1, new string('d', 64), null, null,
             StaffMailPurpose.CaseReport, GenerationId, 1, null);
 
+        /// <summary>When set, the send throws as the engine does on an ambiguous provider answer.</summary>
+        public Exception? ProviderFault { get; init; }
+
         public Task<StaffMailOperation> SendAsync(
             StaffReportSendCommand command, CancellationToken cancellationToken)
         {
             Commands.Add(command);
             // The operation carries the context of the command that made it (G25).
-            return Task.FromResult(Result with
+            var operation = Result with
             {
                 Purpose = command.Mail.Purpose,
                 ContextId = command.Mail.ContextId,
                 ExpectedContextVersion = command.Mail.ExpectedContextVersion,
                 OriginalRetainedMessageId = command.Mail.OriginalMessage?.RetainedMessageId,
-            });
+            };
+            if (ProviderFault is { } fault)
+            {
+                throw new StaffMailOutcomeUnknownException(operation, fault);
+            }
+            return Task.FromResult(operation);
         }
     }
 }

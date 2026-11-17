@@ -422,6 +422,16 @@ public sealed class SendModel(
             {
                 return Forbid();
             }
+            catch (StaffMailOutcomeUnknownException exception)
+            {
+                // Recorded Unknown: the link stands, with the sentence and its
+                // Send status (R1069, R1123).
+                Pegasus.Web.Pages.Mail.StaffMailSendLog.OutcomeUnknown(
+                    logger, exception.Operation.Id, exception.Operation.ApprovedMailboxId, exception);
+                Operation = exception.Operation;
+                ModelState.AddModelError(
+                    string.Empty, Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendUnknown);
+            }
             catch (CaseMailSenderRequiredException exception)
             {
                 // The link exists; staff copy it instead.

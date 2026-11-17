@@ -221,6 +221,55 @@ public sealed class AutomationPhotoLinkIngressTests
             $"SELECT COUNT(*) FROM PhotoCaptures WHERE CaseId = '{caseId:D}'"));
     }
 
+    /// <summary>
+    /// A photo link e-mail whose provider answer is ambiguous (a Graph server
+    /// error or a timeout) answers its Unknown operation with the link, as a
+    /// returned Unknown does, never "The automation action failed." (R1123).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SendingByEmailWithAnUnknownOutcomeAnswersItsUnknownOperation(bool timedOut)
+    {
+        var mail = new RecordingMailSend
+        {
+            ProviderFault = timedOut
+                ? new TaskCanceledException("The request timed out.", new TimeoutException())
+                : new HttpRequestException(
+                    "Microsoft Graph returned 503.", null, System.Net.HttpStatusCode.ServiceUnavailable)
+        };
+        var mailbox = OutgoingMailbox();
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IStaffMailSend>();
+                services.AddSingleton<IStaffMailSend>(mail);
+                services.RemoveAll<IApprovedMailboxStore>();
+                services.AddSingleton<IApprovedMailboxStore>(new FixedMailboxes(mailbox));
+            }));
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, CasesAndSend);
+
+        using var sent = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_photo_link_send", new
+        {
+            action = "send",
+            channel = "email",
+            caseId,
+            operationKey = "mcp:photo-send-unknown",
+            email = "sam.taylor@example.com",
+            customerName = "Sam Taylor",
+            fromMailbox = mailbox.Address,
+        }));
+        var result = await ReadStructuredContentAsync(sent);
+
+        Assert.Single(mail.Commands);
+        Assert.Equal(nameof(StaffMailState.Unknown), result.GetProperty("state").GetString());
+        Assert.False(result.GetProperty("replayed").GetBoolean());
+        Assert.False(string.IsNullOrWhiteSpace(result.GetProperty("linkUrl").GetString()));
+    }
+
     private static bool IsNullOrAbsent(JsonElement element, string property) =>
         !element.TryGetProperty(property, out var value) || value.ValueKind == JsonValueKind.Null;
 
@@ -253,10 +302,16 @@ public sealed class AutomationPhotoLinkIngressTests
                 && mailbox.RouteScopes.Contains(routeScope)));
     }
 
-    /// <summary>A staff send that records each message and reports it Submitted.</summary>
+    /// <summary>
+    /// A staff send that records each message and reports it Submitted; with
+    /// <see cref="ProviderFault"/>, it records it Unknown and throws as the
+    /// engine does when the provider's answer is ambiguous.
+    /// </summary>
     private sealed class RecordingMailSend : IStaffMailSend
     {
         private readonly List<StaffMailSendCommand> commands = [];
+
+        public Exception? ProviderFault { get; init; }
 
         public IReadOnlyList<StaffMailSendCommand> Commands
         {
@@ -274,6 +329,16 @@ public sealed class AutomationPhotoLinkIngressTests
             lock (commands)
             {
                 commands.Add(command);
+            }
+
+            if (ProviderFault is { } fault)
+            {
+                throw new StaffMailOutcomeUnknownException(
+                    new StaffMailOperation(
+                        Guid.NewGuid(), StaffMailState.Unknown, StaffMailAttemptStage.Send, 5, SeedUtcNow,
+                        null, null, "provider_outcome_unknown", command.ApprovedMailboxId, 3, new string('A', 64),
+                        SeedUtcNow, null, command.Purpose, command.ContextId, 1, null),
+                    fault);
             }
 
             return Task.FromResult(new StaffMailOperation(
