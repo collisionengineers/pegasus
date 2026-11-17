@@ -933,16 +933,7 @@ public sealed partial class CreateModel(
             ?? EstablishedIntakePrincipal.CodeFor(receipt);
         PrincipalIsImageBased = await IsImageBasedAsync(effectivePrincipalCode, cancellationToken);
         PrincipalCodes = await principalQueries.ListNewCasePrincipalCodesAsync(cancellationToken);
-        AddressResolution = await addressResolutionStore.GetAsync(receiptId, cancellationToken)
-            ?? new(
-                receiptId,
-                receipt.Version,
-                InspectionAddressResolutionState.Unresolved,
-                Ext18InspectionAddressPolicy.Evaluate(receipt),
-                null,
-                null,
-                null,
-                null);
+        AddressResolution = await caseCreation.AddressResolutionAsync(receipt, cancellationToken);
         return null;
     }
 

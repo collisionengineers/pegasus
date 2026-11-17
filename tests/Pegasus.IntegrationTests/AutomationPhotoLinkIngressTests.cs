@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.PhotoCapture;
@@ -25,6 +26,9 @@ public sealed class AutomationPhotoLinkIngressTests
     private const string CasesAndSend = "automation.cases automation.send";
 
     private static readonly ApprovedMailboxRouteScope[] Outgoing = [ApprovedMailboxRouteScope.Outgoing];
+
+    /// <summary>The history lines of the link the first test sends and acts on.</summary>
+    private static readonly string[] AutomationActs = [Labels.Created, Labels.LinkExtended, Labels.CallLoggedAt, Labels.Cancelled];
 
     [Fact]
     public async Task ALinksCaseworkRunsThroughTheStaffCommandsUnderTheCasesScope()
@@ -141,6 +145,42 @@ public sealed class AutomationPhotoLinkIngressTests
         })))
         {
             Assert.Contains(PhotoLinkActions.LinkCancelled, await ReadErrorTextAsync(resent), StringComparison.Ordinal);
+        }
+
+        // The cancel repeated under its key is answered as done, not refused (R1092).
+        using (var again = await PostMcpAsync(client, token, ToolCallPayload(11, "pegasus_photo_link_action", new
+        {
+            action = "cancel", captureId, operationKey = "mcp:photo-cancel",
+        })))
+        {
+            var link = (await ReadStructuredContentAsync(again)).GetProperty("link");
+            Assert.Equal(nameof(PhotoCaptureState.Cancelled), link.GetProperty("state").GetString());
+        }
+
+        // An act a cancelled link does not offer is refused under a new key (R1092).
+        using (var extendCancelled = await PostMcpAsync(client, token, ToolCallPayload(12, "pegasus_photo_link_action", new
+        {
+            action = "extend", captureId, days = 7, operationKey = "mcp:photo-extend-cancelled",
+        })))
+        {
+            Assert.Contains(
+                "extend is not offered on this link; pegasus_photo_link_get lists the acts it offers.",
+                await ReadErrorTextAsync(extendCancelled),
+                StringComparison.Ordinal);
+        }
+
+        // A link the Automation Actor sent and acted on reads Automation as
+        // its sender and on each of its acts (#2147; R1093).
+        using (var named = await PostMcpAsync(client, token, ToolCallPayload(13, "pegasus_photo_link_get", new { captureId })))
+        {
+            var result = await ReadStructuredContentAsync(named);
+            Assert.Equal(ActorDisplayNames.Automation, result.GetProperty("link").GetProperty("sentBy").GetString());
+            var history = result.GetProperty("history").EnumerateArray().ToArray();
+            foreach (var label in AutomationActs)
+            {
+                var line = Assert.Single(history, item => item.GetProperty("label").GetString() == label);
+                Assert.Equal(ActorDisplayNames.Automation, line.GetProperty("detail").GetString());
+            }
         }
 
         // A token without automation.send cannot send a link.

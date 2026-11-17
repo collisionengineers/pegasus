@@ -54,28 +54,6 @@ public sealed class DetailsModel(
     /// <summary>One paperwork or video item of the Files strip; <see cref="Href"/> is null until it reaches intake.</summary>
     public sealed record FileChip(string Caption, string? Href);
 
-    /// <summary>
-    /// The acts this page offers on a link, which the Automation Actor's
-    /// photo link tools offer alike: Resend on a live link HQ sent from a
-    /// Case (R914); Log call on one not cancelled; Extend on one not
-    /// cancelled whose Case is not archived (R793); Cancel while it is live.
-    /// </summary>
-    public sealed record LinkOffers(bool Resend, bool LogCall, bool Extend, bool Cancel)
-    {
-        public static LinkOffers For(PhotoCaptureListRow row, DateTimeOffset now)
-        {
-            ArgumentNullException.ThrowIfNull(row);
-            var capture = row.Capture;
-            var caseLink = capture.Origin == PhotoCaptureOrigin.CaseLink;
-            var live = PhotoCaptureAccess.IsLive(capture, now, row.CaseArchived);
-            return new(
-                Resend: caseLink && live,
-                LogCall: caseLink && !capture.IsRevoked,
-                Extend: !capture.IsRevoked && !row.CaseArchived,
-                Cancel: live);
-        }
-    }
-
     [BindProperty(SupportsGet = true)]
     public Guid Id { get; set; }
 
@@ -150,7 +128,8 @@ public sealed class DetailsModel(
     /// <summary>Resend, one act since Remind sent the same message (R914): a live link HQ sent from a Case.</summary>
     public bool OffersResend => Offers.Resend;
 
-    private LinkOffers Offers => LinkOffers.For(Row, Now);
+    /// <summary>The acts the link offers now, Core's rule its handlers and the photo link tools follow (#2130; R1092).</summary>
+    private PhotoLinkOffers Offers => PhotoLinkOffers.For(Row, Now);
 
     /// <summary>
     /// The page's one primary act (R913): Resend when a reminder is due, Log
@@ -237,7 +216,10 @@ public sealed class DetailsModel(
         }
         catch (PhotoCaptureRefusalException refusal)
         {
-            ModelState.AddModelError(string.Empty, refusal.Message);
+            // An act the page does not offer now says the general sentence (#2130; R1092).
+            ModelState.AddModelError(
+                string.Empty,
+                refusal.Code == PhotoCaptureRefusals.NotOffered ? OperatorLabels.ActionNotApplied : refusal.Message);
             return await LoadAsync(cancellationToken) ? Page() : NotFound();
         }
 
@@ -263,7 +245,7 @@ public sealed class DetailsModel(
 
         Row = found;
         Now = timeProvider.GetUtcNow();
-        var derived = IndexModel.Derive(found, Now);
+        var derived = PhotoCaptureRowStatus.For(found, Now);
         State = derived.State;
         Due = derived.Due;
         var ordered = ReceivedInStoryOrder(items.Result, found.Capture);

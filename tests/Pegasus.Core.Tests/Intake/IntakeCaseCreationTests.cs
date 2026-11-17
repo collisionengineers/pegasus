@@ -45,14 +45,82 @@ public sealed class IntakeCaseCreationTests
 
         Assert.Equal(
             evidence.Id,
-            await new IntakeCaseCreation(new FixedEvidence(evidence))
+            await new IntakeCaseCreation(new FixedEvidence(evidence), new StoredResolutions(null))
                 .StandaloneAuditEvidenceIdAsync(receiptId, CancellationToken.None));
         Assert.Null(
-            await new IntakeCaseCreation(new FixedEvidence(Evidence(Guid.NewGuid())))
+            await new IntakeCaseCreation(new FixedEvidence(Evidence(Guid.NewGuid())), new StoredResolutions(null))
                 .StandaloneAuditEvidenceIdAsync(receiptId, CancellationToken.None));
         Assert.Null(
-            await new IntakeCaseCreation(new FixedEvidence(null))
+            await new IntakeCaseCreation(new FixedEvidence(null), new StoredResolutions(null))
                 .StandaloneAuditEvidenceIdAsync(receiptId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AStoredAddressResolutionIsReadAsItIs()
+    {
+        var receipt = ReceiptWithAddress();
+        var stored = Resolution(null, "2 Yard Road, York") with { IntakeReceiptId = receipt.Id };
+        var resolutions = new StoredResolutions(stored);
+
+        var read = await new IntakeCaseCreation(new FixedEvidence(null), resolutions)
+            .AddressResolutionAsync(receipt, CancellationToken.None);
+
+        Assert.Same(stored, read);
+        Assert.Equal(receipt.Id, Assert.Single(resolutions.Asked));
+    }
+
+    [Fact]
+    public async Task WithNoStoredResolutionTheItemIsUnresolvedOverItsOwnEvaluationEvenWithASuggestion()
+    {
+        var receipt = ReceiptWithAddress();
+
+        var read = await new IntakeCaseCreation(new FixedEvidence(null), new StoredResolutions(null))
+            .AddressResolutionAsync(receipt, CancellationToken.None);
+
+        Assert.Equal(receipt.Id, read.IntakeReceiptId);
+        Assert.Equal(receipt.Version, read.ReceiptVersion);
+        Assert.Equal(InspectionAddressResolutionState.Unresolved, read.State);
+        Assert.Equal("1 Garage Lane, Leeds", read.Evaluation.Suggestion?.Value);
+        Assert.Equal(
+            Ext18InspectionAddressPolicy.Evaluate(receipt).Suggestion?.Fingerprint,
+            read.Evaluation.Suggestion?.Fingerprint);
+        Assert.Null(read.ResolvedValue);
+        Assert.Null(read.ResolvedByKind);
+        Assert.Null(read.ResolvedBy);
+        Assert.Null(read.ResolvedAtUtc);
+    }
+
+    private static IntakeReceipt ReceiptWithAddress()
+    {
+        var id = Guid.NewGuid();
+        return new(
+            id,
+            "instruction.eml",
+            "message/rfc822",
+            10,
+            new string('a', 64),
+            new IntakeSourceIdentity(IntakeSourceChannel.Mailbox, id.ToString("N")),
+            DateTimeOffset.UnixEpoch,
+            DateTimeOffset.UnixEpoch,
+            IntakeDecision.CaseCreated,
+            "Ready.",
+            [],
+            [new InstructionReviewField(
+                "Inspection address",
+                "1 Garage Lane, Leeds",
+                [new InstructionFieldCandidate("1 Garage Lane, Leeds", IntakeEvidenceSource.EmailBody, "body")],
+                false,
+                false)],
+            null,
+            [],
+            null,
+            null,
+            false,
+            "intake_source_reader",
+            "1",
+            "extraction-policy",
+            1,
+            Version: 4);
     }
 
     private static InspectionAddressResolutionSnapshot Resolution(
@@ -78,6 +146,25 @@ public sealed class IntakeCaseCreationTests
         "The retained original report states Repairable.",
         0,
         false);
+
+    private sealed class StoredResolutions(InspectionAddressResolutionSnapshot? stored)
+        : IInspectionAddressResolutionStore
+    {
+        public List<Guid> Asked { get; } = [];
+
+        public Task<InspectionAddressResolutionSnapshot?> GetAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken)
+        {
+            Asked.Add(intakeReceiptId);
+            return Task.FromResult(stored);
+        }
+
+        public Task<InspectionAddressResolutionSnapshot> ResolveAsync(
+            InspectionAddressResolutionRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
 
     private sealed class FixedEvidence(StandaloneAuditEvidence? evidence) : IStandaloneAuditEvidenceQueries
     {

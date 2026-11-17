@@ -1327,6 +1327,57 @@ public sealed class UploadConfirmationWebTests
         Assert.DoesNotContain("name=\"vehicleRegistration\"", groupPage, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A Leave post on an upload whose Leave declines no image match writes
+    /// nothing and returns to Upload, as the plain link the page shows there
+    /// does (R1092).
+    /// </summary>
+    [Fact]
+    public async Task ALeavePostWhereLeaveDeclinesNoImageMatchWritesNothingAndReturnsToUpload()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var firstEmail = IntakeTestEvidence.CreateEmail(
+            "leave-group-first.eml",
+            "QDOS instruction\r\nClaimant Name: Leave Claimant\r\nClaim Number: LEAVE-GROUP-01\r\nVehicle Registration: CD34 EFG");
+        var secondEmail = IntakeTestEvidence.CreateEmail(
+            "leave-group-second.eml",
+            "QDOS instruction\r\nClaimant Name: Leave Claimant\r\nClaim Number: LEAVE-GROUP-02\r\nVehicle Registration: CD34 EFG");
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                (firstEmail.FileName, firstEmail.MediaType, firstEmail.Content),
+                (secondEmail.FileName, secondEmail.MediaType, secondEmail.Content)
+            ]);
+        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var groupPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
+        Assert.Contains(">Leave undecided</a>", groupPage, StringComparison.Ordinal);
+        long versionBefore;
+        await using (var before = factory.Services.CreateAsyncScope())
+        {
+            versionBefore = (await before.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>()
+                .GetAsync(groupId, CancellationToken.None))!.Version;
+        }
+
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        using var leave = await client.PostAsync(
+            $"/Upload/Group/{groupId:D}?handler=Leave",
+            new FormUrlEncodedContent(new Dictionary<string, string> { ["__RequestVerificationToken"] = token }));
+
+        Assert.Equal(HttpStatusCode.Redirect, leave.StatusCode);
+        Assert.Equal("/Upload", leave.Headers.Location!.OriginalString);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var group = await scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>()
+            .GetAsync(groupId, CancellationToken.None);
+        Assert.Null(group!.ImageMatchDeclined);
+        Assert.Equal(versionBefore, group.Version);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

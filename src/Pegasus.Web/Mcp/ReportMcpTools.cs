@@ -244,8 +244,7 @@ internal sealed class ReportMcpTools(
 
     /// <summary>
     /// One Generate, as the Case page's: the Case must be open in a state its
-    /// assessment can be read in, and a read-only Case generates only the
-    /// Inspection report of a Case that has its Audit. The report goes on to
+    /// assessment can be read in (R1095). The report goes on to
     /// make its separate fee note from the generation it confirmed, under the
     /// same lease; a report not yet confirmed leaves the fee note to the next
     /// generate_report, which replays the report's operation key.
@@ -262,12 +261,9 @@ internal sealed class ReportMcpTools(
         CancellationToken cancellationToken)
     {
         var actor = context.Actor;
-        switch (await reportActs.GetAccessAsync(actor, caseId, selector, cancellationToken))
+        if (await reportActs.GetAccessAsync(actor, caseId, cancellationToken) == CaseReportActAccess.NotOpen)
         {
-            case CaseReportActAccess.NotOpen:
-                throw new McpException("The case was not found or its report cannot be generated in its state.");
-            case CaseReportActAccess.ReadOnly:
-                throw new McpException("The case is read-only once Complete.");
+            throw new McpException("The case was not found or its report cannot be generated in its state.");
         }
         if (kind != CaseReportArtifactKind.AssessmentReport && targetGenerationId is null)
         {

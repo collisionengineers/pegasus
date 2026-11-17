@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Encodings.Web;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.AiWork;
@@ -8,6 +9,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -422,6 +424,99 @@ public sealed class UnidentifiedRecordWebTests
         Assert.Empty(await scope.ServiceProvider
             .GetRequiredService<IAiJobQueries>()
             .ListOpenAsync(CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Dismiss is offered only on a pending, suggested reading of an open item
+    /// with a file of its own, and its handler follows that same rule (R1092).
+    /// </summary>
+    [Fact]
+    public async Task DismissOnAPendingSuggestedReadingDismissesIt()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE", confidence: 0.5));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (itemId, reading) = await UploadUnidentifiedImageAsync(factory, client);
+        Assert.Equal(VrmRecognitionOutcomeKind.Suggested, reading.Outcome);
+
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+        Assert.Contains($"id=\"dismiss-reason-{reading.Id:D}\"", html, StringComparison.Ordinal);
+
+        using var dismissed = await PostAsync(client, $"/Unidentified/{itemId:D}?handler=DismissReading", new()
+        {
+            ["suggestionId"] = reading.Id.ToString("D"),
+            ["operationKey"] = Guid.NewGuid().ToString("N"),
+            ["reason"] = "Not this vehicle."
+        });
+
+        Assert.Equal(HttpStatusCode.Redirect, dismissed.StatusCode);
+        Assert.Equal(ImageVrmSuggestionDisposition.Dismissed, (await ReadingAsync(factory, reading)).Disposition);
+        var after = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+        Assert.Contains("The registration reading was dismissed.", after, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DismissOnAReadingThatIsNotASuggestionIsRefusedAndTheReadingStaysPending()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (itemId, reading) = await UploadUnidentifiedImageAsync(factory, client);
+        Assert.Equal(VrmRecognitionOutcomeKind.NoReadableResult, reading.Outcome);
+
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+        Assert.Contains($"data-unidentified-reading=\"{reading.Id:D}\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain($"id=\"dismiss-reason-{reading.Id:D}\"", html, StringComparison.Ordinal);
+
+        using var refused = await PostAsync(client, $"/Unidentified/{itemId:D}?handler=DismissReading", new()
+        {
+            ["suggestionId"] = reading.Id.ToString("D"),
+            ["operationKey"] = Guid.NewGuid().ToString("N"),
+            ["reason"] = "No plate is visible."
+        });
+
+        Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode);
+        Assert.Equal(ImageVrmSuggestionDisposition.Pending, (await ReadingAsync(factory, reading)).Disposition);
+        var after = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+        Assert.Contains(HtmlEncoder.Default.Encode(OperatorLabels.ActionNotApplied), after, StringComparison.Ordinal);
+    }
+
+    /// <summary>A lone uploaded image no confident read identified: its open item and its one reading.</summary>
+    private static async Task<(Guid ItemId, ImageVrmSuggestion Reading)> UploadUnidentifiedImageAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client)
+    {
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "vehicle.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var item = await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
+            .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None);
+        var open = Assert.IsType<UnidentifiedItem>(item);
+        Assert.Equal(UnidentifiedState.Open, open.State);
+        var reading = Assert.Single(await scope.ServiceProvider.GetRequiredService<IVrmSuggestionStore>()
+            .ListForReceiptAsync(receiptId, CancellationToken.None));
+        return (open.Id, reading);
+    }
+
+    private static async Task<ImageVrmSuggestion> ReadingAsync(
+        IntakeWebApplicationFactory factory,
+        ImageVrmSuggestion reading)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        return Assert.Single(
+            await scope.ServiceProvider.GetRequiredService<IVrmSuggestionStore>()
+                .ListForReceiptAsync(reading.IntakeReceiptId, CancellationToken.None),
+            candidate => candidate.Id == reading.Id);
     }
 
     private static async Task<(Guid ReceiptId, Guid ItemId, string Reference)> SeedOpenItemAsync(

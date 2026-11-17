@@ -59,6 +59,7 @@ internal static class AutomationTokenEndpoint
                     "automation_client_disabled")
                     .By(ActionActor.Automation(clientId)),
                 cancellationToken);
+            httpContext.Items[AutomationMcp.ClientDisabledRecordedItem] = true;
             return Forbid(
                 Errors.UnauthorizedClient,
                 "The Automation client registration is disabled.");

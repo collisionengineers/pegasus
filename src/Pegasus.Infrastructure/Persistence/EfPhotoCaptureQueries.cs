@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.PhotoCapture;
 
@@ -183,7 +184,46 @@ public sealed class EfPhotoCaptureQueries(
             .Where(capture => capture.Id == captureId)
             .ToListAsync(cancellationToken);
         var evaluated = await EvaluateAsync(context, captures, cancellationToken);
-        return evaluated.Count == 0 ? null : (await ShownAsync(context, [evaluated[0].Row], cancellationToken))[0];
+        if (evaluated.Count == 0)
+        {
+            return null;
+        }
+
+        var row = evaluated[0].Row;
+        // No member of staff named as its issuer: a link the Automation Actor
+        // issued, including one issued before only staff issuers were kept
+        // (#2147), whose issuer id was the Actor's own.
+        if (row.IssuedByName is null
+            && row.Capture.Origin == PhotoCaptureOrigin.CaseLink
+            && await IssuedByAutomationAsync(context, captureId, cancellationToken))
+        {
+            row = row with { IssuedByName = ActorDisplayNames.Automation };
+        }
+
+        return (await ShownAsync(context, [row], cancellationToken))[0];
+    }
+
+    /// <summary>
+    /// Whether the Automation Actor issued the link: the actor of its first
+    /// <see cref="PhotoLinkActs.Issued"/> act. Its page's Sent by and Created
+    /// line then read "Automation" (#2147; R1093). Read for the one link a
+    /// page or tool shows, never for a list.
+    /// </summary>
+    private static async Task<bool> IssuedByAutomationAsync(
+        PegasusDbContext context,
+        Guid captureId,
+        CancellationToken cancellationToken)
+    {
+        var aggregateId = captureId.ToString("D");
+        var issuer = await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == EfPhotoCaptureStore.HistoryAggregateType
+                && item.AggregateId == aggregateId
+                && item.EventKind == PhotoLinkActs.Issued)
+            .OrderBy(item => item.OccurredAtUtc)
+            .ThenBy(item => item.Id)
+            .Select(item => item.ActorKind)
+            .FirstOrDefaultAsync(cancellationToken);
+        return issuer is not null && IsAutomation(issuer);
     }
 
     public async Task<IReadOnlyList<CasePhotoCaptureStory>> ListForCaseAsync(Guid caseId, CancellationToken cancellationToken)
@@ -276,16 +316,18 @@ public sealed class EfPhotoCaptureQueries(
             .Where(item => item.AggregateType == EfPhotoCaptureStore.HistoryAggregateType && item.AggregateId == aggregateId)
             .OrderBy(item => item.OccurredAtUtc)
             .ThenBy(item => item.Id)
-            .Select(item => new { item.EventKind, item.OccurredAtUtc, item.ActorSubjectId })
+            .Select(item => new { item.EventKind, item.OccurredAtUtc, item.ActorKind, item.ActorSubjectId })
             .ToListAsync(cancellationToken);
         if (rows.Count == 0)
         {
             return [];
         }
 
+        // A member of staff's act names them; the Automation Actor's reads
+        // "Automation" (#2147; R1093); any other stays unnamed.
         var staffIds = rows
-            .Select(row => Guid.TryParse(row.ActorSubjectId, out var staffId) ? staffId : Guid.Empty)
-            .Where(staffId => staffId != Guid.Empty)
+            .Select(row => StaffIdOf(row.ActorKind, row.ActorSubjectId))
+            .OfType<Guid>()
             .Distinct()
             .ToArray();
         var names = staffIds.Length == 0
@@ -295,9 +337,27 @@ public sealed class EfPhotoCaptureQueries(
             .Select(row => new PhotoLinkAct(
                 row.EventKind,
                 row.OccurredAtUtc,
-                Guid.TryParse(row.ActorSubjectId, out var staffId) && names.TryGetValue(staffId, out var name) ? name : null))
+                IsAutomation(row.ActorKind) ? ActorDisplayNames.Automation
+                : StaffIdOf(row.ActorKind, row.ActorSubjectId) is { } staffId && names.TryGetValue(staffId, out var name) ? name
+                : null))
             .ToArray();
     }
+
+    // The actor kinds as the store writes them (ActionActor.Kind.ToString()).
+    private const string StaffKind = nameof(ActorKind.Staff);
+
+    private const string AutomationKind = nameof(ActorKind.Automation);
+
+    private static bool IsAutomation(string actorKind) =>
+        string.Equals(actorKind, AutomationKind, StringComparison.Ordinal);
+
+    /// <summary>The member of staff a recorded act names, null for an actor of any other kind.</summary>
+    private static Guid? StaffIdOf(string actorKind, string actorSubjectId) =>
+        string.Equals(actorKind, StaffKind, StringComparison.Ordinal)
+            && Guid.TryParse(actorSubjectId, out var staffId)
+            && staffId != Guid.Empty
+                ? staffId
+                : null;
 
     private sealed record EvaluatedRow(PhotoCaptureListRow Row, PhotoCaptureState State);
 

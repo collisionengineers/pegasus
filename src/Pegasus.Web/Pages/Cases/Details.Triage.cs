@@ -695,7 +695,7 @@ public sealed partial class DetailsModel
             return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
         }
 
-        var answer = (await Pegasus.Web.Pages.Mail.MessageModel.CorrespondenceSendersAsync(
+        var answer = (await StaffMailAnswer.ForMessageAsync(
             detail, ports.ApprovedMailboxes, cancellationToken)).Reply;
         var mailbox = answer.Sender(fromMailboxId);
         // A refusal before the send redraws with what this request has read.
@@ -724,12 +724,12 @@ public sealed partial class DetailsModel
                 id, actionActor, ports, draft, cancellationToken, resolved);
         }
 
-        var toRecipients = ParseTriageRecipients(to);
+        var toRecipients = StaffMailReplyRecipients.ParseValid(to);
         if (toRecipients.Length == 0)
         {
-            toRecipients = TriageReplyRecipients(detail);
+            toRecipients = StaffMailReplyRecipients.TriageReply(detail);
         }
-        var ccRecipients = ParseTriageRecipients(cc);
+        var ccRecipients = StaffMailReplyRecipients.ParseValid(cc);
 
         if (toRecipients.Length == 0)
         {
@@ -974,7 +974,7 @@ public sealed partial class DetailsModel
 
                 view.ReplyAnswer = resolvedReply is not null
                     ? resolvedReply.Answer
-                    : (await Pegasus.Web.Pages.Mail.MessageModel.CorrespondenceSendersAsync(
+                    : (await StaffMailAnswer.ForMessageAsync(
                         retainedMail, ports.ApprovedMailboxes, cancellationToken)).Reply;
                 // With no default mailbox that can send, staff start on the
                 // Principal's Send from (operator, 3 November 2026).
@@ -984,7 +984,7 @@ public sealed partial class DetailsModel
                         caseInstructions, triage.Record.CaseId, cancellationToken);
                 }
 
-                var replyRecipients = TriageReplyRecipients(retainedMail);
+                var replyRecipients = StaffMailReplyRecipients.TriageReply(retainedMail);
                 view.ReplyTo = string.Join("; ", replyRecipients.Select(r => r.Address));
                 view.ReplySubject = TriageReplySubject(retainedMail.Summary);
                 if (view.OffersReply)
@@ -1323,32 +1323,6 @@ public sealed partial class DetailsModel
             && operation.State is not StaffMailState.Sent
                 and not StaffMailState.Failed
                 and not StaffMailState.Cancelled;
-
-    /// <summary>
-    /// The reply answers the message's Reply-To, or From without one; a
-    /// Collision Engineers staff forward, whichever mailbox holds it, is
-    /// answered to its proven original sender instead of the forwarding desk
-    /// (FRD-21 Reply targets, issue 1042).
-    /// </summary>
-    internal static StaffMailRecipient[] TriageReplyRecipients(RetainedMailDetail detail) =>
-        PrincipalMailRoutePolicy.StaffForwardOriginalSender(
-            detail.Summary.SenderAddress, detail.Summary.EffectiveSenderAddress) is { } originalSender
-            ? ParseTriageRecipients(originalSender)
-            : Pegasus.Web.Pages.Mail.MessageModel.ReplyRecipients(detail).To
-                .Where(item => IsTriageMailboxAddress(item.Address))
-                .ToArray();
-
-    private static StaffMailRecipient[] ParseTriageRecipients(string? value) =>
-        (value ?? string.Empty)
-            .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(address => new StaffMailRecipient(address.Trim(), DisplayName: null))
-            .Where(item => IsTriageMailboxAddress(item.Address))
-            .DistinctBy(item => item.Address, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-    private static bool IsTriageMailboxAddress(string value) =>
-        System.Net.Mail.MailAddress.TryCreate(value, out var parsed)
-        && string.Equals(parsed.Address, value, StringComparison.OrdinalIgnoreCase);
 
     private static string TriageReplySubject(RetainedMailSummary summary) =>
         StaffMailReplySubject.For(summary.Subject, summary.SenderAddress, summary.EffectiveSenderAddress);

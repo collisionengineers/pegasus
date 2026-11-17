@@ -10,6 +10,8 @@ namespace Pegasus.Core.Tests.PhotoCapture;
 /// photo link (R847), and a dead link says whether it was cancelled or has
 /// expired (R863). Resend counts as a reminder only when one was due, and Ask
 /// for it on a capture not sent from a Case always counts (R914, R842).
+/// Cancel, Extend and Log call are taken only where the link offers them,
+/// and a repeated operation key is answered as done (#2130; R1092).
 /// </summary>
 public sealed class PhotoLinkActionsTests
 {
@@ -186,6 +188,174 @@ public sealed class PhotoLinkActionsTests
         Assert.Single(captures.Calls, call => call == nameof(IPhotoCaptureStore.RecordReminderAsync));
     }
 
+    /// <summary>
+    /// The acts a link offers, the one rule its page, its handlers and the
+    /// photo link tools follow (#2130; R1092): a live Case link offers all
+    /// four; a cancelled one none; an expired one Log call and Extend; one
+    /// whose Case is archived Log call alone (R793); a live website capture
+    /// Extend and Cancel, since only a Case link is sent again or called.
+    /// </summary>
+    [Fact]
+    public void EachStateOfALinkOffersItsOwnActs()
+    {
+        Assert.Equal(
+            new PhotoLinkOffers(Resend: true, LogCall: true, Extend: true, Cancel: true),
+            PhotoLinkOffers.For(Row(Capture()), Now));
+        Assert.Equal(
+            new PhotoLinkOffers(Resend: false, LogCall: false, Extend: false, Cancel: false),
+            PhotoLinkOffers.For(Row(Capture(revokedAtUtc: Now.AddMinutes(-5))), Now));
+        Assert.Equal(
+            new PhotoLinkOffers(Resend: false, LogCall: true, Extend: true, Cancel: false),
+            PhotoLinkOffers.For(Row(Capture(createdAtUtc: Now.AddDays(-8))), Now));
+        Assert.Equal(
+            new PhotoLinkOffers(Resend: false, LogCall: true, Extend: false, Cancel: false),
+            PhotoLinkOffers.For(Row(Capture(), caseArchived: true), Now));
+        Assert.Equal(
+            new PhotoLinkOffers(Resend: false, LogCall: false, Extend: true, Cancel: true),
+            PhotoLinkOffers.For(Row(Capture(origin: PhotoCaptureOrigin.Website)), Now));
+    }
+
+    /// <summary>A cancelled link is not extended: the act is refused as not offered and the store is not asked (R1092).</summary>
+    [Fact]
+    public async Task ACancelledLinkIsNotExtended()
+    {
+        var capture = Capture(revokedAtUtc: Now.AddMinutes(-5));
+        var captures = ActStore(capture);
+
+        var refusal = await Assert.ThrowsAsync<PhotoCaptureRefusalException>(() => Actions(captures, capture).ExtendAsync(
+            Staff, capture.Id, CaptureLimits.DefaultLifetimeDays, "extend-operation", CancellationToken.None));
+
+        Assert.Equal(PhotoCaptureRefusals.NotOffered, refusal.Code);
+        Assert.DoesNotContain(nameof(IPhotoCaptureStore.ExtendAsync), captures.Calls);
+    }
+
+    /// <summary>An expired link is not cancelled: it no longer takes photos (R1092).</summary>
+    [Fact]
+    public async Task AnExpiredLinkIsNotCancelled()
+    {
+        var capture = Capture(createdAtUtc: Now.AddDays(-8));
+        var captures = ActStore(capture);
+
+        var refusal = await Assert.ThrowsAsync<PhotoCaptureRefusalException>(() => Actions(captures, capture).RevokeAsync(
+            Staff, capture.Id, "cancel-operation", CancellationToken.None));
+
+        Assert.Equal(PhotoCaptureRefusals.NotOffered, refusal.Code);
+        Assert.DoesNotContain(nameof(IPhotoCaptureStore.RevokeAsync), captures.Calls);
+    }
+
+    /// <summary>No call is logged on a cancelled link (R1092).</summary>
+    [Fact]
+    public async Task NoCallIsLoggedOnACancelledLink()
+    {
+        var capture = Capture(revokedAtUtc: Now.AddMinutes(-5));
+        var captures = ActStore(capture);
+
+        var refusal = await Assert.ThrowsAsync<PhotoCaptureRefusalException>(() => Actions(captures, capture).LogCallAsync(
+            Staff, capture.Id, "call-operation", CancellationToken.None));
+
+        Assert.Equal(PhotoCaptureRefusals.NotOffered, refusal.Code);
+        Assert.DoesNotContain(nameof(IPhotoCaptureStore.RecordCallAsync), captures.Calls);
+    }
+
+    /// <summary>
+    /// A repeat is answered as done: an operation key that already recorded
+    /// the act goes to the store, which replays it, even once the link no
+    /// longer offers the act (operator, 17 November 2026; R1092).
+    /// </summary>
+    [Fact]
+    public async Task ARepeatedKeyIsAnsweredAsDoneOnceTheLinkHasMovedOn()
+    {
+        var cancelled = Capture(revokedAtUtc: Now.AddMinutes(-5));
+        var cancelledAgain = ActStore(cancelled, (PhotoLinkActs.Cancelled, "cancel-operation"));
+        var extendedAgain = ActStore(cancelled, (PhotoLinkActs.Extended, "extend-operation"));
+
+        await Actions(cancelledAgain, cancelled).RevokeAsync(Staff, cancelled.Id, "cancel-operation", CancellationToken.None);
+        await Actions(extendedAgain, cancelled).ExtendAsync(
+            Staff, cancelled.Id, CaptureLimits.DefaultLifetimeDays, "extend-operation", CancellationToken.None);
+
+        Assert.Contains(nameof(IPhotoCaptureStore.RevokeAsync), cancelledAgain.Calls);
+        Assert.Contains(nameof(IPhotoCaptureStore.ExtendAsync), extendedAgain.Calls);
+    }
+
+    /// <summary>An act the link offers goes straight to the store, with no read of the key's acts.</summary>
+    [Fact]
+    public async Task AnOfferedActIsTakenWithoutReadingTheKeysActs()
+    {
+        var capture = Capture();
+        var captures = ActStore(capture);
+
+        await Actions(captures, capture).RevokeAsync(Staff, capture.Id, "cancel-operation", CancellationToken.None);
+
+        Assert.Contains(nameof(IPhotoCaptureStore.RevokeAsync), captures.Calls);
+        Assert.DoesNotContain(nameof(IPhotoCaptureStore.HasRecordedActAsync), captures.Calls);
+    }
+
+    /// <summary>
+    /// Extend on a link whose Case is archived still says the Case cannot
+    /// take a photo link (R793, R847), before the offers are asked.
+    /// </summary>
+    [Fact]
+    public async Task ALinkWhoseCaseIsArchivedStillSaysTheCaseCannotTakeALink()
+    {
+        var capture = Capture();
+        var captures = ActStore(capture);
+
+        var refusal = await Assert.ThrowsAsync<PhotoCaptureRefusalException>(() => Actions(captures, capture, caseArchived: true).ExtendAsync(
+            Staff, capture.Id, CaptureLimits.DefaultLifetimeDays, "extend-operation", CancellationToken.None));
+
+        Assert.Equal(PhotoCaptureRefusals.CaseUnavailable, refusal.Code);
+        Assert.Equal("The Case cannot take a photo link.", refusal.Message);
+        Assert.DoesNotContain(nameof(IPhotoCaptureStore.HasRecordedActAsync), captures.Calls);
+    }
+
+    /// <summary>
+    /// Only a member of staff is kept as a link's issuer (#2147): the
+    /// Automation Actor's subject is never taken for a staff id, even when it
+    /// reads as one.
+    /// </summary>
+    [Fact]
+    public async Task OnlyAMemberOfStaffIsKeptAsTheIssuer()
+    {
+        var automation = ActionActor.Automation("55555555-5555-5555-5555-555555555555");
+
+        Assert.Null(await IssuerAsync(automation));
+        Assert.Equal(Guid.Parse(Staff.SubjectId), await IssuerAsync(Staff));
+    }
+
+    private static async Task<Guid?> IssuerAsync(ActionActor actor)
+    {
+        var captures = AutomaticImageIntakeTests.Forwarder.For<IPhotoCaptureStore>(null);
+        NewPhotoCapture? issued = null;
+        captures.Overrides[nameof(IPhotoCaptureStore.IssueAsync)] = args =>
+        {
+            issued = (NewPhotoCapture)args[0]!;
+            return Task.FromResult((Capture() with { Id = issued.Id }, true));
+        };
+        var issue = new IssuePhotoLink((IPhotoCaptureStore)captures.Proxy, Cases(Facts(isClosed: false)), new FixedClock(Now));
+
+        await issue.ExecuteAsync(IssueRequest("issuer-operation") with { Actor = actor }, CancellationToken.None);
+
+        Assert.NotNull(issued);
+        return issued.IssuedByStaffId;
+    }
+
+    /// <summary>
+    /// A store holding the one capture that takes each act; <paramref name="recorded"/>
+    /// is the act an operation key already recorded on it, if any.
+    /// </summary>
+    private static AutomaticImageIntakeTests.Forwarder ActStore(
+        Core.PhotoCapture.PhotoCapture capture,
+        (string Act, string Key)? recorded = null)
+    {
+        var captures = AutomaticImageIntakeTests.Forwarder.For<IPhotoCaptureStore>(null);
+        captures.Overrides[nameof(IPhotoCaptureStore.HasRecordedActAsync)] =
+            args => Task.FromResult(recorded == ((string)args[1]!, (string)args[2]!));
+        captures.Overrides[nameof(IPhotoCaptureStore.RevokeAsync)] = _ => Task.FromResult(capture);
+        captures.Overrides[nameof(IPhotoCaptureStore.ExtendAsync)] = _ => Task.FromResult(capture);
+        captures.Overrides[nameof(IPhotoCaptureStore.RecordCallAsync)] = _ => Task.FromResult(capture);
+        return captures;
+    }
+
     private static IssuePhotoLinkRequest IssueRequest(string operationKey) =>
         new(
             CaseId,
@@ -232,19 +402,22 @@ public sealed class PhotoLinkActionsTests
         return captures;
     }
 
-    private static PhotoLinkActions Actions(AutomaticImageIntakeTests.Forwarder captures, Core.PhotoCapture.PhotoCapture capture)
+    private static PhotoLinkActions Actions(
+        AutomaticImageIntakeTests.Forwarder captures,
+        Core.PhotoCapture.PhotoCapture capture,
+        bool caseArchived = false)
     {
         var queries = AutomaticImageIntakeTests.Forwarder.For<IPhotoCaptureQueries>(null);
         queries.Overrides[nameof(IPhotoCaptureQueries.GetRowAsync)] =
-            _ => Task.FromResult<PhotoCaptureListRow?>(Row(capture));
+            _ => Task.FromResult<PhotoCaptureListRow?>(Row(capture, caseArchived));
         return new PhotoLinkActions(
             (IPhotoCaptureStore)captures.Proxy,
-            Cases(Facts(isClosed: false)),
+            Cases(Facts(isClosed: false, caseArchived)),
             (IPhotoCaptureQueries)queries.Proxy,
             new FixedClock(Now));
     }
 
-    private static PhotoCaptureListRow Row(Core.PhotoCapture.PhotoCapture capture) =>
+    private static PhotoCaptureListRow Row(Core.PhotoCapture.PhotoCapture capture, bool caseArchived = false) =>
         new(
             capture,
             OrganizationName: null,
@@ -252,7 +425,7 @@ public sealed class PhotoLinkActionsTests
             ImageIntakeId: null,
             MissingItems: [],
             IssuedByName: null,
-            CaseArchived: false,
+            CaseArchived: caseArchived,
             Photographs: 0,
             SentOnToCustomer: false);
 
@@ -264,7 +437,7 @@ public sealed class PhotoLinkActionsTests
         return (IPhotoCaptureCaseReader)cases.Proxy;
     }
 
-    private static PhotoCaptureCaseFacts Facts(bool isClosed) =>
+    private static PhotoCaptureCaseFacts Facts(bool isClosed, bool isArchived = false) =>
         new(
             CaseId,
             "QDOS26001",
@@ -275,7 +448,7 @@ public sealed class PhotoLinkActionsTests
             PrincipalName: "QDOS",
             PrincipalId: null,
             PrincipalOrganizationId: null,
-            IsArchived: false,
+            IsArchived: isArchived,
             IsTriage: false,
             isClosed);
 

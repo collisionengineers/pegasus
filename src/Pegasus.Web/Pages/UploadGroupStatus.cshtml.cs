@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
-using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Web.Presentation;
@@ -332,6 +331,11 @@ public sealed class UploadGroupStatusModel(
         return RedirectToSurface(id);
     }
 
+    /// <summary>
+    /// Leave undecided. Where Leave declines the image match (R1092) the
+    /// decline is recorded; anywhere else nothing is written and the post
+    /// returns to Upload, as the plain link the page then shows does.
+    /// </summary>
     public async Task<IActionResult> OnPostLeaveAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -341,7 +345,13 @@ public sealed class UploadGroupStatusModel(
 
         try
         {
-            await declineImageMatch.ExecuteAsync(id, actor, cancellationToken);
+            var state = await UploadGroupState.LoadAsync(
+                groups, statuses, intake, outcomeQueries, id, actor, cancellationToken);
+            if (state is not null && (state.OffersLeave || state.AlreadyLeft))
+            {
+                await declineImageMatch.ExecuteAsync(
+                    id, state.OffersLeave, state.LeaveFiles, actor, cancellationToken);
+            }
         }
         catch (StaffAuthorizationException)
         {
@@ -560,10 +570,10 @@ public sealed class UploadGroupStatusModel(
             Confirmation = ReviewConfirmation(UploadCaseConfirmation, known),
             CouldNotBeReadCount = CouldNotBeReadCount,
             CanDiscard = CanDiscard,
-            LeaveDeclinesImageMatch = phase == UploadReviewPhase.Decision
-                && Outcomes.Values.All(outcome => outcome is { Kind: UploadOutcomeKind.PossibleMatch })
-                && Receipts.Values.All(receipt => receipt is not null
-                    && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)),
+            // The page's Decision phase also waits for every file's custody,
+            // so it, not the upload's own AwaitsDecision, is what the page asks.
+            LeaveDeclinesImageMatch = ImageMatchLeave.IsOffered(
+                phase == UploadReviewPhase.Decision, _state.LeaveFiles),
             GroupVersion = Group.Version,
             DiscardVersions = GroupMemberReceiptVersions,
             OpenDiscard = discard && CanDiscard,

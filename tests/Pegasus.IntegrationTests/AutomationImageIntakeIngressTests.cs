@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Web.Mcp;
@@ -23,10 +24,12 @@ public sealed class AutomationImageIntakeIngressTests
     [Fact]
     public async Task TheActorDismissesAReadingRegistersImagesAndClosesTheVehicleImagesRecord()
     {
+        // A read below the automatic bar: the image goes to Unidentified with a
+        // suggested reading, which is the reading Dismiss is offered on (R1092).
         using var factory = new IntakeWebApplicationFactory(
             "Development",
             true,
-            recognitionEngine: new FakeVrmRecognitionEngine());
+            recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE", confidence: 0.5));
         using var mcpFactory = WithAutomationMcp(factory);
         using var staff = IntakeWebDriver.CreateClient(mcpFactory);
         using var client = mcpFactory.CreateClient();
@@ -38,6 +41,7 @@ public sealed class AutomationImageIntakeIngressTests
             Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
             Guid.NewGuid().ToString("N"));
         var reference = await UnidentifiedReferenceAsync(mcpFactory, IntakeWebDriver.ReceiptId(upload));
+        var unreadReadingId = await RecordUnreadReadingAsync(mcpFactory, IntakeWebDriver.ReceiptId(upload));
         var principalId = await ImageIntakeTestData.SeedPrincipalAsync(mcpFactory.Services, "IMGMCP");
 
         var casesOnly = await RequestTokenAsync(client, "automation.cases");
@@ -59,9 +63,38 @@ public sealed class AutomationImageIntakeIngressTests
         {
             var detail = await ReadStructuredContentAsync(response);
             Assert.True(detail.GetProperty("canRegisterImages").GetBoolean());
-            var reading = detail.GetProperty("readings").EnumerateArray()
-                .First(candidate => candidate.GetProperty("disposition").GetString() == "Pending");
+            var readings = detail.GetProperty("readings").EnumerateArray().ToArray();
+            var reading = Assert.Single(readings, candidate => candidate.GetProperty("outcome").GetString() == "Suggested");
+            Assert.Equal("Pending", reading.GetProperty("disposition").GetString());
+            Assert.True(reading.GetProperty("canDismiss").GetBoolean());
             readingId = reading.GetProperty("id").GetGuid();
+            var unread = Assert.Single(readings, candidate => candidate.GetProperty("id").GetGuid() == unreadReadingId);
+            Assert.Equal("Pending", unread.GetProperty("disposition").GetString());
+            Assert.False(unread.GetProperty("canDismiss").GetBoolean());
+        }
+
+        // A pending reading Dismiss is not offered on is refused, and stays pending.
+        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(30, "pegasus_unidentified_action", new
+        {
+            reference,
+            action = "dismiss_reading",
+            reason = "No plate is visible.",
+            readingId = unreadReadingId,
+            operationKey = "mcp:dismiss-unread"
+        })))
+        {
+            Assert.Contains(
+                "dismiss_reading is not offered on this reading; pegasus_unidentified_get lists the readings that offer it.",
+                await ReadErrorTextAsync(refused),
+                StringComparison.Ordinal);
+        }
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var stored = await scope.ServiceProvider.GetRequiredService<IVrmSuggestionStore>()
+                .ListForReceiptAsync(IntakeWebDriver.ReceiptId(upload), CancellationToken.None);
+            Assert.Equal(
+                ImageVrmSuggestionDisposition.Pending,
+                Assert.Single(stored, candidate => candidate.Id == unreadReadingId).Disposition);
         }
 
         using (var refused = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_unidentified_action", new
@@ -329,18 +362,24 @@ public sealed class AutomationImageIntakeIngressTests
             Assert.Contains("This submission is incomplete or a file is not ready.", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
 
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_upload_group_action", new
+        // Neither file is a possible match, so Leave declines no image match
+        // here and is refused, writing nothing (R1092).
+        Assert.False(group.GetProperty("canLeave").GetBoolean());
+        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_upload_group_action", new
         {
             groupId,
             action = "leave",
             operationKey = "mcp:upload-leave"
         })))
         {
-            var left = await ReadStructuredContentAsync(response);
-            Assert.True(left.GetProperty("group").GetProperty("imageMatchDeclined").GetBoolean());
+            Assert.Contains(
+                "leave is not offered on this upload; pegasus_upload_group_get says whether it is.",
+                await ReadErrorTextAsync(refused),
+                StringComparison.Ordinal);
         }
 
         group = await GetGroupAsync(client, token, groupId, rpcId: 4);
+        Assert.False(group.GetProperty("imageMatchDeclined").GetBoolean());
         Assert.True(group.GetProperty("canDiscard").GetBoolean());
         var groupVersion = group.GetProperty("version").GetInt64();
         var discardVersions = group.GetProperty("discardVersions").EnumerateArray()
@@ -387,10 +426,97 @@ public sealed class AutomationImageIntakeIngressTests
         }
     }
 
+    /// <summary>
+    /// An uploaded image whose read matched a Case waits for staff; Leave
+    /// declines the match so its images register, and leaving it again is
+    /// answered as done (R1092).
+    /// </summary>
+    [Fact]
+    public async Task TheActorLeavesAMatchedImageUploadUndecidedAsItsPageDoes()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var staff = IntakeWebDriver.CreateClient(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        _ = await ImageIntakeTestData.SeedInstructionCaseAsync(mcpFactory, staff, "AB12 CDE", "MCP-LEAVE-01");
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            mcpFactory,
+            staff,
+            "vehicle.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+        var groupId = await UploadGroupIdAsync(mcpFactory, IntakeWebDriver.ReceiptId(upload));
+        var token = await RequestTokenAsync(client, "automation.intake");
+
+        var group = await GetGroupAsync(client, token, groupId, rpcId: 1);
+        Assert.Equal("PossibleMatch", Assert.Single(group.GetProperty("members").EnumerateArray()).GetProperty("outcome").GetString());
+        Assert.True(group.GetProperty("canLeave").GetBoolean());
+        Assert.False(group.GetProperty("imageMatchDeclined").GetBoolean());
+
+        foreach (var (rpcId, key) in new[] { (2, "mcp:upload-leave"), (3, "mcp:upload-leave-again") })
+        {
+            using var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId, "pegasus_upload_group_action", new
+            {
+                groupId,
+                action = "leave",
+                operationKey = key
+            }));
+            var left = await ReadStructuredContentAsync(response);
+            Assert.Equal("leave", left.GetProperty("action").GetString());
+            Assert.True(left.GetProperty("group").GetProperty("imageMatchDeclined").GetBoolean());
+        }
+    }
+
+    private static async Task<Guid> UploadGroupIdAsync(
+        WebApplicationFactory<Program> factory,
+        Guid receiptId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        var group = await scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>()
+            .FindForMemberSourceAsync(receipt!.SourceIdentity, CancellationToken.None);
+        return Assert.IsType<IntakeSubmissionGroup>(group).Id;
+    }
+
     private static async Task<JsonElement> GetGroupAsync(HttpClient client, string token, Guid groupId, int rpcId)
     {
         using var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId, "pegasus_upload_group_get", new { groupId }));
         return await ReadStructuredContentAsync(response);
+    }
+
+    /// <summary>
+    /// A second, unread reading on the received item's image: one Dismiss is
+    /// not offered on, as no plate was read from it.
+    /// </summary>
+    private static async Task<Guid> RecordUnreadReadingAsync(
+        WebApplicationFactory<Program> factory,
+        Guid receiptId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var suggestions = scope.ServiceProvider.GetRequiredService<IVrmSuggestionStore>();
+        var read = Assert.Single(await suggestions.ListForReceiptAsync(receiptId, CancellationToken.None));
+        var unread = await suggestions.RecordAsync(
+            new ImageVrmSuggestionDraft(
+                receiptId,
+                read.IntakeAssetId,
+                read.StorageKey,
+                read.ContentHash,
+                read.EngineKey,
+                read.EngineVersion,
+                read.ModelHashes,
+                VrmRecognitionOutcomeKind.NoReadableResult,
+                null,
+                null,
+                null,
+                null,
+                $"ingress-unread-reading:{receiptId:N}"),
+            CancellationToken.None);
+        return unread.Id;
     }
 
     private static async Task<string> UnidentifiedReferenceAsync(

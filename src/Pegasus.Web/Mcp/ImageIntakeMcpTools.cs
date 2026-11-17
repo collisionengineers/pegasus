@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
@@ -97,7 +96,7 @@ internal sealed class ImageIntakeMcpTools(
     IImageIntakeCaseCandidates caseCandidates,
     ITriageQueries triages,
     OneCommandEdit leases,
-    ICursorProtector cursors,
+    ListAwaitingImageIntakesByCursor listAwaiting,
     AutomationMcpAuditor auditor)
 {
     private const string IdDescription = "The Image Intake record identifier (id from pegasus_image_intake_list).";
@@ -121,42 +120,10 @@ internal sealed class ImageIntakeMcpTools(
             "image-intake",
             async context =>
             {
-                var effectiveLimit = CursorPaging.NormalizeLimit(limit);
-                var scope = CursorPaging.CreateScope(
-                    "pegasus_image_intake_list", context.Actor, "unassociated", "awaiting-instruction", "newest-first");
-                var skip = 0;
-                if (!string.IsNullOrWhiteSpace(cursor))
-                {
-                    var position = cursors.Unprotect(cursor, scope);
-                    // The page resumes after the last record it returned, wherever
-                    // that record now stands; one that has left the list resumes
-                    // at the offset the cursor recorded.
-                    skip = await imageIntakes.ListPositionAsync(
-                            associated: false,
-                            ImageInitiatedCaseState.AwaitingInstruction,
-                            position.Id,
-                            cancellationToken) is { } place
-                        ? place + 1
-                        : int.TryParse(position.SortKey, NumberStyles.None, CultureInfo.InvariantCulture, out var offset)
-                            ? offset
-                            : throw new CursorRejectedException();
-                }
-
-                var window = await imageIntakes.ListWindowAsync(
-                    associated: false,
-                    ImageInitiatedCaseState.AwaitingInstruction,
-                    skip,
-                    effectiveLimit + 1,
-                    cancellationToken);
-                var items = window.Take(effectiveLimit).ToArray();
-                var next = window.Count > effectiveLimit
-                    ? cursors.Protect(
-                        scope,
-                        (skip + items.Length).ToString(CultureInfo.InvariantCulture),
-                        items[^1].Id)
-                    : null;
+                var page = await listAwaiting.ExecuteAsync(
+                    context.Actor, cursor, limit, cancellationToken);
                 return new ImageIntakeListToolResult(
-                    items.Select(item => new ImageIntakeToolSummary(
+                    page.Items.Select(item => new ImageIntakeToolSummary(
                         item.Id,
                         item.ImageIntakeReference,
                         item.NormalizedVehicleRegistration,
@@ -166,8 +133,8 @@ internal sealed class ImageIntakeMcpTools(
                         item.Source.ToString(),
                         item.PrincipalCode,
                         item.OriginReceiptId)).ToArray(),
-                    next,
-                    effectiveLimit,
+                    page.NextCursor,
+                    CursorPaging.NormalizeLimit(limit),
                     context.TraceIdentifier);
             },
             cancellationToken);
