@@ -8,6 +8,27 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
+using System.IO;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.Net.Http.Headers;
+using Pegasus.Core.Address;
+using Pegasus.Core.Documents;
+using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Operations;
+using Pegasus.Core.Reports;
+using Pegasus.Core.Vehicle;
+using Pegasus.Infrastructure.Glass;
+using Pegasus.Infrastructure.Email;
+using EstimateVatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat;
+using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession;
+using FrameLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame;
+using Labels = Pegasus.Web.Presentation.OperatorLabels;
+using EditorLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Editors;
 
 namespace Pegasus.Web.Pages.Cases;
 
@@ -859,4 +880,48 @@ public sealed partial class DetailsModel
 
         return RedirectToValuation(id);
     }
+
+    /// <summary>
+    /// The Case's recorded valuation source cards (B01 port/B03): one card
+    /// per source with its figures, loaded with the valuation section.
+    /// </summary>
+    public IReadOnlyList<CaseValuation> Valuations { get; private set; } = [];
+
+    private static DateOnly? ParseGuideMonth(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (!DateOnly.TryParseExact(
+                value,
+                "yyyy-MM",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var month))
+        {
+            throw new ArgumentException("The guide month is invalid.", nameof(value));
+        }
+        return new DateOnly(month.Year, month.Month, 1);
+    }
+
+    /// <summary>
+    /// The valuation-section mutation guard: the report guard's rules with
+    /// the valuation redirect target.
+    /// </summary>
+    private Task<IActionResult?> GuardValuationCommandAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        CancellationToken cancellationToken) =>
+        GuardSectionCommandAsync(
+            id,
+            operationKey,
+            editLeaseToken,
+            () => RedirectToValuation(id),
+            cancellationToken);
+
+    private RedirectToPageResult RedirectToValuation(Guid id) =>
+        RedirectToPage("/Cases/Details", new { id, section = "valuation", view = ReturnView });
 }
