@@ -75,8 +75,9 @@ upload rather than chosen after it:
   again at post. The same upload receipt presented for a different Case is
   refused, like different bytes under one identity.
 - Each file's row offers its **Type** on the Case (operator, 30 October
-  2026; R564, R565): Instruction, Correspondence, Engineer report, Estimate,
-  Valuation Evidence or Other, with Other chosen until the member of staff
+  2026; R564, R565): Instruction, Correspondence, Engineer report, CE
+  estimate, External estimate, Repair invoice
+  ([R1139](../rulings.md)), Valuation Evidence or Other, with Other chosen until the member of staff
   changes it. The choice travels with that file and is read again at post; a
   replay of the same upload keeps the type first recorded, as it keeps the
   Case. A photograph is an Image whatever was chosen, so its row

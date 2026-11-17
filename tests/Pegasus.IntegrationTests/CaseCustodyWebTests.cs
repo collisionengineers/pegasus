@@ -190,14 +190,14 @@ public sealed class CaseCustodyWebTests
                 "Filed as the wrong type.",
                 ("occurrenceId", occurrenceId.ToString("D")),
                 ("versionId", versionId.ToString("D")),
-                ("semanticRole", DocumentSemanticRole.Estimate.ToString())));
+                ("semanticRole", DocumentSemanticRole.ExternalEstimate.ToString())));
         AssertPrg(changed, store.CaseId, "?section=files");
 
         var command = Assert.Single(store.DocumentTypeChanges);
         AssertClaimant(workspace, command.Actor);
         Assert.Equal(occurrenceId, command.OccurrenceId);
         Assert.Equal(versionId, command.VersionId);
-        Assert.Equal(DocumentSemanticRole.Estimate, command.NewRole);
+        Assert.Equal(DocumentSemanticRole.ExternalEstimate, command.NewRole);
         Assert.Equal("Filed as the wrong type.", command.Reason);
         Assert.Equal(store.CaseVersion, command.ExpectedCaseVersion);
         Assert.Equal(store.LeaseToken, command.EditLeaseToken);
@@ -237,7 +237,7 @@ public sealed class CaseCustodyWebTests
             CaseDocuments =
             [
                 Document(occurrenceId, versionId, "instruction.pdf", "application/pdf"),
-                Document(estimateId, Guid.NewGuid(), "estimate.pdf", "application/pdf", DocumentSemanticRole.Estimate),
+                Document(estimateId, Guid.NewGuid(), "estimate.pdf", "application/pdf", DocumentSemanticRole.ExternalEstimate),
                 Document(
                     researchId, Guid.NewGuid(), "research.pdf", "application/pdf",
                     DocumentSemanticRole.ValuationEvidence, source: DocumentSource.Automation),
@@ -283,7 +283,7 @@ public sealed class CaseCustodyWebTests
         // Estimate and Valuation Evidence are document types (operator, 22
         // October 2026); Valuation Evidence the Automation Actor filed wears
         // the AI tint, and a generated guide valuation report does not.
-        var estimate = OperatorLabels.DocumentRole(DocumentSemanticRole.Estimate);
+        var estimate = OperatorLabels.DocumentRole(DocumentSemanticRole.ExternalEstimate);
         var valuationEvidence = OperatorLabels.DocumentRole(DocumentSemanticRole.ValuationEvidence);
         Assert.Contains($"<span class=\"src-tag\">{estimate}</span>", DocumentRow(html, estimateId), StringComparison.Ordinal);
         Assert.Contains(

@@ -132,6 +132,10 @@ writable. A spec brought back from Glass's belongs to that Glass's estimate:
 same spec. "Estimate" names a repairer's or provider's source document.
 _Avoid_: accepted estimate, Use estimate, Resume (as a button)
 
+**CE estimate**, **External estimate**, **Repair invoice**:
+Three document types (operator, 17 November 2026; [R1139](docs/rulings.md)). A CE estimate is an estimate Collision Engineers produced, a Glass's session's files included. An External estimate is a repairer's or another provider's. A Repair invoice is the repairer's invoice for the repair it carried out. CE estimate and External estimate replace the one Estimate type.
+_Avoid_: Estimate (as a document type), garage estimate, garage invoice
+
 **AI Proposal**:
 An immutable model-generated candidate repair specification, never a report document, retained separately from the Case until an authorised human staff member explicitly accepts or applies it.
 _Avoid_: AI assessment, automatic repair specification
