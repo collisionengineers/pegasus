@@ -1202,6 +1202,43 @@ function Test-PegasusDatabaseReady {
     return $LASTEXITCODE -eq 0
 }
 
+function Update-PegasusDatabaseStatistics {
+    <#
+        .SYNOPSIS
+        Refreshes every statistic in a run database on the container engine.
+
+        .DESCRIPTION
+        A run database that is stopped and started keeps the statistics of its
+        first days. On the hosted test instance they described ten-row tables
+        that held three thousand rows, so an Inbox search read the whole search
+        text once per message and timed out (16 November 2026). A refresh on
+        each start costs about two seconds. LocalDB is left alone: it is not where
+        this was seen.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$Command,
+        [string]$ContainerName,
+        [Parameter(Mandatory)]
+        [string]$Database
+    )
+
+    if ((Get-PegasusDatabaseEngineKind) -eq 'LocalDb') {
+        return
+    }
+    if ($Database -notmatch '^PegasusDevelopment_[0-9a-f]{32}$') {
+        throw "Unexpected run database name '$Database'."
+    }
+
+    $refresh = 'exec 2>&1; /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b -l 30 -d "' + $Database + '" -Q "SET NOCOUNT ON; EXEC sp_updatestats;"'
+    $output = (& $Command exec $ContainerName bash -c $refresh | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        # The run still starts: stale statistics make searches slow, and a
+        # stopped instance helps nobody find that out.
+        Write-Warning "Statistics in '$Database' were not refreshed, so searches may be slow. $output"
+    }
+}
+
 function Get-PegasusDatabaseDiagnostics {
     param(
         [Parameter(Mandatory)]
