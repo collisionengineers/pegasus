@@ -49,15 +49,18 @@ internal sealed class EfRecentCaseQueries(
         var facts = factsTask.Result;
         var drafts = draftsTask.Result;
 
-        string? Fact(Guid caseId, string field) =>
-            facts.FirstOrDefault(item => item.CaseId == caseId && item.FieldName == field)?.Value;
+        string? Fact(Guid caseId, string field, string valueKind) =>
+            facts.FirstOrDefault(item => item.CaseId == caseId
+                && item.FieldName == field
+                && item.ValueKind == valueKind)?.Value;
 
-        // Staff's value, else the draft's; none where staff emptied the box
-        // (R1077).
-        static string? Shown(string? confirmed, string? draft) =>
-            confirmed is null
-                ? draft
-                : CaseDataFieldValues.IsCleared(CaseDataCodes.Confirmed, confirmed) ? null : confirmed;
+        // The Case's accepted value, as the Case rows read it (R1112): staff's,
+        // none where staff emptied the box (R1077), else the extracted or
+        // looked-up one, else the draft's.
+        string? Shown(Guid caseId, string field, string? draft) =>
+            Fact(caseId, field, CaseDataCodes.Confirmed) is { } confirmed
+                ? CaseDataFieldValues.IsCleared(CaseDataCodes.Confirmed, confirmed) ? null : confirmed
+                : Fact(caseId, field, CaseDataCodes.Fact) ?? draft;
 
         var items = pageRows.Select(row =>
         {
@@ -65,8 +68,8 @@ internal sealed class EfRecentCaseQueries(
             return new RecentCaseRow(
                 row.CaseId,
                 row.Reference,
-                Shown(Fact(row.CaseId, CaseDataFieldNames.VehicleRegistration), draft?.VehicleRegistration),
-                Shown(Fact(row.CaseId, CaseDataFieldNames.ClaimantName), draft?.ClaimantName),
+                Shown(row.CaseId, CaseDataFieldNames.VehicleRegistration, draft?.VehicleRegistration),
+                Shown(row.CaseId, CaseDataFieldNames.ClaimantName, draft?.ClaimantName),
                 row.Principal,
                 row.CreatedAtUtc,
                 RecentCasesPolicy.Arrival(Channel(row.SourceChannel), row.CreatedByAutomation));
@@ -204,7 +207,8 @@ internal sealed class EfRecentCaseQueries(
     /// <summary>
     /// Find within New cases (<see cref="RecentCasesPolicy.Matches"/>): the
     /// reference, the claimant, or the registration with its spaces and dashes
-    /// ignored, read from the confirmed facts or the Case's instruction draft.
+    /// ignored, read from the Case's accepted value (staff's, else the
+    /// extracted or looked-up one; R1112) or the Case's instruction draft.
     /// The draft's value is not searched where staff emptied the box (R1077,
     /// R1121).
     /// </summary>
@@ -225,7 +229,11 @@ internal sealed class EfRecentCaseQueries(
         return rows.Where(row =>
             row.Reference.Contains(term)
             || facts.Any(field => field.WorkId == row.CaseId
-                && field.ValueKind == CaseDataCodes.Confirmed
+                && (field.ValueKind == CaseDataCodes.Confirmed
+                    || field.ValueKind == CaseDataCodes.Fact
+                        && !facts.Any(confirmed => confirmed.WorkId == field.WorkId
+                            && confirmed.FieldName == field.FieldName
+                            && confirmed.ValueKind == CaseDataCodes.Confirmed))
                 && (field.FieldName == CaseDataFieldNames.VehicleRegistration
                         && field.Value.Replace(" ", "").Replace("-", "").Contains(compact)
                     || field.FieldName == CaseDataFieldNames.ClaimantName
@@ -253,10 +261,10 @@ internal sealed class EfRecentCaseQueries(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         return await context.CaseDataFields.AsNoTracking()
             .Where(item => caseIds.Contains(item.WorkId)
-                && item.ValueKind == CaseDataCodes.Confirmed
+                && (item.ValueKind == CaseDataCodes.Confirmed || item.ValueKind == CaseDataCodes.Fact)
                 && (item.FieldName == CaseDataFieldNames.VehicleRegistration
                     || item.FieldName == CaseDataFieldNames.ClaimantName))
-            .Select(item => new FactRow(item.WorkId, item.FieldName, item.Value))
+            .Select(item => new FactRow(item.WorkId, item.FieldName, item.ValueKind, item.Value))
             .ToListAsync(cancellationToken);
     }
 
@@ -278,7 +286,7 @@ internal sealed class EfRecentCaseQueries(
         _ => EfIntakeReceiptStore.ParseSourceChannel(code)
     };
 
-    private sealed record FactRow(Guid CaseId, string FieldName, string Value);
+    private sealed record FactRow(Guid CaseId, string FieldName, string ValueKind, string Value);
 
     private sealed record DraftRow(Guid CaseId, string? VehicleRegistration, string? ClaimantName);
 

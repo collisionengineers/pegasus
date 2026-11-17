@@ -108,8 +108,9 @@ public sealed class EfCaseQueryStore(
 
     /// <summary>
     /// One Case's accident circumstances: the value staff confirmed, else the
-    /// instruction draft's; none where staff emptied the box (R1077). Only the
-    /// Search preview shows them, so the shared search rows leave them out.
+    /// extracted one, else the instruction draft's (R1112); none where staff
+    /// emptied the box (R1077). Only the Search preview shows them, so the
+    /// shared search rows leave them out.
     /// </summary>
     async Task<string?> ICaseCircumstancesQueries.GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
@@ -125,9 +126,14 @@ public sealed class EfCaseQueryStore(
                         && item.ValueKind == CaseDataCodes.Confirmed)
                 on caseEntity.Id equals confirmedCandidate.WorkId into confirmedRows
             from confirmed in confirmedRows.DefaultIfEmpty()
+            join factCandidate in context.CaseDataFields.AsNoTracking()
+                    .Where(item => item.FieldName == CaseDataFieldNames.AccidentCircumstances
+                        && item.ValueKind == CaseDataCodes.Fact)
+                on caseEntity.Id equals factCandidate.WorkId into factRows
+            from fact in factRows.DefaultIfEmpty()
             select confirmed != null
                 ? confirmed.Value == CaseDataFieldValues.ClearedValue ? null : confirmed.Value
-                : draft!.AccidentCircumstances)
+                : fact != null ? fact.Value : draft!.AccidentCircumstances)
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -1233,26 +1239,51 @@ public sealed class EfCaseQueryStore(
                     && item.ValueKind == CaseDataCodes.Confirmed)
             on caseEntity.Id equals confirmedClaimantCandidate.WorkId into confirmedClaimants
         from confirmedClaimant in confirmedClaimants.DefaultIfEmpty()
+        join factClaimantCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.ClaimantName
+                    && item.ValueKind == CaseDataCodes.Fact)
+            on caseEntity.Id equals factClaimantCandidate.WorkId into factClaimants
+        from factClaimant in factClaimants.DefaultIfEmpty()
         join confirmedClaimNumberCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.ClaimNumber
                     && item.ValueKind == CaseDataCodes.Confirmed)
             on caseEntity.Id equals confirmedClaimNumberCandidate.WorkId into confirmedClaimNumbers
         from confirmedClaimNumber in confirmedClaimNumbers.DefaultIfEmpty()
+        join factClaimNumberCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.ClaimNumber
+                    && item.ValueKind == CaseDataCodes.Fact)
+            on caseEntity.Id equals factClaimNumberCandidate.WorkId into factClaimNumbers
+        from factClaimNumber in factClaimNumbers.DefaultIfEmpty()
         join confirmedRegistrationCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
                     && item.ValueKind == CaseDataCodes.Confirmed)
             on caseEntity.Id equals confirmedRegistrationCandidate.WorkId into confirmedRegistrations
         from confirmedRegistration in confirmedRegistrations.DefaultIfEmpty()
+        join factRegistrationCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
+                    && item.ValueKind == CaseDataCodes.Fact)
+            on caseEntity.Id equals factRegistrationCandidate.WorkId into factRegistrations
+        from factRegistration in factRegistrations.DefaultIfEmpty()
         join confirmedMakeCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.VehicleMake
                     && item.ValueKind == CaseDataCodes.Confirmed)
             on caseEntity.Id equals confirmedMakeCandidate.WorkId into confirmedMakes
         from confirmedMake in confirmedMakes.DefaultIfEmpty()
+        join factMakeCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleMake
+                    && item.ValueKind == CaseDataCodes.Fact)
+            on caseEntity.Id equals factMakeCandidate.WorkId into factMakes
+        from factMake in factMakes.DefaultIfEmpty()
         join confirmedModelCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.VehicleModel
                     && item.ValueKind == CaseDataCodes.Confirmed)
             on caseEntity.Id equals confirmedModelCandidate.WorkId into confirmedModels
         from confirmedModel in confirmedModels.DefaultIfEmpty()
+        join factModelCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleModel
+                    && item.ValueKind == CaseDataCodes.Fact)
+            on caseEntity.Id equals factModelCandidate.WorkId into factModels
+        from factModel in factModels.DefaultIfEmpty()
         select new SearchRow
         {
             CaseId = caseEntity.Id,
@@ -1264,11 +1295,11 @@ public sealed class EfCaseQueryStore(
             EngineerId = workflow == null ? null : workflow.AssignedEngineerId,
             Registration = triage != null
                 ? triage.NormalizedVehicleRegistration
-                : confirmedRegistration != null ? (confirmedRegistration.Value == CaseDataFieldValues.ClearedValue ? null : confirmedRegistration.Value) : draft!.VehicleRegistration,
-            Claimant = confirmedClaimant != null ? (confirmedClaimant.Value == CaseDataFieldValues.ClearedValue ? null : confirmedClaimant.Value) : draft!.ClaimantName,
-            ClaimNumber = confirmedClaimNumber != null ? (confirmedClaimNumber.Value == CaseDataFieldValues.ClearedValue ? null : confirmedClaimNumber.Value) : draft!.ClaimNumber,
-            VehicleMake = confirmedMake != null ? (confirmedMake.Value == CaseDataFieldValues.ClearedValue ? null : confirmedMake.Value) : draft!.VehicleMake,
-            VehicleModel = confirmedModel != null ? (confirmedModel.Value == CaseDataFieldValues.ClearedValue ? null : confirmedModel.Value) : draft!.VehicleModel,
+                : confirmedRegistration != null ? (confirmedRegistration.Value == CaseDataFieldValues.ClearedValue ? null : confirmedRegistration.Value) : factRegistration != null ? factRegistration.Value : draft!.VehicleRegistration,
+            Claimant = confirmedClaimant != null ? (confirmedClaimant.Value == CaseDataFieldValues.ClearedValue ? null : confirmedClaimant.Value) : factClaimant != null ? factClaimant.Value : draft!.ClaimantName,
+            ClaimNumber = confirmedClaimNumber != null ? (confirmedClaimNumber.Value == CaseDataFieldValues.ClearedValue ? null : confirmedClaimNumber.Value) : factClaimNumber != null ? factClaimNumber.Value : draft!.ClaimNumber,
+            VehicleMake = confirmedMake != null ? (confirmedMake.Value == CaseDataFieldValues.ClearedValue ? null : confirmedMake.Value) : factMake != null ? factMake.Value : draft!.VehicleMake,
+            VehicleModel = confirmedModel != null ? (confirmedModel.Value == CaseDataFieldValues.ClearedValue ? null : confirmedModel.Value) : factModel != null ? factModel.Value : draft!.VehicleModel,
             ReceivedAtUtc = receipt == null ? caseEntity.CreatedAtUtc : receipt.ReceivedAtUtc,
             Origin = receipt == null ? "manual" : receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,
@@ -1289,9 +1320,10 @@ public sealed class EfCaseQueryStore(
         };
 
     /// <summary>
-    /// Every Case with a Case workflow. A fact staff confirmed on the Case
-    /// reads before the instruction draft's, as the Case's own sections read
-    /// it; the draft answers only where nothing is confirmed.
+    /// Every Case with a Case workflow. Each fact reads the Case's accepted
+    /// value, as the Case's own sections read it: staff's (none where staff
+    /// emptied the box, R1077), else the extracted or looked-up one; the
+    /// instruction draft answers only where the Case holds neither (R1112).
     /// </summary>
     private static IQueryable<SearchRow> SearchRows(PegasusDbContext context) =>
         from workflow in context.CaseWorkflows.AsNoTracking()
@@ -1310,26 +1342,51 @@ public sealed class EfCaseQueryStore(
                     && item.ValueKind == CaseDataCodes.Confirmed)
             on caseEntity.Id equals confirmedClaimantCandidate.WorkId into confirmedClaimants
         from confirmedClaimant in confirmedClaimants.DefaultIfEmpty()
+        join factClaimantCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.ClaimantName
+                    && item.ValueKind == CaseDataCodes.Fact)
+            on caseEntity.Id equals factClaimantCandidate.WorkId into factClaimants
+        from factClaimant in factClaimants.DefaultIfEmpty()
         join confirmedClaimNumberCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.ClaimNumber
                     && item.ValueKind == CaseDataCodes.Confirmed)
             on caseEntity.Id equals confirmedClaimNumberCandidate.WorkId into confirmedClaimNumbers
         from confirmedClaimNumber in confirmedClaimNumbers.DefaultIfEmpty()
+        join factClaimNumberCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.ClaimNumber
+                    && item.ValueKind == CaseDataCodes.Fact)
+            on caseEntity.Id equals factClaimNumberCandidate.WorkId into factClaimNumbers
+        from factClaimNumber in factClaimNumbers.DefaultIfEmpty()
         join confirmedRegistrationCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
                     && item.ValueKind == CaseDataCodes.Confirmed)
             on caseEntity.Id equals confirmedRegistrationCandidate.WorkId into confirmedRegistrations
         from confirmedRegistration in confirmedRegistrations.DefaultIfEmpty()
+        join factRegistrationCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
+                    && item.ValueKind == CaseDataCodes.Fact)
+            on caseEntity.Id equals factRegistrationCandidate.WorkId into factRegistrations
+        from factRegistration in factRegistrations.DefaultIfEmpty()
         join confirmedMakeCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.VehicleMake
                     && item.ValueKind == CaseDataCodes.Confirmed)
             on caseEntity.Id equals confirmedMakeCandidate.WorkId into confirmedMakes
         from confirmedMake in confirmedMakes.DefaultIfEmpty()
+        join factMakeCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleMake
+                    && item.ValueKind == CaseDataCodes.Fact)
+            on caseEntity.Id equals factMakeCandidate.WorkId into factMakes
+        from factMake in factMakes.DefaultIfEmpty()
         join confirmedModelCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.VehicleModel
                     && item.ValueKind == CaseDataCodes.Confirmed)
             on caseEntity.Id equals confirmedModelCandidate.WorkId into confirmedModels
         from confirmedModel in confirmedModels.DefaultIfEmpty()
+        join factModelCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleModel
+                    && item.ValueKind == CaseDataCodes.Fact)
+            on caseEntity.Id equals factModelCandidate.WorkId into factModels
+        from factModel in factModels.DefaultIfEmpty()
         select new SearchRow
         {
             CaseId = caseEntity.Id,
@@ -1339,11 +1396,11 @@ public sealed class EfCaseQueryStore(
             Principal = principal.Code,
             State = workflow.State,
             EngineerId = workflow.AssignedEngineerId,
-            Registration = confirmedRegistration != null ? (confirmedRegistration.Value == CaseDataFieldValues.ClearedValue ? null : confirmedRegistration.Value) : draft!.VehicleRegistration,
-            Claimant = confirmedClaimant != null ? (confirmedClaimant.Value == CaseDataFieldValues.ClearedValue ? null : confirmedClaimant.Value) : draft!.ClaimantName,
-            ClaimNumber = confirmedClaimNumber != null ? (confirmedClaimNumber.Value == CaseDataFieldValues.ClearedValue ? null : confirmedClaimNumber.Value) : draft!.ClaimNumber,
-            VehicleMake = confirmedMake != null ? (confirmedMake.Value == CaseDataFieldValues.ClearedValue ? null : confirmedMake.Value) : draft!.VehicleMake,
-            VehicleModel = confirmedModel != null ? (confirmedModel.Value == CaseDataFieldValues.ClearedValue ? null : confirmedModel.Value) : draft!.VehicleModel,
+            Registration = confirmedRegistration != null ? (confirmedRegistration.Value == CaseDataFieldValues.ClearedValue ? null : confirmedRegistration.Value) : factRegistration != null ? factRegistration.Value : draft!.VehicleRegistration,
+            Claimant = confirmedClaimant != null ? (confirmedClaimant.Value == CaseDataFieldValues.ClearedValue ? null : confirmedClaimant.Value) : factClaimant != null ? factClaimant.Value : draft!.ClaimantName,
+            ClaimNumber = confirmedClaimNumber != null ? (confirmedClaimNumber.Value == CaseDataFieldValues.ClearedValue ? null : confirmedClaimNumber.Value) : factClaimNumber != null ? factClaimNumber.Value : draft!.ClaimNumber,
+            VehicleMake = confirmedMake != null ? (confirmedMake.Value == CaseDataFieldValues.ClearedValue ? null : confirmedMake.Value) : factMake != null ? factMake.Value : draft!.VehicleMake,
+            VehicleModel = confirmedModel != null ? (confirmedModel.Value == CaseDataFieldValues.ClearedValue ? null : confirmedModel.Value) : factModel != null ? factModel.Value : draft!.VehicleModel,
             ReceivedAtUtc = receipt == null ? caseEntity.CreatedAtUtc : receipt.ReceivedAtUtc,
             Origin = receipt == null ? "manual" : receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,

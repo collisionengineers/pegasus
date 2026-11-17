@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Tasks;
@@ -90,6 +91,104 @@ public sealed class OpenCaseTasksPersistenceTests
         var returned = Assert.Single(await OpenTasksRowsAsync(services, reader), row => row.Id == twoTasksCaseId);
         Assert.Equal("Chase the payment", returned.Reason);
         Assert.Equal(2, returned.MoreCount);
+    }
+
+    /// <summary>
+    /// The Work Centre's task and query rows read the Case's vehicle as the
+    /// Case's own sections read it (R1112): a make and model only the vehicle
+    /// lookup recorded show; staff's value wins over the looked-up one; and a
+    /// model staff emptied shows nothing, neither the looked-up one nor the
+    /// instruction draft's (R1077).
+    /// </summary>
+    [Fact]
+    public async Task TaskAndQueryRowsReadTheCasesAcceptedVehicle()
+    {
+        var time = new MutableTimeProvider(StartUtc);
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureServices: services => services.AddSingleton<TimeProvider>(time));
+        var creatorId = Guid.NewGuid();
+        var (lookedUpCaseId, staffCaseId) = await SeedAsync(database, creatorId, Guid.NewGuid());
+        await using (var context = await database.CreateContextAsync())
+        {
+            context.Add(Snapshot(
+                lookedUpCaseId,
+                Field(lookedUpCaseId, CaseDataFieldNames.VehicleMake, CaseDataCodes.Fact, "FORD"),
+                Field(lookedUpCaseId, CaseDataFieldNames.VehicleModel, CaseDataCodes.Fact, "FREEDOM")));
+            context.Add(Snapshot(
+                staffCaseId,
+                Field(staffCaseId, CaseDataFieldNames.VehicleMake, CaseDataCodes.Fact, "FORD"),
+                Field(staffCaseId, CaseDataFieldNames.VehicleMake, CaseDataCodes.Confirmed, "Ford Motor"),
+                Field(staffCaseId, CaseDataFieldNames.VehicleModel, CaseDataCodes.Fact, "FREEDOM"),
+                Field(staffCaseId, CaseDataFieldNames.VehicleModel, CaseDataCodes.Confirmed, CaseDataFieldValues.ClearedValue)));
+            var staffReceiptId = (await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.SingleAsync(
+                context.Cases, item => item.Id == staffCaseId)).OriginIntakeReceiptId!.Value;
+            context.Add(new InstructionDraftEntity { IntakeReceiptId = staffReceiptId, VehicleModel = "DRAFT MODEL" });
+            foreach (var caseId in new[] { lookedUpCaseId, staffCaseId })
+            {
+                var queryId = Guid.NewGuid();
+                context.Add(new CaseQueryEntity
+                {
+                    Id = queryId,
+                    CaseId = caseId,
+                    Source = "Staff",
+                    Channel = "Phone",
+                    Details = "Claimant asked when the inspection is.",
+                    RaisedAtUtc = StartUtc,
+                    RaisedByKind = nameof(ActorKind.Staff),
+                    RaisedBySubjectId = creatorId.ToString("D"),
+                    RaisedOperationKey = $"open-tasks-query:{queryId:N}"
+                });
+            }
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var tasks = new TaskWriter(services, ActionActor.Staff(creatorId, [StaffRole.User]));
+        await tasks.CreateAsync(lookedUpCaseId, 1, "Chase the repairer", null, "looked-up-vehicle");
+        await tasks.CreateAsync(staffCaseId, 1, "Call the claimant", null, "staff-vehicle");
+        var dashboard = services.GetRequiredService<IDashboardQueries>();
+
+        var openTasks = await dashboard.ListOpenCaseTasksAsync(CancellationToken.None);
+        var lookedUpTask = Assert.Single(openTasks, task => task.CaseId == lookedUpCaseId);
+        Assert.Equal("FORD", lookedUpTask.VehicleMake);
+        Assert.Equal("FREEDOM", lookedUpTask.VehicleModel);
+        var staffTask = Assert.Single(openTasks, task => task.CaseId == staffCaseId);
+        Assert.Equal("Ford Motor", staffTask.VehicleMake);
+        Assert.Null(staffTask.VehicleModel);
+
+        var openQueries = await dashboard.ListOpenQueriesForAttentionAsync(CancellationToken.None);
+        var lookedUpQuery = Assert.Single(openQueries, query => query.CaseId == lookedUpCaseId);
+        Assert.Equal("FORD", lookedUpQuery.VehicleMake);
+        Assert.Equal("FREEDOM", lookedUpQuery.VehicleModel);
+        var staffQuery = Assert.Single(openQueries, query => query.CaseId == staffCaseId);
+        Assert.Equal("Ford Motor", staffQuery.VehicleMake);
+        Assert.Null(staffQuery.VehicleModel);
+
+        static CaseDataSnapshotEntity Snapshot(Guid caseId, params CaseDataFieldEntity[] fields) => new()
+        {
+            WorkId = caseId,
+            CompletenessPolicyKey = "case-workflow",
+            CompletenessPolicyVersion = 1,
+            AcceptedAtUtc = StartUtc,
+            Fields = [.. fields]
+        };
+
+        static CaseDataFieldEntity Field(Guid caseId, string fieldName, string valueKind, string value) => new()
+        {
+            WorkId = caseId,
+            FieldName = fieldName,
+            ValueKind = valueKind,
+            ValueType = CaseDataCodes.Text,
+            Value = value,
+            SourceKind = valueKind == CaseDataCodes.Confirmed ? CaseDataCodes.StaffCorrection : CaseDataCodes.VehicleLookup,
+            SourceIdentity = "open-tasks-vehicle",
+            SourceLabel = "offline-replay/fixture-v1",
+            PolicyKey = "vehicle-lookup-gap-fill",
+            PolicyVersion = 1,
+            ConfirmedByActor = valueKind == CaseDataCodes.Confirmed ? "open-tasks-staff" : null,
+            ConfirmedAtUtc = valueKind == CaseDataCodes.Confirmed ? StartUtc : null
+        };
     }
 
     /// <summary>The stored task row's creation is the instant its <c>case_task_created</c> history records.</summary>
