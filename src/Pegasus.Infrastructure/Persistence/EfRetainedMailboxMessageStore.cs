@@ -1191,7 +1191,10 @@ internal sealed class EfRetainedMailboxMessageStore(
                     caseEntity.Id,
                     caseEntity.Type,
                     PrincipalCode = principal.Code,
-                    Registration = registration == null ? draft.VehicleRegistration : registration.Value
+                    Registration = registration == null
+                        ? draft.VehicleRegistration
+                        // A registration staff emptied shows none (R1077).
+                        : registration.Value == CaseDataFieldValues.ClearedValue ? null : registration.Value
                 })
                 .ToListAsync(cancellationToken);
         var casesById = caseFacts.ToDictionary(item => item.Id);

@@ -1952,7 +1952,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
                 guideLease.Token)
             {
                 Vehicle = new(
-                    null,
+                    // The extracted registration as the page shows it: an
+                    // emptied box would record a clear (R1077).
+                    "AB12 CDE",
                     null,
                     null,
                     new(42_000, CaseOdometerUnit.Miles, null),

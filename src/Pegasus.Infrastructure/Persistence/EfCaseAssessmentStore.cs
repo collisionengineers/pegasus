@@ -355,8 +355,30 @@ public sealed class EfCaseAssessmentStore(
 /// an extracted fact, else a suggestion. One owner for every reader of the
 /// Case's own fields.
 /// </summary>
+/// <remarks>
+/// A box staff emptied is recorded as staff's confirmed row with an empty
+/// value (R1077): the field then has no value, and the fact or suggestion
+/// behind it is neither shown nor used, though it stays in history. A SQL
+/// projection that cannot call <see cref="IsCleared(CaseDataFieldEntity)"/>
+/// compares the confirmed row's value with <see cref="ClearedValue"/>.
+/// </remarks>
 internal static class CaseDataFieldValues
 {
+    /// <summary>The value of staff's confirmed row for a box staff emptied (R1077).</summary>
+    internal const string ClearedValue = "";
+
+    /// <summary>Whether a row records that staff emptied the box (R1077).</summary>
+    internal static bool IsCleared(CaseDataFieldEntity field) =>
+        IsCleared(field.ValueKind, field.Value);
+
+    /// <summary>Whether a row of this kind and value records that staff emptied the box (R1077).</summary>
+    internal static bool IsCleared(string valueKind, string? value) =>
+        valueKind == CaseDataCodes.Confirmed && value is { Length: 0 };
+
+    /// <summary>Whether staff emptied the field's box (R1077).</summary>
+    internal static bool IsClearedField(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName) =>
+        fields.Any(item => item.FieldName == fieldName && IsCleared(item));
+
     internal static string? Current(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName) =>
         CurrentField(fields, fieldName)?.Value;
 
@@ -368,23 +390,35 @@ internal static class CaseDataFieldValues
     /// The accepted row itself: the staff-confirmed row, else the intake fact,
     /// never a suggestion. The value the Case shows and the one Save posts
     /// back, so the editable-data reader and the field writer both read it
-    /// (#837).
+    /// (#837). A field staff emptied has none: the fact behind it is not
+    /// read (R1077).
     /// </summary>
     internal static CaseDataFieldEntity? AcceptedField(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName)
     {
         var values = fields.Where(item => item.FieldName == fieldName).ToArray();
-        return values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed)
-            ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Fact);
+        if (values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed) is { } confirmed)
+        {
+            return IsCleared(confirmed) ? null : confirmed;
+        }
+
+        return values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Fact);
     }
 
     /// <summary>
     /// The winning row itself, for the one reader that needs more than the
     /// value: the report's mileage source is derived from the row's provenance.
+    /// A field staff emptied has none: neither the fact nor the suggestion
+    /// behind it is read (R1077).
     /// </summary>
     internal static CaseDataFieldEntity? CurrentField(
         IReadOnlyList<CaseDataFieldEntity> fields,
         string fieldName)
     {
+        if (IsClearedField(fields, fieldName))
+        {
+            return null;
+        }
+
         return AcceptedField(fields, fieldName)
             ?? fields
                 .Where(item => item.FieldName == fieldName)

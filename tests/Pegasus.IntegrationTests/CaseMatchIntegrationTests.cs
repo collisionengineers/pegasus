@@ -162,6 +162,47 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal("12345/1", row.DurableClaimToken);
     }
 
+    /// <summary>
+    /// A registration staff emptied links no mail (R1077, R1121): the
+    /// instruction's registration behind the clear is not a candidate, so a
+    /// message naming it finds no Case by it.
+    /// </summary>
+    [Fact]
+    public async Task ARegistrationStaffEmptiedLinksNoMailByTheInstructionsRegistration()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("mail-vrm-emptied-accept")).Identity.CaseId;
+        var store = new EfIntakeMutationStore(harness.Factory);
+        var before = await store.GetAsync(
+            await harness.SeedRetainedMailReceiptAsync("vrm-before-emptied-token", "AB12 CDE", null),
+            null,
+            CancellationToken.None);
+        Assert.Equal(caseId, Assert.Single(before!.RegistrationCandidates).CaseId);
+
+        var projection = await harness.GetRequiredDataAsync(caseId);
+        var lease = await harness.AcquireLeaseAsync(caseId, projection.Version, "mail-vrm-emptied-lease");
+        await harness.WorkspaceStore.SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                caseId,
+                projection.Version,
+                harness.StaffActor,
+                "mail-vrm-emptied-save",
+                "Registration recorded against the wrong vehicle",
+                lease.Token)
+            {
+                Vehicle = new(null, null, null, null, null)
+            },
+            CancellationToken.None);
+
+        var after = await store.GetAsync(
+            await harness.SeedRetainedMailReceiptAsync("vrm-after-emptied-token", "AB12 CDE", null),
+            null,
+            CancellationToken.None);
+        Assert.Equal("AB12CDE", after!.NormalizedVehicleRegistration);
+        Assert.Empty(after.RegistrationCandidates);
+        Assert.Null((await harness.SingleIndexRowAsync(caseId)).NormalizedVrm);
+    }
+
     [Fact]
     public async Task AutomaticAssociationWritesOnceAndReplaysAsNoOp()
     {

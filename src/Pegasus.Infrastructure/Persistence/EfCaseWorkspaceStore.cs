@@ -142,6 +142,16 @@ public sealed class EfCaseWorkspaceStore(
         var beforeCompleteness = Completeness(snapshot);
         var data = CaseDataPolicy.Normalize(
             CaseWorkspacePolicy.Overlay(beforeData, request));
+        if (request.ExpectedVersion < workflow.Version && workId == currentWorkId)
+        {
+            // System work filled the work since the page read it: a box the
+            // page showed empty before the fill is not one staff emptied.
+            data = CaseWorkspacePolicy.KeepSystemCaseDataFills(
+                data,
+                beforeData,
+                await EfVehicleLookupWorkStore.FilledCaseDataSinceAsync(
+                    context, request.CaseId, request.ExpectedVersion, snapshot.Fields, cancellationToken));
+        }
         if (data.ClaimSourceId != beforeData.ClaimSourceId)
         {
             await ClaimSourceChoice.RequireActiveAsync(context, data.ClaimSourceId, cancellationToken);

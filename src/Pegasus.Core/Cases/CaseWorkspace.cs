@@ -992,6 +992,68 @@ public static class CaseWorkspacePolicy
     }
 
     /// <summary>
+    /// The same reconciliation for the Case's own values (R1077). An emptied
+    /// box records that staff cleared it, but a box the page showed empty
+    /// before system work filled it posts empty too, and that is not staff
+    /// emptying it: the fill stands. A value staff typed is theirs, as on any
+    /// save. <paramref name="filledFieldNames"/> names each Case-data field
+    /// system work filled since the page's version; <paramref name="persisted"/>
+    /// is the Case's values as they stand.
+    /// </summary>
+    public static CaseEditableData KeepSystemCaseDataFills(
+        CaseEditableData requested,
+        CaseEditableData persisted,
+        IReadOnlySet<string> filledFieldNames)
+    {
+        ArgumentNullException.ThrowIfNull(requested);
+        ArgumentNullException.ThrowIfNull(persisted);
+        ArgumentNullException.ThrowIfNull(filledFieldNames);
+        bool Kept(string fieldName, object? posted) =>
+            posted is null && filledFieldNames.Contains(fieldName);
+
+        var kept = requested;
+        if (Kept(CaseDataFieldNames.VehicleRegistration, kept.VehicleRegistration))
+        {
+            kept = kept with { VehicleRegistration = persisted.VehicleRegistration };
+        }
+        if (Kept(CaseDataFieldNames.VehicleMake, kept.VehicleMake))
+        {
+            kept = kept with { VehicleMake = persisted.VehicleMake };
+        }
+        if (Kept(CaseDataFieldNames.VehicleModel, kept.VehicleModel))
+        {
+            kept = kept with { VehicleModel = persisted.VehicleModel };
+        }
+        if (Kept(CaseDataFieldNames.VehicleYear, kept.VehicleYear))
+        {
+            kept = kept with { VehicleYear = persisted.VehicleYear };
+        }
+        // The reading's unit was filled with it.
+        if (Kept(CaseDataFieldNames.VehicleMileage, kept.VehicleMileage))
+        {
+            kept = kept with
+            {
+                VehicleMileage = persisted.VehicleMileage,
+                VehicleMileageUnit = persisted.VehicleMileageUnit
+            };
+        }
+        if (Kept(CaseDataFieldNames.ClaimantName, kept.ClaimantName))
+        {
+            kept = kept with { ClaimantName = persisted.ClaimantName };
+        }
+        if (Kept(CaseDataFieldNames.ClaimantContactNumber, kept.ClaimantContactNumber))
+        {
+            kept = kept with { ClaimantContactNumber = persisted.ClaimantContactNumber };
+        }
+        if (Kept(CaseDataFieldNames.IncidentDate, kept.IncidentDate))
+        {
+            kept = kept with { IncidentDate = persisted.IncidentDate };
+        }
+
+        return kept;
+    }
+
+    /// <summary>
     /// Every assessment path this save writes, normalized once. A path belongs
     /// to exactly one section, so the same path submitted twice fails closed
     /// instead of letting the section order decide.

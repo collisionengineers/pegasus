@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure.Persistence;
@@ -121,6 +123,70 @@ public sealed class RecentCasesPersistenceTests
 
         Assert.Equal(1, page.TotalCount);
         Assert.Equal([ids.Replacement], page.Items.Select(item => item.CaseId));
+    }
+
+    /// <summary>
+    /// A registration staff emptied is no registration (R1077): New cases
+    /// neither shows the instruction's nor finds the Case by it (R1121). A
+    /// box staff left alone still reads and searches the instruction's.
+    /// </summary>
+    [Fact]
+    public async Task ARegistrationStaffEmptiedIsNeitherShownNorSearchedFromTheInstruction()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var ids = await SeedAsync(database);
+        await using (var context = await database.CreateContextAsync())
+        {
+            var receiptId = (await context.Cases.AsNoTracking().SingleAsync(item => item.Id == ids.Mail))
+                .OriginIntakeReceiptId!.Value;
+            await CaseWorkFixture.InsertPrimaryWorksAsync(context);
+            context.Add(new InstructionDraftEntity
+            {
+                IntakeReceiptId = receiptId,
+                VehicleRegistration = "AB12CDE",
+                ClaimantName = "Jane Example"
+            });
+            context.Add(new CaseDataSnapshotEntity
+            {
+                WorkId = ids.Mail,
+                OriginIntakeReceiptId = receiptId,
+                CompletenessPolicyKey = "recent-cases-test",
+                CompletenessPolicyVersion = 1,
+                AcceptedAtUtc = Since,
+                Fields =
+                [
+                    new()
+                    {
+                        WorkId = ids.Mail,
+                        FieldName = CaseDataFieldNames.VehicleRegistration,
+                        ValueKind = CaseDataCodes.Confirmed,
+                        ValueType = CaseDataCodes.Text,
+                        Value = CaseDataFieldValues.ClearedValue,
+                        SourceKind = CaseDataCodes.StaffCorrection,
+                        SourceIdentity = "recent-cases-staff",
+                        SourceLabel = "staff case-data correction",
+                        PolicyKey = CaseDataPolicy.EditPolicyKey,
+                        PolicyVersion = CaseDataPolicy.EditPolicyVersion,
+                        ConfirmedByActor = "recent-cases-staff",
+                        ConfirmedAtUtc = Since
+                    }
+                ]
+            });
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRecentCaseQueries>();
+        var listed = await queries.ListAsync(Since, 1, 50, null, null, CancellationToken.None);
+        var mail = Assert.Single(listed.Items, item => item.CaseId == ids.Mail);
+        Assert.Null(mail.Registration);
+        Assert.Equal("Jane Example", mail.Claimant);
+
+        var byRegistration = await queries.ListAsync(Since, 1, 50, null, "AB12 CDE", CancellationToken.None);
+        Assert.DoesNotContain(byRegistration.Items, item => item.CaseId == ids.Mail);
+        Assert.Equal(0, byRegistration.TotalCount);
+        var byClaimant = await queries.ListAsync(Since, 1, 50, null, "Jane", CancellationToken.None);
+        Assert.Equal(ids.Mail, Assert.Single(byClaimant.Items).CaseId);
     }
 
     private static async Task SeedTiesAsync(LocalDbTestDatabase database)

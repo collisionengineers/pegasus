@@ -46,7 +46,8 @@ public sealed class EfCaseQueryStore(
         // The registration and the mileage are the Case's own work's accepted
         // values, confirmed or fact, as the gate reads them
         // (CaseInstructionCompleteness.VehicleGate); the report is the
-        // current one CurrentAuditReports names.
+        // current one CurrentAuditReports names. A value staff emptied is not
+        // recorded, whatever fact stands behind it (R1077).
         var rows = await context.Set<CaseEntity>()
             .AsNoTracking()
             .Where(item => ids.Contains(item.Id))
@@ -57,13 +58,23 @@ public sealed class EfCaseQueryStore(
                 item.CustodyState,
                 item.StandaloneAuditEvidenceId,
                 RegistrationRecorded = context.CaseDataFields.Any(field =>
-                    field.WorkId == item.Id
-                    && field.FieldName == CaseDataFieldNames.VehicleRegistration
-                    && (field.ValueKind == CaseDataCodes.Confirmed || field.ValueKind == CaseDataCodes.Fact)),
+                        field.WorkId == item.Id
+                        && field.FieldName == CaseDataFieldNames.VehicleRegistration
+                        && (field.ValueKind == CaseDataCodes.Confirmed || field.ValueKind == CaseDataCodes.Fact))
+                    && !context.CaseDataFields.Any(field =>
+                        field.WorkId == item.Id
+                        && field.FieldName == CaseDataFieldNames.VehicleRegistration
+                        && field.ValueKind == CaseDataCodes.Confirmed
+                        && field.Value == CaseDataFieldValues.ClearedValue),
                 MileageRecorded = context.CaseDataFields.Any(field =>
-                    field.WorkId == item.Id
-                    && field.FieldName == CaseDataFieldNames.VehicleMileage
-                    && (field.ValueKind == CaseDataCodes.Confirmed || field.ValueKind == CaseDataCodes.Fact)),
+                        field.WorkId == item.Id
+                        && field.FieldName == CaseDataFieldNames.VehicleMileage
+                        && (field.ValueKind == CaseDataCodes.Confirmed || field.ValueKind == CaseDataCodes.Fact))
+                    && !context.CaseDataFields.Any(field =>
+                        field.WorkId == item.Id
+                        && field.FieldName == CaseDataFieldNames.VehicleMileage
+                        && field.ValueKind == CaseDataCodes.Confirmed
+                        && field.Value == CaseDataFieldValues.ClearedValue),
                 HasCurrentAuditReport = context.Set<DocumentOccurrenceEntity>().Any(occurrence =>
                     occurrence.CaseId == item.Id
                     && occurrence.SemanticRole == DocumentSemanticRole.AuditReport
@@ -97,8 +108,8 @@ public sealed class EfCaseQueryStore(
 
     /// <summary>
     /// One Case's accident circumstances: the value staff confirmed, else the
-    /// instruction draft's. Only the Search preview shows them, so the shared
-    /// search rows leave them out.
+    /// instruction draft's; none where staff emptied the box (R1077). Only the
+    /// Search preview shows them, so the shared search rows leave them out.
     /// </summary>
     async Task<string?> ICaseCircumstancesQueries.GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
@@ -114,7 +125,9 @@ public sealed class EfCaseQueryStore(
                         && item.ValueKind == CaseDataCodes.Confirmed)
                 on caseEntity.Id equals confirmedCandidate.WorkId into confirmedRows
             from confirmed in confirmedRows.DefaultIfEmpty()
-            select confirmed != null ? confirmed.Value : draft!.AccidentCircumstances)
+            select confirmed != null
+                ? confirmed.Value == CaseDataFieldValues.ClearedValue ? null : confirmed.Value
+                : draft!.AccidentCircumstances)
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -1251,11 +1264,11 @@ public sealed class EfCaseQueryStore(
             EngineerId = workflow == null ? null : workflow.AssignedEngineerId,
             Registration = triage != null
                 ? triage.NormalizedVehicleRegistration
-                : confirmedRegistration != null ? confirmedRegistration.Value : draft!.VehicleRegistration,
-            Claimant = confirmedClaimant != null ? confirmedClaimant.Value : draft!.ClaimantName,
-            ClaimNumber = confirmedClaimNumber != null ? confirmedClaimNumber.Value : draft!.ClaimNumber,
-            VehicleMake = confirmedMake != null ? confirmedMake.Value : draft!.VehicleMake,
-            VehicleModel = confirmedModel != null ? confirmedModel.Value : draft!.VehicleModel,
+                : confirmedRegistration != null ? (confirmedRegistration.Value == CaseDataFieldValues.ClearedValue ? null : confirmedRegistration.Value) : draft!.VehicleRegistration,
+            Claimant = confirmedClaimant != null ? (confirmedClaimant.Value == CaseDataFieldValues.ClearedValue ? null : confirmedClaimant.Value) : draft!.ClaimantName,
+            ClaimNumber = confirmedClaimNumber != null ? (confirmedClaimNumber.Value == CaseDataFieldValues.ClearedValue ? null : confirmedClaimNumber.Value) : draft!.ClaimNumber,
+            VehicleMake = confirmedMake != null ? (confirmedMake.Value == CaseDataFieldValues.ClearedValue ? null : confirmedMake.Value) : draft!.VehicleMake,
+            VehicleModel = confirmedModel != null ? (confirmedModel.Value == CaseDataFieldValues.ClearedValue ? null : confirmedModel.Value) : draft!.VehicleModel,
             ReceivedAtUtc = receipt == null ? caseEntity.CreatedAtUtc : receipt.ReceivedAtUtc,
             Origin = receipt == null ? "manual" : receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,
@@ -1326,11 +1339,11 @@ public sealed class EfCaseQueryStore(
             Principal = principal.Code,
             State = workflow.State,
             EngineerId = workflow.AssignedEngineerId,
-            Registration = confirmedRegistration != null ? confirmedRegistration.Value : draft!.VehicleRegistration,
-            Claimant = confirmedClaimant != null ? confirmedClaimant.Value : draft!.ClaimantName,
-            ClaimNumber = confirmedClaimNumber != null ? confirmedClaimNumber.Value : draft!.ClaimNumber,
-            VehicleMake = confirmedMake != null ? confirmedMake.Value : draft!.VehicleMake,
-            VehicleModel = confirmedModel != null ? confirmedModel.Value : draft!.VehicleModel,
+            Registration = confirmedRegistration != null ? (confirmedRegistration.Value == CaseDataFieldValues.ClearedValue ? null : confirmedRegistration.Value) : draft!.VehicleRegistration,
+            Claimant = confirmedClaimant != null ? (confirmedClaimant.Value == CaseDataFieldValues.ClearedValue ? null : confirmedClaimant.Value) : draft!.ClaimantName,
+            ClaimNumber = confirmedClaimNumber != null ? (confirmedClaimNumber.Value == CaseDataFieldValues.ClearedValue ? null : confirmedClaimNumber.Value) : draft!.ClaimNumber,
+            VehicleMake = confirmedMake != null ? (confirmedMake.Value == CaseDataFieldValues.ClearedValue ? null : confirmedMake.Value) : draft!.VehicleMake,
+            VehicleModel = confirmedModel != null ? (confirmedModel.Value == CaseDataFieldValues.ClearedValue ? null : confirmedModel.Value) : draft!.VehicleModel,
             ReceivedAtUtc = receipt == null ? caseEntity.CreatedAtUtc : receipt.ReceivedAtUtc,
             Origin = receipt == null ? "manual" : receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,

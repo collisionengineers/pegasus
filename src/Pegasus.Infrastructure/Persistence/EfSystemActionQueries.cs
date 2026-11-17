@@ -265,6 +265,8 @@ internal sealed class EfSystemActionQueries(
         var fields = await context.CaseDataFields.AsNoTracking()
             .Where(field => caseIds.Contains(field.WorkId)
                 && field.ValueKind == CaseDataCodes.Confirmed
+                // A box staff emptied shows nothing (R1077).
+                && field.Value != CaseDataFieldValues.ClearedValue
                 && (field.FieldName == CaseDataFieldNames.VehicleRegistration
                     || field.FieldName == CaseDataFieldNames.VehicleMake
                     || field.FieldName == CaseDataFieldNames.VehicleModel))
