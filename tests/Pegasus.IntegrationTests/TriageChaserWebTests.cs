@@ -1693,7 +1693,7 @@ public sealed partial class QdosTriageIntegrationTests
             get { lock (sync) return commands.Count; }
         }
 
-        public IReadOnlyList<StaffMailSendCommand> Commands
+        public StaffMailSendCommand[] Commands
         {
             get { lock (sync) return commands.ToArray(); }
         }
