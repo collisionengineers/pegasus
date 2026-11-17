@@ -264,22 +264,33 @@ internal sealed class EfSystemActionQueries(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var fields = await context.CaseDataFields.AsNoTracking()
             .Where(field => caseIds.Contains(field.WorkId)
-                && field.ValueKind == CaseDataCodes.Confirmed
-                // A box staff emptied shows nothing (R1077).
-                && field.Value != CaseDataFieldValues.ClearedValue
+                && (field.ValueKind == CaseDataCodes.Confirmed || field.ValueKind == CaseDataCodes.Fact)
                 && (field.FieldName == CaseDataFieldNames.VehicleRegistration
                     || field.FieldName == CaseDataFieldNames.VehicleMake
                     || field.FieldName == CaseDataFieldNames.VehicleModel))
-            .Select(field => new { field.WorkId, field.FieldName, field.Value })
+            .Select(field => new { field.WorkId, field.FieldName, field.ValueKind, field.Value })
             .ToArrayAsync(cancellationToken);
         return fields
             .GroupBy(field => field.WorkId)
             .ToDictionary(
                 group => group.Key,
-                group => new VehicleFields(
-                    group.FirstOrDefault(field => field.FieldName == CaseDataFieldNames.VehicleRegistration)?.Value,
-                    group.FirstOrDefault(field => field.FieldName == CaseDataFieldNames.VehicleMake)?.Value,
-                    group.FirstOrDefault(field => field.FieldName == CaseDataFieldNames.VehicleModel)?.Value));
+                group =>
+                {
+                    // The Case's accepted value, as the Case rows read it
+                    // (R1112): staff's, none where staff emptied the box
+                    // (R1077), else the extracted or looked-up one.
+                    string? Accepted(string fieldName) =>
+                        group.FirstOrDefault(field => field.FieldName == fieldName
+                                && field.ValueKind == CaseDataCodes.Confirmed) is { } confirmed
+                            ? CaseDataFieldValues.IsCleared(confirmed.ValueKind, confirmed.Value) ? null : confirmed.Value
+                            : group.FirstOrDefault(field => field.FieldName == fieldName
+                                && field.ValueKind == CaseDataCodes.Fact)?.Value;
+
+                    return new VehicleFields(
+                        Accepted(CaseDataFieldNames.VehicleRegistration),
+                        Accepted(CaseDataFieldNames.VehicleMake),
+                        Accepted(CaseDataFieldNames.VehicleModel));
+                });
     }
 
     private static SystemActionRow WithVehicle(Raw row, IReadOnlyDictionary<Guid, VehicleFields> vehicles)

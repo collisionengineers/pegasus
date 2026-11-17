@@ -328,7 +328,11 @@ Each queue keeps its own row shape:
   registration, whether or not it has an Audit. In With Engineer the state's
   cell holds the Engineer, which reads Unassigned when the Case has none
   (#1213, v41 W8,
-  [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md));
+  [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+  Here, on Search and on the Work Centre's rows, a Case's registration,
+  claimant, claim reference and vehicle show the Case's accepted value:
+  staff's, then the extracted or looked-up one, then the instruction's
+  (operator, 17 November 2026, [R1112](../rulings.md));
 - an Unassigned Images Identified row: Image reference, registration,
   received, image count and source; a Box folder is implied, so the row
   names no custody (operator, 30 October 2026, [R594](../rulings.md));

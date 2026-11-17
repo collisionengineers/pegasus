@@ -1183,6 +1183,11 @@ internal sealed class EfRetainedMailboxMessageStore(
                             && item.ValueKind == CaseDataCodes.Confirmed)
                     on caseEntity.Id equals registrationCandidate.WorkId into registrations
                 from registration in registrations.DefaultIfEmpty()
+                join factRegistrationCandidate in context.CaseDataFields.AsNoTracking()
+                        .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
+                            && item.ValueKind == CaseDataCodes.Fact)
+                    on caseEntity.Id equals factRegistrationCandidate.WorkId into factRegistrations
+                from factRegistration in factRegistrations.DefaultIfEmpty()
                 join draftCandidate in context.Set<InstructionDraftEntity>().AsNoTracking()
                     on caseEntity.OriginIntakeReceiptId equals draftCandidate.IntakeReceiptId into drafts
                 from draft in drafts.DefaultIfEmpty()
@@ -1191,10 +1196,12 @@ internal sealed class EfRetainedMailboxMessageStore(
                     caseEntity.Id,
                     caseEntity.Type,
                     PrincipalCode = principal.Code,
-                    Registration = registration == null
-                        ? draft.VehicleRegistration
-                        // A registration staff emptied shows none (R1077).
-                        : registration.Value == CaseDataFieldValues.ClearedValue ? null : registration.Value
+                    // The Case's accepted registration, as the Case rows read it
+                    // (R1112): staff's, none where staff emptied it (R1077), else
+                    // the extracted one, else the instruction draft's.
+                    Registration = registration != null
+                        ? (registration.Value == CaseDataFieldValues.ClearedValue ? null : registration.Value)
+                        : factRegistration != null ? factRegistration.Value : draft.VehicleRegistration
                 })
                 .ToListAsync(cancellationToken);
         var casesById = caseFacts.ToDictionary(item => item.Id);
