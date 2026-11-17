@@ -240,6 +240,13 @@ public sealed class EfCaseDataStore(
         where T : notnull
     {
         var values = snapshot.Fields.Where(item => item.FieldName == fieldName).ToArray();
+        if (CaseDataFieldValues.IsClearedField(values, fieldName))
+        {
+            // A box staff emptied has no value, and the fact or suggestion
+            // behind it is not shown (R1077).
+            return new(null, null, null) { Cleared = true };
+        }
+
         return new(
             MapValue(values, CaseDataCodes.Fact, parse),
             MapValue(values, CaseDataCodes.Suggestion, parse),
@@ -338,14 +345,26 @@ internal static class CaseDataFieldWriter
         void MileageUnit(string? unit)
         {
             const string name = CaseDataFieldNames.VehicleMileageUnit;
+            var staff = snapshot.Fields.SingleOrDefault(
+                item => item.FieldName == name && item.ValueKind == CaseDataCodes.Confirmed);
             if (unit is null)
             {
-                Text(name, null);
+                // A mileage staff emptied empties its unit with it (R1077).
+                // With no reading at all there is no unit to clear, so staff's
+                // own unit goes and nothing is recorded over the instruction's.
+                if (CaseDataFieldValues.IsClearedField(snapshot.Fields, CaseDataFieldNames.VehicleMileage))
+                {
+                    Text(name, null);
+                }
+                else if (staff is not null)
+                {
+                    context.CaseDataFields.Remove(staff);
+                    snapshot.Fields.Remove(staff);
+                }
                 return;
             }
 
-            var staff = snapshot.Fields.SingleOrDefault(
-                item => item.FieldName == name && item.ValueKind == CaseDataCodes.Confirmed);
+            // A cleared unit row reads as no stated unit: miles (R1080).
             var extracted = snapshot.Fields.SingleOrDefault(
                 item => item.FieldName == name && item.ValueKind == CaseDataCodes.Fact);
             var write = CaseOdometer.UnitWrite((staff ?? extracted)?.Value, extracted?.Value, unit);
@@ -519,11 +538,7 @@ internal static class CaseDataFieldWriter
             item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Confirmed);
         if (value is null)
         {
-            if (existing is not null)
-            {
-                context.CaseDataFields.Remove(existing);
-                snapshot.Fields.Remove(existing);
-            }
+            Clear(context, snapshot, fieldName, valueType, existing, actor, now);
             return;
         }
 
@@ -573,6 +588,77 @@ internal static class CaseDataFieldWriter
         existing.SourceLabel = underlying?.SourceLabel ?? "staff case-data correction";
         existing.PolicyKey = underlying?.PolicyKey ?? CaseDataPolicy.EditPolicyKey;
         existing.PolicyVersion = underlying?.PolicyVersion ?? CaseDataPolicy.EditPolicyVersion;
+    }
+
+    /// <summary>
+    /// Staff emptied the box (R1077). With an extracted, looked-up or
+    /// suggested value behind it, staff's row records the clear: an empty
+    /// value under their name and time, so the value behind it is no longer
+    /// shown or used, and it stays in history. A box already cleared is left
+    /// as it was. With nothing behind it, staff's own value is removed. A
+    /// suggestion alone is never shown in the box, so a box that stood on
+    /// nothing else was already empty and records nothing.
+    /// </summary>
+    private static void Clear(
+        PegasusDbContext context,
+        CaseDataSnapshotEntity snapshot,
+        string fieldName,
+        string valueType,
+        CaseDataFieldEntity? existing,
+        ActionActor actor,
+        DateTimeOffset now)
+    {
+        if (existing is not null && CaseDataFieldValues.IsCleared(existing))
+        {
+            return;
+        }
+
+        var standsBehind = snapshot.Fields.Any(
+            item => item.FieldName == fieldName
+                && (existing is null
+                    ? item.ValueKind == CaseDataCodes.Fact
+                    : item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Suggestion));
+        if (!standsBehind)
+        {
+            if (existing is not null)
+            {
+                context.CaseDataFields.Remove(existing);
+                snapshot.Fields.Remove(existing);
+            }
+            return;
+        }
+
+        if (existing is null)
+        {
+            existing = new()
+            {
+                WorkId = snapshot.WorkId,
+                Snapshot = snapshot,
+                FieldName = fieldName,
+                ValueKind = CaseDataCodes.Confirmed,
+                ValueType = valueType,
+                Value = CaseDataFieldValues.ClearedValue,
+                SourceKind = CaseDataCodes.StaffCorrection,
+                SourceIdentity = actor.SubjectId,
+                SourceLabel = "staff case-data correction",
+                PolicyKey = CaseDataPolicy.EditPolicyKey,
+                PolicyVersion = CaseDataPolicy.EditPolicyVersion,
+                ConfirmedByActor = actor.SubjectId,
+                ConfirmedAtUtc = now
+            };
+            snapshot.Fields.Add(existing);
+            return;
+        }
+
+        existing.ValueType = valueType;
+        existing.Value = CaseDataFieldValues.ClearedValue;
+        existing.SourceKind = CaseDataCodes.StaffCorrection;
+        existing.SourceIdentity = actor.SubjectId;
+        existing.SourceLabel = "staff case-data correction";
+        existing.PolicyKey = CaseDataPolicy.EditPolicyKey;
+        existing.PolicyVersion = CaseDataPolicy.EditPolicyVersion;
+        existing.ConfirmedByActor = actor.SubjectId;
+        existing.ConfirmedAtUtc = now;
     }
 
     private static string? AcceptedText(CaseDataSnapshotEntity snapshot, string name) =>

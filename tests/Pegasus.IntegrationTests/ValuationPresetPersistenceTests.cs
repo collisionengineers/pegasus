@@ -577,7 +577,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             // A calculated Engineer's Value records the Case's own mileage
             // when it has one, recorded here by the same save.
             Vehicle = new(
-                null,
+                // The extracted registration as the page shows it: an emptied
+                // box would record a clear (R1077).
+                "AB12 CDE",
                 null,
                 null,
                 new(42_000, CaseOdometerUnit.Miles, null),

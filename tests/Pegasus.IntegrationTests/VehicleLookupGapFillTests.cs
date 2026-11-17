@@ -272,12 +272,15 @@ public sealed class VehicleLookupGapFillTests
             await scope.ServiceProvider.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
                 new SaveCaseWorkspaceRequest(caseId, version, Staff, $"staff-mileage-{row}", null, lease.Token)
                 {
+                    // The looked-up year as the page shows it: an emptied box
+                    // would record a clear (R1077).
                     Vehicle = new(
                         FixtureRegistration,
                         "RENAULT",
                         "CAPTUR",
                         new CaseWorkspaceOdometer(140_000, CaseOdometerUnit.Miles, null),
-                        null)
+                        null,
+                        "2016")
                 },
                 CancellationToken.None);
         }
@@ -590,7 +593,18 @@ public sealed class VehicleLookupGapFillTests
                     "Registration corrected",
                     lease.Token)
                 {
-                    Vehicle = new(CorrectedRegistration, "RENAULT", "CAPTUR", null, null)
+                    // The looked-up mileage and year as the page shows them: an
+                    // emptied box would record a clear (R1077).
+                    Vehicle = new(
+                        CorrectedRegistration,
+                        "RENAULT",
+                        "CAPTUR",
+                        new CaseWorkspaceOdometer(
+                            MotMileageEstimationPolicy.Estimate(FixtureMotHistory(), FixtureRetrievedOn).Miles!.Value,
+                            CaseOdometerUnit.Miles,
+                            null),
+                        null,
+                        "2016")
                 },
                 CancellationToken.None);
         }
@@ -664,6 +678,13 @@ public sealed class VehicleLookupGapFillTests
         {
             var saved = await save;
             Assert.Equal(2, saved.Version);
+            // The mileage box the page showed empty before the lookup filled it
+            // posts empty: that is not staff emptying it, so the fill stands
+            // (R1077).
+            Assert.False(saved.Data.Vehicle.Mileage.Cleared);
+            Assert.NotNull(saved.Data.Vehicle.Mileage.Fact);
+            Assert.Equal(0, await database.ScalarAsync<int>(
+                $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND ValueKind = 'confirmed' AND Value = ''"));
         }
         else
         {
@@ -967,6 +988,60 @@ public sealed class VehicleLookupGapFillTests
             $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_model'"));
         Assert.Equal("CLIO", await database.ScalarAsync<string>(
             $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_model' AND ValueKind = 'confirmed'"));
+    }
+
+    /// <summary>
+    /// A make staff emptied stays empty (R1077): staff retype a value to bring
+    /// one back, and a later lookup answer does not fill it.
+    /// </summary>
+    [Fact]
+    public async Task ALaterLookupDoesNotFillAMakeStaffEmptied()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId);
+        var version = await database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'");
+
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var shown = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+                .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+            Assert.NotNull(shown);
+            Assert.Equal("RENAULT", shown.Vehicle.Make.Current?.Value);
+            var lease = await scope.ServiceProvider.GetRequiredService<CaseEditLeases>().ClaimAsync(
+                new(caseId, version, Staff, "clear-make-lease"),
+                CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
+                new SaveCaseWorkspaceRequest(caseId, version, Staff, "clear-make", "Make looked up for another vehicle", lease.Token)
+                {
+                    // Every other box as the page shows it; only the make is emptied.
+                    Vehicle = new(
+                        shown.Vehicle.Registration.Current?.Value,
+                        null,
+                        shown.Vehicle.Model.Current?.Value,
+                        shown.Vehicle.Mileage.Current is { } mileage
+                            ? new CaseWorkspaceOdometer(mileage.Value, CaseOdometerUnit.Miles, null)
+                            : null,
+                        null,
+                        shown.Vehicle.Year.Current?.Value)
+                },
+                CancellationToken.None);
+        }
+
+        await RecordLookupAsync(database, caseId, recordedAtUtc: FixedUtcNow.AddMinutes(1));
+
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_make'"));
+        Assert.Equal(string.Empty, await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'confirmed'"));
+        await using var readScope = database.CreateAsyncScope();
+        var data = await readScope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.NotNull(data);
+        Assert.True(data.Vehicle.Make.Cleared);
+        Assert.Null(data.Vehicle.Make.Current);
+        Assert.Equal("CAPTUR", data.Vehicle.Model.Current?.Value);
     }
 
     [Fact]

@@ -69,6 +69,12 @@ public sealed record CaseField<T>(
     where T : notnull
 {
     public CaseDataValue<T>? Current => Confirmed ?? Fact ?? Suggestion;
+
+    /// <summary>
+    /// Staff emptied the box: the field has no value, and the extracted or
+    /// looked-up value behind it is neither shown nor used (R1077).
+    /// </summary>
+    public bool Cleared { get; init; }
 }
 
 public sealed record CaseOriginIdentity(

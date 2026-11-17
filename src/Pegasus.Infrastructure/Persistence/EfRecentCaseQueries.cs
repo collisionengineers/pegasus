@@ -52,14 +52,21 @@ internal sealed class EfRecentCaseQueries(
         string? Fact(Guid caseId, string field) =>
             facts.FirstOrDefault(item => item.CaseId == caseId && item.FieldName == field)?.Value;
 
+        // Staff's value, else the draft's; none where staff emptied the box
+        // (R1077).
+        static string? Shown(string? confirmed, string? draft) =>
+            confirmed is null
+                ? draft
+                : CaseDataFieldValues.IsCleared(CaseDataCodes.Confirmed, confirmed) ? null : confirmed;
+
         var items = pageRows.Select(row =>
         {
             var draft = drafts.FirstOrDefault(item => item.CaseId == row.CaseId);
             return new RecentCaseRow(
                 row.CaseId,
                 row.Reference,
-                Fact(row.CaseId, CaseDataFieldNames.VehicleRegistration) ?? draft?.VehicleRegistration,
-                Fact(row.CaseId, CaseDataFieldNames.ClaimantName) ?? draft?.ClaimantName,
+                Shown(Fact(row.CaseId, CaseDataFieldNames.VehicleRegistration), draft?.VehicleRegistration),
+                Shown(Fact(row.CaseId, CaseDataFieldNames.ClaimantName), draft?.ClaimantName),
                 row.Principal,
                 row.CreatedAtUtc,
                 RecentCasesPolicy.Arrival(Channel(row.SourceChannel), row.CreatedByAutomation));
@@ -198,6 +205,8 @@ internal sealed class EfRecentCaseQueries(
     /// Find within New cases (<see cref="RecentCasesPolicy.Matches"/>): the
     /// reference, the claimant, or the registration with its spaces and dashes
     /// ignored, read from the confirmed facts or the Case's instruction draft.
+    /// The draft's value is not searched where staff emptied the box (R1077,
+    /// R1121).
     /// </summary>
     private static IQueryable<ArrivalRow> Search(
         IQueryable<ArrivalRow> rows,
@@ -225,8 +234,16 @@ internal sealed class EfRecentCaseQueries(
                 && draft.IntakeReceiptId == row.OriginIntakeReceiptId
                 && (draft.VehicleRegistration != null
                         && draft.VehicleRegistration.Replace(" ", "").Replace("-", "").Contains(compact)
+                        && !facts.Any(field => field.WorkId == row.CaseId
+                            && field.ValueKind == CaseDataCodes.Confirmed
+                            && field.FieldName == CaseDataFieldNames.VehicleRegistration
+                            && field.Value == CaseDataFieldValues.ClearedValue)
                     || draft.ClaimantName != null
-                        && draft.ClaimantName.Contains(term))));
+                        && draft.ClaimantName.Contains(term)
+                        && !facts.Any(field => field.WorkId == row.CaseId
+                            && field.ValueKind == CaseDataCodes.Confirmed
+                            && field.FieldName == CaseDataFieldNames.ClaimantName
+                            && field.Value == CaseDataFieldValues.ClearedValue))));
     }
 
     private static string Compact(string value) => value.Replace(" ", string.Empty).Replace("-", string.Empty);

@@ -171,6 +171,44 @@ public sealed class CaseDataCompletenessPersistenceTests
     }
 
     [Fact]
+    public async Task ANotReadyCaseWhoseExtractedMileageStaffEmptiedStaysNotReadyAndNamesIt()
+    {
+        // R1077 with R759 and R1081: a mileage staff emptied is no mileage,
+        // whatever the instruction said, so the Case waits for one as well as
+        // for its registration.
+        await using var harness = await CaseDataHarness.CreateAsync(registered: false);
+        var initial = await harness.GetRequiredDataAsync();
+        Assert.Equal(CaseLifecycleState.NotReady, initial.State);
+        Assert.NotNull(initial.Vehicle.Mileage.Fact);
+
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "edit-clear-mileage-gate");
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                harness.CaseId,
+                initial.Version,
+                harness.StaffActor,
+                "save-clear-mileage-gate",
+                null,
+                lease.Token)
+            {
+                Vehicle = new(
+                    null,
+                    initial.Vehicle.Make.Current?.Value,
+                    initial.Vehicle.Model.Current?.Value,
+                    null,
+                    null,
+                    initial.Vehicle.Year.Current?.Value)
+            },
+            default);
+
+        Assert.Equal(CaseLifecycleState.NotReady, saved.Data.State);
+        Assert.True(saved.Data.Vehicle.Mileage.Cleared);
+        var missing = (await harness.GetRequiredDataAsync()).Completeness.Evaluation.MissingRequirements;
+        Assert.Contains(CaseWorkflowConfiguration.VehicleRegistrationRequirement, missing);
+        Assert.Contains(CaseWorkflowConfiguration.VehicleMileageRequirement, missing);
+    }
+
+    [Fact]
     public async Task ACaseInReviewIsNeverSentBackForItsRegistration()
     {
         // The gate stands only on the way in (R1081, as R631): a Review Case

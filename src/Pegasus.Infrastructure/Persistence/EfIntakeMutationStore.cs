@@ -1598,9 +1598,16 @@ internal sealed class EfIntakeMutationStore(
             .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
                 && context.CaseWorkflows.Any(workflow =>
                     workflow.CaseId == item.WorkId && workflow.ArchivedAtUtc == null))
-            .Select(item => new { CaseId = item.WorkId, item.Value })
+            .Select(item => new { CaseId = item.WorkId, item.ValueKind, item.Value })
             .ToListAsync(cancellationToken);
+        // A registration staff emptied links nothing: neither the instruction's
+        // nor any other behind it is used (R1077, R1121).
+        var clearedCaseIds = registrations
+            .Where(item => CaseDataFieldValues.IsCleared(item.ValueKind, item.Value))
+            .Select(item => item.CaseId)
+            .ToHashSet();
         var caseIds = registrations
+            .Where(item => !clearedCaseIds.Contains(item.CaseId))
             .Where(item => string.Equals(
                 Pegasus.Core.Cases.CaseRegistration.Normalize(item.Value),
                 normalizedRegistration,

@@ -901,6 +901,84 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         Assert.Contains(caseId.ToString("D"), search, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Blank means blank (R1077): emptying a looked-up make on the Case page
+    /// leaves the box empty after the save and on every later read, and
+    /// saving the page again keeps it empty.
+    /// </summary>
+    [Fact]
+    public async Task EmptyingALookedUpMakeKeepsTheBoxEmptyAfterTheSaveAndOnReload()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            useIntegrationTestAuthentication: true);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-vehicle-make-emptied", withMileage: true);
+        await using (var seed = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await seed.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            context.CaseDataFields.Add(new CaseDataFieldEntity
+            {
+                WorkId = caseId,
+                FieldName = CaseDataFieldNames.VehicleMake,
+                ValueKind = CaseDataCodes.Fact,
+                ValueType = CaseDataCodes.Text,
+                Value = "FORD",
+                SourceKind = CaseDataCodes.VehicleLookup,
+                SourceIdentity = Guid.NewGuid().ToString("D"),
+                SourceLabel = "offline-replay/fixture-v1",
+                PolicyKey = VehicleLookupFillPolicy.PolicyKey,
+                PolicyVersion = VehicleLookupFillPolicy.PolicyVersion
+            });
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Equal("FORD", InputValue(editing, "vehicleMake"));
+
+        using (var save = await client.PostAsync(
+                   $"/Cases/{caseId:D}?handler=Save",
+                   Form(
+                       AntiforgeryValue(editing),
+                       CurrentCaseSaveValues(
+                           editing,
+                           caseId,
+                           vehicleMake: string.Empty,
+                           reason: "The looked-up make is not this vehicle's."))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
+        }
+
+        var saved = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Equal(string.Empty, InputValue(saved, "vehicleMake"));
+        using (var again = await client.PostAsync(
+                   $"/Cases/{caseId:D}?handler=Save",
+                   Form(
+                       AntiforgeryValue(saved),
+                       CurrentCaseSaveValues(
+                           saved,
+                           caseId,
+                           vehicleMake: InputValue(saved, "vehicleMake"),
+                           reason: "Saved the page as it stands."))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, again.StatusCode);
+        }
+
+        var reloaded = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Equal(string.Empty, InputValue(reloaded, "vehicleMake"));
+        Assert.DoesNotContain("FORD", reloaded, StringComparison.Ordinal);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.NotNull(data);
+        Assert.True(data.Vehicle.Make.Cleared);
+        Assert.Null(data.Vehicle.Make.Current);
+        Assert.Equal("Focus", data.Vehicle.Model.Current?.Value);
+    }
+
     private static string RibbonRegistrationCell(string html)
     {
         var start = html.IndexOf("<div class=\"ribbon-item ribbon-registration\">", StringComparison.Ordinal);

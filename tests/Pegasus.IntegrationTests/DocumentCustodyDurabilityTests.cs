@@ -521,6 +521,83 @@ public sealed class DocumentCustodyDurabilityTests
     }
 
     /// <summary>
+    /// A recognition that lands behind an editor whose lease lapsed fills the
+    /// empty mileage from the report (R930). Their save, prepared before the
+    /// fill, posts the mileage box empty as the page showed it: that is not
+    /// staff emptying it, so the fill stands and no clear is recorded (R1077;
+    /// FRD-14, system work keeps the session).
+    /// </summary>
+    [Fact]
+    public async Task ASaveBehindAnOriginalReportFillKeepsTheFill()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database, "audit");
+            await SeedCompleteButForMileageAsync(database, caseId, instructionMileage: null);
+            var receiptId = Guid.NewGuid();
+            var assetId = Guid.NewGuid();
+            var report = await SeedCurrentDocumentAsync(
+                database, caseId, 0, "connexus-report.pdf",
+                AutomaticCaseEvidencePromotionOperationKey.For(caseId, receiptId, assetId),
+                DocumentSemanticRole.Correspondence);
+            var versionId = await VersionIdAsync(database, report);
+            var editor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            await using var scope = database.CreateAsyncScope();
+            var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+                new(caseId, 0, editor, $"report-fill-behind-lease:{Guid.NewGuid():N}"),
+                CancellationToken.None);
+            // The editor's lease lapses with nobody claiming the Case, so the
+            // recognition no longer yields and their save still lands.
+            await using (var context = await database.CreateContextAsync())
+            {
+                var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+                workflow.EditLeaseExpiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(-1);
+                await context.SaveChangesAsync();
+            }
+
+            var recorded = await scope.ServiceProvider.GetRequiredService<IRecogniseOriginalReportStore>()
+                .RecordRecognisedAsync(
+                    new RecordRecognisedOriginalReport(
+                        caseId, receiptId, report, versionId,
+                        ActionActor.SystemWorker("intake-processing"),
+                        OriginalReportRecognitionOperationKey.For(receiptId)),
+                    new OriginalReportReading(
+                        new string('a', 64), "Connexus Vehicle Assessors", "2026-03-09", null, null, false, 28136, "miles"),
+                    CancellationToken.None);
+            Assert.NotNull(recorded);
+            Assert.True(recorded.CaseVersion > lease.Version);
+
+            var saved = await scope.ServiceProvider.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
+                new SaveCaseWorkspaceRequest(
+                    caseId, lease.Version, editor, $"report-fill-behind-save:{Guid.NewGuid():N}", null, lease.Token)
+                {
+                    Vehicle = new("AB12CDE", null, null, null, null)
+                },
+                CancellationToken.None);
+
+            Assert.False(saved.Data.Vehicle.Mileage.Cleared);
+            Assert.Equal(28136L, saved.Data.Vehicle.Mileage.Fact?.Value);
+            await using var verification = await database.CreateContextAsync();
+            Assert.False(await verification.CaseDataFields.AnyAsync(item =>
+                item.WorkId == caseId && item.ValueKind == CaseDataCodes.Confirmed));
+            Assert.Equal(versionId.ToString("D"), (await verification.CaseDataFields.SingleAsync(item =>
+                item.WorkId == caseId
+                && item.FieldName == CaseDataFieldNames.VehicleMileage
+                && item.ValueKind == CaseDataCodes.Fact)).SourceIdentity);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
     /// A Not ready Audit waiting only for its mileage moves to Review by itself
     /// when the report marked as its original states one (R930): the mileage
     /// fills the empty Case mileage, sourced to the report, and the history

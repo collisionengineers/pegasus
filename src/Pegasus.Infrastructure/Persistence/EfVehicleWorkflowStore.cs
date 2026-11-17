@@ -85,7 +85,10 @@ internal sealed class EfVehicleWorkflowStore(
             .Select(item => item.Value)
             .Take(2)
             .ToArrayAsync(cancellationToken);
-        if (confirmedRegistrations.Length > 1)
+        // A registration staff emptied is no accepted registration, and the
+        // extracted one behind it is not looked up (R1077).
+        if (confirmedRegistrations.Length > 1
+            || confirmedRegistrations is [CaseDataFieldValues.ClearedValue])
         {
             throw new AcceptedVehicleRegistrationRequiredException(command.CaseId);
         }
@@ -208,6 +211,8 @@ internal sealed class EfVehicleWorkflowStore(
             .AsNoTracking()
             .Where(item => item.WorkId == workId
                 && item.ValueKind == CaseDataCodes.Confirmed
+                // A box staff emptied confirms nothing (R1077).
+                && item.Value != CaseDataFieldValues.ClearedValue
                 && VehicleFieldNames.Contains(item.FieldName))
             .ToDictionaryAsync(item => item.FieldName, StringComparer.Ordinal, cancellationToken);
         var confirmed = MapConfirmed(confirmedFields, observationsById);
@@ -554,6 +559,13 @@ internal sealed class EfVehicleWorkflowStore(
             .Where(field => field.ValueKind is CaseDataCodes.Confirmed or CaseDataCodes.Fact)
             .ToArray();
         if (fields.Length == 0)
+        {
+            return null;
+        }
+
+        // A registration staff emptied is none: the extracted one behind it is
+        // not looked up (R1077).
+        if (fields.Any(field => CaseDataFieldValues.IsCleared(field.ValueKind, field.Value)))
         {
             return null;
         }

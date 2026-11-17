@@ -619,7 +619,9 @@ Registered (operator, 2 November 2026; R598). One **Look up DVLA & MOT** action
 (`EXT-01`) fills an empty Make, Model, Year or Mileage and a Vehicle type
 that neither staff nor the Automation Actor has recorded, and records the
 lookup's own facts. It never overwrites an extracted, staff-entered or
-Automation-recorded value. There is no checks panel and
+Automation-recorded value, and a box staff emptied is not filled
+([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds),
+[R1077](../rulings.md)). There is no checks panel and
 no suggestion table. The Experian seam is stated once, on the Vehicle history
 area (v36 item K, 9 October 2026); the section head carries no pill. The
 Vehicle history area holds the history-check narrative as read-only text,
