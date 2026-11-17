@@ -583,7 +583,13 @@ November 2026; [R1015](../rulings.md), [R1016](../rulings.md);
 ### Vehicle
 
 Vehicle shows registration, make, model, year, and one mileage with its
-editable unit, each with its source tag (a staff value untagged). VIN,
+editable unit, each with its source tag (a staff value untagged). A mileage
+with no stated unit is in miles: the page shows Miles, reading and editing,
+and records it as the default, not as a staff choice; only a change of unit
+is recorded as staff's (operator, 16 November 2026, [R1080](../rulings.md)).
+A unit chosen before a mileage is typed saves nothing and stays as chosen
+until the mileage is typed, when both are saved together (operator, 17
+November 2026, [R1119](../rulings.md)). VIN,
 Vehicle type and Body type follow, edited in place like the registration. The
 facts only the DVLA/DVSA lookup records (engine, fuel, colour, tax and MOT
 expiry) are always drawn, read-only with the Lookup tag, and read Not

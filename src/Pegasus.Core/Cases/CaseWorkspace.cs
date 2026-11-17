@@ -30,6 +30,14 @@ public enum CaseOdometerUnit
     Kilometres
 }
 
+/// <summary>What a save records for a reading's unit (<see cref="CaseOdometer.UnitWrite"/>).</summary>
+public enum CaseOdometerUnitWrite
+{
+    Nothing,
+    RemoveStaffValue,
+    RecordStaffValue
+}
+
 /// <summary>
 /// The one owner of odometer units and their conversion. The recorded original
 /// value and unit are never rewritten: a display in the other unit is computed
@@ -46,6 +54,39 @@ public static class CaseOdometer
         CaseOdometerUnit.Kilometres => "kilometres",
         _ => throw new ArgumentOutOfRangeException(nameof(unit), "The odometer unit is invalid.")
     };
+
+    /// <summary>
+    /// The unit a recorded reading is in, as a save writes it. A reading with
+    /// no stated unit is in miles (R1080); no reading has no unit; a stated
+    /// unit that cannot be read stays as stated.
+    /// </summary>
+    public static string? UnitOf(long? reading, string? statedUnit) =>
+        reading is null
+            ? null
+            : string.IsNullOrWhiteSpace(statedUnit)
+                ? Format(CaseOdometerUnit.Miles)
+                : TryParseUnit(statedUnit, out var unit) ? Format(unit) : statedUnit;
+
+    /// <summary>
+    /// What a save records for a reading's unit (R1080). Miles for a reading
+    /// with no stated unit is the default and never staff's choice, so the
+    /// unit already standing records nothing, however it is spelt; a unit
+    /// that returns to the one standing without staff's value removes that
+    /// value; any other is staff's. <paramref name="unit"/> is as
+    /// <see cref="Format"/> writes it.
+    /// </summary>
+    public static CaseOdometerUnitWrite UnitWrite(string? accepted, string? withoutStaff, string unit)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(unit);
+        if (UnitOf(0, accepted) == unit)
+        {
+            return CaseOdometerUnitWrite.Nothing;
+        }
+
+        return UnitOf(0, withoutStaff) == unit
+            ? CaseOdometerUnitWrite.RemoveStaffValue
+            : CaseOdometerUnitWrite.RecordStaffValue;
+    }
 
     public static bool TryParseUnit(string? value, out CaseOdometerUnit unit)
     {
