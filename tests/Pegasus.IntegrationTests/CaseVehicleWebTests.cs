@@ -924,7 +924,7 @@ public sealed class CaseVehicleWebTests
                 [.. request.Fields.Select(item => new AssessmentFieldValue(
                     item.Key, item.Value!, request.Actor.Kind, request.Actor.SubjectId, DateTimeOffset.UnixEpoch))],
                 [],
-                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 9, 21), null, null, null, null, null)));
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 9, 21), null, null, null, null)));
         }
     }
 

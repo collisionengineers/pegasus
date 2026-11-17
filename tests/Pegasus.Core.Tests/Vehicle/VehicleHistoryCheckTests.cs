@@ -192,7 +192,7 @@ public sealed class VehicleHistoryCheckTests
                 [.. request.Fields.Select(item => new AssessmentFieldValue(
                     item.Key, item.Value!, request.Actor.Kind, request.Actor.SubjectId, Now))],
                 [],
-                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 9, 21), null, null, null, null, null)));
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 9, 21), null, null, null, null)));
         }
     }
 }

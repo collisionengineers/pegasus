@@ -353,7 +353,7 @@ internal sealed class SendMcpTools(
     /// </summary>
     private StaffMailOperation OutcomeUnknown(StaffMailOutcomeUnknownException unknown)
     {
-        StaffMailSendLog.OutcomeUnknown(
+        Pegasus.Web.Pages.Mail.StaffMailSendLog.OutcomeUnknown(
             logger, unknown.Operation.Id, unknown.Operation.ApprovedMailboxId, unknown);
         return unknown.Operation;
     }
