@@ -9,6 +9,8 @@ import { createClassifierTools, newOutcomes, type Candidate, type RunOutcomes } 
 export interface MailOptions {
   subject?: string;
   body?: string;
+  /** The body without its quoted history; the whole body when not given. */
+  freshBody?: string | null;
   outcome?: "Unclassified" | "Classified";
   category?: string | null;
   caseType?: string | null;
@@ -47,6 +49,7 @@ export function mail(options: MailOptions = {}): MailDetail {
     toAddresses: ["desk@example.test"],
     ccAddresses: [],
     bodyPlainText: options.body ?? "Body",
+    freshBodyPlainText: options.freshBody === undefined ? options.body ?? "Body" : options.freshBody,
     attachments: (options.attachments ?? []).map((item) => ({ ...item, contentLength: 1000 })),
     thread: [],
     routeDisposition: "no_match",

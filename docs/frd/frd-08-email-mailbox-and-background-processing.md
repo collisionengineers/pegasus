@@ -232,7 +232,10 @@ attachment's extracted text, or the one Pegasus's plate reader agreed on in
 its photographs (`pegasus_mail_photo_registrations`); it never reads a plate
 from a photograph itself, and a request with no such registration waits for
 staff (operator, 4 and 6 November 2026, R731, R732, R734;
-[FRD-03](frd-03-triage.md)). The agent reads each listed e-mail in full
+[FRD-03](frd-03-triage.md)). The body is the fresh text only: the agent
+refuses a registration that appears only in the history quoted beneath it,
+read from the fresh body `pegasus_mail_get` returns (operator, 16 November
+2026, [R1076](../rulings.md)). The agent reads each listed e-mail in full
 before deciding it, may read the text the intake reader extracted from an
 attachment (`pegasus_mail_attachment_text`,
 [FRD-10](frd-10-mcp-automation-and-actor-boundary.md#tool-inventory)), and

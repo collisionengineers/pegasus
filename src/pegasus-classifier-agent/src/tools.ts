@@ -765,7 +765,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
 
   const openTriage = tool(
     "open_triage",
-    "Opens the Triage for a listed e-mail classified triage-request that has no Case, as staff Open the Triage does on the received item, with the vehicle registration you read. source says where: subject, body, attachment (with attachmentOrdinal, its extracted text) or photos (the registration read_photos returned as read). The registration must appear there as written; a plate is never read from a photograph by you. Pegasus refuses the Triage when the item cannot open one, and the e-mail then waits for staff.",
+    "Opens the Triage for a listed e-mail classified triage-request that has no Case, as staff Open the Triage does on the received item, with the vehicle registration you read. source says where: subject, body (the fresh text, never the quoted history), attachment (with attachmentOrdinal, its extracted text) or photos (the registration read_photos returned as read). The registration must appear there as written; a plate is never read from a photograph by you. Pegasus refuses the Triage when the item cannot open one, and the e-mail then waits for staff.",
     {
       messageId: z.guid().describe("messageId from list_eligible_emails"),
       vehicleRegistration: z.string().min(2).max(20),
@@ -802,7 +802,9 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         }
         found = appearsIn(registration, attachment);
       } else {
-        found = appearsIn(registration, args.source === "subject" ? candidate.detail.summary.subject : candidate.detail.bodyPlainText);
+        // The body is the fresh text only: a registration in the quoted
+        // history is another message's (R1076).
+        found = appearsIn(registration, args.source === "subject" ? candidate.detail.summary.subject : candidate.detail.freshBodyPlainText);
       }
       if (!found) {
         return text(`${args.vehicleRegistration} does not appear in the e-mail's ${args.source}; open the Triage only with a registration written there.`, true);

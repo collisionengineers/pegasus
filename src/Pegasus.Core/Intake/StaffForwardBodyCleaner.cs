@@ -72,6 +72,29 @@ public static partial class StaffForwardBodyCleaner
     }
 
     /// <summary>
+    /// The fresh text of a message body: what its sender wrote, without the
+    /// history quoted beneath it. The text above the first forwarded header
+    /// block is fresh, and a body with no block, or one that begins with it,
+    /// is fresh as a whole. For a staff forward the Principal's forwarded
+    /// original is the message, so the fresh text is that original, after its
+    /// header block and up to any older message quoted beneath it; give that
+    /// body already cleaned.
+    /// </summary>
+    public static string FreshBody(string body, bool isStaffForward)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        if (isStaffForward)
+        {
+            var original = SplitForwardedHeader(body).Body;
+            var older = ForwardedHeaderRegex().Match(original);
+            return older.Success ? original[..older.Index] : original;
+        }
+
+        var quoted = ForwardedHeaderRegex().Match(body);
+        return quoted.Success && quoted.Index > 0 ? body[..quoted.Index] : body;
+    }
+
+    /// <summary>
     /// The subject without the leading "FW:" and "Fwd:" prefixes a staff
     /// forward added, in any case and however many there are; any "Re:" after
     /// them stays. One pass over the text.

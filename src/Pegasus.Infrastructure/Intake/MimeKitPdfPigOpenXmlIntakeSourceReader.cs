@@ -1318,9 +1318,9 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         string sourceLabel,
         ReadAccumulator result)
     {
-        var quotedAt = StaffForwardBodyCleaner.ForwardedHeaderPattern.Match(body);
-        var hasQuotedHistory = quotedAt.Success && quotedAt.Index > 0;
-        var quotedStart = quotedAt.Index;
+        var current = StaffForwardBodyCleaner.FreshBody(body, isStaffForward: false);
+        var hasQuotedHistory = current.Length < body.Length;
+        var quotedStart = current.Length;
         while (hasQuotedHistory
             && quotedStart < body.Length
             && (body[quotedStart] == '\r' || body[quotedStart] == '\n'))
@@ -1331,11 +1331,11 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         result.Content.Add(new(
             IntakeEvidenceSource.EmailBody,
             $"{sourceLabel}, message body",
-            hasQuotedHistory ? body[..quotedAt.Index] : body,
+            current,
             IntakeSourceLocator.ForMessagePart(
                 IntakeMessagePart.CurrentBody,
                 hasQuotedHistory
-                    ? string.Create(CultureInfo.InvariantCulture, $"chars 0-{quotedAt.Index}")
+                    ? string.Create(CultureInfo.InvariantCulture, $"chars 0-{current.Length}")
                     : null)));
         if (hasQuotedHistory)
         {

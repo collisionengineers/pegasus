@@ -60,6 +60,8 @@ export interface MailDetail {
   toAddresses: string[];
   ccAddresses: string[];
   bodyPlainText: string | null;
+  /** The body without the history quoted beneath it; absent from a Pegasus that does not give it. */
+  freshBodyPlainText?: string | null;
   attachments: { fileName: string; mediaType: string; contentLength: number }[];
   thread: { senderAddress: string | null; subject: string | null; receivedAtUtc: string }[];
   /** The pipeline's route decision: accepted, no_match and the like. */
