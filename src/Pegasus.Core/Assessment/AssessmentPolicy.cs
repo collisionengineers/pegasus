@@ -250,6 +250,21 @@ public static class AssessmentPolicy
         AssessmentVocabulary.SalvageValue,
     ];
 
+    /// <summary>
+    /// The value an untouched control posts for a path nothing is recorded
+    /// on: the empty list for the damage markers and the impacts, and false
+    /// for the impacts' skip. The one Case Save posts every control, so saved
+    /// over no row such a value records nothing (#2109); every reader already
+    /// reads no row as that value.
+    /// </summary>
+    public static bool IsUnchosen(string path, string value) => path switch
+    {
+        AssessmentVocabulary.DamageMarkers or AssessmentVocabulary.Impacts =>
+            string.Equals(value, "[]", StringComparison.Ordinal),
+        AssessmentVocabulary.ImpactsSkipped => string.Equals(value, "false", StringComparison.Ordinal),
+        _ => false
+    };
+
     public static bool IsWritableState(CaseLifecycleState state) =>
         state is CaseLifecycleState.NotReady
             or CaseLifecycleState.Review
@@ -348,23 +363,12 @@ public static class AssessmentPolicy
             !string.IsNullOrWhiteSpace(owned.Registration), "Vehicle registration", CaseDataFieldNames.VehicleRegistration,
             "The report prints the registration and none is recorded.",
             "Record it on the Vehicle section.");
-        if (owned.InspectionMode is null)
-        {
-            items.Add(new(
-                "Inspection type", "Case record",
-                "The report says how the vehicle was assessed and no inspection type is recorded.",
-                "Choose Inspect at on the Inspection details section.",
-                Field: CaseDataFieldNames.InspectionMode));
-        }
-        else if (owned.InspectionMode == nameof(CaseInspectionMode.PhysicalAddress)
-            && string.IsNullOrWhiteSpace(owned.InspectionAddress))
-        {
-            items.Add(new(
-                "Inspection address", "Case record",
-                "The vehicle is inspected at a physical location and no address is recorded for the report to print.",
-                "Record the address on the Inspection details section.",
-                Field: CaseDataFieldNames.InspectionAddress));
-        }
+        // Every Case is an Image Based Assessment (R1078); what varies is
+        // Inspect at, and the report prints it, so an empty one blocks (R1114, R1115).
+        RequireCaseFact(
+            !string.IsNullOrWhiteSpace(owned.InspectionAddress), "Inspection address", CaseDataFieldNames.InspectionAddress,
+            "No inspection address is recorded for the report to print.",
+            "Choose Inspect at on the Inspection details section.");
         RequireCaseFact(
             owned.InspectionDate is not null, "Inspection date", CaseDataFieldNames.InspectionDate,
             "The report says the damage was assessed on the Inspection date and none is recorded.",
@@ -438,7 +442,7 @@ public static class AssessmentPolicy
         // confirmed. The former item could only fire when staff recorded a
         // source for a mileage they had not entered, which is no longer
         // possible. A Case with no mileage is held before Review instead
-        // (R759, CaseCompletenessPolicy.MileageGateOpen).
+        // (R759, CaseCompletenessPolicy.VehicleGate).
 
         if (fields.TryGetValue(AssessmentVocabulary.LegalStatus, out var legalStatus)
             && string.Equals(legalStatus, "unroadworthy", StringComparison.Ordinal)

@@ -43,7 +43,7 @@ public sealed class CaseDataOperationsTests
         var evaluation = CaseCompletenessPolicy.Evaluate(
             new(true, true),
             Configuration,
-            mileageRecorded: true);
+            CaseVehicleGate.Open);
 
         Assert.True(evaluation.SatisfiesPolicy);
         Assert.Equal("test-case-workflow", evaluation.PolicyKey);
@@ -63,6 +63,7 @@ public sealed class CaseDataOperationsTests
     [InlineData(null, null)]
     [InlineData("", null)]
     [InlineData("Image Based Assessment", CaseInspectionMode.ImageBasedAssessment)]
+    [InlineData(" image based assessment ", CaseInspectionMode.ImageBasedAssessment)]
     [InlineData("1 Test Street", CaseInspectionMode.PhysicalAddress)]
     public void InspectionModeIsInferredFromTheAddress(
         string? address,
@@ -212,10 +213,8 @@ public sealed class CaseDataOperationsTests
     [Fact]
     public void PhysicalTreatmentRefusesABlankAddressAndTheImageBasedLiteral()
     {
-        // Every CE assessment is desktop, so the report-address treatment is
-        // stated by the operator and never inferred from the text of an
-        // address. A physical vehicle location therefore needs a real address,
-        // and the accepted Image Based Assessment instruction is not one.
+        // A physical vehicle location needs a real address, and the words
+        // Image Based Assessment, in any letter case, are not one.
         Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.ResolveInspection(
             CaseReportAddressTreatment.PhysicalVehicleLocation,
             null));
@@ -261,9 +260,15 @@ public sealed class CaseDataOperationsTests
             CaseDataPolicy.ResolveInspection(
                 CaseReportAddressTreatment.ImageBasedAssessment,
                 " Image Based Assessment "));
+        // Typed in another letter case the words are stored as the exact value.
+        Assert.Equal(
+            ("Image Based Assessment", CaseInspectionMode.ImageBasedAssessment),
+            CaseDataPolicy.ResolveInspection(
+                CaseReportAddressTreatment.ImageBasedAssessment,
+                "image based assessment"));
         Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.ResolveInspection(
             CaseReportAddressTreatment.ImageBasedAssessment,
-            "image based assessment"));
+            "5 Repairer Way, Leeds"));
     }
 
     [Fact]

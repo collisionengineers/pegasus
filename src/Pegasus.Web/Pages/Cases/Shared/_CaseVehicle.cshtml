@@ -38,7 +38,10 @@
     var modelValue = data?.Vehicle.Model.Confirmed ?? data?.Vehicle.Model.Fact;
     var yearValue = data?.Vehicle.Year.Confirmed ?? data?.Vehicle.Year.Fact;
     var mileageValue = data?.Vehicle.Mileage.Confirmed ?? data?.Vehicle.Mileage.Fact;
-    var unit = (data?.Vehicle.MileageUnit.Confirmed ?? data?.Vehicle.MileageUnit.Fact)?.Value;
+    // A mileage with no stated unit is in miles (R1080); no mileage has none.
+    var unit = CaseOdometer.UnitOf(
+        mileageValue?.Value,
+        (data?.Vehicle.MileageUnit.Confirmed ?? data?.Vehicle.MileageUnit.Fact)?.Value);
     var unitWord = string.IsNullOrWhiteSpace(unit) ? null
         : unit.Equals("km", StringComparison.OrdinalIgnoreCase) || unit.StartsWith("kilo", StringComparison.OrdinalIgnoreCase)
             ? "km" : "mi";
@@ -235,7 +238,9 @@
                     <div class="@ValueClass(unit)">@(unitWord is null ? OperatorLabels.CaseWorkspace.AbsentValue : unitWord == "km" ? VehicleLabels.Kilometres : VehicleLabels.Miles)</div>
                     @if (editFields)
                     {
-                        <select id="edit-mileage-unit" class="fi" name="vehicleMileageUnit" form="case-edit-form">
+                        @* The unit is saved with a mileage, never alone: chosen before one
+                           is typed it commits nothing and stays as chosen (R1119). *@
+                        <select id="edit-mileage-unit" class="fi" name="vehicleMileageUnit" form="case-edit-form" data-typed-with="edit-mileage">
                             <option value="miles" selected="@(unitWord != "km" ? "selected" : null)">@VehicleLabels.Miles</option>
                             <option value="kilometres" selected="@(unitWord == "km" ? "selected" : null)">@VehicleLabels.Kilometres</option>
                         </select>

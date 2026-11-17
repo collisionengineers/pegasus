@@ -659,8 +659,20 @@ internal sealed class PhotoCaptureMcpTools(
         var url = mail.CaptureUrl(issued.Token);
         var values = PhotoLinkMail.Values(capture.NormalizedRegistration, capture.CustomerName, principalName, url, capture.ExpiresAtUtc);
         var body = await mail.ComposeAsync(context.Actor, message, values, url, cancellationToken);
-        var operation = await mail.SendAsync(
-            context.Actor, caseId, fromId, capture.Email!, subject, body, key, cancellationToken);
+        StaffMailOperation operation;
+        try
+        {
+            operation = await mail.SendAsync(
+                context.Actor, caseId, fromId, capture.Email!, subject, body, key, cancellationToken);
+        }
+        catch (StaffMailOutcomeUnknownException unknown)
+        {
+            // Recorded Unknown: answered as a returned Unknown is (R1069, R1123).
+            Pegasus.Web.Pages.Mail.StaffMailSendLog.OutcomeUnknown(
+                logger, unknown.Operation.Id, unknown.Operation.ApprovedMailboxId, unknown);
+            operation = unknown.Operation;
+        }
+
         if (operation.State == StaffMailState.Failed)
         {
             Pegasus.Web.Pages.Mail.StaffMailSendLog.Refused(logger, operation.Id, operation.ApprovedMailboxId, operation.FailureCode);

@@ -14,8 +14,9 @@ namespace Pegasus.Web.Pages.Cases;
 /// The v26 frame of the Case record: the ribbon's facts and chips, the
 /// Actions menu's state-dependent items, per-section availability and the
 /// aside (Figures and Next action). The
-/// section-owned members live in their own partial files beside this one; the
-/// original <c>Details.cshtml.cs</c> keeps the handlers it already had.
+/// section-owned members live in their own partial files beside this one, each
+/// named for its section; <c>Details.cshtml.cs</c> keeps the page's load, the
+/// shared Save and what several sections use (#1730, R1112).
 /// </summary>
 public sealed partial class DetailsModel
 {

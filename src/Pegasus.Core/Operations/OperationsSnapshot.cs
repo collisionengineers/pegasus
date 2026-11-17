@@ -454,11 +454,11 @@ public sealed class GetOperationsSnapshot(
             {
                 Item = item,
                 IsReadyForEngineerAssignment = item.EngineerId is null
-                    // A Case in Review has passed the mileage gate (R759).
+                    // A Case in Review has passed the vehicle gate (R759, R1081).
                     && CaseCompletenessPolicy.Evaluate(
                         new(item.InstructionComplete ?? false, item.ImagesComplete ?? false),
                         configuration,
-                        mileageRecorded: true).SatisfiesPolicy
+                        CaseVehicleGate.Open).SatisfiesPolicy
             })
             .ToArray();
 

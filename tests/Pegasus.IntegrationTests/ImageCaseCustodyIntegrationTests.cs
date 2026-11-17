@@ -2170,9 +2170,12 @@ public sealed class ImageCaseCustodyIntegrationTests
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {originReceiptId}, {"manual_upload"}, {reference}, {1.ToString("X64", CultureInfo.InvariantCulture)}, {now}, {"image-case-custody-test-reader"}, {"1"}, {"image-case-custody-fixture"}, {1}, {reference}, {1}, {instructionComplete && imagesComplete}, {now})");
-        // The Case has its mileage: no mileage would keep it Not ready (R759).
+        // The Case has its mileage and its registration: without either it
+        // would stay Not ready (R759, R1081).
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_mileage"}, {"confirmed"}, {"integer"}, {"41200"}, {"intake_evidence"}, {"mileage"}, {"image case custody fixture"}, {"image-case-custody-fixture"}, {1}, {"staff"}, {now})");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {"confirmed"}, {"text"}, {"IC31FIX"}, {"intake_evidence"}, {"registration"}, {"image case custody fixture"}, {"image-case-custody-fixture"}, {1}, {"staff"}, {now})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_mileage_unit"}, {"confirmed"}, {"text"}, {"miles"}, {"intake_evidence"}, {"mileage-unit"}, {"image case custody fixture"}, {"image-case-custody-fixture"}, {1}, {"staff"}, {now})");
         return caseId;

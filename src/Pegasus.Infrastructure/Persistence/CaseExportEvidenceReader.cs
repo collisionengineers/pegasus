@@ -27,6 +27,21 @@ public static class CaseExportEvidenceReader
         var acceptedVehicle = vehicle?.CaseId == caseId
             ? vehicle.Confirmed
             : null;
+        var mileage = Fallback(
+            FromVehicleField(acceptedVehicle?.Mileage, static value => value.ToString(CultureInfo.InvariantCulture)),
+            caseData.Vehicle.Mileage,
+            static value => value.ToString(CultureInfo.InvariantCulture));
+        var mileageUnit = Fallback(
+            FromVehicleField(acceptedVehicle?.MileageUnit, MileageUnit),
+            caseData.Vehicle.MileageUnit,
+            MileageUnit);
+        // A mileage with no stated unit is in miles (R1080): the unit travels
+        // on the mileage's own evidence.
+        if (string.IsNullOrWhiteSpace(mileageUnit.Value) && !string.IsNullOrWhiteSpace(mileage.Value))
+        {
+            mileageUnit = mileage with { Value = MileageUnit(VehicleMileageUnit.Miles) };
+        }
+
         return new CaseExportEvidence(
             FromCaseField(caseData.Claim.Number, static value => value),
             FromCaseField(caseData.Principal.PrincipalCode, static value => value),
@@ -42,14 +57,8 @@ public static class CaseExportEvidenceReader
             inspection,
             FromCaseField(caseData.Accident.Circumstances, static value => value),
             FromCaseField(caseData.Instruction.VatStatus, static value => value),
-            Fallback(
-                FromVehicleField(acceptedVehicle?.Mileage, static value => value.ToString(CultureInfo.InvariantCulture)),
-                caseData.Vehicle.Mileage,
-                static value => value.ToString(CultureInfo.InvariantCulture)),
-            Fallback(
-                FromVehicleField(acceptedVehicle?.MileageUnit, MileageUnit),
-                caseData.Vehicle.MileageUnit,
-                MileageUnit));
+            mileage,
+            mileageUnit);
     }
 
     private static CaseExportAddressResolution ResolveInspection(CaseDataProjection caseData)

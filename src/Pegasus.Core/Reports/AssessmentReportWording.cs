@@ -198,7 +198,12 @@ public static class AssessmentReportWording
     public static string Introduction(AssessmentReportSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        var location = snapshot.IsImageBased ? ImageBasedAssessment : snapshot.LocationAddress;
+        // What Inspect at held when the report was generated: a place, or the
+        // words themselves (R1116). A report frozen before then with no
+        // address was image based.
+        var location = string.IsNullOrWhiteSpace(snapshot.LocationAddress)
+            ? ImageBasedAssessment
+            : snapshot.LocationAddress;
         return $"In accordance with your instructions received on {Date(snapshot.InstructionsReceived)} requesting us to provide an independent accident damage report, we assessed the damage on {Date(snapshot.Assessed)}. Vehicle located at: {location}. Our findings are as detailed below.";
     }
 

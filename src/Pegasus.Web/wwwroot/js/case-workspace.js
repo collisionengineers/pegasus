@@ -561,7 +561,16 @@
     // until what is typed is: a save here changes nothing on the Case, and
     // the redraw that follows it would put the choice back on whichever one
     // the record matches. Left unsent, the choice holds its section.
+    // A choice that qualifies a value still to be typed (the mileage's unit
+    // with no mileage) is saved with that value, never alone (R1119): chosen
+    // first it commits nothing, and no commit of another field makes it sent.
+    function awaitsTypedValue(control) {
+        var partner = control.getAttribute('data-typed-with');
+        var typed = partner ? document.getElementById(partner) : null;
+        return !!typed && typed.value.trim() === '';
+    }
     function typedChoice(control) {
+        if (awaitsTypedValue(control)) { return true; }
         var chosen = control.tagName === 'SELECT' ? control.options[control.selectedIndex]
             : control.checked ? control : null;
         return !!chosen && chosen.hasAttribute('data-typed-choice');
@@ -1190,10 +1199,13 @@
         });
     }
     // A landed commit makes what it sent each control's default; a control
-    // changed since it was sent keeps its difference, still to be sent.
+    // changed since it was sent keeps its difference, still to be sent. A
+    // default already holding it is left alone: a textarea's default is its
+    // text, and writing it moves the caret of one the operator is in.
     function markSent(sent) {
         (sent || []).forEach(function (state) {
             var control = state.control;
+            if (awaitsTypedValue(control)) { return; }
             if (control.type === 'checkbox' || control.type === 'radio') {
                 if (control.checked === state.checked) { control.defaultChecked = state.checked; }
             } else if (control.tagName === 'SELECT') {
@@ -1204,7 +1216,7 @@
                     Array.prototype.forEach.call(control.options, function (option) { option.defaultSelected = option.selected; });
                 }
             } else if (control.type !== 'hidden' && control.type !== 'file' && typeof control.defaultValue === 'string'
-                && control.value === state.value) {
+                && control.value === state.value && control.defaultValue !== state.value) {
                 control.defaultValue = state.value;
             }
         });
@@ -1255,20 +1267,31 @@
     // The control the operator is in keeps its place and what they have
     // typed into it. A control with no id (a decision's radio, the salvage
     // slider) is found again by its place in its section, when the redrawn
-    // section has the same kind of control there.
+    // section has the same kind of control there. A report wording block's
+    // controls are named and ided by the block's place in the Case's order,
+    // which a move changes: they are found again in the block of the same
+    // key, and a name's index is not part of its kind.
     var FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]';
     function focusKind(control) {
-        return control.tagName + '|' + (control.getAttribute('name') || '') + '|' + (control.getAttribute('data-radio-value') || '');
+        return control.tagName + '|' + (control.getAttribute('name') || '').replace(/\[\d+\]/g, '[]') + '|' + (control.getAttribute('data-radio-value') || '');
+    }
+    function wordingBlock(key) {
+        return Array.prototype.find.call(main.querySelectorAll('[data-wording-block]'), function (block) {
+            return block.getAttribute('data-wording-block') === key;
+        }) || null;
     }
     function focusedControl() {
         var control = document.activeElement;
         if (!control || !main || !main.contains(control)) { return null; }
         var host = control.id ? null : control.closest('.record-section[id]');
         if (!control.id && !host) { return null; }
+        var block = control.closest('[data-wording-block]');
         return {
             id: control.id,
             section: host ? host.id : null,
             index: host ? Array.prototype.indexOf.call(host.querySelectorAll(FOCUSABLE), control) : -1,
+            block: block ? block.getAttribute('data-wording-block') : null,
+            inBlock: block ? Array.prototype.indexOf.call(block.querySelectorAll(FOCUSABLE), control) : -1,
             kind: focusKind(control),
             typed: typeof control.defaultValue === 'string' && control.type !== 'hidden' && control.value !== control.defaultValue,
             value: control.value,
@@ -1279,7 +1302,9 @@
     function refocus(saved) {
         if (!saved) { return; }
         var host = saved.section ? document.getElementById(saved.section) : null;
-        var control = saved.id ? document.getElementById(saved.id)
+        var block = saved.block !== null ? wordingBlock(saved.block) : null;
+        var control = saved.block !== null ? (block ? block.querySelectorAll(FOCUSABLE)[saved.inBlock] : null)
+            : saved.id ? document.getElementById(saved.id)
             : host && saved.index >= 0 ? host.querySelectorAll(FOCUSABLE)[saved.index] : null;
         if (!control || control === document.activeElement || focusKind(control) !== saved.kind) { return; }
         if (saved.typed) { control.value = saved.value; }
@@ -1287,6 +1312,76 @@
         try {
             if (saved.start !== null && saved.start !== undefined) { control.setSelectionRange(saved.start, saved.end); }
         } catch (_) { /* Not every control has a selection. */ }
+    }
+    // What the operator has open where a redraw they did not ask for (a
+    // save's answer, a catch up) draws the record again: the menus and
+    // disclosures standing open, a box with an id holding a value not yet
+    // sent, and how far the aside and its Report not ready list are
+    // scrolled. Each is found again in the drawing that replaces it and put
+    // back as it was. An action's own redraw keeps none of it, so the menu
+    // whose action ran closes.
+    var SCROLLED = ['[data-case-aside]', '[data-case-aside] [data-report-not-ready] > .panel-body'];
+    // A disclosure is found again by its id, by a control with an id inside
+    // it (a tag picker's New tag box), or by its own data attributes and
+    // its place among the disclosures like it under the nearest element
+    // with an id.
+    function disclosure(details) {
+        if (details.id) { return { id: details.id }; }
+        var named = details.querySelector('[id]');
+        if (named) { return { inside: named.id }; }
+        var scope = details.parentElement ? details.parentElement.closest('[id]') : null;
+        var like = 'details' + Array.prototype.filter.call(details.attributes, function (attribute) {
+            return attribute.name.indexOf('data-') === 0;
+        }).map(function (attribute) { return '[' + attribute.name + ']'; }).join('');
+        return { scope: scope ? scope.id : null, like: like, at: Array.prototype.indexOf.call((scope || document).querySelectorAll(like), details) };
+    }
+    function findDisclosure(key) {
+        if (key.id) { return document.getElementById(key.id); }
+        if (key.inside) {
+            var named = document.getElementById(key.inside);
+            return named ? named.closest('details') : null;
+        }
+        var scope = key.scope ? document.getElementById(key.scope) : document;
+        return scope ? scope.querySelectorAll(key.like)[key.at] || null : null;
+    }
+    function openWork() {
+        var active = document.activeElement;
+        return {
+            menus: Array.prototype.map.call(record.querySelectorAll('details[open]'), function (details) {
+                // Focus in a section is the catch up's to put back (refocus).
+                var inside = details.contains(active) && !main.contains(active);
+                return {
+                    key: disclosure(details),
+                    focus: inside ? Array.prototype.indexOf.call(details.querySelectorAll('summary, ' + FOCUSABLE), active) : -1
+                };
+            }),
+            values: Array.prototype.filter.call(record.querySelectorAll('input[id], textarea[id]'), unsentControl).map(function (control) {
+                return { id: control.id, control: control, kind: focusKind(control), value: control.value, checked: control.checked };
+            }),
+            scrolls: SCROLLED.map(function (selector) {
+                var scroller = document.querySelector(selector);
+                return scroller ? scroller.scrollTop : 0;
+            })
+        };
+    }
+    function putOpenWorkBack(held) {
+        if (!held) { return; }
+        held.values.forEach(function (was) {
+            var control = document.getElementById(was.id);
+            if (!control || control === was.control || unsentControl(control) || focusKind(control) !== was.kind) { return; }
+            if (control.type === 'checkbox' || control.type === 'radio') { control.checked = was.checked; } else { control.value = was.value; }
+        });
+        held.menus.forEach(function (was) {
+            var details = findDisclosure(was.key);
+            if (!details || details.open) { return; }
+            details.open = true;
+            var item = was.focus >= 0 ? details.querySelectorAll('summary, ' + FOCUSABLE)[was.focus] : null;
+            if (item && (!document.activeElement || document.activeElement === document.body)) { item.focus({ preventScroll: true }); }
+        });
+        SCROLLED.forEach(function (selector, index) {
+            var scroller = document.querySelector(selector);
+            if (scroller && held.scrolls[index]) { scroller.scrollTop = held.scrolls[index]; }
+        });
     }
     // The page drawn again as the Case now stands, holding the queue so no
     // commit or action reads a half-drawn record. A section holding a value
@@ -1436,6 +1531,9 @@
         var afterSave = catchingUp && !!options.afterSave;
         var editingEnded = catchingUp && incoming.getAttribute('data-case-editing') !== 'true';
         var keepSections = commitLanded || commitRefused || catchingUp;
+        // A redraw the operator did not ask for keeps what they have open.
+        var held = keepSections ? openWork() : null;
+        var filesFocus = null;
         // The section a head Edit was pressed on keeps its place; any other
         // swap keeps the section at the reading line.
         var saved = preferred || anchor();
@@ -1457,15 +1555,37 @@
             if (command.wording && command.wording.panel.isConnected) {
                 command.wording.panel.pegasusWording.landed(command.wording.state);
             }
-            // Staged crops and rotations are recorded now: Files is drawn
-            // afresh from the response, and holds no typed control to lose.
+            // The staged crops and rotations this commit carried are recorded
+            // now: Files is drawn afresh from the response, with what the
+            // operator has open in it carried across. One staged since the
+            // commit was sent wrote the preparation fields anew: they stay,
+            // on the preparation versions the response's tiles now hold, and
+            // the next commit carries them. A commit that carried none leaves
+            // what is staged alone.
             var form = caseForm();
-            if (form && form.__pegasusPreparationStaged) {
-                form.__pegasusPreparationStaged = null;
-                Array.prototype.forEach.call(form.querySelectorAll('[data-preparation-hidden]'), function (input) { input.remove(); });
-                var files = sectionFor('files');
+            var staged = form ? Array.prototype.slice.call(form.querySelectorAll('[data-preparation-hidden]')) : [];
+            var sentStaged = (command.sent || []).filter(function (state) { return staged.indexOf(state.control) >= 0; }).length;
+            var carriedStaged = (command.sent || []).some(function (state) {
+                return state.control.hasAttribute && state.control.hasAttribute('data-preparation-hidden');
+            });
+            if (form && carriedStaged) {
                 var nextFiles = parsed.getElementById('section-files');
-                if (files && nextFiles) { files.replaceWith(nextFiles); bindMounted(nextFiles); }
+                if (sentStaged < staged.length) {
+                    if (nextFiles && window.pegasusCasePreparation && window.pegasusCasePreparation.adopt) {
+                        Array.prototype.forEach.call(nextFiles.querySelectorAll('[data-preparation-card]'), function (tile) {
+                            window.pegasusCasePreparation.adopt(tile.getAttribute('data-preparation-occurrence'), tile);
+                        });
+                    }
+                } else {
+                    form.__pegasusPreparationStaged = null;
+                    staged.forEach(function (input) { input.remove(); });
+                    var files = sectionFor('files');
+                    if (files && nextFiles) {
+                        filesFocus = focusedControl();
+                        files.replaceWith(nextFiles);
+                        bindMounted(nextFiles);
+                    }
+                }
             }
         }
         // A refused commit drew the Case again with a fresh operation key and
@@ -1562,6 +1682,8 @@
             var root = document.querySelector(selector);
             if (root) { bindMounted(root); }
         });
+        putOpenWorkBack(held);
+        refocus(filesFocus);
         // A section that was loaded is loaded again as the Case now stands.
         lazyRedrawn.forEach(function (placeholder) { mount(placeholder); });
         if (catchingUp && !editingEnded) {
@@ -2675,9 +2797,9 @@
 
 // --- vehicle -----------------------------------------------------------------
 // --- Inspection details and Vehicle (lane A) -------------------------------
-// The Inspect-at choice filling the address input, and the hidden
-// `inspectionMode` it drives, are site.js's Inspect-at block, bound per root
-// through window.pegasusMountBinders, so an in-place swap re-binds them. The
+// The Inspect-at choice filling the address input is site.js's Inspect-at
+// block, bound per root through window.pegasusMountBinders, so an in-place
+// swap re-binds it. The
 // lookup and the Save are plain forms the frame posts in place. The Vehicle
 // and Inspection sections read and edit with the shared one-geometry cells.
 //
@@ -3120,6 +3242,58 @@
         if (!document.querySelector('[data-valuation-form]')) { kept = null; }
     });
 
+    // What a guide card or the calculation is telling the Engineer (operator,
+    // 17 November 2026, R1125): a card's notice (its source cannot value the
+    // vehicle, or refused), its "enter the retail" sentence, and a
+    // calculation that failed or that Core refused. Each is shown again in a
+    // section drawn afresh, until the card is acted on again or the Case
+    // supersedes it: the card drawn afresh holds other figures (a retail,
+    // for the sentence), or a calculation is worked out or recorded. Leaving
+    // the edit lets go of them.
+    var said = null;
+    document.addEventListener('pegasus:case-swapped', function () {
+        if (!document.querySelector('[data-valuation-form]')) { said = null; }
+    });
+    function figure(card, box, recorded) {
+        var input = card.querySelector(box);
+        return input ? input.value : (card.getAttribute(recorded) || '');
+    }
+    function figures(card) {
+        return figure(card, '[data-valuation-retail]', 'data-retail') + '|' + figure(card, '[data-valuation-trade]', 'data-trade');
+    }
+    function cardSaid(card) {
+        var source = card ? card.getAttribute('data-valuation-source-card') : null;
+        if (!source) { return null; }
+        said = said || { cards: {}, preview: null };
+        return said.cards[source] || (said.cards[source] = { notice: null, needs: false });
+    }
+    // The card's "enter the retail" sentence, shown or put away.
+    function needsRetail(card, on) {
+        var needs = card.querySelector('[data-valuation-needs-retail]');
+        if (needs) {
+            needs.hidden = !on;
+            if (on) { needs.setAttribute('role', 'status'); }
+        }
+        var entry = cardSaid(card);
+        if (entry) { entry.needs = on; }
+    }
+    // A card drawn afresh shows again what it was showing, unless the Case
+    // has moved it on since.
+    function sayAgain(card) {
+        var entry = said && said.cards[card.getAttribute('data-valuation-source-card')];
+        if (!entry) { return; }
+        if (entry.notice && entry.notice.figures === figures(card)) {
+            showNotice(card.querySelector('[data-valuation-notice]'), true, entry.notice.message, entry.notice.tone);
+        } else {
+            entry.notice = null;
+        }
+        if (entry.needs && !(parseFloat(figure(card, '[data-valuation-retail]', 'data-retail')) > 0)) {
+            needsRetail(card, true);
+        } else {
+            entry.needs = false;
+        }
+    }
+
     // The Case form's own fields that a request carries, chosen by name.
     function caseFields(keep) {
         var body = new FormData();
@@ -3198,6 +3372,20 @@
                 host.textContent = '';
                 host.appendChild(notice);
                 paintAmounts(null);
+                sayPreview();
+            }
+            // The calculation the Case records, which a save that records
+            // one moves on.
+            function recorded() {
+                var opening = section.querySelector('input[name="selection.Opening"]');
+                return opening ? opening.value : '';
+            }
+            // A failure or Core's refusal stands in the host until a
+            // calculation is worked out or recorded; anything else there
+            // lets it go.
+            function sayPreview() {
+                said = said || { cards: {}, preview: null };
+                said.preview = host.querySelector('[data-valuation-error]') ? { html: host.innerHTML, recorded: recorded() } : null;
             }
 
             // The Case as saved: the section head's figure, and the recorded
@@ -3271,6 +3459,7 @@
                 }).then(function (html) {
                     busy(false);
                     host.innerHTML = html;
+                    sayPreview();
                     var proposal = host.querySelector('[data-valuation-proposal]');
                     paintAmounts(proposal);
                     if (proposal) {
@@ -3364,12 +3553,13 @@
                 var ptl = section.querySelector('[data-valuation-ptl]:checked');
                 var set = !!ptl || (!!vat && vat.checked) || (!!deduction && deduction.value !== '')
                     || !!section.querySelector('[data-preset-toggle]:checked');
+                var others = rows('[data-valuation-other]');
                 kept = {
-                    typing: rows('[data-valuation-other]')
+                    typing: others
                         .filter(function (row) { return otherState(row).typing; })
                         .map(function (row) {
                             var parts = rowParts(row);
-                            return { name: parts.name.value, amount: parts.amount.value };
+                            return { name: parts.name.value, amount: parts.amount.value, at: others.indexOf(row) };
                         }),
                     unplaced: chosenCard() || !set ? null : {
                         rows: rows('[data-valuation-add]').map(function (row) {
@@ -3401,8 +3591,8 @@
             // set; if the Case has a card to start from now, the calculation
             // is worked out at once, unless Engineer's Value holds a figure
             // that would be replaced. Otherwise each Other row still being
-            // typed returns to a blank Other row: the recorded ones are
-            // drawn first.
+            // typed returns to its own row when that is blank, else to the
+            // first blank Other row: the recorded ones are drawn first.
             function putBack() {
                 if (!kept) { return; }
                 var unplaced = kept.unplaced;
@@ -3422,10 +3612,17 @@
                     var value = section.querySelector('[data-valuation-value="engineer"]');
                     if (chosenCard() && value && value.value === '') { schedule(); }
                 } else if (!unplaced) {
-                    var blanks = rows('[data-valuation-other]').filter(function (row) { return otherState(row).blank; });
+                    var others = rows('[data-valuation-other]');
+                    var blanks = others.filter(function (row) { return otherState(row).blank; });
+                    var own = kept.typing.map(function (was) {
+                        var row = blanks.indexOf(others[was.at]) >= 0 ? others[was.at] : null;
+                        if (row) { blanks.splice(blanks.indexOf(row), 1); }
+                        return row;
+                    });
                     kept.typing.forEach(function (was, index) {
-                        if (!blanks[index]) { return; }
-                        var parts = rowParts(blanks[index]);
+                        var row = own[index] || blanks.shift();
+                        if (!row) { return; }
+                        var parts = rowParts(row);
                         tick(parts.toggle, true);
                         type(parts.name, was.name);
                         type(parts.amount, was.amount);
@@ -3490,12 +3687,11 @@
                     return;
                 }
                 var retail = parseFloat(shown(card, '[data-valuation-retail]', 'data-retail'));
-                var needs = card.querySelector('[data-valuation-needs-retail]');
                 if (!(retail > 0)) {
-                    if (needs) { needs.hidden = false; needs.setAttribute('role', 'status'); }
+                    needsRetail(card, true);
                     return;
                 }
-                if (needs) { needs.hidden = true; }
+                needsRetail(card, false);
                 if (card === chosenCard() && !useInput.disabled) {
                     return;
                 }
@@ -3578,8 +3774,7 @@
                 }
                 if (typed && typed.matches && typed.matches('[data-valuation-retail]')) {
                     // A retail typed into a card answers its "enter the retail" sentence.
-                    var needs = typed.closest('[data-valuation-card]').querySelector('[data-valuation-needs-retail]');
-                    if (needs && parseFloat(typed.value) > 0) { needs.hidden = true; }
+                    if (parseFloat(typed.value) > 0) { needsRetail(typed.closest('[data-valuation-card]'), false); }
                 }
                 // A figure typed into the chosen card is the basis figure now.
                 if (typed && typed.matches
@@ -3655,6 +3850,15 @@
             putBack();
             paintAdditions();
             paintPriorTotalLoss();
+            section.querySelectorAll('[data-valuation-source-card]').forEach(sayAgain);
+            if (said && said.preview && host) {
+                if (said.preview.recorded === recorded() && !host.querySelector('[data-valuation-error]')) {
+                    host.innerHTML = said.preview.html;
+                    paintAmounts(null);
+                } else {
+                    said.preview = null;
+                }
+            }
             rows('[data-valuation-other]').forEach(function (row) {
                 row.pegasusCounts = otherState(row).counts;
             });
@@ -3768,6 +3972,9 @@
             notice.removeAttribute('role');
         }
         notice.hidden = standing ? false : !visible;
+        var card = notice.closest('[data-valuation-source-card]');
+        var entry = cardSaid(card);
+        if (entry) { entry.notice = visible ? { message: message || null, tone: tone || null, figures: figures(card) } : null; }
     }
 
     bind(document);
@@ -3800,6 +4007,10 @@
     // the one it replaced, at the same place.
     var expanded = false;
     var expandedTop = 0;
+    // How many times a landed commit has given the lines new ids. A line
+    // put back once this has moved on since its removal no longer names a
+    // line the Case has.
+    var lineIdentities = 0;
 
     function bindGrid(form) {
         var body = form.querySelector('[data-estimate-grid-body]');
@@ -3909,6 +4120,7 @@
             if (!carrier.matches('[data-estimate-line-ids]')) {
                 return;
             }
+            lineIdentities += 1;
             var rows = body.querySelectorAll('tr[data-estimate-line]');
             carrier.value.split(' ').forEach(function (entry) {
                 var parts = entry.split(':');
@@ -3948,9 +4160,31 @@
             form.querySelector('input[name="estimateId"]').dispatchEvent(new Event('input', { bubbles: true }));
             appendPhantom();
         }
+        body.pegasusRenumber = renumber;
 
         // A removed line, or all of them, can be put back for eight seconds
-        // (v28 P16): the toast carries the one Undo.
+        // (v28 P16): the toast carries the one Undo. The removal may have
+        // saved meanwhile and the Repair Spec been drawn afresh, so the rows
+        // go back into the grid the page has now, at their place or else
+        // above the blank line, unless it shows another spec. Once a save
+        // has written the lines afresh, a row put back names no line the
+        // Case still has, so it goes back as a new line.
+        function restoreLines(rows, at, since) {
+            var grid = body.isConnected ? body : document.querySelector('[data-estimate-grid-body]');
+            var host = grid ? grid.closest('[data-estimate-form]') : null;
+            var spec = host ? host.querySelector('input[name="estimateId"]') : null;
+            var was = form.querySelector('input[name="estimateId"]');
+            if (!grid || !spec || (was.value && spec.value && was.value !== spec.value)) { return; }
+            if (grid !== body || since !== lineIdentities) {
+                rows.forEach(function (row) {
+                    var identity = row.querySelector('input[name="lineId"]');
+                    if (identity) { identity.value = ''; }
+                });
+            }
+            var before = (at === null ? null : grid.querySelectorAll('tr[data-estimate-line]')[at]) || grid.querySelector('tr[data-estimate-phantom]');
+            rows.forEach(function (row) { grid.insertBefore(row, before); });
+            (grid.pegasusRenumber || renumber)();
+        }
         var undoLabel = (form.querySelector('[data-estimate-delete-all]') || {}).getAttribute
             ? form.querySelector('[data-estimate-delete-all]').getAttribute('data-undo-label') || 'Undo'
             : 'Undo';
@@ -3980,12 +4214,12 @@
             if (!remove) { return; }
             event.preventDefault();
             var row = remove.closest('tr');
-            var next = row.nextSibling;
+            var at = Array.prototype.indexOf.call(body.querySelectorAll('tr[data-estimate-line]'), row);
+            var since = lineIdentities;
             row.remove();
             renumber();
             undoToast(form.getAttribute('data-line-removed-label') || 'Line removed', function () {
-                if (next && next.parentNode === body) { body.insertBefore(row, next); } else { body.appendChild(row); }
-                renumber();
+                restoreLines([row], at, since);
             });
         });
 
@@ -3999,11 +4233,11 @@
                     var rows = pendingDeleteRows;
                     pendingDeleteRows = null;
                     if (!rows) { return; }
+                    var since = lineIdentities;
                     rows.forEach(function (row) { row.remove(); });
                     renumber();
                     undoToast(rows.length + ' ' + (form.getAttribute('data-lines-removed-label') || 'lines removed'), function () {
-                        rows.forEach(function (row) { body.insertBefore(row, body.querySelector('tr[data-estimate-phantom]')); });
-                        renumber();
+                        restoreLines(rows, null, since);
                     });
                 });
             }

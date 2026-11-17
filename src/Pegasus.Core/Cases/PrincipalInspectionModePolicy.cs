@@ -3,9 +3,9 @@ namespace Pegasus.Core.Cases;
 /// <summary>
 /// The Principal-determined inspection mode (ADR-0018). Each Principal persists
 /// an inspection-mode setting; an always-image-based Principal has the exact
-/// value "Image Based Assessment" autofilled at Case creation with this
-/// policy's provenance, and staff may override it on the specific Case with an
-/// attributed reason.
+/// value "Image Based Assessment" autofilled at Inspect at and the inspection
+/// address at Case creation with this policy's provenance (R1078), and staff
+/// may change Inspect at on the specific Case as an ordinary edit (R1079).
 /// </summary>
 public static class PrincipalInspectionModePolicy
 {

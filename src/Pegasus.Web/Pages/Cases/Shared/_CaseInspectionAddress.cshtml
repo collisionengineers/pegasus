@@ -9,8 +9,8 @@
     Every control joins the record's one Save form, #case-edit-form,
     so this section never posts a second whole-record form. The address input
     is the one entry for `inspectionAddress`; site.js's Inspect-at block fills it
-    from the Inspect-at choice and drives the Overview form's hidden
-    `inspectionMode`.
+    from the Inspect-at choice. Every Case's Inspection type is Image Based
+    Assessment (R1078): the cell states it and nothing posts it.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using System.Globalization
@@ -32,7 +32,6 @@
     // member of staff records something else.
     var principalDefault = new[] { address?.Confirmed, address?.Fact, address?.Suggestion }
         .FirstOrDefault(value => value?.Source.Kind == CaseDataSourceKind.PrincipalSetting);
-    var mode = data?.Inspection.Mode.Current;
     var inspectionDateValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Inspection.InspectionDate);
     var inspectionDate = inspectionDateValue?.Value;
     var storage = data?.Inspection.StorageLocation?.Current;
@@ -46,10 +45,9 @@
         && string.Equals(choice.Address, recorded.Value, StringComparison.OrdinalIgnoreCase))
         ?? choices.FirstOrDefault(choice => choice.Kind == InspectionAddressChoiceKind.ManualEntry);
     // One row per fact: the Principal's default only where the Case does not
-    // already hold it. The mode reads once, in Inspection type.
+    // already hold it.
     var showPrincipalDefault = principalDefault is not null
         && !string.Equals(principalDefault.Value, recorded?.Value, StringComparison.OrdinalIgnoreCase);
-    var modeLabel = mode is null ? null : OperatorLabels.InspectionMode(mode.Value);
 
     string Value(string? text) => string.IsNullOrWhiteSpace(text) ? OperatorLabels.CaseWorkspace.AbsentValue : text;
     string ValueClass(string? text) => string.IsNullOrWhiteSpace(text) ? "fv empty" : "fv";
@@ -81,9 +79,9 @@
     </div>
     <div class="panel-body stack">
         <div class="fg g4">
-            <div class="fc ro" data-inspection-type data-field="@Pegasus.Core.Cases.CaseDataFieldNames.InspectionMode">
+            <div class="fc ro" data-inspection-type>
                 <span class="lbl">@InspectionLabels.InspectionType</span>
-                <div class="@ValueClass(modeLabel)">@Value(modeLabel)</div>
+                <div class="fv">@OperatorLabels.CaseWorkspace.ImageBasedAssessment</div>
             </div>
             <div class="fc @Ro(mayEdit)" data-field="@Pegasus.Core.Cases.CaseDataFieldNames.InspectionDate">
                 @{ Lbl("f-inspection-date", InspectionLabels.InspectionDate, OperatorLabels.SourceTag(inspectionDateValue?.Source)); }

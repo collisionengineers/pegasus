@@ -1,5 +1,6 @@
 using Pegasus.Core.Cases;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -161,6 +162,65 @@ public sealed class CaseEstimateDocumentWebTests
         Assert.Equal(0, renderer.Calls);
     }
 
+    /// <summary>
+    /// The estimate document names the vehicle by its make and model, and
+    /// falls back to the instruction's own description only where staff
+    /// emptied neither box: the description would bring back what they
+    /// cleared (R1077, R1121).
+    /// </summary>
+    [Theory]
+    [InlineData(false, "FORD FOCUS 1.6")]
+    [InlineData(true, "—")]
+    public async Task TheEstimateVehicleFallsBackToTheInstructionOnlyWhereNoBoxWasEmptied(
+        bool makeEmptied,
+        string printed)
+    {
+        var caseId = Guid.NewGuid();
+        var estimateId = Guid.NewGuid();
+        var workspace = AssessmentWorkspaceTestData.Create(
+            AssessmentReportDraftWebTests.FullAssessmentProjection(caseId));
+        workspace = workspace with
+        {
+            Data = workspace.Data with
+            {
+                Vehicle = workspace.Data.Vehicle with
+                {
+                    Make = new CaseField<string>(null, null, null) { Cleared = makeEmptied },
+                    Description = new CaseField<string>(
+                        new CaseDataValue<string>(
+                            "FORD FOCUS 1.6",
+                            CaseDataValueKind.Fact,
+                            new CaseDataSource(
+                                CaseDataSourceKind.IntakeEvidence,
+                                "instruction.pdf",
+                                "page 1",
+                                "extraction",
+                                1)),
+                        null,
+                        null)
+                }
+            }
+        };
+        var controlled = new ControlledEstimateWorkspace(workspace);
+        var renderer = new CapturingEstimateDocumentRenderer();
+        var useCase = new RenderCaseEstimateDocument(
+            controlled,
+            controlled,
+            new ControlledEstimateStore(AssessmentReportDraftWebTests.CurrentEstimate() with
+            {
+                SpecificationId = estimateId,
+                CaseId = caseId,
+            }),
+            renderer,
+            TimeProvider.System);
+
+        var result = await useCase.ExecuteAsync(
+            caseId, estimateId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]));
+
+        Assert.Equal(RenderCaseEstimateDocumentOutcome.Rendered, result.Outcome);
+        Assert.Equal(printed, renderer.Snapshot?.VehicleDescription);
+    }
+
     private sealed class StubEstimateDocumentUseCase(RenderCaseEstimateDocumentResult result)
         : IRenderCaseEstimateDocument
     {
@@ -292,6 +352,27 @@ public sealed class CaseEstimateDocumentWebTests
             int fetchCount,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class CapturingEstimateDocumentRenderer : IEstimateDocumentRenderer
+    {
+        public string EngineVersion => "test/1";
+        public EstimateDocumentSnapshot? Snapshot { get; private set; }
+
+        public Task<RenderedReportArtifact> RenderAsync(
+            EstimateDocumentSnapshot snapshot,
+            CancellationToken cancellationToken = default)
+        {
+            Snapshot = snapshot;
+            var pdf = "%PDF-estimate"u8.ToArray();
+            return Task.FromResult(new RenderedReportArtifact(
+                "estimate.pdf",
+                pdf,
+                1,
+                Convert.ToHexStringLower(SHA256.HashData(pdf)),
+                EstimateDocumentContract.TemplateVersion,
+                EngineVersion));
+        }
     }
 
     private sealed class RecordingEstimateDocumentRenderer : IEstimateDocumentRenderer

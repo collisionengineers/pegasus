@@ -840,6 +840,73 @@ internal sealed class EfVehicleLookupWorkStore(
     }
 
     /// <summary>
+    /// The Case-data fields system work filled since <paramref name="sinceVersion"/>
+    /// (<see cref="CaseWorkspacePolicy.KeepSystemCaseDataFills"/>): a lookup's
+    /// own facts, named by its observation among <paramref name="fields"/>; the
+    /// fields a capture document or a photo link named as filled; and the
+    /// mileage an original report filled when it was recorded, named by the
+    /// report's version among <paramref name="fields"/>
+    /// (<see cref="OriginalReportPrefillWriter.FillMileage"/>).
+    /// </summary>
+    internal static async Task<IReadOnlySet<string>> FilledCaseDataSinceAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        long sinceVersion,
+        IReadOnlyList<CaseDataFieldEntity> fields,
+        CancellationToken cancellationToken)
+    {
+        var outcomes = await context.CaseWorkflowEvents.AsNoTracking()
+            .Where(item => item.CaseId == caseId
+                && item.AfterVersion > sinceVersion
+                && (item.EventType.StartsWith("vehicle_lookup_")
+                    || item.EventType == EfVehicleCaptureFill.EventType
+                    || item.EventType == EfPhotoCaptureCaseWriter.FilledEventType
+                    || item.EventType == EfDocumentCustodyStore.OriginalReportRecordedEventKind)
+                && item.ResultJson != null)
+            .Select(item => item.ResultJson!)
+            .ToListAsync(cancellationToken);
+        var filled = new HashSet<string>(StringComparer.Ordinal);
+        var reportOccurrenceIds = new List<Guid>();
+        foreach (var json in outcomes)
+        {
+            var history = JsonSerializer.Deserialize<FilledCaseDataHistory>(json, JsonOptions);
+            if (history?.ObservationId is { } observationId)
+            {
+                var identity = observationId.ToString("D");
+                filled.UnionWith(fields
+                    .Where(field => field.ValueKind == CaseDataCodes.Fact
+                        && field.SourceKind == CaseDataCodes.VehicleLookup
+                        && field.SourceIdentity == identity)
+                    .Select(field => field.FieldName));
+            }
+
+            if (history?.DocumentOccurrenceId is { } occurrenceId)
+            {
+                reportOccurrenceIds.Add(occurrenceId);
+            }
+
+            filled.UnionWith(history?.Facts ?? []);
+        }
+
+        if (reportOccurrenceIds.Count > 0)
+        {
+            var reportVersions = (await context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                    .Where(item => reportOccurrenceIds.Contains(item.Id))
+                    .Select(item => item.VersionId)
+                    .ToListAsync(cancellationToken))
+                .Select(versionId => versionId.ToString("D"))
+                .ToHashSet(StringComparer.Ordinal);
+            filled.UnionWith(fields
+                .Where(field => field.ValueKind == CaseDataCodes.Fact
+                    && field.PolicyKey == OriginalReportPrefillPolicy.MileagePolicyKey
+                    && reportVersions.Contains(field.SourceIdentity))
+                .Select(field => field.FieldName));
+        }
+
+        return filled;
+    }
+
+    /// <summary>
     /// One lookup outcome's history. <see cref="Filled"/> is each assessment
     /// value the outcome changed, with its value before.
     /// </summary>
@@ -853,4 +920,15 @@ internal sealed class EfVehicleLookupWorkStore(
 
     /// <summary>What <see cref="FilledSinceAsync"/> reads of a filling event's history.</summary>
     private sealed record FilledHistory(IReadOnlyDictionary<string, string?>? Filled);
+
+    /// <summary>
+    /// What <see cref="FilledCaseDataSinceAsync"/> reads of a filling event's
+    /// history: a lookup's observation, the Case-data fields a capture
+    /// document or a photo link filled, or the original report recorded
+    /// (<see cref="Pegasus.Core.Documents.OriginalReportRecorded"/>).
+    /// </summary>
+    private sealed record FilledCaseDataHistory(
+        Guid? ObservationId,
+        IReadOnlyList<string>? Facts,
+        Guid? DocumentOccurrenceId);
 }

@@ -327,7 +327,7 @@ internal static partial class CaseWebTestSupport
                     "recorded-engineer", _now)],
              .. AssessmentFields.Select(field => new AssessmentFieldValue(
                  field.Key, field.Value, ActorKind.Staff, "recorded-engineer", _now))],
-            [], new("AB12CDE", null, null, null, null, null, "tbc", null, DateOnly.FromDateTime(_now.UtcDateTime), null, null,
+            [], new("AB12CDE", null, null, null, null, null, "tbc", null, DateOnly.FromDateTime(_now.UtcDateTime), null,
                 null, "Case claimant", "CLM-42"));
 
         Task<AssessmentAccessState?> IGetAssessmentAccess.ExecuteAsync(

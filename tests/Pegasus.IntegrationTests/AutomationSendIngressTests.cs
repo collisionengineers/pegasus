@@ -348,6 +348,94 @@ public sealed class AutomationSendIngressTests
     }
 
     /// <summary>
+    /// A report send whose provider answer is ambiguous answers its Unknown
+    /// operation and the file names the e-mail carries, as a returned Unknown
+    /// does, never "The automation action failed." (R1123).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AReportSendWithAnUnknownOutcomeAnswersItsUnknownOperation(bool timedOut)
+    {
+        var sends = new RecordingReportSend { ProviderFault = AmbiguousProviderAnswer(timedOut) };
+        var generationId = Guid.NewGuid();
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ISendCaseReport>();
+                services.AddSingleton<ISendCaseReport>(sends);
+                WithCurrentGeneration(services, generationId);
+            }));
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, SendScopes);
+        await EnsureInReviewAsync(mcpFactory, client, token, caseId);
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+
+        using var sent = await PostMcpAsync(client, token, ToolCallPayload(14, "pegasus_report_send", new
+        {
+            caseId,
+            expectedVersion = version,
+            operationKey = "mcp:report-send-unknown",
+            coveringMessage = "Please find our report attached.",
+            attach = NoCompanion,
+        }));
+        var result = await ReadStructuredContentAsync(sent);
+
+        Assert.Single(sends.Requests);
+        Assert.Equal(nameof(StaffMailState.Unknown), result.GetProperty("state").GetString());
+        Assert.Equal(
+            SentFileNames,
+            result.GetProperty("attachments").EnumerateArray().Select(name => name.GetString()!).ToArray());
+    }
+
+    /// <summary>
+    /// A mail send whose provider answer is ambiguous answers its Unknown
+    /// operation, as a returned Unknown does, and is recorded as a call that
+    /// succeeded, never "The automation action failed." (R1123).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AMailSendWithAnUnknownOutcomeAnswersItsUnknownOperation(bool timedOut)
+    {
+        var mail = new RecordingMailSend { ProviderFault = AmbiguousProviderAnswer(timedOut) };
+        var mailbox = OutgoingMailbox();
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithMailSend(factory, mail, mailbox);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, SendScopes);
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+
+        using var sent = await PostMcpAsync(client, token, ToolCallPayload(27, "pegasus_mail_send", new
+        {
+            mode = "chaser",
+            caseId,
+            expectedVersion = version,
+            subject = "Images",
+            body = "Please send the images.",
+            operationKey = "mcp:mail-unknown",
+            to = Handler,
+            fromMailbox = mailbox.Address,
+        }));
+        var result = await ReadStructuredContentAsync(sent);
+
+        Assert.Single(mail.Commands);
+        Assert.Equal(nameof(StaffMailState.Unknown), result.GetProperty("state").GetString());
+        Assert.Equal("provider_outcome_unknown", result.GetProperty("failureCode").GetString());
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE AggregateType = N'automation_mcp'
+              AND EventKind = N'pegasus_mail_send'
+              AND AggregateId = N'{caseId:D}'
+              AND Outcome = N'Succeeded'
+            """));
+    }
+
+    /// <summary>
     /// mode chaser is the Case's Send chaser (operator, 12 October 2026): a
     /// Case with no instruction e-mail to reply to sends a new message from
     /// the Outgoing mailbox fromMailbox names, recorded as the Case's chaser.
@@ -1005,11 +1093,19 @@ public sealed class AutomationSendIngressTests
         /// <summary>The refused AI-job confirm a send that names a job returns.</summary>
         public AiJobConfirmRefusal? NextAiJobRefusal { get; init; }
 
+        /// <summary>When set, the send is recorded Unknown and throws as the engine does on an ambiguous provider answer.</summary>
+        public Exception? ProviderFault { get; init; }
+
         public Task<StaffMailOperation> SendAsync(StaffMailSendCommand command, CancellationToken cancellationToken)
         {
             lock (commands)
             {
                 commands.Add(command);
+            }
+            if (ProviderFault is { } fault)
+            {
+                throw new StaffMailOutcomeUnknownException(
+                    RecordedUnknown(Submitted(command.Purpose, command.ContextId, command.ApprovedMailboxId)), fault);
             }
             return Task.FromResult(Submitted(command.Purpose, command.ContextId, command.ApprovedMailboxId) with
             {
@@ -1044,11 +1140,26 @@ public sealed class AutomationSendIngressTests
             }
         }
 
+        /// <summary>
+        /// When set, the send is recorded Unknown and throws as the report send
+        /// does on an ambiguous provider answer, carrying the names it sends.
+        /// </summary>
+        public Exception? ProviderFault { get; init; }
+
         public Task<StaffMailOperation> ExecuteAsync(SendCaseReportRequest request, CancellationToken cancellationToken)
         {
             lock (requests)
             {
                 requests.Add(request);
+            }
+            if (ProviderFault is { } fault)
+            {
+                throw new StaffMailOutcomeUnknownException(
+                    RecordedUnknown(Submitted(StaffMailPurpose.CaseReport, request.GenerationId, Guid.NewGuid())) with
+                    {
+                        AttachmentFileNames = SentFileNames
+                    },
+                    fault);
             }
             return Task.FromResult(Submitted(StaffMailPurpose.CaseReport, request.GenerationId, Guid.NewGuid()) with
             {
@@ -1106,4 +1217,18 @@ public sealed class AutomationSendIngressTests
         Guid.NewGuid(), StaffMailState.Submitted, StaffMailAttemptStage.ObserveSent, 5, SeedUtcNow,
         SeedUtcNow, null, null, mailboxId, 3, new string('A', 64), SeedUtcNow, null,
         purpose, contextId, 1, null);
+
+    /// <summary>The operation as the engine records it when the provider's answer is ambiguous.</summary>
+    private static StaffMailOperation RecordedUnknown(StaffMailOperation operation) => operation with
+    {
+        State = StaffMailState.Unknown,
+        AttemptStage = StaffMailAttemptStage.Send,
+        SubmittedAtUtc = null,
+        FailureCode = "provider_outcome_unknown"
+    };
+
+    /// <summary>What Graph answers that leaves a send's outcome unknown: a 503, or no answer in time.</summary>
+    private static Exception AmbiguousProviderAnswer(bool timedOut) => timedOut
+        ? new TaskCanceledException("The request timed out.", new TimeoutException())
+        : new HttpRequestException("Microsoft Graph returned 503.", null, HttpStatusCode.ServiceUnavailable);
 }

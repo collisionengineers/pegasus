@@ -472,7 +472,9 @@ public sealed record AssessmentCaseOwnedData(
     // Case. The report prints it as the date instructions were received
     // (operator, 24 September 2026); every Case has one.
     DateOnly ReceivedDate,
-    string? InspectionMode,
+    // What Inspect at holds: a place, or the words Image Based Assessment.
+    // Every Case's inspection type is Image Based Assessment (R1078), so no
+    // type travels with it.
     string? InspectionAddress,
     // Appended, never inserted. The Inspection date is the date the report
     // says the damage was assessed (#834); the claimant's name and the

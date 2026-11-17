@@ -132,8 +132,10 @@ clears it, each with the requirement as its link, its source and why it is
 outstanding; the link is what clears it (9 October 2026)
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
 Original report missing links to Files, where Mark as original report is;
-**Vehicle mileage incomplete** links to Vehicle, where the Mileage box is
-([R759](../rulings.md)); the other Case requirements link to Case details. The card is headed
+**Vehicle registration incomplete** and **Vehicle mileage incomplete** link
+to Vehicle, where the Registration and Mileage boxes are
+([R1081](../rulings.md), [R759](../rulings.md)); the other Case requirements
+link to Case details. The card is headed
 **Outstanding requirements** when no blocker remains.
 Where a tab inside that section clears it, the link opens that tab too
 (operator, 1 October 2026): a missing Overview or report image
@@ -149,9 +151,10 @@ The rows run in page order (operator, 2 October 2026): section by section
 from the top, then by where the field that clears each sits within its
 section, so working down the list moves down the page; a blocker no Case
 section clears comes last, under Accounts where it opens Accounts. The
-Cases list's Current work names the same first row, except Vehicle mileage
-incomplete: the list row carries no mileage, so a Case waiting only for its
-mileage reads Not ready there ([R759](../rulings.md)).
+Cases list's Current work names the same first row, except Vehicle
+registration incomplete and Vehicle mileage incomplete, which only the Not
+ready queue reads ([R759](../rulings.md), [R929](../rulings.md),
+[R1081](../rulings.md)).
 The card shows beside every section; a long list scrolls
 within the aside rather than pushing the sections down.
 When a newer fact has made the current generation stale, the Next action
@@ -249,7 +252,12 @@ version, the lease and the key the next save sends, and the Files section
 when a crop or rotation was recorded. A save that ends editing redirects to
 the page, as every other command does. A refusal refuses the whole save, keeps
 every typed value in its box, says why in the ribbon's status word and as a
-notice, and the next change tries again. A decision's partner field (the
+notice, and the next change tries again. A save refused for one field's
+value says which: the notice is Core's own sentence for the value, with the
+field's label in front when the sentence names no field ("Claim number: The
+value cannot exceed 100 characters."), and a value the server cannot read
+into its box reads "Mileage is invalid." (operator, 17 November 2026,
+[R1118](../rulings.md)). A decision's partner field (the
 salvage category and value of a total loss, the reason a vehicle is
 unroadworthy, the agreed sum of a contract repair) is a readiness item, never
 a save refusal, so each field saves as it is left (operator, 6 October 2026).
@@ -262,7 +270,13 @@ nothing is in flight; after a save that landed it catches up once nothing
 waits on the queue either. It reads the Case again and draws afresh the
 ribbon, the notices, the aside, the dialogs (unless one is open) and each
 section that holds no value not yet sent and no open dialog, keeping the
-place, the focused control and what is typed in it. A section holding a value not yet sent stays as the
+place, the focused control and what is typed in it. A redraw the operator
+did not ask for (a save's answer or a catch up) also keeps the menus that are
+open, the scroll of the aside and of its Report not ready list, and a guide
+card's notice, its retail sentence and the calculation's failure or refusal
+until the card is acted on again or the Case supersedes it: the card is drawn
+holding other figures, or a calculation is worked out or recorded (operator,
+17 November 2026, [R1125](../rulings.md)). A section holding a value not yet sent stays as the
 operator has it. When a colleague now holds the Case, every section stays as
 it is, so what the operator typed remains to copy. The ribbon has **Done**, which ends editing and releases
 the lease; there is no Save and no Cancel, because nothing is unsaved: a
@@ -567,9 +581,9 @@ Inspection shows the recorded inspect-at value with its fast-update choice:
 Image Based Assessment, Claimant address, Repairer location, Storage
 location, the Principal's reviewed locations, previous addresses used for
 this principal, Manual entry. An option
-without a value is disabled. Reading and editing show one row per fact
-not already implied by the row above it: Inspection type (the mode, read
-once), Inspection date (the date the report says the damage was assessed,
+without a value is left out ([R1117](../rulings.md)). Reading and editing show one row per fact
+not already implied by the row above it: Inspection type (Image Based
+Assessment on every Case, [R1078](../rulings.md)), Inspection date (the date the report says the damage was assessed,
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)),
 Inspect at, the recorded address or `Image Based Assessment` with its
 source tag, Principal default only when it differs from the recorded value,
@@ -583,7 +597,13 @@ November 2026; [R1015](../rulings.md), [R1016](../rulings.md);
 ### Vehicle
 
 Vehicle shows registration, make, model, year, and one mileage with its
-editable unit, each with its source tag (a staff value untagged). VIN,
+editable unit, each with its source tag (a staff value untagged). A mileage
+with no stated unit is in miles: the page shows Miles, reading and editing,
+and records it as the default, not as a staff choice; only a change of unit
+is recorded as staff's (operator, 16 November 2026, [R1080](../rulings.md)).
+A unit chosen before a mileage is typed saves nothing and stays as chosen
+until the mileage is typed, when both are saved together (operator, 17
+November 2026, [R1119](../rulings.md)). VIN,
 Vehicle type and Body type follow, edited in place like the registration. The
 facts only the DVLA/DVSA lookup records (engine, fuel, colour, tax and MOT
 expiry) are always drawn, read-only with the Lookup tag, and read Not
@@ -599,7 +619,9 @@ Registered (operator, 2 November 2026; R598). One **Look up DVLA & MOT** action
 (`EXT-01`) fills an empty Make, Model, Year or Mileage and a Vehicle type
 that neither staff nor the Automation Actor has recorded, and records the
 lookup's own facts. It never overwrites an extracted, staff-entered or
-Automation-recorded value. There is no checks panel and
+Automation-recorded value, and a box staff emptied is not filled
+([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds),
+[R1077](../rulings.md)). There is no checks panel and
 no suggestion table. The Experian seam is stated once, on the Vehicle history
 area (v36 item K, 9 October 2026); the section head carries no pill. The
 Vehicle history area holds the history-check narrative as read-only text,

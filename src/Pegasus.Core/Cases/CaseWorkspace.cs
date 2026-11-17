@@ -30,6 +30,14 @@ public enum CaseOdometerUnit
     Kilometres
 }
 
+/// <summary>What a save records for a reading's unit (<see cref="CaseOdometer.UnitWrite"/>).</summary>
+public enum CaseOdometerUnitWrite
+{
+    Nothing,
+    RemoveStaffValue,
+    RecordStaffValue
+}
+
 /// <summary>
 /// The one owner of odometer units and their conversion. The recorded original
 /// value and unit are never rewritten: a display in the other unit is computed
@@ -46,6 +54,39 @@ public static class CaseOdometer
         CaseOdometerUnit.Kilometres => "kilometres",
         _ => throw new ArgumentOutOfRangeException(nameof(unit), "The odometer unit is invalid.")
     };
+
+    /// <summary>
+    /// The unit a recorded reading is in, as a save writes it. A reading with
+    /// no stated unit is in miles (R1080); no reading has no unit; a stated
+    /// unit that cannot be read stays as stated.
+    /// </summary>
+    public static string? UnitOf(long? reading, string? statedUnit) =>
+        reading is null
+            ? null
+            : string.IsNullOrWhiteSpace(statedUnit)
+                ? Format(CaseOdometerUnit.Miles)
+                : TryParseUnit(statedUnit, out var unit) ? Format(unit) : statedUnit;
+
+    /// <summary>
+    /// What a save records for a reading's unit (R1080). Miles for a reading
+    /// with no stated unit is the default and never staff's choice, so the
+    /// unit already standing records nothing, however it is spelt; a unit
+    /// that returns to the one standing without staff's value removes that
+    /// value; any other is staff's. <paramref name="unit"/> is as
+    /// <see cref="Format"/> writes it.
+    /// </summary>
+    public static CaseOdometerUnitWrite UnitWrite(string? accepted, string? withoutStaff, string unit)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(unit);
+        if (UnitOf(0, accepted) == unit)
+        {
+            return CaseOdometerUnitWrite.Nothing;
+        }
+
+        return UnitOf(0, withoutStaff) == unit
+            ? CaseOdometerUnitWrite.RemoveStaffValue
+            : CaseOdometerUnitWrite.RecordStaffValue;
+    }
 
     public static bool TryParseUnit(string? value, out CaseOdometerUnit unit)
     {
@@ -945,6 +986,68 @@ public static class CaseWorkspacePolicy
             }
 
             kept.Remove(path);
+        }
+
+        return kept;
+    }
+
+    /// <summary>
+    /// The same reconciliation for the Case's own values (R1077). An emptied
+    /// box records that staff cleared it, but a box the page showed empty
+    /// before system work filled it posts empty too, and that is not staff
+    /// emptying it: the fill stands. A value staff typed is theirs, as on any
+    /// save. <paramref name="filledFieldNames"/> names each Case-data field
+    /// system work filled since the page's version; <paramref name="persisted"/>
+    /// is the Case's values as they stand.
+    /// </summary>
+    public static CaseEditableData KeepSystemCaseDataFills(
+        CaseEditableData requested,
+        CaseEditableData persisted,
+        IReadOnlySet<string> filledFieldNames)
+    {
+        ArgumentNullException.ThrowIfNull(requested);
+        ArgumentNullException.ThrowIfNull(persisted);
+        ArgumentNullException.ThrowIfNull(filledFieldNames);
+        bool Kept(string fieldName, object? posted) =>
+            posted is null && filledFieldNames.Contains(fieldName);
+
+        var kept = requested;
+        if (Kept(CaseDataFieldNames.VehicleRegistration, kept.VehicleRegistration))
+        {
+            kept = kept with { VehicleRegistration = persisted.VehicleRegistration };
+        }
+        if (Kept(CaseDataFieldNames.VehicleMake, kept.VehicleMake))
+        {
+            kept = kept with { VehicleMake = persisted.VehicleMake };
+        }
+        if (Kept(CaseDataFieldNames.VehicleModel, kept.VehicleModel))
+        {
+            kept = kept with { VehicleModel = persisted.VehicleModel };
+        }
+        if (Kept(CaseDataFieldNames.VehicleYear, kept.VehicleYear))
+        {
+            kept = kept with { VehicleYear = persisted.VehicleYear };
+        }
+        // The reading's unit was filled with it.
+        if (Kept(CaseDataFieldNames.VehicleMileage, kept.VehicleMileage))
+        {
+            kept = kept with
+            {
+                VehicleMileage = persisted.VehicleMileage,
+                VehicleMileageUnit = persisted.VehicleMileageUnit
+            };
+        }
+        if (Kept(CaseDataFieldNames.ClaimantName, kept.ClaimantName))
+        {
+            kept = kept with { ClaimantName = persisted.ClaimantName };
+        }
+        if (Kept(CaseDataFieldNames.ClaimantContactNumber, kept.ClaimantContactNumber))
+        {
+            kept = kept with { ClaimantContactNumber = persisted.ClaimantContactNumber };
+        }
+        if (Kept(CaseDataFieldNames.IncidentDate, kept.IncidentDate))
+        {
+            kept = kept with { IncidentDate = persisted.IncidentDate };
         }
 
         return kept;

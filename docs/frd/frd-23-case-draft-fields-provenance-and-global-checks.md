@@ -8,6 +8,8 @@
   the same as confirming the value.
 - A value is a Fact, a Suggestion, or Confirmed. A Confirmed value wins for
   current use, and the earlier value stays in history.
+- An emptied box records that staff cleared it: the earlier value is no
+  longer shown or used, and staff retype a value to bring one back (R1077).
 - Mileage evidence has a fixed order. DVSA runs for every Case, fills the
   mileage only when nothing better exists.
 - The instruction field table says what each captured field means.
@@ -55,10 +57,29 @@ replacement Case
 A Confirmed value supersedes an earlier Fact or Suggestion for current use
 without erasing it from history.
 
+**Emptied box.** Emptying a box whose value was extracted, looked up or
+filled records that staff cleared it: a Confirmed value that is empty, under
+their name and time. The box stays empty, and the earlier value is no longer
+shown or used anywhere the Case's value is read: on the Case, in the report,
+the Case export, lists, readiness, linking mail to the Case by its
+registration, the Recent cases search and the estimate document's vehicle
+description, which falls back to the instruction's own description only
+where staff emptied neither make nor model. The earlier value stays in
+history. Staff retype a value to bring one back; no later fill does, a
+vehicle lookup, a photo link, an original report or a capture document
+included. Emptying a value only staff had entered removes it. A box still
+showing what it held before a fill landed is not one staff emptied, so the
+fill stands ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Due
+by is staff's override of the inspection deadline and is not covered:
+emptying it shows the deadline again
+(operator, 16 November 2026, [R1077](../rulings.md); 17 November 2026,
+[R1120](../rulings.md), [R1121](../rulings.md)).
+
 **Photo link details.** When a photo link's capture settles on a Case, the
 claimant name, contact number, accident date and mileage its sender typed
 fill the Case's empty fields as Facts with source kind Photo link, tagged
-**Photo link**. A value already on the Case is never overwritten, except a
+**Photo link**; a box staff emptied is not filled
+([R1077](../rulings.md)). A value already on the Case is never overwritten, except a
 DVSA mileage estimate
 ([below](#vehicle-details-and-mileage-evidence)), and the
 registration is never written. The typed inspection location is not
@@ -158,6 +179,9 @@ print it.
 - A datum's value kind is Fact, Suggestion, or Confirmed. A Confirmed value
   supersedes an earlier Fact or Suggestion for current use without erasing
   it from history.
+- Emptying a box over an earlier value records an empty Confirmed value: the
+  field has no value until staff retype one, and no fill sets one (R1077).
+  Emptying a value only staff had entered removes it.
 - The Case states are owned by
   [FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels).
 

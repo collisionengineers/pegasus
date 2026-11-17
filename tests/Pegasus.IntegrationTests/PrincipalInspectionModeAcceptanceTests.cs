@@ -191,7 +191,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
             CaseType.Inspection,
             "QDOS",
             new(true, true),
-            CaseCompletenessPolicy.Evaluate(new(true, true), configuration, mileageRecorded: true),
+            CaseCompletenessPolicy.Evaluate(new(true, true), configuration, CaseVehicleGate.Open),
             configuration,
             CaseInspectionMode.PhysicalAddress,
             AcceptedInspectionDeadline: FixtureInspectionDate);
@@ -206,7 +206,9 @@ public sealed class PrincipalInspectionModeAcceptanceTests
     private static CaseWorkspaceInspection Inspection(
         CaseReportAddressTreatment treatment,
         string address) =>
-        new(treatment, address, null, null, null, FixtureInspectionDate, null, null, null, null, null);
+        // The extracted inspection date as the page shows it: an emptied box
+        // would record a clear (R1077).
+        new(treatment, address, null, null, FixtureInspectionDate, FixtureInspectionDate, null, null, null, null, null);
 
     private sealed class Harness : IAsyncDisposable
     {

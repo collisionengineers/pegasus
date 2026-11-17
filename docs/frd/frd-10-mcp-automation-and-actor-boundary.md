@@ -734,7 +734,10 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-27.
   needs is refused before any lease is claimed.
 - Recording report approval sends nothing and claims nothing was sent.
 - A send is Submitted, not Sent, until its Sent item is observed; an Unknown
-  send is never resent, its operation key is replayed.
+  send is never resent, its operation key is replayed. A send whose provider
+  answer is ambiguous (a server error, `408`, `429` or a timeout) answers its
+  Unknown operation as a replay does, not a failed call (operator, 17 November
+  2026; [R1123](../rulings.md)).
 - A `pegasus_report_send` whose `attachmentNames` names one document kind
   twice is refused.
 - A photo link act the link's page does not offer (extend on a cancelled

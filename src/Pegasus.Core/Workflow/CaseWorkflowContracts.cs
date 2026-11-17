@@ -148,13 +148,20 @@ public sealed record CaseWorkflowConfiguration(
     /// </summary>
     public const string VehicleMileageRequirement = "Vehicle mileage";
 
+    /// <summary>
+    /// The Case requirement a Not ready Case with no registration names, and
+    /// which holds it there even when its mileage is recorded (operator,
+    /// 16 November 2026; R1081).
+    /// </summary>
+    public const string VehicleRegistrationRequirement = "Vehicle registration";
+
     /// <param name="facts">The Case's stored instruction and image facts.</param>
-    /// <param name="mileageRecorded">
-    /// Whether the mileage gate is open (<see cref="CaseCompletenessPolicy.MileageGateOpen"/>).
-    /// It is not configuration: no mileage keeps a Case Not ready whatever
-    /// the required items are (R759).
+    /// <param name="vehicleGate">
+    /// The Case's vehicle gate (<see cref="CaseCompletenessPolicy.VehicleGate"/>).
+    /// It is not configuration: no registration or no mileage keeps a Case
+    /// Not ready whatever the required items are (R759, R1081).
     /// </param>
-    public IReadOnlyList<string> MissingRequirements(CaseCompleteness facts, bool mileageRecorded)
+    public IReadOnlyList<string> MissingRequirements(CaseCompleteness facts, CaseVehicleGate vehicleGate)
     {
         ArgumentNullException.ThrowIfNull(facts);
         List<string> missing = [];
@@ -162,11 +169,13 @@ public sealed record CaseWorkflowConfiguration(
         {
             missing.Add("Instructions");
         }
-        else if (!mileageRecorded)
+        else
         {
             // While the instruction is incomplete its row already names the
-            // mileage among its missing items.
-            missing.Add(VehicleMileageRequirement);
+            // registration and the mileage among its missing items. They are
+            // named in the order they are asked for.
+            if (!vehicleGate.RegistrationRecorded) missing.Add(VehicleRegistrationRequirement);
+            if (!vehicleGate.MileageRecorded) missing.Add(VehicleMileageRequirement);
         }
         if (RequireImages && !facts.ImagesComplete) missing.Add("Images");
         return missing;

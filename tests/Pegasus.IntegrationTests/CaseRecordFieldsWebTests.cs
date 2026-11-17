@@ -829,7 +829,7 @@ public sealed class CaseRecordFieldsWebTests
             GetAssessmentWorkspaceQuery query, CancellationToken cancellationToken) =>
             Task.FromResult<AssessmentWorkspace?>(AssessmentWorkspaceTestData.Create(new CaseAssessmentProjection(
                 store.CaseId, "QDOS3100042", store.CaseVersion, store.State, null, [.. Fields], [],
-                new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null))));
+                new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null))));
 
         Task<AssessmentAccessState?> IGetAssessmentAccess.ExecuteAsync(
             GetAssessmentAccessQuery query, CancellationToken cancellationToken) =>
@@ -878,8 +878,10 @@ public sealed class CaseRecordFieldsWebTests
         // The Principal's default is its own cell only where the Case holds
         // something else; here the Case holds a physical address of its own.
         Assert.Contains("data-inspection-principal-default hidden", panel, StringComparison.Ordinal);
-        // The mode reads once, in Inspection type.
-        Assert.Contains("Physical address", panel, StringComparison.Ordinal);
+        // Every Case's Inspection type is Image Based Assessment, a place at
+        // Inspect at included (R1078).
+        Assert.Contains("Image Based Assessment", InspectionTypeCell(panel), StringComparison.Ordinal);
+        Assert.DoesNotContain("Physical address", panel, StringComparison.Ordinal);
         Assert.DoesNotContain("status--navy", AddressCell(panel), StringComparison.Ordinal);
 
         // The Principal's own setting, recorded on the Case unchanged: the
@@ -889,6 +891,7 @@ public sealed class CaseRecordFieldsWebTests
         imageBased.DataOverride = await InspectionOverrideAsync(imageBased, null);
         var imagePanel = InspectionPanel(await ReadCaseAsync(imageBased));
         var addressCell = AddressCell(imagePanel);
+        Assert.Contains("Image Based Assessment", InspectionTypeCell(imagePanel), StringComparison.Ordinal);
         Assert.Equal(1, Occurrences(addressCell, "Image Based Assessment"));
         Assert.Contains("data-provenance-word=\"Principal\"", addressCell, StringComparison.Ordinal);
         Assert.DoesNotContain("status--navy", addressCell, StringComparison.Ordinal);
@@ -904,6 +907,14 @@ public sealed class CaseRecordFieldsWebTests
         Assert.Contains("Principal default", correctedPanel, StringComparison.Ordinal);
         Assert.Contains("9 Other Road", AddressCell(correctedPanel), StringComparison.Ordinal);
         Assert.Contains("Image Based Assessment", correctedPanel, StringComparison.Ordinal);
+    }
+
+    /// <summary>The Inspection section's read-only Inspection type cell, up to the cell after it.</summary>
+    private static string InspectionTypeCell(string panel)
+    {
+        var start = panel.IndexOf("data-inspection-type", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Inspection section must show the Inspection type.");
+        return panel[start..panel.IndexOf("data-field=", start, StringComparison.Ordinal)];
     }
 
     /// <summary>The Inspection section's recorded-address cell (v26 `[data-inspection-address]`).</summary>

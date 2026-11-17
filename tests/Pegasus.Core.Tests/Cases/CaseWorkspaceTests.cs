@@ -408,6 +408,35 @@ public sealed class CaseWorkspaceTests
     }
 
     [Fact]
+    public void AReadingWithNoStatedUnitIsInMilesAndNoReadingHasNoUnit()
+    {
+        // R1080: miles is what an unstated unit means, not a staff choice.
+        Assert.Null(CaseOdometer.UnitOf(null, null));
+        Assert.Null(CaseOdometer.UnitOf(null, "Miles"));
+        Assert.Equal("miles", CaseOdometer.UnitOf(0, null));
+        Assert.Equal("miles", CaseOdometer.UnitOf(56_104, " "));
+        Assert.Equal("miles", CaseOdometer.UnitOf(56_104, "Miles"));
+        Assert.Equal("kilometres", CaseOdometer.UnitOf(56_104, "Km"));
+        // A stated unit that cannot be read stays as stated.
+        Assert.Equal("furlongs", CaseOdometer.UnitOf(56_104, "furlongs"));
+    }
+
+    [Theory]
+    [InlineData(null, null, "miles", CaseOdometerUnitWrite.Nothing)]
+    [InlineData("Miles", "Miles", "miles", CaseOdometerUnitWrite.Nothing)]
+    [InlineData("kilometres", null, "kilometres", CaseOdometerUnitWrite.Nothing)]
+    [InlineData(null, null, "kilometres", CaseOdometerUnitWrite.RecordStaffValue)]
+    [InlineData("km", "km", "miles", CaseOdometerUnitWrite.RecordStaffValue)]
+    [InlineData("kilometres", null, "miles", CaseOdometerUnitWrite.RemoveStaffValue)]
+    [InlineData("kilometres", "Miles", "miles", CaseOdometerUnitWrite.RemoveStaffValue)]
+    [InlineData("miles", "km", "kilometres", CaseOdometerUnitWrite.RemoveStaffValue)]
+    public void OnlyAUnitThatDiffersFromTheOneStandingIsRecordedAsStaffs(
+        string? accepted, string? withoutStaff, string unit, CaseOdometerUnitWrite expected)
+    {
+        Assert.Equal(expected, CaseOdometer.UnitWrite(accepted, withoutStaff, unit));
+    }
+
+    [Fact]
     public void ZeroIsARecordedOdometerReadingNotAnAbsentOne()
     {
         Assert.Equal(0m, CaseOdometer.Display(0, CaseOdometerUnit.Miles, CaseOdometerUnit.Kilometres));

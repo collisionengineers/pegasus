@@ -61,7 +61,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "inspectionDate",
         "inspectionDeadline",
         "inspectionAddress",
-        "inspectionMode",
         "storageLocation",
         "registration",
         "make",
@@ -337,7 +336,10 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     protected const string CaseCommandRefused =
         "The case action was not applied because the case changed, edit mode was lost, or the action is not permitted.";
 
-    /// <summary>A command on the case itself; a refusal names the case as the reason.</summary>
+    /// <summary>
+    /// A command on the case itself; a refusal names the case as the reason,
+    /// unless <paramref name="refusal"/> has a sentence of its own for it.
+    /// </summary>
     protected Task<IActionResult> ExecuteCaseCommandAsync(
         Guid id,
         string editLeaseToken,
@@ -345,14 +347,18 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         Func<ActionActor, Task> execute,
         string successMessage,
         Func<Guid, RedirectToPageResult>? redirect = null,
-        bool keepEditing = false) =>
+        bool keepEditing = false,
+        Func<Exception, string?>? refusal = null) =>
         ExecuteCommandAsync(
             id,
             editLeaseToken,
             commandName,
-            execute,
-            successMessage,
-            CaseCommandRefused,
+            async actor =>
+            {
+                await execute(actor);
+                return successMessage;
+            },
+            exception => refusal?.Invoke(exception) is { Length: > 0 } named ? named : CaseCommandRefused,
             redirect,
             keepEditing);
 
