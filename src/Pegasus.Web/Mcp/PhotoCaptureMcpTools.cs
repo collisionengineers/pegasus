@@ -11,7 +11,6 @@ using Pegasus.Core.PhotoCapture;
 using Pegasus.Core.Workflow;
 using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture;
 using PhotoCaptureOptions = Pegasus.Web.PhotoCapture.PhotoCaptureOptions;
-using PhotoLinkList = Pegasus.Web.Pages.PhotoCapture.IndexModel;
 using PhotoLinkMail = Pegasus.Web.Pages.PhotoCapture.PhotoLinkMail;
 using PhotoLinkPage = Pegasus.Web.Pages.PhotoCapture.DetailsModel;
 
@@ -272,12 +271,12 @@ internal sealed class PhotoCaptureMcpTools(
                 var items = await captures.ListItemsAsync(id, cancellationToken);
                 var acts = await queries.ListHistoryAsync(id, cancellationToken);
                 var now = timeProvider.GetUtcNow();
-                var derived = PhotoLinkList.Derive(row, now);
+                var derived = PhotoCaptureRowStatus.For(row, now);
                 var capture = row.Capture;
                 var ordered = PhotoLinkPage.ReceivedInStoryOrder(items, capture);
                 var photographs = ordered.Where(item => PhotoCaptureStory.IsPhotographKind(item.Kind)).ToArray();
                 var captions = Labels.Captions(photographs);
-                var offers = PhotoLinkPage.LinkOffers.For(row, now);
+                var offers = PhotoLinkOffers.For(row, now);
                 var caseLink = capture.Origin == PhotoCaptureOrigin.CaseLink;
                 return new PhotoLinkDetailToolResult(
                     Summary(row, now),
@@ -370,31 +369,20 @@ internal sealed class PhotoCaptureMcpTools(
                     return await ActedAsync(verb, captured, resent.Replayed ? null : mail.CaptureUrl(resent.Token), resent.Replayed, key, cancellationToken);
                 }
 
-                var row = await queries.GetRowAsync(captured, cancellationToken)
-                    ?? throw new McpException("The photo link was not found.");
-                var offers = PhotoLinkPage.LinkOffers.For(row, timeProvider.GetUtcNow());
-                var offered = verb switch
-                {
-                    "extend" => offers.Extend,
-                    "cancel" => offers.Cancel,
-                    _ => offers.LogCall
-                };
-                if (!offered)
-                {
-                    throw new McpException($"{verb} is not offered on this link; pegasus_photo_link_get lists the acts it offers.");
-                }
-
+                // Core takes each act only where the link offers it, and a
+                // repeated key that already recorded it is answered as done
+                // (#2130; R1092).
                 switch (verb)
                 {
                     case "extend":
                         var extendBy = days ?? throw new McpException("extend needs days.");
-                        await FoundAsync(() => actions.ExtendAsync(actor, captured, extendBy, key, cancellationToken));
+                        await OfferedAsync(verb, () => actions.ExtendAsync(actor, captured, extendBy, key, cancellationToken));
                         break;
                     case "cancel":
-                        await FoundAsync(() => actions.RevokeAsync(actor, captured, key, cancellationToken));
+                        await OfferedAsync(verb, () => actions.RevokeAsync(actor, captured, key, cancellationToken));
                         break;
                     default:
-                        await FoundAsync(() => actions.LogCallAsync(actor, captured, key, cancellationToken));
+                        await OfferedAsync(verb, () => actions.LogCallAsync(actor, captured, key, cancellationToken));
                         break;
                 }
 
@@ -827,7 +815,7 @@ internal sealed class PhotoCaptureMcpTools(
 
     private static PhotoLinkSummary Summary(PhotoCaptureListRow source, DateTimeOffset now)
     {
-        var derived = PhotoLinkList.Derive(source, now);
+        var derived = PhotoCaptureRowStatus.For(source, now);
         var capture = source.Capture;
         return new(
             capture.Id,
@@ -877,6 +865,22 @@ internal sealed class PhotoCaptureMcpTools(
         catch (KeyNotFoundException exception)
         {
             throw new McpException(exception.Message);
+        }
+    }
+
+    /// <summary>
+    /// A Core act on a link, as <see cref="FoundAsync"/>, whose refusal of an
+    /// act the link does not offer now names the tool that lists its offers.
+    /// </summary>
+    private static async Task<T> OfferedAsync<T>(string verb, Func<Task<T>> act)
+    {
+        try
+        {
+            return await FoundAsync(act);
+        }
+        catch (PhotoCaptureRefusalException refusal) when (refusal.Code == PhotoCaptureRefusals.NotOffered)
+        {
+            throw new McpException($"{verb} is not offered on this link; pegasus_photo_link_get lists the acts it offers.");
         }
     }
 

@@ -901,10 +901,6 @@ public sealed partial class DetailsModel(
         {
             SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.NotAvailableForCase;
         }
-        else if (AssessmentIsReadOnly)
-        {
-            SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.ReadOnlyOnceComplete;
-        }
         else if (IsInspectionView)
         {
             // The AI draft lands on the current work: the Inspection view
@@ -1842,9 +1838,9 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// What every section command on the record requires before it touches
-    /// the case: an authorized actor, an assessment this command may open, a
-    /// case that is not read-only, a live form, and an edit lease unless the
-    /// command claims one for itself. Only the section the refusal lands on
+    /// the case: an authorized actor, an assessment this command may open
+    /// (never a read-only one; R1095), a live form, and an edit lease unless
+    /// the command claims one for itself. Only the section the refusal lands on
     /// differs between the Report, Valuation and Files commands, so the
     /// checks themselves are written once.
     /// </summary>
@@ -1866,15 +1862,6 @@ public sealed partial class DetailsModel(
         {
             return NotFound();
         }
-        // A command posted from the Inspection view of a Case that has its
-        // Audit acts on the Inspection's own work whatever the Case's state:
-        // the Case's read-only states are the Audit's (operator, 1 October
-        // 2026).
-        if (access.IsReadOnly && !await PostedFromInspectionViewAsync(id, cancellationToken))
-        {
-            TempData["CaseError"] = "The case is read-only once Complete.";
-            return redirect();
-        }
         if (!IsOperationKeyValid(operationKey))
         {
             TempData["CaseError"] = "The form has expired. Retry the operation.";
@@ -1888,15 +1875,6 @@ public sealed partial class DetailsModel(
 
         return null;
     }
-
-    /// <summary>
-    /// Whether a posted command names the Inspection view of a Case that has
-    /// its Audit, read from the Case's works; the view alone names nothing on
-    /// a Case with one work.
-    /// </summary>
-    private async Task<bool> PostedFromInspectionViewAsync(Guid id, CancellationToken cancellationToken) =>
-        WorkSelector == CaseWorkSelector.Primary
-        && await getCaseHasAuditWork.ExecuteAsync(id, cancellationToken);
 
     /// <summary>
     /// One posted image edit. The form carries what the operator chose; the

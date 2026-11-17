@@ -6,10 +6,13 @@ namespace Pegasus.IntegrationTests;
 /// A deterministic engine substitute for pipeline tests: the repository holds
 /// no genuine plate-bearing image and fabricating one is prohibited, so
 /// automatic-flow evidence uses this port fake while the real ONNX engine is
-/// covered by its own loading/abstention tests.
+/// covered by its own loading/abstention tests. A read below the automatic bar
+/// (a <c>confidence</c> under 0.80) is recorded as a suggestion that
+/// nothing acts on automatically.
 /// </summary>
 internal sealed class FakeVrmRecognitionEngine(
-    string? registration = null) : IVrmRecognitionEngine
+    string? registration = null,
+    double confidence = 0.95) : IVrmRecognitionEngine
 {
     public Task<VrmRecognitionResult> RecognizeAsync(
         ReadOnlyMemory<byte> imageBytes,
@@ -24,7 +27,7 @@ internal sealed class FakeVrmRecognitionEngine(
                 "plate-detection=fake;plate-recognition=fake")
             : new VrmRecognitionResult(
                 VrmRecognitionOutcomeKind.Suggested,
-                [new(registration, registration, 0.95, null)],
+                [new(registration, registration, confidence, null)],
                 "fake-engine",
                 "1",
                 "plate-detection=fake;plate-recognition=fake"));

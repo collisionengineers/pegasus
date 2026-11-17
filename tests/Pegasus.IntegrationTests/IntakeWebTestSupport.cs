@@ -1135,12 +1135,26 @@ internal static partial class IntakeWebDriver
         var receipt = await services.GetRequiredService<IIntakeReceiptQueries>()
             .GetAsync(receiptId, cancellationToken)
             ?? throw new InvalidOperationException("The receipt does not exist.");
-        var group = await services.GetRequiredService<IIntakeSubmissionGroupStore>()
-            .FindForMemberSourceAsync(receipt.SourceIdentity, cancellationToken)
+        var groups = services.GetRequiredService<IIntakeSubmissionGroupStore>();
+        var group = await groups.FindForMemberSourceAsync(receipt.SourceIdentity, cancellationToken)
             ?? throw new InvalidOperationException("The upload has no submission group.");
+        var actor = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+        // The upload as its page reads it: Leave is offered only on an upload
+        // that offers it (R1092), so a fixture that does not is refused here.
+        var state = await Pegasus.Web.Presentation.UploadGroupState.LoadAsync(
+            groups,
+            services.GetRequiredService<IQueuedIntakeStatusQueries>(),
+            services.GetRequiredService<IGetIntake>(),
+            services.GetRequiredService<Pegasus.Web.Presentation.IUploadOutcomeQueries>(),
+            group.Id,
+            actor,
+            cancellationToken)
+            ?? throw new InvalidOperationException("The upload does not exist.");
         await services.GetRequiredService<IDeclineImageMatch>().ExecuteAsync(
             group.Id,
-            ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+            state.AwaitsDecision,
+            state.LeaveFiles,
+            actor,
             cancellationToken);
         await ReplayCompletedWorkAsync(services, receiptId, cancellationToken);
     }

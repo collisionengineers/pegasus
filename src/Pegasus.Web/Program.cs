@@ -911,6 +911,9 @@ else
 builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
 builder.Services.AddScoped<IInspectionAddressResolutionStore, InspectionAddressResolutionStore>();
+// Create case's steps and its address fallback read that store, so the owner
+// is composed here beside it; only the Web resolves it (#2130).
+builder.Services.AddScoped<IntakeCaseCreation>();
 builder.Services.AddSingleton<IIntakeWorkEnqueuer>(
     new AzureQueueIntakeWorkEnqueuer(
         intakeWorkQueue ?? throw new InvalidOperationException("The intake queue is not configured."),
@@ -1293,7 +1296,11 @@ if (automationMcpOptions is not null)
 
         // Transport-level denials on the automation surface are material and
         // become attributable security events. Tool-level denials (scope,
-        // kill switch) are written by the actor resolver instead.
+        // kill switch) are written by the actor resolver instead. A request the
+        // resolver refused because its client is stopped has written the
+        // client-disabled event and writes that event only (R1097). A stopped
+        // client's token request is refused before the client is read, and
+        // writes the token-rejected event alone, as before (R1113).
         var status = context.Response.StatusCode;
         var isDenied = isTokenEndpoint
             ? status is StatusCodes.Status400BadRequest
@@ -1301,7 +1308,7 @@ if (automationMcpOptions is not null)
                 or StatusCodes.Status403Forbidden
             : status is StatusCodes.Status401Unauthorized
                 or StatusCodes.Status403Forbidden;
-        if (isDenied)
+        if (isDenied && !context.Items.ContainsKey(AutomationMcp.ClientDisabledRecordedItem))
         {
             await AppendAutomationDeniedSecurityEventAsync(context, isTokenEndpoint);
         }

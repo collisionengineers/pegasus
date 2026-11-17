@@ -647,14 +647,23 @@ short labels; then the folded **History**, which names who acted:
 "Cancelled · name", "Link extended · name", "Call logged · name" (operator,
 9 November 2026; R805), "Reminded · name", one line for each reminder
 (operator, 10 November 2026; R870), and "Sent by text · name" or "Text not
-sent · name" (R921). Resend on an
+sent · name" (R921). An act the Automation Actor made reads "Automation"
+there and in Sent by (operator, 16 November 2026; [R1093](../rulings.md)),
+and a link records a member of staff as its sender only when one sent it
+([R1116](../rulings.md)). Resend on an
 expired link is refused with "The link has expired; extend it first.", and
 on a cancelled link with "The link was cancelled; send a new one from the
 Case." (operator, 10 November 2026; R863). A live link on a Case also offers
 **Cancel link** in the More of its bar in the Case's Files → Images
 ([FRD-16](frd-16-case-record-workspace.md)). Cancel is the same act wherever
 it is offered, with the same refusal, and a repeated click cancels once
-(operator, 9 November 2026; R795). Paperwork and video a capture with no
+(operator, 9 November 2026; R795). Log call, Extend and Cancel are refused
+where the page does not offer them, by the one Core rule the page draws its
+acts from (operator, 16 November 2026; [R1092](../rulings.md)); the page
+then shows "The action was not applied because the item changed or the
+action is not permitted. Reload and try again.", and a repeat of an act
+already recorded is answered as done (operator, 17 November 2026;
+[R1110](../rulings.md), [R1111](../rulings.md)). Paperwork and video a capture with no
 Case received stay kept and unfiled, and each opens from the link's page as
 any received file opens; nothing new is filed, chased or deleted, and a
 capture that sent only paperwork stays on Standing links (operator, 9 November

@@ -489,6 +489,12 @@ public sealed class PhotoCaptureSecurityTests
             DateTimeOffset calledAtUtc,
             CancellationToken cancellationToken) => throw Outside();
 
+        public Task<bool> HasRecordedActAsync(
+            Guid captureId,
+            string act,
+            string operationKey,
+            CancellationToken cancellationToken) => throw Outside();
+
         public Task<bool> RecordTextAsync(
             Guid captureId,
             ActionActor actor,

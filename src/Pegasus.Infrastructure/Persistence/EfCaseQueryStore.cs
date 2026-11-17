@@ -14,7 +14,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfCaseQueryStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ICaseQueryStore, ICaseKindQueries, ICaseCircumstancesQueries, ICaseWorkQueries, ICaseDocumentQueries, INotReadyCaseQueries, IAvailableReportSentEvidenceQueries
+    TimeProvider timeProvider) : ICaseQueryStore, ICaseKindQueries, ICaseCircumstancesQueries, ICaseDocumentQueries, INotReadyCaseQueries, IAvailableReportSentEvidenceQueries
 {
     /// <inheritdoc />
     async Task<IReadOnlyList<CaseDocument>> ICaseDocumentQueries.ListAsync(Guid caseId, CancellationToken cancellationToken)
@@ -135,14 +135,6 @@ public sealed class EfCaseQueryStore(
                 ? confirmed.Value == CaseDataFieldValues.ClearedValue ? null : confirmed.Value
                 : fact != null ? fact.Value : draft!.AccidentCircumstances)
             .SingleOrDefaultAsync(cancellationToken);
-    }
-
-    /// <inheritdoc />
-    async Task<bool> ICaseWorkQueries.HasAuditWorkAsync(Guid caseId, CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.CaseWorks.AsNoTracking()
-            .AnyAsync(work => work.CaseId == caseId && work.Kind == CaseWorkKinds.Audit, cancellationToken);
     }
 
     public async Task<SearchCasesResult> SearchAsync(

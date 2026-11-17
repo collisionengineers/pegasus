@@ -30,7 +30,7 @@ public sealed partial class DetailsModel(
     OneCommandEdit oneCommandEdit,
     ICreateAiJob createAiJob,
     ILinkIntake linkIntake,
-    IVrmSuggestionStore vrmSuggestions,
+    DismissRegistrationReading dismissReading,
     Pegasus.Web.Intake.StaffIntakeActions intakeActions,
     IGetPreCaseImagePreparations getPreparations,
     Pegasus.Core.Documents.IReadImageTagVocabulary tagVocabulary,
@@ -412,10 +412,8 @@ public sealed partial class DetailsModel(
             null,
             async (actor, context) =>
             {
-                context.RequireReading(suggestionId);
-                await vrmSuggestions.SetDispositionAsync(
-                    new(suggestionId, ImageVrmSuggestionDisposition.Dismissed, actor, reason, operationKey),
-                    cancellationToken);
+                await dismissReading.ExecuteAsync(
+                    context, suggestionId, actor, reason, operationKey, cancellationToken);
                 return "The registration reading was dismissed.";
             },
             cancellationToken);

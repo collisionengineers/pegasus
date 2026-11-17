@@ -1023,7 +1023,7 @@ internal static class ImageIntakeTestData
     /// case (with a real origin receipt) reachable by case search.
     /// </summary>
     public static async Task<Guid> SeedInstructionCaseAsync(
-        IntakeWebApplicationFactory factory,
+        Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> factory,
         HttpClient client,
         string registration,
         string claimNumber)

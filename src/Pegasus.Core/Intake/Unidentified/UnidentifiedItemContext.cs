@@ -65,6 +65,21 @@ public sealed record UnidentifiedItemContext(
             throw new InvalidOperationException("The reading is not on this item.");
         }
     }
+
+    /// <summary>
+    /// Dismiss is offered only on a pending, suggested reading of an open
+    /// item with a file of its own; a submission-group item has none. The
+    /// record's Dismiss, its handler and the Automation Actor's dismiss all
+    /// follow this one rule (R1092).
+    /// </summary>
+    public bool OffersDismiss(ImageVrmSuggestion reading)
+    {
+        ArgumentNullException.ThrowIfNull(reading);
+        return Receipt is not null
+            && Item.State == UnidentifiedState.Open
+            && reading.Disposition == ImageVrmSuggestionDisposition.Pending
+            && reading.Outcome == VrmRecognitionOutcomeKind.Suggested;
+    }
 }
 
 public sealed class GetUnidentifiedItemContext(

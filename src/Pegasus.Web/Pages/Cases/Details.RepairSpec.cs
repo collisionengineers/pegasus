@@ -198,9 +198,7 @@ public sealed partial class DetailsModel
     public string? ImportCondition =>
         !AssessmentCanOpen
             ? Labels.CaseWorkspace.EngineerSections.NotAvailableForCase
-            : AssessmentIsReadOnly
-                ? Labels.CaseWorkspace.EngineerSections.ReadOnlyOnceComplete
-                : null;
+            : null;
 
     public string? SendToClaudeCondition { get; private set; }
 

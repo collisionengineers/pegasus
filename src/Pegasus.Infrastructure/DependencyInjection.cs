@@ -170,7 +170,6 @@ public static class DependencyInjection
         services.AddScoped<PromoteAssociatedIntakeCaseEvidence>();
         services.AddScoped<IOriginalReportRecognitionDeferrals, EfOriginalReportRecognitionDeferrals>();
         services.AddScoped<ResolveIntake>();
-        services.AddScoped<IntakeCaseCreation>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
         services.AddScoped<IRetryIntakeOcr, RetryIntakeOcr>();
         services.AddScoped<ILinkIntake, LinkIntake>();
@@ -178,6 +177,7 @@ public static class DependencyInjection
         services.AddScoped<EfImageIntakeStore>();
         services.AddScoped<IImageIntakeStore>(provider => provider.GetRequiredService<EfImageIntakeStore>());
         services.AddScoped<IImageIntakeQueries>(provider => provider.GetRequiredService<EfImageIntakeStore>());
+        services.AddScoped<ListAwaitingImageIntakesByCursor>();
         services.AddScoped<IImageIntakeOriginResolver, EfImageIntakeOriginResolver>();
         services.AddScoped<IImageIntakeCaseCandidates, EfImageIntakeCaseCandidates>();
         services.AddScoped<IRegisterImageIntake, RegisterImageIntake>();
@@ -248,6 +248,7 @@ public static class DependencyInjection
         services.AddSingleton<IExtractPdfPageText, PdfPigPageTextExtractor>();
         services.AddScoped<ReadPreCaseImageThumbnail>();
         services.AddScoped<GetUnidentifiedItemContext>();
+        services.AddScoped<DismissRegistrationReading>();
         services.AddScoped<GetIntakeOfferedActions>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
         services.AddScoped<EfTriageStore>();
@@ -508,8 +509,6 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ICaseCircumstancesQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
-        services.AddScoped<ICaseWorkQueries>(
-            provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<ICaseDocumentQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<INotReadyCaseQueries>(
@@ -517,7 +516,6 @@ public static class DependencyInjection
         services.AddScoped<IAvailableReportSentEvidenceQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<IGetCaseKind, GetCaseKind>();
-        services.AddScoped<GetCaseHasAuditWork>();
         services.AddScoped<ISearchCases, SearchCases>();
         services.AddScoped<IGetCaseCircumstances, GetCaseCircumstances>();
         services.AddScoped<SearchCasesByCursor>();

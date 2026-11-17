@@ -392,7 +392,12 @@ Where Core allows it the record also offers **Open the Triage**, which
 creates a Triage Case under the receipt's Principal and is not offered when
 that Principal is not established
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)). It lists
-registration readings with Dismiss (reason), and on a closed item shows the
+registration readings, with Dismiss (reason) on a pending suggested reading
+while the item is open and holds one file; the record, its own handler and
+the Automation tool follow that one Core rule, and a Dismiss posted where it
+is not offered shows the general not-applied sentence and changes nothing
+(operator, 16 and 17 November 2026; [R1092](../rulings.md),
+[R1111](../rulings.md)). On a closed item it shows the
 outcome with **Reopen** (reason). An image on the item offers crop and tag
 ([FRD-19](frd-19-image-led-intake-and-pairing.md#operator-surfaces)). There is
 no "Resolution" or "Resolve material" wording in the UI. An exact U-reference

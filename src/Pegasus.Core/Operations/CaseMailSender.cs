@@ -104,6 +104,35 @@ public sealed record StaffMailAnswer(ApprovedMailbox? Default, IReadOnlyList<App
             sending);
     }
 
+    /// <summary>
+    /// Who the retained <paramref name="detail"/> is answered as, for staff
+    /// and for the Automation Actor's <c>pegasus_mail_send</c> alike: the
+    /// send-ready mailbox that holds it, which Forward sends as, and the
+    /// answer Reply and Reply all leave from: any send-ready mailbox,
+    /// starting on the default (R655).
+    /// </summary>
+    public static async Task<(ApprovedMailbox? Holding, StaffMailAnswer Reply)> ForMessageAsync(
+        RetainedMailDetail detail,
+        IApprovedMailboxStore mailboxes,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(detail);
+        ArgumentNullException.ThrowIfNull(mailboxes);
+        if (string.IsNullOrWhiteSpace(detail.ImmutableMessageId)
+            || detail.Summary.Id == Guid.Empty
+            || detail.Summary.MailboxId == Guid.Empty)
+        {
+            return (null, None);
+        }
+        var answer = For(
+            detail.Summary.MailboxId,
+            detail.Summary.MailboxAddress,
+            detail.Summary.SenderAddress,
+            detail.Summary.EffectiveSenderAddress,
+            await mailboxes.ListAsync(cancellationToken).ConfigureAwait(false));
+        return (answer.Choices.Sender(detail.Summary.MailboxId), answer);
+    }
+
     /// <summary>The mailbox among <paramref name="sending"/> at <paramref name="address"/>; none otherwise.</summary>
     private static ApprovedMailbox? Named(IReadOnlyList<ApprovedMailbox> sending, string? address) =>
         string.IsNullOrWhiteSpace(address)

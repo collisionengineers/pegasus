@@ -317,7 +317,6 @@ public static partial class OperatorLabels
             public const string Type = "Type";
             public const string ToBeConfirmed = "To be confirmed";
 
-            public const string ReadOnlyOnceComplete = "Read-only once Complete";
             public const string SendingToAiDisabled = "Sending to AI is disabled by an Administrator";
             public const string EngineerValueRequired = "An Engineer's Value is required";
             public const string NotAvailableForCase = "Not available for this case";

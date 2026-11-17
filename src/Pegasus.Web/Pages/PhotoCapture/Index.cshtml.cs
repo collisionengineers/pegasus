@@ -30,16 +30,6 @@ public sealed class IndexModel(
 {
     private const int PageSize = 25;
 
-    /// <summary>
-    /// One list row with what is derived from it as it is read (FRD-28: never
-    /// stored). <see cref="IsLive"/> is whether the link still takes photos,
-    /// which Resend needs (Core refuses it on a dead link).
-    /// </summary>
-    public sealed record Row(PhotoCaptureListRow Source, PhotoCaptureState State, DueCaptureReminder? Due, bool IsLive)
-    {
-        public Pegasus.Core.PhotoCapture.PhotoCapture Capture => Source.Capture;
-    }
-
     /// <summary>One standing link of the directory with its address.</summary>
     public sealed record StandingLink(StandingPhotoLinkListing Listing, string? Url)
     {
@@ -72,7 +62,8 @@ public sealed class IndexModel(
 
     public PhotoCaptureScope Scope => Labels.ScopeFromKey(ScopeKey);
 
-    public IReadOnlyList<Row> Rows { get; private set; } = [];
+    /// <summary>The page's rows, each with what Core derives from it as it is read (#2130; R1092).</summary>
+    public IReadOnlyList<PhotoCaptureRowStatus> Rows { get; private set; } = [];
 
     public int TotalCount { get; private set; }
 
@@ -134,7 +125,7 @@ public sealed class IndexModel(
                 new(Direct, Query, Scope, SelectedLink?.Link.Id, PageSize, CurrentPage),
                 cancellationToken);
             TotalCount = page.TotalCount;
-            Rows = [.. page.Rows.Select(row => Derive(row, Now))];
+            Rows = [.. page.Rows.Select(row => PhotoCaptureRowStatus.For(row, Now))];
             Counts = page.CountsByScope;
             AwaitingCount = Direct
                 ? Counts.GetValueOrDefault(PhotoCaptureScope.Awaiting)
@@ -175,20 +166,6 @@ public sealed class IndexModel(
 
     private string? AddressOf(StandingPhotoLink link) =>
         options?.Value is { } value ? PhotoLinkMail.StandingUrl(value, link.Slug) : null;
-
-    /// <summary>
-    /// The state and due reminder a row derives, from its own record and
-    /// missing items; a link whose Case is archived is dead (R793).
-    /// </summary>
-    public static Row Derive(PhotoCaptureListRow row, DateTimeOffset now)
-    {
-        ArgumentNullException.ThrowIfNull(row);
-        return new(
-            row,
-            PhotoCaptureStatus.Evaluate(row.Capture, PhotoCaptureStatus.MissingOf(row), row.Photographs, now, row.CaseArchived),
-            PhotoCaptureStatus.DueReminder(row, now),
-            PhotoCaptureAccess.IsLive(row.Capture, now, row.CaseArchived));
-    }
 
     /// <summary>
     /// This list's address with what is given changed: <paramref name="direct"/>

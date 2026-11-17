@@ -334,7 +334,11 @@ capture pages ([FRD-28](frd-28-guided-photo-capture.md#staff-pages)),
 through the same Core commands and with no Case edit lease, as the pages
 take none (R1039, R1040). `pegasus_photo_link_action` extends, cancels or
 logs a call where the link's page offers it; a repeated operation key acts
-once. Sending a link by e-mail or text is `pegasus_photo_link_send`,
+once. What a link offers is one Core rule, which the page, its own handlers
+and the tool all follow (operator, 16 November 2026;
+[R1092](../rulings.md)); a call that repeats an operation key which already
+recorded that act is answered as the first was, whatever the link now offers
+(operator, 17 November 2026; [R1110](../rulings.md)). Sending a link by e-mail or text is `pegasus_photo_link_send`,
 under `automation.send` ([Sending](#sending)). Standing and website links
 are managed by Administrators only. With `Features:PhotoCapture` off every
 photo link tool refuses.
@@ -496,7 +500,15 @@ history and replays by its operation key.
   **Register images**; `pegasus_unidentified_action` takes the record's
   **Register images** (`register_images`; an upload group item registers its
   whole group as one record) and a reading's **Dismiss**
-  (`dismiss_reading`), each with a reason. Unidentified reason codes on the
+  (`dismiss_reading`), each with a reason. Dismiss is offered, by one Core
+  rule the record, its own handler and the tool follow, only for a pending
+  suggested reading on an open item of one file ([R1092](../rulings.md)):
+  `pegasus_unidentified_get` says so on each reading (`canDismiss`), and
+  `dismiss_reading` on any other pending reading is refused with
+  "dismiss_reading is not offered on this reading; pegasus_unidentified_get
+  lists the readings that offer it." (operator, 17 November 2026;
+  [R1112](../rulings.md)). A reading already decided answers the operation
+  key that decided it ([R1110](../rulings.md)). Unidentified reason codes on the
   wire are the Core list under `unidentified`.
 - `pegasus_image_intake_list` lists the Image Intake records (staff label
   Vehicle images) awaiting instruction with no Case, as the Cases page does;
@@ -513,7 +525,14 @@ history and replays by its operation key.
   every file to one Case, `leave` the matched Cases undecided, or `discard`
   the upload. A `discard` call is its own confirmation: the tool asks for no
   counterpart of the page's consequences tick (operator, 16 November 2026;
-  [R1094](../rulings.md)). Any member of staff who does casework may decide any upload, so
+  [R1094](../rulings.md)). `leave` is offered, by one Core rule the upload
+  pages, their handlers and the tool follow, only while the upload awaits
+  its decision and every file is a possible match and image-only
+  ([R1092](../rulings.md), [R1115](../rulings.md)): `pegasus_upload_group_get`
+  says so (`canLeave`), and `leave` on any other upload is refused with
+  "leave is not offered on this upload; pegasus_upload_group_get says whether
+  it is." ([R1112](../rulings.md)); an upload already left answers as done
+  ([R1110](../rulings.md)). Any member of staff who does casework may decide any upload, so
   the Automation Actor may too.
 - The Automation Actor reads, reclassifies and links mail through the mail
   tools in scope `automation.mail` (operator ruling, 15 October 2026).
@@ -729,6 +748,12 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-27.
   the call that uses it, and nothing is written.
 - A stopped automation client is refused by the kill switch before any tool
   runs ([ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md)).
+  Its refused call writes one security event on every address:
+  `automation_client_disabled`, and on the token address
+  `automation_token_rejected`, because Stop removes the client's token
+  permissions and the request is refused before the client is read
+  (operator, 16 and 17 November 2026; [R1097](../rulings.md),
+  [R1113](../rulings.md)).
 - A lifecycle, report or document act the Case's state does not allow is
   refused with Core's reason and writes nothing; an act missing an input it
   needs is refused before any lease is claimed.
@@ -743,7 +768,8 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-27.
 - A photo link act the link's page does not offer (extend on a cancelled
   link, cancel on a dead one, log_call on a standing capture) is refused
   and changes nothing; a resend Core refuses, on a cancelled or expired
-  link, is refused with Core's sentence.
+  link, is refused with Core's sentence. A `dismiss_reading` or a `leave`
+  its page does not offer is refused in the same way.
 - A reply or reply all takes no recipients of its own; a chaser or forward
   without a To recipient, or with an address that is not a plain e-mail
   address, is refused and nothing is sent.
