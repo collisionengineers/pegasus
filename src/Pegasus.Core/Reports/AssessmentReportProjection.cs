@@ -168,8 +168,7 @@ public static class AssessmentReportProjection
             : Ready(owned.ClaimNumber, "claim reference");
         var incidentDate = Ready(owned.IncidentDate, "incident date");
         var assessedOn = Ready(owned.InspectionDate, "inspection date");
-        var assessmentMethod = MapAssessmentMethod(owned.InspectionMode)
-            ?? throw new InvalidDataException("A ready report is missing its inspection type.");
+        var locationAddress = Ready(owned.InspectionAddress, "inspection address");
         var reportOutcome = AssessmentReportOutcomes.Parse(Field(fields, AssessmentVocabulary.Outcome)!);
         var signatory = input.Signatory!;
 
@@ -186,8 +185,10 @@ public static class AssessmentReportProjection
             Outcome: reportOutcome,
             LegalStatus: Field(fields, AssessmentVocabulary.LegalStatus)!,
             UnroadworthyReason: Field(fields, AssessmentVocabulary.UnroadworthyReason),
-            AssessmentMethod: assessmentMethod!,
-            LocationAddress: owned.InspectionAddress,
+            // Every assessment is image based (R1078): the report carries
+            // Desktop Assessment and prints what Inspect at holds (R1116).
+            AssessmentMethod: ImageBasedMethod,
+            LocationAddress: locationAddress,
             EngineerValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueEngineer)) ?? 0m,
             RetailValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueRetail)) ?? 0m,
             TradeValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueTrade)),
@@ -363,12 +364,7 @@ public static class AssessmentReportProjection
             .ToArray();
     }
 
-    private static string? MapAssessmentMethod(string? inspectionMode) => inspectionMode switch
-    {
-        "PhysicalAddress" => "physical",
-        "ImageBasedAssessment" => "image_based",
-        _ => null,
-    };
+    private const string ImageBasedMethod = "image_based";
 
     private static decimal? ParseMoney(string? value) =>
         value is not null

@@ -1094,7 +1094,6 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         ("inspectionDate", InputValue(html, "inspectionDate")),
         ("inspectionDeadline", InputValue(html, "inspectionDeadline")),
         ("inspectionAddress", InputValue(html, "inspectionAddress")),
-        ("inspectionMode", InputValue(html, "inspectionMode")),
         ("storageLocation", InputValue(html, "storageLocation"))
     ];
 

@@ -106,7 +106,7 @@ internal sealed class CaseEditMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Edits the Case facts staff edit on the Case page: claimant, claim, accident, VAT status, repairer (typed, or linked to a directory Repairer), claim source (a directory Claim source) and its contact for this Case, Principal and Claim source notes, due by, vehicle identity and mileage, inspection and the Sign-off Engineer. Omit a value to leave it as it is; send an empty string to clear a text or date value. Values not named are never changed. Needs the expected case version. Dates are yyyy-MM-dd; inspectionMode is 'physical_address' or 'image_based_assessment'. Assessment fields (outcome, roadworthiness, values, damage and the rest) are written with pegasus_assessment_update.")]
+    [Description("Edits the Case facts staff edit on the Case page: claimant, claim, accident, VAT status, repairer (typed, or linked to a directory Repairer), claim source (a directory Claim source) and its contact for this Case, Principal and Claim source notes, due by, vehicle identity and mileage, inspection and the Sign-off Engineer. Omit a value to leave it as it is; send an empty string to clear a text or date value. Values not named are never changed. Needs the expected case version. Dates are yyyy-MM-dd. Every Case's inspection type is Image Based Assessment; inspectionAddress is Inspect at, a place or the words 'Image Based Assessment'. Assessment fields (outcome, roadworthiness, values, damage and the rest) are written with pegasus_assessment_update.")]
     public async Task<CaseUpdateDetailsToolResult> UpdateDetailsAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
@@ -135,8 +135,7 @@ internal sealed class CaseEditMcpTools(
         [Description("Vehicle year.")] string? vehicleYear = null,
         [Description("Vehicle mileage (whole number).")] long? vehicleMileage = null,
         [Description("Vehicle mileage unit: miles or km.")] string? vehicleMileageUnit = null,
-        [Description("Inspection address.")] string? inspectionAddress = null,
-        [Description("Inspection mode: physical_address or image_based_assessment.")] string? inspectionMode = null,
+        [Description("Inspection address (Inspect at): a place, or the words 'Image Based Assessment'.")] string? inspectionAddress = null,
         [Description("Storage location for the vehicle.")] string? storageLocation = null,
         [Description("Inspection date, yyyy-MM-dd; the report prints it as the date the damage was assessed.")] string? inspectionDate = null,
         [Description("Inspection deadline, yyyy-MM-dd.")] string? inspectionDeadline = null,
@@ -151,7 +150,6 @@ internal sealed class CaseEditMcpTools(
             async (context, key) =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
-                var mode = ParseInspectionMode(inspectionMode);
                 var saved = await leases.RunCaseAsync(
                     caseId,
                     expectedVersion,
@@ -252,12 +250,12 @@ internal sealed class CaseEditMcpTools(
                         }
 
                         CaseWorkspaceInspection? inspection = null;
-                        if (Any(inspectionAddress, inspectionMode, storageLocation, inspectionDate, inspectionDeadline))
+                        if (Any(inspectionAddress, storageLocation, inspectionDate, inspectionDeadline))
                         {
                             await LoadAssessmentAsync();
                             var address = Text(inspectionAddress, Accepted(data.Inspection.Address));
                             var treatment = CaseDetailsSaveRules.InspectionTreatment(
-                                mode, inspectionAddress is not null, persisted?.InspectionAddressTreatment, address);
+                                inspectionAddress is not null, persisted?.InspectionAddressTreatment, address);
                             inspection = new(
                                 treatment,
                                 address,
@@ -499,15 +497,4 @@ internal sealed class CaseEditMcpTools(
         submitted is null
             ? current
             : AutomationMcpErrors.OptionalDate(submitted, $"The {name} value must be a yyyy-MM-dd date.");
-
-    private static CaseInspectionMode? ParseInspectionMode(string? value) =>
-        string.IsNullOrWhiteSpace(value)
-            ? null
-            : value.Trim() switch
-            {
-                "physical_address" => CaseInspectionMode.PhysicalAddress,
-                "image_based_assessment" => CaseInspectionMode.ImageBasedAssessment,
-                _ => throw new McpException(
-                    "The inspection mode must be physical_address or image_based_assessment.")
-            };
 }

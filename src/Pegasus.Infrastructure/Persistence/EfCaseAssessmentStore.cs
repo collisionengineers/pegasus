@@ -283,14 +283,6 @@ public sealed class EfCaseAssessmentStore(
                 ? DateOnly.ParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture)
                 : null;
 
-        var inspectionMode = Current(CaseDataFieldNames.InspectionMode) switch
-        {
-            null => null,
-            "physical_address" => nameof(CaseInspectionMode.PhysicalAddress),
-            "image_based_assessment" => nameof(CaseInspectionMode.ImageBasedAssessment),
-            var unknown => throw new InvalidDataException(
-                $"Unknown persisted inspection mode '{unknown}'.")
-        };
         // The report's mileage-source sentence is derived from where the case's
         // mileage came from, so it is read off the winning mileage row's own
         // provenance.
@@ -315,7 +307,6 @@ public sealed class EfCaseAssessmentStore(
             mileageSource,
             CurrentDate(CaseDataFieldNames.IncidentDate),
             receivedDate,
-            inspectionMode,
             Current(CaseDataFieldNames.InspectionAddress),
             CurrentDate(CaseDataFieldNames.InspectionDate),
             Current(CaseDataFieldNames.ClaimantName),

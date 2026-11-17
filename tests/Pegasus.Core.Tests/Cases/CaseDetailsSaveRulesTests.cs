@@ -65,23 +65,31 @@ public sealed class CaseDetailsSaveRulesTests
     }
 
     [Fact]
-    public void TheInspectionTreatmentIsTheNamedModeThenTheRecordedOneThenTheAddress()
+    public void TheInspectionTreatmentIsTheRecordedOneUntilTheAddressIsNamedThenWhatTheAddressIs()
     {
         const CaseReportAddressTreatment recorded = CaseReportAddressTreatment.PhysicalVehicleLocation;
 
         Assert.Equal(
-            CaseReportAddressTreatment.ImageBasedAssessment,
-            CaseDetailsSaveRules.InspectionTreatment(
-                CaseInspectionMode.ImageBasedAssessment, addressNamed: true, recorded, "1 Garage Lane"));
-        Assert.Equal(
             recorded,
-            CaseDetailsSaveRules.InspectionTreatment(null, addressNamed: false, recorded, "Image Based Assessment"));
+            CaseDetailsSaveRules.InspectionTreatment(addressNamed: false, recorded, "Image Based Assessment"));
         Assert.Equal(
             CaseReportAddressTreatment.ImageBasedAssessment,
-            CaseDetailsSaveRules.InspectionTreatment(null, addressNamed: true, recorded, "Image Based Assessment"));
+            CaseDetailsSaveRules.InspectionTreatment(addressNamed: true, recorded, "Image Based Assessment"));
+        // The words in another letter case are still the words (#2109).
+        Assert.Equal(
+            CaseReportAddressTreatment.ImageBasedAssessment,
+            CaseDetailsSaveRules.InspectionTreatment(addressNamed: true, recorded, "image based assessment"));
+        Assert.Equal(
+            CaseReportAddressTreatment.PhysicalVehicleLocation,
+            CaseDetailsSaveRules.InspectionTreatment(
+                addressNamed: true, CaseReportAddressTreatment.ImageBasedAssessment, "1 Garage Lane"));
+        // KERR26002-p (#2141): an address emptied is no treatment at all.
         Assert.Equal(
             CaseReportAddressTreatment.Undetermined,
-            CaseDetailsSaveRules.InspectionTreatment(null, addressNamed: false, null, null));
+            CaseDetailsSaveRules.InspectionTreatment(addressNamed: true, recorded, null));
+        Assert.Equal(
+            CaseReportAddressTreatment.Undetermined,
+            CaseDetailsSaveRules.InspectionTreatment(addressNamed: false, null, null));
     }
 
     [Fact]

@@ -103,7 +103,6 @@ public sealed class CaseTasksWebTests
             "vatStatus",
             "inspectionDate",
             "inspectionDeadline",
-            "inspectionMode",
             "storageLocation"
         })
         {

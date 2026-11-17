@@ -348,23 +348,12 @@ public static class AssessmentPolicy
             !string.IsNullOrWhiteSpace(owned.Registration), "Vehicle registration", CaseDataFieldNames.VehicleRegistration,
             "The report prints the registration and none is recorded.",
             "Record it on the Vehicle section.");
-        if (owned.InspectionMode is null)
-        {
-            items.Add(new(
-                "Inspection type", "Case record",
-                "The report says how the vehicle was assessed and no inspection type is recorded.",
-                "Choose Inspect at on the Inspection details section.",
-                Field: CaseDataFieldNames.InspectionMode));
-        }
-        else if (owned.InspectionMode == nameof(CaseInspectionMode.PhysicalAddress)
-            && string.IsNullOrWhiteSpace(owned.InspectionAddress))
-        {
-            items.Add(new(
-                "Inspection address", "Case record",
-                "The vehicle is inspected at a physical location and no address is recorded for the report to print.",
-                "Record the address on the Inspection details section.",
-                Field: CaseDataFieldNames.InspectionAddress));
-        }
+        // Every Case is an Image Based Assessment (R1078); what varies is
+        // Inspect at, and the report prints it, so an empty one blocks (R1114, R1115).
+        RequireCaseFact(
+            !string.IsNullOrWhiteSpace(owned.InspectionAddress), "Inspection address", CaseDataFieldNames.InspectionAddress,
+            "No inspection address is recorded for the report to print.",
+            "Choose Inspect at on the Inspection details section.");
         RequireCaseFact(
             owned.InspectionDate is not null, "Inspection date", CaseDataFieldNames.InspectionDate,
             "The report says the damage was assessed on the Inspection date and none is recorded.",

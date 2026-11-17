@@ -2675,9 +2675,9 @@
 
 // --- vehicle -----------------------------------------------------------------
 // --- Inspection details and Vehicle (lane A) -------------------------------
-// The Inspect-at choice filling the address input, and the hidden
-// `inspectionMode` it drives, are site.js's Inspect-at block, bound per root
-// through window.pegasusMountBinders, so an in-place swap re-binds them. The
+// The Inspect-at choice filling the address input is site.js's Inspect-at
+// block, bound per root through window.pegasusMountBinders, so an in-place
+// swap re-binds it. The
 // lookup and the Save are plain forms the frame posts in place. The Vehicle
 // and Inspection sections read and edit with the shared one-geometry cells.
 //

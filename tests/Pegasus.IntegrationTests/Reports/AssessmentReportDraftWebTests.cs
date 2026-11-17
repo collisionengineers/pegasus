@@ -845,8 +845,7 @@ public sealed partial class AssessmentReportDraftWebTests
             MileageSource: "online_data",
             IncidentDate: new DateOnly(2026, 8, 1),
             ReceivedDate: new DateOnly(2026, 8, 2),
-            InspectionMode: "ImageBasedAssessment",
-            InspectionAddress: null,
+            InspectionAddress: "Image Based Assessment",
             InspectionDate: new DateOnly(2026, 8, 3),
             ClaimantName: "Alex Example",
             ClaimNumber: "P-100");
@@ -1015,7 +1014,7 @@ public sealed partial class AssessmentReportDraftWebTests
         private static CaseDataProjection Data(CaseSectionFrame frame) =>
             AssessmentWorkspaceTestData.Create(new CaseAssessmentProjection(
                 frame.Summary.CaseId, frame.Summary.Reference, frame.Workflow.Version, frame.Workflow.State, null, [], [],
-                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null))).Data;
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null))).Data;
     }
 
     private sealed class FakeGetCaseAssessment(CaseAssessmentProjection projection) : IGetCaseAssessment

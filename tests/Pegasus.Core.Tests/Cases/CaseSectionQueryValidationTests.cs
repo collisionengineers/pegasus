@@ -333,7 +333,7 @@ public sealed class CaseSectionQueryValidationTests
             [],
             new AssessmentCaseOwnedData(
                 null, null, null, null, null, null, "tbc", null,
-                new DateOnly(1970, 1, 1), null, null, null, null, null)),
+                new DateOnly(1970, 1, 1), null, null, null, null)),
         CurrentSpecification: null);
 
     private static CaseSectionFrame Frame(Guid caseId) => Frame(caseId, caseId);

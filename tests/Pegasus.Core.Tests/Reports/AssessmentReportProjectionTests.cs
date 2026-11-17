@@ -449,7 +449,6 @@ public sealed class AssessmentReportProjectionTests
                 MileageUnit = null,
                 MileageSource = "tbc",
                 IncidentDate = null,
-                InspectionMode = null,
                 InspectionAddress = null,
                 InspectionDate = null
             }
@@ -460,7 +459,7 @@ public sealed class AssessmentReportProjectionTests
             input.CurrentEstimate,
             input.Signatory);
 
-        string[] printed = ["Vehicle registration", "Incident date", "Inspection type", "Inspection date"];
+        string[] printed = ["Vehicle registration", "Incident date", "Inspection address", "Inspection date"];
         Assert.False(result.CanGenerate);
         Assert.Equal(
             printed.Order(StringComparer.Ordinal),
@@ -476,7 +475,6 @@ public sealed class AssessmentReportProjectionTests
     [InlineData(CaseDataFieldNames.ClaimNumber, "Claim reference")]
     [InlineData(CaseDataFieldNames.IncidentDate, "Incident date")]
     [InlineData(CaseDataFieldNames.VehicleRegistration, "Vehicle registration")]
-    [InlineData(CaseDataFieldNames.InspectionMode, "Inspection type")]
     [InlineData(CaseDataFieldNames.InspectionDate, "Inspection date")]
     [InlineData(CaseDataFieldNames.InspectionAddress, "Inspection address")]
     public void AMissingPrintedCaseFactIsNotReadyAndNeverThrows(string field, string requirement)
@@ -531,12 +529,32 @@ public sealed class AssessmentReportProjectionTests
         Assert.Equal("P-100", withClaimNumber.Snapshot!.YourReference);
     }
 
-    [Fact]
-    public void UnrecognizedInspectionModeAtGenerationIsAnInvalidState()
+    /// <summary>
+    /// Every Case is an Image Based Assessment (R1078), so the report carries
+    /// Desktop Assessment whatever Inspect at holds, and prints that: a place,
+    /// or the words themselves (R1116).
+    /// </summary>
+    [Theory]
+    [InlineData("Image Based Assessment")]
+    [InlineData("1 Test Street, London")]
+    public void EveryReportIsImageBasedAndPrintsWhatInspectAtHolds(string inspectAt)
     {
         var input = ReadyInput();
-        Assert.Throws<InvalidDataException>(() => AssessmentReportProjection.Project(
-            input with { Assessment = input.Assessment with { CaseOwned = input.Assessment.CaseOwned with { InspectionMode = "Unknown" } } }));
+
+        var result = AssessmentReportProjection.Project(input with
+        {
+            Assessment = input.Assessment with
+            {
+                CaseOwned = input.Assessment.CaseOwned with { InspectionAddress = inspectAt }
+            }
+        });
+
+        Assert.True(result.IsReady);
+        var snapshot = result.Snapshot!;
+        Assert.Equal("image_based", snapshot.AssessmentMethod);
+        Assert.True(snapshot.IsImageBased);
+        Assert.Equal(inspectAt, snapshot.LocationAddress);
+        Assert.Contains($"Vehicle located at: {inspectAt}.", AssessmentReportWording.Introduction(snapshot), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1124,8 +1142,7 @@ public sealed class AssessmentReportProjectionTests
             MileageSource: "online_data",
             IncidentDate: new DateOnly(2026, 8, 1),
             ReceivedDate: new DateOnly(2026, 8, 2),
-            InspectionMode: "ImageBasedAssessment",
-            InspectionAddress: null,
+            InspectionAddress: "Image Based Assessment",
             InspectionDate: new DateOnly(2026, 8, 3),
             ClaimantName: "Alex Example",
             ClaimNumber: "P-100");
@@ -1170,8 +1187,7 @@ public sealed class AssessmentReportProjectionTests
 
     /// <summary>
     /// <paramref name="owned"/> without the one printed Case fact named by its
-    /// Case field. An address is printed only for a vehicle inspected at a
-    /// physical location, so the address is removed from such an inspection.
+    /// Case field.
     /// </summary>
     private static AssessmentCaseOwnedData WithoutCaseFact(AssessmentCaseOwnedData owned, string field) => field switch
     {
@@ -1179,13 +1195,8 @@ public sealed class AssessmentReportProjectionTests
         CaseDataFieldNames.ClaimNumber => owned with { ClaimNumber = null },
         CaseDataFieldNames.IncidentDate => owned with { IncidentDate = null },
         CaseDataFieldNames.VehicleRegistration => owned with { Registration = null },
-        CaseDataFieldNames.InspectionMode => owned with { InspectionMode = null },
         CaseDataFieldNames.InspectionDate => owned with { InspectionDate = null },
-        CaseDataFieldNames.InspectionAddress => owned with
-        {
-            InspectionMode = nameof(CaseInspectionMode.PhysicalAddress),
-            InspectionAddress = null
-        },
+        CaseDataFieldNames.InspectionAddress => owned with { InspectionAddress = null },
         _ => throw new ArgumentOutOfRangeException(nameof(field), field, "Not a Case fact the report prints.")
     };
 
